@@ -132,13 +132,13 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 }
 
 /// Intersect twos sorted arrays `left` and `right` and outputs the
-/// resulting array inline in both `left` and `right`.
+/// resulting array in left.
 ///
 /// Condition for match is that the value stored in left is less than or equal to
 /// the value in right and that the distance to the previous token is lte to the slop.
 ///
 /// Returns the length of the intersection
-fn intersection_with_distance(left: &mut [u32], right: &[u32], slop: u32) -> usize {
+fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -235,77 +235,49 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_exists(&mut self) -> bool {
-        let intersection_len = if self.has_slop() {
-            self.compute_match_with_slop()
-        } else {
-            self.compute_match()
-        };
+        let intersection_len = self.compute_phrase_match();
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
-        let intersection_len = if self.has_slop() {
-            self.compute_match_with_slop()
-        } else {
-            self.compute_match()
-        };
+        let intersection_len = self.compute_phrase_match();
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 
-    /// Computes match without slop.
-    fn compute_match(&mut self) -> usize {
+    fn compute_phrase_match(&mut self) -> usize {
         {
             self.intersection_docset
                 .docset_mut_specialized(0)
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_terms - 1 {
+        let end_term = if self.has_slop() {
+            self.num_terms
+        } else {
+            self.num_terms - 1
+        };
+        for i in 1..end_term {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
                     .positions(&mut self.right);
             }
-            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
+            intersection_len = if self.has_slop() {
+                intersection_with_slop(
+                    &mut self.left[..intersection_len],
+                    &self.right[..],
+                    self.slop,
+                )
+            } else {
+                intersection(&mut self.left[..intersection_len], &self.right[..])
+            };
             if intersection_len == 0 {
                 return 0;
             }
         }
-
         self.intersection_docset
             .docset_mut_specialized(self.num_terms - 1)
             .positions(&mut self.right);
-        intersection_len
-    }
-
-    // Computes match with slop.
-    fn compute_match_with_slop(&mut self) -> usize {
-        {
-            self.intersection_docset
-                .docset_mut_specialized(0)
-                .positions(&mut self.left);
-        }
-        let mut intersection_len = self.left.len();
-        // We'll increment the values to be equal to the next match in the right array to achieve ordered slop.
-        for i in 1..self.num_terms {
-            {
-                self.intersection_docset
-                    .docset_mut_specialized(i)
-                    .positions(&mut self.right);
-            }
-            intersection_len = intersection_with_distance(
-                &mut self.left[..intersection_len],
-                &self.right[..],
-                self.slop,
-            );
-            // Update the left to be equal to the right. Merge the initial left.
-            if intersection_len == 0 {
-                return 0;
-            }
-        }
-        self.intersection_docset
-            .docset_mut_specialized(self.num_terms - 1)
-            .positions(&mut self.left);
         intersection_len
     }
 
@@ -353,7 +325,7 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
 
 #[cfg(test)]
 mod tests {
-    use super::{intersection, intersection_count, intersection_with_distance};
+    use super::{intersection, intersection_count, intersection_with_slop};
 
     fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
         test_intersection_aux(left, right, expected, 0);
@@ -372,7 +344,7 @@ mod tests {
         }
         let mut right_vec = Vec::from(right);
         let right_mut = &mut right_vec[..];
-        let count = intersection_with_distance(left_mut, right_mut, slop);
+        let count = intersection_with_slop(left_mut, right_mut, slop);
         assert_eq!(&left_mut[..count], expected);
     }
 
@@ -403,7 +375,7 @@ mod tests {
         let left_mut = &mut left_vec[..];
         let mut right_vec = Vec::from(right);
         let right_mut = &mut right_vec[..];
-        let count = intersection_with_distance(left_mut, right_mut, slop);
+        let count = intersection_with_slop(left_mut, right_mut, slop);
         assert_eq!(&left_mut[..count], expected_left);
     }
 
