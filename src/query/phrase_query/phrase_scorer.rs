@@ -148,12 +148,10 @@ fn intersection_with_distance(left: &mut [u32], right: &[u32], slop: u32) -> usi
         let left_val = left[left_index];
         let right_val = right[right_index];
 
-        /*
-         * The three conditions are:
-         * left_val < right_slop -> left index increment.
-         * right_slop <= left_val <= right -> find the best match.
-         * left_val > right -> right index increment.
-         */
+        // The three conditions are:
+        // left_val < right_slop -> left index increment.
+        // right_slop <= left_val <= right -> find the best match.
+        // left_val > right -> right index increment.
         let right_slop = if right_val >= slop {
             right_val - slop
         } else {
