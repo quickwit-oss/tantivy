@@ -106,16 +106,17 @@ impl SegmentCollector for AggregationSegmentCollector {
     type Fruit = IntermediateAggregationResults;
 
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        for (key, agg_with_accessor) in &self.aggs {
-            // TODO prepopulate tree
-            let agg_res = self
-                .result
-                .0
-                .entry(key.to_string())
-                .or_insert_with(|| get_aggregator(agg_with_accessor));
+        self.result.collect(doc, &self.aggs);
+        //for (key, agg_with_accessor) in &self.aggs {
+        //// TODO prepopulate tree
+        //let agg_res = self
+        //.result
+        //.0
+        //.entry(key.to_string())
+        //.or_insert_with(|| get_aggregator(agg_with_accessor));
 
-            agg_res.collect(doc, agg_with_accessor);
-        }
+        //agg_res.collect(doc, agg_with_accessor);
+        //}
     }
 
     fn harvest(self) -> Self::Fruit {
@@ -123,7 +124,7 @@ impl SegmentCollector for AggregationSegmentCollector {
     }
 }
 
-fn get_aggregator(agg: &AggregationWithAccessor) -> SegmentAggregationResultCollector {
+pub fn get_aggregator(agg: &AggregationWithAccessor) -> SegmentAggregationResultCollector {
     match agg {
         AggregationWithAccessor::Bucket(bucket) => match &bucket.bucket_agg {
             BucketAggregationType::TermAggregation { field_name: _ } => todo!(),

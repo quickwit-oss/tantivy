@@ -9,6 +9,7 @@ use super::{
         MetricAggregationWithAccessor,
     },
     bucket::SegmentRangeCollector,
+    executor::get_aggregator,
     metric::AverageCollector,
     Key, MetricAggregation,
 };
@@ -32,6 +33,22 @@ impl SegmentAggregationResults {
                 })
                 .collect(),
         )
+    }
+
+    pub(crate) fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) {
+        for (key, agg_with_accessor) in agg_with_accessor {
+            // TODO prepopulate tree
+            let agg_res = self
+                .0
+                .entry(key.to_string())
+                .or_insert_with(|| get_aggregator(agg_with_accessor));
+
+            agg_res.collect(doc, agg_with_accessor);
+        }
     }
 }
 
@@ -116,7 +133,7 @@ impl SegmentBucketResultCollector {
     ) {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect(doc, &bucket_with_accessor.accessor);
+                range.collect(doc, &bucket_with_accessor);
             }
         }
     }
@@ -148,7 +165,7 @@ pub struct SegmentBucketDataEntryKeyCount {
     /// TODO Handle different data types here?
     /// Collect on Metric level?
     pub values: Option<Vec<u64>>,
-    pub sub_aggregation: Option<SegmentAggregationResults>,
+    pub sub_aggregation: SegmentAggregationResults,
 }
 
 #[cfg(test)]
@@ -166,7 +183,7 @@ mod tests {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,
-                    sub_aggregation: None,
+                    sub_aggregation: Default::default(),
                 }),
             );
         }
@@ -194,10 +211,10 @@ mod tests {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,
-                    sub_aggregation: Some(get_sub_test_tree(&[(
+                    sub_aggregation: get_sub_test_tree(&[(
                         sub_aggregation_key.to_string(),
                         *sub_aggregation_count,
-                    )])),
+                    )]),
                 }),
             );
         }

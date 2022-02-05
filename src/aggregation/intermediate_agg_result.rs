@@ -171,12 +171,12 @@ pub struct IntermediateBucketDataEntryKeyCount {
     key: Key,
     doc_count: u64,
     values: Option<Vec<u64>>,
-    sub_aggregation: Option<IntermediateAggregationResults>,
+    sub_aggregation: IntermediateAggregationResults,
 }
 
 impl From<SegmentBucketDataEntryKeyCount> for IntermediateBucketDataEntryKeyCount {
     fn from(entry: SegmentBucketDataEntryKeyCount) -> Self {
-        let sub_aggregation = entry.sub_aggregation.map(|agg| agg.into());
+        let sub_aggregation = entry.sub_aggregation.into();
 
         IntermediateBucketDataEntryKeyCount {
             key: entry.key,
@@ -190,12 +190,7 @@ impl From<SegmentBucketDataEntryKeyCount> for IntermediateBucketDataEntryKeyCoun
 impl IntermediateBucketDataEntryKeyCount {
     fn merge_fruits(&mut self, other: &IntermediateBucketDataEntryKeyCount) {
         self.doc_count += other.doc_count;
-        if let (Some(sub_aggregation_left), Some(sub_aggregation_right)) = (
-            self.sub_aggregation.as_mut(),
-            other.sub_aggregation.as_ref(),
-        ) {
-            sub_aggregation_left.merge_fruits(sub_aggregation_right);
-        }
+        self.sub_aggregation.merge_fruits(&other.sub_aggregation);
     }
 }
 
@@ -214,7 +209,7 @@ mod tests {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,
-                    sub_aggregation: None,
+                    sub_aggregation: Default::default(),
                 }),
             );
         }
@@ -235,10 +230,10 @@ mod tests {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,
-                    sub_aggregation: Some(get_sub_test_tree(&[(
+                    sub_aggregation: get_sub_test_tree(&[(
                         sub_aggregation_key.to_string(),
                         *sub_aggregation_count,
-                    )])),
+                    )]),
                 }),
             );
         }
