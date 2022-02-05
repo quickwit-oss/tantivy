@@ -46,13 +46,10 @@ pub struct BucketDataEntryKeyCount {
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
-
-    use futures::executor::block_on;
 
     use crate::{
         query::TermQuery,
-        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, INDEXED},
+        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, INDEXED},
         Index, Term,
     };
 
@@ -64,8 +61,7 @@ mod tests {
         BucketAggregationType, MetricAggregation,
     };
 
-    #[test]
-    fn test_aggregation() -> crate::Result<()> {
+    fn get_test_index_2_segments() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
@@ -79,7 +75,6 @@ mod tests {
             crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader()?;
         {
             let mut index_writer = index.writer_for_tests()?;
             // writing the segment
@@ -96,7 +91,6 @@ mod tests {
                 score_field => 7u64,
             ))?;
             index_writer.commit()?;
-            // writing the segment
             index_writer.add_document(doc!(
                 text_field => "cool",
                 score_field => 11u64,
@@ -107,14 +101,24 @@ mod tests {
             ))?;
             index_writer.commit()?;
         }
-        {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
-            index_writer.wait_merging_threads()?;
-        }
+        //{
+        //let segment_ids = index
+        //.searchable_segment_ids()
+        //.expect("Searchable segments failed.");
+        //let mut index_writer = index.writer_for_tests()?;
+        //block_on(index_writer.merge(&segment_ids))?;
+        //index_writer.wait_merging_threads()?;
+        //}
+        //
+        Ok(index)
+    }
+
+    #[test]
+    fn test_aggregation_level1() -> crate::Result<()> {
+        let index = get_test_index_2_segments()?;
+
+        let reader = index.reader()?;
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
 
         let term_query = TermQuery::new(
             Term::from_field_text(text_field, "cool"),
@@ -136,6 +140,57 @@ mod tests {
                         buckets: vec![(3..7), (7..20)],
                     }),
                     sub_aggregation: Default::default(),
+                }),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1);
+
+        let searcher = reader.searcher();
+        let agg_res = searcher.search(&term_query, &collector).unwrap();
+        dbg!(&agg_res);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_level2() -> crate::Result<()> {
+        let index = get_test_index_2_segments()?;
+
+        let reader = index.reader()?;
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "cool"),
+            IndexRecordOption::Basic,
+        );
+
+        let sub_agg_req_1: Aggregations = vec![(
+            "average_in_range".to_string(),
+            Aggregation::Metric(MetricAggregation::Average {
+                field_name: "score".to_string(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_req_1: Aggregations = vec![
+            (
+                "average".to_string(),
+                Aggregation::Metric(MetricAggregation::Average {
+                    field_name: "score".to_string(),
+                }),
+            ),
+            (
+                "range".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score".to_string(),
+                        buckets: vec![(3..7), (7..20)],
+                    }),
+                    sub_aggregation: sub_agg_req_1,
                 }),
             ),
         ]
