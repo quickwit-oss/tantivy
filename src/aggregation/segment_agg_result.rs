@@ -9,30 +9,27 @@ use super::{
         MetricAggregationWithAccessor,
     },
     bucket::SegmentRangeCollector,
-    executor::get_aggregator,
     metric::AverageCollector,
-    Key, MetricAggregation,
+    Key, MetricAggregation, VecWithNames,
 };
-use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 // TODO replace HashMap with Vec
 // TODO put staged docs here for batch processing, since this is also the top level tree for sub
 // aggregations
-pub struct SegmentAggregationResults(pub HashMap<String, SegmentAggregationResultCollector>);
+//pub struct SegmentAggregationResults(pub HashMap<String, SegmentAggregationResultCollector>);
+pub struct SegmentAggregationResults(pub VecWithNames<SegmentAggregationResultCollector>);
 
 impl SegmentAggregationResults {
     pub fn from_req(req: &AggregationsWithAccessor) -> Self {
-        SegmentAggregationResults(
-            req.iter()
-                .map(|(key, agg)| {
-                    (
-                        key.to_string(),
-                        SegmentAggregationResultCollector::from_req(agg),
-                    )
-                })
-                .collect(),
-        )
+        SegmentAggregationResults(VecWithNames::from_iter(req.entries().map(
+            |(key, value)| {
+                (
+                    key.to_string(),
+                    SegmentAggregationResultCollector::from_req(value),
+                )
+            },
+        )))
     }
 
     pub(crate) fn collect(
@@ -40,13 +37,7 @@ impl SegmentAggregationResults {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) {
-        for (key, agg_with_accessor) in agg_with_accessor {
-            // TODO prepopulate tree
-            let agg_res = self
-                .0
-                .entry(key.to_string())
-                .or_insert_with(|| get_aggregator(agg_with_accessor));
-
+        for (agg_res, agg_with_accessor) in self.0.values_mut().zip(agg_with_accessor.values()) {
             agg_res.collect(doc, agg_with_accessor);
         }
     }
@@ -166,69 +157,4 @@ pub struct SegmentBucketDataEntryKeyCount {
     /// Collect on Metric level?
     pub values: Option<Vec<u64>>,
     pub sub_aggregation: SegmentAggregationResults,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    fn get_sub_test_tree(data: &[(String, u64)]) -> SegmentAggregationResults {
-        let mut map = HashMap::new();
-        let mut buckets = HashMap::new();
-        for (key, doc_count) in data {
-            buckets.insert(
-                Key::Str(key.to_string()),
-                SegmentBucketDataEntry::KeyCount(SegmentBucketDataEntryKeyCount {
-                    key: Key::Str(key.to_string()),
-                    doc_count: *doc_count,
-                    values: None,
-                    sub_aggregation: Default::default(),
-                }),
-            );
-        }
-        //map.insert(
-        //"my_agg_level2".to_string(),
-        //SegmentAggregationResultCollector::BucketResult(
-        //SegmentBucketAggregationResultCollector {
-        //bucket_agg: BucketAggregationType::TermAggregation {
-        //field_name: "field2".to_string(),
-        //},
-        //buckets,
-        //},
-        //),
-        //);
-        SegmentAggregationResults(map)
-    }
-
-    fn get_test_tree(data: &[(String, u64, String, u64)]) -> SegmentAggregationResults {
-        let mut map = HashMap::new();
-        let mut buckets = HashMap::new();
-        for (key, doc_count, sub_aggregation_key, sub_aggregation_count) in data {
-            buckets.insert(
-                Key::Str(key.to_string()),
-                SegmentBucketDataEntry::KeyCount(SegmentBucketDataEntryKeyCount {
-                    key: Key::Str(key.to_string()),
-                    doc_count: *doc_count,
-                    values: None,
-                    sub_aggregation: get_sub_test_tree(&[(
-                        sub_aggregation_key.to_string(),
-                        *sub_aggregation_count,
-                    )]),
-                }),
-            );
-        }
-        //map.insert(
-        //"my_agg_level1".to_string(),
-        //SegmentAggregationResultCollector::BucketResult(
-        //SegmentBucketAggregationResultCollector {
-        //bucket_agg: BucketAggregationType::TermAggregation {
-        //field_name: "field1".to_string(),
-        //},
-        //buckets,
-        //},
-        //),
-        //);
-        SegmentAggregationResults(map)
-    }
 }

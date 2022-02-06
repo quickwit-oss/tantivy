@@ -2,12 +2,13 @@
 
 use super::{
     agg_req::Aggregations, bucket::RangeAggregationReq, Aggregation, BucketAggregationType,
-    MetricAggregation,
+    MetricAggregation, VecWithNames,
 };
 use crate::{fastfield::DynamicFastFieldReader, SegmentReader, TantivyError};
 use std::collections::HashMap;
 
-pub type AggregationsWithAccessor = HashMap<String, AggregationWithAccessor>;
+//pub type AggregationsWithAccessor = HashMap<String, AggregationWithAccessor>;
+pub type AggregationsWithAccessor = VecWithNames<AggregationWithAccessor>;
 
 /// Aggregation tree with fast field accessors.
 ///
@@ -89,11 +90,13 @@ pub fn get_aggregations_with_accessor(
     aggs: &Aggregations,
     reader: &SegmentReader,
 ) -> crate::Result<AggregationsWithAccessor> {
-    aggs.iter()
+    Ok(aggs
+        .iter()
         .map(|(key, agg)| {
             get_aggregation_with_accessor(agg, reader).map(|el| (key.to_string(), el))
         })
-        .collect::<crate::Result<HashMap<_, _>>>()
+        .collect::<crate::Result<HashMap<_, _>>>()?
+        .into())
 }
 
 fn get_aggregation_with_accessor(
@@ -103,7 +106,7 @@ fn get_aggregation_with_accessor(
     match agg {
         Aggregation::Bucket(b) => {
             BucketAggregationWithAccessor::from_bucket(&b.bucket_agg, &b.sub_aggregation, reader)
-                .map(|metric_with_acc| AggregationWithAccessor::Bucket(metric_with_acc))
+                .map(|bucket_with_acc| AggregationWithAccessor::Bucket(bucket_with_acc))
         }
         Aggregation::Metric(metric) => MetricAggregationWithAccessor::from_metric(metric, reader)
             .map(|metric_with_acc| AggregationWithAccessor::Metric(metric_with_acc)),

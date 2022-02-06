@@ -17,11 +17,81 @@ mod intermediate_agg_result;
 mod metric;
 mod segment_agg_result;
 
+use std::collections::HashMap;
+
 pub use agg_req::Aggregation;
 pub use agg_req::BucketAggregationType;
 pub use agg_req::MetricAggregation;
+use itertools::Itertools;
 
 use self::intermediate_agg_result::IntermediateAggregationResults;
+
+/// VecWithNames will be used for th
+#[derive(Clone, PartialEq)]
+pub struct VecWithNames<T: Clone> {
+    data: Vec<T>,
+    data_names: Vec<String>,
+}
+impl<T: Clone> Default for VecWithNames<T> {
+    fn default() -> Self {
+        Self {
+            data: Default::default(),
+            data_names: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone + std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VecWithNames")
+            .field("data", &self.data)
+            .field("data_names", &self.data_names)
+            .finish()
+    }
+}
+
+impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
+    fn from(map: HashMap<String, T>) -> Self {
+        VecWithNames::from_iter(map.into_iter())
+    }
+}
+
+impl<T: Clone> VecWithNames<T> {
+    fn from_iter(iter: impl Iterator<Item = (String, T)>) -> Self {
+        let mut entries = iter.collect_vec();
+        // Sort to ensure order of elements match across multiple instances
+        entries.sort_by_cached_key(|entry| entry.0.to_string());
+        let mut data = vec![];
+        let mut data_names = vec![];
+        for entry in entries {
+            data_names.push(entry.0);
+            data.push(entry.1);
+        }
+        VecWithNames { data, data_names }
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&String, &mut T)> + '_ {
+        self.data_names.iter().zip(self.data.iter_mut())
+    }
+    fn into_iter(self) -> impl Iterator<Item = (String, T)> {
+        self.data_names.into_iter().zip(self.data.into_iter())
+    }
+    fn iter(&self) -> impl Iterator<Item = (&String, &T)> + '_ {
+        self.data_names.iter().zip(self.data.iter())
+    }
+    fn keys(&self) -> impl Iterator<Item = &String> + '_ {
+        self.data_names.iter()
+    }
+    fn values(&self) -> impl Iterator<Item = &T> + '_ {
+        self.data.iter()
+    }
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
+        self.data.iter_mut()
+    }
+    fn entries(&self) -> impl Iterator<Item = (&String, &T)> + '_ {
+        self.data_names.iter().zip(self.data.iter())
+    }
+}
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 /// The key to identify a bucket.

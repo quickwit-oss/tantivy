@@ -1,5 +1,5 @@
 //! Contains the final aggregation tree.
-//! This tree will be used to merge results between segments and between indices.
+//! This tree will be used to compute intermediate trees.
 
 use super::Key;
 use crate::DocId;
