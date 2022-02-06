@@ -7,7 +7,7 @@ use crate::{
         },
         Key,
     },
-    fastfield::{DynamicFastFieldReader, FastFieldReader},
+    fastfield::FastFieldReader,
     DocId,
 };
 use std::{iter, ops::Range};
@@ -103,28 +103,4 @@ impl SegmentRangeCollector {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    //#[test]
-    //fn range_test() {
-    //let req = RangeAggregationReq {
-    //field_name: "cool".to_string(),
-    //buckets: vec![10..20, 20..30],
-    //};
-    //let mut collector = SegmentRangeCollector::from_req(&req, &Default::default());
-    //collector.collect_val(1);
-    //collector.collect_val(11);
-    //collector.collect_val(12);
-    //collector.collect_val(20);
-    //collector.collect_val(22);
-    //collector.collect_val(32);
-    //assert_eq!(collector.buckets[0].bucket.doc_count(), 1);
-    //assert_eq!(collector.buckets[1].bucket.doc_count(), 2);
-    //assert_eq!(collector.buckets[2].bucket.doc_count(), 2);
-    //assert_eq!(collector.buckets[3].bucket.doc_count(), 1);
-    //}
 }

@@ -14,10 +14,7 @@ use super::{
 };
 
 #[derive(Default, Debug, Clone, PartialEq)]
-// TODO replace HashMap with Vec
 // TODO put staged docs here for batch processing, since this is also the top level tree for sub
-// aggregations
-//pub struct SegmentAggregationResults(pub HashMap<String, SegmentAggregationResultCollector>);
 pub struct SegmentAggregationResults(pub VecWithNames<SegmentAggregationResultCollector>);
 
 impl SegmentAggregationResults {
@@ -84,7 +81,7 @@ pub enum SegmentMetricResultCollector {
 impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
-            MetricAggregation::Average { field_name } => {
+            MetricAggregation::Average { field_name: _ } => {
                 SegmentMetricResultCollector::Average(AverageCollector::default())
             }
         }
@@ -110,7 +107,7 @@ pub enum SegmentBucketResultCollector {
 impl SegmentBucketResultCollector {
     pub fn from_req(req: &BucketAggregationWithAccessor) -> Self {
         match &req.bucket_agg {
-            super::BucketAggregationType::TermAggregation { field_name } => todo!(),
+            super::BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
             super::BucketAggregationType::RangeAggregation(range_req) => Self::Range(
                 SegmentRangeCollector::from_req(&range_req, &req.sub_aggregation),
             ),

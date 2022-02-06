@@ -24,6 +24,7 @@ pub use agg_req::BucketAggregationType;
 pub use agg_req::MetricAggregation;
 use itertools::Itertools;
 
+use self::agg_result::AggregationResults;
 use self::intermediate_agg_result::IntermediateAggregationResults;
 
 /// VecWithNames will be used for th
@@ -101,25 +102,26 @@ pub enum Key {
     I64(i64),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BucketDataEntry {
     KeyCount(BucketDataEntryKeyCount),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BucketDataEntryKeyCount {
     key: Key,
     doc_count: u64,
     values: Option<Vec<u64>>,
-    sub_aggregation: Option<Box<IntermediateAggregationResults>>,
+    sub_aggregation: AggregationResults,
 }
 
 #[cfg(test)]
 mod tests {
 
     use crate::{
+        aggregation::agg_result::AggregationResults,
         query::TermQuery,
-        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, INDEXED},
+        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing},
         Index, Term,
     };
 
@@ -270,7 +272,8 @@ mod tests {
         let collector = AggregationCollector::from_aggs(agg_req_1);
 
         let searcher = reader.searcher();
-        let agg_res = searcher.search(&term_query, &collector).unwrap();
+        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
+
         dbg!(&agg_res);
         //
 
