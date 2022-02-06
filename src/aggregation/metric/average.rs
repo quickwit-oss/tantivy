@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use crate::{
-    aggregation::agg_result::BucketAggregationResult,
     collector::{Collector, SegmentCollector},
     fastfield::{DynamicFastFieldReader, FastFieldReader},
     schema::Field,

@@ -168,10 +168,10 @@ impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IntermediateBucketDataEntryKeyCount {
-    key: Key,
-    doc_count: u64,
-    values: Option<Vec<u64>>,
-    sub_aggregation: IntermediateAggregationResults,
+    pub key: Key,
+    pub doc_count: u64,
+    pub values: Option<Vec<u64>>,
+    pub sub_aggregation: IntermediateAggregationResults,
 }
 
 impl From<SegmentBucketDataEntryKeyCount> for IntermediateBucketDataEntryKeyCount {
