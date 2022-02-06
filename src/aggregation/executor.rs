@@ -1,21 +1,13 @@
 use crate::{
-    aggregation::{
-        agg_req_with_accessor::get_aggregations_with_accessor,
-        bucket::SegmentRangeCollector,
-        metric::AverageCollector,
-        segment_agg_result::{SegmentBucketResultCollector, SegmentMetricResultCollector},
-        BucketAggregationType,
-    },
+    aggregation::agg_req_with_accessor::get_aggregations_with_accessor,
     collector::{Collector, DistributedCollector, SegmentCollector},
-    schema::Schema,
     TantivyError,
 };
 
 use super::{
-    agg_req::Aggregations,
-    agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor},
+    agg_req::Aggregations, agg_req_with_accessor::AggregationsWithAccessor,
     intermediate_agg_result::IntermediateAggregationResults,
-    segment_agg_result::{SegmentAggregationResultCollector, SegmentAggregationResults},
+    segment_agg_result::SegmentAggregationResults,
 };
 
 pub struct AggregationCollector {
@@ -107,40 +99,9 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
         self.result.collect(doc, &self.aggs);
-        //for (key, agg_with_accessor) in &self.aggs {
-        //// TODO prepopulate tree
-        //let agg_res = self
-        //.result
-        //.0
-        //.entry(key.to_string())
-        //.or_insert_with(|| get_aggregator(agg_with_accessor));
-
-        //agg_res.collect(doc, agg_with_accessor);
-        //}
     }
 
     fn harvest(self) -> Self::Fruit {
         self.result.into()
-    }
-}
-
-pub fn get_aggregator(agg: &AggregationWithAccessor) -> SegmentAggregationResultCollector {
-    match agg {
-        AggregationWithAccessor::Bucket(bucket) => match &bucket.bucket_agg {
-            BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
-            BucketAggregationType::RangeAggregation(req) => {
-                let collector = SegmentRangeCollector::from_req(&req, &bucket.sub_aggregation);
-                SegmentAggregationResultCollector::Bucket(SegmentBucketResultCollector::Range(
-                    collector,
-                ))
-            }
-        },
-        AggregationWithAccessor::Metric(metric) => match &metric.metric {
-            crate::aggregation::MetricAggregation::Average { field_name: _ } => {
-                SegmentAggregationResultCollector::Metric(SegmentMetricResultCollector::Average(
-                    AverageCollector::default(),
-                ))
-            }
-        },
     }
 }
