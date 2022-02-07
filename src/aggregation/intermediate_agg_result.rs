@@ -1,16 +1,15 @@
 //! Contains Intermediate aggregation trees, that can be merged.
 //! This tree will be used to merge results between segments and between indices.
 
-use super::{
-    metric::AverageData,
-    segment_agg_result::{
-        SegmentAggregationResultCollector, SegmentAggregationResults, SegmentBucketDataEntry,
-        SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
-    },
-    Key, VecWithNames,
-};
-use crate::collector::MergeableFruit;
 use std::collections::HashMap;
+
+use super::metric::AverageData;
+use super::segment_agg_result::{
+    SegmentAggregationResultCollector, SegmentAggregationResults, SegmentBucketDataEntry,
+    SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
+};
+use super::{Key, VecWithNames};
+use crate::collector::MergeableFruit;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct IntermediateAggregationResults(pub VecWithNames<IntermediateAggregationResult>);
@@ -189,8 +188,9 @@ impl IntermediateBucketDataEntryKeyCount {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> IntermediateAggregationResults {
         let mut map = HashMap::new();

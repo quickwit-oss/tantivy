@@ -19,9 +19,7 @@ mod segment_agg_result;
 
 use std::collections::HashMap;
 
-pub use agg_req::Aggregation;
-pub use agg_req::BucketAggregationType;
-pub use agg_req::MetricAggregation;
+pub use agg_req::{Aggregation, BucketAggregationType, MetricAggregation};
 pub use executor::AggregationCollector;
 use itertools::Itertools;
 
@@ -103,20 +101,14 @@ mod tests {
 
     use futures::executor::block_on;
 
-    use crate::{
-        aggregation::agg_result::AggregationResults,
-        query::TermQuery,
-        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing},
-        Index, Term,
-    };
-
-    use super::{
-        agg_req::Aggregation,
-        agg_req::{Aggregations, BucketAggregation},
-        bucket::RangeAggregationReq,
-        executor::AggregationCollector,
-        BucketAggregationType, MetricAggregation,
-    };
+    use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
+    use super::bucket::RangeAggregationReq;
+    use super::executor::AggregationCollector;
+    use super::{BucketAggregationType, MetricAggregation};
+    use crate::aggregation::agg_result::AggregationResults;
+    use crate::query::TermQuery;
+    use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
+    use crate::{Index, Term};
 
     fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();

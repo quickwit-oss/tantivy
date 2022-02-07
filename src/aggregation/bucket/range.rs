@@ -1,23 +1,23 @@
-use crate::{
-    aggregation::{
-        agg_req_with_accessor::{AggregationsWithAccessor, BucketAggregationWithAccessor},
-        intermediate_agg_result::IntermediateBucketAggregationResult,
-        segment_agg_result::{
-            SegmentAggregationResults, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
-        },
-        Key,
-    },
-    fastfield::FastFieldReader,
-    DocId,
+use std::iter;
+use std::ops::Range;
+
+use crate::aggregation::agg_req_with_accessor::{
+    AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
-use std::{iter, ops::Range};
+use crate::aggregation::intermediate_agg_result::IntermediateBucketAggregationResult;
+use crate::aggregation::segment_agg_result::{
+    SegmentAggregationResults, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
+};
+use crate::aggregation::Key;
+use crate::fastfield::FastFieldReader;
+use crate::DocId;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAggregationReq {
     /// The field to aggregate on.
     pub field_name: String,
-    /// Note that this aggregation includes the from value and excludes the to value for each range.
-    /// Extra buckets will be created until the first to, and last from.
+    /// Note that this aggregation includes the from value and excludes the to value for each
+    /// range. Extra buckets will be created until the first to, and last from.
     pub buckets: Vec<Range<i64>>,
 }
 
