@@ -1,19 +1,14 @@
-use crate::{
-    aggregation::agg_req_with_accessor::get_aggregations_with_accessor,
-    collector::{Collector, DistributedCollector, SegmentCollector},
-    TantivyError,
-};
-
-use super::{
-    agg_req::Aggregations, agg_req_with_accessor::AggregationsWithAccessor,
-    intermediate_agg_result::IntermediateAggregationResults,
-    segment_agg_result::SegmentAggregationResults,
-};
+use super::agg_req::Aggregations;
+use super::agg_req_with_accessor::AggregationsWithAccessor;
+use super::intermediate_agg_result::IntermediateAggregationResults;
+use super::segment_agg_result::SegmentAggregationResults;
+use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
+use crate::collector::{Collector, DistributedCollector, SegmentCollector};
+use crate::TantivyError;
 
 /// Collector for aggegations.
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
-///
 pub struct AggregationCollector {
     agg: Aggregations,
 }

@@ -5,15 +5,13 @@
 
 use itertools::Itertools;
 
-use super::{
-    agg_req_with_accessor::{
-        AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
-        MetricAggregationWithAccessor,
-    },
-    bucket::SegmentRangeCollector,
-    metric::AverageCollector,
-    Key, MetricAggregation, VecWithNames,
+use super::agg_req_with_accessor::{
+    AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
+    MetricAggregationWithAccessor,
 };
+use super::bucket::SegmentRangeCollector;
+use super::metric::AverageCollector;
+use super::{Key, MetricAggregation, VecWithNames};
 
 #[derive(Default, Debug, Clone, PartialEq)]
 // TODO put staged docs here for batch processing, since this is also the top level tree for sub
@@ -45,8 +43,8 @@ impl SegmentAggregationResults {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed vecs in `SegmentAggregationResults`.
-/// An aggregation is either a bucket or a metric.
+/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed
+/// vecs in `SegmentAggregationResults`. An aggregation is either a bucket or a metric.
 pub enum SegmentAggregationResultCollector {
     Bucket(SegmentBucketResultCollector),
     Metric(SegmentMetricResultCollector),

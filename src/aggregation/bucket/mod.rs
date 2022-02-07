@@ -1,5 +1,4 @@
 mod histogram;
 mod range;
 
-pub use range::RangeAggregationReq;
-pub use range::SegmentRangeCollector;
+pub use range::{RangeAggregationReq, SegmentRangeCollector};

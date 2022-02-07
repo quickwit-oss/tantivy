@@ -1,4 +1,5 @@
-use crate::{aggregation::agg_result::BucketAggregationResult, collector::SegmentCollector};
+use crate::aggregation::agg_result::BucketAggregationResult;
+use crate::collector::SegmentCollector;
 
 struct Histogram {}
 
