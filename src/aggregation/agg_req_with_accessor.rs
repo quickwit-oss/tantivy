@@ -7,7 +7,6 @@ use super::{
 use crate::{fastfield::DynamicFastFieldReader, SegmentReader, TantivyError};
 use std::collections::HashMap;
 
-//pub type AggregationsWithAccessor = HashMap<String, AggregationWithAccessor>;
 pub type AggregationsWithAccessor = VecWithNames<AggregationWithAccessor>;
 
 /// Aggregation tree with fast field accessors.
@@ -19,16 +18,16 @@ pub enum AggregationWithAccessor {
 }
 
 impl AggregationWithAccessor {
-    pub fn as_bucket(&self) -> &BucketAggregationWithAccessor {
+    pub fn as_bucket(&self) -> Option<&BucketAggregationWithAccessor> {
         match self {
-            AggregationWithAccessor::Bucket(bucket) => bucket,
-            AggregationWithAccessor::Metric(_) => panic!("wrong aggregation type"),
+            AggregationWithAccessor::Bucket(bucket) => Some(bucket),
+            AggregationWithAccessor::Metric(_) => None,
         }
     }
-    pub fn as_metric(&self) -> &MetricAggregationWithAccessor {
+    pub fn as_metric(&self) -> Option<&MetricAggregationWithAccessor> {
         match self {
-            AggregationWithAccessor::Bucket(_) => panic!("wrong aggregation type"),
-            AggregationWithAccessor::Metric(metric) => metric,
+            AggregationWithAccessor::Bucket(_) => None,
+            AggregationWithAccessor::Metric(metric) => Some(metric),
         }
     }
 }

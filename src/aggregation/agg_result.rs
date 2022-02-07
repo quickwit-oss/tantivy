@@ -8,7 +8,7 @@ use super::{
         IntermediateBucketDataEntryKeyCount, IntermediateMetricResult,
     },
     metric::AverageData,
-    BucketDataEntryKeyCount, Key,
+    Key,
 };
 use std::collections::HashMap;
 
@@ -94,6 +94,14 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
             }
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BucketDataEntryKeyCount {
+    key: Key,
+    doc_count: u64,
+    values: Option<Vec<u64>>,
+    sub_aggregation: AggregationResults,
 }
 
 impl From<IntermediateBucketDataEntryKeyCount> for BucketDataEntryKeyCount {
