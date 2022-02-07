@@ -66,7 +66,7 @@ impl SegmentRangeCollector {
                     key: range_to_key(&range),
                     doc_count: 0,
                     values: None,
-                    sub_aggregation: SegmentAggregationResults::from_req(&sub_aggregation),
+                    sub_aggregation: SegmentAggregationResults::from_req(sub_aggregation),
                 }),
             })
             .collect();

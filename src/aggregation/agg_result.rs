@@ -7,12 +7,12 @@ use super::{
         IntermediateBucketAggregationResult, IntermediateBucketDataEntry,
         IntermediateBucketDataEntryKeyCount, IntermediateMetricResult,
     },
-    metric::AverageData,
     Key,
 };
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
+/// The final aggegation result.
 pub struct AggregationResults(HashMap<String, AggregationResult>);
 
 impl From<IntermediateAggregationResults> for AggregationResults {
@@ -27,8 +27,11 @@ impl From<IntermediateAggregationResults> for AggregationResults {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// An aggregation is either a bucket or a metric.
 pub enum AggregationResult {
+    /// Bucket result variant.
     BucketResult(BucketAggregationResult),
+    /// Metric result variant.
     MetricResult(MetricResult),
 }
 impl From<IntermediateAggregationResult> for AggregationResult {
@@ -45,28 +48,26 @@ impl From<IntermediateAggregationResult> for AggregationResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// MetricResult
 pub enum MetricResult {
+    /// Average metric result.
     Average(f64),
 }
 
 impl From<IntermediateMetricResult> for MetricResult {
     fn from(metric: IntermediateMetricResult) -> Self {
         match metric {
-            IntermediateMetricResult::Average(avg_data) => MetricResult::Average(avg_data.into()),
+            IntermediateMetricResult::Average(avg_data) => {
+                MetricResult::Average(avg_data.finalize())
+            }
         }
     }
 }
 
-impl From<AverageData> for f64 {
-    fn from(data: AverageData) -> Self {
-        let avg = data.sum as f64 / data.num_vals as f64;
-        avg
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
+/// Aggregation result for buckets.
 pub struct BucketAggregationResult {
-    pub buckets: HashMap<Key, BucketDataEntry>,
+    buckets: HashMap<Key, BucketDataEntry>,
 }
 
 impl From<IntermediateBucketAggregationResult> for BucketAggregationResult {
@@ -82,7 +83,10 @@ impl From<IntermediateBucketAggregationResult> for BucketAggregationResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// BucketDataEntry
 pub enum BucketDataEntry {
+    /// This is the default entry for a bucket, which contains a key, count, and optionally
+    /// sub_aggregations.
     KeyCount(BucketDataEntryKeyCount),
 }
 
@@ -97,6 +101,8 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// This is the default entry for a bucket, which contains a key, count, and optionally
+/// sub_aggregations.
 pub struct BucketDataEntryKeyCount {
     key: Key,
     doc_count: u64,

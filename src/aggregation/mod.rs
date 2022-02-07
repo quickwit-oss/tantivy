@@ -8,9 +8,9 @@
 //! intermediate_agg_result is the aggregation tree for merging with other trees.
 //! agg_result is the final aggregation tree.
 
-mod agg_req;
+pub mod agg_req;
 mod agg_req_with_accessor;
-mod agg_result;
+pub mod agg_result;
 mod bucket;
 mod executor;
 mod intermediate_agg_result;
@@ -22,6 +22,7 @@ use std::collections::HashMap;
 pub use agg_req::Aggregation;
 pub use agg_req::BucketAggregationType;
 pub use agg_req::MetricAggregation;
+pub use executor::AggregationCollector;
 use itertools::Itertools;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
@@ -66,13 +67,6 @@ impl<T: Clone> VecWithNames<T> {
             keys: data_names,
         }
     }
-
-    fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut T)> + '_ {
-        self.keys
-            .iter()
-            .map(|key| key.as_str())
-            .zip(self.values.iter_mut())
-    }
     fn into_iter(self) -> impl Iterator<Item = (String, T)> {
         self.keys.into_iter().zip(self.values.into_iter())
     }
@@ -96,8 +90,11 @@ impl<T: Clone> VecWithNames<T> {
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 /// The key to identify a bucket.
 pub enum Key {
+    /// String key
     Str(String),
+    /// u64 key
     U64(u64),
+    /// i64 key
     I64(i64),
 }
 

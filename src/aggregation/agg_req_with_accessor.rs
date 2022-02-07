@@ -105,10 +105,10 @@ fn get_aggregation_with_accessor(
     match agg {
         Aggregation::Bucket(b) => {
             BucketAggregationWithAccessor::from_bucket(&b.bucket_agg, &b.sub_aggregation, reader)
-                .map(|bucket_with_acc| AggregationWithAccessor::Bucket(bucket_with_acc))
+                .map(AggregationWithAccessor::Bucket)
         }
         Aggregation::Metric(metric) => MetricAggregationWithAccessor::from_metric(metric, reader)
-            .map(|metric_with_acc| AggregationWithAccessor::Metric(metric_with_acc)),
+            .map(AggregationWithAccessor::Metric),
     }
 }
 
