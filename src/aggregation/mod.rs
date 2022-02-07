@@ -186,7 +186,7 @@ mod tests {
                 Aggregation::Bucket(BucketAggregation {
                     bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
                         field_name: "score".to_string(),
-                        buckets: vec![(3..7), (7..20)],
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -236,7 +236,7 @@ mod tests {
                 Aggregation::Bucket(BucketAggregation {
                     bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
                         field_name: "score".to_string(),
-                        buckets: vec![(3..7), (7..20)],
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
                     sub_aggregation: sub_agg_req_1,
                 }),

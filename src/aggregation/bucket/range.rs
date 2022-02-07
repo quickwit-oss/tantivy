@@ -18,13 +18,13 @@ pub struct RangeAggregationReq {
     pub field_name: String,
     /// Note that this aggregation includes the from value and excludes the to value for each
     /// range. Extra buckets will be created until the first to, and last from.
-    pub buckets: Vec<Range<i64>>,
+    pub buckets: Vec<Range<f64>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeBucketEntry {
     key: Key,
-    range: Range<i64>,
+    range: Range<f64>,
     bucket: SegmentBucketDataEntry,
 }
 
@@ -33,9 +33,9 @@ pub struct SegmentRangeCollector {
     pub buckets: Vec<SegmentRangeBucketEntry>,
 }
 
-fn range_to_key(range: &Range<i64>) -> Key {
-    let to_str = |val: i64| {
-        if val == i64::MIN || val == i64::MAX {
+fn range_to_key(range: &Range<f64>) -> Key {
+    let to_str = |val: f64| {
+        if val == f64::MIN || val == f64::MAX {
             "*".to_string()
         } else {
             val.to_string()
@@ -56,9 +56,9 @@ impl SegmentRangeCollector {
     }
 
     pub fn from_req(req: &RangeAggregationReq, sub_aggregation: &AggregationsWithAccessor) -> Self {
-        let buckets = iter::once(i64::MIN..req.buckets[0].start)
+        let buckets = iter::once(f64::MIN..req.buckets[0].start)
             .chain(req.buckets.iter().cloned())
-            .chain(iter::once(req.buckets[req.buckets.len() - 1].end..i64::MAX))
+            .chain(iter::once(req.buckets[req.buckets.len() - 1].end..f64::MAX))
             .map(|range| SegmentRangeBucketEntry {
                 key: range_to_key(&range),
                 range: range.clone(),
@@ -92,7 +92,7 @@ impl SegmentRangeCollector {
         let bucket = self
             .buckets
             .iter_mut()
-            .find(|bucket| bucket.range.contains(&val))
+            .find(|bucket| bucket.range.contains(&(val as f64)))
             .unwrap();
         match &mut bucket.bucket {
             SegmentBucketDataEntry::KeyCount(key_count) => {
