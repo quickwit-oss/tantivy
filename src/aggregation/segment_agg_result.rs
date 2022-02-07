@@ -3,6 +3,8 @@
 //! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
 //! merging.
 
+use itertools::Itertools;
+
 use super::{
     agg_req_with_accessor::{
         AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
@@ -19,14 +21,16 @@ pub struct SegmentAggregationResults(pub VecWithNames<SegmentAggregationResultCo
 
 impl SegmentAggregationResults {
     pub fn from_req(req: &AggregationsWithAccessor) -> Self {
-        SegmentAggregationResults(VecWithNames::from_iter(req.entries().map(
-            |(key, value)| {
-                (
-                    key.to_string(),
-                    SegmentAggregationResultCollector::from_req(value),
-                )
-            },
-        )))
+        SegmentAggregationResults(VecWithNames::from_entries(
+            req.entries()
+                .map(|(key, value)| {
+                    (
+                        key.to_string(),
+                        SegmentAggregationResultCollector::from_req(value),
+                    )
+                })
+                .collect_vec(),
+        ))
     }
 
     pub(crate) fn collect(
@@ -41,6 +45,7 @@ impl SegmentAggregationResults {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed vecs in `SegmentAggregationResultCollectors`.
 pub enum SegmentAggregationResultCollector {
     Bucket(SegmentBucketResultCollector),
     Metric(SegmentMetricResultCollector),
@@ -64,10 +69,20 @@ impl SegmentAggregationResultCollector {
     ) {
         match self {
             SegmentAggregationResultCollector::Bucket(res) => {
-                res.collect(doc, agg_with_accessor.as_bucket());
+                res.collect(
+                    doc,
+                    agg_with_accessor
+                        .as_bucket()
+                        .expect("wrong aggregation type"),
+                );
             }
             SegmentAggregationResultCollector::Metric(res) => {
-                res.collect(doc, agg_with_accessor.as_metric());
+                res.collect(
+                    doc,
+                    agg_with_accessor
+                        .as_metric()
+                        .expect("wrong aggregation type"),
+                );
             }
         }
     }

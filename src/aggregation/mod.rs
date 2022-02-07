@@ -24,73 +24,72 @@ pub use agg_req::BucketAggregationType;
 pub use agg_req::MetricAggregation;
 use itertools::Itertools;
 
-use self::agg_result::AggregationResults;
-use self::intermediate_agg_result::IntermediateAggregationResults;
-
-/// VecWithNames will be used for th
+/// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq)]
 pub struct VecWithNames<T: Clone> {
-    data: Vec<T>,
-    data_names: Vec<String>,
+    values: Vec<T>,
+    keys: Vec<String>,
 }
 impl<T: Clone> Default for VecWithNames<T> {
     fn default() -> Self {
         Self {
-            data: Default::default(),
-            data_names: Default::default(),
+            values: Default::default(),
+            keys: Default::default(),
         }
     }
 }
 
 impl<T: Clone + std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VecWithNames")
-            .field("data", &self.data)
-            .field("data_names", &self.data_names)
-            .finish()
+        f.debug_map().entries(self.iter()).finish()
     }
 }
 
 impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
     fn from(map: HashMap<String, T>) -> Self {
-        VecWithNames::from_iter(map.into_iter())
+        VecWithNames::from_entries(map.into_iter().collect_vec())
     }
 }
 
 impl<T: Clone> VecWithNames<T> {
-    fn from_iter(iter: impl Iterator<Item = (String, T)>) -> Self {
-        let mut entries = iter.collect_vec();
+    fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
-        entries.sort_by_cached_key(|entry| entry.0.to_string());
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
         let mut data = vec![];
         let mut data_names = vec![];
         for entry in entries {
             data_names.push(entry.0);
             data.push(entry.1);
         }
-        VecWithNames { data, data_names }
+        VecWithNames {
+            values: data,
+            keys: data_names,
+        }
     }
 
-    fn iter_mut(&mut self) -> impl Iterator<Item = (&String, &mut T)> + '_ {
-        self.data_names.iter().zip(self.data.iter_mut())
+    fn iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut T)> + '_ {
+        self.keys
+            .iter()
+            .map(|key| key.as_str())
+            .zip(self.values.iter_mut())
     }
     fn into_iter(self) -> impl Iterator<Item = (String, T)> {
-        self.data_names.into_iter().zip(self.data.into_iter())
+        self.keys.into_iter().zip(self.values.into_iter())
     }
-    fn iter(&self) -> impl Iterator<Item = (&String, &T)> + '_ {
-        self.data_names.iter().zip(self.data.iter())
+    fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
+        self.keys().zip(self.values.iter())
     }
-    fn keys(&self) -> impl Iterator<Item = &String> + '_ {
-        self.data_names.iter()
+    fn keys(&self) -> impl Iterator<Item = &str> + '_ {
+        self.keys.iter().map(|key| key.as_str())
     }
     fn values(&self) -> impl Iterator<Item = &T> + '_ {
-        self.data.iter()
+        self.values.iter()
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
-        self.data.iter_mut()
+        self.values.iter_mut()
     }
-    fn entries(&self) -> impl Iterator<Item = (&String, &T)> + '_ {
-        self.data_names.iter().zip(self.data.iter())
+    fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
+        self.keys().zip(self.values.iter())
     }
 }
 
@@ -100,19 +99,6 @@ pub enum Key {
     Str(String),
     U64(u64),
     I64(i64),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum BucketDataEntry {
-    KeyCount(BucketDataEntryKeyCount),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct BucketDataEntryKeyCount {
-    key: Key,
-    doc_count: u64,
-    values: Option<Vec<u64>>,
-    sub_aggregation: AggregationResults,
 }
 
 #[cfg(test)]
@@ -221,7 +207,7 @@ mod tests {
         let collector = AggregationCollector::from_aggs(agg_req_1);
 
         let searcher = reader.searcher();
-        let agg_res = searcher.search(&term_query, &collector).unwrap();
+        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
         dbg!(&agg_res);
 
         Ok(())
@@ -275,7 +261,6 @@ mod tests {
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
 
         dbg!(&agg_res);
-        //
 
         Ok(())
     }
