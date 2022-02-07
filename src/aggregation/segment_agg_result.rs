@@ -45,7 +45,8 @@ impl SegmentAggregationResults {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed vecs in `SegmentAggregationResultCollectors`.
+/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed vecs in `SegmentAggregationResults`.
+/// An aggregation is either a bucket or a metric.
 pub enum SegmentAggregationResultCollector {
     Bucket(SegmentBucketResultCollector),
     Metric(SegmentMetricResultCollector),
@@ -124,7 +125,7 @@ impl SegmentBucketResultCollector {
         match &req.bucket_agg {
             super::BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
             super::BucketAggregationType::RangeAggregation(range_req) => Self::Range(
-                SegmentRangeCollector::from_req(&range_req, &req.sub_aggregation),
+                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation),
             ),
         }
     }
@@ -136,7 +137,7 @@ impl SegmentBucketResultCollector {
     ) {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect(doc, &bucket_with_accessor);
+                range.collect(doc, bucket_with_accessor);
             }
         }
     }

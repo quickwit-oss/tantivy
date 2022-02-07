@@ -10,11 +10,16 @@ use super::{
     segment_agg_result::SegmentAggregationResults,
 };
 
+/// Collector for aggegations.
+///
+/// The collector collects all aggregations by the underlying aggregation request.
+///
 pub struct AggregationCollector {
     agg: Aggregations,
 }
 
 impl AggregationCollector {
+    /// Create collector from aggegation request.
     pub fn from_aggs(agg: Aggregations) -> Self {
         AggregationCollector { agg }
     }

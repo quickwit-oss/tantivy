@@ -7,22 +7,22 @@ use super::{
         SegmentAggregationResultCollector, SegmentAggregationResults, SegmentBucketDataEntry,
         SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
     },
-    Key,
+    Key, VecWithNames,
 };
 use crate::collector::MergeableFruit;
 use std::collections::HashMap;
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct IntermediateAggregationResults(pub HashMap<String, IntermediateAggregationResult>);
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct IntermediateAggregationResults(pub VecWithNames<IntermediateAggregationResult>);
 
 impl From<SegmentAggregationResults> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResults) -> Self {
-        Self(
+        Self(VecWithNames::from_entries(
             tree.0
                 .into_iter()
                 .map(|(key, agg)| (key, agg.into()))
                 .collect(),
-        )
+        ))
     }
 }
 
@@ -34,21 +34,14 @@ impl MergeableFruit for IntermediateAggregationResults {
 
 impl IntermediateAggregationResults {
     pub fn merge_fruits(&mut self, other: &IntermediateAggregationResults) {
-        for (name, tree_left) in self.0.iter_mut() {
-            if let Some(tree_right) = other.0.get(name) {
-                tree_left.merge_fruits(tree_right);
-            }
-        }
-
-        for (key, res) in other.0.iter() {
-            if !other.0.contains_key(key) {
-                self.0.insert(key.to_string(), res.clone());
-            }
+        for (tree_left, tree_right) in self.0.values_mut().zip(other.0.values()) {
+            tree_left.merge_fruits(tree_right);
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
+/// An aggregation is either a bucket or a metric.
 pub enum IntermediateAggregationResult {
     Bucket(IntermediateBucketAggregationResult),
     Metric(IntermediateMetricResult),
@@ -89,7 +82,7 @@ impl IntermediateAggregationResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum IntermediateMetricResult {
     Average(AverageData),
 }
@@ -117,7 +110,7 @@ impl IntermediateMetricResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IntermediateBucketAggregationResult {
     pub buckets: HashMap<Key, IntermediateBucketDataEntry>,
 }
@@ -151,7 +144,7 @@ impl IntermediateBucketAggregationResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum IntermediateBucketDataEntry {
     KeyCount(IntermediateBucketDataEntryKeyCount),
 }
@@ -166,7 +159,7 @@ impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IntermediateBucketDataEntryKeyCount {
     pub key: Key,
     pub doc_count: u64,
@@ -217,7 +210,7 @@ mod tests {
             "my_agg_level2".to_string(),
             IntermediateAggregationResult::Bucket(IntermediateBucketAggregationResult { buckets }),
         );
-        IntermediateAggregationResults(map)
+        IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
     }
 
     fn get_test_tree(data: &[(String, u64, String, u64)]) -> IntermediateAggregationResults {
@@ -241,7 +234,7 @@ mod tests {
             "my_agg_level1".to_string(),
             IntermediateAggregationResult::Bucket(IntermediateBucketAggregationResult { buckets }),
         );
-        IntermediateAggregationResults(map)
+        IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
     }
 
     #[test]
