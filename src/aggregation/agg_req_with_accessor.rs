@@ -1,16 +1,16 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
-use super::{
-    agg_req::Aggregations, bucket::RangeAggregationReq, Aggregation, BucketAggregationType,
-    MetricAggregation, VecWithNames,
-};
-use crate::{fastfield::DynamicFastFieldReader, SegmentReader, TantivyError};
 use std::collections::HashMap;
+
+use super::agg_req::Aggregations;
+use super::bucket::RangeAggregationReq;
+use super::{Aggregation, BucketAggregationType, MetricAggregation, VecWithNames};
+use crate::fastfield::DynamicFastFieldReader;
+use crate::{SegmentReader, TantivyError};
 
 pub type AggregationsWithAccessor = VecWithNames<AggregationWithAccessor>;
 
 /// Aggregation tree with fast field accessors.
-///
 #[derive(Clone)]
 pub enum AggregationWithAccessor {
     Bucket(BucketAggregationWithAccessor),

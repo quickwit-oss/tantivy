@@ -1,14 +1,12 @@
 //! Contains the final aggregation tree.
 //! This tree will be used to compute intermediate trees.
 
-use super::{
-    intermediate_agg_result::{
-        IntermediateAggregationResult, IntermediateAggregationResults,
-        IntermediateBucketAggregationResult, IntermediateBucketDataEntry,
-        IntermediateBucketDataEntryKeyCount, IntermediateMetricResult,
-    },
-    Key,
+use super::intermediate_agg_result::{
+    IntermediateAggregationResult, IntermediateAggregationResults,
+    IntermediateBucketAggregationResult, IntermediateBucketDataEntry,
+    IntermediateBucketDataEntryKeyCount, IntermediateMetricResult,
 };
+use super::Key;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
