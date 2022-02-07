@@ -1,5 +1,4 @@
 //! Contains the aggregation request tree.
-//!
 
 use super::bucket::RangeAggregationReq;
 use std::collections::HashMap;
@@ -43,7 +42,7 @@ pub enum BucketAggregationType {
     /// Group by Term into buckets
     TermAggregation {
         /// The field to aggregate on.
-        field_name: String, // Produces as leaf doc_counts, but as intermediate additionally doc id list for the sub steps
+        field_name: String,
     },
     /// Put data into predefined buckets.
     RangeAggregation(RangeAggregationReq),

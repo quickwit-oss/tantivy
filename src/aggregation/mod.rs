@@ -101,6 +101,8 @@ pub enum Key {
 #[cfg(test)]
 mod tests {
 
+    use futures::executor::block_on;
+
     use crate::{
         aggregation::agg_result::AggregationResults,
         query::TermQuery,
@@ -116,7 +118,7 @@ mod tests {
         BucketAggregationType, MetricAggregation,
     };
 
-    fn get_test_index_2_segments() -> crate::Result<Index> {
+    fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
@@ -156,21 +158,21 @@ mod tests {
             ))?;
             index_writer.commit()?;
         }
-        //{
-        //let segment_ids = index
-        //.searchable_segment_ids()
-        //.expect("Searchable segments failed.");
-        //let mut index_writer = index.writer_for_tests()?;
-        //block_on(index_writer.merge(&segment_ids))?;
-        //index_writer.wait_merging_threads()?;
-        //}
-        //
+        if merge_segments {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
+        }
+
         Ok(index)
     }
 
     #[test]
     fn test_aggregation_level1() -> crate::Result<()> {
-        let index = get_test_index_2_segments()?;
+        let index = get_test_index_2_segments(false)?;
 
         let reader = index.reader()?;
         let text_field = reader.searcher().schema().get_field("text").unwrap();
@@ -210,9 +212,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_aggregation_level2() -> crate::Result<()> {
-        let index = get_test_index_2_segments()?;
+    fn test_aggregation_level2(merge_segments: bool) -> crate::Result<()> {
+        let index = get_test_index_2_segments(merge_segments)?;
 
         let reader = index.reader()?;
         let text_field = reader.searcher().schema().get_field("text").unwrap();
@@ -260,5 +261,15 @@ mod tests {
         dbg!(&agg_res);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_level2_multi_segments() -> crate::Result<()> {
+        test_aggregation_level2(false)
+    }
+
+    #[test]
+    fn test_aggregation_level2_single_segment() -> crate::Result<()> {
+        test_aggregation_level2(true)
     }
 }
