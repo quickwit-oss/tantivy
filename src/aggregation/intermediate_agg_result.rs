@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::metric::AverageData;
 use super::segment_agg_result::{
-    SegmentAggregationResultCollector, SegmentAggregationResults, SegmentBucketDataEntry,
+    SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketDataEntry,
     SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
 };
 use super::{Key, VecWithNames};
@@ -14,8 +14,8 @@ use crate::collector::MergeableFruit;
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct IntermediateAggregationResults(pub VecWithNames<IntermediateAggregationResult>);
 
-impl From<SegmentAggregationResults> for IntermediateAggregationResults {
-    fn from(tree: SegmentAggregationResults) -> Self {
+impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
+    fn from(tree: SegmentAggregationResultsCollector) -> Self {
         Self(VecWithNames::from_entries(
             tree.0
                 .into_iter()

@@ -435,4 +435,174 @@ mod tests {
     fn test_aggregation_level2_single_segment() -> crate::Result<()> {
         test_aggregation_level2(true)
     }
+
+    //#[cfg(all(test, feature = "unstable"))]
+    mod bench {
+
+        use test::{self, Bencher};
+
+        use super::*;
+
+        fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
+            let mut schema_builder = Schema::builder();
+            let text_fieldtype = crate::schema::TextOptions::default()
+                .set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(IndexRecordOption::WithFreqs),
+                )
+                .set_stored();
+            let text_field = schema_builder.add_text_field("text", text_fieldtype);
+            let score_fieldtype =
+                crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+            let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
+            let score_field_f64 =
+                schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+            let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
+            let index = Index::create_in_ram(schema_builder.build());
+            {
+                let mut index_writer = index.writer_for_tests()?;
+                // writing the segment
+                for val in 0..1_000_000 {
+                    index_writer.add_document(doc!(
+                        text_field => "cool",
+                        score_field => val as u64,
+                        score_field_f64 => val as f64,
+                        score_field_i64 => val as i64,
+                    ))?;
+                }
+                index_writer.commit()?;
+            }
+            if merge_segments {
+                let segment_ids = index
+                    .searchable_segment_ids()
+                    .expect("Searchable segments failed.");
+                let mut index_writer = index.writer_for_tests()?;
+                block_on(index_writer.merge(&segment_ids))?;
+                index_writer.wait_merging_threads()?;
+            }
+
+            Ok(index)
+        }
+
+        #[bench]
+        fn bench_aggregation_average_u64(b: &mut Bencher) {
+            let index = get_test_index_2_segments(false).unwrap();
+            let reader = index.reader().unwrap();
+            let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+            b.iter(|| {
+                let term_query = TermQuery::new(
+                    Term::from_field_text(text_field, "cool"),
+                    IndexRecordOption::Basic,
+                );
+
+                let agg_req_1: Aggregations = vec![(
+                    "average".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average {
+                        field_name: "score".to_string(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_average_f64(b: &mut Bencher) {
+            let index = get_test_index_2_segments(false).unwrap();
+            let reader = index.reader().unwrap();
+            let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+            b.iter(|| {
+                let term_query = TermQuery::new(
+                    Term::from_field_text(text_field, "cool"),
+                    IndexRecordOption::Basic,
+                );
+
+                let agg_req_1: Aggregations = vec![(
+                    "average_f64".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average {
+                        field_name: "score_f64".to_string(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_sub_tree(b: &mut Bencher) {
+            let index = get_test_index_2_segments(false).unwrap();
+            let reader = index.reader().unwrap();
+            let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+            b.iter(|| {
+                let term_query = TermQuery::new(
+                    Term::from_field_text(text_field, "cool"),
+                    IndexRecordOption::Basic,
+                );
+
+                let sub_agg_req_1: Aggregations = vec![(
+                    "average_in_range".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average {
+                        field_name: "score".to_string(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let agg_req_1: Aggregations = vec![
+                    (
+                        "average".to_string(),
+                        Aggregation::Metric(MetricAggregation::Average {
+                            field_name: "score".to_string(),
+                        }),
+                    ),
+                    (
+                        "rangef64".to_string(),
+                        Aggregation::Bucket(BucketAggregation {
+                            bucket_agg: BucketAggregationType::RangeAggregation(
+                                RangeAggregationReq {
+                                    field_name: "score_f64".to_string(),
+                                    buckets: vec![
+                                        (3f64..7000f64),
+                                        (7000f64..20000f64),
+                                        (20000f64..60000f64),
+                                    ],
+                                },
+                            ),
+                            sub_aggregation: sub_agg_req_1.clone(),
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+    }
 }

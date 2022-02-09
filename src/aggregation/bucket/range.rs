@@ -6,7 +6,7 @@ use crate::aggregation::agg_req_with_accessor::{
 };
 use crate::aggregation::intermediate_agg_result::IntermediateBucketAggregationResult;
 use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResults, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
+    SegmentAggregationResultsCollector, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
 };
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
 use crate::fastfield::FastFieldReader;
@@ -97,7 +97,7 @@ impl SegmentRangeCollector {
                     key: range_to_key(&range, &field_type),
                     doc_count: 0,
                     values: None,
-                    sub_aggregation: SegmentAggregationResults::from_req(sub_aggregation),
+                    sub_aggregation: SegmentAggregationResultsCollector::from_req(sub_aggregation),
                 }),
             })
             .collect();
