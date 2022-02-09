@@ -6,6 +6,7 @@ use super::agg_req::Aggregations;
 use super::bucket::RangeAggregationReq;
 use super::{Aggregation, BucketAggregationType, MetricAggregation, VecWithNames};
 use crate::fastfield::DynamicFastFieldReader;
+use crate::schema::Type;
 use crate::{SegmentReader, TantivyError};
 
 pub type AggregationsWithAccessor = VecWithNames<AggregationWithAccessor>;
@@ -37,6 +38,7 @@ pub struct BucketAggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. So eventually this needs to be Option or moved.
     pub accessor: DynamicFastFieldReader<u64>,
+    pub field_type: Type,
     pub bucket_agg: BucketAggregationType,
     pub sub_aggregation: AggregationsWithAccessor,
 }
@@ -47,7 +49,7 @@ impl BucketAggregationWithAccessor {
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
     ) -> crate::Result<BucketAggregationWithAccessor> {
-        let accessor = match &bucket {
+        let (accessor, field_type) = match &bucket {
             BucketAggregationType::TermAggregation { field_name } => {
                 get_ff_reader(reader, field_name)?
             }
@@ -59,6 +61,7 @@ impl BucketAggregationWithAccessor {
         let sub_aggregation = sub_aggregation.clone();
         Ok(BucketAggregationWithAccessor {
             accessor,
+            field_type,
             sub_aggregation: get_aggregations_with_accessor(&sub_aggregation, reader)?,
             bucket_agg: bucket.clone(),
         })
@@ -69,6 +72,7 @@ impl BucketAggregationWithAccessor {
 #[derive(Clone)]
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
+    pub field_type: Type,
     pub accessor: DynamicFastFieldReader<u64>,
 }
 impl MetricAggregationWithAccessor {
@@ -77,10 +81,15 @@ impl MetricAggregationWithAccessor {
         reader: &SegmentReader,
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
-            MetricAggregation::Average { field_name } => Ok(MetricAggregationWithAccessor {
-                accessor: get_ff_reader(reader, field_name)?,
-                metric: metric.clone(),
-            }),
+            MetricAggregation::Average { field_name } => {
+                let (accessor, field_type) = get_ff_reader(reader, field_name)?;
+
+                Ok(MetricAggregationWithAccessor {
+                    accessor,
+                    field_type,
+                    metric: metric.clone(),
+                })
+            }
         }
     }
 }
@@ -115,11 +124,14 @@ fn get_aggregation_with_accessor(
 fn get_ff_reader(
     reader: &SegmentReader,
     field_name: &str,
-) -> crate::Result<DynamicFastFieldReader<u64>> {
+) -> crate::Result<(DynamicFastFieldReader<u64>, Type)> {
     let field = reader
         .schema()
         .get_field(field_name)
         .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
+    let field_type = reader.schema().get_field_entry(field).field_type();
     let ff_fields = reader.fast_fields();
-    ff_fields.u64(field)
+    ff_fields
+        .u64_lenient(field)
+        .map(|field| (field, field_type.value_type()))
 }

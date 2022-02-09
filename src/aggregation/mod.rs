@@ -18,10 +18,15 @@ mod metric;
 mod segment_agg_result;
 
 use std::collections::HashMap;
+use std::fmt::Display;
 
 pub use agg_req::{Aggregation, BucketAggregationType, MetricAggregation};
 pub use executor::AggregationCollector;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+
+use crate::fastfield::FastValue;
+use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq)]
@@ -85,7 +90,7 @@ impl<T: Clone> VecWithNames<T> {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
 /// The key to identify a bucket.
 pub enum Key {
     /// String key
@@ -96,10 +101,57 @@ pub enum Key {
     I64(i64),
 }
 
+impl Display for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Key::Str(val) => f.write_str(val),
+            Key::U64(val) => f.write_str(&val.to_string()),
+            Key::I64(val) => f.write_str(&val.to_string()),
+        }
+    }
+}
+
+impl Serialize for Key {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+/// Invert of to_fastfield_u64
+pub fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
+    match field_type {
+        Type::U64 => val as f64,
+        Type::I64 => i64::from_u64(val) as f64,
+        Type::F64 => f64::from_u64(val),
+        Type::Date | Type::Str | Type::Facet | Type::Bytes => unimplemented!(),
+    }
+}
+
+/// Converts the f64 value to fast field value space.
+///
+/// If the fast field has u64, values are stored as u64 in the fast field.
+/// A f64 value of e.g. 2.0 therefore needs to be converted to 1u64
+///
+/// If the fast field has f64 values are converted and stored to u64 using a
+/// monotonic mapping.
+/// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
+/// conversion function, so that the value matches the u64 value stored in the fast
+/// field.
+pub fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> u64 {
+    match field_type {
+        Type::U64 => val as u64,
+        Type::I64 => (val as i64).to_u64(),
+        Type::F64 => val.to_u64(),
+        Type::Date | Type::Str | Type::Facet | Type::Bytes => unimplemented!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use futures::executor::block_on;
+    use serde_json::Value;
 
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use super::bucket::RangeAggregationReq;
@@ -122,32 +174,64 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype =
             crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
-        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
+        let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+        let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_for_tests()?;
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "cool",
+                score_field => 1u64,
+                score_field_f64 => 1f64,
+                score_field_i64 => 1i64,
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "cool",
                 score_field => 3u64,
+                score_field_f64 => 3f64,
+                score_field_i64 => 3i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
                 score_field => 5u64,
+                score_field_f64 => 5f64,
+                score_field_i64 => 5i64,
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "nohit",
+                score_field => 6u64,
+                score_field_f64 => 6f64,
+                score_field_i64 => 6i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
                 score_field => 7u64,
+                score_field_f64 => 7f64,
+                score_field_i64 => 7i64,
             ))?;
             index_writer.commit()?;
             index_writer.add_document(doc!(
                 text_field => "cool",
                 score_field => 11u64,
+                score_field_f64 => 11f64,
+                score_field_i64 => 11i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
-                score_field => 13u64,
+                score_field => 14u64,
+                score_field_f64 => 14f64,
+                score_field_i64 => 14i64,
             ))?;
+
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 44u64,
+                score_field_f64 => 44.5f64,
+                score_field_i64 => 44i64,
+            ))?;
+
             index_writer.commit()?;
         }
         if merge_segments {
@@ -176,6 +260,18 @@ mod tests {
 
         let agg_req_1: Aggregations = vec![
             (
+                "average_i64".to_string(),
+                Aggregation::Metric(MetricAggregation::Average {
+                    field_name: "score_i64".to_string(),
+                }),
+            ),
+            (
+                "average_f64".to_string(),
+                Aggregation::Metric(MetricAggregation::Average {
+                    field_name: "score_f64".to_string(),
+                }),
+            ),
+            (
                 "average".to_string(),
                 Aggregation::Metric(MetricAggregation::Average {
                     field_name: "score".to_string(),
@@ -191,6 +287,26 @@ mod tests {
                     sub_aggregation: Default::default(),
                 }),
             ),
+            (
+                "rangef64".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score_f64".to_string(),
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                    }),
+                    sub_aggregation: Default::default(),
+                }),
+            ),
+            (
+                "rangei64".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score_i64".to_string(),
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                    }),
+                    sub_aggregation: Default::default(),
+                }),
+            ),
         ]
         .into_iter()
         .collect();
@@ -199,7 +315,13 @@ mod tests {
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
-        dbg!(&agg_res);
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(res["average"], 12.142857142857142);
+        assert_eq!(res["average_f64"], 12.214285714285714);
+        assert_eq!(res["average_i64"], 12.142857142857142);
+
+        // println!("{}", serde_json::to_string_pretty(&res)?);
 
         Ok(())
     }
@@ -238,6 +360,26 @@ mod tests {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
+                    sub_aggregation: sub_agg_req_1.clone(),
+                }),
+            ),
+            (
+                "rangef64".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score_f64".to_string(),
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                    }),
+                    sub_aggregation: sub_agg_req_1.clone(),
+                }),
+            ),
+            (
+                "rangei64".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score_i64".to_string(),
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                    }),
                     sub_aggregation: sub_agg_req_1,
                 }),
             ),
@@ -250,7 +392,35 @@ mod tests {
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
 
-        dbg!(&agg_res);
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        // assert_eq!(p["average"], 6.833333333333333);
+        assert_eq!(res["range"]["7-20"]["doc_count"], 3);
+        assert_eq!(res["rangef64"]["7-20"]["doc_count"], 3);
+        assert_eq!(res["rangei64"]["7-20"]["doc_count"], 3);
+
+        assert_eq!(res["range"]["3-7"]["doc_count"], 2);
+        assert_eq!(res["rangef64"]["3-7"]["doc_count"], 2);
+        assert_eq!(res["rangei64"]["3-7"]["doc_count"], 2);
+
+        assert_eq!(res["range"]["*-3"]["doc_count"], 1);
+        assert_eq!(res["rangef64"]["*-3"]["doc_count"], 1);
+        assert_eq!(res["rangei64"]["*-3"]["doc_count"], 1);
+
+        assert_eq!(res["range"]["*-3"]["average_in_range"], 1.0);
+        assert_eq!(res["rangef64"]["*-3"]["average_in_range"], 1.0);
+        assert_eq!(res["rangei64"]["*-3"]["average_in_range"], 1.0);
+
+        assert_eq!(
+            res["range"]["7-20"]["average_in_range"],
+            res["rangef64"]["7-20"]["average_in_range"]
+        );
+        assert_eq!(
+            res["range"]["7-20"]["average_in_range"],
+            res["rangei64"]["7-20"]["average_in_range"]
+        );
+
+        // println!("{}", serde_json::to_string_pretty(&res)?);
 
         Ok(())
     }

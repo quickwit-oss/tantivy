@@ -96,7 +96,7 @@ impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
             MetricAggregation::Average { field_name: _ } => {
-                SegmentMetricResultCollector::Average(AverageCollector::default())
+                SegmentMetricResultCollector::Average(AverageCollector::from_req(req.field_type))
             }
         }
     }
@@ -123,7 +123,7 @@ impl SegmentBucketResultCollector {
         match &req.bucket_agg {
             super::BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
             super::BucketAggregationType::RangeAggregation(range_req) => Self::Range(
-                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation),
+                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type),
             ),
         }
     }

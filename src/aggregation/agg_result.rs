@@ -3,6 +3,8 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use super::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults,
     IntermediateBucketAggregationResult, IntermediateBucketDataEntry,
@@ -10,7 +12,7 @@ use super::intermediate_agg_result::{
 };
 use super::Key;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
 pub struct AggregationResults(HashMap<String, AggregationResult>);
 
@@ -25,7 +27,8 @@ impl From<IntermediateAggregationResults> for AggregationResults {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 /// An aggregation is either a bucket or a metric.
 pub enum AggregationResult {
     /// Bucket result variant.
@@ -46,7 +49,8 @@ impl From<IntermediateAggregationResult> for AggregationResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 /// MetricResult
 pub enum MetricResult {
     /// Average metric result.
@@ -63,9 +67,10 @@ impl From<IntermediateMetricResult> for MetricResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Aggregation result for buckets.
 pub struct BucketAggregationResult {
+    #[serde(flatten)]
     buckets: HashMap<Key, BucketDataEntry>,
 }
 
@@ -75,13 +80,17 @@ impl From<IntermediateBucketAggregationResult> for BucketAggregationResult {
             buckets: result
                 .buckets
                 .into_iter()
+                .filter(|(_, bucket)| match bucket {
+                    IntermediateBucketDataEntry::KeyCount(key_count) => key_count.doc_count != 0,
+                })
                 .map(|(key, bucket)| (key, bucket.into()))
                 .collect(),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 /// BucketDataEntry
 pub enum BucketDataEntry {
     /// This is the default entry for a bucket, which contains a key, count, and optionally
@@ -99,13 +108,13 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 pub struct BucketDataEntryKeyCount {
     key: Key,
     doc_count: u64,
-    values: Option<Vec<u64>>,
+    #[serde(flatten)]
     sub_aggregation: AggregationResults,
 }
 
@@ -114,7 +123,6 @@ impl From<IntermediateBucketDataEntryKeyCount> for BucketDataEntryKeyCount {
         BucketDataEntryKeyCount {
             key: entry.key,
             doc_count: entry.doc_count,
-            values: entry.values,
             sub_aggregation: entry.sub_aggregation.into(),
         }
     }

@@ -1,10 +1,13 @@
 use std::fmt::Debug;
 
+use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use crate::schema::Type;
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct AverageCollector {
     pub data: AverageData,
+    field_type: Type,
 }
 
 impl Debug for AverageCollector {
@@ -16,18 +19,25 @@ impl Debug for AverageCollector {
 }
 
 impl AverageCollector {
+    pub fn from_req(field_type: Type) -> Self {
+        Self {
+            field_type,
+            data: Default::default(),
+        }
+    }
     pub fn merge_fruits(&mut self, other: &AverageCollector) {
         self.data.merge_fruits(&other.data);
     }
     pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
         let val = field.get(doc);
+        let val = f64_from_fastfield_u64(val, &self.field_type);
         self.data.collect(val);
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct AverageData {
-    pub sum: u64,
+    pub sum: f64,
     pub num_vals: u64,
 }
 
@@ -41,9 +51,9 @@ impl AverageData {
         self.num_vals += other.num_vals;
     }
     pub fn finalize(&self) -> f64 {
-        self.sum as f64 / self.num_vals as f64
+        self.sum / self.num_vals as f64
     }
-    fn collect(&mut self, val: u64) {
+    fn collect(&mut self, val: f64) {
         self.num_vals += 1;
         self.sum += val;
     }
