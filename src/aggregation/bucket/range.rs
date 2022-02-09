@@ -14,6 +14,14 @@ use crate::schema::Type;
 use crate::DocId;
 
 #[derive(Clone, Debug, PartialEq)]
+/// Provide user-defined buckets to aggregate on.
+///
+/// Two special buckets will automatically be created to cover the whole range of values.
+/// The provided buckets have to be continous.
+///
+/// During the aggregation, the values extracted from the fast_field `field_name` will be checked
+/// against each bucket range. Note that this aggregation includes the from value and excludes the
+/// to value for each range.
 pub struct RangeAggregationReq {
     /// The field to aggregate on.
     pub field_name: String,
@@ -28,9 +36,12 @@ pub struct SegmentRangeBucketEntry {
     bucket: SegmentBucketDataEntry,
 }
 
+/// The collector puts values from the fast field into the correct buckets and does a conversion to
+/// the correct datatype.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeCollector {
-    pub buckets: Vec<SegmentRangeBucketEntry>,
+    /// The buckets containing the aggregation data.
+    buckets: Vec<SegmentRangeBucketEntry>,
     field_type: Type,
 }
 
