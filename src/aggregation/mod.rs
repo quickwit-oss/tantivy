@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 pub use agg_req::{Aggregation, BucketAggregationType, MetricAggregation};
+pub use bucket::RangeAggregationReq;
 pub use executor::AggregationCollector;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
