@@ -10,16 +10,16 @@ use super::agg_req_with_accessor::{
     MetricAggregationWithAccessor,
 };
 use super::bucket::SegmentRangeCollector;
-use super::metric::AverageCollector;
+use super::metric::SegmnentAverageCollector;
 use super::{Key, MetricAggregation, VecWithNames};
 
 #[derive(Default, Debug, Clone, PartialEq)]
 // TODO put staged docs here for batch processing, since this is also the top level tree for sub
-pub struct SegmentAggregationResults(pub VecWithNames<SegmentAggregationResultCollector>);
+pub struct SegmentAggregationResultsCollector(pub VecWithNames<SegmentAggregationResultCollector>);
 
-impl SegmentAggregationResults {
+impl SegmentAggregationResultsCollector {
     pub fn from_req(req: &AggregationsWithAccessor) -> Self {
-        SegmentAggregationResults(VecWithNames::from_entries(
+        SegmentAggregationResultsCollector(VecWithNames::from_entries(
             req.entries()
                 .map(|(key, value)| {
                     (
@@ -89,15 +89,15 @@ impl SegmentAggregationResultCollector {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SegmentMetricResultCollector {
-    Average(AverageCollector),
+    Average(SegmnentAverageCollector),
 }
 
 impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
-            MetricAggregation::Average { field_name: _ } => {
-                SegmentMetricResultCollector::Average(AverageCollector::from_req(req.field_type))
-            }
+            MetricAggregation::Average { field_name: _ } => SegmentMetricResultCollector::Average(
+                SegmnentAverageCollector::from_req(req.field_type),
+            ),
         }
     }
     pub(crate) fn collect(&mut self, doc: crate::DocId, metric: &MetricAggregationWithAccessor) {
@@ -167,5 +167,5 @@ pub struct SegmentBucketDataEntryKeyCount {
     /// TODO Handle different data types here?
     /// Collect on Metric level?
     pub values: Option<Vec<u64>>,
-    pub sub_aggregation: SegmentAggregationResults,
+    pub sub_aggregation: SegmentAggregationResultsCollector,
 }

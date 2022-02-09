@@ -1,7 +1,7 @@
 use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::SegmentAggregationResults;
+use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
 use crate::collector::{Collector, DistributedCollector, SegmentCollector};
 use crate::TantivyError;
@@ -31,7 +31,7 @@ impl DistributedCollector for AggregationCollector {
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResults::from_req(&aggs_with_accessor);
+        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor);
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,
@@ -58,7 +58,7 @@ impl Collector for AggregationCollector {
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResults::from_req(&aggs_with_accessor);
+        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor);
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,
@@ -91,7 +91,7 @@ fn merge_fruits(
 
 pub struct AggregationSegmentCollector {
     aggs: AggregationsWithAccessor,
-    result: SegmentAggregationResults,
+    result: SegmentAggregationResultsCollector,
 }
 
 impl SegmentCollector for AggregationSegmentCollector {
