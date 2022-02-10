@@ -17,7 +17,7 @@ pub struct IntermediateAggregationResults(pub VecWithNames<IntermediateAggregati
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
         Self(VecWithNames::from_entries(
-            tree.0
+            tree.collectors
                 .into_iter()
                 .map(|(key, agg)| (key, agg.into()))
                 .collect(),

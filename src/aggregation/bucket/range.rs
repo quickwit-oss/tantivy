@@ -108,6 +108,7 @@ impl SegmentRangeCollector {
         }
     }
 
+    #[inline]
     pub(crate) fn collect(
         &mut self,
         doc: DocId,
@@ -117,6 +118,7 @@ impl SegmentRangeCollector {
         self.collect_val(val, doc, bucket_with_accessor);
     }
 
+    #[inline]
     fn collect_val(
         &mut self,
         val: u64,
