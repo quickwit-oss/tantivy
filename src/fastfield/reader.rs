@@ -112,6 +112,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
 }
 
 impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
+    #[inline]
     fn get(&self, doc: DocId) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.get(doc),
@@ -119,6 +120,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::MultiLinearInterpol(reader) => reader.get(doc),
         }
     }
+    #[inline]
     fn get_range(&self, start: u64, output: &mut [Item]) {
         match self {
             Self::Bitpacked(reader) => reader.get_range(start, output),
@@ -174,6 +176,7 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
             _phantom: PhantomData,
         })
     }
+    #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
         Item::from_u64(self.reader.get_u64(doc, self.bytes.as_slice()))
     }

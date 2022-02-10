@@ -14,21 +14,24 @@ use super::metric::SegmnentAverageCollector;
 use super::{Key, MetricAggregation, VecWithNames};
 
 #[derive(Default, Debug, Clone, PartialEq)]
-// TODO put staged docs here for batch processing, since this is also the top level tree for sub
-pub struct SegmentAggregationResultsCollector(pub VecWithNames<SegmentAggregationResultCollector>);
+pub struct SegmentAggregationResultsCollector {
+    pub collectors: VecWithNames<SegmentAggregationResultCollector>,
+}
 
 impl SegmentAggregationResultsCollector {
     pub fn from_req(req: &AggregationsWithAccessor) -> Self {
-        SegmentAggregationResultsCollector(VecWithNames::from_entries(
-            req.entries()
-                .map(|(key, value)| {
-                    (
-                        key.to_string(),
-                        SegmentAggregationResultCollector::from_req(value),
-                    )
-                })
-                .collect_vec(),
-        ))
+        SegmentAggregationResultsCollector {
+            collectors: VecWithNames::from_entries(
+                req.entries()
+                    .map(|(key, value)| {
+                        (
+                            key.to_string(),
+                            SegmentAggregationResultCollector::from_req(value),
+                        )
+                    })
+                    .collect_vec(),
+            ),
+        }
     }
 
     pub(crate) fn collect(
@@ -36,7 +39,9 @@ impl SegmentAggregationResultsCollector {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) {
-        for (agg_res, agg_with_accessor) in self.0.values_mut().zip(agg_with_accessor.values()) {
+        for (agg_res, agg_with_accessor) in
+            self.collectors.values_mut().zip(agg_with_accessor.values())
+        {
             agg_res.collect(doc, agg_with_accessor);
         }
     }
@@ -61,6 +66,8 @@ impl SegmentAggregationResultCollector {
             }
         }
     }
+
+    #[inline]
     pub(crate) fn collect(
         &mut self,
         doc: crate::DocId,
@@ -128,6 +135,7 @@ impl SegmentBucketResultCollector {
         }
     }
 
+    #[inline]
     pub(crate) fn collect(
         &mut self,
         doc: crate::DocId,

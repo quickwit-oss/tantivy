@@ -439,6 +439,7 @@ mod tests {
     //#[cfg(all(test, feature = "unstable"))]
     mod bench {
 
+        use rand::{thread_rng, Rng};
         use test::{self, Bencher};
 
         use super::*;
@@ -461,9 +462,11 @@ mod tests {
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
             let index = Index::create_in_ram(schema_builder.build());
             {
+                let mut rng = thread_rng();
                 let mut index_writer = index.writer_for_tests()?;
                 // writing the segment
-                for val in 0..1_000_000 {
+                for _ in 0..1_000_000 {
+                    let val: f64 = rng.gen_range(0.0..1_000_000.0);
                     index_writer.add_document(doc!(
                         text_field => "cool",
                         score_field => val as u64,
@@ -534,6 +537,45 @@ mod tests {
                         field_name: "score_f64".to_string(),
                     }),
                 )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_average_u64_and_f64(b: &mut Bencher) {
+            let index = get_test_index_2_segments(false).unwrap();
+            let reader = index.reader().unwrap();
+            let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+            b.iter(|| {
+                let term_query = TermQuery::new(
+                    Term::from_field_text(text_field, "cool"),
+                    IndexRecordOption::Basic,
+                );
+
+                let agg_req_1: Aggregations = vec![
+                    (
+                        "average_f64".to_string(),
+                        Aggregation::Metric(MetricAggregation::Average {
+                            field_name: "score_f64".to_string(),
+                        }),
+                    ),
+                    (
+                        "average".to_string(),
+                        Aggregation::Metric(MetricAggregation::Average {
+                            field_name: "score".to_string(),
+                        }),
+                    ),
+                ]
                 .into_iter()
                 .collect();
 
