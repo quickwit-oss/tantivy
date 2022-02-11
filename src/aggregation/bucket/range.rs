@@ -190,9 +190,8 @@ mod tests {
             .iter()
             .map(|bucket| range_to_string(bucket, &Type::F64))
             .collect_vec();
-        // TODO add brackets?
         assert_eq!(buckets[0], "*--10");
-        assert_eq!(buckets[buckets.len() - 1], "10-*");
+        assert_eq!(buckets[buckets.len() - 1], "-1-*");
     }
     #[test]
     fn bucket_range_test_positive_vals() {

@@ -12,16 +12,16 @@ Contains all metric aggregations, like average aggregation. Metric aggregations 
 agg_req contains the users aggregation request.
 
 #### agg_req_with_accessor
-agg_req_with_accessor contains the users aggregation request eriched with fast field accessors etc, which are
+agg_req_with_accessor contains the users aggregation request enriched with fast field accessors etc, which are
 used during collection.
 
 #### segment_agg_result
-segment_agg_result is the aggregation result tree during collection in a segment.
-It will get the tree from agg_req_with_accessor passed during collection in a segment.
+segment_agg_result contains the aggregation result tree, which is used for collection of a segment.
+The tree from agg_req_with_accessor is passed during collection.
 
 #### intermediate_agg_result
-intermediate_agg_result is the aggregation tree for merging with other trees.
+intermediate_agg_result contains the aggregation tree for merging with other trees.
 
 #### agg_result
-agg_result is the final aggregation tree.
+agg_result contains the final aggregation tree.
 

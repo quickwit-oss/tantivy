@@ -31,12 +31,8 @@
 //! let collector = AggregationCollector::from_aggs(agg_req);
 //!
 //! let searcher = reader.searcher();
-//! let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
+//! let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 //! ```
-//!
-//! Here the into() call after `search.search()` is converting the intermediate tree to the final
-//! tree.
-//!
 //!
 //! # Nested Aggregation
 //!
@@ -80,7 +76,7 @@ mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-pub use collector::AggregationCollector;
+pub use collector::{AggregationCollector, DistributedAggregationCollector};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -217,6 +213,7 @@ mod tests {
     use super::collector::AggregationCollector;
     use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::DistributedAggregationCollector;
     use crate::query::TermQuery;
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
     use crate::{Index, Term};
@@ -373,7 +370,7 @@ mod tests {
         let collector = AggregationCollector::from_aggs(agg_req_1);
 
         let searcher = reader.searcher();
-        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
+        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         assert_eq!(res["average"], 12.142857142857142);
@@ -385,7 +382,10 @@ mod tests {
         Ok(())
     }
 
-    fn test_aggregation_level2(merge_segments: bool) -> crate::Result<()> {
+    fn test_aggregation_level2(
+        merge_segments: bool,
+        use_distributed_collector: bool,
+    ) -> crate::Result<()> {
         let index = get_test_index_2_segments(merge_segments)?;
 
         let reader = index.reader()?;
@@ -446,10 +446,17 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let agg_res: AggregationResults = if use_distributed_collector {
+            let collector = DistributedAggregationCollector::from_aggs(agg_req_1);
 
-        let searcher = reader.searcher();
-        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
+            let searcher = reader.searcher();
+            searcher.search(&term_query, &collector).unwrap().into()
+        } else {
+            let collector = AggregationCollector::from_aggs(agg_req_1);
+
+            let searcher = reader.searcher();
+            searcher.search(&term_query, &collector).unwrap().into()
+        };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
 
@@ -486,12 +493,22 @@ mod tests {
 
     #[test]
     fn test_aggregation_level2_multi_segments() -> crate::Result<()> {
-        test_aggregation_level2(false)
+        test_aggregation_level2(false, false)
     }
 
     #[test]
     fn test_aggregation_level2_single_segment() -> crate::Result<()> {
-        test_aggregation_level2(true)
+        test_aggregation_level2(true, false)
+    }
+
+    #[test]
+    fn test_aggregation_level2_multi_segments_distributed_collector() -> crate::Result<()> {
+        test_aggregation_level2(false, true)
+    }
+
+    #[test]
+    fn test_aggregation_level2_single_segment_distributed_collector() -> crate::Result<()> {
+        test_aggregation_level2(true, true)
     }
 
     #[cfg(all(test, feature = "unstable"))]

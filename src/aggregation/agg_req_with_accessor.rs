@@ -60,7 +60,7 @@ impl BucketAggregationWithAccessor {
             BucketAggregationType::RangeAggregation(RangeAggregation {
                 field_name,
                 buckets: _,
-            }) => get_ff_reader(reader, field_name)?,
+            }) => get_ff_reader_and_validate(reader, field_name)?,
         };
         let sub_aggregation = sub_aggregation.clone();
         Ok(BucketAggregationWithAccessor {
@@ -86,7 +86,7 @@ impl MetricAggregationWithAccessor {
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
             MetricAggregation::Average { field_name } => {
-                let (accessor, field_type) = get_ff_reader(reader, field_name)?;
+                let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {
                     accessor,
@@ -126,8 +126,7 @@ fn get_aggregation_with_accessor(
     }
 }
 
-// TODO validate field type
-fn get_ff_reader(
+fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
 ) -> crate::Result<(DynamicFastFieldReader<u64>, Type)> {
@@ -136,6 +135,15 @@ fn get_ff_reader(
         .get_field(field_name)
         .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
     let field_type = reader.schema().get_field_entry(field).field_type();
+    if field_type.value_type() != Type::I64
+        && field_type.value_type() != Type::U64
+        && field_type.value_type() != Type::F64
+    {
+        return Err(TantivyError::InvalidArgument(format!(
+            "Invalid field type in aggregation {:?}, only f64, u64, i64 is supported",
+            field_type.value_type()
+        )));
+    }
     let ff_fields = reader.fast_fields();
     ff_fields
         .u64_lenient(field)
