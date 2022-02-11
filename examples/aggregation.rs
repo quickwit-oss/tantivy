@@ -1,18 +1,16 @@
 // # Aggregation example
 //
 // This example shows how you can use built-in aggregations.
-// As an example, we will use range buckets and compute the average in each bucket.
+// We will use range buckets and compute the average in each bucket.
 //
 
 use serde_json::Value;
-use tantivy::aggregation::agg_req::{Aggregations, BucketAggregation};
-use tantivy::aggregation::agg_result::AggregationResults;
-use tantivy::aggregation::{
-    Aggregation, AggregationCollector, BucketAggregationType, MetricAggregation,
-    RangeAggregationReq,
+use tantivy::aggregation::agg_req::{
+    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
+    RangeAggregation,
 };
-// ---
-// Importing tantivy...
+use tantivy::aggregation::agg_result::AggregationResults;
+use tantivy::aggregation::AggregationCollector;
 use tantivy::query::TermQuery;
 use tantivy::schema::{self, Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
 use tantivy::{doc, Index, Term};
@@ -28,9 +26,8 @@ fn main() -> tantivy::Result<()> {
         .set_stored();
     let text_field = schema_builder.add_text_field("text", text_fieldtype);
     let score_fieldtype = crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
-    let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
-    let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
-    let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
+    let highscore_field = schema_builder.add_f64_field("highscore", score_fieldtype.clone());
+    let price_field = schema_builder.add_f64_field("price", score_fieldtype.clone());
 
     let schema = schema_builder.build();
 
@@ -43,53 +40,45 @@ fn main() -> tantivy::Result<()> {
     // writing the segment
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 1u64,
-        score_field_f64 => 1f64,
-        score_field_i64 => 1i64,
+        highscore_field => 1f64,
+        price_field => 0f64,
     ))?;
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 3u64,
-        score_field_f64 => 3f64,
-        score_field_i64 => 3i64,
+        highscore_field => 3f64,
+        price_field => 1f64,
     ))?;
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 5u64,
-        score_field_f64 => 5f64,
-        score_field_i64 => 5i64,
+        highscore_field => 5f64,
+        price_field => 1f64,
     ))?;
     index_writer.add_document(doc!(
         text_field => "nohit",
-        score_field => 6u64,
-        score_field_f64 => 6f64,
-        score_field_i64 => 6i64,
+        highscore_field => 6f64,
+        price_field => 2f64,
     ))?;
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 7u64,
-        score_field_f64 => 7f64,
-        score_field_i64 => 7i64,
+        highscore_field => 7f64,
+        price_field => 2f64,
     ))?;
     index_writer.commit()?;
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 11u64,
-        score_field_f64 => 11f64,
-        score_field_i64 => 11i64,
+        highscore_field => 11f64,
+        price_field => 10f64,
     ))?;
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 14u64,
-        score_field_f64 => 14f64,
-        score_field_i64 => 14i64,
+        highscore_field => 14f64,
+        price_field => 15f64,
     ))?;
 
     index_writer.add_document(doc!(
         text_field => "cool",
-        score_field => 44u64,
-        score_field_f64 => 44.5f64,
-        score_field_i64 => 44i64,
+        highscore_field => 15f64,
+        price_field => 20f64,
     ))?;
 
     index_writer.commit()?;
@@ -103,52 +92,24 @@ fn main() -> tantivy::Result<()> {
     );
 
     let sub_agg_req_1: Aggregations = vec![(
-        "average_in_range".to_string(),
+        "average_price".to_string(),
         Aggregation::Metric(MetricAggregation::Average {
-            field_name: "score".to_string(),
+            field_name: "price".to_string(),
         }),
     )]
     .into_iter()
     .collect();
 
-    let agg_req_1: Aggregations = vec![
-        (
-            "average".to_string(),
-            Aggregation::Metric(MetricAggregation::Average {
-                field_name: "score".to_string(),
+    let agg_req_1: Aggregations = vec![(
+        "score_ranges".to_string(),
+        Aggregation::Bucket(BucketAggregation {
+            bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                field_name: "highscore".to_string(),
+                buckets: vec![(-1f64..9f64), (9f64..14f64), (14f64..20f64)],
             }),
-        ),
-        (
-            "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
-                    field_name: "score".to_string(),
-                    buckets: vec![(3f64..7f64), (7f64..20f64)],
-                }),
-                sub_aggregation: sub_agg_req_1.clone(),
-            }),
-        ),
-        (
-            "rangef64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
-                    field_name: "score_f64".to_string(),
-                    buckets: vec![(3f64..7f64), (7f64..20f64)],
-                }),
-                sub_aggregation: sub_agg_req_1.clone(),
-            }),
-        ),
-        (
-            "rangei64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
-                    field_name: "score_i64".to_string(),
-                    buckets: vec![(3f64..7f64), (7f64..20f64)],
-                }),
-                sub_aggregation: sub_agg_req_1,
-            }),
-        ),
-    ]
+            sub_aggregation: sub_agg_req_1.clone(),
+        }),
+    )]
     .into_iter()
     .collect();
 

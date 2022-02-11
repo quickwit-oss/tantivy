@@ -19,7 +19,7 @@ use crate::{DocId, Score};
 ///
 /// # Warning
 ///
-/// f64 field. are not supported.
+/// f64 fields are not supported.
 #[derive(Clone)]
 pub struct HistogramCollector {
     min_value: u64,

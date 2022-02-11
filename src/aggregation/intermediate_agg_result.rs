@@ -1,5 +1,6 @@
 //! Contains Intermediate aggregation trees, that can be merged.
-//! This tree will be used to merge results between segments and between indices.
+//! Intermediate aggregation results can be used to merge results between segments or between
+//! indices.
 
 use std::collections::HashMap;
 
@@ -12,7 +13,9 @@ use super::{Key, VecWithNames};
 use crate::collector::MergeableFruit;
 
 #[derive(Default, Debug, Clone, PartialEq)]
-pub struct IntermediateAggregationResults(pub VecWithNames<IntermediateAggregationResult>);
+/// Contains the intermediate aggregation result, which is optimized to be merged with other
+/// intermediate results.
+pub struct IntermediateAggregationResults(pub(crate) VecWithNames<IntermediateAggregationResult>);
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
@@ -32,6 +35,7 @@ impl MergeableFruit for IntermediateAggregationResults {
 }
 
 impl IntermediateAggregationResults {
+    /// Merge an other intermediate aggregation result into this result.
     pub fn merge_fruits(&mut self, other: &IntermediateAggregationResults) {
         for (tree_left, tree_right) in self.0.values_mut().zip(other.0.values()) {
             tree_left.merge_fruits(tree_right);
@@ -42,7 +46,9 @@ impl IntermediateAggregationResults {
 #[derive(Clone, Debug, PartialEq)]
 /// An aggregation is either a bucket or a metric.
 pub enum IntermediateAggregationResult {
-    Bucket(IntermediateBucketAggregationResult),
+    /// Bucket variant
+    Bucket(IntermediateBucketResult),
+    /// Metric variant
     Metric(IntermediateMetricResult),
 }
 
@@ -82,7 +88,9 @@ impl IntermediateAggregationResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Holds the intermediate data for metric resuls
 pub enum IntermediateMetricResult {
+    /// AverageData variant
     Average(AverageData),
 }
 
@@ -110,20 +118,22 @@ impl IntermediateMetricResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct IntermediateBucketAggregationResult {
-    pub buckets: HashMap<Key, IntermediateBucketDataEntry>,
+/// The intermediate bucket results. Internally they can be easily merged via the keys of the
+/// buckets.
+pub struct IntermediateBucketResult {
+    pub(crate) buckets: HashMap<Key, IntermediateBucketDataEntry>,
 }
 
-impl From<SegmentBucketResultCollector> for IntermediateBucketAggregationResult {
+impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
     fn from(collector: SegmentBucketResultCollector) -> Self {
         match collector {
-            SegmentBucketResultCollector::Range(range) => range.into_bucket_agg_result(),
+            SegmentBucketResultCollector::Range(range) => range.into_intermediate_agg_result(),
         }
     }
 }
 
-impl IntermediateBucketAggregationResult {
-    fn merge_fruits(&mut self, other: &IntermediateBucketAggregationResult) {
+impl IntermediateBucketResult {
+    fn merge_fruits(&mut self, other: &IntermediateBucketResult) {
         for (name, entry_left) in self.buckets.iter_mut() {
             if let Some(entry_right) = other.buckets.get(name) {
                 match (entry_left, entry_right) {
@@ -144,7 +154,10 @@ impl IntermediateBucketAggregationResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// The intermediate buckets
 pub enum IntermediateBucketDataEntry {
+    /// This is the default entry for a bucket, which contains a key, count, and optionally
+    /// sub_aggregations.
     KeyCount(IntermediateBucketDataEntryKeyCount),
 }
 
@@ -159,10 +172,15 @@ impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// This is the default entry for a bucket, which contains a key, count, and optionally
+/// sub_aggregations.
 pub struct IntermediateBucketDataEntryKeyCount {
+    /// The unique the bucket is identified.
     pub key: Key,
+    /// The number of documents in the bucket.
     pub doc_count: u64,
-    pub values: Option<Vec<u64>>,
+    pub(crate) values: Option<Vec<u64>>,
+    /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
 }
 
@@ -208,7 +226,7 @@ mod tests {
         }
         map.insert(
             "my_agg_level2".to_string(),
-            IntermediateAggregationResult::Bucket(IntermediateBucketAggregationResult { buckets }),
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult { buckets }),
         );
         IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
     }
@@ -232,7 +250,7 @@ mod tests {
         }
         map.insert(
             "my_agg_level1".to_string(),
-            IntermediateAggregationResult::Bucket(IntermediateBucketAggregationResult { buckets }),
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult { buckets }),
         );
         IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
     }

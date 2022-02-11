@@ -5,24 +5,27 @@
 
 use itertools::Itertools;
 
+use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
     MetricAggregationWithAccessor,
 };
 use super::bucket::SegmentRangeCollector;
 use super::metric::SegmnentAverageCollector;
-use super::{Key, MetricAggregation, VecWithNames};
+use super::{Key, VecWithNames};
+use crate::aggregation::agg_req::BucketAggregationType;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct SegmentAggregationResultsCollector {
-    pub collectors: VecWithNames<SegmentAggregationResultCollector>,
+    pub(crate) collectors: VecWithNames<SegmentAggregationResultCollector>,
 }
 
 impl SegmentAggregationResultsCollector {
-    pub fn from_req(req: &AggregationsWithAccessor) -> Self {
+    pub(crate) fn from_req(req: &AggregationsWithAccessor) -> Self {
         SegmentAggregationResultsCollector {
             collectors: VecWithNames::from_entries(
-                req.entries()
+                req.0
+                    .entries()
                     .map(|(key, value)| {
                         (
                             key.to_string(),
@@ -39,8 +42,10 @@ impl SegmentAggregationResultsCollector {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) {
-        for (agg_res, agg_with_accessor) in
-            self.collectors.values_mut().zip(agg_with_accessor.values())
+        for (agg_res, agg_with_accessor) in self
+            .collectors
+            .values_mut()
+            .zip(agg_with_accessor.0.values())
         {
             agg_res.collect(doc, agg_with_accessor);
         }
@@ -128,8 +133,7 @@ pub enum SegmentBucketResultCollector {
 impl SegmentBucketResultCollector {
     pub fn from_req(req: &BucketAggregationWithAccessor) -> Self {
         match &req.bucket_agg {
-            super::BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
-            super::BucketAggregationType::RangeAggregation(range_req) => Self::Range(
+            BucketAggregationType::RangeAggregation(range_req) => Self::Range(
                 SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type),
             ),
         }
