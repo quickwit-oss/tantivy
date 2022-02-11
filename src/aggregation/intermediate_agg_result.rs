@@ -10,7 +10,6 @@ use super::segment_agg_result::{
     SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
 };
 use super::{Key, VecWithNames};
-use crate::collector::MergeableFruit;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
@@ -25,12 +24,6 @@ impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults
                 .map(|(key, agg)| (key, agg.into()))
                 .collect(),
         ))
-    }
-}
-
-impl MergeableFruit for IntermediateAggregationResults {
-    fn merge_fruit(&mut self, other: &Self) {
-        self.merge_fruits(other);
     }
 }
 

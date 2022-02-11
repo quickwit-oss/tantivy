@@ -1,20 +1,15 @@
 use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
+use super::agg_result::AggregationResults;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
-use crate::collector::{Collector, DistributedCollector, SegmentCollector};
+use crate::collector::{Collector, SegmentCollector};
 use crate::TantivyError;
 
 /// Collector for aggregations.
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
-///
-/// # Why is fruit intermediate results?
-/// AggregationCollector returns `IntermediateAggregationResults` and not the final
-/// `AggregationResults`.
-/// That
-
 pub struct AggregationCollector {
     agg: Aggregations,
 }
@@ -22,11 +17,30 @@ pub struct AggregationCollector {
 impl AggregationCollector {
     /// Create collector from aggregation request.
     pub fn from_aggs(agg: Aggregations) -> Self {
-        AggregationCollector { agg }
+        Self { agg }
     }
 }
 
-impl DistributedCollector for AggregationCollector {
+/// Collector for distributed aggregations.
+///
+/// The collector collects all aggregations by the underlying aggregation request.
+///
+/// # Purpose
+/// AggregationCollector returns `IntermediateAggregationResults` and not the final
+/// `AggregationResults`, so that results from differenct indices can be merged and then converted
+/// into the final `AggregationResults` via the `into()` method.
+pub struct DistributedAggregationCollector {
+    agg: Aggregations,
+}
+
+impl DistributedAggregationCollector {
+    /// Create collector from aggregation request.
+    pub fn from_aggs(agg: Aggregations) -> Self {
+        Self { agg }
+    }
+}
+
+impl Collector for DistributedAggregationCollector {
     type Fruit = IntermediateAggregationResults;
 
     type Child = AggregationSegmentCollector;
@@ -48,13 +62,16 @@ impl DistributedCollector for AggregationCollector {
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
         merge_fruits(segment_fruits)
     }
 }
 
 impl Collector for AggregationCollector {
-    type Fruit = IntermediateAggregationResults;
+    type Fruit = AggregationResults;
 
     type Child = AggregationSegmentCollector;
 
@@ -75,8 +92,11 @@ impl Collector for AggregationCollector {
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
-        merge_fruits(segment_fruits)
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
+        merge_fruits(segment_fruits).map(|res| res.into())
     }
 }
 
