@@ -79,13 +79,14 @@ pub struct MetricAggregationWithAccessor {
     pub field_type: Type,
     pub accessor: DynamicFastFieldReader<u64>,
 }
+
 impl MetricAggregationWithAccessor {
     fn from_metric(
         metric: &MetricAggregation,
         reader: &SegmentReader,
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
-            MetricAggregation::Average { field_name } => {
+            MetricAggregation::Average { field_name } | MetricAggregation::Stats { field_name } => {
                 let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {

@@ -83,4 +83,9 @@ pub enum MetricAggregation {
         /// The field name to compute the average on.
         field_name: String,
     },
+    /// Calculates stats sum, average, min, max, standard_deviation on a field.
+    Stats {
+        /// The field name to compute the stats on.
+        field_name: String,
+    },
 }

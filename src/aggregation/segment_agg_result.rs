@@ -11,12 +11,12 @@ use super::agg_req_with_accessor::{
     MetricAggregationWithAccessor,
 };
 use super::bucket::SegmentRangeCollector;
-use super::metric::SegmnentAverageCollector;
+use super::metric::{SegmentAverageCollector, SegmentStatsCollector};
 use super::{Key, VecWithNames};
 use crate::aggregation::agg_req::BucketAggregationType;
 
 #[derive(Default, Debug, Clone, PartialEq)]
-pub struct SegmentAggregationResultsCollector {
+pub(crate) struct SegmentAggregationResultsCollector {
     pub(crate) collectors: VecWithNames<SegmentAggregationResultCollector>,
 }
 
@@ -55,7 +55,7 @@ impl SegmentAggregationResultsCollector {
 #[derive(Clone, Debug, PartialEq)]
 /// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed
 /// vecs in `SegmentAggregationResults`. An aggregation is either a bucket or a metric.
-pub enum SegmentAggregationResultCollector {
+pub(crate) enum SegmentAggregationResultCollector {
     Bucket(SegmentBucketResultCollector),
     Metric(SegmentMetricResultCollector),
 }
@@ -100,22 +100,29 @@ impl SegmentAggregationResultCollector {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SegmentMetricResultCollector {
-    Average(SegmnentAverageCollector),
+pub(crate) enum SegmentMetricResultCollector {
+    Average(SegmentAverageCollector),
+    Stats(SegmentStatsCollector),
 }
 
 impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
             MetricAggregation::Average { field_name: _ } => SegmentMetricResultCollector::Average(
-                SegmnentAverageCollector::from_req(req.field_type),
+                SegmentAverageCollector::from_req(req.field_type),
             ),
+            MetricAggregation::Stats { field_name: _ } => {
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(req.field_type))
+            }
         }
     }
     pub(crate) fn collect(&mut self, doc: crate::DocId, metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Average(avg_collector) => {
                 avg_collector.collect(doc, &metric.accessor);
+            }
+            SegmentMetricResultCollector::Stats(stats_collector) => {
+                stats_collector.collect(doc, &metric.accessor);
             }
         }
     }
@@ -126,7 +133,7 @@ impl SegmentMetricResultCollector {
 /// The typical structure of Map<Key, Bucket> is not suitable during collection for performance
 /// reasons.
 #[derive(Clone, Debug, PartialEq)]
-pub enum SegmentBucketResultCollector {
+pub(crate) enum SegmentBucketResultCollector {
     Range(SegmentRangeCollector),
 }
 
@@ -154,19 +161,12 @@ impl SegmentBucketResultCollector {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SegmentBucketDataEntry {
+pub(crate) enum SegmentBucketDataEntry {
     KeyCount(SegmentBucketDataEntryKeyCount),
 }
 
-impl SegmentBucketDataEntry {
-    pub fn doc_count(&self) -> u64 {
-        match self {
-            SegmentBucketDataEntry::KeyCount(bucket) => bucket.doc_count,
-        }
-    }
-}
 #[derive(Clone, Debug, PartialEq)]
-pub struct SegmentBucketDataEntryKeyCount {
+pub(crate) struct SegmentBucketDataEntryKeyCount {
     pub key: Key,
     pub doc_count: u64,
     /// Collect and then compute the values on that bucket.

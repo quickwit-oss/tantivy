@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use super::metric::AverageData;
+use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
     SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketDataEntry,
     SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
@@ -83,15 +83,20 @@ impl IntermediateAggregationResult {
 #[derive(Clone, Debug, PartialEq)]
 /// Holds the intermediate data for metric resuls
 pub enum IntermediateMetricResult {
+    /// Average containing intermediate average data result
+    Average(IntermediateAverage),
     /// AverageData variant
-    Average(AverageData),
+    Stats(IntermediateStats),
 }
 
 impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
     fn from(tree: SegmentMetricResultCollector) -> Self {
         match tree {
             SegmentMetricResultCollector::Average(collector) => {
-                IntermediateMetricResult::Average(AverageData::from_collector(collector))
+                IntermediateMetricResult::Average(IntermediateAverage::from_collector(collector))
+            }
+            SegmentMetricResultCollector::Stats(collector) => {
+                IntermediateMetricResult::Stats(collector.stats)
             }
         }
     }
@@ -104,7 +109,16 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::Average(avg_data_left),
                 IntermediateMetricResult::Average(avg_data_right),
             ) => {
-                avg_data_left.merge_fruits(avg_data_right);
+                avg_data_left.merge_fruits(&avg_data_right);
+            }
+            (
+                IntermediateMetricResult::Stats(stats_left),
+                IntermediateMetricResult::Stats(stats_right),
+            ) => {
+                stats_left.merge_fruits(&stats_right);
+            }
+            _ => {
+                panic!("incompatible fruit types in tree {:?}", other);
             }
         }
     }

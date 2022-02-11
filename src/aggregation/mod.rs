@@ -8,13 +8,15 @@
 //! - How many errors with status code 500 do we have per day?
 //! - What is the average listing price of cars grouped by color?
 //!
-//! # Code Organization
+//! # Usage
 //!
-//! Check the [README](https://github.com/quickwit-oss/tantivy/tree/main/src/aggregation#readme) on github to see how the code is organized.
+//! To use aggregations, build an aggregation request by constructing [agg_req::Aggregations].
+//! Create an [AggregationCollector] from this requests and pass this as collector into
+//! `searcher.search()`.
 //!
 //! # Example
-//! Create an Aggregations request, which is built from an (String, [agg_req::Aggregation])
-//! iterator.
+//! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
+//! [agg_req::Aggregation]) iterator.
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = vec![
@@ -33,6 +35,9 @@
 //! let searcher = reader.searcher();
 //! let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 //! ```
+//! # Code Organization
+//!
+//! Check the [README](https://github.com/quickwit-oss/tantivy/tree/main/src/aggregation#readme) on github to see how the code is organized.
 //!
 //! # Nested Aggregation
 //!
@@ -64,13 +69,24 @@
 //! .into_iter()
 //! .collect();
 //! ```
+//!
+//! # Distributed Aggregation
+//! When the data is distributed on different [crate::Index] instances, the
+//! [DistributedAggregationCollector] provides functionality to merge data between independent
+//! search calls by returning
+//! [IntermediateAggregationResults](intermediate_agg_result::IntermediateAggregationResults).
+//! IntermediateAggregationResults provides the
+//! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
+//! merge multiple results. The merged result can then be converter into
+//! [agg_result::AggregationResults] via the [Into] trait.
+
 pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
-mod bucket;
+pub mod bucket;
 mod collector;
 pub mod intermediate_agg_result;
-mod metric;
+pub mod metric;
 mod segment_agg_result;
 
 use std::collections::HashMap;
@@ -218,7 +234,7 @@ mod tests {
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
     use crate::{Index, Term};
 
-    fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
+    pub fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
