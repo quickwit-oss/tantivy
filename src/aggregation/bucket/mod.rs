@@ -1,5 +1,5 @@
 mod histogram;
 mod range;
 
-pub use range::RangeAggregationReq;
+pub use range::RangeAggregation;
 pub(crate) use range::SegmentRangeCollector;

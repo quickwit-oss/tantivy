@@ -1,14 +1,16 @@
 //! Contains the final aggregation tree.
-//! This tree will be used to compute intermediate trees.
+//! This tree can be converted via the `into()` method from the searcher.search() result. This
+//! conversion computes the final result. E.g. the intermediate result contains intermediate
+//! average results, which is the sum and the number of values. The actual average is calculated on
+//! the step from intermediate to final aggregation result tree.
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use super::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults,
-    IntermediateBucketAggregationResult, IntermediateBucketDataEntry,
-    IntermediateBucketDataEntryKeyCount, IntermediateMetricResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketDataEntry,
+    IntermediateBucketDataEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
 };
 use super::Key;
 
@@ -32,7 +34,7 @@ impl From<IntermediateAggregationResults> for AggregationResults {
 /// An aggregation is either a bucket or a metric.
 pub enum AggregationResult {
     /// Bucket result variant.
-    BucketResult(BucketAggregationResult),
+    BucketResult(BucketResult),
     /// Metric result variant.
     MetricResult(MetricResult),
 }
@@ -69,14 +71,14 @@ impl From<IntermediateMetricResult> for MetricResult {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Aggregation result for buckets.
-pub struct BucketAggregationResult {
+pub struct BucketResult {
     #[serde(flatten)]
     buckets: HashMap<Key, BucketDataEntry>,
 }
 
-impl From<IntermediateBucketAggregationResult> for BucketAggregationResult {
-    fn from(result: IntermediateBucketAggregationResult) -> Self {
-        BucketAggregationResult {
+impl From<IntermediateBucketResult> for BucketResult {
+    fn from(result: IntermediateBucketResult) -> Self {
+        BucketResult {
             buckets: result
                 .buckets
                 .into_iter()
@@ -112,6 +114,7 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 pub struct BucketDataEntryKeyCount {
+    #[serde(skip_serializing)]
     key: Key,
     doc_count: u64,
     #[serde(flatten)]

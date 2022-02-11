@@ -1,15 +1,38 @@
-//! Contains the aggregation request tree.
+//! Contains the aggregation request tree. Used to build an
+//! [AggregationCollector](super::AggregationCollector).
+//!
+//! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
+//! Aggregation>`.
+//!
+//! # Example
+//!
+//! ```verbatim
+//! let agg_req_1: Aggregations = vec![
+//!     (
+//!         "range".to_string(),
+//!         Aggregation::Bucket(BucketAggregation {
+//!             bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {                               
+//!                 field_name: "score".to_string(),
+//!                 buckets: vec![(3f64..7f64), (7f64..20f64)],
+//!             }),
+//!             sub_aggregation: Default::default(),
+//!         }),
+//!     )]
+//!     .into_iter()
+//!     .collect();
+//! ```
 
 use std::collections::HashMap;
 
-use super::bucket::RangeAggregationReq;
+pub use super::bucket::RangeAggregation;
 
-/// The aggregation requests.
+/// The top-level aggregation request structure, which contains [Aggregation] and their user defined
+/// names.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
-/// Aggregation enum.
+/// Aggregation request of [BucketAggregation] or [MetricAggregation].
 ///
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,19 +44,18 @@ pub enum Aggregation {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-/// BucketAggregations don’t calculate metrics over fields like the metrics aggregations do, but
-/// instead, they create buckets of documents. Each bucket is associated with a criterion (depending
-/// on the aggregation type) which determines whether or not a document in the current context
-/// "falls" into it. In other words, the buckets effectively define document sets. In addition to
-/// the buckets themselves, the bucket aggregations also compute and return the number of documents
-/// that "fell into" each bucket. Bucket aggregations, as opposed to metrics aggregations, can hold
-/// sub_aggregations. These sub-aggregations will be aggregated for the buckets created
-/// by their "parent" bucket aggregation.
-/// There are different bucket aggregators, each with a different "bucketing" strategy. Some define
-/// a single bucket, some define fixed number of multiple buckets, and others dynamically create the
-/// buckets during the aggregation process.
+/// BucketAggregations create buckets of documents. Each bucket is associated with a rule which
+/// determines whether or not a document in the falls into it. In other words, the buckets
+/// effectively define document sets. Buckets are not necessarily disjunct, therefore a document can
+/// fall into multiple buckets. In addition to the buckets themselves, the bucket aggregations also
+/// compute and return the number of documents for each bucket. Bucket aggregations, as opposed to
+/// metric aggregations, can hold sub-aggregations. These sub-aggregations will be aggregated for
+/// the buckets created by their "parent" bucket aggregation. There are different bucket
+/// aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
+/// define fixed number of multiple buckets, and others dynamically create the buckets during the
+/// aggregation process.
 pub struct BucketAggregation {
-    /// Group by Term into buckets
+    /// Bucket aggregation strategy to group documents.
     pub bucket_agg: BucketAggregationType,
     /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
     /// bucket.
@@ -43,26 +65,17 @@ pub struct BucketAggregation {
 #[derive(Clone, Debug, PartialEq)]
 /// The bucket aggregation types.
 pub enum BucketAggregationType {
-    /// Group by Term into buckets
-    TermAggregation {
-        /// The field to aggregate on.
-        field_name: String,
-    },
-    /// Put data into predefined buckets.
-    RangeAggregation(RangeAggregationReq),
+    /// Put data into buckets of user-defined ranges.
+    RangeAggregation(RangeAggregation),
 }
 
-/// The aggregations in this family compute metrics based on values extracted in one way or another
-/// from the documents that are being aggregated. The values are extracted from the fast field of
+/// The aggregations in this family compute metrics based on values extracted
+/// from the documents that are being aggregated. Values are extracted from the fast field of
 /// the document.
 
-/// Numeric metrics aggregations are a special type of metrics aggregation which output numeric
-/// values. Some aggregations output a single numeric metric (e.g. Average) and are called
+/// Some aggregations output a single numeric metric (e.g. Average) and are called
 /// single-value numeric metrics aggregation, others generate multiple metrics (e.g. stats) and are
-/// called multi-value numeric metrics aggregation. The distinction between single-value and
-/// multi-value numeric metrics aggregations plays a role when these aggregations serve as
-/// direct sub-aggregations of some bucket aggregations (some bucket aggregations enable you to sort
-/// the returned buckets based on the numeric metrics in each bucket).
+/// called multi-value numeric metrics aggregation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MetricAggregation {
     /// Calculates the average.

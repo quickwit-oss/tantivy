@@ -1,28 +1,86 @@
-//! This module contains code for aggregation.
+//! # Aggregations
 //!
-//! agg_req contains the aggregation request.
-//! agg_req_with_accessor contains the aggregation request plus fast field accessors etc, which are
-//! used during collection.
 //!
-//! segment_agg_result is the aggregation result tree during collection.
-//! intermediate_agg_result is the aggregation tree for merging with other trees.
-//! agg_result is the final aggregation tree.
-
+//! Aggregation summarizes your data as statistics on buckets or metrics.
+//!
+//! Aggregations can provide answer to questions like:
+//! - What is the average price of all sold articles?
+//! - How many errors with status code 500 do we have per day?
+//! - What is the average listing price of cars grouped by color?
+//!
+//! # Code Organization
+//!
+//! Check the [README](https://github.com/quickwit-oss/tantivy/tree/main/src/aggregation#readme) on github to see how the code is organized.
+//!
+//! # Example
+//! Create an Aggregations request, which is built from an (String, [agg_req::Aggregation])
+//! iterator.
+//!
+//! ```verbatim
+//! let agg_req: Aggregations = vec![
+//! (
+//!         "average".to_string(),
+//!        Aggregation::Metric(MetricAggregation::Average {
+//!             field_name: "score".to_string(),
+//!         }),
+//!     ),
+//! ]
+//! .into_iter()
+//! .collect();
+//!
+//! let collector = AggregationCollector::from_aggs(agg_req);
+//!
+//! let searcher = reader.searcher();
+//! let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap().into();
+//! ```
+//!
+//! Here the into() call after `search.search()` is converting the intermediate tree to the final
+//! tree.
+//!
+//!
+//! # Nested Aggregation
+//!
+//! Buckets can contain sub-aggregations. In this example we create buckets with the range
+//! aggregation and then calculate the average on each bucket.
+//!
+//! ```verbatim
+//! let sub_agg_req_1: Aggregations = vec![(
+//!    "average_in_range".to_string(),
+//!    Aggregation::Metric(MetricAggregation::Average {
+//!        field_name: "score".to_string(),
+//!     }),
+//! )]
+//! .into_iter()
+//! .collect();
+//!
+//! let agg_req_1: Aggregations = vec![
+//!     (
+//!         "range".to_string(),
+//!         Aggregation::Bucket(BucketAggregation {
+//!             bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+//!                 field_name: "score".to_string(),
+//!                 buckets: vec![(3f64..7f64), (7f64..20f64)],
+//!             }),
+//!             sub_aggregation: sub_agg_req_1.clone(),
+//!         }),
+//!     ),
+//! ]
+//! .into_iter()
+//! .collect();
+//! ```
 pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
 mod bucket;
-mod executor;
-mod intermediate_agg_result;
+mod collector;
+pub mod intermediate_agg_result;
 mod metric;
 mod segment_agg_result;
 
 use std::collections::HashMap;
 use std::fmt::Display;
 
-pub use agg_req::{Aggregation, BucketAggregationType, MetricAggregation};
-pub use bucket::RangeAggregationReq;
-pub use executor::AggregationCollector;
+pub use collector::AggregationCollector;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +89,7 @@ use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq)]
-pub struct VecWithNames<T: Clone> {
+pub(crate) struct VecWithNames<T: Clone> {
     values: Vec<T>,
     keys: Vec<String>,
 }
@@ -120,7 +178,7 @@ impl Serialize for Key {
 }
 
 /// Invert of to_fastfield_u64
-pub fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
+pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
         Type::I64 => i64::from_u64(val) as f64,
@@ -139,7 +197,7 @@ pub fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
 /// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
 /// conversion function, so that the value matches the u64 value stored in the fast
 /// field.
-pub fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> u64 {
+pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> u64 {
     match field_type {
         Type::U64 => val as u64,
         Type::I64 => (val as i64).to_u64(),
@@ -155,9 +213,9 @@ mod tests {
     use serde_json::Value;
 
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
-    use super::bucket::RangeAggregationReq;
-    use super::executor::AggregationCollector;
-    use super::{BucketAggregationType, MetricAggregation};
+    use super::bucket::RangeAggregation;
+    use super::collector::AggregationCollector;
+    use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
     use crate::query::TermQuery;
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
@@ -281,7 +339,7 @@ mod tests {
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -291,7 +349,7 @@ mod tests {
             (
                 "rangef64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score_f64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -301,7 +359,7 @@ mod tests {
             (
                 "rangei64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score_i64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -357,7 +415,7 @@ mod tests {
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -367,7 +425,7 @@ mod tests {
             (
                 "rangef64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score_f64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -377,7 +435,7 @@ mod tests {
             (
                 "rangei64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
                         field_name: "score_i64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -436,7 +494,7 @@ mod tests {
         test_aggregation_level2(true)
     }
 
-    //#[cfg(all(test, feature = "unstable"))]
+    #[cfg(all(test, feature = "unstable"))]
     mod bench {
 
         use rand::{thread_rng, Rng};

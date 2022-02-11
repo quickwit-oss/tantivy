@@ -6,15 +6,21 @@ use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
 use crate::collector::{Collector, DistributedCollector, SegmentCollector};
 use crate::TantivyError;
 
-/// Collector for aggegations.
+/// Collector for aggregations.
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
+///
+/// # Why is fruit intermediate results?
+/// AggregationCollector returns `IntermediateAggregationResults` and not the final
+/// `AggregationResults`.
+/// That
+
 pub struct AggregationCollector {
     agg: Aggregations,
 }
 
 impl AggregationCollector {
-    /// Create collector from aggegation request.
+    /// Create collector from aggregation request.
     pub fn from_aggs(agg: Aggregations) -> Self {
         AggregationCollector { agg }
     }

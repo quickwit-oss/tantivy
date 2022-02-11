@@ -2,14 +2,21 @@
 
 use std::collections::HashMap;
 
-use super::agg_req::Aggregations;
-use super::bucket::RangeAggregationReq;
-use super::{Aggregation, BucketAggregationType, MetricAggregation, VecWithNames};
+use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
+use super::bucket::RangeAggregation;
+use super::VecWithNames;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
 use crate::{SegmentReader, TantivyError};
 
-pub type AggregationsWithAccessor = VecWithNames<AggregationWithAccessor>;
+#[derive(Clone)]
+pub(crate) struct AggregationsWithAccessor(pub(crate) VecWithNames<AggregationWithAccessor>);
+
+impl AggregationsWithAccessor {
+    fn from_map(entries: HashMap<String, AggregationWithAccessor>) -> Self {
+        AggregationsWithAccessor(VecWithNames::from_entries(entries.into_iter().collect()))
+    }
+}
 
 /// Aggregation tree with fast field accessors.
 #[derive(Clone)]
@@ -37,10 +44,10 @@ impl AggregationWithAccessor {
 pub struct BucketAggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. So eventually this needs to be Option or moved.
-    pub accessor: DynamicFastFieldReader<u64>,
-    pub field_type: Type,
-    pub bucket_agg: BucketAggregationType,
-    pub sub_aggregation: AggregationsWithAccessor,
+    pub(crate) accessor: DynamicFastFieldReader<u64>,
+    pub(crate) field_type: Type,
+    pub(crate) bucket_agg: BucketAggregationType,
+    pub(crate) sub_aggregation: AggregationsWithAccessor,
 }
 
 impl BucketAggregationWithAccessor {
@@ -50,10 +57,7 @@ impl BucketAggregationWithAccessor {
         reader: &SegmentReader,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let (accessor, field_type) = match &bucket {
-            BucketAggregationType::TermAggregation { field_name } => {
-                get_ff_reader(reader, field_name)?
-            }
-            BucketAggregationType::RangeAggregation(RangeAggregationReq {
+            BucketAggregationType::RangeAggregation(RangeAggregation {
                 field_name,
                 buckets: _,
             }) => get_ff_reader(reader, field_name)?,
@@ -94,17 +98,18 @@ impl MetricAggregationWithAccessor {
     }
 }
 
-pub fn get_aggregations_with_accessor(
+pub(crate) fn get_aggregations_with_accessor(
     aggs: &Aggregations,
     reader: &SegmentReader,
 ) -> crate::Result<AggregationsWithAccessor> {
-    Ok(aggs
-        .iter()
-        .map(|(key, agg)| {
-            get_aggregation_with_accessor(agg, reader).map(|el| (key.to_string(), el))
-        })
-        .collect::<crate::Result<HashMap<_, _>>>()?
-        .into())
+    Ok(AggregationsWithAccessor::from_map(
+        aggs.iter()
+            .map(|(key, agg)| {
+                get_aggregation_with_accessor(agg, reader).map(|el| (key.to_string(), el))
+            })
+            .collect::<crate::Result<HashMap<_, _>>>()?
+            .into(),
+    ))
 }
 
 fn get_aggregation_with_accessor(
@@ -121,6 +126,7 @@ fn get_aggregation_with_accessor(
     }
 }
 
+// TODO validate field type
 fn get_ff_reader(
     reader: &SegmentReader,
     field_name: &str,

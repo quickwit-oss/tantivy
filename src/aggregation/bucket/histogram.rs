@@ -1,10 +1,10 @@
-use crate::aggregation::agg_result::BucketAggregationResult;
+use crate::aggregation::agg_result::BucketResult;
 use crate::collector::SegmentCollector;
 
 struct Histogram {}
 
 impl SegmentCollector for Histogram {
-    type Fruit = BucketAggregationResult;
+    type Fruit = BucketResult;
 
     fn collect(&mut self, _doc: crate::DocId, _score: crate::Score) {
         todo!()
