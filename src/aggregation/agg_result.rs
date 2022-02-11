@@ -1,8 +1,8 @@
 //! Contains the final aggregation tree.
-//! This tree can be converted via the `into()` method from the searcher.search() result. This
-//! conversion computes the final result. E.g. the intermediate result contains intermediate
-//! average results, which is the sum and the number of values. The actual average is calculated on
-//! the step from intermediate to final aggregation result tree.
+//! This tree can be converted via the `into()` method from `IntermediateAggregationResults`.
+//! This conversion computes the final result. For example: The intermediate result contains
+//! intermediate average results, which is the sum and the number of values. The actual average is
+//! calculated on the step from intermediate to final aggregation result tree.
 
 use std::collections::HashMap;
 
@@ -12,6 +12,7 @@ use super::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketDataEntry,
     IntermediateBucketDataEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
 };
+use super::metric::Stats;
 use super::Key;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -57,6 +58,8 @@ impl From<IntermediateAggregationResult> for AggregationResult {
 pub enum MetricResult {
     /// Average metric result.
     Average(f64),
+    /// Stats metric result.
+    Stats(Stats),
 }
 
 impl From<IntermediateMetricResult> for MetricResult {
@@ -64,6 +67,9 @@ impl From<IntermediateMetricResult> for MetricResult {
         match metric {
             IntermediateMetricResult::Average(avg_data) => {
                 MetricResult::Average(avg_data.finalize())
+            }
+            IntermediateMetricResult::Stats(intermediate_stats) => {
+                MetricResult::Stats(intermediate_stats.finalize())
             }
         }
     }

@@ -1,0 +1,234 @@
+use serde::{Deserialize, Serialize};
+
+use crate::aggregation::f64_from_fastfield_u64;
+use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use crate::schema::Type;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Stats contains a collection of statistics.
+pub struct Stats {
+    /// The number of documents.
+    pub count: usize,
+    /// The sum of the fast field values.
+    pub sum: f64,
+    /// The standard deviation of the fast field values.
+    pub standard_deviation: f64,
+    /// The min value of the fast field values.
+    pub min: f64,
+    /// The max value of the fast field values.
+    pub max: f64,
+    /// The average of the values.
+    pub average: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// IntermediateStats contains the mergeable version for stats.
+pub struct IntermediateStats {
+    count: usize,
+    sum: f64,
+    squared_sum: f64,
+    min: f64,
+    max: f64,
+}
+
+impl IntermediateStats {
+    fn new() -> Self {
+        Self {
+            count: 0,
+            sum: 0.0,
+            squared_sum: 0.0,
+            min: f64::MAX,
+            max: f64::MIN,
+        }
+    }
+
+    pub(crate) fn avg(&self) -> f64 {
+        self.sum / (self.count as f64)
+    }
+
+    fn square_mean(&self) -> f64 {
+        self.squared_sum / (self.count as f64)
+    }
+
+    pub(crate) fn standard_deviation(&self) -> f64 {
+        let average = self.avg();
+        (self.square_mean() - average * average).sqrt()
+    }
+
+    /// Merge data from other stats into this instance.
+    pub fn merge_fruits(&mut self, other: &IntermediateStats) {
+        self.count += other.count;
+        self.sum += other.sum;
+        self.squared_sum += other.squared_sum;
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+    }
+
+    /// compute final result
+    pub fn finalize(&self) -> Stats {
+        Stats {
+            count: self.count,
+            sum: self.sum,
+            standard_deviation: self.standard_deviation(),
+            min: self.min,
+            max: self.max,
+            average: self.avg(),
+        }
+    }
+
+    #[inline]
+    fn collect(&mut self, value: f64) {
+        self.count += 1;
+        self.sum += value;
+        self.squared_sum += value * value;
+        self.min = self.min.min(value);
+        self.max = self.max.max(value);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SegmentStatsCollector {
+    pub(crate) stats: IntermediateStats,
+    field_type: Type,
+}
+
+impl SegmentStatsCollector {
+    pub fn from_req(field_type: Type) -> Self {
+        Self {
+            field_type,
+            stats: IntermediateStats::new(),
+        }
+    }
+    pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
+        let val = field.get(doc);
+        let val = f64_from_fastfield_u64(val, &self.field_type);
+        self.stats.collect(val);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::iter;
+
+    use serde_json::Value;
+
+    use crate::aggregation::agg_req::{
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
+        RangeAggregation,
+    };
+    use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::tests::get_test_index_2_segments;
+    use crate::aggregation::AggregationCollector;
+    use crate::query::TermQuery;
+    use crate::schema::IndexRecordOption;
+    use crate::Term;
+
+    #[test]
+    fn test_aggregation_stats() -> crate::Result<()> {
+        let index = get_test_index_2_segments(false)?;
+
+        let reader = index.reader()?;
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "cool"),
+            IndexRecordOption::Basic,
+        );
+
+        let agg_req_1: Aggregations = vec![
+            (
+                "stats_i64".to_string(),
+                Aggregation::Metric(MetricAggregation::Stats {
+                    field_name: "score_i64".to_string(),
+                }),
+            ),
+            (
+                "stats_f64".to_string(),
+                Aggregation::Metric(MetricAggregation::Stats {
+                    field_name: "score_f64".to_string(),
+                }),
+            ),
+            (
+                "stats".to_string(),
+                Aggregation::Metric(MetricAggregation::Stats {
+                    field_name: "score".to_string(),
+                }),
+            ),
+            (
+                "range".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                        field_name: "score".to_string(),
+                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                    }),
+                    sub_aggregation: iter::once((
+                        "stats".to_string(),
+                        Aggregation::Metric(MetricAggregation::Stats {
+                            field_name: "score".to_string(),
+                        }),
+                    ))
+                    .collect(),
+                }),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1);
+
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["stats"],
+            json!({
+                "average": 12.142857142857142,
+                "count": 7,
+                "max": 44.0,
+                "min": 1.0,
+                "standard_deviation": 13.65313748796613,
+                "sum": 85.0
+            })
+        );
+
+        assert_eq!(
+            res["stats_i64"],
+            json!({
+                "average": 12.142857142857142,
+                "count": 7,
+                "max": 44.0,
+                "min": 1.0,
+                "standard_deviation": 13.65313748796613,
+                "sum": 85.0
+            })
+        );
+
+        assert_eq!(
+            res["stats_f64"],
+            json!({
+                "average":  12.214285714285714,
+                "count": 7,
+                "max": 44.5,
+                "min": 1.0,
+                "standard_deviation": 13.819905785437443,
+                "sum": 85.5
+            })
+        );
+
+        assert_eq!(
+            res["range"]["7-20"]["stats"],
+            json!({
+                "average": 10.666666666666666,
+                "count": 3,
+                "max": 14.0,
+                "min": 7.0,
+                "standard_deviation": 2.867441755680877,
+                "sum": 32.0
+            })
+        );
+
+        Ok(())
+    }
+}

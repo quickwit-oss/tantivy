@@ -5,12 +5,12 @@ use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 
 #[derive(Clone, PartialEq)]
-pub struct SegmnentAverageCollector {
-    pub data: AverageData,
+pub(crate) struct SegmentAverageCollector {
+    pub data: IntermediateAverage,
     field_type: Type,
 }
 
-impl Debug for SegmnentAverageCollector {
+impl Debug for SegmentAverageCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AverageCollector")
             .field("data", &self.data)
@@ -18,15 +18,12 @@ impl Debug for SegmnentAverageCollector {
     }
 }
 
-impl SegmnentAverageCollector {
+impl SegmentAverageCollector {
     pub fn from_req(field_type: Type) -> Self {
         Self {
             field_type,
             data: Default::default(),
         }
-    }
-    pub fn merge_fruits(&mut self, other: &SegmnentAverageCollector) {
-        self.data.merge_fruits(&other.data);
     }
     pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
         let val = field.get(doc);
@@ -36,26 +33,29 @@ impl SegmnentAverageCollector {
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
-pub struct AverageData {
-    pub sum: f64,
-    pub num_vals: u64,
+/// Contains mergeable version of average data.
+pub struct IntermediateAverage {
+    pub(crate) sum: f64,
+    pub(crate) doc_count: u64,
 }
 
-impl AverageData {
-    pub fn from_collector(collector: SegmnentAverageCollector) -> Self {
+impl IntermediateAverage {
+    pub(crate) fn from_collector(collector: SegmentAverageCollector) -> Self {
         collector.data
     }
 
-    pub fn merge_fruits(&mut self, other: &AverageData) {
+    /// Merge average data into this instance.
+    pub fn merge_fruits(&mut self, other: &IntermediateAverage) {
         self.sum += other.sum;
-        self.num_vals += other.num_vals;
+        self.doc_count += other.doc_count;
     }
+    /// compute final result
     pub fn finalize(&self) -> f64 {
-        self.sum / self.num_vals as f64
+        self.sum / self.doc_count as f64
     }
     #[inline]
     fn collect(&mut self, val: f64) {
-        self.num_vals += 1;
+        self.doc_count += 1;
         self.sum += val;
     }
 }

@@ -1,3 +1,5 @@
+//! Module for all bucket aggregations.
+
 mod histogram;
 mod range;
 
