@@ -511,6 +511,39 @@ mod tests {
         test_aggregation_level2(true, true)
     }
 
+    #[test]
+    fn test_aggregation_invalid_requests() -> crate::Result<()> {
+        let index = get_test_index_2_segments(false)?;
+
+        let reader = index.reader()?;
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "cool"),
+            IndexRecordOption::Basic,
+        );
+
+        let agg_req_1: Aggregations = vec![(
+            "average".to_string(),
+            Aggregation::Metric(MetricAggregation::Average {
+                field_name: "text".to_string(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1);
+
+        let searcher = reader.searcher();
+        let agg_res = searcher.search(&term_query, &collector).unwrap_err();
+
+        assert_eq!(
+            format!("{:?}", agg_res),
+            r#"InvalidArgument("Invalid field type in aggregation Str, only f64, u64, i64 is supported")"#
+        );
+        Ok(())
+    }
+
     #[cfg(all(test, feature = "unstable"))]
     mod bench {
 
