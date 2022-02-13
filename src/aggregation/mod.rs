@@ -227,9 +227,8 @@ mod tests {
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use super::bucket::RangeAggregation;
     use super::collector::AggregationCollector;
-    use crate::aggregation::agg_req::{
-        AverageAggregation, BucketAggregationType, MetricAggregation,
-    };
+    use super::metric::AverageAggregation;
+    use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::TermQuery;

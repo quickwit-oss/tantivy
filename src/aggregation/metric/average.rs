@@ -4,6 +4,25 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 
+#[derive(Clone, Debug, PartialEq)]
+/// A single-value metric aggregation that computes the average of numeric values that are
+/// extracted from the aggregated documents.
+/// Supported field types are u64, i64, and f64.
+pub struct AverageAggregation {
+    /// The field name to compute the stats on.
+    pub field_name: String,
+}
+impl AverageAggregation {
+    /// Create new AverageAggregation from a field.
+    pub fn from_field_name(field_name: String) -> Self {
+        AverageAggregation { field_name }
+    }
+    /// Return the field name.
+    pub fn field_name(&self) -> &str {
+        &self.field_name
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct SegmentAverageCollector {
     pub data: IntermediateAverage,
