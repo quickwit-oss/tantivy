@@ -4,6 +4,26 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 
+#[derive(Clone, Debug, PartialEq)]
+/// A multi-value metric aggregation that computes stats of numeric values that are
+/// extracted from the aggregated documents.
+/// Supported field types are u64, i64, and f64.
+/// See [Stats] for returned statistics.
+pub struct StatsAggregation {
+    /// The field name to compute the stats on.
+    pub field_name: String,
+}
+impl StatsAggregation {
+    /// Create new StatsAggregation from a field.
+    pub fn from_field_name(field_name: String) -> Self {
+        StatsAggregation { field_name }
+    }
+    /// Return the field name.
+    pub fn field_name(&self) -> &str {
+        &self.field_name
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Stats contains a collection of statistics.
 pub struct Stats {
@@ -118,6 +138,7 @@ mod tests {
         RangeAggregation,
     };
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::metric::StatsAggregation;
     use crate::aggregation::tests::get_test_index_2_segments;
     use crate::aggregation::AggregationCollector;
     use crate::query::TermQuery;
@@ -139,21 +160,21 @@ mod tests {
         let agg_req_1: Aggregations = vec![
             (
                 "stats_i64".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats {
-                    field_name: "score_i64".to_string(),
-                }),
+                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                    "score_i64".to_string(),
+                ))),
             ),
             (
                 "stats_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats {
-                    field_name: "score_f64".to_string(),
-                }),
+                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                    "score_f64".to_string(),
+                ))),
             ),
             (
                 "stats".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats {
-                    field_name: "score".to_string(),
-                }),
+                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                    "score".to_string(),
+                ))),
             ),
             (
                 "range".to_string(),
@@ -164,9 +185,9 @@ mod tests {
                     }),
                     sub_aggregation: iter::once((
                         "stats".to_string(),
-                        Aggregation::Metric(MetricAggregation::Stats {
-                            field_name: "score".to_string(),
-                        }),
+                        Aggregation::Metric(MetricAggregation::Stats(
+                            StatsAggregation::from_field_name("score".to_string()),
+                        )),
                     ))
                     .collect(),
                 }),

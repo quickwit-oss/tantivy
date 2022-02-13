@@ -17,13 +17,14 @@ use crate::{DocId, TantivyError};
 
 #[derive(Clone, Debug, PartialEq)]
 /// Provide user-defined buckets to aggregate on.
-///
 /// Two special buckets will automatically be created to cover the whole range of values.
 /// The provided buckets have to be continous.
-///
 /// During the aggregation, the values extracted from the fast_field `field_name` will be checked
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
+///
+/// Result type is
+/// [BucketDataEntryKeyCount](crate::aggregation::agg_result::BucketDataEntryKeyCount)
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field_name: String,

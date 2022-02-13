@@ -2,10 +2,9 @@
 
 use std::collections::HashMap;
 
-use super::agg_req::{
-    Aggregation, Aggregations, AverageAggregation, BucketAggregationType, MetricAggregation,
-};
+use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::RangeAggregation;
+use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
@@ -89,7 +88,7 @@ impl MetricAggregationWithAccessor {
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
             MetricAggregation::Average(AverageAggregation { field_name })
-            | MetricAggregation::Stats { field_name } => {
+            | MetricAggregation::Stats(StatsAggregation { field_name }) => {
                 let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {

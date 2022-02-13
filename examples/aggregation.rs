@@ -10,6 +10,7 @@ use tantivy::aggregation::agg_req::{
     RangeAggregation,
 };
 use tantivy::aggregation::agg_result::AggregationResults;
+use tantivy::aggregation::metric::AverageAggregation;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::TermQuery;
 use tantivy::schema::{self, Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
@@ -93,9 +94,9 @@ fn main() -> tantivy::Result<()> {
 
     let sub_agg_req_1: Aggregations = vec![(
         "average_price".to_string(),
-        Aggregation::Metric(MetricAggregation::Average(AverageAggregation::from_req(
-            "price".to_string(),
-        ))),
+        Aggregation::Metric(MetricAggregation::Average(
+            AverageAggregation::from_field_name("price".to_string()),
+        )),
     )]
     .into_iter()
     .collect();

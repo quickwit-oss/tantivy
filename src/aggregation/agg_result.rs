@@ -121,10 +121,13 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
 /// sub_aggregations.
 pub struct BucketDataEntryKeyCount {
     #[serde(skip_serializing)]
-    key: Key,
-    doc_count: u64,
+    /// The identifier of the bucket.
+    pub key: Key,
+    /// Number of documents in the bucket.
+    pub doc_count: u64,
     #[serde(flatten)]
-    sub_aggregation: AggregationResults,
+    /// sub-aggregations in this bucket.
+    pub sub_aggregation: AggregationResults,
 }
 
 impl From<IntermediateBucketDataEntryKeyCount> for BucketDataEntryKeyCount {

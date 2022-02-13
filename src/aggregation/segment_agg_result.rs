@@ -3,13 +3,15 @@
 //! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
 //! merging.
 
-use super::agg_req::{AverageAggregation, MetricAggregation};
+use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
     MetricAggregationWithAccessor,
 };
 use super::bucket::SegmentRangeCollector;
-use super::metric::{SegmentAverageCollector, SegmentStatsCollector};
+use super::metric::{
+    AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
+};
 use super::{Key, VecWithNames};
 use crate::aggregation::agg_req::BucketAggregationType;
 
@@ -108,7 +110,7 @@ impl SegmentMetricResultCollector {
                     req.field_type,
                 ))
             }
-            MetricAggregation::Stats { field_name: _ } => {
+            MetricAggregation::Stats(StatsAggregation { field_name: _ }) => {
                 SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(req.field_type))
             }
         }

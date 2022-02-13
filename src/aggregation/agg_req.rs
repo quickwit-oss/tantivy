@@ -25,6 +25,7 @@
 use std::collections::HashMap;
 
 pub use super::bucket::RangeAggregation;
+use super::metric::{AverageAggregation, StatsAggregation};
 
 /// The top-level aggregation request structure, which contains [Aggregation] and their user defined
 /// names.
@@ -81,27 +82,5 @@ pub enum MetricAggregation {
     /// Calculates the average.
     Average(AverageAggregation),
     /// Calculates stats sum, average, min, max, standard_deviation on a field.
-    Stats {
-        /// The field name to compute the stats on.
-        field_name: String,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-/// A single-value metric aggregation that computes the average of numeric values that are
-/// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
-pub struct AverageAggregation {
-    /// The field name to compute the stats on.
-    pub field_name: String,
-}
-impl AverageAggregation {
-    /// Create new AverageAggregation from a field.
-    pub fn from_field_name(field_name: String) -> Self {
-        AverageAggregation { field_name }
-    }
-    /// Return the field name.
-    pub fn field_name(&self) -> &str {
-        &self.field_name
-    }
+    Stats(StatsAggregation),
 }
