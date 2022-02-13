@@ -11,8 +11,8 @@
 //! # Usage
 //!
 //! To use aggregations, build an aggregation request by constructing [agg_req::Aggregations].
-//! Create an [AggregationCollector] from this requests and pass this as collector into
-//! `searcher.search()`.
+//! Create an [AggregationCollector] from this request. AggregationCollector implements the
+//! `Collector` trait and can be passed as collector into `searcher.search()`.
 //!
 //! # Example
 //! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
@@ -22,9 +22,9 @@
 //! let agg_req: Aggregations = vec![
 //! (
 //!         "average".to_string(),
-//!        Aggregation::Metric(MetricAggregation::Average {
-//!             field_name: "score".to_string(),
-//!         }),
+//!         Aggregation::Metric(MetricAggregation::Average(
+//!             AverageAggregation::from_field_name("score".to_string()),
+//!         )),
 //!     ),
 //! ]
 //! .into_iter()
@@ -77,7 +77,7 @@
 //! [IntermediateAggregationResults](intermediate_agg_result::IntermediateAggregationResults).
 //! IntermediateAggregationResults provides the
 //! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
-//! merge multiple results. The merged result can then be converter into
+//! merge multiple results. The merged result can then be converted into
 //! [agg_result::AggregationResults] via the [Into] trait.
 
 pub mod agg_req;
@@ -227,12 +227,20 @@ mod tests {
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use super::bucket::RangeAggregation;
     use super::collector::AggregationCollector;
-    use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
+    use crate::aggregation::agg_req::{
+        AverageAggregation, BucketAggregationType, MetricAggregation,
+    };
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::TermQuery;
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
     use crate::{Index, Term};
+
+    fn get_avg_req(field_name: &str) -> Aggregation {
+        Aggregation::Metric(MetricAggregation::Average(
+            AverageAggregation::from_field_name(field_name.to_string()),
+        ))
+    }
 
     pub fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -331,24 +339,9 @@ mod tests {
         );
 
         let agg_req_1: Aggregations = vec![
-            (
-                "average_i64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average {
-                    field_name: "score_i64".to_string(),
-                }),
-            ),
-            (
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average {
-                    field_name: "score_f64".to_string(),
-                }),
-            ),
-            (
-                "average".to_string(),
-                Aggregation::Metric(MetricAggregation::Average {
-                    field_name: "score".to_string(),
-                }),
-            ),
+            ("average_i64".to_string(), get_avg_req("score_i64")),
+            ("average_f64".to_string(), get_avg_req("score_f64")),
+            ("average".to_string(), get_avg_req("score")),
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
@@ -412,22 +405,13 @@ mod tests {
             IndexRecordOption::Basic,
         );
 
-        let sub_agg_req_1: Aggregations = vec![(
-            "average_in_range".to_string(),
-            Aggregation::Metric(MetricAggregation::Average {
-                field_name: "score".to_string(),
-            }),
-        )]
-        .into_iter()
-        .collect();
+        let sub_agg_req_1: Aggregations =
+            vec![("average_in_range".to_string(), get_avg_req("score"))]
+                .into_iter()
+                .collect();
 
         let agg_req_1: Aggregations = vec![
-            (
-                "average".to_string(),
-                Aggregation::Metric(MetricAggregation::Average {
-                    field_name: "score".to_string(),
-                }),
-            ),
+            ("average".to_string(), get_avg_req("score")),
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
@@ -541,9 +525,9 @@ mod tests {
 
         let agg_req_1: Aggregations = vec![(
             "average".to_string(),
-            Aggregation::Metric(MetricAggregation::Average {
-                field_name: "text".to_string(),
-            }),
+            Aggregation::Metric(MetricAggregation::Average(
+                AverageAggregation::from_field_name("text".to_string()),
+            )),
         )]
         .into_iter()
         .collect();
@@ -626,9 +610,9 @@ mod tests {
 
                 let agg_req_1: Aggregations = vec![(
                     "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average {
-                        field_name: "score".to_string(),
-                    }),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score".to_string()),
+                    )),
                 )]
                 .into_iter()
                 .collect();
@@ -657,9 +641,9 @@ mod tests {
 
                 let agg_req_1: Aggregations = vec![(
                     "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average {
-                        field_name: "score_f64".to_string(),
-                    }),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score_f64".to_string()),
+                    )),
                 )]
                 .into_iter()
                 .collect();
@@ -689,15 +673,15 @@ mod tests {
                 let agg_req_1: Aggregations = vec![
                     (
                         "average_f64".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average {
-                            field_name: "score_f64".to_string(),
-                        }),
+                        Aggregation::Metric(MetricAggregation::Average(
+                            AverageAggregation::from_field_name("score_f64".to_string()),
+                        )),
                     ),
                     (
                         "average".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average {
-                            field_name: "score".to_string(),
-                        }),
+                        Aggregation::Metric(MetricAggregation::Average(
+                            AverageAggregation::from_field_name("score".to_string()),
+                        )),
                     ),
                 ]
                 .into_iter()
@@ -727,9 +711,9 @@ mod tests {
 
                 let sub_agg_req_1: Aggregations = vec![(
                     "average_in_range".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average {
-                        field_name: "score".to_string(),
-                    }),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score".to_string()),
+                    )),
                 )]
                 .into_iter()
                 .collect();
@@ -737,23 +721,21 @@ mod tests {
                 let agg_req_1: Aggregations = vec![
                     (
                         "average".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average {
-                            field_name: "score".to_string(),
-                        }),
+                        Aggregation::Metric(MetricAggregation::Average(
+                            AverageAggregation::from_field_name("score".to_string()),
+                        )),
                     ),
                     (
                         "rangef64".to_string(),
                         Aggregation::Bucket(BucketAggregation {
-                            bucket_agg: BucketAggregationType::RangeAggregation(
-                                RangeAggregationReq {
-                                    field_name: "score_f64".to_string(),
-                                    buckets: vec![
-                                        (3f64..7000f64),
-                                        (7000f64..20000f64),
-                                        (20000f64..60000f64),
-                                    ],
-                                },
-                            ),
+                            bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                                field_name: "score_f64".to_string(),
+                                buckets: vec![
+                                    (3f64..7000f64),
+                                    (7000f64..20000f64),
+                                    (20000f64..60000f64),
+                                ],
+                            }),
                             sub_aggregation: sub_agg_req_1.clone(),
                         }),
                     ),

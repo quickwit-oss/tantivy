@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
+use super::agg_req::{
+    Aggregation, Aggregations, AverageAggregation, BucketAggregationType, MetricAggregation,
+};
 use super::bucket::RangeAggregation;
 use super::VecWithNames;
 use crate::fastfield::DynamicFastFieldReader;
@@ -86,7 +88,8 @@ impl MetricAggregationWithAccessor {
         reader: &SegmentReader,
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
-            MetricAggregation::Average { field_name } | MetricAggregation::Stats { field_name } => {
+            MetricAggregation::Average(AverageAggregation { field_name })
+            | MetricAggregation::Stats { field_name } => {
                 let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {
@@ -108,8 +111,7 @@ pub(crate) fn get_aggregations_with_accessor(
             .map(|(key, agg)| {
                 get_aggregation_with_accessor(agg, reader).map(|el| (key.to_string(), el))
             })
-            .collect::<crate::Result<HashMap<_, _>>>()?
-            .into(),
+            .collect::<crate::Result<HashMap<_, _>>>()?,
     ))
 }
 
@@ -118,10 +120,12 @@ fn get_aggregation_with_accessor(
     reader: &SegmentReader,
 ) -> crate::Result<AggregationWithAccessor> {
     match agg {
-        Aggregation::Bucket(b) => {
-            BucketAggregationWithAccessor::from_bucket(&b.bucket_agg, &b.sub_aggregation, reader)
-                .map(AggregationWithAccessor::Bucket)
-        }
+        Aggregation::Bucket(bucket) => BucketAggregationWithAccessor::from_bucket(
+            &bucket.bucket_agg,
+            &bucket.sub_aggregation,
+            reader,
+        )
+        .map(AggregationWithAccessor::Bucket),
         Aggregation::Metric(metric) => MetricAggregationWithAccessor::from_metric(metric, reader)
             .map(AggregationWithAccessor::Metric),
     }

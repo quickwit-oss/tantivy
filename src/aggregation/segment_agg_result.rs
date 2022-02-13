@@ -3,9 +3,7 @@
 //! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
 //! merging.
 
-use itertools::Itertools;
-
-use super::agg_req::MetricAggregation;
+use super::agg_req::{AverageAggregation, MetricAggregation};
 use super::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
     MetricAggregationWithAccessor,
@@ -21,20 +19,17 @@ pub(crate) struct SegmentAggregationResultsCollector {
 }
 
 impl SegmentAggregationResultsCollector {
-    pub(crate) fn from_req(req: &AggregationsWithAccessor) -> Self {
-        SegmentAggregationResultsCollector {
-            collectors: VecWithNames::from_entries(
-                req.0
-                    .entries()
-                    .map(|(key, value)| {
-                        (
-                            key.to_string(),
-                            SegmentAggregationResultCollector::from_req(value),
-                        )
-                    })
-                    .collect_vec(),
-            ),
+    pub(crate) fn from_req(req: &AggregationsWithAccessor) -> crate::Result<Self> {
+        let mut entries = vec![];
+        for (key, value) in req.0.entries() {
+            entries.push((
+                key.to_string(),
+                SegmentAggregationResultCollector::from_req(value)?,
+            ));
         }
+        Ok(SegmentAggregationResultsCollector {
+            collectors: VecWithNames::from_entries(entries),
+        })
     }
 
     pub(crate) fn collect(
@@ -61,13 +56,13 @@ pub(crate) enum SegmentAggregationResultCollector {
 }
 
 impl SegmentAggregationResultCollector {
-    pub fn from_req(req: &AggregationWithAccessor) -> Self {
+    pub fn from_req(req: &AggregationWithAccessor) -> crate::Result<Self> {
         match req {
-            AggregationWithAccessor::Bucket(bucket) => {
-                Self::Bucket(SegmentBucketResultCollector::from_req(bucket))
-            }
+            AggregationWithAccessor::Bucket(bucket) => Ok(Self::Bucket(
+                SegmentBucketResultCollector::from_req(bucket)?,
+            )),
             AggregationWithAccessor::Metric(metric) => {
-                Self::Metric(SegmentMetricResultCollector::from_req(metric))
+                Ok(Self::Metric(SegmentMetricResultCollector::from_req(metric)))
             }
         }
     }
@@ -108,9 +103,11 @@ pub(crate) enum SegmentMetricResultCollector {
 impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
-            MetricAggregation::Average { field_name: _ } => SegmentMetricResultCollector::Average(
-                SegmentAverageCollector::from_req(req.field_type),
-            ),
+            MetricAggregation::Average(AverageAggregation { field_name: _ }) => {
+                SegmentMetricResultCollector::Average(SegmentAverageCollector::from_req(
+                    req.field_type,
+                ))
+            }
             MetricAggregation::Stats { field_name: _ } => {
                 SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(req.field_type))
             }
@@ -138,11 +135,11 @@ pub(crate) enum SegmentBucketResultCollector {
 }
 
 impl SegmentBucketResultCollector {
-    pub fn from_req(req: &BucketAggregationWithAccessor) -> Self {
+    pub fn from_req(req: &BucketAggregationWithAccessor) -> crate::Result<Self> {
         match &req.bucket_agg {
-            BucketAggregationType::RangeAggregation(range_req) => Self::Range(
-                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type),
-            ),
+            BucketAggregationType::RangeAggregation(range_req) => Ok(Self::Range(
+                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type)?,
+            )),
         }
     }
 

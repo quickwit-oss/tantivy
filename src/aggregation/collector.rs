@@ -51,7 +51,7 @@ impl Collector for DistributedAggregationCollector {
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor);
+        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,
@@ -81,7 +81,7 @@ impl Collector for AggregationCollector {
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor);
+        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,

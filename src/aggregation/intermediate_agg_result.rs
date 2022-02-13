@@ -109,13 +109,13 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::Average(avg_data_left),
                 IntermediateMetricResult::Average(avg_data_right),
             ) => {
-                avg_data_left.merge_fruits(&avg_data_right);
+                avg_data_left.merge_fruits(avg_data_right);
             }
             (
                 IntermediateMetricResult::Stats(stats_left),
                 IntermediateMetricResult::Stats(stats_right),
             ) => {
-                stats_left.merge_fruits(&stats_right);
+                stats_left.merge_fruits(stats_right);
             }
             _ => {
                 panic!("incompatible fruit types in tree {:?}", other);
