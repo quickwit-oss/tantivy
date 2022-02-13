@@ -93,9 +93,9 @@ fn main() -> tantivy::Result<()> {
 
     let sub_agg_req_1: Aggregations = vec![(
         "average_price".to_string(),
-        Aggregation::Metric(MetricAggregation::Average {
-            field_name: "price".to_string(),
-        }),
+        Aggregation::Metric(MetricAggregation::Average(AverageAggregation::from_req(
+            "price".to_string(),
+        ))),
     )]
     .into_iter()
     .collect();

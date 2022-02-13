@@ -1,5 +1,8 @@
 # Code Organization
 
+Tantivy's aggregations have been designed to mimic the 
+[aggregations of elasticsearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html).
+
 The code is organized in submodules:
 
 ##bucket
