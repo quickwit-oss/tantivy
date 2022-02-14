@@ -44,7 +44,6 @@ pub enum Aggregation {
     Metric(MetricAggregation),
 }
 
-#[derive(Clone, Debug, PartialEq)]
 /// BucketAggregations create buckets of documents. Each bucket is associated with a rule which
 /// determines whether or not a document in the falls into it. In other words, the buckets
 /// effectively define document sets. Buckets are not necessarily disjunct, therefore a document can
@@ -55,6 +54,7 @@ pub enum Aggregation {
 /// aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 /// define fixed number of multiple buckets, and others dynamically create the buckets during the
 /// aggregation process.
+#[derive(Clone, Debug, PartialEq)]
 pub struct BucketAggregation {
     /// Bucket aggregation strategy to group documents.
     pub bucket_agg: BucketAggregationType,
@@ -63,8 +63,8 @@ pub struct BucketAggregation {
     pub sub_aggregation: Aggregations,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 /// The bucket aggregation types.
+#[derive(Clone, Debug, PartialEq)]
 pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     RangeAggregation(RangeAggregation),
