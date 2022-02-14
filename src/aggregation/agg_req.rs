@@ -24,6 +24,8 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 pub use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
 
@@ -36,7 +38,7 @@ pub type Aggregations = HashMap<String, Aggregation>;
 /// Aggregation request of [BucketAggregation] or [MetricAggregation].
 ///
 /// An aggregation is either a bucket or a metric.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Aggregation {
     /// Bucket aggregation, see [BucketAggregation] for details.
     Bucket(BucketAggregation),
@@ -54,7 +56,7 @@ pub enum Aggregation {
 /// aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 /// define fixed number of multiple buckets, and others dynamically create the buckets during the
 /// aggregation process.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketAggregation {
     /// Bucket aggregation strategy to group documents.
     pub bucket_agg: BucketAggregationType,
@@ -64,7 +66,7 @@ pub struct BucketAggregation {
 }
 
 /// The bucket aggregation types.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     Range(RangeAggregation),
@@ -77,7 +79,7 @@ pub enum BucketAggregationType {
 /// Some aggregations output a single numeric metric (e.g. Average) and are called
 /// single-value numeric metrics aggregation, others generate multiple metrics (e.g. Stats) and are
 /// called multi-value numeric metrics aggregation.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MetricAggregation {
     /// Calculates the average.
     Average(AverageAggregation),

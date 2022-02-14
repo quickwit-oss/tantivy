@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::ops::Range;
 
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
@@ -15,7 +16,6 @@ use crate::fastfield::FastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
-#[derive(Clone, Debug, PartialEq)]
 /// Provide user-defined buckets to aggregate on.
 /// Two special buckets will automatically be created to cover the whole range of values.
 /// The provided buckets have to be continous.
@@ -31,6 +31,7 @@ use crate::{DocId, TantivyError};
 /// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
 /// [crate::aggregation::intermediate_agg_result::IntermediateBucketEntryKeyCount] on the
 /// DistributedAggregationCollector.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field_name: String,
