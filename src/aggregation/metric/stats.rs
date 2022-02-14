@@ -8,7 +8,7 @@ use crate::schema::Type;
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
 /// See [Stats] for returned statistics.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StatsAggregation {
     /// The field name to compute the stats on.
     pub field_name: String,
@@ -38,11 +38,11 @@ pub struct Stats {
     /// The max value of the fast field values.
     pub max: f64,
     /// The average of the values.
-    pub average: f64,
+    pub avg: f64,
 }
 
 /// IntermediateStats contains the mergeable version for stats.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     count: usize,
     sum: f64,
@@ -92,7 +92,7 @@ impl IntermediateStats {
             standard_deviation: self.standard_deviation(),
             min: self.min,
             max: self.max,
-            average: self.avg(),
+            avg: self.avg(),
         }
     }
 
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(
             res["stats"],
             json!({
-                "average": 12.142857142857142,
+                "avg": 12.142857142857142,
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(
             res["stats_i64"],
             json!({
-                "average": 12.142857142857142,
+                "avg": 12.142857142857142,
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(
             res["stats_f64"],
             json!({
-                "average":  12.214285714285714,
+                "avg":  12.214285714285714,
                 "count": 7,
                 "max": 44.5,
                 "min": 1.0,
@@ -239,9 +239,9 @@ mod tests {
         );
 
         assert_eq!(
-            res["range"]["7-20"]["stats"],
+            res["range"]["buckets"][0]["stats"],
             json!({
-                "average": 10.666666666666666,
+                "avg": 10.666666666666666,
                 "count": 3,
                 "max": 14.0,
                 "min": 7.0,
