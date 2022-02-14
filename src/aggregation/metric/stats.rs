@@ -4,11 +4,11 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 
-#[derive(Clone, Debug, PartialEq)]
 /// A multi-value metric aggregation that computes stats of numeric values that are
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
 /// See [Stats] for returned statistics.
+#[derive(Clone, Debug, PartialEq)]
 pub struct StatsAggregation {
     /// The field name to compute the stats on.
     pub field_name: String,
@@ -24,8 +24,8 @@ impl StatsAggregation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Stats contains a collection of statistics.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Stats {
     /// The number of documents.
     pub count: usize,
@@ -41,8 +41,8 @@ pub struct Stats {
     pub average: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 /// IntermediateStats contains the mergeable version for stats.
+#[derive(Clone, Debug, PartialEq)]
 pub struct IntermediateStats {
     count: usize,
     sum: f64,

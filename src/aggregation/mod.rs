@@ -161,7 +161,7 @@ impl<T: Clone> VecWithNames<T> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Ord, PartialOrd)]
 /// The key to identify a bucket.
 pub enum Key {
     /// String key
@@ -381,11 +381,30 @@ mod tests {
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        assert_eq!(res["average"], 12.142857142857142);
-        assert_eq!(res["average_f64"], 12.214285714285714);
-        assert_eq!(res["average_i64"], 12.142857142857142);
-
-        // println!("{}", serde_json::to_string_pretty(&res)?);
+        assert_eq!(res["average"]["value"], 12.142857142857142);
+        assert_eq!(res["average_f64"]["value"], 12.214285714285714);
+        assert_eq!(res["average_i64"]["value"], 12.142857142857142);
+        assert_eq!(
+            res["range"]["buckets"],
+            json!([
+                {
+                  "key": "7-20",
+                  "doc_count": 3
+                },
+                {
+                  "key": "3-7",
+                  "doc_count": 2
+                },
+                {
+                  "key": "*-3",
+                  "doc_count": 1
+                },
+                {
+                  "key": "20-*",
+                  "doc_count": 1
+                }
+            ])
+        );
 
         Ok(())
     }
@@ -459,33 +478,44 @@ mod tests {
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
 
-        // assert_eq!(p["average"], 6.833333333333333);
-        assert_eq!(res["range"]["7-20"]["doc_count"], 3);
-        assert_eq!(res["rangef64"]["7-20"]["doc_count"], 3);
-        assert_eq!(res["rangei64"]["7-20"]["doc_count"], 3);
+        assert_eq!(res["average"]["value"], 12.142857142857142f64);
+        assert_eq!(res["range"]["buckets"][0]["key"], "7-20");
+        assert_eq!(res["range"]["buckets"][0]["doc_count"], 3u64);
+        assert_eq!(res["rangef64"]["buckets"][0]["doc_count"], 3u64);
+        assert_eq!(res["rangei64"]["buckets"][0]["doc_count"], 3u64);
+        assert_eq!(res["rangei64"]["buckets"][4], serde_json::Value::Null);
 
-        assert_eq!(res["range"]["3-7"]["doc_count"], 2);
-        assert_eq!(res["rangef64"]["3-7"]["doc_count"], 2);
-        assert_eq!(res["rangei64"]["3-7"]["doc_count"], 2);
+        assert_eq!(res["range"]["buckets"][1]["key"], "3-7");
+        assert_eq!(res["range"]["buckets"][1]["doc_count"], 2u64);
+        assert_eq!(res["rangef64"]["buckets"][1]["doc_count"], 2u64);
+        assert_eq!(res["rangei64"]["buckets"][1]["doc_count"], 2u64);
 
-        assert_eq!(res["range"]["*-3"]["doc_count"], 1);
-        assert_eq!(res["rangef64"]["*-3"]["doc_count"], 1);
-        assert_eq!(res["rangei64"]["*-3"]["doc_count"], 1);
-
-        assert_eq!(res["range"]["*-3"]["average_in_range"], 1.0);
-        assert_eq!(res["rangef64"]["*-3"]["average_in_range"], 1.0);
-        assert_eq!(res["rangei64"]["*-3"]["average_in_range"], 1.0);
+        assert_eq!(res["range"]["buckets"][3]["key"], "20-*");
+        assert_eq!(res["range"]["buckets"][3]["doc_count"], 1u64);
+        assert_eq!(res["rangef64"]["buckets"][3]["doc_count"], 1u64);
+        assert_eq!(res["rangei64"]["buckets"][3]["doc_count"], 1u64);
 
         assert_eq!(
-            res["range"]["7-20"]["average_in_range"],
-            res["rangef64"]["7-20"]["average_in_range"]
+            res["range"]["buckets"][3]["average_in_range"]["value"],
+            44.0f64
         );
         assert_eq!(
-            res["range"]["7-20"]["average_in_range"],
-            res["rangei64"]["7-20"]["average_in_range"]
+            res["rangef64"]["buckets"][3]["average_in_range"]["value"],
+            44.0f64
+        );
+        assert_eq!(
+            res["rangei64"]["buckets"][3]["average_in_range"]["value"],
+            44.0f64
         );
 
-        // println!("{}", serde_json::to_string_pretty(&res)?);
+        assert_eq!(
+            res["range"]["7-20"]["average_in_range"]["value"],
+            res["rangef64"]["7-20"]["average_in_range"]["value"]
+        );
+        assert_eq!(
+            res["range"]["7-20"]["average_in_range"]["value"],
+            res["rangei64"]["7-20"]["average_in_range"]["value"]
+        );
 
         Ok(())
     }

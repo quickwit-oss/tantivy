@@ -24,7 +24,12 @@ use crate::{DocId, TantivyError};
 /// to value for each range.
 ///
 /// Result type is
-/// [BucketDataEntryKeyCount](crate::aggregation::agg_result::BucketDataEntryKeyCount)
+/// [BucketDataEntryKeyCount](crate::aggregation::agg_result::BucketDataEntryKeyCount) on the
+/// AggregationCollector.
+///
+/// Result type is
+/// [BucketDataEntryKeyCount](crate::aggregation::intermediate_agg_result::
+/// IntermediateBucketDataEntryKeyCount) on the DistributedAggregationCollector.
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field_name: String,
@@ -306,29 +311,36 @@ mod bench {
     fn add_junk() -> Junk {
         Junk("asdf".to_string(), 1, 1, 1, 1, 1, 1, 1)
     }
-    fn get_buckets() -> Vec<(Range<u64>, Junk)> {
-        let buckets = vec![
-            (0f64..100000f64),
-            (100000f64..200000f64),
-            (200000f64..300000f64),
-            (300000f64..500000f64),
-            (500000f64..600000f64),
-            (600000f64..700000f64),
-            (700000f64..800000f64),
-            (800000f64..900000f64),
-            (900000f64..1000000f64),
-        ];
-        // let buckets = vec![
-        //(0f64..300000f64),
-        //(300000f64..600000f64),
-        //(600000f64..900000f64),
-        //];
+    fn get_buckets_with_opt(small: bool) -> Vec<(Range<u64>, Junk)> {
+        let buckets = if small {
+            vec![
+                (0f64..300000f64),
+                (300000f64..600000f64),
+                (600000f64..900000f64),
+            ]
+        } else {
+            vec![
+                (0f64..100000f64),
+                (100000f64..200000f64),
+                (200000f64..300000f64),
+                (300000f64..500000f64),
+                (500000f64..600000f64),
+                (600000f64..700000f64),
+                (700000f64..800000f64),
+                (800000f64..900000f64),
+                (900000f64..1000000f64),
+            ]
+        };
 
-        let buckets = extend_range(&buckets, &Type::U64);
+        let buckets = extend_validate_ranges(&buckets, &Type::U64).unwrap();
         buckets
             .into_iter()
             .map(|bucket| (bucket, add_junk()))
             .collect_vec()
+    }
+
+    fn get_buckets() -> Vec<(Range<u64>, Junk)> {
+        get_buckets_with_opt(false)
     }
 
     fn get_rand_docs() -> Vec<u64> {
@@ -379,7 +391,7 @@ mod bench {
     }
 
     #[bench]
-    fn bench_small_range_contains_linear_search_end_only(b: &mut test::Bencher) {
+    fn bench_small_range_contains_linear_search_only_float(b: &mut test::Bencher) {
         let buckets_orig = get_buckets();
         let buckets = get_buckets().iter().map(|range| range.0.end).collect_vec();
         let vals = get_rand_docs();
@@ -421,7 +433,7 @@ mod bench {
     }
 
     #[bench]
-    fn bench_small_range_binary_search_only_end(b: &mut test::Bencher) {
+    fn bench_small_range_binary_search_only_float(b: &mut test::Bencher) {
         let buckets_orig = get_buckets();
         let buckets = get_buckets().iter().map(|range| range.0.end).collect_vec();
         let vals = get_rand_docs();

@@ -4,6 +4,7 @@
 //! intermediate average results, which is the sum and the number of values. The actual average is
 //! calculated on the step from intermediate to final aggregation result tree.
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,7 @@ use super::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketDataEntry,
     IntermediateBucketDataEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
 };
-use super::metric::Stats;
+use super::metric::{SingleMetricResult, Stats};
 use super::Key;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -57,7 +58,7 @@ impl From<IntermediateAggregationResult> for AggregationResult {
 /// MetricResult
 pub enum MetricResult {
     /// Average metric result.
-    Average(f64),
+    Average(SingleMetricResult),
     /// Stats metric result.
     Stats(Stats),
 }
@@ -66,7 +67,7 @@ impl From<IntermediateMetricResult> for MetricResult {
     fn from(metric: IntermediateMetricResult) -> Self {
         match metric {
             IntermediateMetricResult::Average(avg_data) => {
-                MetricResult::Average(avg_data.finalize())
+                MetricResult::Average(avg_data.finalize().into())
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())
@@ -78,32 +79,51 @@ impl From<IntermediateMetricResult> for MetricResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Aggregation result for buckets.
 pub struct BucketResult {
-    #[serde(flatten)]
-    buckets: HashMap<Key, BucketDataEntry>,
+    buckets: Vec<BucketDataEntry>,
 }
 
 impl From<IntermediateBucketResult> for BucketResult {
     fn from(result: IntermediateBucketResult) -> Self {
-        BucketResult {
-            buckets: result
-                .buckets
-                .into_iter()
-                .filter(|(_, bucket)| match bucket {
-                    IntermediateBucketDataEntry::KeyCount(key_count) => key_count.doc_count != 0,
-                })
-                .map(|(key, bucket)| (key, bucket.into()))
-                .collect(),
-        }
+        let mut buckets: Vec<BucketDataEntry> = result
+            .buckets
+            .into_iter()
+            .filter(|(_, bucket)| match bucket {
+                IntermediateBucketDataEntry::KeyCount(key_count) => key_count.doc_count != 0,
+            })
+            .map(|(_, bucket)| (bucket.into()))
+            .collect();
+        buckets.sort_by(
+            |bucket1, bucket2| match bucket2.doc_count().cmp(&bucket1.doc_count()) {
+                Ordering::Less => Ordering::Less,
+                Ordering::Equal => bucket1.key().cmp(bucket2.key()),
+                Ordering::Greater => Ordering::Greater,
+            },
+        );
+        BucketResult { buckets }
     }
 }
 
+/// BucketDataEntry holds bucket aggregation result types.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-/// BucketDataEntry
 pub enum BucketDataEntry {
     /// This is the default entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
     KeyCount(BucketDataEntryKeyCount),
+}
+
+impl BucketDataEntry {
+    fn doc_count(&self) -> u64 {
+        match self {
+            BucketDataEntry::KeyCount(key_count) => key_count.doc_count,
+        }
+    }
+
+    fn key(&self) -> &Key {
+        match self {
+            BucketDataEntry::KeyCount(key_count) => &key_count.key,
+        }
+    }
 }
 
 impl From<IntermediateBucketDataEntry> for BucketDataEntry {
@@ -116,11 +136,10 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketDataEntryKeyCount {
-    #[serde(skip_serializing)]
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
