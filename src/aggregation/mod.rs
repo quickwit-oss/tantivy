@@ -18,7 +18,9 @@
 //! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
 //! [agg_req::Aggregation]) iterator.
 //!
-//! ```verbatim
+//! ```
+//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation};
+//! use tantivy::query::AllQuery;
 //! let agg_req: Aggregations = vec![
 //! (
 //!         "average".to_string(),
@@ -33,7 +35,7 @@
 //! let collector = AggregationCollector::from_aggs(agg_req);
 //!
 //! let searcher = reader.searcher();
-//! let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
+//! let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
 //! ```
 //! # Code Organization
 //!
@@ -43,8 +45,9 @@
 //!
 //! Buckets can contain sub-aggregations. In this example we create buckets with the range
 //! aggregation and then calculate the average on each bucket.
-//!
-//! ```verbatim
+//! ```
+//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation,
+//! BucketAggregationType};
 //! let sub_agg_req_1: Aggregations = vec![(
 //!    "average_in_range".to_string(),
 //!    Aggregation::Metric(MetricAggregation::Average {
@@ -58,7 +61,7 @@
 //!     (
 //!         "range".to_string(),
 //!         Aggregation::Bucket(BucketAggregation {
-//!             bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+//!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field_name: "score".to_string(),
 //!                 buckets: vec![(3f64..7f64), (7f64..20f64)],
 //!             }),
@@ -344,7 +347,7 @@ mod tests {
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -354,7 +357,7 @@ mod tests {
             (
                 "rangef64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score_f64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -364,7 +367,7 @@ mod tests {
             (
                 "rangei64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score_i64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -433,7 +436,7 @@ mod tests {
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -443,7 +446,7 @@ mod tests {
             (
                 "rangef64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score_f64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),
@@ -453,7 +456,7 @@ mod tests {
             (
                 "rangei64".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score_i64".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),

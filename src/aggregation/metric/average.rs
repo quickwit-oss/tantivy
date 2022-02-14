@@ -10,6 +10,7 @@ use crate::schema::Type;
 /// A single-value metric aggregation that computes the average of numeric values that are
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
+/// See [super::SingleMetricResult] for return value.
 pub struct AverageAggregation {
     /// The field name to compute the stats on.
     pub field_name: String,

@@ -139,7 +139,7 @@ pub(crate) enum SegmentBucketResultCollector {
 impl SegmentBucketResultCollector {
     pub fn from_req(req: &BucketAggregationWithAccessor) -> crate::Result<Self> {
         match &req.bucket_agg {
-            BucketAggregationType::RangeAggregation(range_req) => Ok(Self::Range(
+            BucketAggregationType::Range(range_req) => Ok(Self::Range(
                 SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type)?,
             )),
         }
@@ -160,12 +160,12 @@ impl SegmentBucketResultCollector {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum SegmentBucketDataEntry {
-    KeyCount(SegmentBucketDataEntryKeyCount),
+pub(crate) enum SegmentBucketEntry {
+    KeyCount(SegmentBucketEntryKeyCount),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SegmentBucketDataEntryKeyCount {
+pub(crate) struct SegmentBucketEntryKeyCount {
     pub key: Key,
     pub doc_count: u64,
     /// Collect and then compute the values on that bucket.

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
-    SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketDataEntry,
-    SegmentBucketDataEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
+    SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketEntry,
+    SegmentBucketEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
 };
 use super::{Key, VecWithNames};
 
@@ -130,7 +130,7 @@ impl IntermediateMetricResult {
 /// buckets.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateBucketResult {
-    pub(crate) buckets: HashMap<Key, IntermediateBucketDataEntry>,
+    pub(crate) buckets: HashMap<Key, IntermediateBucketEntry>,
 }
 
 impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
@@ -147,8 +147,8 @@ impl IntermediateBucketResult {
             if let Some(entry_right) = other.buckets.get(name) {
                 match (entry_left, entry_right) {
                     (
-                        IntermediateBucketDataEntry::KeyCount(key_count_left),
-                        IntermediateBucketDataEntry::KeyCount(key_count_right),
+                        IntermediateBucketEntry::KeyCount(key_count_left),
+                        IntermediateBucketEntry::KeyCount(key_count_right),
                     ) => key_count_left.merge_fruits(key_count_right),
                 }
             }
@@ -162,19 +162,19 @@ impl IntermediateBucketResult {
     }
 }
 
-/// IntermediateBucketDataEntry holds bucket aggregation result types.
+/// IntermediateBucketEntry holds bucket aggregation result types.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum IntermediateBucketDataEntry {
+pub enum IntermediateBucketEntry {
     /// This is the default entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
-    KeyCount(IntermediateBucketDataEntryKeyCount),
+    KeyCount(IntermediateBucketEntryKeyCount),
 }
 
-impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
-    fn from(entry: SegmentBucketDataEntry) -> Self {
+impl From<SegmentBucketEntry> for IntermediateBucketEntry {
+    fn from(entry: SegmentBucketEntry) -> Self {
         match entry {
-            SegmentBucketDataEntry::KeyCount(key_count) => {
-                IntermediateBucketDataEntry::KeyCount(key_count.into())
+            SegmentBucketEntry::KeyCount(key_count) => {
+                IntermediateBucketEntry::KeyCount(key_count.into())
             }
         }
     }
@@ -183,7 +183,7 @@ impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateBucketDataEntryKeyCount {
+pub struct IntermediateBucketEntryKeyCount {
     /// The unique the bucket is identified.
     pub key: Key,
     /// The number of documents in the bucket.
@@ -193,11 +193,11 @@ pub struct IntermediateBucketDataEntryKeyCount {
     pub sub_aggregation: IntermediateAggregationResults,
 }
 
-impl From<SegmentBucketDataEntryKeyCount> for IntermediateBucketDataEntryKeyCount {
-    fn from(entry: SegmentBucketDataEntryKeyCount) -> Self {
+impl From<SegmentBucketEntryKeyCount> for IntermediateBucketEntryKeyCount {
+    fn from(entry: SegmentBucketEntryKeyCount) -> Self {
         let sub_aggregation = entry.sub_aggregation.into();
 
-        IntermediateBucketDataEntryKeyCount {
+        IntermediateBucketEntryKeyCount {
             key: entry.key,
             doc_count: entry.doc_count,
             values: entry.values,
@@ -206,8 +206,8 @@ impl From<SegmentBucketDataEntryKeyCount> for IntermediateBucketDataEntryKeyCoun
     }
 }
 
-impl IntermediateBucketDataEntryKeyCount {
-    fn merge_fruits(&mut self, other: &IntermediateBucketDataEntryKeyCount) {
+impl IntermediateBucketEntryKeyCount {
+    fn merge_fruits(&mut self, other: &IntermediateBucketEntryKeyCount) {
         self.doc_count += other.doc_count;
         self.sub_aggregation.merge_fruits(&other.sub_aggregation);
     }
@@ -225,7 +225,7 @@ mod tests {
         for (key, doc_count) in data {
             buckets.insert(
                 Key::Str(key.to_string()),
-                IntermediateBucketDataEntry::KeyCount(IntermediateBucketDataEntryKeyCount {
+                IntermediateBucketEntry::KeyCount(IntermediateBucketEntryKeyCount {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,
@@ -246,7 +246,7 @@ mod tests {
         for (key, doc_count, sub_aggregation_key, sub_aggregation_count) in data {
             buckets.insert(
                 Key::Str(key.to_string()),
-                IntermediateBucketDataEntry::KeyCount(IntermediateBucketDataEntryKeyCount {
+                IntermediateBucketEntry::KeyCount(IntermediateBucketEntryKeyCount {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
                     values: None,

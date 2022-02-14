@@ -67,7 +67,7 @@ pub struct BucketAggregation {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
-    RangeAggregation(RangeAggregation),
+    Range(RangeAggregation),
 }
 
 /// The aggregations in this family compute metrics based on values extracted

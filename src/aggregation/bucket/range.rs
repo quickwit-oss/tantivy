@@ -8,7 +8,7 @@ use crate::aggregation::agg_req_with_accessor::{
 };
 use crate::aggregation::intermediate_agg_result::IntermediateBucketResult;
 use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
+    SegmentAggregationResultsCollector, SegmentBucketEntry, SegmentBucketEntryKeyCount,
 };
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
 use crate::fastfield::FastFieldReader;
@@ -23,13 +23,14 @@ use crate::{DocId, TantivyError};
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
 ///
-/// Result type is
-/// [BucketDataEntryKeyCount](crate::aggregation::agg_result::BucketDataEntryKeyCount) on the
+/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
+/// [BucketEntryKeyCount](crate::aggregation::agg_result::BucketEntryKeyCount) on the
 /// AggregationCollector.
 ///
 /// Result type is
-/// [BucketDataEntryKeyCount](crate::aggregation::intermediate_agg_result::
-/// IntermediateBucketDataEntryKeyCount) on the DistributedAggregationCollector.
+/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
+/// [crate::aggregation::intermediate_agg_result::IntermediateBucketEntryKeyCount] on the
+/// DistributedAggregationCollector.
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field_name: String,
@@ -41,7 +42,7 @@ pub struct RangeAggregation {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeBucketEntry {
     range: Range<u64>,
-    bucket: SegmentBucketDataEntry,
+    bucket: SegmentBucketEntry,
 }
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
@@ -83,7 +84,7 @@ impl SegmentRangeCollector {
             .map(|range| {
                 Ok(SegmentRangeBucketEntry {
                     range: range.clone(),
-                    bucket: SegmentBucketDataEntry::KeyCount(SegmentBucketDataEntryKeyCount {
+                    bucket: SegmentBucketEntry::KeyCount(SegmentBucketEntryKeyCount {
                         key: range_to_key(range, &field_type),
                         doc_count: 0,
                         values: None,
@@ -135,7 +136,7 @@ impl SegmentRangeCollector {
         let bucket = &mut self.buckets[bucket_pos];
 
         match &mut bucket.bucket {
-            SegmentBucketDataEntry::KeyCount(key_count) => {
+            SegmentBucketEntry::KeyCount(key_count) => {
                 key_count.doc_count += 1;
                 key_count
                     .sub_aggregation
