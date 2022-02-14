@@ -315,6 +315,16 @@ mod tests {
             ))?;
 
             index_writer.commit()?;
+
+            // no hits segment
+            index_writer.add_document(doc!(
+                text_field => "nohit",
+                score_field => 44u64,
+                score_field_f64 => 44.5f64,
+                score_field_i64 => 44i64,
+            ))?;
+
+            index_writer.commit()?;
         }
         if merge_segments {
             let segment_ids = index
@@ -584,7 +594,7 @@ mod tests {
 
         use super::*;
 
-        fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
+        fn get_test_index_bench(merge_segments: bool) -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
             let text_fieldtype = crate::schema::TextOptions::default()
                 .set_indexing_options(
@@ -630,7 +640,7 @@ mod tests {
 
         #[bench]
         fn bench_aggregation_average_u64(b: &mut Bencher) {
-            let index = get_test_index_2_segments(false).unwrap();
+            let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
             let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -661,7 +671,7 @@ mod tests {
 
         #[bench]
         fn bench_aggregation_average_f64(b: &mut Bencher) {
-            let index = get_test_index_2_segments(false).unwrap();
+            let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
             let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -692,7 +702,7 @@ mod tests {
 
         #[bench]
         fn bench_aggregation_average_u64_and_f64(b: &mut Bencher) {
-            let index = get_test_index_2_segments(false).unwrap();
+            let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
             let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -731,7 +741,7 @@ mod tests {
 
         #[bench]
         fn bench_aggregation_sub_tree(b: &mut Bencher) {
-            let index = get_test_index_2_segments(false).unwrap();
+            let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
             let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -760,7 +770,7 @@ mod tests {
                     (
                         "rangef64".to_string(),
                         Aggregation::Bucket(BucketAggregation {
-                            bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                            bucket_agg: BucketAggregationType::Range(RangeAggregation {
                                 field_name: "score_f64".to_string(),
                                 buckets: vec![
                                     (3f64..7000f64),
