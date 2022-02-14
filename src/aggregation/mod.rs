@@ -48,6 +48,7 @@
 //! ```
 //! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation,
 //! BucketAggregationType};
+//! use tantivy::aggregation::bucket::RangeAggregation;
 //! let sub_agg_req_1: Aggregations = vec![(
 //!    "average_in_range".to_string(),
 //!    Aggregation::Metric(MetricAggregation::Average {
@@ -610,7 +611,7 @@ mod tests {
             let score_field_f64 =
                 schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
-            let index = Index::create_in_ram(schema_builder.build());
+            let index = Index::create_from_tempdir(schema_builder.build())?;
             {
                 let mut rng = thread_rng();
                 let mut index_writer = index.writer_for_tests()?;
