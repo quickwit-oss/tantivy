@@ -4,6 +4,8 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
     SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketDataEntry,
@@ -13,7 +15,7 @@ use super::{Key, VecWithNames};
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults(pub(crate) VecWithNames<IntermediateAggregationResult>);
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
@@ -37,7 +39,7 @@ impl IntermediateAggregationResults {
 }
 
 /// An aggregation is either a bucket or a metric.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateAggregationResult {
     /// Bucket variant
     Bucket(IntermediateBucketResult),
@@ -81,7 +83,7 @@ impl IntermediateAggregationResult {
 }
 
 /// Holds the intermediate data for metric resuls
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateMetricResult {
     /// Average containing intermediate average data result
     Average(IntermediateAverage),
@@ -126,7 +128,7 @@ impl IntermediateMetricResult {
 
 /// The intermediate bucket results. Internally they can be easily merged via the keys of the
 /// buckets.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateBucketResult {
     pub(crate) buckets: HashMap<Key, IntermediateBucketDataEntry>,
 }
@@ -161,7 +163,7 @@ impl IntermediateBucketResult {
 }
 
 /// IntermediateBucketDataEntry holds bucket aggregation result types.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateBucketDataEntry {
     /// This is the default entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
@@ -180,7 +182,7 @@ impl From<SegmentBucketDataEntry> for IntermediateBucketDataEntry {
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateBucketDataEntryKeyCount {
     /// The unique the bucket is identified.
     pub key: Key,

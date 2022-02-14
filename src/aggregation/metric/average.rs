@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// A single-value metric aggregation that computes the average of numeric values that are
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
@@ -51,8 +53,8 @@ impl SegmentAverageCollector {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
 /// Contains mergeable version of average data.
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAverage {
     pub(crate) sum: f64,
     pub(crate) doc_count: u64,

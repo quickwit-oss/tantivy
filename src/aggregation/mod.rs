@@ -100,7 +100,7 @@ use crate::fastfield::FastValue;
 use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct VecWithNames<T: Clone> {
     values: Vec<T>,
     keys: Vec<String>,
