@@ -179,7 +179,7 @@ mod tests {
             (
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field_name: "score".to_string(),
                         buckets: vec![(3f64..7f64), (7f64..20f64)],
                     }),

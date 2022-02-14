@@ -58,7 +58,7 @@ impl BucketAggregationWithAccessor {
         reader: &SegmentReader,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let (accessor, field_type) = match &bucket {
-            BucketAggregationType::RangeAggregation(RangeAggregation {
+            BucketAggregationType::Range(RangeAggregation {
                 field_name,
                 buckets: _,
             }) => get_ff_reader_and_validate(reader, field_name)?,

@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketDataEntry,
-    IntermediateBucketDataEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketEntry,
+    IntermediateBucketEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
 };
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
@@ -79,16 +79,16 @@ impl From<IntermediateMetricResult> for MetricResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Aggregation result for buckets.
 pub struct BucketResult {
-    buckets: Vec<BucketDataEntry>,
+    buckets: Vec<BucketEntry>,
 }
 
 impl From<IntermediateBucketResult> for BucketResult {
     fn from(result: IntermediateBucketResult) -> Self {
-        let mut buckets: Vec<BucketDataEntry> = result
+        let mut buckets: Vec<BucketEntry> = result
             .buckets
             .into_iter()
             .filter(|(_, bucket)| match bucket {
-                IntermediateBucketDataEntry::KeyCount(key_count) => key_count.doc_count != 0,
+                IntermediateBucketEntry::KeyCount(key_count) => key_count.doc_count != 0,
             })
             .map(|(_, bucket)| (bucket.into()))
             .collect();
@@ -103,35 +103,33 @@ impl From<IntermediateBucketResult> for BucketResult {
     }
 }
 
-/// BucketDataEntry holds bucket aggregation result types.
+/// BucketEntry holds bucket aggregation result types.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum BucketDataEntry {
+pub enum BucketEntry {
     /// This is the default entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
-    KeyCount(BucketDataEntryKeyCount),
+    KeyCount(BucketEntryKeyCount),
 }
 
-impl BucketDataEntry {
+impl BucketEntry {
     fn doc_count(&self) -> u64 {
         match self {
-            BucketDataEntry::KeyCount(key_count) => key_count.doc_count,
+            BucketEntry::KeyCount(key_count) => key_count.doc_count,
         }
     }
 
     fn key(&self) -> &Key {
         match self {
-            BucketDataEntry::KeyCount(key_count) => &key_count.key,
+            BucketEntry::KeyCount(key_count) => &key_count.key,
         }
     }
 }
 
-impl From<IntermediateBucketDataEntry> for BucketDataEntry {
-    fn from(entry: IntermediateBucketDataEntry) -> Self {
+impl From<IntermediateBucketEntry> for BucketEntry {
+    fn from(entry: IntermediateBucketEntry) -> Self {
         match entry {
-            IntermediateBucketDataEntry::KeyCount(key_count) => {
-                BucketDataEntry::KeyCount(key_count.into())
-            }
+            IntermediateBucketEntry::KeyCount(key_count) => BucketEntry::KeyCount(key_count.into()),
         }
     }
 }
@@ -139,7 +137,7 @@ impl From<IntermediateBucketDataEntry> for BucketDataEntry {
 /// This is the default entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BucketDataEntryKeyCount {
+pub struct BucketEntryKeyCount {
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
@@ -149,9 +147,9 @@ pub struct BucketDataEntryKeyCount {
     pub sub_aggregation: AggregationResults,
 }
 
-impl From<IntermediateBucketDataEntryKeyCount> for BucketDataEntryKeyCount {
-    fn from(entry: IntermediateBucketDataEntryKeyCount) -> Self {
-        BucketDataEntryKeyCount {
+impl From<IntermediateBucketEntryKeyCount> for BucketEntryKeyCount {
+    fn from(entry: IntermediateBucketEntryKeyCount) -> Self {
+        BucketEntryKeyCount {
             key: entry.key,
             doc_count: entry.doc_count,
             sub_aggregation: entry.sub_aggregation.into(),

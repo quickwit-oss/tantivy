@@ -104,7 +104,7 @@ fn main() -> tantivy::Result<()> {
     let agg_req_1: Aggregations = vec![(
         "score_ranges".to_string(),
         Aggregation::Bucket(BucketAggregation {
-            bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregation {
+            bucket_agg: BucketAggregationType::Range(RangeAggregation {
                 field_name: "highscore".to_string(),
                 buckets: vec![(-1f64..9f64), (9f64..14f64), (14f64..20f64)],
             }),
