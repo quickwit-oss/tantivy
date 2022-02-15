@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
-    SegmentAggregationResultCollector, SegmentAggregationResultsCollector, SegmentBucketEntry,
-    SegmentBucketEntryKeyCount, SegmentBucketResultCollector, SegmentMetricResultCollector,
+    SegmentAggregationResultsCollector, SegmentBucketEntry, SegmentBucketEntryKeyCount,
+    SegmentBucketResultCollector, SegmentMetricResultCollector,
 };
 use super::{Key, VecWithNames};
 
@@ -20,12 +20,14 @@ pub struct IntermediateAggregationResults(pub(crate) VecWithNames<IntermediateAg
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
-        Self(VecWithNames::from_entries(
-            tree.collectors
-                .into_iter()
-                .map(|(key, agg)| (key, agg.into()))
-                .collect(),
-        ))
+        let mut data = vec![];
+        for (key, bucket) in tree.buckets.into_iter() {
+            data.push((key, IntermediateAggregationResult::Bucket(bucket.into())));
+        }
+        for (key, metric) in tree.metrics.into_iter() {
+            data.push((key, IntermediateAggregationResult::Metric(metric.into())));
+        }
+        Self(VecWithNames::from_entries(data))
     }
 }
 
@@ -45,19 +47,6 @@ pub enum IntermediateAggregationResult {
     Bucket(IntermediateBucketResult),
     /// Metric variant
     Metric(IntermediateMetricResult),
-}
-
-impl From<SegmentAggregationResultCollector> for IntermediateAggregationResult {
-    fn from(tree: SegmentAggregationResultCollector) -> Self {
-        match tree {
-            SegmentAggregationResultCollector::Bucket(bucket) => {
-                IntermediateAggregationResult::Bucket(bucket.into())
-            }
-            SegmentAggregationResultCollector::Metric(metric) => {
-                IntermediateAggregationResult::Metric(metric.into())
-            }
-        }
-    }
 }
 
 impl IntermediateAggregationResult {
@@ -200,7 +189,7 @@ impl From<SegmentBucketEntryKeyCount> for IntermediateBucketEntryKeyCount {
         IntermediateBucketEntryKeyCount {
             key: entry.key,
             doc_count: entry.doc_count,
-            values: entry.values,
+            values: None,
             sub_aggregation,
         }
     }

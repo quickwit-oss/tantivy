@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
+use crate::DocId;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// A single-value metric aggregation that computes the average of numeric values that are
@@ -47,7 +48,29 @@ impl SegmentAverageCollector {
             data: Default::default(),
         }
     }
-    pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
+    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
+        let mut iter = doc.chunks_exact(4);
+        while let Some(docs) = iter.next() {
+            let val1 = field.get(docs[0]);
+            let val2 = field.get(docs[1]);
+            let val3 = field.get(docs[2]);
+            let val4 = field.get(docs[3]);
+            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
+            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
+            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
+            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
+            self.data.collect(val1);
+            self.data.collect(val2);
+            self.data.collect(val3);
+            self.data.collect(val4);
+        }
+        for doc in iter.remainder() {
+            let val = field.get(*doc);
+            let val = f64_from_fastfield_u64(val, &self.field_type);
+            self.data.collect(val);
+        }
+    }
+    pub fn collect(&mut self, doc: DocId, field: &DynamicFastFieldReader<u64>) {
         let val = field.get(doc);
         let val = f64_from_fastfield_u64(val, &self.field_type);
         self.data.collect(val);

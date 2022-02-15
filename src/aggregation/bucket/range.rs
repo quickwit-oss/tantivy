@@ -88,7 +88,6 @@ impl SegmentRangeCollector {
                     bucket: SegmentBucketEntry::KeyCount(SegmentBucketEntryKeyCount {
                         key: range_to_key(range, &field_type),
                         doc_count: 0,
-                        values: None,
                         sub_aggregation: SegmentAggregationResultsCollector::from_req(
                             sub_aggregation,
                         )?,
@@ -104,36 +103,68 @@ impl SegmentRangeCollector {
     }
 
     #[inline]
-    pub(crate) fn collect(
+    pub(crate) fn collect_block(
         &mut self,
-        doc: DocId,
+        doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
+        force_flush: bool,
     ) {
-        let val = bucket_with_accessor.accessor.get(doc);
-        self.collect_val(val, doc, bucket_with_accessor);
+        let mut iter = doc.chunks_exact(4);
+        for docs in iter.by_ref() {
+            let val1 = bucket_with_accessor.accessor.get(docs[0]);
+            let val2 = bucket_with_accessor.accessor.get(docs[1]);
+            let val3 = bucket_with_accessor.accessor.get(docs[2]);
+            let val4 = bucket_with_accessor.accessor.get(docs[3]);
+            let bucket_pos1 = self.get_bucket_pos(val1);
+            let bucket_pos2 = self.get_bucket_pos(val2);
+            let bucket_pos3 = self.get_bucket_pos(val3);
+            let bucket_pos4 = self.get_bucket_pos(val4);
+
+            self.increment_bucket(
+                bucket_pos1,
+                docs[0],
+                &bucket_with_accessor.sub_aggregation,
+                force_flush,
+            );
+            self.increment_bucket(
+                bucket_pos2,
+                docs[1],
+                &bucket_with_accessor.sub_aggregation,
+                force_flush,
+            );
+            self.increment_bucket(
+                bucket_pos3,
+                docs[2],
+                &bucket_with_accessor.sub_aggregation,
+                force_flush,
+            );
+            self.increment_bucket(
+                bucket_pos4,
+                docs[3],
+                &bucket_with_accessor.sub_aggregation,
+                force_flush,
+            );
+        }
+        for doc in iter.remainder() {
+            let val = bucket_with_accessor.accessor.get(*doc);
+            let bucket_pos = self.get_bucket_pos(val);
+            self.increment_bucket(
+                bucket_pos,
+                *doc,
+                &bucket_with_accessor.sub_aggregation,
+                force_flush,
+            );
+        }
     }
 
     #[inline]
-    fn collect_val(
+    fn increment_bucket(
         &mut self,
-        val: u64,
+        bucket_pos: usize,
         doc: DocId,
-        bucket_with_accessor: &BucketAggregationWithAccessor,
+        bucket_with_accessor: &AggregationsWithAccessor,
+        force_flush: bool,
     ) {
-        let bucket_pos = self
-            .buckets
-            .binary_search_by(|probe| match probe.range.contains(&val) {
-                true => Ordering::Equal,
-                false => {
-                    // range end does not include the value
-                    if probe.range.end == val {
-                        Ordering::Less
-                    } else {
-                        probe.range.end.cmp(&val) // U64::MAX case
-                    }
-                }
-            })
-            .unwrap();
         let bucket = &mut self.buckets[bucket_pos];
 
         match &mut bucket.bucket {
@@ -141,9 +172,26 @@ impl SegmentRangeCollector {
                 key_count.doc_count += 1;
                 key_count
                     .sub_aggregation
-                    .collect(doc, &bucket_with_accessor.sub_aggregation);
+                    .collect(doc, bucket_with_accessor, force_flush);
             }
         }
+    }
+
+    #[inline]
+    fn get_bucket_pos(&mut self, val: u64) -> usize {
+        self.buckets
+            .binary_search_by(|probe| match probe.range.contains(&val) {
+                true => Ordering::Equal,
+                false => {
+                    // range end does not include the value
+                    if probe.range.end == val {
+                        Ordering::Less
+                    } else {
+                        probe.range.end.cmp(&val)
+                    }
+                }
+            })
+            .expect(&format!("could not find range for value {}", val))
     }
 }
 

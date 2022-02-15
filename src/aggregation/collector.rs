@@ -123,11 +123,13 @@ pub struct AggregationSegmentCollector {
 impl SegmentCollector for AggregationSegmentCollector {
     type Fruit = IntermediateAggregationResults;
 
+    #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        self.result.collect(doc, &self.aggs);
+        self.result.collect(doc, &self.aggs, false);
     }
 
-    fn harvest(self) -> Self::Fruit {
+    fn harvest(mut self) -> Self::Fruit {
+        self.result.flush_staged_docs(&self.aggs, true);
         self.result.into()
     }
 }
