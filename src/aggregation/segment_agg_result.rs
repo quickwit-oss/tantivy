@@ -3,10 +3,11 @@
 //! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
 //! merging.
 
+use itertools::Itertools;
+
 use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor, BucketAggregationWithAccessor,
-    MetricAggregationWithAccessor,
+    AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
 use super::bucket::SegmentRangeCollector;
 use super::metric::{
@@ -14,86 +15,96 @@ use super::metric::{
 };
 use super::{Key, VecWithNames};
 use crate::aggregation::agg_req::BucketAggregationType;
+use crate::DocId;
 
-#[derive(Default, Debug, Clone, PartialEq)]
+pub(crate) type DocBlock = [DocId; 256];
+
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SegmentAggregationResultsCollector {
-    pub(crate) collectors: VecWithNames<SegmentAggregationResultCollector>,
+    pub(crate) metrics: VecWithNames<SegmentMetricResultCollector>,
+    pub(crate) buckets: VecWithNames<SegmentBucketResultCollector>,
+    staged_docs: DocBlock,
+    num_staged_docs: usize,
 }
 
 impl SegmentAggregationResultsCollector {
     pub(crate) fn from_req(req: &AggregationsWithAccessor) -> crate::Result<Self> {
-        let mut entries = vec![];
-        for (key, value) in req.0.entries() {
-            entries.push((
-                key.to_string(),
-                SegmentAggregationResultCollector::from_req(value)?,
-            ));
-        }
+        let buckets = req
+            .buckets
+            .entries()
+            .map(|(key, req)| {
+                Ok((
+                    key.to_string(),
+                    SegmentBucketResultCollector::from_req(req)?,
+                ))
+            })
+            .collect::<crate::Result<_>>()?;
+        let metrics = req
+            .metrics
+            .entries()
+            .map(|(key, req)| (key.to_string(), SegmentMetricResultCollector::from_req(req)))
+            .collect_vec();
         Ok(SegmentAggregationResultsCollector {
-            collectors: VecWithNames::from_entries(entries),
+            metrics: VecWithNames::from_entries(metrics),
+            buckets: VecWithNames::from_entries(buckets),
+            staged_docs: [0; 256],
+            num_staged_docs: 0,
         })
-    }
-
-    pub(crate) fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
-    ) {
-        for (agg_res, agg_with_accessor) in self
-            .collectors
-            .values_mut()
-            .zip(agg_with_accessor.0.values())
-        {
-            agg_res.collect(doc, agg_with_accessor);
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-/// TODO Once we have a bench, test if it is helpful to remove the enum here by having two typed
-/// vecs in `SegmentAggregationResults`. An aggregation is either a bucket or a metric.
-pub(crate) enum SegmentAggregationResultCollector {
-    Bucket(SegmentBucketResultCollector),
-    Metric(SegmentMetricResultCollector),
-}
-
-impl SegmentAggregationResultCollector {
-    pub fn from_req(req: &AggregationWithAccessor) -> crate::Result<Self> {
-        match req {
-            AggregationWithAccessor::Bucket(bucket) => Ok(Self::Bucket(
-                SegmentBucketResultCollector::from_req(bucket)?,
-            )),
-            AggregationWithAccessor::Metric(metric) => {
-                Ok(Self::Metric(SegmentMetricResultCollector::from_req(metric)))
-            }
-        }
     }
 
     #[inline]
     pub(crate) fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationWithAccessor,
+        agg_with_accessor: &AggregationsWithAccessor,
+        force_flush: bool,
     ) {
-        match self {
-            SegmentAggregationResultCollector::Bucket(res) => {
-                res.collect(
-                    doc,
-                    agg_with_accessor
-                        .as_bucket()
-                        .expect("wrong aggregation type"),
-                );
-            }
-            SegmentAggregationResultCollector::Metric(res) => {
-                res.collect(
-                    doc,
-                    agg_with_accessor
-                        .as_metric()
-                        .expect("wrong aggregation type"),
-                );
-            }
+        self.staged_docs[self.num_staged_docs] = doc;
+        self.num_staged_docs += 1;
+        if self.num_staged_docs == self.staged_docs.len() || force_flush {
+            self.flush_staged_docs(agg_with_accessor, false);
         }
     }
+
+    #[inline(never)]
+    pub(crate) fn flush_staged_docs(
+        &mut self,
+        agg_with_accessor: &AggregationsWithAccessor,
+        force_flush: bool,
+    ) {
+        for (agg_with_accessor, collector) in agg_with_accessor
+            .metrics
+            .values()
+            .zip(self.metrics.values_mut())
+        {
+            collector.collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor);
+        }
+        for (agg_with_accessor, collector) in agg_with_accessor
+            .buckets
+            .values()
+            .zip(self.buckets.values_mut())
+        {
+            collector.collect_block(
+                &self.staged_docs[..self.num_staged_docs],
+                agg_with_accessor,
+                force_flush,
+            );
+        }
+
+        self.num_staged_docs = 0;
+    }
+
+    //#[inline(never)]
+    // pub(crate) fn flush_staged_docs(&mut self, agg_with_accessor: &AggregationsWithAccessor) {
+    // for (agg_res, agg_with_accessor) in self
+    //.collectors
+    //.values_mut()
+    //.zip(agg_with_accessor.0.values())
+    //{
+    // agg_res.collect_block(&self.staged_docs, agg_with_accessor);
+    //}
+    // self.num_staged_docs = 0;
+    //}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -115,13 +126,13 @@ impl SegmentMetricResultCollector {
             }
         }
     }
-    pub(crate) fn collect(&mut self, doc: crate::DocId, metric: &MetricAggregationWithAccessor) {
+    pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Average(avg_collector) => {
-                avg_collector.collect(doc, &metric.accessor);
+                avg_collector.collect_block(doc, &metric.accessor);
             }
             SegmentMetricResultCollector::Stats(stats_collector) => {
-                stats_collector.collect(doc, &metric.accessor);
+                stats_collector.collect_block(doc, &metric.accessor);
             }
         }
     }
@@ -146,14 +157,15 @@ impl SegmentBucketResultCollector {
     }
 
     #[inline]
-    pub(crate) fn collect(
+    pub(crate) fn collect_block(
         &mut self,
-        doc: crate::DocId,
+        doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
+        force_flush: bool,
     ) {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect(doc, bucket_with_accessor);
+                range.collect_block(doc, bucket_with_accessor, force_flush);
             }
         }
     }
@@ -168,15 +180,5 @@ pub(crate) enum SegmentBucketEntry {
 pub(crate) struct SegmentBucketEntryKeyCount {
     pub key: Key,
     pub doc_count: u64,
-    /// Collect and then compute the values on that bucket.
-    /// This is required in cases where we have sub_aggregations.
-    ///
-    /// For example if we want to calculate the median metric on a bucket, we need to carry all the
-    /// values from the SegmentAggregationResultTree to the IntermediateAggregationResultTree, so
-    /// that the computation can be done after merging all the segments.
-    ///
-    /// TODO Handle different data types here?
-    /// Collect on Metric level?
-    pub values: Option<Vec<u64>>,
     pub sub_aggregation: SegmentAggregationResultsCollector,
 }

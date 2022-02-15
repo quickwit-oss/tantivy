@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_aggregation_level1() -> crate::Result<()> {
-        let index = get_test_index_2_segments(false)?;
+        let index = get_test_index_2_segments(true)?;
 
         let reader = index.reader()?;
         let text_field = reader.searcher().schema().get_field("text").unwrap();
@@ -487,7 +487,7 @@ mod tests {
             let collector = AggregationCollector::from_aggs(agg_req_1);
 
             let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap().into()
+            searcher.search(&term_query, &collector).unwrap()
         };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
@@ -594,6 +594,7 @@ mod tests {
         use test::{self, Bencher};
 
         use super::*;
+        use crate::aggregation::metric::StatsAggregation;
 
         fn get_test_index_bench(merge_segments: bool) -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
@@ -655,6 +656,37 @@ mod tests {
                     "average".to_string(),
                     Aggregation::Metric(MetricAggregation::Average(
                         AverageAggregation::from_field_name("score".to_string()),
+                    )),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_stats_f64(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+            let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+            b.iter(|| {
+                let term_query = TermQuery::new(
+                    Term::from_field_text(text_field, "cool"),
+                    IndexRecordOption::Basic,
+                );
+
+                let agg_req_1: Aggregations = vec![(
+                    "average_f64".to_string(),
+                    Aggregation::Metric(MetricAggregation::Stats(
+                        StatsAggregation::from_field_name("score_f64".to_string()),
                     )),
                 )]
                 .into_iter()

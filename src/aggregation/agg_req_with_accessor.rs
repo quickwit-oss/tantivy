@@ -1,7 +1,5 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
-use std::collections::HashMap;
-
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
@@ -11,33 +9,17 @@ use crate::schema::Type;
 use crate::{SegmentReader, TantivyError};
 
 #[derive(Clone)]
-pub(crate) struct AggregationsWithAccessor(pub(crate) VecWithNames<AggregationWithAccessor>);
+pub(crate) struct AggregationsWithAccessor {
+    pub metrics: VecWithNames<MetricAggregationWithAccessor>,
+    pub buckets: VecWithNames<BucketAggregationWithAccessor>,
+}
 
 impl AggregationsWithAccessor {
-    fn from_map(entries: HashMap<String, AggregationWithAccessor>) -> Self {
-        AggregationsWithAccessor(VecWithNames::from_entries(entries.into_iter().collect()))
-    }
-}
-
-/// Aggregation tree with fast field accessors.
-#[derive(Clone)]
-pub enum AggregationWithAccessor {
-    Bucket(BucketAggregationWithAccessor),
-    Metric(MetricAggregationWithAccessor),
-}
-
-impl AggregationWithAccessor {
-    pub fn as_bucket(&self) -> Option<&BucketAggregationWithAccessor> {
-        match self {
-            AggregationWithAccessor::Bucket(bucket) => Some(bucket),
-            AggregationWithAccessor::Metric(_) => None,
-        }
-    }
-    pub fn as_metric(&self) -> Option<&MetricAggregationWithAccessor> {
-        match self {
-            AggregationWithAccessor::Bucket(_) => None,
-            AggregationWithAccessor::Metric(metric) => Some(metric),
-        }
+    fn from_map(
+        metrics: VecWithNames<MetricAggregationWithAccessor>,
+        buckets: VecWithNames<BucketAggregationWithAccessor>,
+    ) -> Self {
+        Self { metrics, buckets }
     }
 }
 
@@ -105,29 +87,28 @@ pub(crate) fn get_aggregations_with_accessor(
     aggs: &Aggregations,
     reader: &SegmentReader,
 ) -> crate::Result<AggregationsWithAccessor> {
-    Ok(AggregationsWithAccessor::from_map(
-        aggs.iter()
-            .map(|(key, agg)| {
-                get_aggregation_with_accessor(agg, reader).map(|el| (key.to_string(), el))
-            })
-            .collect::<crate::Result<HashMap<_, _>>>()?,
-    ))
-}
-
-fn get_aggregation_with_accessor(
-    agg: &Aggregation,
-    reader: &SegmentReader,
-) -> crate::Result<AggregationWithAccessor> {
-    match agg {
-        Aggregation::Bucket(bucket) => BucketAggregationWithAccessor::from_bucket(
-            &bucket.bucket_agg,
-            &bucket.sub_aggregation,
-            reader,
-        )
-        .map(AggregationWithAccessor::Bucket),
-        Aggregation::Metric(metric) => MetricAggregationWithAccessor::from_metric(metric, reader)
-            .map(AggregationWithAccessor::Metric),
+    let mut metrics = vec![];
+    let mut buckets = vec![];
+    for (key, agg) in aggs.iter() {
+        match agg {
+            Aggregation::Bucket(bucket) => buckets.push((
+                key.to_string(),
+                BucketAggregationWithAccessor::from_bucket(
+                    &bucket.bucket_agg,
+                    &bucket.sub_aggregation,
+                    reader,
+                )?,
+            )),
+            Aggregation::Metric(metric) => metrics.push((
+                key.to_string(),
+                MetricAggregationWithAccessor::from_metric(metric, reader)?,
+            )),
+        }
     }
+    Ok(AggregationsWithAccessor::from_map(
+        VecWithNames::from_entries(metrics),
+        VecWithNames::from_entries(buckets),
+    ))
 }
 
 fn get_ff_reader_and_validate(
