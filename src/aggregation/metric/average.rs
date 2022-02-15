@@ -70,11 +70,6 @@ impl SegmentAverageCollector {
             self.data.collect(val);
         }
     }
-    pub fn collect(&mut self, doc: DocId, field: &DynamicFastFieldReader<u64>) {
-        let val = field.get(doc);
-        let val = f64_from_fastfield_u64(val, &self.field_type);
-        self.data.collect(val);
-    }
 }
 
 /// Contains mergeable version of average data.
