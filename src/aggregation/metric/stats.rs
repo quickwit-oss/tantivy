@@ -142,12 +142,6 @@ impl SegmentStatsCollector {
             self.stats.collect(val);
         }
     }
-
-    pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
-        let val = field.get(doc);
-        let val = f64_from_fastfield_u64(val, &self.field_type);
-        self.stats.collect(val);
-    }
 }
 
 #[cfg(test)]

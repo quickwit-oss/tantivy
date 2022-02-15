@@ -19,23 +19,31 @@
 //! [agg_req::Aggregation]) iterator.
 //!
 //! ```
-//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation};
+//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
+//! use tantivy::aggregation::AggregationCollector;
+//! use tantivy::aggregation::metric::AverageAggregation;
 //! use tantivy::query::AllQuery;
-//! let agg_req: Aggregations = vec![
-//! (
-//!         "average".to_string(),
-//!         Aggregation::Metric(MetricAggregation::Average(
-//!             AverageAggregation::from_field_name("score".to_string()),
-//!         )),
-//!     ),
-//! ]
-//! .into_iter()
-//! .collect();
+//! use tantivy::aggregation::agg_result::AggregationResults;
+//! use tantivy::IndexReader;
 //!
-//! let collector = AggregationCollector::from_aggs(agg_req);
+//! # #[allow(dead_code)]
+//! fn aggregate_on_index(reader: &IndexReader) {
+//!     let agg_req: Aggregations = vec![
+//!     (
+//!             "average".to_string(),
+//!             Aggregation::Metric(MetricAggregation::Average(
+//!                 AverageAggregation::from_field_name("score".to_string()),
+//!             )),
+//!         ),
+//!     ]
+//!     .into_iter()
+//!     .collect();
 //!
-//! let searcher = reader.searcher();
-//! let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+//!     let collector = AggregationCollector::from_aggs(agg_req);
+//!
+//!     let searcher = reader.searcher();
+//!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+//! }
 //! ```
 //! # Code Organization
 //!
@@ -47,13 +55,14 @@
 //! aggregation and then calculate the average on each bucket.
 //! ```
 //! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation,
-//! BucketAggregationType};
+//! MetricAggregation, BucketAggregationType};
+//! use tantivy::aggregation::metric::AverageAggregation;
 //! use tantivy::aggregation::bucket::RangeAggregation;
 //! let sub_agg_req_1: Aggregations = vec![(
 //!    "average_in_range".to_string(),
-//!    Aggregation::Metric(MetricAggregation::Average {
-//!        field_name: "score".to_string(),
-//!     }),
+//!         Aggregation::Metric(MetricAggregation::Average(
+//!             AverageAggregation::from_field_name("score".to_string()),
+//!         )),
 //! )]
 //! .into_iter()
 //! .collect();
