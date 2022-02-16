@@ -3,23 +3,44 @@
 //!
 //! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
 //! Aggregation>`.
+//! Requests are compatible with the json format of elasticsearch.
 //!
 //! # Example
 //!
-//! ```verbatim
-//! let agg_req_1: Aggregations = vec![
+//! ```
+//! use tantivy::aggregation::bucket::RangeAggregation;
+//! use tantivy::aggregation::agg_req::BucketAggregationType;
+//! use tantivy::aggregation::agg_req::{Aggregation, Aggregations};
+//! use tantivy::aggregation::agg_req::BucketAggregation;
+//! let agg_req1: Aggregations = vec![
 //!     (
 //!         "range".to_string(),
 //!         Aggregation::Bucket(BucketAggregation {
-//!             bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {                               
-//!                 field_name: "score".to_string(),
-//!                 buckets: vec![(3f64..7f64), (7f64..20f64)],
+//!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
+//!                 field: "score".to_string(),
+//!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
 //!             }),
 //!             sub_aggregation: Default::default(),
 //!         }),
-//!     )]
-//!     .into_iter()
-//!     .collect();
+//!     ),
+//! ]
+//! .into_iter()
+//! .collect();
+//!
+//! let elasticsearch_compatible_json_req = r#"
+//! {
+//!   "range": {
+//!     "range": {
+//!       "field": "score",
+//!       "ranges": [
+//!         { "from": 3.0, "to": 7.0 },
+//!         { "from": 7.0, "to": 20.0 }
+//!       ]
+//!     }
+//!   }
+//! }"#;
+//! let agg_req2: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
+//! assert_eq!(agg_req1, agg_req2);
 //! ```
 
 use std::collections::HashMap;
@@ -39,6 +60,7 @@ pub type Aggregations = HashMap<String, Aggregation>;
 ///
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Aggregation {
     /// Bucket aggregation, see [BucketAggregation] for details.
     Bucket(BucketAggregation),
@@ -59,9 +81,13 @@ pub enum Aggregation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketAggregation {
     /// Bucket aggregation strategy to group documents.
+    #[serde(flatten)]
     pub bucket_agg: BucketAggregationType,
     /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
     /// bucket.
+    #[serde(rename = "aggs")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Aggregations::is_empty")]
     pub sub_aggregation: Aggregations,
 }
 
@@ -69,6 +95,7 @@ pub struct BucketAggregation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
+    #[serde(rename = "range")]
     Range(RangeAggregation),
 }
 
@@ -82,7 +109,61 @@ pub enum BucketAggregationType {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MetricAggregation {
     /// Calculates the average.
+    #[serde(rename = "avg")]
     Average(AverageAggregation),
     /// Calculates stats sum, average, min, max, standard_deviation on a field.
+    #[serde(rename = "stats")]
     Stats(StatsAggregation),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_to_json_test() {
+        let agg_req1: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                    field: "score".to_string(),
+                    ranges: vec![
+                        (f64::MIN..3f64).into(),
+                        (3f64..7f64).into(),
+                        (7f64..20f64).into(),
+                        (20f64..f64::MAX).into(),
+                    ],
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let elasticsearch_compatible_json_req = r#"{
+  "range": {
+    "range": {
+      "field": "score",
+      "ranges": [
+        {
+          "to": 3.0
+        },
+        {
+          "from": 3.0,
+          "to": 7.0
+        },
+        {
+          "from": 7.0,
+          "to": 20.0
+        },
+        {
+          "from": 20.0
+        }
+      ]
+    }
+  }
+}"#;
+        let agg_req2: String = serde_json::to_string_pretty(&agg_req1).unwrap();
+        assert_eq!(agg_req2, elasticsearch_compatible_json_req);
+    }
 }

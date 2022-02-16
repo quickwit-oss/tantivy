@@ -12,7 +12,7 @@ Contains all bucket aggregations, like range aggregation. These bucket aggregati
 Contains all metric aggregations, like average aggregation. Metric aggregations do not have sub aggregations.
 
 #### agg_req
-agg_req contains the users aggregation request.
+agg_req contains the users aggregation request. Deserialization from json is compatible with elasticsearch aggregation requests.
 
 #### agg_req_with_accessor
 agg_req_with_accessor contains the users aggregation request enriched with fast field accessors etc, which are

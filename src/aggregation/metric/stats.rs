@@ -12,16 +12,16 @@ use crate::DocId;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StatsAggregation {
     /// The field name to compute the stats on.
-    pub field_name: String,
+    pub field: String,
 }
 impl StatsAggregation {
     /// Create new StatsAggregation from a field.
     pub fn from_field_name(field_name: String) -> Self {
-        StatsAggregation { field_name }
+        StatsAggregation { field: field_name }
     }
     /// Return the field name.
     pub fn field_name(&self) -> &str {
-        &self.field_name
+        &self.field
     }
 }
 
@@ -198,8 +198,8 @@ mod tests {
                 "range".to_string(),
                 Aggregation::Bucket(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field_name: "score".to_string(),
-                        buckets: vec![(3f64..7f64), (7f64..20f64)],
+                        field: "score".to_string(),
+                        ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
                     }),
                     sub_aggregation: iter::once((
                         "stats".to_string(),
@@ -257,7 +257,7 @@ mod tests {
         );
 
         assert_eq!(
-            res["range"]["buckets"][0]["stats"],
+            res["range"]["buckets"][2]["stats"],
             json!({
                 "avg": 10.666666666666666,
                 "count": 3,
