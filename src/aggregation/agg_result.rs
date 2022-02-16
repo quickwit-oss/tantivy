@@ -7,18 +7,19 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketEntry,
-    IntermediateBucketEntryKeyCount, IntermediateBucketResult, IntermediateMetricResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateMetricResult, IntermediateRangeBucketEntry,
 };
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
-pub struct AggregationResults(HashMap<String, AggregationResult>);
+pub struct AggregationResults(pub HashMap<String, AggregationResult>);
 
 impl From<IntermediateAggregationResults> for AggregationResults {
     fn from(tree: IntermediateAggregationResults) -> Self {
@@ -76,68 +77,43 @@ impl From<IntermediateMetricResult> for MetricResult {
     }
 }
 
+/// BucketEntry holds bucket aggregation result types.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-/// Aggregation result for buckets.
-pub struct BucketResult {
-    buckets: Vec<BucketEntry>,
+#[serde(untagged)]
+pub enum BucketResult {
+    /// This is the default entry for a bucket, which contains a key, count, and optionally
+    /// sub_aggregations.
+    Range {
+        /// The range buckets sorted by range.
+        buckets: Vec<RangeBucketEntry>,
+    },
 }
 
 impl From<IntermediateBucketResult> for BucketResult {
     fn from(result: IntermediateBucketResult) -> Self {
-        let mut buckets: Vec<BucketEntry> = result
-            .buckets
-            .into_iter()
-            .filter(|(_, bucket)| match bucket {
-                IntermediateBucketEntry::KeyCount(key_count) => key_count.doc_count != 0,
-            })
-            .map(|(_, bucket)| (bucket.into()))
-            .collect();
-        buckets.sort_by(
-            |bucket1, bucket2| match bucket2.doc_count().cmp(&bucket1.doc_count()) {
-                Ordering::Less => Ordering::Less,
-                Ordering::Equal => bucket1.key().cmp(bucket2.key()),
-                Ordering::Greater => Ordering::Greater,
-            },
-        );
-        BucketResult { buckets }
-    }
-}
+        match result {
+            IntermediateBucketResult::Range(range_map) => {
+                let mut buckets: Vec<RangeBucketEntry> = range_map
+                    .into_iter()
+                    .map(|(_, bucket)| bucket.into())
+                    .collect_vec();
 
-/// BucketEntry holds bucket aggregation result types.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum BucketEntry {
-    /// This is the default entry for a bucket, which contains a key, count, and optionally
-    /// sub_aggregations.
-    KeyCount(BucketEntryKeyCount),
-}
-
-impl BucketEntry {
-    fn doc_count(&self) -> u64 {
-        match self {
-            BucketEntry::KeyCount(key_count) => key_count.doc_count,
-        }
-    }
-
-    fn key(&self) -> &Key {
-        match self {
-            BucketEntry::KeyCount(key_count) => &key_count.key,
+                buckets.sort_by(|a, b| {
+                    a.from
+                        .unwrap_or(f64::MIN)
+                        .partial_cmp(&b.from.unwrap_or(f64::MIN))
+                        .unwrap_or(Ordering::Equal)
+                });
+                BucketResult::Range { buckets }
+            }
         }
     }
 }
 
-impl From<IntermediateBucketEntry> for BucketEntry {
-    fn from(entry: IntermediateBucketEntry) -> Self {
-        match entry {
-            IntermediateBucketEntry::KeyCount(key_count) => BucketEntry::KeyCount(key_count.into()),
-        }
-    }
-}
-
-/// This is the default entry for a bucket, which contains a key, count, and optionally
+/// This is the range entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BucketEntryKeyCount {
+pub struct RangeBucketEntry {
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
@@ -145,14 +121,22 @@ pub struct BucketEntryKeyCount {
     #[serde(flatten)]
     /// sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
+    /// The from range of the bucket. Equals f64::MIN when None.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<f64>,
+    /// The to range of the bucket. Equals f64::MAX when None.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<f64>,
 }
 
-impl From<IntermediateBucketEntryKeyCount> for BucketEntryKeyCount {
-    fn from(entry: IntermediateBucketEntryKeyCount) -> Self {
-        BucketEntryKeyCount {
+impl From<IntermediateRangeBucketEntry> for RangeBucketEntry {
+    fn from(entry: IntermediateRangeBucketEntry) -> Self {
+        RangeBucketEntry {
             key: entry.key,
             doc_count: entry.doc_count,
             sub_aggregation: entry.sub_aggregation.into(),
+            to: entry.to,
+            from: entry.from,
         }
     }
 }

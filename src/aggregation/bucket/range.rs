@@ -9,7 +9,7 @@ use crate::aggregation::agg_req_with_accessor::{
 };
 use crate::aggregation::intermediate_agg_result::IntermediateBucketResult;
 use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentBucketEntry, SegmentBucketEntryKeyCount,
+    SegmentAggregationResultsCollector, SegmentRangeBucketEntry,
 };
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
 use crate::fastfield::FastFieldReader;
@@ -34,16 +34,54 @@ use crate::{DocId, TantivyError};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
-    pub field_name: String,
+    pub field: String,
     /// Note that this aggregation includes the from value and excludes the to value for each
-    /// range. Extra buckets will be created until the first to, and last from.
-    pub buckets: Vec<Range<f64>>,
+    /// range. Extra buckets will be created until the first to, and last from, if necessary.
+    pub ranges: Vec<RangeAggregationRange>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RangeAggregationRange {
+    #[serde(default = "default_from")]
+    #[serde(skip_serializing_if = "skip_serializing_from")]
+    pub from: f64,
+    #[serde(default = "default_to")]
+    #[serde(skip_serializing_if = "skip_serializing_to")]
+    pub to: f64,
+}
+/// Skip serializing for readability and elasticsearch compatibility
+fn skip_serializing_to(val: &f64) -> bool {
+    *val == f64::MAX
+}
+fn skip_serializing_from(val: &f64) -> bool {
+    *val == f64::MIN
+}
+fn default_to() -> f64 {
+    f64::MAX
+}
+fn default_from() -> f64 {
+    f64::MIN
+}
+
+impl From<Range<f64>> for RangeAggregationRange {
+    fn from(range: Range<f64>) -> Self {
+        RangeAggregationRange {
+            from: range.start,
+            to: range.end,
+        }
+    }
+}
+
+impl From<&RangeAggregationRange> for Range<f64> {
+    fn from(range: &RangeAggregationRange) -> Self {
+        range.from..range.to
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SegmentRangeBucketEntry {
+pub struct SegmentRangeAndBucketEntry {
     range: Range<u64>,
-    bucket: SegmentBucketEntry,
+    bucket: SegmentRangeBucketEntry,
 }
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
@@ -51,13 +89,14 @@ pub struct SegmentRangeBucketEntry {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeCollector {
     /// The buckets containing the aggregation data.
-    buckets: Vec<SegmentRangeBucketEntry>,
+    buckets: Vec<SegmentRangeAndBucketEntry>,
     field_type: Type,
 }
 
 impl SegmentRangeCollector {
-    pub fn into_intermediate_agg_result(self) -> IntermediateBucketResult {
+    pub fn into_intermediate_bucket_result(self) -> IntermediateBucketResult {
         let field_type = self.field_type;
+
         let buckets = self
             .buckets
             .into_iter()
@@ -69,7 +108,7 @@ impl SegmentRangeCollector {
             })
             .collect();
 
-        IntermediateBucketResult { buckets }
+        IntermediateBucketResult::Range(buckets)
     }
 
     pub(crate) fn from_req(
@@ -80,18 +119,30 @@ impl SegmentRangeCollector {
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
-        let buckets = extend_validate_ranges(&req.buckets, &field_type)?
+        let buckets = extend_validate_ranges(&req.ranges, &field_type)?
             .iter()
             .map(|range| {
-                Ok(SegmentRangeBucketEntry {
+                let to = if range.end == u64::MAX {
+                    None
+                } else {
+                    Some(f64_from_fastfield_u64(range.end, &field_type))
+                };
+                let from = if range.start == u64::MIN {
+                    None
+                } else {
+                    Some(f64_from_fastfield_u64(range.start, &field_type))
+                };
+                Ok(SegmentRangeAndBucketEntry {
                     range: range.clone(),
-                    bucket: SegmentBucketEntry::KeyCount(SegmentBucketEntryKeyCount {
+                    bucket: SegmentRangeBucketEntry {
                         key: range_to_key(range, &field_type),
                         doc_count: 0,
                         sub_aggregation: SegmentAggregationResultsCollector::from_req(
                             sub_aggregation,
                         )?,
-                    }),
+                        from,
+                        to,
+                    },
                 })
             })
             .collect::<crate::Result<_>>()?;
@@ -167,14 +218,11 @@ impl SegmentRangeCollector {
     ) {
         let bucket = &mut self.buckets[bucket_pos];
 
-        match &mut bucket.bucket {
-            SegmentBucketEntry::KeyCount(key_count) => {
-                key_count.doc_count += 1;
-                key_count
-                    .sub_aggregation
-                    .collect(doc, bucket_with_accessor, force_flush);
-            }
-        }
+        bucket.bucket.doc_count += 1;
+        bucket
+            .bucket
+            .sub_aggregation
+            .collect(doc, bucket_with_accessor, force_flush);
     }
 
     #[inline]
@@ -191,7 +239,7 @@ impl SegmentRangeCollector {
                     }
                 }
             })
-            .expect(&format!("could not find range for value {}", val))
+            .unwrap_or_else(|_| panic!("could not find range for value {}", val))
     }
 }
 
@@ -207,32 +255,32 @@ impl SegmentRangeCollector {
 /// fast field.
 /// The alternative would be that every value read would be converted to the f64 range, but that is
 /// more computational expensive when many documents are hit.
-fn to_u64_range(range: &Range<f64>, field_type: &Type) -> Range<u64> {
+fn to_u64_range(range: Range<f64>, field_type: &Type) -> Range<u64> {
     f64_to_fastfield_u64(range.start, field_type)..f64_to_fastfield_u64(range.end, field_type)
 }
 
 /// Extends the provided buckets to contain the whole value range, by inserting buckets at the
 /// beginning and end.
 fn extend_validate_ranges(
-    buckets: &[Range<f64>],
+    buckets: &[RangeAggregationRange],
     field_type: &Type,
 ) -> crate::Result<Vec<Range<u64>>> {
     let mut converted_buckets = buckets
         .iter()
-        .map(|range| to_u64_range(range, field_type))
+        .map(|range| to_u64_range(range.into(), field_type))
         .collect_vec();
 
     converted_buckets.sort_by_key(|bucket| bucket.start);
-    if buckets[0].start != f64::MIN {
+    if buckets[0].from != f64::MIN {
         converted_buckets.insert(
             0,
-            u64::MIN..f64_to_fastfield_u64(buckets[0].start, field_type),
+            u64::MIN..f64_to_fastfield_u64(buckets[0].from, field_type),
         );
     }
 
-    if buckets[buckets.len() - 1].end != f64::MAX {
+    if buckets[buckets.len() - 1].to != f64::MAX {
         converted_buckets
-            .push(f64_to_fastfield_u64(buckets[buckets.len() - 1].end, field_type)..u64::MAX);
+            .push(f64_to_fastfield_u64(buckets[buckets.len() - 1].to, field_type)..u64::MAX);
     }
 
     // fill up holes in the ranges
@@ -280,7 +328,7 @@ mod tests {
 
     #[test]
     fn bucket_test_extend_range_hole() {
-        let buckets = vec![(10f64..20f64), (30f64..40f64)];
+        let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
         let buckets = extend_validate_ranges(&buckets, &Type::U64).unwrap();
         assert_eq!(buckets[0].start, u64::MIN);
         assert_eq!(buckets[0].end, 10);
@@ -295,7 +343,7 @@ mod tests {
 
     #[test]
     fn bucket_range_test_negative_vals() {
-        let buckets = vec![(-10f64..-1f64)];
+        let buckets = vec![(-10f64..-1f64).into()];
         let buckets = extend_validate_ranges(&buckets, &Type::F64)
             .unwrap()
             .iter()
@@ -306,7 +354,7 @@ mod tests {
     }
     #[test]
     fn bucket_range_test_positive_vals() {
-        let buckets = vec![(0f64..10f64)];
+        let buckets = vec![(0f64..10f64).into()];
         let buckets = extend_validate_ranges(&buckets, &Type::F64)
             .unwrap()
             .iter()
@@ -332,8 +380,7 @@ mod tests {
                         }
                     }
                 })
-                .unwrap_or_else(|val| val - 1) // U64::MAX case, TODO technically not possible,
-                                               // since range doesn't cover end
+                .unwrap_or_else(|val| val - 1) // U64::MAX case
         };
 
         assert_eq!(search(u64::MIN), 0);
@@ -362,23 +409,23 @@ mod bench {
         Junk("asdf".to_string(), 1, 1, 1, 1, 1, 1, 1)
     }
     fn get_buckets_with_opt(small: bool) -> Vec<(Range<u64>, Junk)> {
-        let buckets = if small {
+        let buckets: Vec<RangeAggregationRange> = if small {
             vec![
-                (0f64..300000f64),
-                (300000f64..600000f64),
-                (600000f64..900000f64),
+                (0f64..300000f64).into(),
+                (300000f64..600000f64).into(),
+                (600000f64..900000f64).into(),
             ]
         } else {
             vec![
-                (0f64..100000f64),
-                (100000f64..200000f64),
-                (200000f64..300000f64),
-                (300000f64..500000f64),
-                (500000f64..600000f64),
-                (600000f64..700000f64),
-                (700000f64..800000f64),
-                (800000f64..900000f64),
-                (900000f64..1000000f64),
+                (0f64..100000f64).into(),
+                (100000f64..200000f64).into(),
+                (200000f64..300000f64).into(),
+                (300000f64..500000f64).into(),
+                (500000f64..600000f64).into(),
+                (600000f64..700000f64).into(),
+                (700000f64..800000f64).into(),
+                (800000f64..900000f64).into(),
+                (900000f64..1000000f64).into(),
             ]
         };
 

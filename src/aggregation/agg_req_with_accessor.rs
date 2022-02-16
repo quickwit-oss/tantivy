@@ -15,7 +15,7 @@ pub(crate) struct AggregationsWithAccessor {
 }
 
 impl AggregationsWithAccessor {
-    fn from_map(
+    fn from_data(
         metrics: VecWithNames<MetricAggregationWithAccessor>,
         buckets: VecWithNames<BucketAggregationWithAccessor>,
     ) -> Self {
@@ -41,8 +41,8 @@ impl BucketAggregationWithAccessor {
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
-                field_name,
-                buckets: _,
+                field: field_name,
+                ranges: _,
             }) => get_ff_reader_and_validate(reader, field_name)?,
         };
         let sub_aggregation = sub_aggregation.clone();
@@ -69,8 +69,8 @@ impl MetricAggregationWithAccessor {
         reader: &SegmentReader,
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
-            MetricAggregation::Average(AverageAggregation { field_name })
-            | MetricAggregation::Stats(StatsAggregation { field_name }) => {
+            MetricAggregation::Average(AverageAggregation { field: field_name })
+            | MetricAggregation::Stats(StatsAggregation { field: field_name }) => {
                 let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {
@@ -105,7 +105,7 @@ pub(crate) fn get_aggregations_with_accessor(
             )),
         }
     }
-    Ok(AggregationsWithAccessor::from_map(
+    Ok(AggregationsWithAccessor::from_data(
         VecWithNames::from_entries(metrics),
         VecWithNames::from_entries(buckets),
     ))

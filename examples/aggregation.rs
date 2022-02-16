@@ -105,8 +105,12 @@ fn main() -> tantivy::Result<()> {
         "score_ranges".to_string(),
         Aggregation::Bucket(BucketAggregation {
             bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                field_name: "highscore".to_string(),
-                buckets: vec![(-1f64..9f64), (9f64..14f64), (14f64..20f64)],
+                field: "highscore".to_string(),
+                ranges: vec![
+                    (-1f64..9f64).into(),
+                    (9f64..14f64).into(),
+                    (14f64..20f64).into(),
+                ],
             }),
             sub_aggregation: sub_agg_req_1.clone(),
         }),

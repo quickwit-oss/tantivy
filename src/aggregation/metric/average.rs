@@ -14,16 +14,16 @@ use crate::DocId;
 /// See [super::SingleMetricResult] for return value.
 pub struct AverageAggregation {
     /// The field name to compute the stats on.
-    pub field_name: String,
+    pub field: String,
 }
 impl AverageAggregation {
     /// Create new AverageAggregation from a field.
     pub fn from_field_name(field_name: String) -> Self {
-        AverageAggregation { field_name }
+        AverageAggregation { field: field_name }
     }
     /// Return the field name.
     pub fn field_name(&self) -> &str {
-        &self.field_name
+        &self.field
     }
 }
 
@@ -50,7 +50,7 @@ impl SegmentAverageCollector {
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
         let mut iter = doc.chunks_exact(4);
-        while let Some(docs) = iter.next() {
+        for docs in iter.by_ref() {
             let val1 = field.get(docs[0]);
             let val2 = field.get(docs[1]);
             let val3 = field.get(docs[2]);

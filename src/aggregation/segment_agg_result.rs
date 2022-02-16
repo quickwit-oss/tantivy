@@ -93,18 +93,6 @@ impl SegmentAggregationResultsCollector {
 
         self.num_staged_docs = 0;
     }
-
-    //#[inline(never)]
-    // pub(crate) fn flush_staged_docs(&mut self, agg_with_accessor: &AggregationsWithAccessor) {
-    // for (agg_res, agg_with_accessor) in self
-    //.collectors
-    //.values_mut()
-    //.zip(agg_with_accessor.0.values())
-    //{
-    // agg_res.collect_block(&self.staged_docs, agg_with_accessor);
-    //}
-    // self.num_staged_docs = 0;
-    //}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -116,12 +104,12 @@ pub(crate) enum SegmentMetricResultCollector {
 impl SegmentMetricResultCollector {
     pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
         match &req.metric {
-            MetricAggregation::Average(AverageAggregation { field_name: _ }) => {
+            MetricAggregation::Average(AverageAggregation { field: _ }) => {
                 SegmentMetricResultCollector::Average(SegmentAverageCollector::from_req(
                     req.field_type,
                 ))
             }
-            MetricAggregation::Stats(StatsAggregation { field_name: _ }) => {
+            MetricAggregation::Stats(StatsAggregation { field: _ }) => {
                 SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(req.field_type))
             }
         }
@@ -172,13 +160,12 @@ impl SegmentBucketResultCollector {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum SegmentBucketEntry {
-    KeyCount(SegmentBucketEntryKeyCount),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SegmentBucketEntryKeyCount {
+pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
     pub sub_aggregation: SegmentAggregationResultsCollector,
+    /// The from range of the bucket. Equals f64::MIN when None.
+    pub from: Option<f64>,
+    /// The to range of the bucket. Equals f64::MAX when None.
+    pub to: Option<f64>,
 }
