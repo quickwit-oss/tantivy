@@ -283,7 +283,6 @@ mod tests {
         let warming_state = &reader.inner.warming_state;
 
         let searcher = reader.searcher();
-        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
         assert!(
             !warming_state.gc_maybe(),
             "no GC after first searcher generation"
