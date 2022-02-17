@@ -5,12 +5,13 @@ use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
-    compute_table_size, serialize_postings, IndexingContext, PerFieldPostingsWriter, PostingsWriter,
+    compute_table_size, serialize_postings, IndexingContext, IndexingPosition,
+    PerFieldPostingsWriter, PostingsWriter,
 };
 use crate::schema::{Field, FieldEntry, FieldType, FieldValue, Schema, Term, Type, Value};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{
-    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, TokenStreamChain, Tokenizer,
+    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer,
 };
 use crate::{DocId, Document, Opstamp, SegmentComponent};
 
@@ -221,19 +222,19 @@ impl SegmentWriter {
                         }
                     }
 
-                    let num_tokens = if token_streams.is_empty() {
-                        0
-                    } else {
-                        let mut token_stream = TokenStreamChain::new(offsets, token_streams);
+                    let mut indexing_position = IndexingPosition::default();
+                    for mut token_stream in token_streams {
                         postings_writer.index_text(
                             doc_id,
                             field,
-                            &mut token_stream,
+                            &mut *token_stream,
                             term_buffer,
                             indexing_context,
-                        )
-                    };
-                    self.fieldnorms_writer.record(doc_id, field, num_tokens);
+                            &mut indexing_position,
+                        );
+                    }
+                    self.fieldnorms_writer
+                        .record(doc_id, field, indexing_position.num_tokens);
                 }
                 FieldType::U64(_) => {
                     for value in values {
