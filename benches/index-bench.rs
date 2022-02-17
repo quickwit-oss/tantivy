@@ -1,0 +1,80 @@
+use criterion::{criterion_group, criterion_main, Criterion};
+use tantivy::schema::{INDEXED, STORED, STRING, TEXT};
+use tantivy::Index;
+use pprof::criterion::{Output, PProfProfiler};
+
+const HDFS_LOGS: &str = include_str!("hdfs.json");
+
+pub fn hdfs_index_benchmark(c: &mut Criterion) {
+    let schema = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_u64_field("timestamp", INDEXED);
+        schema_builder.add_text_field("body", TEXT);
+        schema_builder.add_text_field("severity", STRING);
+        schema_builder.build()
+    };
+    let schema_with_store = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_u64_field("timestamp", INDEXED | STORED);
+        schema_builder.add_text_field("body", TEXT | STORED);
+        schema_builder.add_text_field("severity", STRING | STORED);
+        schema_builder.build()
+    };
+
+    let mut group = c.benchmark_group("index-hdfs");
+    group.sample_size(20);
+    group.bench_function("index-hdfs-no-commit", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(schema.clone());
+            let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for _ in 0..10 {
+            for doc_json in HDFS_LOGS.trim().split("\n") {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+            }
+        })
+    });
+    group.bench_function("index-hdfs-with-commit", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(schema.clone());
+            let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for _ in 0..10 {
+            for doc_json in HDFS_LOGS.trim().split("\n") {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+            }
+            index_writer.commit().unwrap();
+        })
+    });
+    group.bench_function("index-hdfs-no-commit-with-docstore", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(schema_with_store.clone());
+            let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in HDFS_LOGS.trim().split("\n") {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+        })
+    });
+    group.bench_function("index-hdfs-with-commit-with-docstore", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(schema_with_store.clone());
+            let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in HDFS_LOGS.trim().split("\n") {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        })
+    });
+}
+
+
+criterion_group! {
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = hdfs_index_benchmark
+}
+criterion_main!(benches);

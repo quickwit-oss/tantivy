@@ -67,6 +67,7 @@ proptest = "1.0"
 criterion = "0.3.5"
 test-log = "0.2.8"
 env_logger = "0.9.0"
+pprof = {version= "0.6", features=["flamegraph", "criterion"]}
 
 [dev-dependencies.fail]
 version = "0.5"
@@ -75,6 +76,11 @@ features = ["failpoints"]
 [profile.release]
 opt-level = 3
 debug = false
+debug-assertions = false
+
+[profile.bench]
+opt-level = 3
+debug = true
 debug-assertions = false
 
 [profile.test]
@@ -109,4 +115,8 @@ required-features = ["fail/failpoints"]
 
 [[bench]]
 name = "analyzer"
+harness = false
+
+[[bench]]
+name = "index-bench"
 harness = false
