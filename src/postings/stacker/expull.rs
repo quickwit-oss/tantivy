@@ -1,4 +1,6 @@
-use std::{io, mem};
+use std::mem;
+
+use common::serialize_vint_u32;
 
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::{load, store};
@@ -97,12 +99,13 @@ fn ensure_capacity<'a>(
 }
 
 impl<'a> ExpUnrolledLinkedListWriter<'a> {
+    pub fn write_u32_vint(&mut self, val: u32) {
+        let mut buf = [0u8; 8];
+        let data = serialize_vint_u32(val, &mut buf);
+        self.extend_from_slice(data);
+    }
+
     pub fn extend_from_slice(&mut self, mut buf: &[u8]) {
-        if buf.is_empty() {
-            // we need to cut early, because `ensure_capacity`
-            // allocates if there is no capacity at all right now.
-            return;
-        }
         while !buf.is_empty() {
             let add_len: usize;
             {
@@ -114,25 +117,6 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
             self.eull.tail = self.eull.tail.offset(add_len as u32);
             buf = &buf[add_len..];
         }
-    }
-}
-
-impl<'a> io::Write for ExpUnrolledLinkedListWriter<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // There is no use case to only write the capacity.
-        // This is not IO after all, so we write the whole
-        // buffer even if the contract of `.write` is looser.
-        self.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.extend_from_slice(buf);
-        Ok(())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 
@@ -178,8 +162,7 @@ impl ExpUnrolledLinkedList {
 
 #[cfg(test)]
 mod tests {
-
-    use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+    use common::{read_u32_vint, write_u32_vint};
 
     use super::super::MemoryArena;
     use super::{len_to_capacity, *};
@@ -205,18 +188,14 @@ mod tests {
         let mut eull = ExpUnrolledLinkedList::new();
         let data: Vec<u32> = (0..100).collect();
         for &el in &data {
-            assert!(eull
-                .writer(&mut arena)
-                .write_u32::<LittleEndian>(el)
-                .is_ok());
+            eull.writer(&mut arena).write_u32_vint(el);
         }
         let mut buffer = Vec::new();
         eull.read_to_end(&arena, &mut buffer);
         let mut result = vec![];
         let mut remaining = &buffer[..];
         while !remaining.is_empty() {
-            result.push(LittleEndian::read_u32(&remaining[..4]));
-            remaining = &remaining[4..];
+            result.push(read_u32_vint(&mut remaining));
         }
         assert_eq!(&result[..], &data[..]);
     }
@@ -231,14 +210,11 @@ mod tests {
         let mut vec2: Vec<u8> = vec![];
 
         for i in 0..9 {
-            assert!(stack.writer(&mut eull).write_u32::<LittleEndian>(i).is_ok());
-            assert!(vec1.write_u32::<LittleEndian>(i).is_ok());
+            stack.writer(&mut eull).write_u32_vint(i);
+            assert!(write_u32_vint(i, &mut vec1).is_ok());
             if i % 2 == 0 {
-                assert!(stack2
-                    .writer(&mut eull)
-                    .write_u32::<LittleEndian>(i)
-                    .is_ok());
-                assert!(vec2.write_u32::<LittleEndian>(i).is_ok());
+                stack2.writer(&mut eull).write_u32_vint(i);
+                assert!(write_u32_vint(i, &mut vec2).is_ok());
             }
         }
         let mut res1 = vec![];
@@ -303,7 +279,6 @@ mod tests {
 mod bench {
     use std::iter;
 
-    use byteorder::{NativeEndian, WriteBytesExt};
     use test::Bencher;
 
     use super::super::MemoryArena;
@@ -339,7 +314,9 @@ mod bench {
             for s in 0..NUM_STACK {
                 for i in 0u32..STACK_SIZE {
                     let t = s * 392017 % NUM_STACK;
-                    let _ = stacks[t].writer(&mut arena).write_u32::<NativeEndian>(i);
+                    stacks[t]
+                        .writer(&mut arena)
+                        .extend_from_slice(&i.to_ne_bytes());
                 }
             }
         });
