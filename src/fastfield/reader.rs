@@ -248,8 +248,6 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     }
 }
 
-pub(crate) type BitpackedFastFieldReader<Item> = FastFieldReaderCodecWrapper<Item, BitpackedReader>;
-
 impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
     fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
         let mut schema_builder = Schema::builder();

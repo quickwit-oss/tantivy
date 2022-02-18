@@ -1,8 +1,7 @@
 use super::reader::DynamicFastFieldReader;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::fastfield::{
-    BitpackedFastFieldReader, BytesFastFieldReader, FastFieldNotAvailableError, FastValue,
-    MultiValuedFastFieldReader,
+    BytesFastFieldReader, FastFieldNotAvailableError, FastValue, MultiValuedFastFieldReader,
 };
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
@@ -219,7 +218,7 @@ impl FastFieldReaders {
                 )));
             }
             let fast_field_idx_file = self.fast_field_data(field, 0)?;
-            let idx_reader = BitpackedFastFieldReader::open(fast_field_idx_file)?;
+            let idx_reader = DynamicFastFieldReader::open(fast_field_idx_file)?;
             let data = self.fast_field_data(field, 1)?;
             BytesFastFieldReader::open(idx_reader, data)
         } else {
