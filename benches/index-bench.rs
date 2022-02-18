@@ -1,10 +1,11 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use pprof::criterion::{Output, PProfProfiler};
 use tantivy::schema::{INDEXED, STORED, STRING, TEXT};
 use tantivy::Index;
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
 
-pub fn criterion_benchmark(c: &mut Criterion) {
+pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let schema = {
         let mut schema_builder = tantivy::schema::SchemaBuilder::new();
         schema_builder.add_u64_field("timestamp", INDEXED);
@@ -26,9 +27,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split("\n") {
-                let doc = schema.parse_document(doc_json).unwrap();
-                index_writer.add_document(doc).unwrap();
+            for _ in 0..10 {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
             }
         })
     });
@@ -36,9 +39,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split("\n") {
-                let doc = schema.parse_document(doc_json).unwrap();
-                index_writer.add_document(doc).unwrap();
+            for _ in 0..10 {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
             }
             index_writer.commit().unwrap();
         })
@@ -66,5 +71,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = hdfs_index_benchmark
+}
 criterion_main!(benches);
