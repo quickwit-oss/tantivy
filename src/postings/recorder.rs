@@ -1,4 +1,4 @@
-use common::{read_u32_vint, write_u32_vint};
+use common::read_u32_vint;
 
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -104,7 +104,7 @@ impl Recorder for NothingRecorder {
 
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(doc);
     }
 
     fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {}
@@ -169,7 +169,7 @@ impl Recorder for TermFrequencyRecorder {
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.term_doc_freq += 1;
         self.current_doc = doc;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(doc);
     }
 
     fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {
@@ -178,7 +178,7 @@ impl Recorder for TermFrequencyRecorder {
 
     fn close_doc(&mut self, arena: &mut MemoryArena) {
         debug_assert!(self.current_tf > 0);
-        let _ = write_u32_vint(self.current_tf, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(self.current_tf);
         self.current_tf = 0;
     }
 
@@ -239,15 +239,15 @@ impl Recorder for TfAndPositionRecorder {
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
         self.term_doc_freq += 1u32;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(doc);
     }
 
     fn record_position(&mut self, position: u32, arena: &mut MemoryArena) {
-        let _ = write_u32_vint(position + 1u32, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(position.wrapping_add(1u32));
     }
 
     fn close_doc(&mut self, arena: &mut MemoryArena) {
-        let _ = write_u32_vint(POSITION_END, &mut self.stack.writer(arena));
+        self.stack.writer(arena).write_u32_vint(POSITION_END);
     }
 
     fn serialize(

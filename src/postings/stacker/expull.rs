@@ -1,4 +1,5 @@
-use std::{io, mem};
+use std::mem;
+use common::serialize_vint_u32;
 
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::{load, store};
@@ -97,12 +98,14 @@ fn ensure_capacity<'a>(
 }
 
 impl<'a> ExpUnrolledLinkedListWriter<'a> {
+
+    pub fn write_u32_vint(&mut self, val: u32) {
+        let mut buf = [0u8; 8];
+        let data = serialize_vint_u32(val, &mut buf);
+        self.extend_from_slice(data);
+    }
+
     pub fn extend_from_slice(&mut self, mut buf: &[u8]) {
-        if buf.is_empty() {
-            // we need to cut early, because `ensure_capacity`
-            // allocates if there is no capacity at all right now.
-            return;
-        }
         while !buf.is_empty() {
             let add_len: usize;
             {
@@ -114,25 +117,6 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
             self.eull.tail = self.eull.tail.offset(add_len as u32);
             buf = &buf[add_len..];
         }
-    }
-}
-
-impl<'a> io::Write for ExpUnrolledLinkedListWriter<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // There is no use case to only write the capacity.
-        // This is not IO after all, so we write the whole
-        // buffer even if the contract of `.write` is looser.
-        self.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.extend_from_slice(buf);
-        Ok(())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 
