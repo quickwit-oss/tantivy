@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -42,39 +41,31 @@ pub struct RangeAggregation {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregationRange {
-    #[serde(default = "default_from")]
-    #[serde(skip_serializing_if = "skip_serializing_from")]
-    pub from: f64,
-    #[serde(default = "default_to")]
-    #[serde(skip_serializing_if = "skip_serializing_to")]
-    pub to: f64,
-}
-/// Skip serializing for readability and elasticsearch compatibility
-fn skip_serializing_to(val: &f64) -> bool {
-    *val == f64::MAX
-}
-fn skip_serializing_from(val: &f64) -> bool {
-    *val == f64::MIN
-}
-fn default_to() -> f64 {
-    f64::MAX
-}
-fn default_from() -> f64 {
-    f64::MIN
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub from: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub to: Option<f64>,
 }
 
 impl From<Range<f64>> for RangeAggregationRange {
     fn from(range: Range<f64>) -> Self {
-        RangeAggregationRange {
-            from: range.start,
-            to: range.end,
-        }
+        let from = if range.start == f64::MIN {
+            None
+        } else {
+            Some(range.start)
+        };
+        let to = if range.end == f64::MAX {
+            None
+        } else {
+            Some(range.end)
+        };
+        RangeAggregationRange { from, to }
     }
 }
 
 impl From<&RangeAggregationRange> for Range<f64> {
     fn from(range: &RangeAggregationRange) -> Self {
-        range.from..range.to
+        range.from.unwrap_or(f64::MIN)..range.to.unwrap_or(f64::MAX)
     }
 }
 
@@ -227,19 +218,12 @@ impl SegmentRangeCollector {
 
     #[inline]
     fn get_bucket_pos(&mut self, val: u64) -> usize {
-        self.buckets
-            .binary_search_by(|probe| match probe.range.contains(&val) {
-                true => Ordering::Equal,
-                false => {
-                    // range end does not include the value
-                    if probe.range.end == val {
-                        Ordering::Less
-                    } else {
-                        probe.range.end.cmp(&val)
-                    }
-                }
-            })
-            .unwrap_or_else(|_| panic!("could not find range for value {}", val))
+        let pos = self
+            .buckets
+            .binary_search_by_key(&val, |probe| probe.range.start)
+            .unwrap_or_else(|pos| pos - 1);
+        debug_assert!(self.buckets[pos].range.contains(&val));
+        pos
     }
 }
 
@@ -271,16 +255,12 @@ fn extend_validate_ranges(
         .collect_vec();
 
     converted_buckets.sort_by_key(|bucket| bucket.start);
-    if buckets[0].from != f64::MIN {
-        converted_buckets.insert(
-            0,
-            u64::MIN..f64_to_fastfield_u64(buckets[0].from, field_type),
-        );
+    if let Some(from_boundary) = buckets[0].from {
+        converted_buckets.insert(0, u64::MIN..f64_to_fastfield_u64(from_boundary, field_type));
     }
 
-    if buckets[buckets.len() - 1].to != f64::MAX {
-        converted_buckets
-            .push(f64_to_fastfield_u64(buckets[buckets.len() - 1].to, field_type)..u64::MAX);
+    if let Some(to_boundary) = buckets[buckets.len() - 1].to {
+        converted_buckets.push(f64_to_fastfield_u64(to_boundary, field_type)..u64::MAX);
     }
 
     // fill up holes in the ranges
@@ -324,6 +304,8 @@ pub fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
     use super::*;
 
     #[test]
@@ -370,17 +352,8 @@ mod tests {
 
         let search = |val: u64| {
             ranges
-                .binary_search_by(|range| match range.contains(&val) {
-                    true => Ordering::Equal,
-                    false => {
-                        if range.end == val {
-                            Ordering::Less
-                        } else {
-                            range.end.cmp(&val)
-                        }
-                    }
-                })
-                .unwrap_or_else(|val| val - 1) // U64::MAX case
+                .binary_search_by_key(&val, |probe| probe.start)
+                .unwrap_or_else(|pos| pos - 1)
         };
 
         assert_eq!(search(u64::MIN), 0);
