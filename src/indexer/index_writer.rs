@@ -1389,6 +1389,7 @@ mod tests {
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
+        let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
         let text_field = schema_builder.add_text_field(
             "text_field",
             TextOptions::default()
@@ -1435,8 +1436,14 @@ mod tests {
             match op {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
-                    index_writer
-                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet, large_text_field=> LOREM))?;
+                    index_writer.add_document(doc!(id_field=>id,
+                            bytes_field => id.to_le_bytes().as_slice(),
+                            multi_numbers=> id,
+                            multi_numbers => id,
+                            text_field => id.to_string(),
+                            facet_field => facet,
+                            large_text_field=> LOREM
+                    ))?;
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
