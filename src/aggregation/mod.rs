@@ -275,6 +275,7 @@ mod tests {
     use super::metric::AverageAggregation;
     use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::TermQuery;
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
@@ -284,6 +285,151 @@ mod tests {
         Aggregation::Metric(MetricAggregation::Average(
             AverageAggregation::from_field_name(field_name.to_string()),
         ))
+    }
+
+    pub fn get_test_index_with_num_docs(
+        merge_segments: bool,
+        num_docs: usize,
+    ) -> crate::Result<Index> {
+        let mut schema_builder = Schema::builder();
+        let text_fieldtype = crate::schema::TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::WithFreqs),
+            )
+            .set_stored();
+        let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let score_fieldtype =
+            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
+        let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+        let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            for i in 0..num_docs {
+                // writing the segment
+                index_writer.add_document(doc!(
+                    text_field => "cool",
+                    score_field => i as u64,
+                    score_field_f64 => i as f64,
+                    score_field_i64 => i as i64,
+                ))?;
+            }
+
+            index_writer.commit()?;
+        }
+        if merge_segments {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
+        }
+
+        Ok(index)
+    }
+
+    // *** EVERY BUCKET-TYPE SHOULD BE TESTED HERE ***
+    fn test_aggregation_flushing(
+        merge_segments: bool,
+        use_distributed_collector: bool,
+    ) -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(merge_segments, 300)?;
+
+        let reader = index.reader()?;
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "cool"),
+            IndexRecordOption::Basic,
+        );
+
+        assert_eq!(DOC_BLOCK_SIZE, 256);
+        // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
+        //
+        // Build a request so that on the first level we have one full cache, which is then flushed.
+        // The same cache should have some residue docs at the end, which are flushed (Range 0-266)
+        // -> 266 docs
+        //
+        // The second level should also have some residue docs in the cache that are flushed at the
+        // end.
+        //
+        // A second bucket on the first level should have the cache unfilled
+
+        // let elasticsearch_compatible_json_req = r#"
+        let elasticsearch_compatible_json_req = r#"
+        {
+        "bucketsL1": {
+            "range": {
+                "field": "score",
+                "ranges": [ { "to": 3.0 }, { "from": 3.0, "to": 266.0 }, { "from": 266.0 } ]
+            },
+            "aggs": {
+                "bucketsL2": {
+                    "range": {
+                        "field": "score",
+                        "ranges": [ { "to": 100.0 }, { "from": 100.0, "to": 266.0 }, { "from": 266.0 } ]
+                    }
+                }
+            }
+        }
+        }
+        "#;
+
+        let agg_req: Aggregations =
+            serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
+
+        let agg_res: AggregationResults = if use_distributed_collector {
+            let collector = DistributedAggregationCollector::from_aggs(agg_req);
+
+            let searcher = reader.searcher();
+            searcher.search(&term_query, &collector).unwrap().into()
+        } else {
+            let collector = AggregationCollector::from_aggs(agg_req);
+
+            let searcher = reader.searcher();
+            searcher.search(&term_query, &collector).unwrap()
+        };
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(res["bucketsL1"]["buckets"][0]["doc_count"], 3);
+        assert_eq!(
+            res["bucketsL1"]["buckets"][0]["bucketsL2"]["buckets"][0]["doc_count"],
+            3
+        );
+        assert_eq!(res["bucketsL1"]["buckets"][1]["key"], "3-266");
+        assert_eq!(res["bucketsL1"]["buckets"][1]["doc_count"], 266 - 3);
+        assert_eq!(
+            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][0]["doc_count"],
+            97
+        );
+        assert_eq!(
+            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][1]["doc_count"],
+            166
+        );
+        assert_eq!(
+            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][2]["doc_count"],
+            0
+        );
+        assert_eq!(
+            res["bucketsL1"]["buckets"][2]["bucketsL2"]["buckets"][2]["doc_count"],
+            300 - 266
+        );
+        assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 300 - 266);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_flushing_variants() {
+        test_aggregation_flushing(false, false).unwrap();
+        test_aggregation_flushing(false, true).unwrap();
+        test_aggregation_flushing(true, false).unwrap();
+        test_aggregation_flushing(true, true).unwrap();
     }
 
     pub fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
@@ -539,10 +685,9 @@ mod tests {
     }
   }
 }
-
 "#;
             let value: Aggregations =
-                serde_json::from_str(&elasticsearch_compatible_json_req).unwrap();
+                serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
             value
         } else {
             let agg_req: Aggregations = vec![

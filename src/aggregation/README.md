@@ -1,3 +1,9 @@
+# Contributing
+
+When adding new bucket aggregation make sure to extend the "test_aggregation_flushing" test for at least 2 levels.
+
+
+
 # Code Organization
 
 Tantivy's aggregations have been designed to mimic the 

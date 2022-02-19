@@ -8,7 +8,7 @@ use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
 use crate::{SegmentReader, TantivyError};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct AggregationsWithAccessor {
     pub metrics: VecWithNames<MetricAggregationWithAccessor>,
     pub buckets: VecWithNames<BucketAggregationWithAccessor>,

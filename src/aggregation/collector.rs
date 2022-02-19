@@ -125,7 +125,7 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        self.result.collect(doc, &self.aggs, false);
+        self.result.collect(doc, &self.aggs);
     }
 
     fn harvest(mut self) -> Self::Fruit {

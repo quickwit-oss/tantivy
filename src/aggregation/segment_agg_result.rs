@@ -3,6 +3,8 @@
 //! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
 //! merging.
 
+use std::fmt::Debug;
+
 use itertools::Itertools;
 
 use super::agg_req::MetricAggregation;
@@ -17,14 +19,26 @@ use super::{Key, VecWithNames};
 use crate::aggregation::agg_req::BucketAggregationType;
 use crate::DocId;
 
-pub(crate) type DocBlock = [DocId; 256];
+pub(crate) const DOC_BLOCK_SIZE: usize = 256;
+pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct SegmentAggregationResultsCollector {
     pub(crate) metrics: VecWithNames<SegmentMetricResultCollector>,
     pub(crate) buckets: VecWithNames<SegmentBucketResultCollector>,
     staged_docs: DocBlock,
     num_staged_docs: usize,
+}
+
+impl Debug for SegmentAggregationResultsCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentAggregationResultsCollector")
+            .field("metrics", &self.metrics)
+            .field("buckets", &self.buckets)
+            .field("staged_docs", &&self.staged_docs[..self.num_staged_docs])
+            .field("num_staged_docs", &self.num_staged_docs)
+            .finish()
+    }
 }
 
 impl SegmentAggregationResultsCollector {
@@ -47,7 +61,7 @@ impl SegmentAggregationResultsCollector {
         Ok(SegmentAggregationResultsCollector {
             metrics: VecWithNames::from_entries(metrics),
             buckets: VecWithNames::from_entries(buckets),
-            staged_docs: [0; 256],
+            staged_docs: [0; DOC_BLOCK_SIZE],
             num_staged_docs: 0,
         })
     }
@@ -57,11 +71,10 @@ impl SegmentAggregationResultsCollector {
         &mut self,
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
-        force_flush: bool,
     ) {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
-        if self.num_staged_docs == self.staged_docs.len() || force_flush {
+        if self.num_staged_docs == self.staged_docs.len() {
             self.flush_staged_docs(agg_with_accessor, false);
         }
     }
@@ -159,7 +172,7 @@ impl SegmentBucketResultCollector {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
@@ -168,4 +181,15 @@ pub(crate) struct SegmentRangeBucketEntry {
     pub from: Option<f64>,
     /// The to range of the bucket. Equals f64::MAX when None.
     pub to: Option<f64>,
+}
+
+impl Debug for SegmentRangeBucketEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentRangeBucketEntry")
+            .field("key", &self.key)
+            .field("doc_count", &self.doc_count)
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .finish()
+    }
 }

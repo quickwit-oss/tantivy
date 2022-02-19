@@ -63,12 +63,6 @@ impl From<Range<f64>> for RangeAggregationRange {
     }
 }
 
-impl From<&RangeAggregationRange> for Range<f64> {
-    fn from(range: &RangeAggregationRange) -> Self {
-        range.from.unwrap_or(f64::MIN)..range.to.unwrap_or(f64::MAX)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeAndBucketEntry {
     range: Range<u64>,
@@ -162,40 +156,23 @@ impl SegmentRangeCollector {
             let bucket_pos3 = self.get_bucket_pos(val3);
             let bucket_pos4 = self.get_bucket_pos(val4);
 
-            self.increment_bucket(
-                bucket_pos1,
-                docs[0],
-                &bucket_with_accessor.sub_aggregation,
-                force_flush,
-            );
-            self.increment_bucket(
-                bucket_pos2,
-                docs[1],
-                &bucket_with_accessor.sub_aggregation,
-                force_flush,
-            );
-            self.increment_bucket(
-                bucket_pos3,
-                docs[2],
-                &bucket_with_accessor.sub_aggregation,
-                force_flush,
-            );
-            self.increment_bucket(
-                bucket_pos4,
-                docs[3],
-                &bucket_with_accessor.sub_aggregation,
-                force_flush,
-            );
+            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation);
         }
         for doc in iter.remainder() {
             let val = bucket_with_accessor.accessor.get(*doc);
             let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(
-                bucket_pos,
-                *doc,
-                &bucket_with_accessor.sub_aggregation,
-                force_flush,
-            );
+            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
+        }
+        if force_flush {
+            for bucket in &mut self.buckets {
+                bucket
+                    .bucket
+                    .sub_aggregation
+                    .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+            }
         }
     }
 
@@ -205,7 +182,6 @@ impl SegmentRangeCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-        force_flush: bool,
     ) {
         let bucket = &mut self.buckets[bucket_pos];
 
@@ -213,11 +189,11 @@ impl SegmentRangeCollector {
         bucket
             .bucket
             .sub_aggregation
-            .collect(doc, bucket_with_accessor, force_flush);
+            .collect(doc, bucket_with_accessor);
     }
 
     #[inline]
-    fn get_bucket_pos(&mut self, val: u64) -> usize {
+    fn get_bucket_pos(&self, val: u64) -> usize {
         let pos = self
             .buckets
             .binary_search_by_key(&val, |probe| probe.range.start)
@@ -239,8 +215,15 @@ impl SegmentRangeCollector {
 /// fast field.
 /// The alternative would be that every value read would be converted to the f64 range, but that is
 /// more computational expensive when many documents are hit.
-fn to_u64_range(range: Range<f64>, field_type: &Type) -> Range<u64> {
-    f64_to_fastfield_u64(range.start, field_type)..f64_to_fastfield_u64(range.end, field_type)
+fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> Range<u64> {
+    range
+        .from
+        .map(|from| f64_to_fastfield_u64(from, field_type))
+        .unwrap_or(u64::MIN)
+        ..range
+            .to
+            .map(|to| f64_to_fastfield_u64(to, field_type))
+            .unwrap_or(u64::MAX)
 }
 
 /// Extends the provided buckets to contain the whole value range, by inserting buckets at the
@@ -251,25 +234,26 @@ fn extend_validate_ranges(
 ) -> crate::Result<Vec<Range<u64>>> {
     let mut converted_buckets = buckets
         .iter()
-        .map(|range| to_u64_range(range.into(), field_type))
+        .map(|range| to_u64_range(range, field_type))
         .collect_vec();
 
     converted_buckets.sort_by_key(|bucket| bucket.start);
-    if let Some(from_boundary) = buckets[0].from {
-        converted_buckets.insert(0, u64::MIN..f64_to_fastfield_u64(from_boundary, field_type));
+    if converted_buckets[0].start != u64::MIN {
+        converted_buckets.insert(0, u64::MIN..converted_buckets[0].start);
     }
 
-    if let Some(to_boundary) = buckets[buckets.len() - 1].to {
-        converted_buckets.push(f64_to_fastfield_u64(to_boundary, field_type)..u64::MAX);
+    if converted_buckets[converted_buckets.len() - 1].end != u64::MAX {
+        converted_buckets.push(converted_buckets[converted_buckets.len() - 1].end..u64::MAX);
     }
 
     // fill up holes in the ranges
     let find_hole = |converted_buckets: &[Range<u64>]| {
         for (pos, ranges) in converted_buckets.windows(2).enumerate() {
             if ranges[0].end > ranges[1].start {
-                return Err(TantivyError::InvalidArgument(
-                    "Overlapping ranges not supported".to_string(),
-                ));
+                return Err(TantivyError::InvalidArgument(format!(
+                    "Overlapping ranges not supported range {:?}, range+1 {:?}",
+                    ranges[0], ranges[1]
+                )));
             }
             if ranges[0].end != ranges[1].start {
                 return Ok(Some(pos));
@@ -287,15 +271,17 @@ fn extend_validate_ranges(
 }
 
 pub fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
-    let to_str = |val: u64| {
-        if val == u64::MIN || val == u64::MAX {
+    // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
+    // it should be rendererd as "*-0" and not "*-*"
+    let to_str = |val: u64, is_start: bool| {
+        if (is_start && val == u64::MIN) || (!is_start && val == u64::MAX) {
             "*".to_string()
         } else {
             f64_from_fastfield_u64(val, field_type).to_string()
         }
     };
 
-    format!("{}-{}", to_str(range.start), to_str(range.end))
+    format!("{}-{}", to_str(range.start, true), to_str(range.end, false))
 }
 
 pub fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
@@ -304,116 +290,164 @@ pub fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::Ordering;
 
     use super::*;
+    use crate::fastfield::FastValue;
+
+    pub fn get_collector_from_ranges(
+        ranges: Vec<RangeAggregationRange>,
+        field_type: Type,
+    ) -> SegmentRangeCollector {
+        let req = RangeAggregation {
+            field: "dummy".to_string(),
+            ranges,
+        };
+
+        SegmentRangeCollector::from_req(&req, &Default::default(), field_type).unwrap()
+    }
 
     #[test]
     fn bucket_test_extend_range_hole() {
         let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
-        let buckets = extend_validate_ranges(&buckets, &Type::U64).unwrap();
-        assert_eq!(buckets[0].start, u64::MIN);
-        assert_eq!(buckets[0].end, 10);
-        assert_eq!(buckets[1].start, 10);
-        assert_eq!(buckets[1].end, 20);
+        let collector = get_collector_from_ranges(buckets, Type::F64);
+
+        let buckets = collector.buckets;
+        assert_eq!(buckets[0].range.start, u64::MIN);
+        assert_eq!(buckets[0].range.end, 10f64.to_u64());
+        assert_eq!(buckets[1].range.start, 10f64.to_u64());
+        assert_eq!(buckets[1].range.end, 20f64.to_u64());
         // Added bucket to fill hole
-        assert_eq!(buckets[2].start, 20);
-        assert_eq!(buckets[2].end, 30);
-        assert_eq!(buckets[3].start, 30);
-        assert_eq!(buckets[3].end, 40);
+        assert_eq!(buckets[2].range.start, 20f64.to_u64());
+        assert_eq!(buckets[2].range.end, 30f64.to_u64());
+        assert_eq!(buckets[3].range.start, 30f64.to_u64());
+        assert_eq!(buckets[3].range.end, 40f64.to_u64());
+    }
+
+    #[test]
+    fn bucket_test_range_conversion_special_case() {
+        // the monotonic conversion between f64 and u64, does not map f64::MIN.to_u64() ==
+        // u64::MIN, but the into trait converts f64::MIN/MAX to None
+        let buckets = vec![
+            (f64::MIN..10f64).into(),
+            (10f64..20f64).into(),
+            (20f64..f64::MAX).into(),
+        ];
+        let collector = get_collector_from_ranges(buckets, Type::F64);
+
+        let buckets = collector.buckets;
+        assert_eq!(buckets[0].range.start, u64::MIN);
+        assert_eq!(buckets[0].range.end, 10f64.to_u64());
+        assert_eq!(buckets[1].range.start, 10f64.to_u64());
+        assert_eq!(buckets[1].range.end, 20f64.to_u64());
+        assert_eq!(buckets[2].range.start, 20f64.to_u64());
+        assert_eq!(buckets[2].range.end, u64::MAX);
+        assert_eq!(buckets.len(), 3);
     }
 
     #[test]
     fn bucket_range_test_negative_vals() {
         let buckets = vec![(-10f64..-1f64).into()];
-        let buckets = extend_validate_ranges(&buckets, &Type::F64)
-            .unwrap()
-            .iter()
-            .map(|bucket| range_to_string(bucket, &Type::F64))
-            .collect_vec();
-        assert_eq!(buckets[0], "*--10");
-        assert_eq!(buckets[buckets.len() - 1], "-1-*");
+        let collector = get_collector_from_ranges(buckets, Type::F64);
+
+        let buckets = collector.buckets;
+        assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
+        assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "-1-*");
     }
     #[test]
     fn bucket_range_test_positive_vals() {
         let buckets = vec![(0f64..10f64).into()];
-        let buckets = extend_validate_ranges(&buckets, &Type::F64)
-            .unwrap()
-            .iter()
-            .map(|bucket| range_to_string(bucket, &Type::F64))
-            .collect_vec();
-        assert_eq!(buckets[0], "*-0");
-        assert_eq!(buckets[buckets.len() - 1], "10-*");
+        let collector = get_collector_from_ranges(buckets, Type::F64);
+
+        let buckets = collector.buckets;
+        assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
+        assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "10-*");
     }
 
     #[test]
-    fn range_binary_search_test() {
-        let ranges = vec![(u64::MIN..10), (10..100), (100..u64::MAX)];
+    fn range_binary_search_test_u64() {
+        let check_ranges = |ranges: Vec<RangeAggregationRange>| {
+            let collector = get_collector_from_ranges(ranges, Type::U64);
+            let search = |val: u64| collector.get_bucket_pos(val);
 
-        let search = |val: u64| {
-            ranges
-                .binary_search_by_key(&val, |probe| probe.start)
-                .unwrap_or_else(|pos| pos - 1)
+            assert_eq!(search(u64::MIN), 0);
+            assert_eq!(search(9), 0);
+            assert_eq!(search(10), 1);
+            assert_eq!(search(11), 1);
+            assert_eq!(search(99), 1);
+            assert_eq!(search(100), 2);
+            assert_eq!(search(u64::MAX - 1), 2); // Since the end range is never included, the max
+                                                 // value
         };
 
+        let ranges = vec![(10.0..100.0).into()];
+        check_ranges(ranges);
+
+        let ranges = vec![
+            RangeAggregationRange {
+                to: Some(10.0),
+                from: None,
+            },
+            (10.0..100.0).into(),
+        ];
+        check_ranges(ranges);
+
+        let ranges = vec![
+            RangeAggregationRange {
+                to: Some(10.0),
+                from: None,
+            },
+            (10.0..100.0).into(),
+            RangeAggregationRange {
+                to: None,
+                from: Some(100.0),
+            },
+        ];
+        check_ranges(ranges);
+    }
+
+    #[test]
+    fn range_binary_search_test_f64() {
+        let ranges = vec![
+            //(f64::MIN..10.0).into(),
+            (10.0..100.0).into(),
+            //(100.0..f64::MAX).into(),
+        ];
+
+        let collector = get_collector_from_ranges(ranges, Type::F64);
+        let search = |val: u64| collector.get_bucket_pos(val);
+
         assert_eq!(search(u64::MIN), 0);
-        assert_eq!(search(9), 0);
-        assert_eq!(search(10), 1);
-        assert_eq!(search(11), 1);
-        assert_eq!(search(99), 1);
-        assert_eq!(search(100), 2);
-        assert_eq!(search(u64::MAX), 2);
+        assert_eq!(search(9f64.to_u64()), 0);
+        assert_eq!(search(10f64.to_u64()), 1);
+        assert_eq!(search(11f64.to_u64()), 1);
+        assert_eq!(search(99f64.to_u64()), 1);
+        assert_eq!(search(100f64.to_u64()), 2);
+        assert_eq!(search(u64::MAX - 1), 2); // Since the end range is never included,
+                                             // the max value
     }
 }
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use std::cmp::Ordering;
-
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 
     use super::*;
+    use crate::aggregation::bucket::range::tests::get_collector_from_ranges;
 
-    #[derive(Clone)]
-    struct Junk(String, u64, u64, u64, u64, u64, u64, u64);
-    fn add_junk() -> Junk {
-        Junk("asdf".to_string(), 1, 1, 1, 1, 1, 1, 1)
-    }
-    fn get_buckets_with_opt(small: bool) -> Vec<(Range<u64>, Junk)> {
-        let buckets: Vec<RangeAggregationRange> = if small {
-            vec![
-                (0f64..300000f64).into(),
-                (300000f64..600000f64).into(),
-                (600000f64..900000f64).into(),
-            ]
-        } else {
-            vec![
-                (0f64..100000f64).into(),
-                (100000f64..200000f64).into(),
-                (200000f64..300000f64).into(),
-                (300000f64..500000f64).into(),
-                (500000f64..600000f64).into(),
-                (600000f64..700000f64).into(),
-                (700000f64..800000f64).into(),
-                (800000f64..900000f64).into(),
-                (900000f64..1000000f64).into(),
-            ]
-        };
+    fn get_buckets_with_opt(num_buckets: u64, num_docs: u64) -> SegmentRangeCollector {
+        let bucket_size = num_docs / num_buckets;
+        let mut buckets: Vec<RangeAggregationRange> = vec![];
+        for i in 0..num_buckets {
+            let bucket_start = (i * bucket_size) as f64;
+            buckets.push((bucket_start..bucket_start).into())
+        }
 
-        let buckets = extend_validate_ranges(&buckets, &Type::U64).unwrap();
-        buckets
-            .into_iter()
-            .map(|bucket| (bucket, add_junk()))
-            .collect_vec()
+        get_collector_from_ranges(buckets, Type::U64)
     }
 
-    fn get_buckets() -> Vec<(Range<u64>, Junk)> {
-        get_buckets_with_opt(false)
-    }
-
-    fn get_rand_docs() -> Vec<u64> {
+    fn get_rand_docs(num_docs: u64) -> Vec<u64> {
         let mut rng = thread_rng();
 
         let all_docs = (0..1_000_000u64).collect_vec();
@@ -427,93 +461,17 @@ mod bench {
     }
 
     #[bench]
-    fn bench_small_range_contains_linear_search(b: &mut test::Bencher) {
-        let buckets = get_buckets();
-        let vals = get_rand_docs();
-        b.iter(|| {
-            let mut bucket = 0u64..10;
-            for val in &vals {
-                bucket = buckets
-                    .iter()
-                    .find(|bucket| bucket.0.contains(&val))
-                    .map(|el| el.0.clone())
-                    .unwrap();
-            }
-            bucket
-        })
-    }
-
-    #[bench]
-    fn bench_small_range_contains_linear_search_overlapping_buckets(b: &mut test::Bencher) {
-        let buckets = get_buckets();
-        let vals = get_rand_docs();
-        b.iter(|| {
-            let mut bucket = 0u64..10;
-            for val in &vals {
-                for bucket_cand in &buckets {
-                    if bucket_cand.0.contains(&val) {
-                        bucket = bucket_cand.0.clone();
-                    }
-                }
-            }
-            bucket
-        })
-    }
-
-    #[bench]
-    fn bench_small_range_contains_linear_search_only_float(b: &mut test::Bencher) {
-        let buckets_orig = get_buckets();
-        let buckets = get_buckets().iter().map(|range| range.0.end).collect_vec();
-        let vals = get_rand_docs();
-        b.iter(|| {
-            let mut bucket = buckets_orig[0].0.clone();
-
-            for val in &vals {
-                let bucket_pos = buckets.iter().position(|end| end > val).unwrap();
-                bucket = buckets_orig[bucket_pos].0.clone();
-            }
-            bucket
-        })
-    }
-
-    #[bench]
     fn bench_small_range_contains_binary_search(b: &mut test::Bencher) {
-        let buckets = get_buckets();
-        let vals = get_rand_docs();
+        const NUM_BUCKETS: u64 = 100;
+        const NUM_DOCS: u64 = 1_000_000u64;
+        let collector = get_buckets_with_opt(NUM_BUCKETS, NUM_DOCS);
+        let vals = get_rand_docs(NUM_DOCS);
         b.iter(|| {
-            let mut bucket = 0u64..10;
+            let mut bucket_pos = 0;
             for val in &vals {
-                let bucket_pos = buckets
-                    .binary_search_by(|probe| match probe.0.contains(&val) {
-                        true => Ordering::Equal,
-                        false => {
-                            if probe.0.end == *val {
-                                Ordering::Less
-                            } else {
-                                probe.0.end.cmp(&val)
-                            }
-                        }
-                    })
-                    .unwrap_or_else(|val| val); // U64::MAX case
-
-                bucket = buckets[bucket_pos].0.clone();
+                let bucket_pos = collector.get_bucket_pos(*val);
             }
-            bucket
-        })
-    }
-
-    #[bench]
-    fn bench_small_range_binary_search_only_float(b: &mut test::Bencher) {
-        let buckets_orig = get_buckets();
-        let buckets = get_buckets().iter().map(|range| range.0.end).collect_vec();
-        let vals = get_rand_docs();
-        b.iter(|| {
-            let mut bucket = buckets_orig[0].0.clone();
-            for val in &vals {
-                let bucket_pos = buckets.binary_search(&val).unwrap_or_else(|val| val);
-                bucket = buckets_orig[bucket_pos].0.clone();
-            }
-            bucket
+            bucket_pos
         })
     }
 }
