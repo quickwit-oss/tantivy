@@ -21,6 +21,10 @@ impl AggregationsWithAccessor {
     ) -> Self {
         Self { metrics, buckets }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.metrics.is_empty() && self.buckets.is_empty()
+    }
 }
 
 #[derive(Clone)]

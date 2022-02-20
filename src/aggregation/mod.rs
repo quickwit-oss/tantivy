@@ -204,6 +204,9 @@ impl<T: Clone> VecWithNames<T> {
     fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())
     }
+    fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Ord, PartialOrd)]
@@ -867,6 +870,7 @@ mod tests {
 
         use super::*;
         use crate::aggregation::metric::StatsAggregation;
+        use crate::query::AllQuery;
 
         fn get_test_index_bench(merge_segments: bool) -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
@@ -1039,6 +1043,42 @@ mod tests {
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
                     searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_range_only(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req_1: Aggregations = vec![(
+                    "rangef64".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score_f64".to_string(),
+                            ranges: vec![
+                                (3f64..7000f64).into(),
+                                (7000f64..20000f64).into(),
+                                (20000f64..30000f64).into(),
+                                (30000f64..40000f64).into(),
+                                (40000f64..50000f64).into(),
+                                (50000f64..60000f64).into(),
+                            ],
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
 
                 agg_res
             });

@@ -176,7 +176,7 @@ impl SegmentBucketResultCollector {
 pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
-    pub sub_aggregation: SegmentAggregationResultsCollector,
+    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
     /// The from range of the bucket. Equals f64::MIN when None.
     pub from: Option<f64>,
     /// The to range of the bucket. Equals f64::MAX when None.

@@ -117,14 +117,19 @@ impl SegmentRangeCollector {
                 } else {
                     Some(f64_from_fastfield_u64(range.start, &field_type))
                 };
+                let sub_aggregation = if sub_aggregation.is_empty() {
+                    None
+                } else {
+                    Some(SegmentAggregationResultsCollector::from_req(
+                        sub_aggregation,
+                    )?)
+                };
                 Ok(SegmentRangeAndBucketEntry {
                     range: range.clone(),
                     bucket: SegmentRangeBucketEntry {
                         key: range_to_key(range, &field_type),
                         doc_count: 0,
-                        sub_aggregation: SegmentAggregationResultsCollector::from_req(
-                            sub_aggregation,
-                        )?,
+                        sub_aggregation,
                         from,
                         to,
                     },
@@ -168,10 +173,10 @@ impl SegmentRangeCollector {
         }
         if force_flush {
             for bucket in &mut self.buckets {
-                bucket
-                    .bucket
-                    .sub_aggregation
-                    .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+                if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
+                    sub_aggregation
+                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+                }
             }
         }
     }
@@ -186,10 +191,9 @@ impl SegmentRangeCollector {
         let bucket = &mut self.buckets[bucket_pos];
 
         bucket.bucket.doc_count += 1;
-        bucket
-            .bucket
-            .sub_aggregation
-            .collect(doc, bucket_with_accessor);
+        if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
+            sub_aggregation.collect(doc, bucket_with_accessor);
+        }
     }
 
     #[inline]
@@ -436,42 +440,52 @@ mod bench {
     use super::*;
     use crate::aggregation::bucket::range::tests::get_collector_from_ranges;
 
-    fn get_buckets_with_opt(num_buckets: u64, num_docs: u64) -> SegmentRangeCollector {
+    const TOTAL_DOCS: u64 = 1_000_000u64;
+    const NUM_DOCS: u64 = 50_000u64;
+
+    fn get_collector_with_buckets(num_buckets: u64, num_docs: u64) -> SegmentRangeCollector {
         let bucket_size = num_docs / num_buckets;
         let mut buckets: Vec<RangeAggregationRange> = vec![];
         for i in 0..num_buckets {
             let bucket_start = (i * bucket_size) as f64;
-            buckets.push((bucket_start..bucket_start).into())
+            buckets.push((bucket_start..bucket_start + bucket_size as f64).into())
         }
 
         get_collector_from_ranges(buckets, Type::U64)
     }
 
-    fn get_rand_docs(num_docs: u64) -> Vec<u64> {
+    fn get_rand_docs(total_docs: u64, num_docs_returned: u64) -> Vec<u64> {
         let mut rng = thread_rng();
 
-        let all_docs = (0..1_000_000u64).collect_vec();
+        let all_docs = (0..total_docs - 1).collect_vec();
         let mut vals = all_docs
             .as_slice()
-            .choose_multiple(&mut rng, 50000)
+            .choose_multiple(&mut rng, num_docs_returned as usize)
             .cloned()
             .collect_vec();
         vals.sort();
         vals
     }
 
-    #[bench]
-    fn bench_small_range_contains_binary_search(b: &mut test::Bencher) {
-        const NUM_BUCKETS: u64 = 100;
-        const NUM_DOCS: u64 = 1_000_000u64;
-        let collector = get_buckets_with_opt(NUM_BUCKETS, NUM_DOCS);
-        let vals = get_rand_docs(NUM_DOCS);
+    fn bench_range_binary_search(b: &mut test::Bencher, num_buckets: u64) {
+        let collector = get_collector_with_buckets(num_buckets, TOTAL_DOCS);
+        let vals = get_rand_docs(TOTAL_DOCS, NUM_DOCS);
         b.iter(|| {
             let mut bucket_pos = 0;
             for val in &vals {
-                let bucket_pos = collector.get_bucket_pos(*val);
+                bucket_pos = collector.get_bucket_pos(*val);
             }
             bucket_pos
         })
+    }
+
+    #[bench]
+    fn bench_range_100_buckets(b: &mut test::Bencher) {
+        bench_range_binary_search(b, 100)
+    }
+
+    #[bench]
+    fn bench_range_10_buckets(b: &mut test::Bencher) {
+        bench_range_binary_search(b, 10)
     }
 }

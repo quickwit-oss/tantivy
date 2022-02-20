@@ -179,7 +179,12 @@ pub struct IntermediateRangeBucketEntry {
 
 impl From<SegmentRangeBucketEntry> for IntermediateRangeBucketEntry {
     fn from(entry: SegmentRangeBucketEntry) -> Self {
-        let sub_aggregation = entry.sub_aggregation.into();
+        let sub_aggregation = if let Some(sub_aggregation) = entry.sub_aggregation {
+            sub_aggregation.into()
+        } else {
+            Default::default()
+        };
+        // let sub_aggregation = entry.sub_aggregation.into();
 
         IntermediateRangeBucketEntry {
             key: entry.key,
