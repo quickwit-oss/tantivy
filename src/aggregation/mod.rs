@@ -308,6 +308,10 @@ mod tests {
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
+        let fraction_field = schema_builder.add_f64_field(
+            "fraction_f64",
+            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue),
+        );
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_for_tests()?;
@@ -318,6 +322,7 @@ mod tests {
                     score_field => i as u64,
                     score_field_f64 => i as f64,
                     score_field_i64 => i as i64,
+                    fraction_field => i as f64/100.0,
                 ))?;
             }
 

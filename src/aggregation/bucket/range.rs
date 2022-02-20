@@ -295,8 +295,16 @@ pub fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
 #[cfg(test)]
 mod tests {
 
+    use serde_json::Value;
+
     use super::*;
+    use crate::aggregation::agg_req::{
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
+    };
+    use crate::aggregation::tests::get_test_index_with_num_docs;
+    use crate::aggregation::AggregationCollector;
     use crate::fastfield::FastValue;
+    use crate::query::AllQuery;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
@@ -308,6 +316,43 @@ mod tests {
         };
 
         SegmentRangeCollector::from_req(&req, &Default::default(), field_type).unwrap()
+    }
+
+    #[test]
+    fn range_fraction_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                    field: "fraction_f64".to_string(),
+                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req);
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(res["range"]["buckets"][0]["key"], "*-0");
+        assert_eq!(res["range"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["range"]["buckets"][1]["key"], "0-0.1");
+        assert_eq!(res["range"]["buckets"][1]["doc_count"], 10);
+        assert_eq!(res["range"]["buckets"][2]["key"], "0.1-0.2");
+        assert_eq!(res["range"]["buckets"][2]["doc_count"], 10);
+        assert_eq!(res["range"]["buckets"][3]["key"], "0.2-*");
+        assert_eq!(res["range"]["buckets"][3]["doc_count"], 80);
+
+        Ok(())
     }
 
     #[test]
