@@ -55,6 +55,7 @@ lru = "0.7.0"
 fastdivide = "0.4"
 itertools = "0.10.0"
 measure_time = "0.8.0"
+pretty_assertions = "1.1.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -76,11 +77,6 @@ features = ["failpoints"]
 [profile.release]
 opt-level = 3
 debug = false
-debug-assertions = false
-
-[profile.bench]
-opt-level = 3
-debug = true
 debug-assertions = false
 
 [profile.test]
@@ -115,8 +111,4 @@ required-features = ["fail/failpoints"]
 
 [[bench]]
 name = "analyzer"
-harness = false
-
-[[bench]]
-name = "index-bench"
 harness = false
