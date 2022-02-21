@@ -18,6 +18,8 @@ use crate::termdict::TermOrdinal;
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
 
+const POSITION_GAP: u32 = 1;
+
 fn make_field_partition(
     term_offsets: &[(Term<&[u8]>, Addr, UnorderedTermId)],
 ) -> Vec<(Field, Range<usize>)> {
@@ -100,6 +102,12 @@ pub(crate) fn serialize_postings(
     Ok(unordered_term_mappings)
 }
 
+#[derive(Default)]
+pub(crate) struct IndexingPosition {
+    pub num_tokens: u32,
+    pub end_position: u32,
+}
+
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
 ///
@@ -138,23 +146,30 @@ pub(crate) trait PostingsWriter {
         token_stream: &mut dyn TokenStream,
         term_buffer: &mut Term,
         indexing_context: &mut IndexingContext,
-    ) -> u32 {
+        indexing_position: &mut IndexingPosition,
+    ) {
         term_buffer.set_field(Type::Str, field);
-        let mut sink = |token: &Token| {
+        let mut num_tokens = 0;
+        let mut end_position = 0;
+        token_stream.process(&mut |token: &Token| {
             // We skip all tokens with a len greater than u16.
-            if token.text.len() <= MAX_TOKEN_LEN {
-                term_buffer.set_text(token.text.as_str());
-                self.subscribe(doc_id, token.position as u32, term_buffer, indexing_context);
-            } else {
+            if token.text.len() > MAX_TOKEN_LEN {
                 warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
                      MAX_TOKEN_LEN in the documentation for more information.",
                     token.text.len(),
                     MAX_TOKEN_LEN
                 );
+                return;
             }
-        };
-        token_stream.process(&mut sink)
+            term_buffer.set_text(token.text.as_str());
+            let start_position = indexing_position.end_position + token.position as u32;
+            end_position = start_position + token.position_length as u32;
+            self.subscribe(doc_id, start_position, term_buffer, indexing_context);
+            num_tokens += 1;
+        });
+        indexing_position.end_position = end_position + POSITION_GAP;
+        indexing_position.num_tokens += num_tokens;
     }
 
     fn total_num_tokens(&self) -> u64;

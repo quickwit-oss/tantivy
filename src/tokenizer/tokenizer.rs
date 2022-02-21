@@ -5,8 +5,6 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::tokenizer::TokenStreamChain;
-
 /// Token
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Token {
@@ -82,31 +80,6 @@ impl TextAnalyzer {
     pub fn filter<F: Into<BoxTokenFilter>>(mut self, token_filter: F) -> Self {
         self.token_filters.push(token_filter.into());
         self
-    }
-
-    /// Tokenize an array`&str`
-    ///
-    /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
-    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
-    /// to prevent accidental `PhraseQuery` to match accross two terms.
-    pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> BoxTokenStream<'a> {
-        assert!(!texts.is_empty());
-        if texts.len() == 1 {
-            self.token_stream(texts[0])
-        } else {
-            let mut offsets = vec![];
-            let mut total_offset = 0;
-            for &text in texts {
-                offsets.push(total_offset);
-                total_offset += text.len();
-            }
-            let token_streams: Vec<BoxTokenStream<'a>> = texts
-                .iter()
-                .cloned()
-                .map(|text| self.token_stream(text))
-                .collect();
-            From::from(TokenStreamChain::new(offsets, token_streams))
-        }
     }
 
     /// Creates a token stream for a given `str`.
@@ -284,13 +257,10 @@ pub trait TokenStream {
     /// and push the tokens to a sink function.
     ///
     /// Remove this.
-    fn process(&mut self, sink: &mut dyn FnMut(&Token)) -> u32 {
-        let mut num_tokens_pushed = 0u32;
+    fn process(&mut self, sink: &mut dyn FnMut(&Token)) {
         while self.advance() {
             sink(self.token());
-            num_tokens_pushed += 1u32;
         }
-        num_tokens_pushed
     }
 }
 

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 
-use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
+use crate::tokenizer::{Token, TokenStream};
 
 /// Struct representing pre-tokenized text
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -36,32 +36,6 @@ impl From<PreTokenizedString> for PreTokenizedStream {
         PreTokenizedStream {
             tokenized_string: s,
             current_token: -1,
-        }
-    }
-}
-
-impl PreTokenizedStream {
-    /// Creates a TokenStream from PreTokenizedString array
-    pub fn chain_tokenized_strings<'a>(
-        tok_strings: &'a [&'a PreTokenizedString],
-    ) -> BoxTokenStream {
-        if tok_strings.len() == 1 {
-            PreTokenizedStream::from((*tok_strings[0]).clone()).into()
-        } else {
-            let mut offsets = vec![];
-            let mut total_offset = 0;
-            for &tok_string in tok_strings {
-                offsets.push(total_offset);
-                if let Some(last_token) = tok_string.tokens.last() {
-                    total_offset += last_token.offset_to;
-                }
-            }
-            // TODO remove the string cloning.
-            let token_streams: Vec<BoxTokenStream<'static>> = tok_strings
-                .iter()
-                .map(|&tok_string| PreTokenizedStream::from((*tok_string).clone()).into())
-                .collect();
-            TokenStreamChain::new(offsets, token_streams).into()
         }
     }
 }
@@ -120,70 +94,6 @@ mod tests {
         let mut token_stream = PreTokenizedStream::from(tok_text.clone());
 
         for expected_token in tok_text.tokens {
-            assert!(token_stream.advance());
-            assert_eq!(token_stream.token(), &expected_token);
-        }
-        assert!(!token_stream.advance());
-    }
-
-    #[test]
-    fn test_chain_tokenized_strings() {
-        let tok_text = PreTokenizedString {
-            text: String::from("A a"),
-            tokens: vec![
-                Token {
-                    offset_from: 0,
-                    offset_to: 1,
-                    position: 0,
-                    text: String::from("A"),
-                    position_length: 1,
-                },
-                Token {
-                    offset_from: 2,
-                    offset_to: 3,
-                    position: 1,
-                    text: String::from("a"),
-                    position_length: 1,
-                },
-            ],
-        };
-
-        let chain_parts = vec![&tok_text, &tok_text];
-
-        let mut token_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
-
-        let expected_tokens = vec![
-            Token {
-                offset_from: 0,
-                offset_to: 1,
-                position: 0,
-                text: String::from("A"),
-                position_length: 1,
-            },
-            Token {
-                offset_from: 2,
-                offset_to: 3,
-                position: 1,
-                text: String::from("a"),
-                position_length: 1,
-            },
-            Token {
-                offset_from: 3,
-                offset_to: 4,
-                position: 3,
-                text: String::from("A"),
-                position_length: 1,
-            },
-            Token {
-                offset_from: 5,
-                offset_to: 6,
-                position: 4,
-                text: String::from("a"),
-                position_length: 1,
-            },
-        ];
-
-        for expected_token in expected_tokens {
             assert!(token_stream.advance());
             assert_eq!(token_stream.token(), &expected_token);
         }
