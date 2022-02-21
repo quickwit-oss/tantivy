@@ -7,6 +7,8 @@ Tantivy 0.17
 - Bugfix that could in theory impact durability in theory on some filesystems [#1224](https://github.com/quickwit-oss/tantivy/issues/1224)
 - Schema now offers not indexing fieldnorms (@lpouget) [#922](https://github.com/quickwit-oss/tantivy/issues/922)
 - Reduce the number of fsync calls [#1225](https://github.com/quickwit-oss/tantivy/issues/1225)
+- Fix opening bytes index with dynamic codec (@PSeitz) [#1278](https://github.com/quickwit-oss/tantivy/issues/1278)
+- Added an aggregation collector compatible with Elasticsearch (@PSeitz)
 
 Tantivy 0.16.2
 ================================
