@@ -666,7 +666,7 @@ mod tests {
                 json_err,
                 Err(DocParsingError::ValueError(
                     _,
-                    ValueParsingError::TypeError(_)
+                    ValueParsingError::TypeError { .. }
                 ))
             );
         }
@@ -684,7 +684,7 @@ mod tests {
                 json_err,
                 Err(DocParsingError::ValueError(
                     _,
-                    ValueParsingError::OverflowError(_)
+                    ValueParsingError::OverflowError { .. }
                 ))
             );
         }
@@ -702,7 +702,7 @@ mod tests {
                 json_err,
                 Err(DocParsingError::ValueError(
                     _,
-                    ValueParsingError::OverflowError(_)
+                    ValueParsingError::OverflowError { .. }
                 ))
             ));
         }
@@ -720,7 +720,7 @@ mod tests {
                 json_err,
                 Err(DocParsingError::ValueError(
                     _,
-                    ValueParsingError::OverflowError(_)
+                    ValueParsingError::OverflowError { .. }
                 ))
             );
         }

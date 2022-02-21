@@ -4,6 +4,7 @@ use tantivy::schema::{INDEXED, STORED, STRING, TEXT};
 use tantivy::Index;
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
+const NUM_REPEATS: usize = 10;
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let schema = {
@@ -27,7 +28,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..10 {
+            for _ in 0..NUM_REPEATS {
                 for doc_json in HDFS_LOGS.trim().split("\n") {
                     let doc = schema.parse_document(doc_json).unwrap();
                     index_writer.add_document(doc).unwrap();
@@ -39,7 +40,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..10 {
+            for _ in 0..NUM_REPEATS {
                 for doc_json in HDFS_LOGS.trim().split("\n") {
                     let doc = schema.parse_document(doc_json).unwrap();
                     index_writer.add_document(doc).unwrap();
@@ -52,9 +53,11 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split("\n") {
-                let doc = schema.parse_document(doc_json).unwrap();
-                index_writer.add_document(doc).unwrap();
+            for _ in 0..NUM_REPEATS {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
             }
         })
     });
@@ -62,9 +65,11 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split("\n") {
-                let doc = schema.parse_document(doc_json).unwrap();
-                index_writer.add_document(doc).unwrap();
+            for _ in 0..NUM_REPEATS {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
             }
             index_writer.commit().unwrap();
         })
