@@ -55,7 +55,7 @@ fn remap_doc_opstamps(
 /// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
     pub(crate) max_doc: DocId,
-    pub(crate) indexing_context: IndexingContext,
+    pub(crate) ctx: IndexingContext,
     pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
@@ -101,7 +101,7 @@ impl SegmentWriter {
             .collect();
         Ok(SegmentWriter {
             max_doc: 0,
-            indexing_context: IndexingContext::new(table_size),
+            ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             segment_serializer,
@@ -130,7 +130,7 @@ impl SegmentWriter {
             .transpose()?;
         remap_and_write(
             &self.per_field_postings_writers,
-            self.indexing_context,
+            self.ctx,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             &self.schema,
@@ -142,7 +142,7 @@ impl SegmentWriter {
     }
 
     pub fn mem_usage(&self) -> usize {
-        self.indexing_context.mem_usage()
+        self.ctx.mem_usage()
             + self.fieldnorms_writer.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
@@ -162,8 +162,7 @@ impl SegmentWriter {
             if !field_entry.is_indexed() {
                 continue;
             }
-            let (term_buffer, indexing_context) =
-                (&mut self.term_buffer, &mut self.indexing_context);
+            let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
             let postings_writer: &mut dyn PostingsWriter =
                 self.per_field_postings_writers.get_for_field_mut(field);
             match *field_entry.field_type() {
@@ -177,12 +176,8 @@ impl SegmentWriter {
                             .token_stream(facet_str)
                             .process(&mut |token| {
                                 term_buffer.set_text(&token.text);
-                                let unordered_term_id = postings_writer.subscribe(
-                                    doc_id,
-                                    0u32,
-                                    term_buffer,
-                                    indexing_context,
-                                );
+                                let unordered_term_id =
+                                    postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                                 // TODO pass indexing context directly in subscribe function
                                 unordered_term_id_opt = Some(unordered_term_id);
                             });
@@ -229,7 +224,7 @@ impl SegmentWriter {
                             field,
                             &mut *token_stream,
                             term_buffer,
-                            indexing_context,
+                            ctx,
                             &mut indexing_position,
                         );
                     }
@@ -241,7 +236,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::U64, field);
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(u64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
                 FieldType::Date(_) => {
@@ -249,7 +244,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::Date, field);
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(date_val.timestamp());
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
                 FieldType::I64(_) => {
@@ -257,7 +252,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::I64, field);
                         let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(i64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
                 FieldType::F64(_) => {
@@ -265,7 +260,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::F64, field);
                         let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
                 FieldType::Bytes(_) => {
@@ -273,7 +268,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::Bytes, field);
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
-                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
             }
@@ -324,7 +319,7 @@ impl SegmentWriter {
 /// `doc_id_map` is used to map to the new doc_id order.
 fn remap_and_write(
     per_field_postings_writers: &PerFieldPostingsWriter,
-    indexing_context: IndexingContext,
+    ctx: IndexingContext,
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     schema: &Schema,
@@ -339,7 +334,7 @@ fn remap_and_write(
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
     let term_ord_map = serialize_postings(
-        indexing_context,
+        ctx,
         per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
