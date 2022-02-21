@@ -23,12 +23,12 @@ use crate::{DocId, TantivyError};
 /// to value for each range.
 ///
 /// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [BucketEntryKeyCount](crate::aggregation::agg_result::BucketEntryKeyCount) on the
+/// [BucketEntryKeyCount](crate::aggregation::agg_result::RangeBucketEntry) on the
 /// AggregationCollector.
 ///
 /// Result type is
 /// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketEntryKeyCount] on the
+/// [crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry] on the
 /// DistributedAggregationCollector.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {

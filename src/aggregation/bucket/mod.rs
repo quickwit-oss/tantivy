@@ -1,8 +1,8 @@
 //! Module for all bucket aggregations.
 //!
-//! Results of final buckets are [BucketEntry](super::agg_result::BucketEntry).
+//! Results of final buckets are [BucketResult](super::agg_result::BucketResult).
 //! Results of intermediate buckets are
-//! [IntermediateBucketEntry](super::intermediate_agg_result::IntermediateBucketEntry)
+//! [IntermediateBucketResult](super::intermediate_agg_result::IntermediateBucketResult)
 
 mod range;
 
