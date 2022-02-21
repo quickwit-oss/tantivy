@@ -1,3 +1,4 @@
+use crate::postings::json_postings_writer::JsonPostingsWriter;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{NothingRecorder, TermFrequencyRecorder, TfAndPositionRecorder};
 use crate::postings::PostingsWriter;
@@ -33,21 +34,38 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
             .get_indexing_options()
             .map(|indexing_options| match indexing_options.index_option() {
                 IndexRecordOption::Basic => {
-                    SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<NothingRecorder>::default().into()
                 }
                 IndexRecordOption::WithFreqs => {
-                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<TermFrequencyRecorder>::default().into()
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<TfAndPositionRecorder>::default().into()
                 }
             })
-            .unwrap_or_else(SpecializedPostingsWriter::<NothingRecorder>::new_boxed),
+            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::default().into()),
         FieldType::U64(_)
         | FieldType::I64(_)
         | FieldType::F64(_)
         | FieldType::Date(_)
         | FieldType::Bytes(_)
-        | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
+        | FieldType::Facet(_) => Box::new(SpecializedPostingsWriter::<NothingRecorder>::default()),
+        FieldType::JsonObject(ref json_object_options) => {
+            if let Some(text_indexing_option) = json_object_options.get_text_indexing_options() {
+                match text_indexing_option.index_option() {
+                    IndexRecordOption::Basic => {
+                        JsonPostingsWriter::<NothingRecorder>::default().into()
+                    }
+                    IndexRecordOption::WithFreqs => {
+                        JsonPostingsWriter::<TermFrequencyRecorder>::default().into()
+                    }
+                    IndexRecordOption::WithFreqsAndPositions => {
+                        JsonPostingsWriter::<TfAndPositionRecorder>::default().into()
+                    }
+                }
+            } else {
+                JsonPostingsWriter::<NothingRecorder>::default().into()
+            }
+        }
     }
 }

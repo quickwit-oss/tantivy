@@ -6,7 +6,8 @@ use thiserror::Error;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
-    Facet, IndexRecordOption, NumericOptions, TextFieldIndexing, TextOptions, Value,
+    Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing, TextOptions,
+    Value,
 };
 use crate::tokenizer::PreTokenizedString;
 
@@ -49,9 +50,11 @@ pub enum Type {
     Facet = b'h',
     /// `Vec<u8>`
     Bytes = b'b',
+    /// Leaf in a Json object.
+    Json = b'j',
 }
 
-const ALL_TYPES: [Type; 7] = [
+const ALL_TYPES: [Type; 8] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -59,6 +62,7 @@ const ALL_TYPES: [Type; 7] = [
     Type::Date,
     Type::Facet,
     Type::Bytes,
+    Type::Json,
 ];
 
 impl Type {
@@ -83,6 +87,7 @@ impl Type {
             Type::Date => "Date",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
+            Type::Json => "Json",
         }
     }
 
@@ -97,6 +102,7 @@ impl Type {
             b'd' => Some(Type::Date),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
+            b'j' => Some(Type::Json),
             _ => None,
         }
     }
@@ -123,6 +129,8 @@ pub enum FieldType {
     Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
+    /// Json object
+    JsonObject(JsonObjectOptions),
 }
 
 impl FieldType {
@@ -136,6 +144,7 @@ impl FieldType {
             FieldType::Date(_) => Type::Date,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
+            FieldType::JsonObject(_) => Type::Json,
         }
     }
 
@@ -149,6 +158,7 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
+            FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
         }
     }
 
@@ -159,6 +169,9 @@ impl FieldType {
         match self {
             FieldType::Str(text_options) => text_options
                 .get_indexing_options()
+                .map(|text_indexing| text_indexing.index_option()),
+            FieldType::JsonObject(json_object_options) => json_object_options
+                .get_text_indexing_options()
                 .map(|text_indexing| text_indexing.index_option()),
             field_type => {
                 if field_type.is_indexed() {
@@ -183,6 +196,7 @@ impl FieldType {
             | FieldType::Date(ref int_options) => int_options.fieldnorms(),
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
+            FieldType::JsonObject(ref _json_object_options) => false,
         }
     }
 
@@ -217,6 +231,9 @@ impl FieldType {
                     None
                 }
             }
+            FieldType::JsonObject(ref json_obj_options) => json_obj_options
+                .get_text_indexing_options()
+                .map(TextFieldIndexing::index_option),
         }
     }
 
@@ -225,41 +242,43 @@ impl FieldType {
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the
     /// target field is a `Str`, this method will return an Error.
-    pub fn value_from_json(&self, json: &JsonValue) -> Result<Value, ValueParsingError> {
-        match *json {
-            JsonValue::String(ref field_text) => match *self {
+    pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
+        match json {
+            JsonValue::String(field_text) => match *self {
                 FieldType::Date(_) => {
                     let dt_with_fixed_tz: chrono::DateTime<FixedOffset> =
-                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|_err| {
+                        chrono::DateTime::parse_from_rfc3339(&field_text).map_err(|_err| {
                             ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
-                                json: json.clone(),
+                                json: JsonValue::String(field_text),
                             }
                         })?;
                     Ok(Value::Date(dt_with_fixed_tz.with_timezone(&Utc)))
                 }
-                FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
+                FieldType::Str(_) => Ok(Value::Str(field_text)),
                 FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
                     Err(ValueParsingError::TypeError {
                         expected: "an integer",
-                        json: json.clone(),
+                        json: JsonValue::String(field_text),
                     })
                 }
-                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(field_text))),
-                FieldType::Bytes(_) => base64::decode(field_text).map(Value::Bytes).map_err(|_| {
-                    ValueParsingError::InvalidBase64 {
-                        base64: field_text.clone(),
-                    }
+                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                FieldType::Bytes(_) => base64::decode(&field_text)
+                    .map(Value::Bytes)
+                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: JsonValue::String(field_text),
                 }),
             },
-            JsonValue::Number(ref field_val_num) => match *self {
+            JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(Value::I64(field_val_i64))
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "an i64 int",
-                            json: json.clone(),
+                            json: JsonValue::Number(field_val_num),
                         })
                     }
                 }
@@ -269,7 +288,7 @@ impl FieldType {
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "u64",
-                            json: json.clone(),
+                            json: JsonValue::Number(field_val_num),
                         })
                     }
                 }
@@ -279,33 +298,38 @@ impl FieldType {
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "a f64",
-                            json: json.clone(),
+                            json: JsonValue::Number(field_val_num),
                         })
                     }
                 }
                 FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
                     Err(ValueParsingError::TypeError {
                         expected: "a string",
-                        json: json.clone(),
+                        json: JsonValue::Number(field_val_num),
                     })
                 }
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: JsonValue::Number(field_val_num),
+                }),
             },
-            JsonValue::Object(_) => match *self {
+            JsonValue::Object(json_map) => match self {
                 FieldType::Str(_) => {
-                    if let Ok(tok_str_val) =
-                        serde_json::from_value::<PreTokenizedString>(json.clone())
-                    {
+                    if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
+                        serde_json::Value::Object(json_map.clone()),
+                    ) {
                         Ok(Value::PreTokStr(tok_str_val))
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string or an pretokenized string",
-                            json: json.clone(),
+                            json: JsonValue::Object(json_map),
                         })
                     }
                 }
+                FieldType::JsonObject(_) => Ok(Value::JsonObject(json_map)),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
-                    json: json.clone(),
+                    json: JsonValue::Object(json_map),
                 }),
             },
             _ => Err(ValueParsingError::TypeError {
@@ -319,6 +343,7 @@ impl FieldType {
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
+    use serde_json::json;
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
@@ -354,17 +379,17 @@ mod tests {
     #[test]
     fn test_bytes_value_from_json() {
         let result = FieldType::Bytes(Default::default())
-            .value_from_json(&json!("dGhpcyBpcyBhIHRlc3Q="))
+            .value_from_json(json!("dGhpcyBpcyBhIHRlc3Q="))
             .unwrap();
         assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
 
-        let result = FieldType::Bytes(Default::default()).value_from_json(&json!(521));
+        let result = FieldType::Bytes(Default::default()).value_from_json(json!(521));
         match result {
             Err(ValueParsingError::TypeError { .. }) => {}
             _ => panic!("Expected parse failure for wrong type"),
         }
 
-        let result = FieldType::Bytes(Default::default()).value_from_json(&json!("-"));
+        let result = FieldType::Bytes(Default::default()).value_from_json(json!("-"));
         match result {
             Err(ValueParsingError::InvalidBase64 { .. }) => {}
             _ => panic!("Expected parse failure for invalid base64"),
@@ -428,7 +453,7 @@ mod tests {
         });
 
         let deserialized_value = FieldType::Str(TextOptions::default())
-            .value_from_json(&serde_json::from_str(pre_tokenized_string_json).unwrap())
+            .value_from_json(serde_json::from_str(pre_tokenized_string_json).unwrap())
             .unwrap();
 
         assert_eq!(deserialized_value, expected_value);

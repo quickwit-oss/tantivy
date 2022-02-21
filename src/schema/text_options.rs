@@ -46,7 +46,7 @@ impl TextOptions {
 /// Essentially, should we store the term frequency and/or the positions (See
 /// [`IndexRecordOption`](./enum.IndexRecordOption.html)).
 /// - the name of the `Tokenizer` that should be used to process the field.
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     fieldnorms: bool,

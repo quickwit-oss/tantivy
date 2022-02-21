@@ -204,8 +204,8 @@ impl BooleanQuery {
 #[cfg(test)]
 mod tests {
     use super::BooleanQuery;
-    use crate::collector::DocSetCollector;
-    use crate::query::{QueryClone, TermQuery};
+    use crate::collector::{Count, DocSetCollector};
+    use crate::query::{QueryClone, QueryParser, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
     use crate::{DocAddress, Index, Term};
 
@@ -280,6 +280,44 @@ mod tests {
                 vec![DocAddress::new(0u32, 0u32)].into_iter().collect()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_json_array_pitfall_bag_of_terms() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(json_field=>json!({
+                "cart": [
+                    {"product_type": "sneakers", "attributes": {"color": "white"}},
+                    {"product_type": "t-shirt", "attributes": {"color": "red"}},
+                    {"product_type": "cd", "attributes": {"genre": "blues"}},
+                ]
+            })))?;
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        let doc_matches = |query: &str| {
+            let query_parser = QueryParser::for_index(&index, vec![json_field]);
+            let query = query_parser.parse_query(query).unwrap();
+            searcher.search(&query, &Count).unwrap() == 1
+        };
+        // As expected
+        assert!(doc_matches(
+            r#"cart.product_type:sneakers AND cart.attributes.color:white"#
+        ));
+        // Unexpected match, due to the fact that array do not act as nested docs.
+        assert!(doc_matches(
+            r#"cart.product_type:sneakers AND cart.attributes.color:red"#
+        ));
+        // However, bviously this works...
+        assert!(!doc_matches(
+            r#"cart.product_type:sneakers AND cart.attributes.color:blues"#
+        ));
         Ok(())
     }
 }

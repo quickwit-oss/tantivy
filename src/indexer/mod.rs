@@ -5,6 +5,7 @@ pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
 pub mod index_writer;
 mod index_writer_status;
+mod json_term_writer;
 mod log_merge_policy;
 mod merge_operation;
 pub mod merge_policy;
@@ -24,6 +25,7 @@ use crossbeam::channel;
 use smallvec::SmallVec;
 
 pub use self::index_writer::IndexWriter;
+pub(crate) use self::json_term_writer::JsonTermWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};

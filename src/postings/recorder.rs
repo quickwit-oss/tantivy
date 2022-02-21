@@ -56,9 +56,7 @@ impl<'a> Iterator for VInt32Reader<'a> {
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub(crate) trait Recorder: Copy + 'static {
-    ///
-    fn new() -> Self;
+pub(crate) trait Recorder: Copy + Default + 'static {
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
@@ -90,14 +88,16 @@ pub struct NothingRecorder {
     current_doc: DocId,
 }
 
-impl Recorder for NothingRecorder {
-    fn new() -> Self {
+impl Default for NothingRecorder {
+    fn default() -> Self {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
         }
     }
+}
 
+impl Recorder for NothingRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -152,8 +152,8 @@ pub struct TermFrequencyRecorder {
     term_doc_freq: u32,
 }
 
-impl Recorder for TermFrequencyRecorder {
-    fn new() -> Self {
+impl Default for TermFrequencyRecorder {
+    fn default() -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: 0,
@@ -161,7 +161,9 @@ impl Recorder for TermFrequencyRecorder {
             term_doc_freq: 0u32,
         }
     }
+}
 
+impl Recorder for TermFrequencyRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -223,15 +225,18 @@ pub struct TfAndPositionRecorder {
     current_doc: DocId,
     term_doc_freq: u32,
 }
-impl Recorder for TfAndPositionRecorder {
-    fn new() -> Self {
+
+impl Default for TfAndPositionRecorder {
+    fn default() -> Self {
         TfAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
             term_doc_freq: 0u32,
         }
     }
+}
 
+impl Recorder for TfAndPositionRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }

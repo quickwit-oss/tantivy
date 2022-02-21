@@ -13,7 +13,7 @@ use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
     UnorderedTermId,
 };
-use crate::schema::{Field, FieldType, Schema, Term, Type};
+use crate::schema::{Field, FieldType, Schema, Term};
 use crate::termdict::TermOrdinal;
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
@@ -85,6 +85,7 @@ pub(crate) fn serialize_postings(
             }
             FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
             FieldType::Bytes(_) => {}
+            FieldType::JsonObject(_) => {}
         }
 
         let postings_writer = per_field_postings_writers.get_for_field(field);
@@ -142,13 +143,12 @@ pub(crate) trait PostingsWriter {
     fn index_text(
         &mut self,
         doc_id: DocId,
-        field: Field,
         token_stream: &mut dyn TokenStream,
         term_buffer: &mut Term,
         ctx: &mut IndexingContext,
         indexing_position: &mut IndexingPosition,
     ) {
-        term_buffer.set_field(Type::Str, field);
+        let end_of_path_idx = term_buffer.as_slice().len();
         let mut num_tokens = 0;
         let mut end_position = 0;
         token_stream.process(&mut |token: &Token| {
@@ -162,7 +162,8 @@ pub(crate) trait PostingsWriter {
                 );
                 return;
             }
-            term_buffer.set_text(token.text.as_str());
+            term_buffer.truncate(end_of_path_idx);
+            term_buffer.append_bytes(token.text.as_bytes());
             let start_position = indexing_position.end_position + token.position as u32;
             end_position = start_position + token.position_length as u32;
             self.subscribe(doc_id, start_position, term_buffer, ctx);
@@ -170,6 +171,7 @@ pub(crate) trait PostingsWriter {
         });
         indexing_position.end_position = end_position + POSITION_GAP;
         indexing_position.num_tokens += num_tokens;
+        term_buffer.truncate(end_of_path_idx);
     }
 
     fn total_num_tokens(&self) -> u64;
@@ -177,27 +179,40 @@ pub(crate) trait PostingsWriter {
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-pub(crate) struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
+#[derive(Default)]
+pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
 
-impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
-    /// constructor
-    pub fn new() -> SpecializedPostingsWriter<Rec> {
-        SpecializedPostingsWriter {
-            total_num_tokens: 0u64,
-            _recorder_type: PhantomData,
-        }
-    }
-
-    /// Builds a `SpecializedPostingsWriter` storing its data in a memory arena.
-    pub fn new_boxed() -> Box<dyn PostingsWriter> {
-        Box::new(SpecializedPostingsWriter::<Rec>::new())
+impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
+    fn from(
+        specialized_postings_writer: SpecializedPostingsWriter<Rec>,
+    ) -> Box<dyn PostingsWriter> {
+        Box::new(specialized_postings_writer)
     }
 }
 
-impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
+impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
+    #[inline]
+    pub(crate) fn serialize_one_term(
+        term: &Term<&[u8]>,
+        addr: Addr,
+        doc_id_map: Option<&DocIdMapping>,
+        buffer_lender: &mut BufferLender,
+        ctx: &IndexingContext,
+        serializer: &mut FieldSerializer,
+    ) -> io::Result<()> {
+        let recorder: Rec = ctx.term_index.read(addr);
+        let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
+        serializer.new_term(term.value_bytes(), term_doc_freq)?;
+        recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
+        serializer.close_term()?;
+        Ok(())
+    }
+}
+
+impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
         doc: DocId,
@@ -218,7 +233,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
                 recorder.record_position(position, arena);
                 recorder
             } else {
-                let mut recorder = Rec::new();
+                let mut recorder = Rec::default();
                 recorder.new_doc(doc, arena);
                 recorder.record_position(position, arena);
                 recorder
@@ -235,11 +250,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (term, addr, _) in term_addrs {
-            let recorder: Rec = ctx.term_index.read(*addr);
-            let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-            serializer.new_term(term.value_bytes(), term_doc_freq)?;
-            recorder.serialize(&ctx.arena, doc_id_map, serializer, &mut buffer_lender);
-            serializer.close_term()?;
+            Self::serialize_one_term(term, *addr, doc_id_map, &mut buffer_lender, ctx, serializer)?;
         }
         Ok(())
     }

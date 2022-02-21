@@ -104,7 +104,7 @@ mod document;
 mod facet;
 mod facet_options;
 mod schema;
-mod term;
+pub(crate) mod term;
 
 mod field_entry;
 mod field_type;
@@ -112,13 +112,13 @@ mod field_value;
 
 mod bytes_options;
 mod field;
+mod flags;
 mod index_record_option;
+mod json_object_options;
 mod named_field_document;
 mod numeric_options;
 mod text_options;
 mod value;
-
-mod flags;
 
 pub use self::bytes_options::BytesOptions;
 pub use self::document::Document;
@@ -131,9 +131,11 @@ pub use self::field_type::{FieldType, Type};
 pub use self::field_value::FieldValue;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::index_record_option::IndexRecordOption;
+pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
+pub use self::numeric_options::NumericOptions;
 #[allow(deprecated)]
-pub use self::numeric_options::{Cardinality, IntOptions, NumericOptions};
+pub use self::numeric_options::{Cardinality, IntOptions};
 pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::Term;
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};

@@ -94,8 +94,11 @@ mod tests {
         assert_eq!(reader.num_docs(), 5);
 
         {
-            let parser = QueryParser::for_index(&index, vec![date_field]);
-            let query = parser.parse_query(&format!("\"{}\"", first_time_stamp.to_rfc3339()))?;
+            let parser = QueryParser::for_index(&index, vec![]);
+            let query = parser.parse_query(&format!(
+                "multi_date_field:\"{}\"",
+                first_time_stamp.to_rfc3339()
+            ))?;
             let results = searcher.search(&query, &TopDocs::with_limit(5))?;
             assert_eq!(results.len(), 1);
             for (_score, doc_address) in results {
@@ -150,7 +153,7 @@ mod tests {
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
             let range_q = format!(
-                "[{} TO {}}}",
+                "multi_date_field:[{} TO {}}}",
                 (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
                 (first_time_stamp + Duration::seconds(3)).to_rfc3339()
             );
