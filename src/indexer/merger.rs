@@ -1137,7 +1137,7 @@ mod tests {
     use crate::fastfield::FastFieldReader;
     use crate::query::{AllQuery, BooleanQuery, Scorer, TermQuery};
     use crate::schema::{
-        Cardinality, Document, Facet, FacetOptions, IndexRecordOption, IntOptions, Term,
+        Cardinality, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
         TextFieldIndexing, INDEXED, TEXT,
     };
     use crate::{
@@ -1157,7 +1157,7 @@ mod tests {
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", INDEXED);
-        let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1306,7 +1306,7 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1666,7 +1666,7 @@ mod tests {
     fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap: bool) {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
@@ -1830,7 +1830,7 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_all_deleted() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::MultiValues)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
@@ -1867,7 +1867,7 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_simple() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::MultiValues)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
@@ -1994,7 +1994,7 @@ mod tests {
     fn merges_f64_fast_fields_correctly() -> crate::Result<()> {
         let mut builder = schema::SchemaBuilder::new();
 
-        let fast_multi = IntOptions::default().set_fast(Cardinality::MultiValues);
+        let fast_multi = NumericOptions::default().set_fast(Cardinality::MultiValues);
 
         let field = builder.add_f64_field("f64", schema::FAST);
         let multi_field = builder.add_f64_field("f64s", fast_multi);

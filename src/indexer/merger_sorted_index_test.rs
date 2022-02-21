@@ -7,14 +7,14 @@ mod tests {
     use crate::fastfield::{AliveBitSet, FastFieldReader, MultiValuedFastFieldReader};
     use crate::query::QueryParser;
     use crate::schema::{
-        self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, IntOptions,
+        self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions,
     };
     use crate::{DocAddress, DocSet, IndexSettings, IndexSortByField, Order, Postings, Term};
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
@@ -63,7 +63,7 @@ mod tests {
         force_disjunct_segment_sort_values: bool,
     ) -> crate::Result<Index> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_stored()
             .set_indexed();
@@ -75,7 +75,7 @@ mod tests {
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            IntOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
         );
         let text_field_options = TextOptions::default()
             .set_indexing_options(
@@ -486,11 +486,11 @@ mod bench_sorted_index_merge {
     // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
     use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
     use crate::indexer::merger::IndexMerger;
-    use crate::schema::{Cardinality, Document, IntOptions, Schema};
+    use crate::schema::{Cardinality, Document, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
-        let int_options = IntOptions::default()
+        let int_options = NumericOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);

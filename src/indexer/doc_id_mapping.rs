@@ -168,12 +168,12 @@ mod tests_indexsorting {
         let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
         let my_number = schema_builder.add_u64_field(
             "my_number",
-            IntOptions::default().set_fast(Cardinality::SingleValue),
+            NumericOptions::default().set_fast(Cardinality::SingleValue),
         );
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            IntOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
         );
 
         let schema = schema_builder.build();

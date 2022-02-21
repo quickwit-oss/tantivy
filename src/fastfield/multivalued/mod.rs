@@ -16,7 +16,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::{Cardinality, Facet, FacetOptions, IntOptions, Schema};
+    use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
     use crate::{Document, Index, Term};
 
     #[test]
@@ -24,7 +24,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field(
             "multifield",
-            IntOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -59,14 +59,14 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
-            IntOptions::default()
+            NumericOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_indexed()
                 .set_fieldnorm()
                 .set_stored(),
         );
         let time_i =
-            schema_builder.add_i64_field("time_stamp_i", IntOptions::default().set_stored());
+            schema_builder.add_i64_field("time_stamp_i", NumericOptions::default().set_stored());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -196,7 +196,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_i64_field(
             "multifield",
-            IntOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -226,7 +226,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field(
             "multifield",
-            IntOptions::default()
+            NumericOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_indexed(),
         );
