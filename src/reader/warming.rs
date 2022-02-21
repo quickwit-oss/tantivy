@@ -10,7 +10,7 @@ pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
 /// `Warmer` can be used to maintain segment-level state e.g. caches.
 ///
-/// They must be registered with the [IndexReaderBuilder].
+/// They must be registered with the [super::IndexReaderBuilder].
 pub trait Warmer: Sync + Send {
     /// Perform any warming work using the provided [Searcher].
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
