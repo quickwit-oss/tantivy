@@ -10,6 +10,7 @@
 - [Index Sorting](./index_sorting.md)
 - [Innerworkings](./innerworkings.md)
   - [Inverted index](./inverted_index.md)
+  - [Json](./json.md)
 - [Best practise](./inverted_index.md)
 
 [Frequently Asked Questions](./faq.md)
