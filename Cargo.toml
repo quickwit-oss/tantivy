@@ -112,3 +112,8 @@ required-features = ["fail/failpoints"]
 [[bench]]
 name = "analyzer"
 harness = false
+
+[[bench]]
+name = "index-bench"
+harness = false
+

@@ -419,10 +419,7 @@ mod tests {
             let mut data = (5_000..20_000)
                 .map(|_| rand::random::<u32>() as u64)
                 .collect::<Vec<_>>();
-            let (estimate, actual_compression) = create_and_validate(&data, "random");
-            dbg!(estimate);
-            dbg!(actual_compression);
-
+            let _ = create_and_validate(&data, "random");
             data.reverse();
             create_and_validate(&data, "random");
         }

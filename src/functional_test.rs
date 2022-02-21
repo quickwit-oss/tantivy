@@ -35,8 +35,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut doc_set: Vec<u64> = Vec::new();
 
     let mut doc_id = 0u64;
-    for iteration in 0..get_num_iterations() {
-        dbg!(iteration);
+    for _iteration in 0..get_num_iterations() {
         let num_docs: usize = rng.gen_range(0..4);
         if !doc_set.is_empty() {
             let doc_to_remove_id = rng.gen_range(0..doc_set.len());
