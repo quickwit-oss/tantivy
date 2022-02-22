@@ -1,7 +1,7 @@
 //! # Aggregations
 //!
 //!
-//! Aggregation summarizes your data as statistics on buckets or metrics.
+//! An aggregation summarizes your data as statistics on buckets or metrics.
 //!
 //! Aggregations can provide answer to questions like:
 //! - What is the average price of all sold articles?
@@ -13,9 +13,22 @@
 //! # Usage
 //!
 //!
-//! To use aggregations, build an aggregation request by constructing [agg_req::Aggregations].
+//! To use aggregations, build an aggregation request by constructing
+//! [Aggregations](agg_req::Aggregations).
 //! Create an [AggregationCollector] from this request. AggregationCollector implements the
 //! `Collector` trait and can be passed as collector into `searcher.search()`.
+//!
+//! # JSON Format
+//! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
+//!
+//! ```verbatim
+//! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
+//! let collector = AggregationCollector::from_aggs(agg_req);
+//! let searcher = reader.searcher();
+//! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
+//! let json_response_string: String = &serde_json::to_string(&agg_res)?;
+//! ```
+//!
 //!
 //! # Example
 //! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,

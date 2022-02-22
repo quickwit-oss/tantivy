@@ -12,6 +12,15 @@ use crate::DocId;
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
 /// See [super::SingleMetricResult] for return value.
+///
+/// # JSON Format
+/// ```json
+/// {
+///     "avg": {
+///         "field": "score",
+///     }
+///  }
+///  ```
 pub struct AverageAggregation {
     /// The field name to compute the stats on.
     pub field: String,

@@ -9,6 +9,16 @@ use crate::DocId;
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
 /// See [Stats] for returned statistics.
+///
+/// # JSON Format
+/// ```json
+/// {
+///     "stats": {
+///         "field": "score",
+///     }
+///  }
+///  ```
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StatsAggregation {
     /// The field name to compute the stats on.
