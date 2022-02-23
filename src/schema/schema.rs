@@ -52,7 +52,7 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_u64_field<T: Into<IntOptions>>(
+    pub fn add_u64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
@@ -72,7 +72,7 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_i64_field<T: Into<IntOptions>>(
+    pub fn add_i64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
@@ -92,7 +92,7 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_f64_field<T: Into<IntOptions>>(
+    pub fn add_f64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
@@ -114,7 +114,7 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_date_field<T: Into<IntOptions>>(
+    pub fn add_date_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
@@ -398,7 +398,7 @@ mod tests {
     use serde_json;
 
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::int_options::Cardinality::SingleValue;
+    use crate::schema::numeric_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::NotJson;
     use crate::schema::*;
 
@@ -413,13 +413,13 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = Schema::builder();
-        let count_options = IntOptions::default()
+        let count_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
-        let popularity_options = IntOptions::default()
+        let popularity_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
-        let score_options = IntOptions::default()
+        let score_options = NumericOptions::default()
             .set_indexed()
             .set_fieldnorm()
             .set_fast(Cardinality::SingleValue);
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = Schema::builder();
-        let count_options = IntOptions::default()
+        let count_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
@@ -594,13 +594,13 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = Schema::builder();
-        let count_options = IntOptions::default()
+        let count_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
-        let popularity_options = IntOptions::default()
+        let popularity_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
-        let score_options = IntOptions::default()
+        let score_options = NumericOptions::default()
             .set_indexed()
             .set_fast(Cardinality::SingleValue);
         let title_field = schema_builder.add_text_field("title", TEXT);
@@ -744,7 +744,7 @@ mod tests {
                 .set_tokenizer("raw")
                 .set_index_option(IndexRecordOption::Basic),
         );
-        let timestamp_options = IntOptions::default()
+        let timestamp_options = NumericOptions::default()
             .set_stored()
             .set_indexed()
             .set_fieldnorm()

@@ -16,10 +16,14 @@ pub enum Cardinality {
     MultiValues,
 }
 
+#[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
+/// Deprecated use [NumericOptions] instead.
+pub type IntOptions = NumericOptions;
+
 /// Define how an u64, i64, of f64 field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(from = "IntOptionsDeser")]
-pub struct IntOptions {
+#[serde(from = "NumericOptionsDeser")]
+pub struct NumericOptions {
     indexed: bool,
     // This boolean has no effect if the field is not marked as indexed too.
     fieldnorms: bool, // This attribute only has an effect if indexed is true.
@@ -32,9 +36,9 @@ pub struct IntOptions {
 /// lack of fieldnorms attribute as "true" iff indexed.
 ///
 /// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
-/// Note that: newly serialized IntOptions will include the new attribute.
+/// Note that: newly serialized NumericOptions will include the new attribute.
 #[derive(Deserialize)]
-struct IntOptionsDeser {
+struct NumericOptionsDeser {
     indexed: bool,
     #[serde(default)]
     fieldnorms: Option<bool>, // This attribute only has an effect if indexed is true.
@@ -43,9 +47,9 @@ struct IntOptionsDeser {
     stored: bool,
 }
 
-impl From<IntOptionsDeser> for IntOptions {
-    fn from(deser: IntOptionsDeser) -> Self {
-        IntOptions {
+impl From<NumericOptionsDeser> for NumericOptions {
+    fn from(deser: NumericOptionsDeser) -> Self {
+        NumericOptions {
             indexed: deser.indexed,
             fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
             fast: deser.fast,
@@ -54,7 +58,7 @@ impl From<IntOptionsDeser> for IntOptions {
     }
 }
 
-impl IntOptions {
+impl NumericOptions {
     /// Returns true iff the value is stored.
     pub fn is_stored(&self) -> bool {
         self.stored
@@ -80,7 +84,7 @@ impl IntOptions {
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     #[must_use]
-    pub fn set_stored(mut self) -> IntOptions {
+    pub fn set_stored(mut self) -> NumericOptions {
         self.stored = true;
         self
     }
@@ -92,7 +96,7 @@ impl IntOptions {
     ///
     /// This is required for the field to be searchable.
     #[must_use]
-    pub fn set_indexed(mut self) -> IntOptions {
+    pub fn set_indexed(mut self) -> NumericOptions {
         self.indexed = true;
         self
     }
@@ -102,7 +106,7 @@ impl IntOptions {
     /// Setting an integer as fieldnorm will generate
     /// the fieldnorm data for it.
     #[must_use]
-    pub fn set_fieldnorm(mut self) -> IntOptions {
+    pub fn set_fieldnorm(mut self) -> NumericOptions {
         self.fieldnorms = true;
         self
     }
@@ -114,7 +118,7 @@ impl IntOptions {
     /// If more than one value is associated to a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self, cardinality: Cardinality) -> IntOptions {
+    pub fn set_fast(mut self, cardinality: Cardinality) -> NumericOptions {
         self.fast = Some(cardinality);
         self
     }
@@ -128,15 +132,15 @@ impl IntOptions {
     }
 }
 
-impl From<()> for IntOptions {
-    fn from(_: ()) -> IntOptions {
-        IntOptions::default()
+impl From<()> for NumericOptions {
+    fn from(_: ()) -> NumericOptions {
+        NumericOptions::default()
     }
 }
 
-impl From<FastFlag> for IntOptions {
+impl From<FastFlag> for NumericOptions {
     fn from(_: FastFlag) -> Self {
-        IntOptions {
+        NumericOptions {
             indexed: false,
             fieldnorms: false,
             stored: false,
@@ -145,9 +149,9 @@ impl From<FastFlag> for IntOptions {
     }
 }
 
-impl From<StoredFlag> for IntOptions {
+impl From<StoredFlag> for NumericOptions {
     fn from(_: StoredFlag) -> Self {
-        IntOptions {
+        NumericOptions {
             indexed: false,
             fieldnorms: false,
             stored: true,
@@ -156,9 +160,9 @@ impl From<StoredFlag> for IntOptions {
     }
 }
 
-impl From<IndexedFlag> for IntOptions {
+impl From<IndexedFlag> for NumericOptions {
     fn from(_: IndexedFlag) -> Self {
-        IntOptions {
+        NumericOptions {
             indexed: true,
             fieldnorms: true,
             stored: false,
@@ -167,12 +171,12 @@ impl From<IndexedFlag> for IntOptions {
     }
 }
 
-impl<T: Into<IntOptions>> BitOr<T> for IntOptions {
-    type Output = IntOptions;
+impl<T: Into<NumericOptions>> BitOr<T> for NumericOptions {
+    type Output = NumericOptions;
 
-    fn bitor(self, other: T) -> IntOptions {
+    fn bitor(self, other: T) -> NumericOptions {
         let other = other.into();
-        IntOptions {
+        NumericOptions {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
@@ -181,7 +185,7 @@ impl<T: Into<IntOptions>> BitOr<T> for IntOptions {
     }
 }
 
-impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for IntOptions
+impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for NumericOptions
 where
     Head: Clone,
     Tail: Clone,
@@ -202,10 +206,10 @@ mod tests {
             "indexed": true,
             "stored": false
         }"#;
-        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        let int_options: NumericOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             &int_options,
-            &IntOptions {
+            &NumericOptions {
                 indexed: true,
                 fieldnorms: true,
                 fast: None,
@@ -220,10 +224,10 @@ mod tests {
             "indexed": false,
             "stored": false
         }"#;
-        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        let int_options: NumericOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             &int_options,
-            &IntOptions {
+            &NumericOptions {
                 indexed: false,
                 fieldnorms: false,
                 fast: None,
@@ -239,10 +243,10 @@ mod tests {
             "fieldnorms": false,
             "stored": false
         }"#;
-        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        let int_options: NumericOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             &int_options,
-            &IntOptions {
+            &NumericOptions {
                 indexed: true,
                 fieldnorms: false,
                 fast: None,
@@ -259,10 +263,10 @@ mod tests {
             "fieldnorms": true,
             "stored": false
         }"#;
-        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        let int_options: NumericOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             &int_options,
-            &IntOptions {
+            &NumericOptions {
                 indexed: false,
                 fieldnorms: true,
                 fast: None,

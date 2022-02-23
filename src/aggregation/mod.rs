@@ -317,13 +317,13 @@ mod tests {
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype =
-            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let fraction_field = schema_builder.add_f64_field(
             "fraction_f64",
-            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue),
+            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue),
         );
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -464,7 +464,7 @@ mod tests {
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype =
-            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
@@ -901,7 +901,7 @@ mod tests {
                 .set_stored();
             let text_field = schema_builder.add_text_field("text", text_fieldtype);
             let score_fieldtype =
-                crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+                crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
             let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
             let score_field_f64 =
                 schema_builder.add_f64_field("score_f64", score_fieldtype.clone());

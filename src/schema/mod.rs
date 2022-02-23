@@ -60,7 +60,7 @@
 //! ```
 //! use tantivy::schema::*;
 //! let mut schema_builder = Schema::builder();
-//! let num_stars_options = IntOptions::default()
+//! let num_stars_options = NumericOptions::default()
 //! .set_stored()
 //! .set_indexed();
 //! schema_builder.add_u64_field("num_stars", num_stars_options);
@@ -113,8 +113,8 @@ mod field_value;
 mod bytes_options;
 mod field;
 mod index_record_option;
-mod int_options;
 mod named_field_document;
+mod numeric_options;
 mod text_options;
 mod value;
 
@@ -131,8 +131,9 @@ pub use self::field_type::{FieldType, Type};
 pub use self::field_value::FieldValue;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::index_record_option::IndexRecordOption;
-pub use self::int_options::{Cardinality, IntOptions};
 pub use self::named_field_document::NamedFieldDocument;
+#[allow(deprecated)]
+pub use self::numeric_options::{Cardinality, IntOptions, NumericOptions};
 pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::Term;
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};

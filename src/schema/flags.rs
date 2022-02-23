@@ -1,6 +1,6 @@
 use std::ops::BitOr;
 
-use crate::schema::{IntOptions, TextOptions};
+use crate::schema::{NumericOptions, TextOptions};
 
 #[derive(Clone)]
 pub struct StoredFlag;
@@ -22,8 +22,8 @@ pub const STORED: SchemaFlagList<StoredFlag, ()> = SchemaFlagList {
 pub struct IndexedFlag;
 /// Flag to mark the field as indexed. An indexed field is searchable and has a fieldnorm.
 ///
-/// The `INDEXED` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
-/// Of course, text fields can also be indexed... But this is expressed by using either the
+/// The `INDEXED` flag can only be used when building `NumericOptions` (`u64`, `i64` and `f64`
+/// fields) Of course, text fields can also be indexed... But this is expressed by using either the
 /// `STRING` (untokenized) or `TEXT` (tokenized with the english tokenizer) flags.
 pub const INDEXED: SchemaFlagList<IndexedFlag, ()> = SchemaFlagList {
     head: IndexedFlag,
@@ -36,7 +36,7 @@ pub struct FastFlag;
 ///
 /// Fast fields can be random-accessed rapidly. Fields useful for scoring, filtering
 /// or collection should be mark as fast fields.
-/// The `FAST` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
+/// The `FAST` flag can only be used when building `NumericOptions` (`u64`, `i64` and `f64` fields)
 pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
     head: FastFlag,
     tail: (),
@@ -58,10 +58,10 @@ where
     }
 }
 
-impl<T: Clone + Into<IntOptions>> BitOr<IntOptions> for SchemaFlagList<T, ()> {
-    type Output = IntOptions;
+impl<T: Clone + Into<NumericOptions>> BitOr<NumericOptions> for SchemaFlagList<T, ()> {
+    type Output = NumericOptions;
 
-    fn bitor(self, rhs: IntOptions) -> Self::Output {
+    fn bitor(self, rhs: NumericOptions) -> Self::Output {
         self.head.into() | rhs
     }
 }

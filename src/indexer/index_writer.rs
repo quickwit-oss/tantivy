@@ -794,8 +794,8 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
-        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IntOptions, TextFieldIndexing,
-        TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        self, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
+        TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term};
 
@@ -1404,7 +1404,7 @@ mod tests {
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            IntOptions::default()
+            NumericOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_stored(),
         );

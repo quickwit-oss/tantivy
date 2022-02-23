@@ -5,7 +5,9 @@ use thiserror::Error;
 
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
-use crate::schema::{Facet, IndexRecordOption, IntOptions, TextFieldIndexing, TextOptions, Value};
+use crate::schema::{
+    Facet, IndexRecordOption, NumericOptions, TextFieldIndexing, TextOptions, Value,
+};
 use crate::tokenizer::PreTokenizedString;
 
 /// Possible error that may occur while parsing a field value
@@ -110,13 +112,13 @@ pub enum FieldType {
     #[serde(rename = "text")]
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
-    U64(IntOptions),
+    U64(NumericOptions),
     /// Signed 64-bits integers 64 field type configuration
-    I64(IntOptions),
+    I64(NumericOptions),
     /// 64-bits float 64 field type configuration
-    F64(IntOptions),
+    F64(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
-    Date(IntOptions),
+    Date(NumericOptions),
     /// Hierachical Facet
     Facet(FacetOptions),
     /// Bytes (one per document)

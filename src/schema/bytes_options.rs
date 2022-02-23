@@ -17,7 +17,7 @@ pub struct BytesOptions {
 /// lack of fieldnorms attribute as "true" iff indexed.
 ///
 /// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
-/// Note that: newly serialized IntOptions will include the new attribute.
+/// Note that: newly serialized NumericOptions will include the new attribute.
 #[derive(Deserialize)]
 struct BytesOptionsDeser {
     indexed: bool,

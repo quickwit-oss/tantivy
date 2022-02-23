@@ -212,7 +212,7 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, IntOptions, Schema, FAST};
+    use crate::schema::{Document, Field, NumericOptions, Schema, FAST};
     use crate::{Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
@@ -520,7 +520,7 @@ mod tests {
         let date_field = schema_builder.add_date_field("date", FAST);
         let multi_date_field = schema_builder.add_date_field(
             "multi_date",
-            IntOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

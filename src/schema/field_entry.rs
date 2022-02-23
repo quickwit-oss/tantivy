@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::schema::bytes_options::BytesOptions;
-use crate::schema::{is_valid_field_name, FacetOptions, FieldType, IntOptions, TextOptions};
+use crate::schema::{is_valid_field_name, FacetOptions, FieldType, NumericOptions, TextOptions};
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
@@ -39,7 +39,7 @@ impl FieldEntry {
 
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
+    pub fn new_u64(field_name: String, field_type: NumericOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
@@ -49,7 +49,7 @@ impl FieldEntry {
 
     /// Creates a new i64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
+    pub fn new_i64(field_name: String, field_type: NumericOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
@@ -59,7 +59,7 @@ impl FieldEntry {
 
     /// Creates a new f64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_f64(field_name: String, field_type: IntOptions) -> FieldEntry {
+    pub fn new_f64(field_name: String, field_type: NumericOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
@@ -69,7 +69,7 @@ impl FieldEntry {
 
     /// Creates a new date field entry in the schema, given
     /// a name, and some options.
-    pub fn new_date(field_name: String, field_type: IntOptions) -> FieldEntry {
+    pub fn new_date(field_name: String, field_type: NumericOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
