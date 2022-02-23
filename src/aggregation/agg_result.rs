@@ -112,6 +112,34 @@ impl From<IntermediateBucketResult> for BucketResult {
 
 /// This is the range entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
+///
+/// # JSON Format
+/// ```json
+/// {
+///   ...
+///     "my_ranges": {
+///       "buckets": [
+///         {
+///           "key": "*-10",
+///           "to": 10,
+///           "doc_count": 5
+///         },
+///         {
+///           "key": "10-20",
+///           "from": 10,
+///           "to": 20,
+///           "doc_count": 2
+///         },
+///         {
+///           "key": "20-*",
+///           "from": 20,
+///           "doc_count": 3
+///         }
+///       ]
+///    }
+///    ...
+/// }
+///  ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeBucketEntry {
     /// The identifier of the bucket.

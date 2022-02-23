@@ -18,18 +18,33 @@ use crate::{DocId, TantivyError};
 /// Provide user-defined buckets to aggregate on.
 /// Two special buckets will automatically be created to cover the whole range of values.
 /// The provided buckets have to be continous.
-/// During the aggregation, the values extracted from the fast_field `field_name` will be checked
+/// During the aggregation, the values extracted from the fast_field `field` will be checked
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
 ///
 /// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [BucketEntryKeyCount](crate::aggregation::agg_result::RangeBucketEntry) on the
+/// [RangeBucketEntry](crate::aggregation::agg_result::RangeBucketEntry) on the
 /// AggregationCollector.
 ///
 /// Result type is
 /// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
 /// [crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry] on the
 /// DistributedAggregationCollector.
+///
+/// # Request JSON Format
+/// ```json
+/// {
+///     "range": {
+///         "field": "score",
+///         "ranges": [
+///             { "to": 3.0 },
+///             { "from": 3.0, "to": 7.0 },
+///             { "from": 7.0, "to": 20.0 }
+///             { "from": 20.0 }
+///         ]
+///     }
+///  }
+///  ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
@@ -40,9 +55,14 @@ pub struct RangeAggregation {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// The range for one range bucket.
 pub struct RangeAggregationRange {
+    /// The from range value, which is inclusive in the range.
+    /// None equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub from: Option<f64>,
+    /// The to range value, which is not inclusive in the range.
+    /// None equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub to: Option<f64>,
 }
@@ -64,7 +84,7 @@ impl From<Range<f64>> for RangeAggregationRange {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SegmentRangeAndBucketEntry {
+pub(crate) struct SegmentRangeAndBucketEntry {
     range: Range<u64>,
     bucket: SegmentRangeBucketEntry,
 }
@@ -274,7 +294,7 @@ fn extend_validate_ranges(
     Ok(converted_buckets)
 }
 
-pub fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
+pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
     // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
     // it should be rendererd as "*-0" and not "*-*"
     let to_str = |val: u64, is_start: bool| {
@@ -288,7 +308,7 @@ pub fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
     format!("{}-{}", to_str(range.start, true), to_str(range.end, false))
 }
 
-pub fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
+pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
     Key::Str(range_to_string(range, field_type))
 }
 

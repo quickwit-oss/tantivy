@@ -3,6 +3,7 @@
 //!
 //! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
 //! Aggregation>`.
+//!
 //! Requests are compatible with the json format of elasticsearch.
 //!
 //! # Example
@@ -51,7 +52,7 @@ pub use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
 
 /// The top-level aggregation request structure, which contains [Aggregation] and their user defined
-/// names.
+/// names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
