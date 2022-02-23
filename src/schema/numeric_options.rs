@@ -74,6 +74,15 @@ impl NumericOptions {
         self.fieldnorms && self.indexed
     }
 
+    /// Returns true iff the value is a fast field and multivalue.
+    pub fn is_multivalue_fast(&self) -> bool {
+        if let Some(cardinality) = self.fast {
+            cardinality == Cardinality::MultiValues
+        } else {
+            false
+        }
+    }
+
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast.is_some()

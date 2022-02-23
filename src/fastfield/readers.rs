@@ -17,14 +17,14 @@ pub struct FastFieldReaders {
     fast_fields_composite: CompositeFile,
 }
 #[derive(Eq, PartialEq, Debug)]
-enum FastType {
+pub(crate) enum FastType {
     I64,
     U64,
     F64,
     Date,
 }
 
-fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
+pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
     match field_type {
         FieldType::U64(options) => options
             .get_fastfield_cardinality()

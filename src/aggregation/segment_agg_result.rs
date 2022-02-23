@@ -5,8 +5,6 @@
 
 use std::fmt::Debug;
 
-use itertools::Itertools;
-
 use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
@@ -42,22 +40,27 @@ impl Debug for SegmentAggregationResultsCollector {
 }
 
 impl SegmentAggregationResultsCollector {
-    pub(crate) fn from_req(req: &AggregationsWithAccessor) -> crate::Result<Self> {
+    pub(crate) fn from_req_and_validate(req: &AggregationsWithAccessor) -> crate::Result<Self> {
         let buckets = req
             .buckets
             .entries()
             .map(|(key, req)| {
                 Ok((
                     key.to_string(),
-                    SegmentBucketResultCollector::from_req(req)?,
+                    SegmentBucketResultCollector::from_req_and_validate(req)?,
                 ))
             })
             .collect::<crate::Result<_>>()?;
         let metrics = req
             .metrics
             .entries()
-            .map(|(key, req)| (key.to_string(), SegmentMetricResultCollector::from_req(req)))
-            .collect_vec();
+            .map(|(key, req)| {
+                Ok((
+                    key.to_string(),
+                    SegmentMetricResultCollector::from_req_and_validate(req)?,
+                ))
+            })
+            .collect::<crate::Result<_>>()?;
         Ok(SegmentAggregationResultsCollector {
             metrics: VecWithNames::from_entries(metrics),
             buckets: VecWithNames::from_entries(buckets),
@@ -115,15 +118,17 @@ pub(crate) enum SegmentMetricResultCollector {
 }
 
 impl SegmentMetricResultCollector {
-    pub fn from_req(req: &MetricAggregationWithAccessor) -> Self {
+    pub fn from_req_and_validate(req: &MetricAggregationWithAccessor) -> crate::Result<Self> {
         match &req.metric {
             MetricAggregation::Average(AverageAggregation { field: _ }) => {
-                SegmentMetricResultCollector::Average(SegmentAverageCollector::from_req(
-                    req.field_type,
+                Ok(SegmentMetricResultCollector::Average(
+                    SegmentAverageCollector::from_req(req.field_type),
                 ))
             }
             MetricAggregation::Stats(StatsAggregation { field: _ }) => {
-                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(req.field_type))
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type),
+                ))
             }
         }
     }
@@ -149,11 +154,15 @@ pub(crate) enum SegmentBucketResultCollector {
 }
 
 impl SegmentBucketResultCollector {
-    pub fn from_req(req: &BucketAggregationWithAccessor) -> crate::Result<Self> {
+    pub fn from_req_and_validate(req: &BucketAggregationWithAccessor) -> crate::Result<Self> {
         match &req.bucket_agg {
-            BucketAggregationType::Range(range_req) => Ok(Self::Range(
-                SegmentRangeCollector::from_req(range_req, &req.sub_aggregation, req.field_type)?,
-            )),
+            BucketAggregationType::Range(range_req) => {
+                Ok(Self::Range(SegmentRangeCollector::from_req_and_validate(
+                    range_req,
+                    &req.sub_aggregation,
+                    req.field_type,
+                )?))
+            }
         }
     }
 

@@ -1,6 +1,5 @@
 use std::ops::Range;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
@@ -116,7 +115,7 @@ impl SegmentRangeCollector {
         IntermediateBucketResult::Range(buckets)
     }
 
-    pub(crate) fn from_req(
+    pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
@@ -140,7 +139,7 @@ impl SegmentRangeCollector {
                 let sub_aggregation = if sub_aggregation.is_empty() {
                     None
                 } else {
-                    Some(SegmentAggregationResultsCollector::from_req(
+                    Some(SegmentAggregationResultsCollector::from_req_and_validate(
                         sub_aggregation,
                     )?)
                 };
@@ -239,15 +238,24 @@ impl SegmentRangeCollector {
 /// fast field.
 /// The alternative would be that every value read would be converted to the f64 range, but that is
 /// more computational expensive when many documents are hit.
-fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> Range<u64> {
-    range
-        .from
-        .map(|from| f64_to_fastfield_u64(from, field_type))
-        .unwrap_or(u64::MIN)
-        ..range
-            .to
-            .map(|to| f64_to_fastfield_u64(to, field_type))
-            .unwrap_or(u64::MAX)
+fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> crate::Result<Range<u64>> {
+    let start = if let Some(from) = range.from {
+        f64_to_fastfield_u64(from, field_type).ok_or::<TantivyError>(
+            TantivyError::InvalidArgument("invalid field type".to_string()),
+        )?
+    } else {
+        u64::MIN
+    };
+
+    let end = if let Some(to) = range.to {
+        f64_to_fastfield_u64(to, field_type).ok_or::<TantivyError>(
+            TantivyError::InvalidArgument("invalid field type".to_string()),
+        )?
+    } else {
+        u64::MAX
+    };
+
+    Ok(start..end)
 }
 
 /// Extends the provided buckets to contain the whole value range, by inserting buckets at the
@@ -259,7 +267,7 @@ fn extend_validate_ranges(
     let mut converted_buckets = buckets
         .iter()
         .map(|range| to_u64_range(range, field_type))
-        .collect_vec();
+        .collect::<crate::Result<Vec<_>>>()?;
 
     converted_buckets.sort_by_key(|bucket| bucket.start);
     if converted_buckets[0].start != u64::MIN {
@@ -335,7 +343,7 @@ mod tests {
             ranges,
         };
 
-        SegmentRangeCollector::from_req(&req, &Default::default(), field_type).unwrap()
+        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type).unwrap()
     }
 
     #[test]
@@ -499,6 +507,7 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use itertools::Itertools;
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 

@@ -3,7 +3,7 @@ use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
+use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
 use crate::TantivyError;
 
@@ -50,8 +50,9 @@ impl Collector for DistributedAggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&self.agg, reader)?;
+        let result =
+            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,
@@ -80,8 +81,9 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&self.agg, reader)?;
+        let result =
+            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,

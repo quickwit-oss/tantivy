@@ -95,7 +95,7 @@ impl IntermediateStats {
         self.max = self.max.max(other.max);
     }
 
-    /// compute final result
+    /// compute final resultimprove_docs
     pub fn finalize(&self) -> Stats {
         Stats {
             count: self.count,
