@@ -44,7 +44,7 @@
 //! assert_eq!(agg_req1, agg_req2);
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +57,15 @@ use super::metric::{AverageAggregation, StatsAggregation};
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
+/// Extract all fast field names used in the tree.
+pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
+    let mut fast_field_names = Default::default();
+    for el in aggs.values() {
+        el.get_fast_field_names(&mut fast_field_names)
+    }
+    fast_field_names
+}
+
 /// Aggregation request of [BucketAggregation] or [MetricAggregation].
 ///
 /// An aggregation is either a bucket or a metric.
@@ -67,6 +76,15 @@ pub enum Aggregation {
     Bucket(BucketAggregation),
     /// Metric aggregation, see [MetricAggregation] for details.
     Metric(MetricAggregation),
+}
+
+impl Aggregation {
+    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+        match self {
+            Aggregation::Bucket(bucket) => bucket.get_fast_field_names(fast_field_names),
+            Aggregation::Metric(metric) => metric.get_fast_field_names(fast_field_names),
+        }
+    }
 }
 
 /// BucketAggregations create buckets of documents. Each bucket is associated with a rule which
@@ -92,12 +110,27 @@ pub struct BucketAggregation {
     pub sub_aggregation: Aggregations,
 }
 
+impl BucketAggregation {
+    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+        self.bucket_agg.get_fast_field_names(fast_field_names);
+        fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
+    }
+}
+
 /// The bucket aggregation types.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "range")]
     Range(RangeAggregation),
+}
+
+impl BucketAggregationType {
+    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+        match self {
+            BucketAggregationType::Range(range) => fast_field_names.insert(range.field.to_string()),
+        };
+    }
 }
 
 /// The aggregations in this family compute metrics based on values extracted
@@ -115,6 +148,15 @@ pub enum MetricAggregation {
     /// Calculates stats sum, average, min, max, standard_deviation on a field.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
+}
+
+impl MetricAggregation {
+    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+        match self {
+            MetricAggregation::Average(avg) => fast_field_names.insert(avg.field.to_string()),
+            MetricAggregation::Stats(stats) => fast_field_names.insert(stats.field.to_string()),
+        };
+    }
 }
 
 #[cfg(test)]
@@ -166,5 +208,63 @@ mod tests {
 }"#;
         let agg_req2: String = serde_json::to_string_pretty(&agg_req1).unwrap();
         assert_eq!(agg_req2, elasticsearch_compatible_json_req);
+    }
+
+    #[test]
+    fn test_get_fast_field_names() {
+        let agg_req2: Aggregations = vec![
+            (
+                "range".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "score2".to_string(),
+                        ranges: vec![
+                            (f64::MIN..3f64).into(),
+                            (3f64..7f64).into(),
+                            (7f64..20f64).into(),
+                            (20f64..f64::MAX).into(),
+                        ],
+                    }),
+                    sub_aggregation: Default::default(),
+                }),
+            ),
+            (
+                "metric".to_string(),
+                Aggregation::Metric(MetricAggregation::Average(
+                    AverageAggregation::from_field_name("field123".to_string()),
+                )),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let agg_req1: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                    field: "score".to_string(),
+                    ranges: vec![
+                        (f64::MIN..3f64).into(),
+                        (3f64..7f64).into(),
+                        (7f64..20f64).into(),
+                        (20f64..f64::MAX).into(),
+                    ],
+                }),
+                sub_aggregation: agg_req2,
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        assert_eq!(
+            get_fast_field_names(&agg_req1),
+            vec![
+                "score".to_string(),
+                "score2".to_string(),
+                "field123".to_string()
+            ]
+            .into_iter()
+            .collect()
+        )
     }
 }
