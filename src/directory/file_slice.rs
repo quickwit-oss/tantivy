@@ -7,7 +7,6 @@ use common::HasLen;
 use stable_deref_trait::StableDeref;
 
 use crate::directory::OwnedBytes;
-use crate::{AsyncIoError, AsyncIoResult};
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -20,6 +19,7 @@ pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 /// The underlying behavior is therefore specific to the `Directory` that created it.
 /// Despite its name, a `FileSlice` may or may not directly map to an actual file
 /// on the filesystem.
+
 #[async_trait]
 pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// Reads a slice of bytes.
@@ -27,25 +27,29 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes>;
 
+    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    async fn read_bytes_async(&self, _byte_range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
-        Err(AsyncIoError::AsyncUnsupported)
+    async fn read_bytes_async(
+        &self,
+        _byte_range: Range<usize>,
+    ) -> crate::AsyncIoResult<OwnedBytes> {
+        Err(crate::error::AsyncIoError::AsyncUnsupported)
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl FileHandle for &'static [u8] {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         let bytes = &self[range];
         Ok(OwnedBytes::new(bytes))
     }
 
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
-        self.read_bytes(byte_range).map_err(AsyncIoError::from)
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+        Ok(self.read_bytes(byte_range)?)
     }
 }
 
-#[async_trait::async_trait]
 impl<B> From<B> for FileSlice
 where B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync
 {
@@ -116,8 +120,9 @@ impl FileSlice {
         self.data.read_bytes(self.range.clone())
     }
 
+    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    pub async fn read_bytes_async(&self) -> AsyncIoResult<OwnedBytes> {
+    pub async fn read_bytes_async(&self) -> crate::AsyncIoResult<OwnedBytes> {
         self.data.read_bytes_async(self.range.clone()).await
     }
 
@@ -135,11 +140,12 @@ impl FileSlice {
             .read_bytes(self.range.start + range.start..self.range.start + range.end)
     }
 
+    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
     pub async fn read_bytes_slice_async(
         &self,
         byte_range: Range<usize>,
-    ) -> AsyncIoResult<OwnedBytes> {
+    ) -> crate::AsyncIoResult<OwnedBytes> {
         assert!(
             self.range.start + byte_range.end <= self.range.end,
             "`to` exceeds the fileslice length"
@@ -201,7 +207,8 @@ impl FileHandle for FileSlice {
         self.read_bytes_slice(range)
     }
 
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
 }
@@ -212,14 +219,16 @@ impl HasLen for FileSlice {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl FileHandle for OwnedBytes {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.slice(range))
     }
 
-    async fn read_bytes_async(&self, range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
-        self.read_bytes(range).map_err(AsyncIoError::from)
+    #[cfg(feature = "quickwit")]
+    async fn read_bytes_async(&self, range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+        let bytes = self.read_bytes(range)?;
+        Ok(bytes)
     }
 }
 

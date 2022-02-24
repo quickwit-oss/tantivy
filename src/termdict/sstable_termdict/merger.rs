@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use crate::postings::TermInfo;
 use crate::termdict::{TermOrdinal, TermStreamer};
 
 pub struct HeapItem<'a> {
@@ -109,7 +110,11 @@ impl<'a> TermMerger<'a> {
     /// This method may be called
     /// iff advance() has been called before
     /// and "true" was returned.
-    pub fn current_kvs(&self) -> &[HeapItem<'a>] {
-        &self.current_streamers[..]
+    pub fn current_segment_ords_and_term_infos<'b: 'a>(
+        &'b self,
+    ) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
+        self.current_streamers
+            .iter()
+            .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.value().clone()))
     }
 }

@@ -278,7 +278,7 @@ impl IndexMerger {
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write_fast_fields");
+        debug_time!("write-fast-fields");
 
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
@@ -597,7 +597,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write_hierarchical_facet_field");
+        debug_time!("write-hierarchical-facet-field");
 
         // Multifastfield consists of 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
@@ -827,7 +827,7 @@ impl IndexMerger {
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Option<TermOrdinalMapping>> {
-        debug_time!("write_postings_for_field");
+        debug_time!("write-postings-for-field");
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
@@ -906,9 +906,7 @@ impl IndexMerger {
             let mut total_doc_freq = 0;
 
             // Let's compute the list of non-empty posting lists
-            for heap_item in merged_terms.current_kvs() {
-                let segment_ord = heap_item.segment_ord;
-                let term_info = heap_item.streamer.value();
+            for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
@@ -1025,7 +1023,7 @@ impl IndexMerger {
         store_writer: &mut StoreWriter,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write_storable_fields");
+        debug_time!("write-storable-fields");
         debug!("write-storable-field");
 
         let store_readers: Vec<_> = self
@@ -1092,7 +1090,6 @@ impl IndexMerger {
     /// # Returns
     /// The number of documents in the resulting segment.
     pub fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
-        debug!("docidmapping");
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
             // If the documents are already sorted and stackable, we ignore the mapping and execute
@@ -1127,7 +1124,7 @@ impl IndexMerger {
         )?;
         debug!("write-storagefields");
         self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
-        debug!("close");
+        debug!("close-serializer");
         serializer.close()?;
         Ok(self.max_doc)
     }

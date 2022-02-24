@@ -18,11 +18,11 @@
 //!
 //! A second datastructure makes it possible to access a
 //! [`TermInfo`](../postings/struct.TermInfo.html).
+mod merger;
 mod streamer;
 mod term_info_store;
 mod termdict;
-mod merger;
 
+pub use self::merger::TermMerger;
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
-pub use self::merger::TermMerger;

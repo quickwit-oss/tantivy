@@ -177,15 +177,6 @@ where TValueReader: value::ValueReader
             .buffer_from_to(self.suffix_start, self.suffix_end)
     }
 
-    // pub fn suffix_from(&self, offset: usize) -> &[u8] {
-    //     &self.block_reader.buffer_from_to(
-    //         self.suffix_start
-    //             .wrapping_add(offset)
-    //             .wrapping_sub(self.common_prefix_len),
-    //         self.suffix_end,
-    //     )
-    // }
-
     pub fn value(&self) -> &TValueReader::Value {
         self.value_reader.value(self.idx)
     }

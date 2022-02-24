@@ -19,10 +19,14 @@
 //! A second datastructure makes it possible to access a
 //! [`TermInfo`](../postings/struct.TermInfo.html).
 
-// mod fst_termdict;
-// use fst_termdict as termdict;
+#[cfg(not(feature = "quickwit"))]
+mod fst_termdict;
+#[cfg(not(feature = "quickwit"))]
+use fst_termdict as termdict;
 
+#[cfg(feature = "quickwit")]
 mod sstable_termdict;
+#[cfg(feature = "quickwit")]
 use sstable_termdict as termdict;
 use tantivy_fst::automaton::AlwaysMatch;
 

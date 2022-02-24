@@ -15,7 +15,7 @@ use crate::fastfield::AliveBitSet;
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
-use crate::{AsyncIoResult, DocId};
+use crate::DocId;
 
 const LRU_CACHE_CAPACITY: usize = 100;
 
@@ -96,7 +96,8 @@ impl StoreReader {
         Ok(block)
     }
 
-    async fn read_block_async(&self, checkpoint: &Checkpoint) -> AsyncIoResult<Block> {
+    #[cfg(feature = "quickwit")]
+    async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
         if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
             return Ok(block.clone());
@@ -138,6 +139,7 @@ impl StoreReader {
 
     /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a
     /// document and its start and end position within the block.
+    #[cfg(feature = "quickwit")]
     pub async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
         Ok(Document::deserialize(&mut doc_bytes)?)
@@ -168,6 +170,8 @@ impl StoreReader {
         Ok(block.slice(start_pos..end_pos))
     }
 
+    /// Fetches a document asynchronously.
+    #[cfg(feature = "quickwit")]
     pub async fn get_document_bytes_async(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))

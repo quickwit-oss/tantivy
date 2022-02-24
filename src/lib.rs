@@ -126,7 +126,7 @@ mod macros;
 
 pub use chrono;
 
-pub use crate::error::{AsyncIoError, TantivyError};
+pub use crate::error::TantivyError;
 
 /// Tantivy result.
 ///
@@ -134,8 +134,9 @@ pub use crate::error::{AsyncIoError, TantivyError};
 /// and instead, refer to this as `crate::Result<T>`.
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
-#[doc(hidden)]
-pub type AsyncIoResult<T> = std::result::Result<T, AsyncIoError>;
+/// Result for an Async io operation.
+#[cfg(feature = "quickwit")]
+pub type AsyncIoResult<T> = std::result::Result<T, crate::error::AsyncIoError>;
 
 /// Tantivy DateTime
 pub type DateTime = chrono::DateTime<chrono::Utc>;

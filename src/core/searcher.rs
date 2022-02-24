@@ -110,6 +110,8 @@ impl Searcher {
         store_reader.get(doc_address.doc_id)
     }
 
+    /// Fetches a document in an asynchronous manner.
+    #[cfg(feature = "quickwit")]
     pub async fn doc_async(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let store_reader = &self.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
