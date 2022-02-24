@@ -9,6 +9,7 @@ Tantivy 0.17
 - Reduce the number of fsync calls [#1225](https://github.com/quickwit-oss/tantivy/issues/1225)
 - Fix opening bytes index with dynamic codec (@PSeitz) [#1278](https://github.com/quickwit-oss/tantivy/issues/1278)
 - Added an aggregation collector compatible with Elasticsearch (@PSeitz)
+- Added a JSON schema type @fulmicoton [#1251](https://github.com/quickwit-oss/tantivy/issues/1251)
 
 Tantivy 0.16.2
 ================================

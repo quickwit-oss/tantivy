@@ -256,7 +256,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
         Type::U64 => val as f64,
         Type::I64 => i64::from_u64(val) as f64,
         Type::F64 => f64::from_u64(val),
-        Type::Date | Type::Str | Type::Facet | Type::Bytes => unimplemented!(),
+        Type::Date | Type::Str | Type::Facet | Type::Bytes | Type::Json => unimplemented!(),
     }
 }
 
@@ -275,7 +275,7 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> u64 {
         Type::U64 => val as u64,
         Type::I64 => (val as i64).to_u64(),
         Type::F64 => val.to_u64(),
-        Type::Date | Type::Str | Type::Facet | Type::Bytes => unimplemented!(),
+        Type::Date | Type::Str | Type::Facet | Type::Bytes | Type::Json => unimplemented!(),
     }
 }
 

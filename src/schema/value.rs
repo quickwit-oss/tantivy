@@ -2,6 +2,7 @@ use std::fmt;
 
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Map;
 
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
@@ -27,6 +28,8 @@ pub enum Value {
     Facet(Facet),
     /// Arbitrarily sized byte array
     Bytes(Vec<u8>),
+    /// Json object value.
+    JsonObject(serde_json::Map<String, serde_json::Value>),
 }
 
 impl Eq for Value {}
@@ -43,6 +46,7 @@ impl Serialize for Value {
             Value::Date(ref date) => serializer.serialize_str(&date.to_rfc3339()),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
+            Value::JsonObject(ref obj) => obj.serialize(serializer),
         }
     }
 }
@@ -168,6 +172,17 @@ impl Value {
             None
         }
     }
+
+    /// Returns the json object, provided the value is of the JsonObject type.
+    ///
+    /// Returns None if the value is not of type JsonObject.
+    pub fn as_json(&self) -> Option<&Map<String, serde_json::Value>> {
+        if let Value::JsonObject(json) = self {
+            Some(json)
+        } else {
+            None
+        }
+    }
 }
 
 impl From<String> for Value {
@@ -230,6 +245,23 @@ impl From<PreTokenizedString> for Value {
     }
 }
 
+impl From<serde_json::Map<String, serde_json::Value>> for Value {
+    fn from(json_object: serde_json::Map<String, serde_json::Value>) -> Value {
+        Value::JsonObject(json_object)
+    }
+}
+
+impl From<serde_json::Value> for Value {
+    fn from(json_value: serde_json::Value) -> Value {
+        match json_value {
+            serde_json::Value::Object(json_object) => Value::JsonObject(json_object),
+            _ => {
+                panic!("Expected a json object.");
+            }
+        }
+    }
+}
+
 mod binary_serialize {
     use std::io::{self, Read, Write};
 
@@ -248,6 +280,7 @@ mod binary_serialize {
     const DATE_CODE: u8 = 5;
     const F64_CODE: u8 = 6;
     const EXT_CODE: u8 = 7;
+    const JSON_OBJ_CODE: u8 = 8;
 
     // extended types
 
@@ -296,8 +329,14 @@ mod binary_serialize {
                     BYTES_CODE.serialize(writer)?;
                     bytes.serialize(writer)
                 }
+                Value::JsonObject(ref map) => {
+                    JSON_OBJ_CODE.serialize(writer)?;
+                    serde_json::to_writer(writer, &map)?;
+                    Ok(())
+                }
             }
         }
+
         fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
             let type_code = u8::deserialize(reader)?;
             match type_code {
@@ -346,6 +385,10 @@ mod binary_serialize {
                             ),
                         )),
                     }
+                }
+                JSON_OBJ_CODE => {
+                    let map = serde_json::from_reader(reader)?;
+                    Ok(Value::JsonObject(map))
                 }
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,

@@ -4,7 +4,7 @@ use tantivy::schema::{INDEXED, STORED, STRING, TEXT};
 use tantivy::Index;
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
-const NUM_REPEATS: usize = 10;
+const NUM_REPEATS: usize = 2;
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let schema = {
@@ -19,6 +19,11 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         schema_builder.add_u64_field("timestamp", INDEXED | STORED);
         schema_builder.add_text_field("body", TEXT | STORED);
         schema_builder.add_text_field("severity", STRING | STORED);
+        schema_builder.build()
+    };
+    let dynamic_schema = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_json_field("json", TEXT);
         schema_builder.build()
     };
 
@@ -68,6 +73,38 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             for _ in 0..NUM_REPEATS {
                 for doc_json in HDFS_LOGS.trim().split("\n") {
                     let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
+            }
+            index_writer.commit().unwrap();
+        })
+    });
+    group.bench_function("index-hdfs-no-commit-json-without-docstore", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(dynamic_schema.clone());
+            let json_field = dynamic_schema.get_field("json").unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for _ in 0..NUM_REPEATS {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let json_val: serde_json::Map<String, serde_json::Value> =
+                        serde_json::from_str(doc_json).unwrap();
+                    let doc = tantivy::doc!(json_field=>json_val);
+                    index_writer.add_document(doc).unwrap();
+                }
+            }
+            index_writer.commit().unwrap();
+        })
+    });
+    group.bench_function("index-hdfs-with-commit-json-without-docstore", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(dynamic_schema.clone());
+            let json_field = dynamic_schema.get_field("json").unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for _ in 0..NUM_REPEATS {
+                for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let json_val: serde_json::Map<String, serde_json::Value> =
+                        serde_json::from_str(doc_json).unwrap();
+                    let doc = tantivy::doc!(json_field=>json_val);
                     index_writer.add_document(doc).unwrap();
                 }
             }

@@ -119,6 +119,7 @@
 //! ```
 mod alphanum_only;
 mod ascii_folding_filter;
+mod empty_tokenizer;
 mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;

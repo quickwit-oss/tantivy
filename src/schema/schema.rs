@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{self, Map as JsonObject, Value as JsonValue};
+use serde_json::{self, Value as JsonValue};
 
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
@@ -173,6 +173,16 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a json object field to the schema.
+    pub fn add_json_field<T: Into<JsonObjectOptions>>(
+        &mut self,
+        field_name: &str,
+        field_options: T,
+    ) -> Field {
+        let field_entry = FieldEntry::new_json(field_name.to_string(), field_options.into());
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);
@@ -298,23 +308,23 @@ impl Schema {
 
     /// Build a document object from a json-object.
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: JsonObject<String, JsonValue> =
-            serde_json::from_str(doc_json).map_err(|_| {
-                let doc_json_sample: String = if doc_json.len() < 20 {
-                    String::from(doc_json)
-                } else {
-                    format!("{:?}...", &doc_json[0..20])
-                };
-                DocParsingError::NotJson(doc_json_sample)
-            })?;
+        let json_obj: serde_json::Map<String, JsonValue> =
+            serde_json::from_str(doc_json).map_err(|_| DocParsingError::invalid_json(doc_json))?;
+        self.json_object_to_doc(json_obj)
+    }
 
+    /// Build a document object from a json-object.
+    pub fn json_object_to_doc(
+        &self,
+        json_obj: serde_json::Map<String, JsonValue>,
+    ) -> Result<Document, DocParsingError> {
         let mut doc = Document::default();
-        for (field_name, json_value) in json_obj.iter() {
-            if let Some(field) = self.get_field(field_name) {
+        for (field_name, json_value) in json_obj {
+            if let Some(field) = self.get_field(&field_name) {
                 let field_entry = self.get_field_entry(field);
                 let field_type = field_entry.field_type();
-                match *json_value {
-                    JsonValue::Array(ref json_items) => {
+                match json_value {
+                    JsonValue::Array(json_items) => {
                         for json_item in json_items {
                             let value = field_type
                                 .value_from_json(json_item)
@@ -383,10 +393,22 @@ impl<'de> Deserialize<'de> for Schema {
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
     #[error("The provided string is not valid JSON")]
-    NotJson(String),
+    InvalidJson(String),
     /// One of the value node could not be parsed.
     #[error("The field '{0:?}' could not be parsed: {1:?}")]
     ValueError(String, ValueParsingError),
+}
+
+impl DocParsingError {
+    /// Builds a NotJson DocParsingError
+    fn invalid_json(invalid_json: &str) -> Self {
+        let sample_json: String = if invalid_json.len() < 20 {
+            invalid_json.to_string()
+        } else {
+            format!("{:?}...", &invalid_json[0..20])
+        };
+        DocParsingError::InvalidJson(sample_json)
+    }
 }
 
 #[cfg(test)]
@@ -399,7 +421,7 @@ mod tests {
 
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::numeric_options::Cardinality::SingleValue;
-    use crate::schema::schema::DocParsingError::NotJson;
+    use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
 
     #[test]
@@ -732,7 +754,7 @@ mod tests {
                 "count": 50,
             }"#,
             );
-            assert_matches!(json_err, Err(NotJson(_)));
+            assert_matches!(json_err, Err(InvalidJson(_)));
         }
     }
 

@@ -31,10 +31,11 @@ impl PhraseWeight {
     fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
         let field = self.phrase_terms[0].1.field();
         if self.scoring_enabled {
-            reader.get_fieldnorms_reader(field)
-        } else {
-            Ok(FieldNormReader::constant(reader.max_doc(), 1))
+            if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
+                return Ok(fieldnorm_reader);
+            }
         }
+        Ok(FieldNormReader::constant(reader.max_doc(), 1))
     }
 
     fn phrase_scorer(

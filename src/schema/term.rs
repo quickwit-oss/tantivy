@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::{fmt, str};
 
@@ -8,7 +9,25 @@ use crate::DateTime;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
+///
+/// - <field> is a big endian encoded u32 field id
+/// - <type_byte>'s most significant bit expresses whether the term is a json term or not
+/// The remaining 7 bits are used to encode the type of the value.
+/// If this is a JSON term, the type is the type of the leaf of the json.
+///
+/// - <value> is,  if this is not the json term, a binary representation specific to the type.
+/// If it is a JSON Term, then it is preprended with the path that leads to this leaf value.
 const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+
+/// Separates the different segments of
+/// the json path.
+pub const JSON_PATH_SEGMENT_SEP: u8 = 1u8;
+pub const JSON_PATH_SEGMENT_SEP_STR: &str =
+    unsafe { std::str::from_utf8_unchecked(&[JSON_PATH_SEGMENT_SEP]) };
+
+/// Separates the json path and the value in
+/// a JSON term binary representation.
+pub const JSON_END_OF_PATH: u8 = 0u8;
 
 /// Term represents the value that the token can take.
 ///
@@ -16,6 +35,12 @@ const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>>(B)
 where B: AsRef<[u8]>;
+
+impl AsMut<Vec<u8>> for Term {
+    fn as_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.0
+    }
+}
 
 impl Term {
     pub(crate) fn new() -> Term {
@@ -120,6 +145,22 @@ impl Term {
     pub fn set_text(&mut self, text: &str) {
         self.set_bytes(text.as_bytes());
     }
+
+    /// Removes the value_bytes and set the type code.
+    pub fn clear_with_type(&mut self, typ: Type) {
+        self.truncate(5);
+        self.0[4] = typ.to_code();
+    }
+
+    /// Truncate the term right after the field and the type code.
+    pub fn truncate(&mut self, len: usize) {
+        self.0.truncate(len);
+    }
+
+    /// Truncate the term right after the field and the type code.
+    pub fn append_bytes(&mut self, bytes: &[u8]) {
+        self.0.extend_from_slice(bytes);
+    }
 }
 
 impl<B> Ord for Term<B>
@@ -164,13 +205,16 @@ where B: AsRef<[u8]>
         Term(data)
     }
 
+    fn typ_code(&self) -> u8 {
+        *self
+            .as_slice()
+            .get(4)
+            .expect("the byte representation is too short")
+    }
+
     /// Return the type of the term.
     pub fn typ(&self) -> Type {
-        assert!(
-            self.as_slice().len() >= 5,
-            "the type does byte representation is too short"
-        );
-        Type::from_code(self.as_slice()[4]).expect("The term has an invalid type code")
+        Type::from_code(self.typ_code()).expect("The term has an invalid type code")
     }
 
     /// Returns the field.
@@ -189,10 +233,14 @@ where B: AsRef<[u8]>
     }
 
     fn get_fast_type<T: FastValue>(&self) -> Option<T> {
-        if self.typ() != T::to_type() || self.as_slice().len() != FAST_VALUE_TERM_LEN {
+        if self.typ() != T::to_type() {
             return None;
         }
         let mut value_bytes = [0u8; 8];
+        let bytes = self.value_bytes();
+        if bytes.len() != 8 {
+            return None;
+        }
         value_bytes.copy_from_slice(self.value_bytes());
         let value_u64 = u64::from_be_bytes(value_bytes);
         Some(FastValue::from_u64(value_u64))
@@ -290,40 +338,74 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
     Ok(())
 }
 
-impl fmt::Debug for Term {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let field_id = self.field().field_id();
-        let typ = self.typ();
-        write!(f, "Term(type={:?}, field={}, val=", typ, field_id,)?;
-        match typ {
-            Type::Str => {
-                let s = str::from_utf8(self.value_bytes()).ok();
-                write_opt(f, s)?;
-            }
-            Type::U64 => {
-                write_opt(f, self.as_u64())?;
-            }
-            Type::I64 => {
-                let val_i64 = self.as_i64();
-                write_opt(f, val_i64)?;
-            }
-            Type::F64 => {
-                let val_f64 = self.as_f64();
-                write_opt(f, val_f64)?;
-            }
-            // TODO pretty print these types too.
-            Type::Date => {
-                let val_date = self.as_date();
-                write_opt(f, val_date)?;
-            }
-            Type::Facet => {
-                let facet = self.as_facet().map(|facet| facet.to_path_string());
-                write_opt(f, facet)?;
-            }
-            Type::Bytes => {
-                write_opt(f, self.as_bytes())?;
+fn as_str(value_bytes: &[u8]) -> Option<&str> {
+    std::str::from_utf8(value_bytes).ok()
+}
+
+fn get_fast_type<T: FastValue>(bytes: &[u8]) -> Option<T> {
+    let value_u64 = u64::from_be_bytes(bytes.try_into().ok()?);
+    Some(FastValue::from_u64(value_u64))
+}
+
+/// Returns the json path (without non-human friendly separators, the type of the value, and the
+/// value bytes). Returns None if the value is not JSON or is not valid.
+pub(crate) fn as_json_path_type_value_bytes(bytes: &[u8]) -> Option<(&str, Type, &[u8])> {
+    let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
+    let json_path = str::from_utf8(&bytes[..pos]).ok()?;
+    let type_code = *bytes.get(pos + 1)?;
+    let typ = Type::from_code(type_code)?;
+    Some((json_path, typ, &bytes[pos + 2..]))
+}
+
+fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
+    match typ {
+        Type::Str => {
+            let s = as_str(bytes);
+            write_opt(f, s)?;
+        }
+        Type::U64 => {
+            write_opt(f, get_fast_type::<u64>(bytes))?;
+        }
+        Type::I64 => {
+            write_opt(f, get_fast_type::<i64>(bytes))?;
+        }
+        Type::F64 => {
+            write_opt(f, get_fast_type::<f64>(bytes))?;
+        }
+        // TODO pretty print these types too.
+        Type::Date => {
+            write_opt(f, get_fast_type::<crate::DateTime>(bytes))?;
+        }
+        Type::Facet => {
+            let facet_str = str::from_utf8(bytes)
+                .ok()
+                .map(ToString::to_string)
+                .map(Facet::from_encoded_string)
+                .map(|facet| facet.to_path_string());
+            write_opt(f, facet_str)?;
+        }
+        Type::Bytes => {
+            write_opt(f, Some(bytes))?;
+        }
+        Type::Json => {
+            if let Some((path, typ, bytes)) = as_json_path_type_value_bytes(bytes) {
+                let path_pretty = path.replace(JSON_PATH_SEGMENT_SEP_STR, ".");
+                write!(f, "path={path_pretty}, vtype={typ:?}, ")?;
+                debug_value_bytes(typ, bytes, f)?;
             }
         }
+    }
+    Ok(())
+}
+
+impl<B> fmt::Debug for Term<B>
+where B: AsRef<[u8]>
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let field_id = self.field().field_id();
+        let typ = self.typ();
+        write!(f, "Term(type={typ:?}, field={field_id}, ")?;
+        debug_value_bytes(typ, self.value_bytes(), f)?;
         write!(f, ")",)?;
         Ok(())
     }

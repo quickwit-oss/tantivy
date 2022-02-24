@@ -307,15 +307,15 @@ impl IndexMerger {
                     }
                     None => {}
                 },
-                FieldType::Str(_) => {
-                    // We don't handle str fast field for the moment
-                    // They can be implemented using what is done
-                    // for facets in the future.
-                }
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
+                }
+                FieldType::Str(_) | FieldType::JsonObject(_) => {
+                    // We don't handle json / string fast field for the moment
+                    // They can be implemented using what is done
+                    // for facets in the future
                 }
             }
         }

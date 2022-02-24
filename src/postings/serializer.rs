@@ -76,7 +76,7 @@ impl InvertedIndexSerializer {
         field: Field,
         total_num_tokens: u64,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> io::Result<FieldSerializer<'_>> {
+    ) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
@@ -122,24 +122,21 @@ impl<'a> FieldSerializer<'a> {
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
         total_num_tokens.serialize(postings_write)?;
-        let mode = match field_type {
-            FieldType::Str(ref text_options) => {
-                if let Some(text_indexing_options) = text_options.get_indexing_options() {
-                    text_indexing_options.index_option()
-                } else {
-                    IndexRecordOption::Basic
-                }
-            }
-            _ => IndexRecordOption::Basic,
-        };
+        let index_record_option = field_type
+            .index_record_option()
+            .unwrap_or(IndexRecordOption::Basic);
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
             .as_ref()
             .map(|ff_reader| (total_num_tokens as Score / ff_reader.num_docs() as Score))
             .unwrap_or(0.0);
-        let postings_serializer =
-            PostingsSerializer::new(postings_write, average_fieldnorm, mode, fieldnorm_reader);
-        let positions_serializer_opt = if mode.has_positions() {
+        let postings_serializer = PostingsSerializer::new(
+            postings_write,
+            average_fieldnorm,
+            index_record_option,
+            fieldnorm_reader,
+        );
+        let positions_serializer_opt = if index_record_option.has_positions() {
             Some(PositionSerializer::new(positions_write))
         } else {
             None
@@ -203,6 +200,7 @@ impl<'a> FieldSerializer<'a> {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
+            assert_eq!(term_freq as usize, position_deltas.len());
             positions_serializer.write_positions_delta(position_deltas);
         }
     }

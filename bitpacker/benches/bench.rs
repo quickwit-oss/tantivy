@@ -6,6 +6,7 @@ extern crate test;
 mod tests {
     use tantivy_bitpacker::BlockedBitpacker;
     use test::Bencher;
+
     #[bench]
     fn bench_blockedbitp_read(b: &mut Bencher) {
         let mut blocked_bitpacker = BlockedBitpacker::new();
@@ -20,6 +21,7 @@ mod tests {
             out
         });
     }
+
     #[bench]
     fn bench_blockedbitp_create(b: &mut Bencher) {
         b.iter(|| {

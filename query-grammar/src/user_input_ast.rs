@@ -59,7 +59,7 @@ pub enum UserInputBound {
 }
 
 impl UserInputBound {
-    fn display_lower(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn display_lower(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{}\"", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
@@ -67,7 +67,7 @@ impl UserInputBound {
         }
     }
 
-    fn display_upper(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn display_upper(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),

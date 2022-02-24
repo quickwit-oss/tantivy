@@ -9,10 +9,12 @@ pub use self::phrase_weight::PhraseWeight;
 #[cfg(test)]
 pub mod tests {
 
+    use serde_json::json;
+
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
     use crate::core::Index;
-    use crate::query::Weight;
+    use crate::query::{QueryParser, Weight};
     use crate::schema::{Schema, Term, TEXT};
     use crate::{assert_nearly_equals, DocAddress, DocId, TERMINATED};
 
@@ -246,6 +248,58 @@ pub mod tests {
         assert_eq!(test_query(vec![(4, "e"), (0, "a"), (2, "c")]), vec![0]);
         assert!(test_query(vec![(0, "a"), (2, "d")]).is_empty());
         assert_eq!(test_query(vec![(1, "a"), (3, "c")]), vec![0]);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_query_on_json() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(json_field=>json!({
+                "text": "elliot smith the happy who"
+            })))?;
+            index_writer.add_document(doc!(json_field=>json!({
+                "text": "the who elliot smith"
+            })))?;
+            index_writer.add_document(doc!(json_field=>json!({
+                "arr": [{"text":"the who"}, {"text":"elliot smith"}]
+            })))?;
+            index_writer.add_document(doc!(json_field=>json!({
+                "text2": "the smith"
+            })))?;
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        let matching_docs = |query: &str| {
+            let query_parser = QueryParser::for_index(&index, vec![json_field]);
+            let phrase_query = query_parser.parse_query(query).unwrap();
+            let phrase_weight = phrase_query.weight(&*searcher, false).unwrap();
+            let mut phrase_scorer = phrase_weight
+                .scorer(searcher.segment_reader(0), 1.0f32)
+                .unwrap();
+            let mut docs = Vec::new();
+            loop {
+                let doc = phrase_scorer.doc();
+                if doc == TERMINATED {
+                    break;
+                }
+                docs.push(doc);
+                phrase_scorer.advance();
+            }
+            docs
+        };
+        assert!(matching_docs(r#"text:"the smith""#).is_empty());
+        assert_eq!(&matching_docs(r#"text:the"#), &[0u32, 1u32]);
+        assert_eq!(&matching_docs(r#"text:"the""#), &[0u32, 1u32]);
+        assert_eq!(&matching_docs(r#"text:"smith""#), &[0u32, 1u32]);
+        assert_eq!(&matching_docs(r#"text:"elliot smith""#), &[0u32, 1u32]);
+        assert_eq!(&matching_docs(r#"text2:"the smith""#), &[3u32]);
+        assert!(&matching_docs(r#"arr.text:"the smith""#).is_empty());
+        assert_eq!(&matching_docs(r#"arr.text:"elliot smith""#), &[2]);
         Ok(())
     }
 }

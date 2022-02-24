@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::schema::bytes_options::BytesOptions;
-use crate::schema::{is_valid_field_name, FacetOptions, FieldType, NumericOptions, TextOptions};
+use crate::schema::{
+    is_valid_field_name, FacetOptions, FieldType, JsonObjectOptions, NumericOptions, TextOptions,
+};
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
@@ -27,71 +29,44 @@ impl FieldEntry {
         }
     }
 
-    /// Creates a new u64 field entry in the schema, given
-    /// a name, and some options.
+    /// Creates a new text field entry.
     pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::Str(text_options),
-        }
+        Self::new(field_name, FieldType::Str(text_options))
     }
 
-    /// Creates a new u64 field entry in the schema, given
-    /// a name, and some options.
-    pub fn new_u64(field_name: String, field_type: NumericOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::U64(field_type),
-        }
+    /// Creates a new u64 field entry.
+    pub fn new_u64(field_name: String, int_options: NumericOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::U64(int_options))
     }
 
-    /// Creates a new i64 field entry in the schema, given
-    /// a name, and some options.
-    pub fn new_i64(field_name: String, field_type: NumericOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::I64(field_type),
-        }
+    /// Creates a new i64 field entry.
+    pub fn new_i64(field_name: String, int_options: NumericOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::I64(int_options))
     }
 
-    /// Creates a new f64 field entry in the schema, given
-    /// a name, and some options.
-    pub fn new_f64(field_name: String, field_type: NumericOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::F64(field_type),
-        }
+    /// Creates a new f64 field entry.
+    pub fn new_f64(field_name: String, f64_options: NumericOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::F64(f64_options))
     }
 
-    /// Creates a new date field entry in the schema, given
-    /// a name, and some options.
-    pub fn new_date(field_name: String, field_type: NumericOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::Date(field_type),
-        }
+    /// Creates a new date field entry.
+    pub fn new_date(field_name: String, date_options: NumericOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Date(date_options))
     }
 
     /// Creates a field entry for a facet.
-    pub fn new_facet(field_name: String, field_type: FacetOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::Facet(field_type),
-        }
+    pub fn new_facet(field_name: String, facet_options: FacetOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Facet(facet_options))
     }
 
     /// Creates a field entry for a bytes field
-    pub fn new_bytes(field_name: String, bytes_type: BytesOptions) -> FieldEntry {
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::Bytes(bytes_type),
-        }
+    pub fn new_bytes(field_name: String, bytes_options: BytesOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Bytes(bytes_options))
+    }
+
+    /// Creates a field entry for a json field
+    pub fn new_json(field_name: String, json_object_options: JsonObjectOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::JsonObject(json_object_options))
     }
 
     /// Returns the name of the field
@@ -137,6 +112,7 @@ impl FieldEntry {
             FieldType::Str(ref options) => options.is_stored(),
             FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
+            FieldType::JsonObject(ref options) => options.is_stored(),
         }
     }
 }

@@ -5,6 +5,8 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
+use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
+
 /// Token
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Token {
@@ -41,6 +43,12 @@ impl Default for Token {
 pub struct TextAnalyzer {
     tokenizer: Box<dyn Tokenizer>,
     token_filters: Vec<BoxTokenFilter>,
+}
+
+impl Default for TextAnalyzer {
+    fn default() -> TextAnalyzer {
+        TextAnalyzer::from(EmptyTokenizer)
+    }
 }
 
 impl<T: Tokenizer> From<T> for TextAnalyzer {

@@ -117,7 +117,16 @@ impl Document {
 
     /// Add a bytes field
     pub fn add_bytes<T: Into<Vec<u8>>>(&mut self, field: Field, value: T) {
-        self.add_field_value(field, value.into())
+        self.add_field_value(field, value.into());
+    }
+
+    /// Add a bytes field
+    pub fn add_json_object(
+        &mut self,
+        field: Field,
+        json_object: serde_json::Map<String, serde_json::Value>,
+    ) {
+        self.add_field_value(field, json_object);
     }
 
     /// Add a (field, value) to the document.
