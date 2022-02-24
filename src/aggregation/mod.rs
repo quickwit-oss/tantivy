@@ -152,7 +152,9 @@ mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-pub use collector::{AggregationCollector, DistributedAggregationCollector};
+pub use collector::{
+    AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
