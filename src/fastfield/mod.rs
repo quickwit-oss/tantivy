@@ -28,6 +28,7 @@ pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;
+pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::chrono::{NaiveDateTime, Utc};

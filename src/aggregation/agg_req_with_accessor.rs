@@ -4,8 +4,8 @@ use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAgg
 use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
-use crate::fastfield::DynamicFastFieldReader;
-use crate::schema::Type;
+use crate::fastfield::{type_and_cardinality, DynamicFastFieldReader, FastType};
+use crate::schema::{Cardinality, Type};
 use crate::{SegmentReader, TantivyError};
 
 #[derive(Clone, Default)]
@@ -38,7 +38,7 @@ pub struct BucketAggregationWithAccessor {
 }
 
 impl BucketAggregationWithAccessor {
-    fn from_bucket(
+    fn try_from_bucket(
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
@@ -53,7 +53,7 @@ impl BucketAggregationWithAccessor {
         Ok(BucketAggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggregations_with_accessor(&sub_aggregation, reader)?,
+            sub_aggregation: get_aggs_with_accessor_and_validate(&sub_aggregation, reader)?,
             bucket_agg: bucket.clone(),
         })
     }
@@ -68,7 +68,7 @@ pub struct MetricAggregationWithAccessor {
 }
 
 impl MetricAggregationWithAccessor {
-    fn from_metric(
+    fn try_from_metric(
         metric: &MetricAggregation,
         reader: &SegmentReader,
     ) -> crate::Result<MetricAggregationWithAccessor> {
@@ -87,7 +87,7 @@ impl MetricAggregationWithAccessor {
     }
 }
 
-pub(crate) fn get_aggregations_with_accessor(
+pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
 ) -> crate::Result<AggregationsWithAccessor> {
@@ -97,7 +97,7 @@ pub(crate) fn get_aggregations_with_accessor(
         match agg {
             Aggregation::Bucket(bucket) => buckets.push((
                 key.to_string(),
-                BucketAggregationWithAccessor::from_bucket(
+                BucketAggregationWithAccessor::try_from_bucket(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
@@ -105,7 +105,7 @@ pub(crate) fn get_aggregations_with_accessor(
             )),
             Aggregation::Metric(metric) => metrics.push((
                 key.to_string(),
-                MetricAggregationWithAccessor::from_metric(metric, reader)?,
+                MetricAggregationWithAccessor::try_from_metric(metric, reader)?,
             )),
         }
     }
@@ -124,15 +124,21 @@ fn get_ff_reader_and_validate(
         .get_field(field_name)
         .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
     let field_type = reader.schema().get_field_entry(field).field_type();
-    if field_type.value_type() != Type::I64
-        && field_type.value_type() != Type::U64
-        && field_type.value_type() != Type::F64
-    {
+
+    if let Some((ff_type, cardinality)) = type_and_cardinality(field_type) {
+        if cardinality == Cardinality::MultiValues || ff_type == FastType::Date {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Invalid field type in aggregation {:?}, only Cardinality::SingleValue supported",
+                field_type.value_type()
+            )));
+        }
+    } else {
         return Err(TantivyError::InvalidArgument(format!(
-            "Invalid field type in aggregation {:?}, only f64, u64, i64 is supported",
+            "Only single value fast fields of type f64, u64, i64 are supported, but got {:?} ",
             field_type.value_type()
         )));
-    }
+    };
+
     let ff_fields = reader.fast_fields();
     ff_fields
         .u64_lenient(field)

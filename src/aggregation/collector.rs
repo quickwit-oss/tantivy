@@ -3,9 +3,9 @@ use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::aggregation::agg_req_with_accessor::get_aggregations_with_accessor;
+use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::TantivyError;
+use crate::{SegmentReader, TantivyError};
 
 /// Collector for aggregations.
 ///
@@ -50,12 +50,7 @@ impl Collector for DistributedAggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
-        Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor,
-            result,
-        })
+        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader)
     }
 
     fn requires_scoring(&self) -> bool {
@@ -80,8 +75,9 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader)?;
-        let result = SegmentAggregationResultsCollector::from_req(&aggs_with_accessor)?;
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&self.agg, reader)?;
+        let result =
+            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs: aggs_with_accessor,
             result,
@@ -115,9 +111,27 @@ fn merge_fruits(
     }
 }
 
+/// AggregationSegmentCollector does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs: AggregationsWithAccessor,
     result: SegmentAggregationResultsCollector,
+}
+
+impl AggregationSegmentCollector {
+    /// Creates an AggregationSegmentCollector from an [Aggregations] request and a segment reader.
+    /// Also includes validation, e.g. checking field types and existence.
+    pub fn from_agg_req_and_reader(
+        agg: &Aggregations,
+        reader: &SegmentReader,
+    ) -> crate::Result<Self> {
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&agg, reader)?;
+        let result =
+            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
+        Ok(AggregationSegmentCollector {
+            aggs: aggs_with_accessor,
+            result,
+        })
+    }
 }
 
 impl SegmentCollector for AggregationSegmentCollector {

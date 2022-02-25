@@ -28,7 +28,9 @@
 //! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
 //! ```
+//! # Limitations
 //!
+//! Currently aggregations work only on single value fast fields of type u64, f64 and i64.
 //!
 //! # Example
 //! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
@@ -150,7 +152,9 @@ mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-pub use collector::{AggregationCollector, DistributedAggregationCollector};
+pub use collector::{
+    AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -250,13 +254,18 @@ impl Serialize for Key {
     }
 }
 
-/// Invert of to_fastfield_u64
+/// Invert of to_fastfield_u64. Used to convert to f64 for metrics.
+///
+/// # Panics
+/// Only u64, f64, i64 is supported
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
         Type::I64 => i64::from_u64(val) as f64,
         Type::F64 => f64::from_u64(val),
-        Type::Date | Type::Str | Type::Facet | Type::Bytes | Type::Json => unimplemented!(),
+        _ => {
+            panic!("unexpected type {:?}. This should not happen", field_type)
+        }
     }
 }
 
@@ -270,12 +279,12 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
 /// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
 /// conversion function, so that the value matches the u64 value stored in the fast
 /// field.
-pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> u64 {
+pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {
-        Type::U64 => val as u64,
-        Type::I64 => (val as i64).to_u64(),
-        Type::F64 => val.to_u64(),
-        Type::Date | Type::Str | Type::Facet | Type::Bytes | Type::Json => unimplemented!(),
+        Type::U64 => Some(val as u64),
+        Type::I64 => Some((val as i64).to_u64()),
+        Type::F64 => Some(val.to_u64()),
+        _ => None,
     }
 }
 
@@ -293,7 +302,7 @@ mod tests {
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
-    use crate::query::TermQuery;
+    use crate::query::{AllQuery, TermQuery};
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
     use crate::{Index, Term};
 
@@ -467,6 +476,11 @@ mod tests {
             crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+
+        let multivalue =
+            crate::schema::NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let scores_field_i64 = schema_builder.add_i64_field("scores_i64", multivalue);
+
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -477,12 +491,16 @@ mod tests {
                 score_field => 1u64,
                 score_field_f64 => 1f64,
                 score_field_i64 => 1i64,
+                scores_field_i64 => 1i64,
+                scores_field_i64 => 2i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
                 score_field => 3u64,
                 score_field_f64 => 3f64,
                 score_field_i64 => 3i64,
+                scores_field_i64 => 5i64,
+                scores_field_i64 => 5i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
@@ -852,31 +870,42 @@ mod tests {
         let index = get_test_index_2_segments(false)?;
 
         let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
 
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
+        let avg_on_field = |field_name: &str| {
+            let agg_req_1: Aggregations = vec![(
+                "average".to_string(),
+                Aggregation::Metric(MetricAggregation::Average(
+                    AverageAggregation::from_field_name(field_name.to_string()),
+                )),
+            )]
+            .into_iter()
+            .collect();
 
-        let agg_req_1: Aggregations = vec![(
-            "average".to_string(),
-            Aggregation::Metric(MetricAggregation::Average(
-                AverageAggregation::from_field_name("text".to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+            let collector = AggregationCollector::from_aggs(agg_req_1);
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+            let searcher = reader.searcher();
+            let agg_res = searcher.search(&AllQuery, &collector).unwrap_err();
+            agg_res
+        };
 
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&term_query, &collector).unwrap_err();
-
+        let agg_res = avg_on_field("text");
         assert_eq!(
             format!("{:?}", agg_res),
-            r#"InvalidArgument("Invalid field type in aggregation Str, only f64, u64, i64 is supported")"#
+            r#"InvalidArgument("Only single value fast fields of type f64, u64, i64 are supported, but got Str ")"#
         );
+
+        let agg_res = avg_on_field("not_exist_field");
+        assert_eq!(
+            format!("{:?}", agg_res),
+            r#"FieldNotFound("not_exist_field")"#
+        );
+
+        let agg_res = avg_on_field("scores_i64");
+        assert_eq!(
+            format!("{:?}", agg_res),
+            r#"InvalidArgument("Invalid field type in aggregation I64, only Cardinality::SingleValue supported")"#
+        );
+
         Ok(())
     }
 
