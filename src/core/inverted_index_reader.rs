@@ -197,3 +197,36 @@ impl InvertedIndexReader {
             .unwrap_or(0u32))
     }
 }
+
+#[cfg(feature = "quickwit")]
+impl InvertedIndexReader {
+    pub(crate) async fn get_term_info_async(
+        &self,
+        term: &Term,
+    ) -> crate::AsyncIoResult<Option<TermInfo>> {
+        self.termdict.get_async(term.value_bytes()).await
+    }
+
+    /// Returns a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub async fn warm_postings(
+        &self,
+        term: &Term,
+        with_positions: bool,
+    ) -> crate::AsyncIoResult<()> {
+        let term_info_opt = self.get_term_info_async(term).await?;
+        if let Some(term_info) = term_info_opt {
+            self.postings_file_slice
+                .read_bytes_slice_async(term_info.postings_range.clone())
+                .await?;
+            if with_positions {
+                self.positions_file_slice
+                    .read_bytes_slice_async(term_info.positions_range.clone())
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+}

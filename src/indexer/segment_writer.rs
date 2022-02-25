@@ -338,6 +338,7 @@ fn remap_and_write(
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
+    debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
@@ -353,12 +354,14 @@ fn remap_and_write(
         schema,
         serializer.get_postings_serializer(),
     )?;
+    debug!("fastfield-serialize");
     fast_field_writers.serialize(
         serializer.get_fast_field_serializer(),
         &term_ord_map,
         doc_id_map,
     )?;
 
+    debug!("resort-docstore");
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {
         let store_write = serializer
@@ -381,6 +384,7 @@ fn remap_and_write(
         }
     }
 
+    debug!("serializer-close");
     serializer.close()?;
 
     Ok(())
@@ -585,8 +589,8 @@ mod tests {
         let mut doc = Document::default();
         let json_val: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
-        doc.add_json_object(json_field, json_val.clone());
-        let index = Index::create_in_ram(schema.clone());
+        doc.add_json_object(json_field, json_val);
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();
@@ -631,7 +635,7 @@ mod tests {
         let json_val: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"mykey": "two tokens"}"#).unwrap();
         let doc = doc!(json_field=>json_val);
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();
@@ -679,7 +683,7 @@ mod tests {
         )
         .unwrap();
         let doc = doc!(json_field=>json_val);
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();

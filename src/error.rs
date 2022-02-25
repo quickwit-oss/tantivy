@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::sync::PoisonError;
 use std::{fmt, io};
 
+use thiserror::Error;
+
 use crate::directory::error::{
     Incompatibility, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
@@ -38,9 +40,9 @@ impl DataCorruption {
 
 impl fmt::Debug for DataCorruption {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "Data corruption: ")?;
+        write!(f, "Data corruption")?;
         if let Some(ref filepath) = &self.filepath {
-            write!(f, "(in file `{:?}`)", filepath)?;
+            write!(f, " (in file `{:?}`)", filepath)?;
         }
         write!(f, ": {}.", self.comment)?;
         Ok(())
@@ -95,6 +97,28 @@ pub enum TantivyError {
     /// Index incompatible with current version of tantivy
     #[error("{0:?}")]
     IncompatibleIndex(Incompatibility),
+}
+
+#[cfg(feature = "quickwit")]
+#[derive(Error, Debug)]
+#[doc(hidden)]
+pub enum AsyncIoError {
+    #[error("io::Error `{0}`")]
+    Io(#[from] io::Error),
+    #[error("Asynchronous API is unsupported by this directory")]
+    AsyncUnsupported,
+}
+
+#[cfg(feature = "quickwit")]
+impl From<AsyncIoError> for TantivyError {
+    fn from(async_io_err: AsyncIoError) -> Self {
+        match async_io_err {
+            AsyncIoError::Io(io_err) => TantivyError::from(io_err),
+            AsyncIoError::AsyncUnsupported => {
+                TantivyError::SystemError(format!("{:?}", async_io_err))
+            }
+        }
+    }
 }
 
 impl From<DataCorruption> for TantivyError {

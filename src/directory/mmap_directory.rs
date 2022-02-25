@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use std::convert::From;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufWriter, Read, Seek, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -265,7 +264,7 @@ impl Write for SafeFileWriter {
 }
 
 impl Seek for SafeFileWriter {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.0.seek(pos)
     }
 }

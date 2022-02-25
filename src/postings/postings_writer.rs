@@ -60,12 +60,10 @@ pub(crate) fn serialize_postings(
         Vec::with_capacity(ctx.term_index.len());
     term_offsets.extend(ctx.term_index.iter());
     term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
-
     let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
         HashMap::new();
 
     let field_offsets = make_field_partition(&term_offsets);
-
     for (field, byte_offsets) in field_offsets {
         let field_entry = schema.get_field_entry(field);
         match *field_entry.field_type() {

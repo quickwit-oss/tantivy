@@ -51,18 +51,19 @@ impl<'a> TermMerger<'a> {
     /// Returns `true` if there is indeed another term
     /// `false` if there is none.
     pub fn advance(&mut self) -> bool {
-        if let Some((k, values)) = self.union.next() {
-            self.current_key.clear();
-            self.current_key.extend_from_slice(k);
-            self.current_segment_and_term_ordinals.clear();
-            self.current_segment_and_term_ordinals
-                .extend_from_slice(values);
-            self.current_segment_and_term_ordinals
-                .sort_by_key(|iv| iv.index);
-            true
+        let (key, values) = if let Some((key, values)) = self.union.next() {
+            (key, values)
         } else {
-            false
-        }
+            return false;
+        };
+        self.current_key.clear();
+        self.current_key.extend_from_slice(key);
+        self.current_segment_and_term_ordinals.clear();
+        self.current_segment_and_term_ordinals
+            .extend_from_slice(values);
+        self.current_segment_and_term_ordinals
+            .sort_by_key(|iv| iv.index);
+        true
     }
 
     /// Returns the current term.

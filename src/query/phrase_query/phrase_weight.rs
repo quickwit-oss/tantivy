@@ -38,7 +38,7 @@ impl PhraseWeight {
         Ok(FieldNormReader::constant(reader.max_doc(), 1))
     }
 
-    fn phrase_scorer(
+    pub(crate) fn phrase_scorer(
         &self,
         reader: &SegmentReader,
         boost: Score,

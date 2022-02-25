@@ -302,6 +302,7 @@ fn test_stream_range_boundaries_forward() -> crate::Result<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "quickwit"))]
 #[test]
 fn test_stream_range_boundaries_backward() -> crate::Result<()> {
     let term_dictionary = stream_range_test_dict()?;

@@ -19,16 +19,41 @@
 //! A second datastructure makes it possible to access a
 //! [`TermInfo`](../postings/struct.TermInfo.html).
 
+#[cfg(not(feature = "quickwit"))]
 mod fst_termdict;
+#[cfg(not(feature = "quickwit"))]
 use fst_termdict as termdict;
 
-mod merger;
+#[cfg(feature = "quickwit")]
+mod sstable_termdict;
+#[cfg(feature = "quickwit")]
+use sstable_termdict as termdict;
+use tantivy_fst::automaton::AlwaysMatch;
 
-pub use self::merger::TermMerger;
-pub use self::termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
+#[cfg(test)]
+mod tests;
 
 /// Position of the term in the sorted list of terms.
 pub type TermOrdinal = u64;
 
-#[cfg(test)]
-mod tests;
+/// The term dictionary contains all of the terms in
+/// `tantivy index` in a sorted manner.
+pub type TermDictionary = self::termdict::TermDictionary;
+
+/// Builder for the new term dictionary.
+///
+/// Inserting must be done in the order of the `keys`.
+pub type TermDictionaryBuilder<W> = self::termdict::TermDictionaryBuilder<W>;
+
+/// Given a list of sorted term streams,
+/// returns an iterator over sorted unique terms.
+///
+/// The item yield is actually a pair with
+/// - the term
+/// - a slice with the ordinal of the segments containing
+/// the terms.
+pub type TermMerger<'a> = self::termdict::TermMerger<'a>;
+
+/// `TermStreamer` acts as a cursor over a range of terms of a segment.
+/// Terms are guaranteed to be sorted.
+pub type TermStreamer<'a, A = AlwaysMatch> = self::termdict::TermStreamer<'a, A>;
