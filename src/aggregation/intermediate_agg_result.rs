@@ -11,7 +11,7 @@ use super::segment_agg_result::{
     SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentMetricResultCollector,
     SegmentRangeBucketEntry,
 };
-use super::{Key, VecWithNames};
+use super::{Key, SerializedKey, VecWithNames};
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -124,7 +124,7 @@ impl IntermediateMetricResult {
 pub enum IntermediateBucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub_aggregations.
-    Range(HashMap<Key, IntermediateRangeBucketEntry>),
+    Range(HashMap<SerializedKey, IntermediateRangeBucketEntry>),
 }
 
 impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
@@ -215,7 +215,7 @@ mod tests {
         let mut buckets = HashMap::new();
         for (key, doc_count) in data {
             buckets.insert(
-                Key::Str(key.to_string()),
+                key.to_string(),
                 IntermediateRangeBucketEntry {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
@@ -238,7 +238,7 @@ mod tests {
         let mut buckets = HashMap::new();
         for (key, doc_count, sub_aggregation_key, sub_aggregation_count) in data {
             buckets.insert(
-                Key::Str(key.to_string()),
+                key.to_string(),
                 IntermediateRangeBucketEntry {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,

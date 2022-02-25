@@ -14,11 +14,17 @@ pub use stats::*;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SingleMetricResult {
     /// The value of the single value metric.
-    pub value: f64,
+    pub value: Option<f64>,
 }
 
 impl From<f64> for SingleMetricResult {
     fn from(value: f64) -> Self {
+        Self { value: Some(value) }
+    }
+}
+
+impl From<Option<f64>> for SingleMetricResult {
+    fn from(value: Option<f64>) -> Self {
         Self { value }
     }
 }

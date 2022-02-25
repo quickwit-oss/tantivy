@@ -106,7 +106,7 @@ impl SegmentRangeCollector {
             .into_iter()
             .map(move |range_bucket| {
                 (
-                    range_to_key(&range_bucket.range, &field_type),
+                    range_to_string(&range_bucket.range, &field_type),
                     range_bucket.bucket.into(),
                 )
             })
