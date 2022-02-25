@@ -12,15 +12,6 @@ use crate::directory::error::{
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::{query, schema};
 
-#[derive(Error, Debug)]
-#[doc(hidden)]
-pub enum AsyncIoError {
-    #[error("io::Error `{0}`")]
-    Io(#[from] io::Error),
-    #[error("Asynchronous API is unsupported by this directory")]
-    AsyncUnsupported,
-}
-
 /// Represents a `DataCorruption` error.
 ///
 /// When facing data corruption, tantivy  actually panic or return this error.
@@ -49,9 +40,9 @@ impl DataCorruption {
 
 impl fmt::Debug for DataCorruption {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "Data corruption: ")?;
+        write!(f, "Data corruption")?;
         if let Some(ref filepath) = &self.filepath {
-            write!(f, "(in file `{:?}`)", filepath)?;
+            write!(f, " (in file `{:?}`)", filepath)?;
         }
         write!(f, ": {}.", self.comment)?;
         Ok(())
@@ -108,6 +99,17 @@ pub enum TantivyError {
     IncompatibleIndex(Incompatibility),
 }
 
+#[cfg(feature = "quickwit")]
+#[derive(Error, Debug)]
+#[doc(hidden)]
+pub enum AsyncIoError {
+    #[error("io::Error `{0}`")]
+    Io(#[from] io::Error),
+    #[error("Asynchronous API is unsupported by this directory")]
+    AsyncUnsupported,
+}
+
+#[cfg(feature = "quickwit")]
 impl From<AsyncIoError> for TantivyError {
     fn from(async_io_err: AsyncIoError) -> Self {
         match async_io_err {

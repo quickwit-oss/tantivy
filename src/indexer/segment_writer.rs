@@ -589,8 +589,8 @@ mod tests {
         let mut doc = Document::default();
         let json_val: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
-        doc.add_json_object(json_field, json_val.clone());
-        let index = Index::create_in_ram(schema.clone());
+        doc.add_json_object(json_field, json_val);
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();
@@ -635,7 +635,7 @@ mod tests {
         let json_val: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"mykey": "two tokens"}"#).unwrap();
         let doc = doc!(json_field=>json_val);
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();
@@ -683,7 +683,7 @@ mod tests {
         )
         .unwrap();
         let doc = doc!(json_field=>json_val);
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();

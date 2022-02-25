@@ -168,11 +168,9 @@ mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
-
 use std::fmt;
 
 pub use census::{Inventory, TrackedObject};
-pub use common;
 pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};

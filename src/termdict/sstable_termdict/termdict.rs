@@ -128,10 +128,8 @@ impl TermDictionary {
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
-        // dbg!(index_slice.len());
         let sstable_index_bytes = index_slice.read_bytes()?;
-        let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice());
-        // dbg!(&sstable_index);
+        let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())?;
         Ok(TermDictionary {
             sstable_slice,
             sstable_index,
