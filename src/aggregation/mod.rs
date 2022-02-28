@@ -226,31 +226,25 @@ impl<T: Clone> VecWithNames<T> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Ord, PartialOrd)]
+/// The serialized key is used in a HashMap.
+pub type SerializedKey = String;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, PartialOrd)]
 /// The key to identify a bucket.
+#[serde(untagged)]
 pub enum Key {
     /// String key
     Str(String),
-    /// u64 key
-    U64(u64),
-    /// i64 key
-    I64(i64),
+    /// f64 key
+    F64(f64),
 }
 
 impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Key::Str(val) => f.write_str(val),
-            Key::U64(val) => f.write_str(&val.to_string()),
-            Key::I64(val) => f.write_str(&val.to_string()),
+            Key::F64(val) => f.write_str(&val.to_string()),
         }
-    }
-}
-
-impl Serialize for Key {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
-        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -300,6 +294,7 @@ mod tests {
     use super::metric::AverageAggregation;
     use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
@@ -671,6 +666,11 @@ mod tests {
             IndexRecordOption::Basic,
         );
 
+        let query_with_no_hits = TermQuery::new(
+            Term::from_field_text(text_field, "thistermdoesnotexist"),
+            IndexRecordOption::Basic,
+        );
+
         let sub_agg_req: Aggregations =
             vec![("average_in_range".to_string(), get_avg_req("score"))]
                 .into_iter()
@@ -684,7 +684,8 @@ mod tests {
       "ranges": [
         { "to": 3.0 },
         { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 20.0 },
+        { "from": 7.0, "to": 19.0 },
+        { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
       ]
     },
@@ -698,7 +699,8 @@ mod tests {
       "ranges": [
         { "to": 3.0 },
         { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 20.0 },
+        { "from": 7.0, "to": 19.0 },
+        { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
       ]
     },
@@ -715,7 +717,8 @@ mod tests {
       "ranges": [
         { "to": 3.0 },
         { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 20.0 },
+        { "from": 7.0, "to": 19.0 },
+        { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
       ]
     },
@@ -736,7 +739,11 @@ mod tests {
                     Aggregation::Bucket(BucketAggregation {
                         bucket_agg: BucketAggregationType::Range(RangeAggregation {
                             field: "score".to_string(),
-                            ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                            ranges: vec![
+                                (3f64..7f64).into(),
+                                (7f64..19f64).into(),
+                                (19f64..20f64).into(),
+                            ],
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -746,7 +753,11 @@ mod tests {
                     Aggregation::Bucket(BucketAggregation {
                         bucket_agg: BucketAggregationType::Range(RangeAggregation {
                             field: "score_f64".to_string(),
-                            ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                            ranges: vec![
+                                (3f64..7f64).into(),
+                                (7f64..19f64).into(),
+                                (19f64..20f64).into(),
+                            ],
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -756,7 +767,11 @@ mod tests {
                     Aggregation::Bucket(BucketAggregation {
                         bucket_agg: BucketAggregationType::Range(RangeAggregation {
                             field: "score_i64".to_string(),
-                            ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                            ranges: vec![
+                                (3f64..7f64).into(),
+                                (7f64..19f64).into(),
+                                (19f64..20f64).into(),
+                            ],
                         }),
                         sub_aggregation: sub_agg_req,
                     }),
@@ -768,12 +783,16 @@ mod tests {
         };
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req);
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
 
             let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap().into()
+            let res = searcher.search(&term_query, &collector).unwrap();
+            // Test de/serialization roundtrip on intermediate_agg_result
+            let res: IntermediateAggregationResults =
+                serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
+            res.into()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req);
+            let collector = AggregationCollector::from_aggs(agg_req.clone());
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
@@ -787,38 +806,53 @@ mod tests {
         assert_eq!(res["rangei64"]["buckets"][1]["doc_count"], 2u64);
 
         assert_eq!(res["average"]["value"], 12.142857142857142f64);
-        assert_eq!(res["range"]["buckets"][2]["key"], "7-20");
+        assert_eq!(res["range"]["buckets"][2]["key"], "7-19");
         assert_eq!(res["range"]["buckets"][2]["doc_count"], 3u64);
         assert_eq!(res["rangef64"]["buckets"][2]["doc_count"], 3u64);
         assert_eq!(res["rangei64"]["buckets"][2]["doc_count"], 3u64);
-        assert_eq!(res["rangei64"]["buckets"][4], serde_json::Value::Null);
+        assert_eq!(res["rangei64"]["buckets"][5], serde_json::Value::Null);
 
-        assert_eq!(res["range"]["buckets"][3]["key"], "20-*");
-        assert_eq!(res["range"]["buckets"][3]["doc_count"], 1u64);
-        assert_eq!(res["rangef64"]["buckets"][3]["doc_count"], 1u64);
-        assert_eq!(res["rangei64"]["buckets"][3]["doc_count"], 1u64);
+        assert_eq!(res["range"]["buckets"][4]["key"], "20-*");
+        assert_eq!(res["range"]["buckets"][4]["doc_count"], 1u64);
+        assert_eq!(res["rangef64"]["buckets"][4]["doc_count"], 1u64);
+        assert_eq!(res["rangei64"]["buckets"][4]["doc_count"], 1u64);
+
+        assert_eq!(res["range"]["buckets"][3]["key"], "19-20");
+        assert_eq!(res["range"]["buckets"][3]["doc_count"], 0u64);
+        assert_eq!(res["rangef64"]["buckets"][3]["doc_count"], 0u64);
+        assert_eq!(res["rangei64"]["buckets"][3]["doc_count"], 0u64);
 
         assert_eq!(
             res["range"]["buckets"][3]["average_in_range"]["value"],
+            serde_json::Value::Null
+        );
+
+        assert_eq!(
+            res["range"]["buckets"][4]["average_in_range"]["value"],
             44.0f64
         );
         assert_eq!(
-            res["rangef64"]["buckets"][3]["average_in_range"]["value"],
+            res["rangef64"]["buckets"][4]["average_in_range"]["value"],
             44.0f64
         );
         assert_eq!(
-            res["rangei64"]["buckets"][3]["average_in_range"]["value"],
+            res["rangei64"]["buckets"][4]["average_in_range"]["value"],
             44.0f64
         );
 
         assert_eq!(
-            res["range"]["7-20"]["average_in_range"]["value"],
-            res["rangef64"]["7-20"]["average_in_range"]["value"]
+            res["range"]["7-19"]["average_in_range"]["value"],
+            res["rangef64"]["7-19"]["average_in_range"]["value"]
         );
         assert_eq!(
-            res["range"]["7-20"]["average_in_range"]["value"],
-            res["rangei64"]["7-20"]["average_in_range"]["value"]
+            res["range"]["7-19"]["average_in_range"]["value"],
+            res["rangei64"]["7-19"]["average_in_range"]["value"]
         );
+
+        // Test empty result set
+        let collector = AggregationCollector::from_aggs(agg_req);
+        let searcher = reader.searcher();
+        searcher.search(&query_with_no_hits, &collector).unwrap();
 
         Ok(())
     }

@@ -99,8 +99,12 @@ impl IntermediateAverage {
         self.doc_count += other.doc_count;
     }
     /// compute final result
-    pub fn finalize(&self) -> f64 {
-        self.sum / self.doc_count as f64
+    pub fn finalize(&self) -> Option<f64> {
+        if self.doc_count == 0 {
+            None
+        } else {
+            Some(self.sum / self.doc_count as f64)
+        }
     }
     #[inline]
     fn collect(&mut self, val: f64) {
