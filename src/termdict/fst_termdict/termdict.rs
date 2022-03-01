@@ -143,7 +143,8 @@ impl TermDictionary {
         Ok(self.fst_index.get(key))
     }
 
-    /// Returns the term associated to a given term ordinal.
+    /// Stores the term associated to a given term ordinal in
+    /// a `bytes` buffer.
     ///
     /// Term ordinals are defined as the position of the term in
     /// the sorted list of terms.
