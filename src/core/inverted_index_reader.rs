@@ -88,7 +88,8 @@ impl InvertedIndexReader {
         let postings_slice = self
             .postings_file_slice
             .slice(term_info.postings_range.clone());
-        block_postings.reset(term_info.doc_freq, postings_slice.read_bytes()?);
+        let postings_bytes = postings_slice.read_bytes()?;
+        block_postings.reset(term_info.doc_freq, postings_bytes)?;
         Ok(())
     }
 

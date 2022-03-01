@@ -1,6 +1,6 @@
 use std::io;
 
-use common::{BinarySerializable, VInt};
+use common::VInt;
 
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::fieldnorm::FieldNormReader;
@@ -28,9 +28,7 @@ pub struct BlockSegmentPostings {
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
-
     doc_freq: u32,
-
     data: OwnedBytes,
     pub(crate) skip_reader: SkipReader,
 }
@@ -70,13 +68,13 @@ fn decode_vint_block(
 fn split_into_skips_and_postings(
     doc_freq: u32,
     mut bytes: OwnedBytes,
-) -> (Option<OwnedBytes>, OwnedBytes) {
+) -> io::Result<(Option<OwnedBytes>, OwnedBytes)> {
     if doc_freq < COMPRESSION_BLOCK_SIZE as u32 {
-        return (None, bytes);
+        return Ok((None, bytes));
     }
-    let skip_len = VInt::deserialize(&mut bytes).expect("Data corrupted").0 as usize;
+    let skip_len = VInt::deserialize_u64(&mut bytes)? as usize;
     let (skip_data, postings_data) = bytes.split(skip_len);
-    (Some(skip_data), postings_data)
+    Ok((Some(skip_data), postings_data))
 }
 
 impl BlockSegmentPostings {
@@ -92,8 +90,8 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let (skip_data_opt, postings_data) =
-            split_into_skips_and_postings(doc_freq, data.read_bytes()?);
+        let bytes = data.read_bytes()?;
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
             None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
@@ -166,8 +164,9 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) {
-        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
+    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()> {
+        let (skip_data_opt, postings_data) =
+            split_into_skips_and_postings(doc_freq, postings_data)?;
         self.data = postings_data;
         self.block_max_score_cache = None;
         self.loaded_offset = std::usize::MAX;
@@ -178,6 +177,7 @@ impl BlockSegmentPostings {
         }
         self.doc_freq = doc_freq;
         self.load_block();
+        Ok(())
     }
 
     /// Returns the overall number of documents in the block postings.
