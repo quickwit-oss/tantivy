@@ -124,7 +124,7 @@ impl AggregationSegmentCollector {
         agg: &Aggregations,
         reader: &SegmentReader,
     ) -> crate::Result<Self> {
-        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&agg, reader)?;
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(agg, reader)?;
         let result =
             SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {

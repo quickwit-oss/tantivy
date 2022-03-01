@@ -1527,7 +1527,7 @@ fn fold_non_ascii_char(c: char) -> Option<&'static str> {
 }
 
 // https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/java/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.java#L187
-fn to_ascii(text: &mut String, output: &mut String) {
+fn to_ascii(text: &mut str, output: &mut String) {
     output.clear();
 
     for c in text.chars() {

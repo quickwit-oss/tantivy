@@ -87,11 +87,7 @@ impl IntermediateStats {
     }
 
     pub(crate) fn standard_deviation(&self) -> Option<f64> {
-        if let Some(average) = self.avg() {
-            Some((self.square_mean() - average * average).sqrt())
-        } else {
-            None
-        }
+        self.avg().map(|average| (self.square_mean() - average * average).sqrt())
     }
 
     /// Merge data from other stats into this instance.

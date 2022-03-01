@@ -22,7 +22,7 @@ pub struct LowerCaserTokenStream<'a> {
 }
 
 // writes a lowercased version of text into output.
-fn to_lowercase_unicode(text: &mut String, output: &mut String) {
+fn to_lowercase_unicode(text: &mut str, output: &mut String) {
     output.clear();
     for c in text.chars() {
         // Contrary to the std, we do not take care of sigma special case.
