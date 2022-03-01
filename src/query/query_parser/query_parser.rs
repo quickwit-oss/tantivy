@@ -75,7 +75,7 @@ pub enum QueryParserError {
 
 /// Recursively remove empty clause from the AST
 ///
-/// Returns `None` iff the `logical_ast` ended up being empty.
+/// Returns `None` if and only if the `logical_ast` ended up being empty.
 fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
     match logical_ast {
         LogicalAst::Clause(children) => {

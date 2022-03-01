@@ -16,7 +16,7 @@ use crate::directory::{
 use crate::error::DataCorruption;
 use crate::Directory;
 
-/// Returns true iff the file is "managed".
+/// Returns true if the file is "managed".
 /// Non-managed file are not subject to garbage collection.
 ///
 /// Filenames that starts by a "." -typically locks-

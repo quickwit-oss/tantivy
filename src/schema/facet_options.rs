@@ -13,7 +13,7 @@ pub struct FacetOptions {
 }
 
 impl FacetOptions {
-    /// Returns true iff the value is stored.
+    /// Returns true if the value is stored.
     pub fn is_stored(&self) -> bool {
         self.stored
     }

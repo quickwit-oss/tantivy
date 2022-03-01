@@ -30,7 +30,7 @@ pub enum IndexRecordOption {
 }
 
 impl IndexRecordOption {
-    /// Returns true iff this option includes encoding
+    /// Returns true if this option includes encoding
     /// term frequencies.
     pub fn has_freq(self) -> bool {
         match self {
@@ -39,7 +39,7 @@ impl IndexRecordOption {
         }
     }
 
-    /// Returns true iff this option include encoding
+    /// Returns true if this option include encoding
     ///  term positions.
     pub fn has_positions(self) -> bool {
         match self {

@@ -70,7 +70,7 @@ impl SegmentReader {
         self.max_doc - self.num_docs
     }
 
-    /// Returns true iff some of the documents of the segment have been deleted.
+    /// Returns true if some of the documents of the segment have been deleted.
     pub fn has_deletes(&self) -> bool {
         self.num_deleted_docs() > 0
     }
@@ -301,7 +301,7 @@ impl SegmentReader {
         self.alive_bitset_opt.as_ref()
     }
 
-    /// Returns true iff the `doc` is marked
+    /// Returns true if the `doc` is marked
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.alive_bitset()

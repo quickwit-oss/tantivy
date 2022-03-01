@@ -322,7 +322,7 @@ impl BlockSegmentPostings {
 
     /// Advance to the next block.
     ///
-    /// Returns false iff there was no remaining blocks.
+    /// Returns false if and only if there is no remaining block.
     pub fn advance(&mut self) {
         self.skip_reader.advance();
         self.block_max_score_cache = None;

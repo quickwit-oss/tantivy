@@ -14,9 +14,9 @@ pub struct BytesOptions {
 }
 
 /// For backward compability we add an intermediary to interpret the
-/// lack of fieldnorms attribute as "true" iff indexed.
+/// lack of fieldnorms attribute as "true" if and only if indexed.
 ///
-/// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
+/// (Downstream, for the moment, this attribute is not used if not indexed...)
 /// Note that: newly serialized NumericOptions will include the new attribute.
 #[derive(Deserialize)]
 struct BytesOptionsDeser {
@@ -39,22 +39,22 @@ impl From<BytesOptionsDeser> for BytesOptions {
 }
 
 impl BytesOptions {
-    /// Returns true iff the value is indexed.
+    /// Returns true if the value is indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexed
     }
 
-    /// Returns true iff the value is normed.
+    /// Returns true if and only if the value is normed.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }
 
-    /// Returns true iff the value is a fast field.
+    /// Returns true if the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast
     }
 
-    /// Returns true iff the value is stored.
+    /// Returns true if the value is stored.
     pub fn is_stored(&self) -> bool {
         self.stored
     }

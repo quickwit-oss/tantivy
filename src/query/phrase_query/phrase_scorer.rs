@@ -54,7 +54,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     scoring_enabled: bool,
 }
 
-/// Returns true iff the two sorted array contain a common element
+/// Returns true if and only if the two sorted arrays contain a common element
 fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     let mut left_i = 0;
     let mut right_i = 0;

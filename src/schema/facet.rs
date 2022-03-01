@@ -49,7 +49,7 @@ impl Facet {
         Facet("".to_string())
     }
 
-    /// Returns true iff the facet is the root facet `/`.
+    /// Returns true if the facet is the root facet `/`.
     pub fn is_root(&self) -> bool {
         self.encoded_str().is_empty()
     }

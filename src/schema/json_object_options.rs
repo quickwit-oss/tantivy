@@ -16,7 +16,7 @@ pub struct JsonObjectOptions {
 }
 
 impl JsonObjectOptions {
-    /// Returns `true` iff the json object should be stored.
+    /// Returns `true` if the json object should be stored.
     pub fn is_stored(&self) -> bool {
         self.stored
     }

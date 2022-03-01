@@ -35,7 +35,7 @@ where TScoreCombiner: ScoreCombiner {
                 .iter()
                 .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
             {
-                // Block wand is only available iff we read frequencies.
+                // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
             } else {
                 return SpecializedScorer::Other(Box::new(Union::<_, TScoreCombiner>::from(

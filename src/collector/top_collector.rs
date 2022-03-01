@@ -173,8 +173,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
             .collect()
     }
 
-    /// Return true iff at least K documents have gone through
-    /// the collector.
+    /// Return true if more documents have been collected than the limit.
     #[inline]
     pub(crate) fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
