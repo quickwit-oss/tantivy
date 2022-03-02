@@ -7,7 +7,7 @@ use ownedbytes::OwnedBytes;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 
-/// Write a alive `BitSet`
+/// Write an alive `BitSet`
 ///
 /// where `alive_bitset` is the set of alive `DocId`.
 /// Warning: this function does not call terminate. The caller is in charge of
@@ -55,7 +55,7 @@ impl AliveBitSet {
         AliveBitSet::from(readonly_bitset)
     }
 
-    /// Opens a delete bitset given its file.
+    /// Opens an alive bitset given its file.
     pub fn open(bytes: OwnedBytes) -> AliveBitSet {
         let bitset = ReadOnlyBitSet::open(bytes);
         AliveBitSet::from(bitset)
@@ -79,13 +79,13 @@ impl AliveBitSet {
         self.bitset.iter()
     }
 
-    /// Get underlying bitset
+    /// Get underlying bitset.
     #[inline]
     pub fn bitset(&self) -> &ReadOnlyBitSet {
         &self.bitset
     }
 
-    /// The number of deleted docs
+    /// The number of alive documents.
     pub fn num_alive_docs(&self) -> usize {
         self.num_alive_docs
     }

@@ -7,7 +7,7 @@ use crate::DocId;
 
 /// Writer for byte array (as in, any number of bytes per document) fast fields
 ///
-/// This `BytesFastFieldWriter` is only useful for advanced user.
+/// This `BytesFastFieldWriter` is only useful for advanced users.
 /// The normal way to get your associated bytes in your index
 /// is to
 /// - declare your field with fast set to `Cardinality::SingleValue`

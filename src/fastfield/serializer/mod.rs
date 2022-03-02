@@ -197,7 +197,7 @@ impl CompositeFastFieldSerializer {
 
     /// Closes the serializer
     ///
-    /// After this call the data must be persistently save on disk.
+    /// After this call the data must be persistently saved on disk.
     pub fn close(self) -> io::Result<()> {
         self.composite_write.close()
     }

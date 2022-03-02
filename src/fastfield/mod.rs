@@ -2,7 +2,7 @@
 //!
 //! It is the equivalent of `Lucene`'s `DocValues`.
 //!
-//! Fast fields is a column-oriented fashion storage of `tantivy`.
+//! A fast field is a column-oriented fashion storage for `tantivy`.
 //!
 //! It is designed for the fast random access of some document
 //! fields given a document id.
@@ -12,8 +12,8 @@
 //!
 //!
 //! Fields have to be declared as `FAST` in the  schema.
-//! Currently only 64-bits integers (signed or unsigned) are
-//! supported.
+//! Currently supported fields are: u64, i64 and f64.
+//! u8 are supported for advanced usage.
 //!
 //! They are stored in a bit-packed fashion so that their
 //! memory usage is directly linear with the amplitude of the
