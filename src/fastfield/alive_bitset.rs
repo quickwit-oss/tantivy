@@ -61,13 +61,13 @@ impl AliveBitSet {
         AliveBitSet::from(bitset)
     }
 
-    /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
+    /// Returns true if the document is still "alive". In other words, if it has not been deleted.
     #[inline]
     pub fn is_alive(&self, doc: DocId) -> bool {
         self.bitset.contains(doc)
     }
 
-    /// Returns true iff the document has been marked as deleted.
+    /// Returns true if the document has been marked as deleted.
     #[inline]
     pub fn is_deleted(&self, doc: DocId) -> bool {
         !self.is_alive(doc)

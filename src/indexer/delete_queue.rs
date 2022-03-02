@@ -221,7 +221,7 @@ impl DeleteCursor {
     }
 
     /// Advance to the next delete operation.
-    /// Returns true iff there is such an operation.
+    /// Returns true if and only if there is such an operation.
     pub fn advance(&mut self) -> bool {
         if self.load_block_if_required() {
             self.pos += 1;

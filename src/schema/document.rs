@@ -71,7 +71,7 @@ impl Document {
         self.field_values.len()
     }
 
-    /// Returns true iff the document contains no fields.
+    /// Returns true if the document contains no fields.
     pub fn is_empty(&self) -> bool {
         self.field_values.is_empty()
     }

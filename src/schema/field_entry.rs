@@ -79,19 +79,19 @@ impl FieldEntry {
         &self.field_type
     }
 
-    /// Returns true iff the field is indexed.
+    /// Returns true if the field is indexed.
     ///
     /// An indexed field is searchable.
     pub fn is_indexed(&self) -> bool {
         self.field_type.is_indexed()
     }
 
-    /// Returns true iff the field is normed
+    /// Returns true if the field is normed
     pub fn has_fieldnorms(&self) -> bool {
         self.field_type.has_fieldnorms()
     }
 
-    /// Returns true iff the field is a int (signed or unsigned) fast field
+    /// Returns true if the field is a int (signed or unsigned) fast field
     pub fn is_fast(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options)
@@ -102,7 +102,7 @@ impl FieldEntry {
         }
     }
 
-    /// Returns true iff the field is stored
+    /// Returns true if the field is stored
     pub fn is_stored(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options)

@@ -19,7 +19,7 @@ impl TextOptions {
         self.indexing.as_ref()
     }
 
-    /// Returns true iff the text is to be stored.
+    /// Returns true if the text is to be stored.
     pub fn is_stored(&self) -> bool {
         self.stored
     }
@@ -83,7 +83,7 @@ impl TextFieldIndexing {
         self
     }
 
-    /// Returns true iff fieldnorms are stored.
+    /// Returns true if and only if fieldnorms are stored.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }

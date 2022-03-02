@@ -171,7 +171,7 @@ impl TermDictionary {
     /// Term ordinals are defined as the position of the term in
     /// the sorted list of terms.
     ///
-    /// Returns true iff the term has been found.
+    /// Returns true if and only if the term has been found.
     ///
     /// Regardless of whether the term is found or not,
     /// the buffer may be modified.

@@ -128,7 +128,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// `DeleteError::DoesNotExist`.
     fn delete(&self, path: &Path) -> Result<(), DeleteError>;
 
-    /// Returns true iff the file exists
+    /// Returns true if and only if the file exists
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError>;
 
     /// Opens a writer for the *virtual file* associated with

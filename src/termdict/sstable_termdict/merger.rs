@@ -98,7 +98,7 @@ impl<'a> TermMerger<'a> {
     /// Returns the current term.
     ///
     /// This method may be called
-    /// iff advance() has been called before
+    /// if and only if advance() has been called before
     /// and "true" was returned.
     pub fn key(&self) -> &[u8] {
         self.current_streamers[0].streamer.key()
@@ -108,7 +108,7 @@ impl<'a> TermMerger<'a> {
     /// that include the current term.
     ///
     /// This method may be called
-    /// iff advance() has been called before
+    /// if and only if advance() has been called before
     /// and "true" was returned.
     pub fn current_segment_ords_and_term_infos<'b: 'a>(
         &'b self,

@@ -148,7 +148,7 @@ impl FieldType {
         }
     }
 
-    /// returns true iff the field is indexed.
+    /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
@@ -183,7 +183,7 @@ impl FieldType {
         }
     }
 
-    /// returns true iff the field is normed.
+    /// returns true if the field is normed.
     pub fn has_fieldnorms(&self) -> bool {
         match *self {
             FieldType::Str(ref text_options) => text_options
