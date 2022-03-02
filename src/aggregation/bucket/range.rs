@@ -240,17 +240,15 @@ impl SegmentRangeCollector {
 /// more computational expensive when many documents are hit.
 fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> crate::Result<Range<u64>> {
     let start = if let Some(from) = range.from {
-        f64_to_fastfield_u64(from, field_type).ok_or_else(|| {
-            TantivyError::InvalidArgument("invalid field type".to_string())
-        })?
+        f64_to_fastfield_u64(from, field_type)
+            .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))?
     } else {
         u64::MIN
     };
 
     let end = if let Some(to) = range.to {
-        f64_to_fastfield_u64(to, field_type).ok_or_else(|| {
-            TantivyError::InvalidArgument("invalid field type".to_string())
-        })?
+        f64_to_fastfield_u64(to, field_type)
+            .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))?
     } else {
         u64::MAX
     };

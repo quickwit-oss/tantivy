@@ -918,7 +918,7 @@ mod tests {
             let collector = AggregationCollector::from_aggs(agg_req_1);
 
             let searcher = reader.searcher();
-            
+
             searcher.search(&AllQuery, &collector).unwrap_err()
         };
 
