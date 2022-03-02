@@ -1,4 +1,4 @@
-//! Definition of Tantivy's error and result.
+//! Definition of Tantivy's errors and results.
 
 use std::path::PathBuf;
 use std::sync::PoisonError;
@@ -14,7 +14,7 @@ use crate::{query, schema};
 
 /// Represents a `DataCorruption` error.
 ///
-/// When facing data corruption, tantivy  actually panic or return this error.
+/// When facing data corruption, tantivy actually panics or returns this error.
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
     comment: String,
@@ -61,10 +61,10 @@ pub enum TantivyError {
     /// Failed to open a file for write.
     #[error("Failed to open file for write: '{0:?}'")]
     OpenWriteError(#[from] OpenWriteError),
-    /// Index already exists in this directory
+    /// Index already exists in this directory.
     #[error("Index already exists")]
     IndexAlreadyExists,
-    /// Failed to acquire file lock
+    /// Failed to acquire file lock.
     #[error("Failed to acquire Lockfile: {0:?}. {1:?}")]
     LockFailure(LockError, Option<String>),
     /// IO Error.
@@ -82,19 +82,19 @@ pub enum TantivyError {
     /// Invalid argument was passed by the user.
     #[error("An invalid argument was passed: '{0}'")]
     InvalidArgument(String),
-    /// An Error happened in one of the thread.
+    /// An Error occurred in one of the threads.
     #[error("An error occurred in a thread: '{0}'")]
     ErrorInThread(String),
-    /// An Error appeared related to opening or creating a index.
+    /// An Error occurred related to opening or creating a index.
     #[error("Missing required index builder argument when open/create index: '{0}'")]
     IndexBuilderMissingArgument(&'static str),
-    /// An Error appeared related to the schema.
+    /// An Error occurred related to the schema.
     #[error("Schema error: '{0}'")]
     SchemaError(String),
-    /// System error. (e.g.: We failed spawning a new thread)
+    /// System error. (e.g.: We failed spawning a new thread).
     #[error("System error.'{0}'")]
     SystemError(String),
-    /// Index incompatible with current version of tantivy
+    /// Index incompatible with current version of Tantivy.
     #[error("{0:?}")]
     IncompatibleIndex(Incompatibility),
 }
