@@ -918,8 +918,8 @@ mod tests {
             let collector = AggregationCollector::from_aggs(agg_req_1);
 
             let searcher = reader.searcher();
-            let agg_res = searcher.search(&AllQuery, &collector).unwrap_err();
-            agg_res
+
+            searcher.search(&AllQuery, &collector).unwrap_err()
         };
 
         let agg_res = avg_on_field("text");

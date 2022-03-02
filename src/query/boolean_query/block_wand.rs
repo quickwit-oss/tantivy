@@ -47,7 +47,7 @@ fn find_pivot_doc(
 /// scorer in scorers[..pivot_len] and `scorer.doc()` for scorer in scorers[pivot_len..].
 /// Note: before and after calling this method, scorers need to be sorted by their `.doc()`.
 fn block_max_was_too_low_advance_one_scorer(
-    scorers: &mut Vec<TermScorerWithMaxScore>,
+    scorers: &mut [TermScorerWithMaxScore],
     pivot_len: usize,
 ) {
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
@@ -82,7 +82,7 @@ fn block_max_was_too_low_advance_one_scorer(
 // Given a list of term_scorers and a `ord` and assuming that `term_scorers[ord]` is sorted
 // except term_scorers[ord] that might be in advance compared to its ranks,
 // bubble up term_scorers[ord] in order to restore the ordering.
-fn restore_ordering(term_scorers: &mut Vec<TermScorerWithMaxScore>, ord: usize) {
+fn restore_ordering(term_scorers: &mut [TermScorerWithMaxScore], ord: usize) {
     let doc = term_scorers[ord].doc();
     for i in ord + 1..term_scorers.len() {
         if term_scorers[i].doc() >= doc {
