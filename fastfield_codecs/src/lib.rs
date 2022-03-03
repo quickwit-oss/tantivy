@@ -63,7 +63,7 @@ pub trait FastFieldDataAccess {
 }
 
 #[derive(Debug, Clone)]
-/// Contains statistics used for compression in field writing.
+/// Statistics are used in codec detection and stored in the fast field footer.
 pub struct FastFieldStats {
     pub min_value: u64,
     pub max_value: u64,
