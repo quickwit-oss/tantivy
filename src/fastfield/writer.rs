@@ -14,7 +14,7 @@ use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
 
-/// The `FastFieldsWriter` regroups all of the fast field writers.
+/// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
     single_value_writers: Vec<IntFastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
