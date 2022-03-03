@@ -12,11 +12,10 @@
 //!
 //!
 //! Fields have to be declared as `FAST` in the  schema.
-//! Currently supported fields are: u64, i64 and f64.
-//! u8 are supported for advanced usage.
+//! Currently supported fields are: u64, i64, f64 and bytes.
 //!
-//! They are stored in a bit-packed fashion so that their
-//! memory usage is directly linear with the amplitude of the
+//! u64, i64 and f64 fields are stored in a bit-packed fashion so that
+//! their memory usage is directly linear with the amplitude of the
 //! values stored.
 //!
 //! Read access performance is comparable to that of an array lookup.
