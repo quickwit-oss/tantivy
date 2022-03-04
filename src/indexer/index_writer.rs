@@ -214,7 +214,7 @@ fn index_documents(
     meta.untrack_temp_docstore();
     // update segment_updater inventory to remove tempstore
     let segment_entry = SegmentEntry::new(meta, delete_cursor, alive_bitset_opt);
-    block_on(segment_updater.schedule_add_segment(segment_entry))?;
+    segment_updater.schedule_add_segment(segment_entry)?;
     Ok(())
 }
 
@@ -368,7 +368,7 @@ impl IndexWriter {
     pub fn add_segment(&self, segment_meta: SegmentMeta) -> crate::Result<()> {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        block_on(self.segment_updater.schedule_add_segment(segment_entry))
+        self.segment_updater.schedule_add_segment(segment_entry)
     }
 
     /// Creates a new segment.
@@ -465,8 +465,10 @@ impl IndexWriter {
     }
 
     /// Detects and removes the files that are not used by the index anymore.
-    pub async fn garbage_collect_files(&self) -> crate::Result<GarbageCollectionResult> {
-        self.segment_updater.schedule_garbage_collect().await
+    pub fn garbage_collect_files(
+        &self,
+    ) -> crate::Result<GarbageCollectionResult> {
+        self.segment_updater.schedule_garbage_collect()
     }
 
     /// Deletes all documents from the index
@@ -519,10 +521,10 @@ impl IndexWriter {
     pub fn merge(
         &mut self,
         segment_ids: &[SegmentId],
-    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
+    ) -> crate::Result<SegmentMeta> {
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
         let segment_updater = self.segment_updater.clone();
-        async move { segment_updater.start_merge(merge_operation)?.await }
+        segment_updater.start_merge(merge_operation)
     }
 
     /// Closes the current document channel send.
