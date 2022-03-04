@@ -14,7 +14,7 @@ use crate::DocId;
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
 ///
-/// This `Writer` is only useful for advanced user.
+/// This `Writer` is only useful for advanced users.
 /// The normal way to get your multivalued int in your index
 /// is to
 /// - declare your field with fast set to `Cardinality::MultiValues`
@@ -23,10 +23,11 @@ use crate::DocId;
 ///
 /// The `MultiValuedFastFieldWriter` can be acquired from the
 /// fastfield writer, by calling
-/// [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
+/// [`.get_multivalue_writer_mut(...)`](./struct.FastFieldsWriter.html#method.
+/// get_multivalue_writer_mut).
 ///
-/// Once acquired, writing is done by calling calls to
-/// `.add_document_vals(&[u64])` once per document.
+/// Once acquired, writing is done by calling
+/// [`.add_document_vals(&[u64])`](MultiValuedFastFieldWriter::add_document_vals) once per document.
 ///
 /// The serializer makes it possible to remap all of the values
 /// that were pushed to the writer using a mapping.
