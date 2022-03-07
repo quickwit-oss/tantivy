@@ -10,6 +10,7 @@ Tantivy 0.17
 - Fix opening bytes index with dynamic codec (@PSeitz) [#1278](https://github.com/quickwit-oss/tantivy/issues/1278)
 - Added an aggregation collector compatible with Elasticsearch (@PSeitz)
 - Added a JSON schema type @fulmicoton [#1251](https://github.com/quickwit-oss/tantivy/issues/1251)
+- Added support for slop in phrase queries @halvorboe [#1068](https://github.com/quickwit-oss/tantivy/issues/1068)
 
 Tantivy 0.16.2
 ================================
