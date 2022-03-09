@@ -48,6 +48,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use super::bucket::HistogramAggregation;
 pub use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
 
@@ -123,12 +124,18 @@ pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "range")]
     Range(RangeAggregation),
+    /// Put data into buckets of user-defined ranges.
+    #[serde(rename = "histogram")]
+    Histogram(HistogramAggregation),
 }
 
 impl BucketAggregationType {
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
             BucketAggregationType::Range(range) => fast_field_names.insert(range.field.to_string()),
+            BucketAggregationType::Histogram(histogram) => {
+                fast_field_names.insert(histogram.field.to_string())
+            }
         };
     }
 }

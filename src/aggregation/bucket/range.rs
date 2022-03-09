@@ -31,7 +31,7 @@ use crate::{DocId, TantivyError};
 /// DistributedAggregationCollector.
 ///
 /// # Request JSON Format
-/// ```json
+/// ```ignore
 /// {
 ///     "range": {
 ///         "field": "score",

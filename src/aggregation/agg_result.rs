@@ -10,14 +10,15 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use super::bucket::generate_buckets;
 use super::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateMetricResult, IntermediateRangeBucketEntry,
+    IntermediateHistogramBucketEntry, IntermediateMetricResult, IntermediateRangeBucketEntry,
 };
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
 pub struct AggregationResults(pub HashMap<String, AggregationResult>);
 
@@ -81,11 +82,17 @@ impl From<IntermediateMetricResult> for MetricResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BucketResult {
-    /// This is the default entry for a bucket, which contains a key, count, and optionally
+    /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub_aggregations.
     Range {
         /// The range buckets sorted by range.
         buckets: Vec<RangeBucketEntry>,
+    },
+    /// This is the histogram entry for a bucket, which contains a key, count, and optionally
+    /// sub_aggregations.
+    Histogram {
+        /// The buckets.
+        buckets: Vec<BucketEntry>,
     },
 }
 
@@ -106,6 +113,99 @@ impl From<IntermediateBucketResult> for BucketResult {
                 });
                 BucketResult::Range { buckets }
             }
+            IntermediateBucketResult::Histogram { buckets, req } => {
+                let buckets = if req.min_doc_count() == 0 {
+                    // We need to fill up the buckets for the total ranges, so that there are no
+                    // gaps
+                    let max = buckets
+                        .iter()
+                        .map(|bucket| bucket.key)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    let min = buckets
+                        .iter()
+                        .map(|bucket| bucket.key)
+                        .fold(f64::INFINITY, f64::min);
+                    let all_buckets = if buckets.is_empty() {
+                        vec![]
+                    } else {
+                        generate_buckets(&req, min, max)
+                    };
+                    buckets
+                        .into_iter()
+                        .merge_join_by(all_buckets.into_iter(), |existing_bucket, all_bucket| {
+                            existing_bucket
+                                .key
+                                .partial_cmp(all_bucket)
+                                .unwrap_or(Ordering::Equal)
+                        })
+                        .map(|either| match either {
+                            itertools::EitherOrBoth::Both(existing, _) => existing.into(),
+                            itertools::EitherOrBoth::Left(existing) => existing.into(),
+                            // Add missing bucket
+                            itertools::EitherOrBoth::Right(bucket) => BucketEntry {
+                                key: Key::F64(bucket),
+                                doc_count: 0,
+                                sub_aggregation: Default::default(),
+                            },
+                        })
+                        .collect_vec()
+                } else {
+                    buckets
+                        .into_iter()
+                        .filter(|bucket| bucket.doc_count >= req.min_doc_count())
+                        .map(|bucket| bucket.into())
+                        .collect_vec()
+                };
+
+                BucketResult::Histogram { buckets }
+            }
+        }
+    }
+}
+
+/// This is the default entry for a bucket, which contains a key, count, and optionally
+/// sub_aggregations.
+///
+/// # JSON Format
+/// ```ignore
+/// {
+///   ...
+///     "my_histogram": {
+///       "buckets": [
+///         {
+///           "key": "2.0",
+///           "doc_count": 5
+///         },
+///         {
+///           "key": "4.0",
+///           "doc_count": 2
+///         },
+///         {
+///           "key": "6.0",
+///           "doc_count": 3
+///         }
+///       ]
+///    }
+///    ...
+/// }
+///  ```
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BucketEntry {
+    /// The identifier of the bucket.
+    pub key: Key,
+    /// Number of documents in the bucket.
+    pub doc_count: u64,
+    #[serde(flatten)]
+    /// sub-aggregations in this bucket.
+    pub sub_aggregation: AggregationResults,
+}
+
+impl From<IntermediateHistogramBucketEntry> for BucketEntry {
+    fn from(entry: IntermediateHistogramBucketEntry) -> Self {
+        BucketEntry {
+            key: Key::F64(entry.key),
+            doc_count: entry.doc_count,
+            sub_aggregation: entry.sub_aggregation.into(),
         }
     }
 }
@@ -114,7 +214,7 @@ impl From<IntermediateBucketResult> for BucketResult {
 /// sub_aggregations.
 ///
 /// # JSON Format
-/// ```json
+/// ```ignore
 /// {
 ///   ...
 ///     "my_ranges": {

@@ -18,6 +18,10 @@
 //! Create an [AggregationCollector] from this request. AggregationCollector implements the
 //! `Collector` trait and can be passed as collector into `searcher.search()`.
 //!
+//! #### Limitations
+//!
+//! Currently aggregations work only on single value fast fields of type u64, f64 and i64.
+//!
 //! # JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
@@ -28,9 +32,14 @@
 //! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
 //! ```
-//! # Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type u64, f64 and i64.
+//! # Supported Aggregations
+//! - [Bucket](bucket)
+//!     - [Histogram](bucket::HistogramAggregation)
+//!     - [Range](bucket::RangeAggregation)
+//! - [Metric](metric)
+//!     - [Average](metric::AverageAggregation)
+//!     - [Stats](metric::StatsAggregation)
 //!
 //! # Example
 //! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
@@ -90,7 +99,8 @@
 //!   }
 //! }
 //! "#;
-//! let agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
+//! let agg_req: Aggregations =
+//!     serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
 //! ```
 //! # Code Organization
 //!
@@ -101,8 +111,7 @@
 //! Buckets can contain sub-aggregations. In this example we create buckets with the range
 //! aggregation and then calculate the average on each bucket.
 //! ```
-//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, BucketAggregation,
-//! MetricAggregation, BucketAggregationType};
+//! use tantivy::aggregation::agg_req::*;
 //! use tantivy::aggregation::metric::AverageAggregation;
 //! use tantivy::aggregation::bucket::RangeAggregation;
 //! let sub_agg_req_1: Aggregations = vec![(
@@ -239,6 +248,10 @@ pub enum Key {
     F64(f64),
 }
 
+trait MergeFruits {
+    fn merge_fruits(&mut self, other: &Self);
+}
+
 impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -311,6 +324,16 @@ mod tests {
         merge_segments: bool,
         num_docs: usize,
     ) -> crate::Result<Index> {
+        get_test_index_from_values(
+            merge_segments,
+            &(0..num_docs).map(|el| el as f64).collect::<Vec<f64>>(),
+        )
+    }
+
+    pub fn get_test_index_from_values(
+        merge_segments: bool,
+        values: &[f64],
+    ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
@@ -332,18 +355,17 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_for_tests()?;
-            for i in 0..num_docs {
+            for i in values {
                 // writing the segment
                 index_writer.add_document(doc!(
                     text_field => "cool",
-                    score_field => i as u64,
-                    score_field_f64 => i as f64,
-                    score_field_i64 => i as i64,
-                    fraction_field => i as f64/100.0,
+                    score_field => *i as u64,
+                    score_field_f64 => *i as f64,
+                    score_field_i64 => *i as i64,
+                    fraction_field => *i as f64/100.0,
                 ))?;
+                index_writer.commit()?;
             }
-
-            index_writer.commit()?;
         }
         if merge_segments {
             let segment_ids = index
@@ -385,27 +407,42 @@ mod tests {
         // A second bucket on the first level should have the cache unfilled
 
         // let elasticsearch_compatible_json_req = r#"
-        let elasticsearch_compatible_json_req = r#"
+        let elasticsearch_compatible_json = json!(
         {
         "bucketsL1": {
             "range": {
                 "field": "score",
-                "ranges": [ { "to": 3.0 }, { "from": 3.0, "to": 266.0 }, { "from": 266.0 } ]
+                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 266.0f64 }, { "from": 266.0f64 } ]
             },
             "aggs": {
                 "bucketsL2": {
                     "range": {
                         "field": "score",
-                        "ranges": [ { "to": 100.0 }, { "from": 100.0, "to": 266.0 }, { "from": 266.0 } ]
+                        "ranges": [ { "to": 100.0f64 }, { "from": 100.0f64, "to": 266.0f64 }, { "from": 266.0f64 } ]
+                    }
+                }
+            }
+        },
+        "histogram_test":{
+            "histogram": {
+                "field": "score",
+                "interval":  263.0,
+                "offset": 3.0,
+            },
+            "aggs": {
+                "bucketsL2": {
+                    "histogram": {
+                        "field": "score",
+                        "interval":  263.0
                     }
                 }
             }
         }
-        }
-        "#;
+        });
 
         let agg_req: Aggregations =
-            serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
 
         let agg_res: AggregationResults = if use_distributed_collector {
             let collector = DistributedAggregationCollector::from_aggs(agg_req);
@@ -950,6 +987,7 @@ mod tests {
         use test::{self, Bencher};
 
         use super::*;
+        use crate::aggregation::bucket::{HistogramAggregation, HistogramBounds};
         use crate::aggregation::metric::StatsAggregation;
         use crate::query::AllQuery;
 
@@ -1148,6 +1186,71 @@ mod tests {
                                 (40000f64..50000f64).into(),
                                 (50000f64..60000f64).into(),
                             ],
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        // hard bounds has a different algorithm, because it actually limits collection range
+        #[bench]
+        fn bench_aggregation_histogram_only_hard_bounds(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req_1: Aggregations = vec![(
+                    "rangef64".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64,
+                            hard_bounds: Some(HistogramBounds {
+                                min: 1000.0,
+                                max: 300_000.0,
+                            }),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_histogram_only(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req_1: Aggregations = vec![(
+                    "rangef64".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64, // 1000 buckets
+                            ..Default::default()
                         }),
                         sub_aggregation: Default::default(),
                     }),

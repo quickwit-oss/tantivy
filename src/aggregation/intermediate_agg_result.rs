@@ -2,16 +2,19 @@
 //! Intermediate aggregation results can be used to merge results between segments or between
 //! indices.
 
-use std::collections::HashMap;
+use std::cmp::Ordering;
 
+use fnv::FnvHashMap;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use super::bucket::HistogramAggregation;
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentMetricResultCollector,
-    SegmentRangeBucketEntry,
+    SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentHistogramBucketEntry,
+    SegmentMetricResultCollector, SegmentRangeBucketEntry,
 };
-use super::{Key, SerializedKey, VecWithNames};
+use super::{Key, MergeFruits, SerializedKey, VecWithNames};
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -124,13 +127,25 @@ impl IntermediateMetricResult {
 pub enum IntermediateBucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub_aggregations.
-    Range(HashMap<SerializedKey, IntermediateRangeBucketEntry>),
+    Range(FnvHashMap<SerializedKey, IntermediateRangeBucketEntry>),
+    /// This is the histogram entry for a bucket, which contains a key, count, and optionally
+    /// sub_aggregations.
+    Histogram {
+        /// The buckets
+        buckets: Vec<IntermediateHistogramBucketEntry>,
+        /// The original request. It is used to compute the total range after merging segments and
+        /// get min_doc_count after merging all segment results.
+        req: HistogramAggregation,
+    },
 }
 
 impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
     fn from(collector: SegmentBucketResultCollector) -> Self {
         match collector {
             SegmentBucketResultCollector::Range(range) => range.into_intermediate_bucket_result(),
+            SegmentBucketResultCollector::Histogram(histogram) => {
+                histogram.into_intermediate_bucket_result()
+            }
         }
     }
 }
@@ -142,18 +157,92 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Range(entries_left),
                 IntermediateBucketResult::Range(entries_right),
             ) => {
-                for (name, entry_left) in entries_left.iter_mut() {
-                    if let Some(entry_right) = entries_right.get(name) {
-                        entry_left.merge_fruits(entry_right);
-                    }
-                }
-
-                for (key, res) in entries_right.iter() {
-                    if !entries_left.contains_key(key) {
-                        entries_left.insert(key.clone(), res.clone());
-                    }
-                }
+                merge_maps(entries_left, entries_right);
             }
+            (
+                IntermediateBucketResult::Histogram {
+                    buckets: entries_left,
+                    ..
+                },
+                IntermediateBucketResult::Histogram {
+                    buckets: entries_right,
+                    ..
+                },
+            ) => {
+                let mut buckets = entries_left
+                    .drain(..)
+                    .merge_join_by(entries_right.iter(), |left, right| {
+                        left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
+                    })
+                    .map(|either| match either {
+                        itertools::EitherOrBoth::Both(mut left, right) => {
+                            left.merge_fruits(right);
+                            left
+                        }
+                        itertools::EitherOrBoth::Left(left) => left,
+                        itertools::EitherOrBoth::Right(right) => right.clone(),
+                    })
+                    .collect();
+
+                std::mem::swap(entries_left, &mut buckets);
+            }
+            (IntermediateBucketResult::Range(_), _) => {
+                panic!("try merge on different types")
+            }
+            (IntermediateBucketResult::Histogram { .. }, _) => {
+                panic!("try merge on different types")
+            }
+        }
+    }
+}
+
+// fn merge_sorted_vecs<V: MergeFruits + Clone>(entries_left: &mut Vec<V>, entries_right: &Vec<V>) {
+// for el in entries_left
+//.iter_mut()
+//.merge_join_by(entries_right.iter(), |left, right| left.key.cmp(right.key))
+//{}
+//}
+
+fn merge_maps<V: MergeFruits + Clone>(
+    entries_left: &mut FnvHashMap<SerializedKey, V>,
+    entries_right: &FnvHashMap<SerializedKey, V>,
+) {
+    for (name, entry_left) in entries_left.iter_mut() {
+        if let Some(entry_right) = entries_right.get(name) {
+            entry_left.merge_fruits(entry_right);
+        }
+    }
+
+    for (key, res) in entries_right.iter() {
+        if !entries_left.contains_key(key) {
+            entries_left.insert(key.clone(), res.clone());
+        }
+    }
+}
+
+/// This is the histogram entry for a bucket, which contains a key, count, and optionally
+/// sub_aggregations.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateHistogramBucketEntry {
+    /// The unique the bucket is identified.
+    pub key: f64,
+    /// The number of documents in the bucket.
+    pub doc_count: u64,
+    /// The sub_aggregation in this bucket.
+    pub sub_aggregation: IntermediateAggregationResults,
+}
+
+impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
+    fn from(entry: SegmentHistogramBucketEntry) -> Self {
+        let sub_aggregation = if let Some(sub_aggregation) = entry.sub_aggregation {
+            sub_aggregation.into()
+        } else {
+            Default::default()
+        };
+        IntermediateHistogramBucketEntry {
+            key: entry.key,
+            doc_count: entry.doc_count,
+            sub_aggregation,
         }
     }
 }
@@ -184,7 +273,6 @@ impl From<SegmentRangeBucketEntry> for IntermediateRangeBucketEntry {
         } else {
             Default::default()
         };
-        // let sub_aggregation = entry.sub_aggregation.into();
 
         IntermediateRangeBucketEntry {
             key: entry.key,
@@ -197,8 +285,15 @@ impl From<SegmentRangeBucketEntry> for IntermediateRangeBucketEntry {
     }
 }
 
-impl IntermediateRangeBucketEntry {
+impl MergeFruits for IntermediateRangeBucketEntry {
     fn merge_fruits(&mut self, other: &IntermediateRangeBucketEntry) {
+        self.doc_count += other.doc_count;
+        self.sub_aggregation.merge_fruits(&other.sub_aggregation);
+    }
+}
+
+impl MergeFruits for IntermediateHistogramBucketEntry {
+    fn merge_fruits(&mut self, other: &IntermediateHistogramBucketEntry) {
         self.doc_count += other.doc_count;
         self.sub_aggregation.merge_fruits(&other.sub_aggregation);
     }
@@ -206,13 +301,15 @@ impl IntermediateRangeBucketEntry {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use pretty_assertions::assert_eq;
 
     use super::*;
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> IntermediateAggregationResults {
         let mut map = HashMap::new();
-        let mut buckets = HashMap::new();
+        let mut buckets = FnvHashMap::default();
         for (key, doc_count) in data {
             buckets.insert(
                 key.to_string(),
@@ -235,7 +332,7 @@ mod tests {
 
     fn get_test_tree(data: &[(String, u64, String, u64)]) -> IntermediateAggregationResults {
         let mut map = HashMap::new();
-        let mut buckets = HashMap::new();
+        let mut buckets: FnvHashMap<_, _> = Default::default();
         for (key, doc_count, sub_aggregation_key, sub_aggregation_count) in data {
             buckets.insert(
                 key.to_string(),

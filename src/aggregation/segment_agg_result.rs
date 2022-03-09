@@ -9,7 +9,7 @@ use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
-use super::bucket::SegmentRangeCollector;
+use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector};
 use super::metric::{
     AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
 };
@@ -151,6 +151,7 @@ impl SegmentMetricResultCollector {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentBucketResultCollector {
     Range(SegmentRangeCollector),
+    Histogram(SegmentHistogramCollector),
 }
 
 impl SegmentBucketResultCollector {
@@ -163,6 +164,14 @@ impl SegmentBucketResultCollector {
                     req.field_type,
                 )?))
             }
+            BucketAggregationType::Histogram(histogram) => Ok(Self::Histogram(
+                SegmentHistogramCollector::from_req_and_validate(
+                    histogram,
+                    &req.sub_aggregation,
+                    req.field_type,
+                    &req.accessor,
+                )?,
+            )),
         }
     }
 
@@ -177,8 +186,18 @@ impl SegmentBucketResultCollector {
             SegmentBucketResultCollector::Range(range) => {
                 range.collect_block(doc, bucket_with_accessor, force_flush);
             }
+            SegmentBucketResultCollector::Histogram(histogram) => {
+                histogram.collect_block(doc, bucket_with_accessor, force_flush)
+            }
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SegmentHistogramBucketEntry {
+    pub key: f64,
+    pub doc_count: u64,
+    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
 }
 
 #[derive(Clone, PartialEq)]
