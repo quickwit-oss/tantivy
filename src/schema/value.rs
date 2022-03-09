@@ -3,10 +3,10 @@ use std::fmt;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
+use time::OffsetDateTime;
 
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
-use crate::DateTime;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -23,7 +23,7 @@ pub enum Value {
     /// 64-bits Float `f64`
     F64(f64),
     /// Signed 64-bits Date time stamp `date`
-    Date(DateTime),
+    Date(OffsetDateTime),
     /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -43,7 +43,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
-            Value::Date(ref date) => serializer.serialize_str(&date.to_rfc3339()),
+            Value::Date(ref date) => time::serde::rfc3339::serialize(date, serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
@@ -154,7 +154,7 @@ impl Value {
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
-    pub fn as_date(&self) -> Option<&DateTime> {
+    pub fn as_date(&self) -> Option<&OffsetDateTime> {
         if let Value::Date(date) = self {
             Some(date)
         } else {
@@ -209,8 +209,8 @@ impl From<f64> for Value {
     }
 }
 
-impl From<crate::DateTime> for Value {
-    fn from(date_time: crate::DateTime) -> Value {
+impl From<OffsetDateTime> for Value {
+    fn from(date_time: OffsetDateTime) -> Value {
         Value::Date(date_time)
     }
 }
@@ -265,8 +265,8 @@ impl From<serde_json::Value> for Value {
 mod binary_serialize {
     use std::io::{self, Read, Write};
 
-    use chrono::{TimeZone, Utc};
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
+    use time::OffsetDateTime;
 
     use super::Value;
     use crate::schema::Facet;
@@ -319,7 +319,7 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    val.timestamp().serialize(writer)
+                    val.unix_timestamp().serialize(writer)
                 }
                 Value::Facet(ref facet) => {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
@@ -358,7 +358,14 @@ mod binary_serialize {
                 }
                 DATE_CODE => {
                     let timestamp = i64::deserialize(reader)?;
-                    Ok(Value::Date(Utc.timestamp(timestamp, 0)))
+                    Ok(Value::Date(
+                        OffsetDateTime::from_unix_timestamp(timestamp).map_err(|err| {
+                            io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                format!("Invalid UNIX timestamp: {}", err),
+                            )
+                        })?,
+                    ))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),
@@ -401,15 +408,20 @@ mod binary_serialize {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use time::format_description::well_known::Rfc3339;
+    use time::OffsetDateTime;
 
     use super::Value;
-    use crate::DateTime;
 
     #[test]
     fn test_serialize_date() {
-        let value = Value::Date(DateTime::from_str("1996-12-20T00:39:57+00:00").unwrap());
+        let value =
+            Value::Date(OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap());
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
-        assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57+00:00""#);
+        assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57Z""#);
+        let value =
+            Value::Date(OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap());
+        let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
+        assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57-01:00""#);
     }
 }

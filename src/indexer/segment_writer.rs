@@ -244,7 +244,7 @@ impl SegmentWriter {
                 FieldType::Date(_) => {
                     for value in values {
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_i64(date_val.timestamp());
+                        term_buffer.set_i64(date_val.unix_timestamp());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
@@ -414,7 +414,8 @@ pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use time::format_description::well_known::Rfc3339;
+    use time::{OffsetDateTime, UtcOffset};
 
     use super::compute_initial_table_size;
     use crate::collector::Count;
@@ -524,9 +525,9 @@ mod tests {
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("date");
         json_term_writer.set_fast_value(
-            chrono::DateTime::parse_from_rfc3339("1985-04-12T23:20:50.52Z")
+            OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339)
                 .unwrap()
-                .with_timezone(&Utc),
+                .to_offset(UtcOffset::UTC),
         );
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());

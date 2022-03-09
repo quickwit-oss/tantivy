@@ -1135,6 +1135,7 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
     use futures::executor::block_on;
     use schema::FAST;
+    use time::OffsetDateTime;
 
     use crate::collector::tests::{
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
@@ -1169,7 +1170,7 @@ mod tests {
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader()?;
-        let curr_time = chrono::Utc::now();
+        let curr_time = OffsetDateTime::now_utc();
         {
             let mut index_writer = index.writer_for_tests()?;
             // writing the segment

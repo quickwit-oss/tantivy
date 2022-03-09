@@ -247,7 +247,7 @@ impl MoreLikeThis {
                     let val = value
                         .as_date()
                         .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
-                        .timestamp();
+                        .unix_timestamp();
                     if !self.is_noise_word(val.to_string()) {
                         let term = Term::from_field_i64(field, val);
                         *term_frequencies.entry(term).or_insert(0) += 1;

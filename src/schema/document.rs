@@ -3,10 +3,10 @@ use std::io::{self, Read, Write};
 use std::mem;
 
 use common::{BinarySerializable, VInt};
+use time::OffsetDateTime;
 
 use super::*;
 use crate::tokenizer::PreTokenizedString;
-use crate::DateTime;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -111,7 +111,7 @@ impl Document {
     }
 
     /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: DateTime) {
+    pub fn add_date(&mut self, field: Field, value: OffsetDateTime) {
         self.add_field_value(field, value);
     }
 

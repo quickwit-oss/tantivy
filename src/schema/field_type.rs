@@ -1,7 +1,8 @@
-use chrono::{FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
+use time::format_description::well_known::Rfc3339;
+use time::{OffsetDateTime, UtcOffset};
 
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -244,33 +245,33 @@ impl FieldType {
     /// target field is a `Str`, this method will return an Error.
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
-            JsonValue::String(field_text) => match *self {
-                FieldType::Date(_) => {
-                    let dt_with_fixed_tz: chrono::DateTime<FixedOffset> =
-                        chrono::DateTime::parse_from_rfc3339(&field_text).map_err(|_err| {
-                            ValueParsingError::TypeError {
+            JsonValue::String(field_text) => {
+                match *self {
+                    FieldType::Date(_) => {
+                        let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
+                            .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
-                            }
-                        })?;
-                    Ok(Value::Date(dt_with_fixed_tz.with_timezone(&Utc)))
-                }
-                FieldType::Str(_) => Ok(Value::Str(field_text)),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "an integer",
+                            })?;
+                        Ok(Value::Date(dt_with_fixed_tz.to_offset(UtcOffset::UTC)))
+                    }
+                    FieldType::Str(_) => Ok(Value::Str(field_text)),
+                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
+                        Err(ValueParsingError::TypeError {
+                            expected: "an integer",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                    FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                    FieldType::Bytes(_) => base64::decode(&field_text)
+                        .map(Value::Bytes)
+                        .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                        expected: "a json object",
                         json: JsonValue::String(field_text),
-                    })
+                    }),
                 }
-                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                FieldType::Bytes(_) => base64::decode(&field_text)
-                    .map(Value::Bytes)
-                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                    expected: "a json object",
-                    json: JsonValue::String(field_text),
-                }),
-            },
+            }
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
@@ -342,14 +343,14 @@ impl FieldType {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
     use serde_json::json;
+    use time::{Date, Month, PrimitiveDateTime, Time};
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::{DateTime, Document};
+    use crate::Document;
 
     #[test]
     fn test_deserialize_json_date() {
@@ -359,7 +360,12 @@ mod tests {
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
-        assert_eq!(format!("{:?}", date), "Date(2019-10-12T05:20:50.520Z)");
+        assert_eq!(
+            format!("{:?}", date),
+            "Date(OffsetDateTime { utc_datetime: PrimitiveDateTime { date: Date { year: 2019, \
+             ordinal: 285 }, time: Time { hour: 5, minute: 20, second: 50, nanosecond: 520000000 \
+             } }, offset: UtcOffset { hours: 0, minutes: 0, seconds: 0 } })"
+        );
     }
 
     #[test]
@@ -368,12 +374,12 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", INDEXED);
         let schema = schema_builder.build();
-        let naive_date = NaiveDate::from_ymd(1982, 9, 17);
-        let naive_time = NaiveTime::from_hms(13, 20, 00);
-        let date_time = DateTime::from_utc(NaiveDateTime::new(naive_date, naive_time), Utc);
+        let naive_date = Date::from_calendar_date(1982, Month::September, 17).unwrap();
+        let naive_time = Time::from_hms(13, 20, 0).unwrap();
+        let date_time = PrimitiveDateTime::new(naive_date, naive_time).assume_utc();
         doc.add_date(date_field, date_time);
         let doc_json = schema.to_json(&doc);
-        assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00+00:00"]}"#);
+        assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
     }
 
     #[test]

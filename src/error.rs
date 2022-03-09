@@ -149,8 +149,20 @@ impl<Guard> From<PoisonError<Guard>> for TantivyError {
     }
 }
 
-impl From<chrono::ParseError> for TantivyError {
-    fn from(err: chrono::ParseError) -> TantivyError {
+impl From<time::error::Format> for TantivyError {
+    fn from(err: time::error::Format) -> TantivyError {
+        TantivyError::InvalidArgument(err.to_string())
+    }
+}
+
+impl From<time::error::Parse> for TantivyError {
+    fn from(err: time::error::Parse) -> TantivyError {
+        TantivyError::InvalidArgument(err.to_string())
+    }
+}
+
+impl From<time::error::ComponentRange> for TantivyError {
+    fn from(err: time::error::ComponentRange) -> TantivyError {
         TantivyError::InvalidArgument(err.to_string())
     }
 }

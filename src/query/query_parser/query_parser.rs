@@ -4,6 +4,8 @@ use std::ops::Bound;
 use std::str::FromStr;
 
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use time::format_description::well_known::Rfc3339;
+use time::{OffsetDateTime, UtcOffset};
 
 use super::logical_ast::*;
 use crate::core::Index;
@@ -67,7 +69,7 @@ pub enum QueryParserError {
     RangeMustNotHavePhrase,
     /// The format for the date field is not RFC 3339 compliant.
     #[error("The date field has an invalid format")]
-    DateFormatError(#[from] chrono::ParseError),
+    DateFormatError(#[from] time::error::Parse),
     /// The format for the facet field is invalid.
     #[error("The facet field is malformed: {0}")]
     FacetFormatError(#[from] FacetParseError),
@@ -326,11 +328,8 @@ impl QueryParser {
                 Ok(Term::from_field_f64(field, val))
             }
             FieldType::Date(_) => {
-                let dt = chrono::DateTime::parse_from_rfc3339(phrase)?;
-                Ok(Term::from_field_date(
-                    field,
-                    &dt.with_timezone(&chrono::Utc),
-                ))
+                let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
+                Ok(Term::from_field_date(field, &dt.to_offset(UtcOffset::UTC)))
             }
             FieldType::Str(ref str_options) => {
                 let option = str_options.get_indexing_options().ok_or_else(|| {
@@ -405,8 +404,8 @@ impl QueryParser {
                 Ok(vec![LogicalLiteral::Term(f64_term)])
             }
             FieldType::Date(_) => {
-                let dt = chrono::DateTime::parse_from_rfc3339(phrase)?;
-                let dt_term = Term::from_field_date(field, &dt.with_timezone(&chrono::Utc));
+                let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
+                let dt_term = Term::from_field_date(field, &dt.to_offset(UtcOffset::UTC));
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
@@ -666,12 +665,12 @@ enum NumValue {
     U64(u64),
     I64(i64),
     F64(f64),
-    DateTime(crate::DateTime),
+    DateTime(OffsetDateTime),
 }
 
 fn infer_type_num(phrase: &str) -> Option<NumValue> {
-    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(phrase) {
-        let dt_utc = dt.with_timezone(&chrono::Utc);
+    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
+        let dt_utc = dt.to_offset(UtcOffset::UTC);
         return Some(NumValue::DateTime(dt_utc));
     }
     if let Ok(u64_val) = str::parse::<u64>(phrase) {
@@ -1042,7 +1041,7 @@ mod test {
     fn test_json_field_possibly_a_date() {
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            r#"(Term(type=Json, field=14, path=date, vtype=Date, OffsetDateTime { utc_datetime: PrimitiveDateTime { date: Date { year: 2019, ordinal: 285 }, time: Time { hour: 7, minute: 20, second: 50, nanosecond: 0 } }, offset: UtcOffset { hours: 0, minutes: 0, seconds: 0 } }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
             true,
         );
     }

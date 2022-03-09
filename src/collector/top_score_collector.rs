@@ -710,6 +710,9 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
 #[cfg(test)]
 mod tests {
+    use time::format_description::well_known::Rfc3339;
+    use time::OffsetDateTime;
+
     use super::TopDocs;
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
@@ -890,19 +893,18 @@ mod tests {
 
     #[test]
     fn test_top_field_collector_datetime() -> crate::Result<()> {
-        use std::str::FromStr;
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let birthday = schema_builder.add_date_field("birthday", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let pr_birthday = crate::DateTime::from_str("1898-04-09T00:00:00+00:00")?;
+        let pr_birthday = OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339)?;
         index_writer.add_document(doc!(
             name => "Paul Robeson",
             birthday => pr_birthday
         ))?;
-        let mr_birthday = crate::DateTime::from_str("1947-11-08T00:00:00+00:00")?;
+        let mr_birthday = OffsetDateTime::parse("1947-11-08T00:00:00+00:00", &Rfc3339)?;
         index_writer.add_document(doc!(
             name => "Minnie Riperton",
             birthday => mr_birthday
@@ -910,7 +912,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(birthday);
-        let top_docs: Vec<(crate::DateTime, DocAddress)> =
+        let top_docs: Vec<(OffsetDateTime, DocAddress)> =
             searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],

@@ -7,11 +7,12 @@ pub use self::writer::MultiValuedFastFieldWriter;
 #[cfg(test)]
 mod tests {
 
-    use chrono::Duration;
     use futures::executor::block_on;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
     use test_log::test;
+    use time::format_description::well_known::Rfc3339;
+    use time::{Duration, OffsetDateTime};
 
     use crate::collector::TopDocs;
     use crate::indexer::NoMergePolicy;
@@ -70,7 +71,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let first_time_stamp = chrono::Utc::now();
+        let first_time_stamp = OffsetDateTime::now_utc();
         index_writer.add_document(
             doc!(date_field=>first_time_stamp, date_field=>first_time_stamp, time_i=>1i64),
         )?;
@@ -97,7 +98,7 @@ mod tests {
             let parser = QueryParser::for_index(&index, vec![]);
             let query = parser.parse_query(&format!(
                 "multi_date_field:\"{}\"",
-                first_time_stamp.to_rfc3339()
+                first_time_stamp.format(&Rfc3339)?,
             ))?;
             let results = searcher.search(&query, &TopDocs::with_limit(5))?;
             assert_eq!(results.len(), 1);
@@ -109,8 +110,8 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .unwrap()
-                        .timestamp(),
-                    first_time_stamp.timestamp()
+                        .unix_timestamp(),
+                    first_time_stamp.unix_timestamp()
                 );
                 assert_eq!(
                     retrieved_doc
@@ -124,7 +125,7 @@ mod tests {
 
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
-            let query = parser.parse_query(&format!("\"{}\"", two_secs_ahead.to_rfc3339()))?;
+            let query = parser.parse_query(&format!("\"{}\"", two_secs_ahead.format(&Rfc3339)?))?;
             let results = searcher.search(&query, &TopDocs::with_limit(5))?;
 
             assert_eq!(results.len(), 1);
@@ -137,8 +138,8 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .unwrap()
-                        .timestamp(),
-                    two_secs_ahead.timestamp()
+                        .unix_timestamp(),
+                    two_secs_ahead.unix_timestamp()
                 );
                 assert_eq!(
                     retrieved_doc
@@ -154,8 +155,8 @@ mod tests {
             let parser = QueryParser::for_index(&index, vec![date_field]);
             let range_q = format!(
                 "multi_date_field:[{} TO {}}}",
-                (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
-                (first_time_stamp + Duration::seconds(3)).to_rfc3339()
+                (first_time_stamp + Duration::seconds(1)).format(&Rfc3339)?,
+                (first_time_stamp + Duration::seconds(3)).format(&Rfc3339)?
             );
             let query = parser.parse_query(&range_q)?;
             let results = searcher.search(&query, &TopDocs::with_limit(5))?;
@@ -179,8 +180,8 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .expect("value not of Date type")
-                        .timestamp(),
-                    (first_time_stamp + Duration::seconds(offset_sec)).timestamp()
+                        .unix_timestamp(),
+                    (first_time_stamp + Duration::seconds(offset_sec)).unix_timestamp()
                 );
                 assert_eq!(
                     retrieved_doc

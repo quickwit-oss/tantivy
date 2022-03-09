@@ -2,10 +2,11 @@ use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::{fmt, str};
 
+use time::OffsetDateTime;
+
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
-use crate::DateTime;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
@@ -70,7 +71,7 @@ impl Term {
     }
 
     /// Builds a term given a field, and a DateTime value
-    pub fn from_field_date(field: Field, val: &DateTime) -> Term {
+    pub fn from_field_date(field: Field, val: &OffsetDateTime) -> Term {
         Term::from_fast_value(field, val)
     }
 
@@ -126,7 +127,7 @@ impl Term {
     }
 
     /// Sets a `i64` value in the term.
-    pub fn set_date(&mut self, date: crate::DateTime) {
+    pub fn set_date(&mut self, date: OffsetDateTime) {
         self.set_fast_value(date);
     }
 
@@ -266,8 +267,8 @@ where B: AsRef<[u8]>
     ///
     /// Returns None if the term is not of the Date type, or if the term byte representation
     /// is invalid.
-    pub fn as_date(&self) -> Option<crate::DateTime> {
-        self.get_fast_type::<crate::DateTime>()
+    pub fn as_date(&self) -> Option<OffsetDateTime> {
+        self.get_fast_type::<OffsetDateTime>()
     }
 
     /// Returns the text associated with the term.
@@ -374,7 +375,7 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
         }
         // TODO pretty print these types too.
         Type::Date => {
-            write_opt(f, get_fast_type::<crate::DateTime>(bytes))?;
+            write_opt(f, get_fast_type::<OffsetDateTime>(bytes))?;
         }
         Type::Facet => {
             let facet_str = str::from_utf8(bytes)

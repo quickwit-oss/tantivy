@@ -20,6 +20,8 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
+use time::OffsetDateTime;
+
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -30,7 +32,6 @@ pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::chrono::{NaiveDateTime, Utc};
 use crate::schema::{Cardinality, FieldType, Type, Value};
 use crate::DocId;
 
@@ -161,14 +162,14 @@ impl FastValue for f64 {
     }
 }
 
-impl FastValue for crate::DateTime {
+impl FastValue for OffsetDateTime {
     fn from_u64(timestamp_u64: u64) -> Self {
         let timestamp_i64 = i64::from_u64(timestamp_u64);
-        crate::DateTime::from_utc(NaiveDateTime::from_timestamp(timestamp_i64, 0), Utc)
+        OffsetDateTime::from_unix_timestamp(timestamp_i64).expect("valid UNIX timestamp")
     }
 
     fn to_u64(&self) -> u64 {
-        self.timestamp().to_u64()
+        self.unix_timestamp().to_u64()
     }
 
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
@@ -179,7 +180,7 @@ impl FastValue for crate::DateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.timestamp().as_u64()
+        self.unix_timestamp().as_u64()
     }
 
     fn to_type() -> Type {
@@ -192,7 +193,7 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::U64(ref val) => *val,
         Value::I64(ref val) => common::i64_to_u64(*val),
         Value::F64(ref val) => common::f64_to_u64(*val),
-        Value::Date(ref datetime) => common::i64_to_u64(datetime.timestamp()),
+        Value::Date(ref datetime) => common::i64_to_u64(datetime.unix_timestamp()),
         _ => panic!("Expected a u64/i64/f64 field, got {:?} ", value),
     }
 }
@@ -233,7 +234,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield_i64_u64() {
-        let datetime = crate::DateTime::from_utc(NaiveDateTime::from_timestamp(0i64, 0), Utc);
+        let datetime = OffsetDateTime::UNIX_EPOCH;
         assert_eq!(i64::from_u64(datetime.to_u64()), 0i64);
     }
 
@@ -489,7 +490,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()))?;
+        index_writer.add_document(doc!(date_field =>OffsetDateTime::now_utc()))?;
         index_writer.commit()?;
         index_writer.add_document(doc!())?;
         index_writer.commit()?;
@@ -510,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_default_datetime() {
-        assert_eq!(crate::DateTime::make_zero().timestamp(), 0i64);
+        assert_eq!(OffsetDateTime::make_zero().unix_timestamp(), 0i64);
     }
 
     #[test]
@@ -527,16 +528,16 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!(
-            date_field => crate::DateTime::from_u64(1i64.to_u64()),
-            multi_date_field => crate::DateTime::from_u64(2i64.to_u64()),
-            multi_date_field => crate::DateTime::from_u64(3i64.to_u64())
+            date_field => OffsetDateTime::from_u64(1i64.to_u64()),
+            multi_date_field => OffsetDateTime::from_u64(2i64.to_u64()),
+            multi_date_field => OffsetDateTime::from_u64(3i64.to_u64())
         ))?;
         index_writer.add_document(doc!(
-            date_field => crate::DateTime::from_u64(4i64.to_u64())
+            date_field => OffsetDateTime::from_u64(4i64.to_u64())
         ))?;
         index_writer.add_document(doc!(
-            multi_date_field => crate::DateTime::from_u64(5i64.to_u64()),
-            multi_date_field => crate::DateTime::from_u64(6i64.to_u64())
+            multi_date_field => OffsetDateTime::from_u64(5i64.to_u64()),
+            multi_date_field => OffsetDateTime::from_u64(6i64.to_u64())
         ))?;
         index_writer.commit()?;
         let reader = index.reader()?;
@@ -548,23 +549,23 @@ mod tests {
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
         let mut dates = vec![];
         {
-            assert_eq!(date_fast_field.get(0u32).timestamp(), 1i64);
+            assert_eq!(date_fast_field.get(0u32).unix_timestamp(), 1i64);
             dates_fast_field.get_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].timestamp(), 2i64);
-            assert_eq!(dates[1].timestamp(), 3i64);
+            assert_eq!(dates[0].unix_timestamp(), 2i64);
+            assert_eq!(dates[1].unix_timestamp(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get(1u32).timestamp(), 4i64);
+            assert_eq!(date_fast_field.get(1u32).unix_timestamp(), 4i64);
             dates_fast_field.get_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get(2u32).timestamp(), 0i64);
+            assert_eq!(date_fast_field.get(2u32).unix_timestamp(), 0i64);
             dates_fast_field.get_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].timestamp(), 5i64);
-            assert_eq!(dates[1].timestamp(), 6i64);
+            assert_eq!(dates[0].unix_timestamp(), 5i64);
+            assert_eq!(dates[1].unix_timestamp(), 6i64);
         }
         Ok(())
     }

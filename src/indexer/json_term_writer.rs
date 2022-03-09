@@ -1,6 +1,7 @@
-use chrono::Utc;
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
+use time::format_description::well_known::Rfc3339;
+use time::{OffsetDateTime, UtcOffset};
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
@@ -184,13 +185,13 @@ fn index_json_value<'a>(
 
 enum TextOrDateTime<'a> {
     Text(&'a str),
-    DateTime(crate::DateTime),
+    DateTime(OffsetDateTime),
 }
 
 fn infer_type_from_str(text: &str) -> TextOrDateTime {
-    match chrono::DateTime::parse_from_rfc3339(text) {
+    match OffsetDateTime::parse(text, &Rfc3339) {
         Ok(dt) => {
-            let dt_utc = dt.with_timezone(&Utc);
+            let dt_utc = dt.to_offset(UtcOffset::UTC);
             TextOrDateTime::DateTime(dt_utc)
         }
         Err(_) => TextOrDateTime::Text(text),
