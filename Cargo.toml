@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.17.0-dev"
+version = "0.17.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -35,7 +35,7 @@ crossbeam = "0.8.1"
 futures = { version = "0.3.15", features = ["thread-pool"] }
 tantivy-query-grammar = { version="0.15.0", path="./query-grammar" }
 tantivy-bitpacker = { version="0.1", path="./bitpacker" }
-common = { version = "0.1", path = "./common/", package = "tantivy-common" }
+common = { version = "0.2", path = "./common/", package = "tantivy-common" }
 fastfield_codecs = { version="0.1", path="./fastfield_codecs", default-features = false }
 ownedbytes = { version="0.2", path="./ownedbytes" }
 stable_deref_trait = "1.2"
