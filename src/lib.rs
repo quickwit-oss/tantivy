@@ -124,6 +124,11 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
+/// Re-export of the `time` crate
+///
+/// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
+pub use time;
+
 pub use crate::error::TantivyError;
 
 /// Tantivy result.

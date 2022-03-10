@@ -1,12 +1,12 @@
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
-use time::format_description::well_known::Rfc3339;
-use time::{OffsetDateTime, UtcOffset};
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use crate::schema::Type;
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
 use crate::{DocId, Term};
 

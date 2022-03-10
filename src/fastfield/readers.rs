@@ -1,5 +1,3 @@
-use time::OffsetDateTime;
-
 use super::reader::DynamicFastFieldReader;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::fastfield::{
@@ -7,6 +5,7 @@ use crate::fastfield::{
 };
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
+use crate::time::OffsetDateTime;
 use crate::TantivyError;
 
 /// Provides access to all of the BitpackedFastFieldReader.

@@ -3,9 +3,9 @@ use std::fmt;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
-use time::OffsetDateTime;
 
 use crate::schema::Facet;
+use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
 
 /// Value represents the value of a any field.
@@ -266,10 +266,10 @@ mod binary_serialize {
     use std::io::{self, Read, Write};
 
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
-    use time::OffsetDateTime;
 
     use super::Value;
     use crate::schema::Facet;
+    use crate::time::OffsetDateTime;
     use crate::tokenizer::PreTokenizedString;
 
     const TEXT_CODE: u8 = 0;
@@ -408,10 +408,9 @@ mod binary_serialize {
 
 #[cfg(test)]
 mod tests {
-    use time::format_description::well_known::Rfc3339;
-    use time::OffsetDateTime;
-
     use super::Value;
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::OffsetDateTime;
 
     #[test]
     fn test_serialize_date() {

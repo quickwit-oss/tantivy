@@ -1135,7 +1135,6 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
     use futures::executor::block_on;
     use schema::FAST;
-    use time::OffsetDateTime;
 
     use crate::collector::tests::{
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
@@ -1148,6 +1147,7 @@ mod tests {
         Cardinality, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
         TextFieldIndexing, INDEXED, TEXT,
     };
+    use crate::time::OffsetDateTime;
     use crate::{
         assert_nearly_equals, schema, DocAddress, DocSet, IndexSettings, IndexSortByField,
         IndexWriter, Order, Searcher, SegmentId,

@@ -414,15 +414,14 @@ pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
 
 #[cfg(test)]
 mod tests {
-    use time::format_description::well_known::Rfc3339;
-    use time::{OffsetDateTime, UtcOffset};
-
     use super::compute_initial_table_size;
     use crate::collector::Count;
     use crate::indexer::json_term_writer::JsonTermWriter;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
     use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::{OffsetDateTime, UtcOffset};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED};
 

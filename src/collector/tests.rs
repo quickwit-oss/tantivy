@@ -1,12 +1,11 @@
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
-
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
 use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::OffsetDateTime;
 use crate::{doc, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {

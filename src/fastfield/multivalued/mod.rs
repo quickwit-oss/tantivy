@@ -11,13 +11,13 @@ mod tests {
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
     use test_log::test;
-    use time::format_description::well_known::Rfc3339;
-    use time::{Duration, OffsetDateTime};
 
     use crate::collector::TopDocs;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::{Duration, OffsetDateTime};
     use crate::{Document, Index, Term};
 
     #[test]

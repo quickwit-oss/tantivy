@@ -710,13 +710,12 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
 #[cfg(test)]
 mod tests {
-    use time::format_description::well_known::Rfc3339;
-    use time::OffsetDateTime;
-
     use super::TopDocs;
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::OffsetDateTime;
     use crate::{DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
 
     fn make_index() -> crate::Result<Index> {

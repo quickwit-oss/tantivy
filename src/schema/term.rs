@@ -2,11 +2,10 @@ use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::{fmt, str};
 
-use time::OffsetDateTime;
-
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
+use crate::time::OffsetDateTime;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>

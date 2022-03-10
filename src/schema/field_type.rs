@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
-use time::format_description::well_known::Rfc3339;
-use time::{OffsetDateTime, UtcOffset};
 
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -10,6 +8,8 @@ use crate::schema::{
     Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing, TextOptions,
     Value,
 };
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::PreTokenizedString;
 
 /// Possible error that may occur while parsing a field value
@@ -344,11 +344,11 @@ impl FieldType {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
-    use time::{Date, Month, PrimitiveDateTime, Time};
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
+    use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::Document;
 

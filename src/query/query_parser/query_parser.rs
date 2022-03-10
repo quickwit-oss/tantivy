@@ -4,8 +4,6 @@ use std::ops::Bound;
 use std::str::FromStr;
 
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
-use time::format_description::well_known::Rfc3339;
-use time::{OffsetDateTime, UtcOffset};
 
 use super::logical_ast::*;
 use crate::core::Index;
@@ -17,6 +15,8 @@ use crate::query::{
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
 };
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::Score;
 

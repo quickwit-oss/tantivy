@@ -150,10 +150,10 @@ fn add_vecs(mut vals_list: Vec<Vec<u64>>, len: usize) -> Vec<u64> {
 mod tests {
     use fastdivide::DividerU64;
     use query::AllQuery;
-    use time::{Date, Month};
 
     use super::{add_vecs, HistogramCollector, HistogramComputer};
     use crate::schema::{Schema, FAST};
+    use crate::time::{Date, Month};
     use crate::{doc, query, Index};
 
     #[test]

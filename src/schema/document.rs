@@ -3,9 +3,9 @@ use std::io::{self, Read, Write};
 use std::mem;
 
 use common::{BinarySerializable, VInt};
-use time::OffsetDateTime;
 
 use super::*;
+use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
 
 /// Tantivy's Document is the object that can
