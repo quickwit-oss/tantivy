@@ -9,7 +9,7 @@ use crate::schema::{
     Value,
 };
 use crate::time::format_description::well_known::Rfc3339;
-use crate::time::{OffsetDateTime, UtcOffset};
+use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
 
 /// Possible error that may occur while parsing a field value
@@ -253,7 +253,7 @@ impl FieldType {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
                             })?;
-                        Ok(Value::Date(dt_with_fixed_tz.to_offset(UtcOffset::UTC)))
+                        Ok(dt_with_fixed_tz.into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
                     FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
@@ -362,9 +362,8 @@ mod tests {
         let date = doc.get_first(date_field).unwrap();
         assert_eq!(
             format!("{:?}", date),
-            "Date(OffsetDateTime { utc_datetime: PrimitiveDateTime { date: Date { year: 2019, \
-             ordinal: 285 }, time: Time { hour: 5, minute: 20, second: 50, nanosecond: 520000000 \
-             } }, offset: UtcOffset { hours: 0, minutes: 0, seconds: 0 } })"
+            "Date(PrimitiveDateTime { date: Date { year: 2019, ordinal: 285 }, time: Time { hour: \
+             5, minute: 20, second: 50, nanosecond: 520000000 } })"
         );
     }
 

@@ -192,7 +192,7 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::U64(ref val) => *val,
         Value::I64(ref val) => common::i64_to_u64(*val),
         Value::F64(ref val) => common::f64_to_u64(*val),
-        Value::Date(ref datetime) => common::i64_to_u64(datetime.unix_timestamp()),
+        Value::Date(ref datetime) => common::i64_to_u64(datetime.assume_utc().unix_timestamp()),
         _ => panic!("Expected a u64/i64/f64 field, got {:?} ", value),
     }
 }

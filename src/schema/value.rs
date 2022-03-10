@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
 
 use crate::schema::Facet;
-use crate::time::OffsetDateTime;
+use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 use crate::tokenizer::PreTokenizedString;
 
 /// Value represents the value of a any field.
@@ -23,7 +23,10 @@ pub enum Value {
     /// 64-bits Float `f64`
     F64(f64),
     /// Signed 64-bits Date time stamp `date`
-    Date(OffsetDateTime),
+    ///
+    /// Stored as seconds since the UNIX epoch origin. Internally
+    /// the time zone is assumed to be UTC.
+    Date(PrimitiveDateTime),
     /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -43,7 +46,9 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
-            Value::Date(ref date) => time::serde::rfc3339::serialize(date, serializer),
+            Value::Date(ref date) => {
+                time::serde::rfc3339::serialize(&date.assume_utc(), serializer)
+            }
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
@@ -154,7 +159,7 @@ impl Value {
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
-    pub fn as_date(&self) -> Option<&OffsetDateTime> {
+    pub fn as_date(&self) -> Option<&PrimitiveDateTime> {
         if let Value::Date(date) = self {
             Some(date)
         } else {
@@ -209,9 +214,16 @@ impl From<f64> for Value {
     }
 }
 
+impl From<PrimitiveDateTime> for Value {
+    fn from(date_time: PrimitiveDateTime) -> Value {
+        Value::Date(date_time)
+    }
+}
+
 impl From<OffsetDateTime> for Value {
     fn from(date_time: OffsetDateTime) -> Value {
-        Value::Date(date_time)
+        let utc = date_time.to_offset(UtcOffset::UTC);
+        PrimitiveDateTime::new(utc.date(), utc.time()).into()
     }
 }
 
@@ -319,7 +331,7 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    val.unix_timestamp().serialize(writer)
+                    val.assume_utc().unix_timestamp().serialize(writer)
                 }
                 Value::Facet(ref facet) => {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
@@ -358,14 +370,13 @@ mod binary_serialize {
                 }
                 DATE_CODE => {
                     let timestamp = i64::deserialize(reader)?;
-                    Ok(Value::Date(
-                        OffsetDateTime::from_unix_timestamp(timestamp).map_err(|err| {
-                            io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                format!("Invalid UNIX timestamp: {}", err),
-                            )
-                        })?,
-                    ))
+                    let dt = OffsetDateTime::from_unix_timestamp(timestamp).map_err(|err| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Invalid UNIX timestamp: {}", err),
+                        )
+                    })?;
+                    Ok(dt.into())
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),
@@ -415,12 +426,14 @@ mod tests {
     #[test]
     fn test_serialize_date() {
         let value =
-            Value::Date(OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap());
+            Value::from(OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap());
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
         assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57Z""#);
         let value =
-            Value::Date(OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap());
+            Value::from(OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap());
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
-        assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57-01:00""#);
+        // The time zone information gets lost by conversion into `Value::Date` and
+        // implicitly becomes UTC.
+        assert_eq!(serialized_value_json, r#""1996-12-20T01:39:57Z""#);
     }
 }

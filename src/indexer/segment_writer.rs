@@ -244,7 +244,7 @@ impl SegmentWriter {
                 FieldType::Date(_) => {
                     for value in values {
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_i64(date_val.unix_timestamp());
+                        term_buffer.set_i64(date_val.assume_utc().unix_timestamp());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }

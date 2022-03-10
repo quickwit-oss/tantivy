@@ -110,6 +110,7 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .unwrap()
+                        .assume_utc()
                         .unix_timestamp(),
                     first_time_stamp.unix_timestamp()
                 );
@@ -138,6 +139,7 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .unwrap()
+                        .assume_utc()
                         .unix_timestamp(),
                     two_secs_ahead.unix_timestamp()
                 );
@@ -180,6 +182,7 @@ mod tests {
                         .expect("cannot find value")
                         .as_date()
                         .expect("value not of Date type")
+                        .assume_utc()
                         .unix_timestamp(),
                     (first_time_stamp + Duration::seconds(offset_sec)).unix_timestamp()
                 );
