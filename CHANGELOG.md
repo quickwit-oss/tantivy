@@ -1,6 +1,6 @@
 Unreleased
 ================================
-- For date values `chrono` has been replaced with `time`:
+- For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
   - The `time` crate is re-exported as `tantivy::time` instead of `tantivy::chrono`.
   - The type alias `tantivy::DateTime` has been removed.
   - `Value::Date` wraps `time::PrimitiveDateTime` without time zone information.
