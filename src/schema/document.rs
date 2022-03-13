@@ -3,6 +3,7 @@ use std::io::{self, Read, Write};
 use std::mem;
 
 use common::{BinarySerializable, VInt};
+use time::PrimitiveDateTime;
 
 use super::*;
 use crate::time::OffsetDateTime;
@@ -110,8 +111,15 @@ impl Document {
         self.add_field_value(field, value);
     }
 
-    /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: OffsetDateTime) {
+    /// Add a date field with unspecified time zone offset
+    pub fn add_date(&mut self, field: Field, value: PrimitiveDateTime) {
+        self.add_field_value(field, value);
+    }
+
+    /// Add a date field with time zone offset
+    ///
+    /// The time zone offset is implicitly converted to UTC.
+    pub fn add_date_utc(&mut self, field: Field, value: OffsetDateTime) {
         self.add_field_value(field, value);
     }
 

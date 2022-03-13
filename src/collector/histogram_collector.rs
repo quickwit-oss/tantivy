@@ -273,11 +273,11 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_with_num_threads(1, 4_000_000)?;
-        writer.add_document(doc!(date_field=>Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?.assume_utc()))?;
+        writer.add_document(doc!(date_field=>Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?))?;
         writer.add_document(
-            doc!(date_field=>Date::from_calendar_date(1986, Month::March, 9)?.with_hms(0, 0, 0)?.assume_utc()),
+            doc!(date_field=>Date::from_calendar_date(1986, Month::March, 9)?.with_hms(0, 0, 0)?),
         )?;
-        writer.add_document(doc!(date_field=>Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?.assume_utc()))?;
+        writer.add_document(doc!(date_field=>Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?))?;
         writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
