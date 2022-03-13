@@ -284,9 +284,7 @@ mod tests {
         let all_query = AllQuery;
         let week_histogram_collector = HistogramCollector::new(
             date_field,
-            Date::from_calendar_date(1980, Month::January, 1)?
-                .with_hms(0, 0, 0)?
-                .assume_utc(),
+            Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
             3600 * 24 * 365, // it is just for a unit test... sorry leap years.
             10,
         );

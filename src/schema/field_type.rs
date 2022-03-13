@@ -375,7 +375,7 @@ mod tests {
         let schema = schema_builder.build();
         let naive_date = Date::from_calendar_date(1982, Month::September, 17).unwrap();
         let naive_time = Time::from_hms(13, 20, 0).unwrap();
-        let date_time = PrimitiveDateTime::new(naive_date, naive_time).assume_utc();
+        let date_time = PrimitiveDateTime::new(naive_date, naive_time);
         doc.add_date(date_field, date_time);
         let doc_json = schema.to_json(&doc);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);

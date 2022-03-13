@@ -1,7 +1,7 @@
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::core::Segment;
-use crate::fastfield::FastFieldsWriter;
+use crate::fastfield::{FastFieldsWriter, FastValue as _};
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -244,7 +244,7 @@ impl SegmentWriter {
                 FieldType::Date(_) => {
                     for value in values {
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_i64(date_val.assume_utc().unix_timestamp());
+                        term_buffer.set_u64(date_val.to_u64());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }

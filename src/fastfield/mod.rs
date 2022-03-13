@@ -20,6 +20,8 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
+use time::{PrimitiveDateTime, UtcOffset};
+
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -179,7 +181,34 @@ impl FastValue for OffsetDateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.unix_timestamp().as_u64()
+        self.to_u64()
+    }
+
+    fn to_type() -> Type {
+        Type::Date
+    }
+}
+
+impl FastValue for PrimitiveDateTime {
+    fn from_u64(timestamp_u64: u64) -> Self {
+        let dt = OffsetDateTime::from_u64(timestamp_u64);
+        debug_assert_eq!(UtcOffset::UTC, dt.offset());
+        Self::new(dt.date(), dt.time())
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.assume_utc().to_u64()
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::Date(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        self.to_u64()
     }
 
     fn to_type() -> Type {
@@ -188,12 +217,12 @@ impl FastValue for OffsetDateTime {
 }
 
 fn value_to_u64(value: &Value) -> u64 {
-    match *value {
-        Value::U64(ref val) => *val,
-        Value::I64(ref val) => common::i64_to_u64(*val),
-        Value::F64(ref val) => common::f64_to_u64(*val),
-        Value::Date(ref datetime) => common::i64_to_u64(datetime.assume_utc().unix_timestamp()),
-        _ => panic!("Expected a u64/i64/f64 field, got {:?} ", value),
+    match value {
+        Value::U64(val) => *val,
+        Value::I64(val) => val.to_u64(),
+        Value::F64(val) => val.to_u64(),
+        Value::Date(val) => val.to_u64(),
+        _ => panic!("Expected a u64/i64/f64/date field, got {:?} ", value),
     }
 }
 
