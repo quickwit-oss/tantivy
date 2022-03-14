@@ -141,30 +141,26 @@ impl SegmentHistogramCollector {
                 .filter(|bucket| bucket.doc_count != 0)
                 .count(),
         );
+
+        // Below we remove empty buckets for two reasons
+        // 1. To reduce the size of the intermediate result, which may be passed on the wire.
+        // 2. To mimic elasticsearch, there are no empty buckets at the start and end.
+        //
+        // Empty buckets may be added later again in the final result, depending on the request.
         if let Some(sub_aggregations) = self.sub_aggregations {
             buckets.extend(
                 self.buckets
                     .into_iter()
                     .zip(sub_aggregations.into_iter())
-                    // Here we remove the empty buckets for two reasons
-                    // 1. To reduce the size of the intermediate result, which may be passed on the wire.
-                    // 2. To mimic elasticsearch, there are no empty buckets at the start and end.
-                    //
-                    // Empty buckets may be added later again in the final result, depending on the request.
                     .filter(|(bucket, _sub_aggregation)| bucket.doc_count != 0)
-                    .map(|(bucket, sub_aggregation)| (bucket, Some(sub_aggregation)).into()),
+                    .map(|(bucket, sub_aggregation)| (bucket, sub_aggregation).into()),
             )
         } else {
             buckets.extend(
                 self.buckets
                     .into_iter()
-                    // Here we remove the empty buckets for two reasons
-                    // 1. To reduce the size of the intermediate result, which may be passed on the wire.
-                    // 2. To mimic elasticsearch, there are no empty buckets at the start and end.
-                    //
-                    // Empty buckets may be added later again in the final result, depending on the request.
                     .filter(|bucket| bucket.doc_count != 0)
-                    .map(|bucket| (bucket, None).into()),
+                    .map(|bucket| bucket.into()),
             );
         };
 

@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use super::bucket::generate_buckets;
 use super::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateHistogramBucketEntry, IntermediateMetricResult, IntermediateRangeBucketEntry,
+    IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
+    IntermediateMetricResult, IntermediateRangeBucketEntry,
 };
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
@@ -25,9 +25,16 @@ pub struct AggregationResults(pub HashMap<String, AggregationResult>);
 impl From<IntermediateAggregationResults> for AggregationResults {
     fn from(tree: IntermediateAggregationResults) -> Self {
         Self(
-            tree.0
+            tree.buckets
+                .unwrap_or_default()
                 .into_iter()
-                .map(|(key, agg)| (key, agg.into()))
+                .map(|(key, bucket)| (key, AggregationResult::BucketResult(bucket.into())))
+                .chain(
+                    tree.metrics
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(key, metric)| (key, AggregationResult::MetricResult(metric.into()))),
+                )
                 .collect(),
         )
     }
@@ -41,18 +48,6 @@ pub enum AggregationResult {
     BucketResult(BucketResult),
     /// Metric result variant.
     MetricResult(MetricResult),
-}
-impl From<IntermediateAggregationResult> for AggregationResult {
-    fn from(tree: IntermediateAggregationResult) -> Self {
-        match tree {
-            IntermediateAggregationResult::Bucket(bucket) => {
-                AggregationResult::BucketResult(bucket.into())
-            }
-            IntermediateAggregationResult::Metric(metric) => {
-                AggregationResult::MetricResult(metric.into())
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

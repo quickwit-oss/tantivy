@@ -176,6 +176,7 @@ pub(crate) struct VecWithNames<T: Clone> {
     values: Vec<T>,
     keys: Vec<String>,
 }
+
 impl<T: Clone> Default for VecWithNames<T> {
     fn default() -> Self {
         Self {
@@ -198,6 +199,15 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T: Clone> VecWithNames<T> {
+    fn from_other<K: Clone + Into<T>>(entries: VecWithNames<K>) -> Self {
+        let mut values = Vec::with_capacity(entries.len());
+        values.extend(entries.values.into_iter().map(Into::into));
+        Self {
+            keys: entries.keys,
+            values,
+        }
+    }
+
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
         entries.sort_by(|left, right| left.0.cmp(&right.0));
@@ -229,6 +239,9 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())
+    }
+    fn len(&self) -> usize {
+        self.values.len()
     }
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
@@ -384,7 +397,7 @@ mod tests {
         merge_segments: bool,
         use_distributed_collector: bool,
     ) -> crate::Result<()> {
-        let index = get_test_index_with_num_docs(merge_segments, 300)?;
+        let index = get_test_index_with_num_docs(merge_segments, 80)?;
 
         let reader = index.reader()?;
         let text_field = reader.searcher().schema().get_field("text").unwrap();
@@ -394,12 +407,12 @@ mod tests {
             IndexRecordOption::Basic,
         );
 
-        assert_eq!(DOC_BLOCK_SIZE, 256);
+        assert_eq!(DOC_BLOCK_SIZE, 64);
         // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
         //
         // Build a request so that on the first level we have one full cache, which is then flushed.
-        // The same cache should have some residue docs at the end, which are flushed (Range 0-266)
-        // -> 266 docs
+        // The same cache should have some residue docs at the end, which are flushed (Range 0-70)
+        // -> 70 docs
         //
         // The second level should also have some residue docs in the cache that are flushed at the
         // end.
@@ -412,13 +425,13 @@ mod tests {
         "bucketsL1": {
             "range": {
                 "field": "score",
-                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 266.0f64 }, { "from": 266.0f64 } ]
+                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
             },
             "aggs": {
                 "bucketsL2": {
                     "range": {
                         "field": "score",
-                        "ranges": [ { "to": 100.0f64 }, { "from": 100.0f64, "to": 266.0f64 }, { "from": 266.0f64 } ]
+                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
                     }
                 }
             }
@@ -426,14 +439,14 @@ mod tests {
         "histogram_test":{
             "histogram": {
                 "field": "score",
-                "interval":  263.0,
+                "interval":  70.0,
                 "offset": 3.0,
             },
             "aggs": {
                 "bucketsL2": {
                     "histogram": {
                         "field": "score",
-                        "interval":  263.0
+                        "interval":  70.0
                     }
                 }
             }
@@ -463,15 +476,15 @@ mod tests {
             res["bucketsL1"]["buckets"][0]["bucketsL2"]["buckets"][0]["doc_count"],
             3
         );
-        assert_eq!(res["bucketsL1"]["buckets"][1]["key"], "3-266");
-        assert_eq!(res["bucketsL1"]["buckets"][1]["doc_count"], 266 - 3);
+        assert_eq!(res["bucketsL1"]["buckets"][1]["key"], "3-70");
+        assert_eq!(res["bucketsL1"]["buckets"][1]["doc_count"], 70 - 3);
         assert_eq!(
             res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][0]["doc_count"],
-            97
+            27
         );
         assert_eq!(
             res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][1]["doc_count"],
-            166
+            40
         );
         assert_eq!(
             res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][2]["doc_count"],
@@ -479,9 +492,9 @@ mod tests {
         );
         assert_eq!(
             res["bucketsL1"]["buckets"][2]["bucketsL2"]["buckets"][2]["doc_count"],
-            300 - 266
+            80 - 70
         );
-        assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 300 - 266);
+        assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 80 - 70);
 
         Ok(())
     }

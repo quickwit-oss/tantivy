@@ -17,7 +17,7 @@ use super::{Key, VecWithNames};
 use crate::aggregation::agg_req::BucketAggregationType;
 use crate::DocId;
 
-pub(crate) const DOC_BLOCK_SIZE: usize = 256;
+pub(crate) const DOC_BLOCK_SIZE: usize = 64;
 pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 #[derive(Clone, PartialEq)]

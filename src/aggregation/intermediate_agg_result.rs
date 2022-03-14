@@ -19,18 +19,26 @@ use super::{Key, MergeFruits, SerializedKey, VecWithNames};
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateAggregationResults(pub(crate) VecWithNames<IntermediateAggregationResult>);
+pub struct IntermediateAggregationResults {
+    pub(crate) metrics: Option<VecWithNames<IntermediateMetricResult>>,
+    pub(crate) buckets: Option<VecWithNames<IntermediateBucketResult>>,
+}
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
-        let mut data = vec![];
-        for (key, bucket) in tree.buckets.into_iter() {
-            data.push((key, IntermediateAggregationResult::Bucket(bucket.into())));
-        }
-        for (key, metric) in tree.metrics.into_iter() {
-            data.push((key, IntermediateAggregationResult::Metric(metric.into())));
-        }
-        Self(VecWithNames::from_entries(data))
+        let metrics = if tree.metrics.is_empty() {
+            None
+        } else {
+            Some(VecWithNames::from_other(tree.metrics))
+        };
+
+        let buckets = if tree.buckets.is_empty() {
+            None
+        } else {
+            Some(VecWithNames::from_other(tree.buckets))
+        };
+
+        Self { metrics, buckets }
     }
 }
 
@@ -40,8 +48,18 @@ impl IntermediateAggregationResults {
     /// The order of the values need to be the same on both results. This is ensured when the same
     /// (key values) are present on the underlying VecWithNames struct.
     pub fn merge_fruits(&mut self, other: &IntermediateAggregationResults) {
-        for (tree_left, tree_right) in self.0.values_mut().zip(other.0.values()) {
-            tree_left.merge_fruits(tree_right);
+        if let (Some(buckets_left), Some(buckets_right)) = (&mut self.buckets, &other.buckets) {
+            for (bucket_left, bucket_right) in buckets_left.values_mut().zip(buckets_right.values())
+            {
+                bucket_left.merge_fruits(bucket_right);
+            }
+        }
+
+        if let (Some(metrics_left), Some(metrics_right)) = (&mut self.metrics, &other.metrics) {
+            for (metric_left, metric_right) in metrics_left.values_mut().zip(metrics_right.values())
+            {
+                metric_left.merge_fruits(metric_right);
+            }
         }
     }
 }
@@ -53,28 +71,6 @@ pub enum IntermediateAggregationResult {
     Bucket(IntermediateBucketResult),
     /// Metric variant
     Metric(IntermediateMetricResult),
-}
-
-impl IntermediateAggregationResult {
-    fn merge_fruits(&mut self, other: &IntermediateAggregationResult) {
-        match (self, other) {
-            (
-                IntermediateAggregationResult::Bucket(res_left),
-                IntermediateAggregationResult::Bucket(res_right),
-            ) => {
-                res_left.merge_fruits(res_right);
-            }
-            (
-                IntermediateAggregationResult::Metric(res_left),
-                IntermediateAggregationResult::Metric(res_right),
-            ) => {
-                res_left.merge_fruits(res_right);
-            }
-            _ => {
-                panic!("incompatible types in aggregation tree on merge fruits");
-            }
-        }
-    }
 }
 
 /// Holds the intermediate data for metric results
@@ -196,13 +192,6 @@ impl IntermediateBucketResult {
     }
 }
 
-// fn merge_sorted_vecs<V: MergeFruits + Clone>(entries_left: &mut Vec<V>, entries_right: &Vec<V>) {
-// for el in entries_left
-//.iter_mut()
-//.merge_join_by(entries_right.iter(), |left, right| left.key.cmp(right.key))
-//{}
-//}
-
 fn merge_maps<V: MergeFruits + Clone>(
     entries_left: &mut FnvHashMap<SerializedKey, V>,
     entries_right: &FnvHashMap<SerializedKey, V>,
@@ -232,25 +221,32 @@ pub struct IntermediateHistogramBucketEntry {
     pub sub_aggregation: IntermediateAggregationResults,
 }
 
+impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
+    fn from(entry: SegmentHistogramBucketEntry) -> Self {
+        IntermediateHistogramBucketEntry {
+            key: entry.key,
+            doc_count: entry.doc_count,
+            sub_aggregation: Default::default(),
+        }
+    }
+}
+
 impl
     From<(
         SegmentHistogramBucketEntry,
-        Option<SegmentAggregationResultsCollector>,
+        SegmentAggregationResultsCollector,
     )> for IntermediateHistogramBucketEntry
 {
     fn from(
         entry: (
             SegmentHistogramBucketEntry,
-            Option<SegmentAggregationResultsCollector>,
+            SegmentAggregationResultsCollector,
         ),
     ) -> Self {
         IntermediateHistogramBucketEntry {
             key: entry.0.key,
             doc_count: entry.0.doc_count,
-            sub_aggregation: entry
-                .1
-                .map(|sub_aggregations| sub_aggregations.into())
-                .unwrap_or_default(),
+            sub_aggregation: entry.1.into(),
         }
     }
 }
@@ -333,9 +329,12 @@ mod tests {
         }
         map.insert(
             "my_agg_level2".to_string(),
-            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(buckets)),
+            IntermediateBucketResult::Range(buckets),
         );
-        IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
+        IntermediateAggregationResults {
+            buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
+            metrics: Default::default(),
+        }
     }
 
     fn get_test_tree(data: &[(String, u64, String, u64)]) -> IntermediateAggregationResults {
@@ -359,9 +358,12 @@ mod tests {
         }
         map.insert(
             "my_agg_level1".to_string(),
-            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(buckets)),
+            IntermediateBucketResult::Range(buckets),
         );
-        IntermediateAggregationResults(VecWithNames::from_entries(map.into_iter().collect()))
+        IntermediateAggregationResults {
+            buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
+            metrics: Default::default(),
+        }
     }
 
     #[test]
