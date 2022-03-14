@@ -18,7 +18,7 @@ use crate::schema::{
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::Score;
+use crate::{DateTime, Score};
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -329,7 +329,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                Ok(Term::from_field_date(field, &dt.to_offset(UtcOffset::UTC)))
+                Ok(Term::from_field_date(field, DateTime::new_utc(dt)))
             }
             FieldType::Str(ref str_options) => {
                 let option = str_options.get_indexing_options().ok_or_else(|| {
@@ -405,7 +405,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                let dt_term = Term::from_field_date(field, &dt.to_offset(UtcOffset::UTC));
+                let dt_term = Term::from_field_date(field, DateTime::new_utc(dt));
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
@@ -712,7 +712,7 @@ fn generate_literals_for_json_object(
                 json_term_writer.set_fast_value(f64_val);
             }
             NumValue::DateTime(dt_val) => {
-                json_term_writer.set_fast_value(dt_val);
+                json_term_writer.set_fast_value(DateTime::new_utc(dt_val));
             }
         }
         logical_literals.push(LogicalLiteral::Term(json_term_writer.term().clone()));
@@ -1041,7 +1041,7 @@ mod test {
     fn test_json_field_possibly_a_date() {
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(type=Json, field=14, path=date, vtype=Date, OffsetDateTime { utc_datetime: PrimitiveDateTime { date: Date { year: 2019, ordinal: 285 }, time: Time { hour: 7, minute: 20, second: 50, nanosecond: 0 } }, offset: UtcOffset { hours: 0, minutes: 0, seconds: 0 } }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            r#"(Term(type=Json, field=14, path=date, vtype=Date, DateTime { unix_timestamp: 1570864850 }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
             true,
         );
     }

@@ -5,8 +5,8 @@ use std::mem;
 use common::{BinarySerializable, VInt};
 
 use super::*;
-use crate::time::{OffsetDateTime, PrimitiveDateTime};
 use crate::tokenizer::PreTokenizedString;
+use crate::DateTime;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -111,14 +111,7 @@ impl Document {
     }
 
     /// Add a date field with unspecified time zone offset
-    pub fn add_date(&mut self, field: Field, value: PrimitiveDateTime) {
-        self.add_field_value(field, value);
-    }
-
-    /// Add a date field with time zone offset
-    ///
-    /// The time zone offset is implicitly converted to UTC.
-    pub fn add_date_utc(&mut self, field: Field, value: OffsetDateTime) {
+    pub fn add_date(&mut self, field: Field, value: DateTime) {
         self.add_field_value(field, value);
     }
 

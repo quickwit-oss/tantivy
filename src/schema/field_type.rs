@@ -350,7 +350,7 @@ mod tests {
     use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::Document;
+    use crate::{DateTime, Document};
 
     #[test]
     fn test_deserialize_json_date() {
@@ -362,8 +362,7 @@ mod tests {
         let date = doc.get_first(date_field).unwrap();
         assert_eq!(
             format!("{:?}", date),
-            "Date(PrimitiveDateTime { date: Date { year: 2019, ordinal: 285 }, time: Time { hour: \
-             5, minute: 20, second: 50, nanosecond: 520000000 } })"
+            "Date(DateTime { unix_timestamp: 1570857650 })"
         );
     }
 
@@ -376,7 +375,7 @@ mod tests {
         let naive_date = Date::from_calendar_date(1982, Month::September, 17).unwrap();
         let naive_time = Time::from_hms(13, 20, 0).unwrap();
         let date_time = PrimitiveDateTime::new(naive_date, naive_time);
-        doc.add_date(date_field, date_time);
+        doc.add_date(date_field, DateTime::new_primitive(date_time));
         let doc_json = schema.to_json(&doc);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
     }

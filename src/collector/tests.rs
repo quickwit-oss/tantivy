@@ -6,7 +6,7 @@ use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
-use crate::{doc, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
+use crate::{doc, DateTime, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
     compute_score: true,
@@ -54,8 +54,8 @@ pub fn test_filter_collector() -> crate::Result<()> {
 
     assert_eq!(filtered_top_docs.len(), 0);
 
-    fn date_filter(value: OffsetDateTime) -> bool {
-        (value - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
+    fn date_filter(value: DateTime) -> bool {
+        (value.to_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
             .whole_weeks()
             > 0
     }

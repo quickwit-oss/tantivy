@@ -18,7 +18,7 @@ mod tests {
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::{Duration, OffsetDateTime};
-    use crate::{Document, Index, Term};
+    use crate::{DateTime, Document, Index, Term};
 
     #[test]
     fn test_multivalued_u64() -> crate::Result<()> {
@@ -109,10 +109,8 @@ mod tests {
                         .get_first(date_field)
                         .expect("cannot find value")
                         .as_date()
-                        .unwrap()
-                        .assume_utc()
-                        .unix_timestamp(),
-                    first_time_stamp.unix_timestamp()
+                        .unwrap(),
+                    DateTime::new_utc(first_time_stamp),
                 );
                 assert_eq!(
                     retrieved_doc
@@ -138,10 +136,8 @@ mod tests {
                         .get_first(date_field)
                         .expect("cannot find value")
                         .as_date()
-                        .unwrap()
-                        .assume_utc()
-                        .unix_timestamp(),
-                    two_secs_ahead.unix_timestamp()
+                        .unwrap(),
+                    DateTime::new_utc(two_secs_ahead)
                 );
                 assert_eq!(
                     retrieved_doc
@@ -181,10 +177,8 @@ mod tests {
                         .get_first(date_field)
                         .expect("cannot find value")
                         .as_date()
-                        .expect("value not of Date type")
-                        .assume_utc()
-                        .unix_timestamp(),
-                    (first_time_stamp + Duration::seconds(offset_sec)).unix_timestamp()
+                        .expect("value not of Date type"),
+                    DateTime::new_utc(first_time_stamp + Duration::seconds(offset_sec)),
                 );
                 assert_eq!(
                     retrieved_doc

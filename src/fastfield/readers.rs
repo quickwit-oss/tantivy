@@ -5,8 +5,7 @@ use crate::fastfield::{
 };
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
-use crate::time::OffsetDateTime;
-use crate::TantivyError;
+use crate::{DateTime, TantivyError};
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///
@@ -151,7 +150,7 @@ impl FastFieldReaders {
     /// Returns the `date` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn date(&self, field: Field) -> crate::Result<DynamicFastFieldReader<OffsetDateTime>> {
+    pub fn date(&self, field: Field) -> crate::Result<DynamicFastFieldReader<DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -201,7 +200,7 @@ impl FastFieldReaders {
     ///
     /// If `field` is not a `time::OffsetDateTime` multi-valued fast field, this method returns an
     /// Error.
-    pub fn dates(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<OffsetDateTime>> {
+    pub fn dates(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
     }

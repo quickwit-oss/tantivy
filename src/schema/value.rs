@@ -5,8 +5,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
 
 use crate::schema::Facet;
-use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
+use crate::DateTime;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -22,11 +23,8 @@ pub enum Value {
     I64(i64),
     /// 64-bits Float `f64`
     F64(f64),
-    /// Signed 64-bits Date time stamp `date`
-    ///
-    /// Stored as seconds since the UNIX epoch origin. Internally
-    /// the time zone is assumed to be UTC.
-    Date(PrimitiveDateTime),
+    /// Date/time with second precision
+    Date(DateTime),
     /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -46,9 +44,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
-            Value::Date(ref date) => {
-                time::serde::rfc3339::serialize(&date.assume_utc(), serializer)
-            }
+            Value::Date(ref date) => time::serde::rfc3339::serialize(&date.to_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
@@ -159,9 +155,9 @@ impl Value {
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
-    pub fn as_date(&self) -> Option<&PrimitiveDateTime> {
+    pub fn as_date(&self) -> Option<DateTime> {
         if let Value::Date(date) = self {
-            Some(date)
+            Some(*date)
         } else {
             None
         }
@@ -214,16 +210,15 @@ impl From<f64> for Value {
     }
 }
 
-impl From<PrimitiveDateTime> for Value {
-    fn from(date_time: PrimitiveDateTime) -> Value {
-        Value::Date(date_time)
+impl From<DateTime> for Value {
+    fn from(dt: DateTime) -> Value {
+        Value::Date(dt)
     }
 }
 
 impl From<OffsetDateTime> for Value {
-    fn from(date_time: OffsetDateTime) -> Value {
-        let utc = date_time.to_offset(UtcOffset::UTC);
-        PrimitiveDateTime::new(utc.date(), utc.time()).into()
+    fn from(dt: OffsetDateTime) -> Value {
+        Value::Date(DateTime::new_utc(dt))
     }
 }
 
@@ -281,8 +276,8 @@ mod binary_serialize {
 
     use super::Value;
     use crate::schema::Facet;
-    use crate::time::OffsetDateTime;
     use crate::tokenizer::PreTokenizedString;
+    use crate::DateTime;
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
@@ -331,7 +326,8 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    val.assume_utc().unix_timestamp().serialize(writer)
+                    let DateTime { unix_timestamp } = val;
+                    unix_timestamp.serialize(writer)
                 }
                 Value::Facet(ref facet) => {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
@@ -369,14 +365,8 @@ mod binary_serialize {
                     Ok(Value::F64(value))
                 }
                 DATE_CODE => {
-                    let timestamp = i64::deserialize(reader)?;
-                    let dt = OffsetDateTime::from_unix_timestamp(timestamp).map_err(|err| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!("Invalid UNIX timestamp: {}", err),
-                        )
-                    })?;
-                    Ok(dt.into())
+                    let unix_timestamp = i64::deserialize(reader)?;
+                    Ok(Value::Date(DateTime::from_unix_timestamp(unix_timestamp)))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),

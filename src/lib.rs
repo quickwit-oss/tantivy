@@ -129,6 +129,77 @@ mod macros;
 /// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
 pub use time;
 
+use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+
+/// A date/time value with second precision.
+///
+/// This timestamp does not carry any time zone information.
+/// Users are responsible for applying the provided conversion
+/// functions consistently.
+///
+/// All constructors and conversions are provided as explicit
+/// functions and not by implementing any `From`/`Into` traits
+/// to prevent unintended usage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DateTime {
+    unix_timestamp: i64,
+}
+
+impl DateTime {
+    /// Create new from UNIX timestamp
+    pub const fn from_unix_timestamp(unix_timestamp: i64) -> Self {
+        Self { unix_timestamp }
+    }
+
+    /// Create new from `OffsetDateTime`
+    ///
+    /// The given date/time is converted to UTC and the actual
+    /// time zone is discarded.
+    pub const fn new_utc(dt: OffsetDateTime) -> Self {
+        Self::from_unix_timestamp(dt.unix_timestamp())
+    }
+
+    /// Create new from `PrimitiveDateTime`
+    ///
+    /// Implicitly assumes that the given date/time is in UTC!
+    /// Otherwise the original value must only be reobtained with
+    /// [`to_primitive()`].
+    pub const fn new_primitive(dt: PrimitiveDateTime) -> Self {
+        Self::new_utc(dt.assume_utc())
+    }
+
+    /// Convert to UNIX timestamp
+    pub const fn to_unix_timestamp(self) -> i64 {
+        let Self { unix_timestamp } = self;
+        unix_timestamp
+    }
+
+    /// Convert to UTC `OffsetDateTime`
+    pub fn to_utc(self) -> OffsetDateTime {
+        let Self { unix_timestamp } = self;
+        let utc_datetime =
+            OffsetDateTime::from_unix_timestamp(unix_timestamp).expect("valid UNIX timestamp");
+        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
+        utc_datetime
+    }
+
+    /// Convert to `OffsetDateTime` with the given time zone
+    pub fn to_offset(self, offset: UtcOffset) -> OffsetDateTime {
+        self.to_utc().to_offset(offset)
+    }
+
+    /// Convert to `PrimitiveDateTime` without any time zone
+    ///
+    /// The value should have been constructed with [`from_primitive()`].
+    /// Otherwise the time zone is implicitly assumed to be UTC.
+    pub fn to_primitive(self) -> PrimitiveDateTime {
+        let utc_datetime = self.to_utc();
+        // Discard the UTC time zone offset
+        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
+        PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
+    }
+}
+
 pub use crate::error::TantivyError;
 
 /// Tantivy result.

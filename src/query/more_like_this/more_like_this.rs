@@ -244,13 +244,12 @@ impl MoreLikeThis {
             FieldType::Date(_) => {
                 for value in values {
                     // TODO: Ask if this is the semantic (timestamp) we want
-                    let val = value
+                    let unix_timestamp = value
                         .as_date()
                         .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
-                        .assume_utc()
-                        .unix_timestamp();
-                    if !self.is_noise_word(val.to_string()) {
-                        let term = Term::from_field_i64(field, val);
+                        .to_unix_timestamp();
+                    if !self.is_noise_word(unix_timestamp.to_string()) {
+                        let term = Term::from_field_i64(field, unix_timestamp);
                         *term_frequencies.entry(term).or_insert(0) += 1;
                     }
                 }

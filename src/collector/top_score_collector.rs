@@ -716,7 +716,7 @@ mod tests {
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::{DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
+    use crate::{DateTime, DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -911,13 +911,12 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(birthday);
-        let top_docs: Vec<(OffsetDateTime, DocAddress)> =
-            searcher.search(&AllQuery, &top_collector)?;
+        let top_docs: Vec<(DateTime, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (mr_birthday, DocAddress::new(0, 1)),
-                (pr_birthday, DocAddress::new(0, 0)),
+                (DateTime::new_utc(mr_birthday), DocAddress::new(0, 1)),
+                (DateTime::new_utc(pr_birthday), DocAddress::new(0, 0)),
             ]
         );
         Ok(())

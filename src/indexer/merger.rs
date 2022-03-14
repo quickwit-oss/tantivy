@@ -1149,8 +1149,8 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::{
-        assert_nearly_equals, schema, DocAddress, DocSet, IndexSettings, IndexSortByField,
-        IndexWriter, Order, Searcher, SegmentId,
+        assert_nearly_equals, schema, DateTime, DocAddress, DocSet, IndexSettings,
+        IndexSortByField, IndexWriter, Order, Searcher, SegmentId,
     };
 
     #[test]
@@ -1250,7 +1250,10 @@ mod tests {
                     ]
                 );
                 assert_eq!(
-                    get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)])?,
+                    get_doc_ids(vec![Term::from_field_date(
+                        date_field,
+                        DateTime::new_utc(curr_time)
+                    )])?,
                     vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
             }
