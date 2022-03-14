@@ -126,9 +126,7 @@ pub mod tests {
         let mut schema_builder = Schema::builder();
         use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
         let no_positions = TextOptions::default().set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer("default")
-                .set_index_option(IndexRecordOption::WithFreqs),
+            TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
         );
 
         let text_field = schema_builder.add_text_field("text", no_positions);

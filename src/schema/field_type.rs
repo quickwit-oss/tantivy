@@ -183,7 +183,7 @@ impl FieldType {
         }
     }
 
-    /// returns true if the field is normed.
+    /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).
     pub fn has_fieldnorms(&self) -> bool {
         match *self {
             FieldType::Str(ref text_options) => text_options

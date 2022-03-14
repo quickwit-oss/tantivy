@@ -9,7 +9,10 @@ use crate::schema::IndexRecordOption;
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct TextOptions {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     indexing: Option<TextFieldIndexing>,
+    #[serde(default)]
     stored: bool,
 }
 
@@ -39,26 +42,56 @@ impl TextOptions {
     }
 }
 
+#[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
+struct TokenizerName(Cow<'static, str>);
+
+impl Default for TokenizerName {
+    fn default() -> Self {
+        TokenizerName::from_static("default")
+    }
+}
+
+impl TokenizerName {
+    const fn from_static(name: &'static str) -> Self {
+        TokenizerName(Cow::Borrowed(name))
+    }
+    fn from_name(name: &str) -> Self {
+        TokenizerName(Cow::Owned(name.to_string()))
+    }
+    fn name(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Configuration defining indexing for a text field.
 ///
 /// It defines
-/// - the amount of information that should be stored about the presence of a term in a document.
+/// - The amount of information that should be stored about the presence of a term in a document.
 /// Essentially, should we store the term frequency and/or the positions (See
 /// [`IndexRecordOption`](./enum.IndexRecordOption.html)).
-/// - the name of the `Tokenizer` that should be used to process the field.
+/// - The name of the `Tokenizer` that should be used to process the field.
+/// - Flag indicating, if fieldnorms should be stored (See [fieldnorm](crate::fieldnorm)). Defaults
+///   to `true`.
 #[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
+    #[serde(default)]
     record: IndexRecordOption,
+    #[serde(default = "default_fieldnorms")]
     fieldnorms: bool,
-    tokenizer: Cow<'static, str>,
+    #[serde(default)]
+    tokenizer: TokenizerName,
+}
+
+pub(crate) fn default_fieldnorms() -> bool {
+    true
 }
 
 impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
         TextFieldIndexing {
-            tokenizer: Cow::Borrowed("default"),
-            record: IndexRecordOption::Basic,
-            fieldnorms: true,
+            tokenizer: TokenizerName::default(),
+            record: IndexRecordOption::default(),
+            fieldnorms: default_fieldnorms(),
         }
     }
 }
@@ -67,13 +100,13 @@ impl TextFieldIndexing {
     /// Sets the tokenizer to be used for a given field.
     #[must_use]
     pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
-        self.tokenizer = Cow::Owned(tokenizer_name.to_string());
+        self.tokenizer = TokenizerName::from_name(tokenizer_name);
         self
     }
 
     /// Returns the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
-        &self.tokenizer
+        &self.tokenizer.name()
     }
 
     /// Sets fieldnorms
@@ -83,7 +116,7 @@ impl TextFieldIndexing {
         self
     }
 
-    /// Returns true if and only if fieldnorms are stored.
+    /// Returns true if and only if [fieldnorms](crate::fieldnorm)are stored.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }
@@ -108,7 +141,7 @@ impl TextFieldIndexing {
 /// The field will be untokenized and indexed.
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: Cow::Borrowed("raw"),
+        tokenizer: TokenizerName::from_static("raw"),
         fieldnorms: true,
         record: IndexRecordOption::Basic,
     }),
@@ -118,7 +151,7 @@ pub const STRING: TextOptions = TextOptions {
 /// The field will be tokenized and indexed.
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: Cow::Borrowed("default"),
+        tokenizer: TokenizerName::from_static("default"),
         fieldnorms: true,
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
@@ -186,5 +219,25 @@ mod tests {
     fn test_cmp_index_record_option() {
         assert!(IndexRecordOption::WithFreqsAndPositions > IndexRecordOption::WithFreqs);
         assert!(IndexRecordOption::WithFreqs > IndexRecordOption::Basic);
+    }
+
+    #[test]
+    fn serde_default_test() {
+        let json = r#"
+        {
+            "indexing": {
+                "record": "basic",
+                "fieldnorms": true,
+                "tokenizer": "default"
+            },
+            "stored": false
+        }
+        "#;
+        let options: TextOptions = serde_json::from_str(json).unwrap();
+        let options2: TextOptions = serde_json::from_str("{\"indexing\": {}}").unwrap();
+        assert_eq!(options, options2);
+        assert_eq!(options.indexing.unwrap().record, IndexRecordOption::Basic);
+        let options3: TextOptions = serde_json::from_str("{}").unwrap();
+        assert_eq!(options3.indexing, None);
     }
 }
