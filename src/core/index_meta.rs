@@ -239,7 +239,7 @@ impl InnerSegmentMeta {
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -254,7 +254,7 @@ pub struct IndexSettings {
 /// Presorting documents can greatly performance
 /// in some scenarios, by applying top n
 /// optimizations.
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSortByField {
     /// The field to sort the documents by
     pub field: String,
@@ -262,7 +262,7 @@ pub struct IndexSortByField {
     pub order: Order,
 }
 /// The order to sort by
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
@@ -298,12 +298,12 @@ pub struct IndexMeta {
     pub schema: Schema,
     /// Opstamp associated to the last `commit` operation.
     pub opstamp: Opstamp,
-    #[serde(skip_serializing_if = "Option::is_none")]
     /// Payload associated to the last commit.
     ///
     /// Upon commit, clients can optionally add a small `String` payload to their commit
     /// to help identify this commit.
     /// This payload is entirely unused by tantivy.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
 }
 
@@ -374,6 +374,7 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
+    use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
     use crate::{IndexSettings, IndexSortByField, Order};
 
@@ -402,5 +403,10 @@ mod tests {
             json,
             r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
+
+        let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(index_metas.index_settings, deser_meta.index_settings);
+        assert_eq!(index_metas.schema, deser_meta.schema);
+        assert_eq!(index_metas.opstamp, deser_meta.opstamp);
     }
 }
