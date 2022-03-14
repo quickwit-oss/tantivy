@@ -179,7 +179,7 @@ impl FastValue for OffsetDateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.to_u64()
+        self.unix_timestamp().as_u64()
     }
 
     fn to_type() -> Type {
