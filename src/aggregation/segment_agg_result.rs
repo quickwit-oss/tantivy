@@ -22,8 +22,8 @@ pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct SegmentAggregationResultsCollector {
-    pub(crate) metrics: VecWithNames<SegmentMetricResultCollector>,
-    pub(crate) buckets: VecWithNames<SegmentBucketResultCollector>,
+    pub(crate) metrics: Option<VecWithNames<SegmentMetricResultCollector>>,
+    pub(crate) buckets: Option<VecWithNames<SegmentBucketResultCollector>>,
     staged_docs: DocBlock,
     num_staged_docs: usize,
 }
@@ -50,7 +50,7 @@ impl SegmentAggregationResultsCollector {
                     SegmentBucketResultCollector::from_req_and_validate(req)?,
                 ))
             })
-            .collect::<crate::Result<_>>()?;
+            .collect::<crate::Result<Vec<(String, _)>>>()?;
         let metrics = req
             .metrics
             .entries()
@@ -60,10 +60,20 @@ impl SegmentAggregationResultsCollector {
                     SegmentMetricResultCollector::from_req_and_validate(req)?,
                 ))
             })
-            .collect::<crate::Result<_>>()?;
+            .collect::<crate::Result<Vec<(String, _)>>>()?;
+        let metrics = if metrics.is_empty() {
+            None
+        } else {
+            Some(VecWithNames::from_entries(metrics))
+        };
+        let buckets = if buckets.is_empty() {
+            None
+        } else {
+            Some(VecWithNames::from_entries(buckets))
+        };
         Ok(SegmentAggregationResultsCollector {
-            metrics: VecWithNames::from_entries(metrics),
-            buckets: VecWithNames::from_entries(buckets),
+            metrics,
+            buckets,
             staged_docs: [0; DOC_BLOCK_SIZE],
             num_staged_docs: 0,
         })
@@ -82,29 +92,30 @@ impl SegmentAggregationResultsCollector {
         }
     }
 
-    #[inline(never)]
     pub(crate) fn flush_staged_docs(
         &mut self,
         agg_with_accessor: &AggregationsWithAccessor,
         force_flush: bool,
     ) {
-        for (agg_with_accessor, collector) in agg_with_accessor
-            .metrics
-            .values()
-            .zip(self.metrics.values_mut())
-        {
-            collector.collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor);
+        if let Some(metrics) = &mut self.metrics {
+            for (agg_with_accessor, collector) in
+                agg_with_accessor.metrics.values().zip(metrics.values_mut())
+            {
+                collector
+                    .collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor);
+            }
         }
-        for (agg_with_accessor, collector) in agg_with_accessor
-            .buckets
-            .values()
-            .zip(self.buckets.values_mut())
-        {
-            collector.collect_block(
-                &self.staged_docs[..self.num_staged_docs],
-                agg_with_accessor,
-                force_flush,
-            );
+
+        if let Some(buckets) = &mut self.buckets {
+            for (agg_with_accessor, collector) in
+                agg_with_accessor.buckets.values().zip(buckets.values_mut())
+            {
+                collector.collect_block(
+                    &self.staged_docs[..self.num_staged_docs],
+                    agg_with_accessor,
+                    force_flush,
+                );
+            }
         }
 
         self.num_staged_docs = 0;

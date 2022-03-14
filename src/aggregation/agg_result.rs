@@ -110,7 +110,8 @@ impl From<IntermediateBucketResult> for BucketResult {
             }
             IntermediateBucketResult::Histogram { buckets, req } => {
                 let buckets = if req.min_doc_count() == 0 {
-                    // We need to fill up the buckets for the total ranges, so that there are no gaps
+                    // We need to fill up the buckets for the total ranges, so that there are no
+                    // gaps
                     let minmax = buckets.iter().minmax_by_key(|bucket| bucket.key);
                     let all_buckets = match minmax {
                         itertools::MinMaxResult::MinMax(min, max) => {

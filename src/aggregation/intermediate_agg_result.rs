@@ -26,17 +26,12 @@ pub struct IntermediateAggregationResults {
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
-        let metrics = if tree.metrics.is_empty() {
-            None
-        } else {
-            Some(VecWithNames::from_other(tree.metrics))
-        };
-
-        let buckets = if tree.buckets.is_empty() {
-            None
-        } else {
-            Some(VecWithNames::from_other(tree.buckets))
-        };
+        let metrics = tree
+            .metrics
+            .map(|metrics| VecWithNames::from_other(metrics));
+        let buckets = tree
+            .buckets
+            .map(|buckets| VecWithNames::from_other(buckets));
 
         Self { metrics, buckets }
     }
