@@ -34,6 +34,20 @@ impl JsonObjectOptions {
     pub fn get_text_indexing_options(&self) -> Option<&TextFieldIndexing> {
         self.indexing.as_ref()
     }
+
+    /// Sets the field as stored
+    #[must_use]
+    pub fn set_stored(mut self) -> Self {
+        self.stored = true;
+        self
+    }
+
+    /// Sets the field as indexed, with the specific indexing options.
+    #[must_use]
+    pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> Self {
+        self.indexing = Some(indexing);
+        self
+    }
 }
 
 impl From<StoredFlag> for JsonObjectOptions {
