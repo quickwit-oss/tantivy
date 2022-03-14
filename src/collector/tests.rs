@@ -26,11 +26,11 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let index = Index::create_in_ram(schema);
 
     let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
-    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap()))?;
-    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => OffsetDateTime::parse("2018-04-09T00:00:00+00:00", &Rfc3339).unwrap()))?;
+    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::new_utc(OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::new_utc(OffsetDateTime::parse("2018-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

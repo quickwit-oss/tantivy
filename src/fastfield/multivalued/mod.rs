@@ -72,21 +72,26 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         let first_time_stamp = OffsetDateTime::now_utc();
-        index_writer.add_document(
-            doc!(date_field=>first_time_stamp, date_field=>first_time_stamp, time_i=>1i64),
-        )?;
-        index_writer.add_document(doc!(time_i=>0i64))?;
+        index_writer.add_document(doc!(
+                date_field => DateTime::new_utc(first_time_stamp),
+                date_field => DateTime::new_utc(first_time_stamp),
+                time_i=>1i64))?;
+        index_writer.add_document(doc!(time_i => 0i64))?;
         // add one second
-        index_writer.add_document(
-            doc!(date_field=>first_time_stamp + Duration::seconds(1), time_i=>2i64),
-        )?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::new_utc(first_time_stamp + Duration::seconds(1)),
+            time_i => 2i64))?;
         // add another second
         let two_secs_ahead = first_time_stamp + Duration::seconds(2);
-        index_writer.add_document(doc!(date_field=>two_secs_ahead, date_field=>two_secs_ahead,date_field=>two_secs_ahead, time_i=>3i64))?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::new_utc(two_secs_ahead),
+            date_field => DateTime::new_utc(two_secs_ahead),
+            date_field => DateTime::new_utc(two_secs_ahead),
+            time_i => 3i64))?;
         // add three seconds
-        index_writer.add_document(
-            doc!(date_field=>first_time_stamp + Duration::seconds(3), time_i=>4i64),
-        )?;
+        index_writer.add_document(doc!(
+                date_field => DateTime::new_utc(first_time_stamp + Duration::seconds(3)),
+                time_i => 4i64))?;
         index_writer.commit()?;
 
         let reader = index.reader()?;

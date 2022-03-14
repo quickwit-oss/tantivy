@@ -11,6 +11,7 @@ use crate::schema::{
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
+use crate::DateTime;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -253,7 +254,7 @@ impl FieldType {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
                             })?;
-                        Ok(dt_with_fixed_tz.into())
+                        Ok(DateTime::new_utc(dt_with_fixed_tz).into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
                     FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {

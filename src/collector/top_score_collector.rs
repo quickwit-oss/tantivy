@@ -898,15 +898,21 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let pr_birthday = OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339)?;
+        let pr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+            "1898-04-09T00:00:00+00:00",
+            &Rfc3339,
+        )?);
         index_writer.add_document(doc!(
             name => "Paul Robeson",
-            birthday => pr_birthday
+            birthday => pr_birthday,
         ))?;
-        let mr_birthday = OffsetDateTime::parse("1947-11-08T00:00:00+00:00", &Rfc3339)?;
+        let mr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+            "1947-11-08T00:00:00+00:00",
+            &Rfc3339,
+        )?);
         index_writer.add_document(doc!(
             name => "Minnie Riperton",
-            birthday => mr_birthday
+            birthday => mr_birthday,
         ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
@@ -915,8 +921,8 @@ mod tests {
         assert_eq!(
             &top_docs[..],
             &[
-                (DateTime::new_utc(mr_birthday), DocAddress::new(0, 1)),
-                (DateTime::new_utc(pr_birthday), DocAddress::new(0, 0)),
+                (mr_birthday, DocAddress::new(0, 1)),
+                (pr_birthday, DocAddress::new(0, 0)),
             ]
         );
         Ok(())

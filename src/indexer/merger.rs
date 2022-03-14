@@ -1177,7 +1177,7 @@ mod tests {
             index_writer.add_document(doc!(
                 text_field => "af b",
                 score_field => 3u64,
-                date_field => curr_time,
+                date_field => DateTime::new_utc(curr_time),
                 bytes_score_field => 3u32.to_be_bytes().as_ref()
             ))?;
             index_writer.add_document(doc!(
@@ -1194,7 +1194,7 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "af b",
-                date_field => curr_time,
+                date_field => DateTime::new_utc(curr_time),
                 score_field => 11u64,
                 bytes_score_field => 11u32.to_be_bytes().as_ref()
             ))?;

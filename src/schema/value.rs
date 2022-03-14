@@ -5,7 +5,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
 
 use crate::schema::Facet;
-use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
@@ -216,12 +215,6 @@ impl From<DateTime> for Value {
     }
 }
 
-impl From<OffsetDateTime> for Value {
-    fn from(dt: OffsetDateTime) -> Value {
-        Value::Date(DateTime::new_utc(dt))
-    }
-}
-
 impl<'a> From<&'a str> for Value {
     fn from(s: &'a str) -> Value {
         Value::Str(s.to_string())
@@ -412,15 +405,18 @@ mod tests {
     use super::Value;
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
+    use crate::DateTime;
 
     #[test]
     fn test_serialize_date() {
-        let value =
-            Value::from(OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap());
+        let value = Value::from(DateTime::new_utc(
+            OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap(),
+        ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
         assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57Z""#);
-        let value =
-            Value::from(OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap());
+        let value = Value::from(DateTime::new_utc(
+            OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap(),
+        ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
         // The time zone information gets lost by conversion into `Value::Date` and
         // implicitly becomes UTC.

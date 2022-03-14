@@ -489,7 +489,8 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(date_field =>OffsetDateTime::now_utc()))?;
+        index_writer
+            .add_document(doc!(date_field =>DateTime::new_utc(OffsetDateTime::now_utc())))?;
         index_writer.commit()?;
         index_writer.add_document(doc!())?;
         index_writer.commit()?;
