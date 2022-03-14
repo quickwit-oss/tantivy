@@ -59,8 +59,13 @@ pub enum QueryParserError {
     FieldDoesNotHavePositionsIndexed(String),
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
-    #[error("The tokenizer '{0:?}' for the field '{1:?}' is unknown")]
-    UnknownTokenizer(String, String),
+    #[error("The tokenizer '{tokenizer:?}' for the field '{field:?}' is unknown")]
+    UnknownTokenizer {
+        /// The name of the tokenizer
+        tokenizer: String,
+        /// The field name
+        field: String,
+    },
     /// The query contains a range query with a phrase as one of the bounds.
     /// Only terms can be used as bounds.
     #[error("A range query cannot have a phrase as one of the bounds")]
@@ -340,11 +345,9 @@ impl QueryParser {
                 let text_analyzer =
                     self.tokenizer_manager
                         .get(option.tokenizer())
-                        .ok_or_else(|| {
-                            QueryParserError::UnknownTokenizer(
-                                field_entry.name().to_string(),
-                                option.tokenizer().to_string(),
-                            )
+                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
+                            field: field_entry.name().to_string(),
+                            tokenizer: option.tokenizer().to_string(),
                         })?;
                 let mut terms: Vec<Term> = Vec::new();
                 let mut token_stream = text_analyzer.token_stream(phrase);
@@ -417,11 +420,9 @@ impl QueryParser {
                 let text_analyzer =
                     self.tokenizer_manager
                         .get(option.tokenizer())
-                        .ok_or_else(|| {
-                            QueryParserError::UnknownTokenizer(
-                                field_name.to_string(),
-                                option.tokenizer().to_string(),
-                            )
+                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
+                            field: field_name.to_string(),
+                            tokenizer: option.tokenizer().to_string(),
                         })?;
                 let index_record_option = option.index_option();
                 Ok(generate_literals_for_str(
@@ -442,11 +443,9 @@ impl QueryParser {
                 let text_analyzer =
                     self.tokenizer_manager
                         .get(option.tokenizer())
-                        .ok_or_else(|| {
-                            QueryParserError::UnknownTokenizer(
-                                field_name.to_string(),
-                                option.tokenizer().to_string(),
-                            )
+                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
+                            field: field_name.to_string(),
+                            tokenizer: option.tokenizer().to_string(),
                         })?;
                 let index_record_option = option.index_option();
                 generate_literals_for_json_object(
@@ -1248,9 +1247,10 @@ mod test {
         let default_fields = vec![title];
         let tokenizer_manager = TokenizerManager::default();
         let query_parser = QueryParser::new(schema, default_fields, tokenizer_manager);
+
         assert_matches!(
             query_parser.parse_query("title:\"happy tax payer\""),
-            Err(QueryParserError::UnknownTokenizer(_, _))
+            Err(QueryParserError::UnknownTokenizer { .. })
         );
     }
 
