@@ -1239,6 +1239,45 @@ mod tests {
         }
 
         #[bench]
+        fn bench_aggregation_histogram_with_avg(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let sub_agg_req: Aggregations = vec![(
+                    "average_f64".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score_f64".to_string()),
+                    )),
+                )]
+                .into_iter()
+                .collect();
+
+                let agg_req_1: Aggregations = vec![(
+                    "rangef64".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64, // 1000 buckets
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
         fn bench_aggregation_histogram_only(b: &mut Bencher) {
             let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();

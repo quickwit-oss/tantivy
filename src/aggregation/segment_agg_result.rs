@@ -197,7 +197,6 @@ impl SegmentBucketResultCollector {
 pub(crate) struct SegmentHistogramBucketEntry {
     pub key: f64,
     pub doc_count: u64,
-    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
 }
 
 #[derive(Clone, PartialEq)]

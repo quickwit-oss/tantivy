@@ -115,21 +115,15 @@ impl From<IntermediateBucketResult> for BucketResult {
             }
             IntermediateBucketResult::Histogram { buckets, req } => {
                 let buckets = if req.min_doc_count() == 0 {
-                    // We need to fill up the buckets for the total ranges, so that there are no
-                    // gaps
-                    let max = buckets
-                        .iter()
-                        .map(|bucket| bucket.key)
-                        .fold(f64::NEG_INFINITY, f64::max);
-                    let min = buckets
-                        .iter()
-                        .map(|bucket| bucket.key)
-                        .fold(f64::INFINITY, f64::min);
-                    let all_buckets = if buckets.is_empty() {
-                        vec![]
-                    } else {
-                        generate_buckets(&req, min, max)
+                    // We need to fill up the buckets for the total ranges, so that there are no gaps
+                    let minmax = buckets.iter().minmax_by_key(|bucket| bucket.key);
+                    let all_buckets = match minmax {
+                        itertools::MinMaxResult::MinMax(min, max) => {
+                            generate_buckets(&req, min.key, max.key)
+                        }
+                        _ => vec![],
                     };
+
                     buckets
                         .into_iter()
                         .merge_join_by(all_buckets.into_iter(), |existing_bucket, all_bucket| {

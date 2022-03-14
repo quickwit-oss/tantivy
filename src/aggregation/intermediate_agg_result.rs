@@ -232,17 +232,25 @@ pub struct IntermediateHistogramBucketEntry {
     pub sub_aggregation: IntermediateAggregationResults,
 }
 
-impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
-    fn from(entry: SegmentHistogramBucketEntry) -> Self {
-        let sub_aggregation = if let Some(sub_aggregation) = entry.sub_aggregation {
-            sub_aggregation.into()
-        } else {
-            Default::default()
-        };
+impl
+    From<(
+        SegmentHistogramBucketEntry,
+        Option<SegmentAggregationResultsCollector>,
+    )> for IntermediateHistogramBucketEntry
+{
+    fn from(
+        entry: (
+            SegmentHistogramBucketEntry,
+            Option<SegmentAggregationResultsCollector>,
+        ),
+    ) -> Self {
         IntermediateHistogramBucketEntry {
-            key: entry.key,
-            doc_count: entry.doc_count,
-            sub_aggregation,
+            key: entry.0.key,
+            doc_count: entry.0.doc_count,
+            sub_aggregation: entry
+                .1
+                .map(|sub_aggregations| sub_aggregations.into())
+                .unwrap_or_default(),
         }
     }
 }

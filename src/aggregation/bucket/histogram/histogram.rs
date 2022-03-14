@@ -125,6 +125,7 @@ impl HistogramBounds {
 pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentHistogramBucketEntry>,
+    sub_aggregations: Option<Vec<SegmentAggregationResultsCollector>>,
     field_type: Type,
     req: HistogramAggregation,
     offset: f64,
@@ -134,29 +135,39 @@ pub struct SegmentHistogramCollector {
 
 impl SegmentHistogramCollector {
     pub fn into_intermediate_bucket_result(self) -> IntermediateBucketResult {
-        // We cut off the empty buckets at the start and end to mimic elasticsearch
-        // behaviour
-        let skip_start = self
-            .buckets
-            .iter()
-            .take_while(|bucket| bucket.doc_count == 0)
-            .count();
-        let skip_end = self
-            .buckets
-            .iter()
-            .rev()
-            .take_while(|bucket| bucket.doc_count == 0)
-            .count();
-        let num_buckets = self.buckets.len();
+        let mut buckets = Vec::with_capacity(
+            self.buckets
+                .iter()
+                .filter(|bucket| bucket.doc_count != 0)
+                .count(),
+        );
+        if let Some(sub_aggregations) = self.sub_aggregations {
+            buckets.extend(
+                self.buckets
+                    .into_iter()
+                    .zip(sub_aggregations.into_iter())
+                    // Here we remove the empty buckets for two reasons
+                    // 1. To reduce the size of the intermediate result, which may be passed on the wire.
+                    // 2. To mimic elasticsearch, there are no empty buckets at the start and end.
+                    //
+                    // Empty buckets may be added later again in the final result, depending on the request.
+                    .filter(|(bucket, _sub_aggregation)| bucket.doc_count != 0)
+                    .map(|(bucket, sub_aggregation)| (bucket, Some(sub_aggregation)).into()),
+            )
+        } else {
+            buckets.extend(
+                self.buckets
+                    .into_iter()
+                    // Here we remove the empty buckets for two reasons
+                    // 1. To reduce the size of the intermediate result, which may be passed on the wire.
+                    // 2. To mimic elasticsearch, there are no empty buckets at the start and end.
+                    //
+                    // Empty buckets may be added later again in the final result, depending on the request.
+                    .filter(|bucket| bucket.doc_count != 0)
+                    .map(|bucket| (bucket, None).into()),
+            );
+        };
 
-        let buckets = self
-            .buckets
-            .into_iter()
-            .skip(skip_start)
-            .take(num_buckets.saturating_sub(skip_start + skip_end))
-            .filter(|bucket| bucket.doc_count != 0)
-            .map(|bucket| bucket.into())
-            .collect::<Vec<_>>();
         IntermediateBucketResult::Histogram {
             buckets,
             req: self.req,
@@ -180,12 +191,12 @@ impl SegmentHistogramCollector {
         // unnecessary buckets may be generated.
         let buckets = generate_buckets(req, min, max);
 
-        let sub_aggregation = if sub_aggregation.is_empty() {
+        let sub_aggregations = if sub_aggregation.is_empty() {
             None
         } else {
-            Some(SegmentAggregationResultsCollector::from_req_and_validate(
-                sub_aggregation,
-            )?)
+            let sub_aggregation =
+                SegmentAggregationResultsCollector::from_req_and_validate(sub_aggregation)?;
+            Some(buckets.iter().map(|_| sub_aggregation.clone()).collect())
         };
 
         let buckets = buckets
@@ -193,7 +204,6 @@ impl SegmentHistogramCollector {
             .map(|bucket| SegmentHistogramBucketEntry {
                 key: *bucket,
                 doc_count: 0,
-                sub_aggregation: sub_aggregation.clone(),
             })
             .collect();
 
@@ -214,6 +224,7 @@ impl SegmentHistogramCollector {
             offset: req.offset.unwrap_or(0f64),
             first_bucket_num,
             bounds,
+            sub_aggregations,
         })
     }
 
@@ -288,8 +299,8 @@ impl SegmentHistogramCollector {
             self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
         }
         if force_flush {
-            for bucket in &mut self.buckets {
-                if let Some(sub_aggregation) = &mut bucket.sub_aggregation {
+            if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
+                for sub_aggregation in sub_aggregations {
                     sub_aggregation
                         .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
                 }
@@ -324,10 +335,9 @@ impl SegmentHistogramCollector {
         bucket_with_accessor: &AggregationsWithAccessor,
     ) {
         let bucket = &mut self.buckets[bucket_pos];
-
         bucket.doc_count += 1;
-        if let Some(sub_aggregation) = &mut bucket.sub_aggregation {
-            sub_aggregation.collect(doc, bucket_with_accessor);
+        if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
+            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor);
         }
     }
 
