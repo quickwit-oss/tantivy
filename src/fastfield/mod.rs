@@ -20,8 +20,6 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
-use time::{PrimitiveDateTime, UtcOffset};
-
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -33,7 +31,7 @@ pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
-use crate::time::OffsetDateTime;
+use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 use crate::DocId;
 
 mod alive_bitset;
