@@ -188,7 +188,7 @@ impl FastValue for DateTime {
 
 fn value_to_u64(value: &Value) -> u64 {
     match value {
-        Value::U64(val) => *val,
+        Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
         Value::Date(val) => val.to_u64(),
