@@ -14,7 +14,7 @@ use super::segment_agg_result::{
     SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentHistogramBucketEntry,
     SegmentMetricResultCollector, SegmentRangeBucketEntry,
 };
-use super::{Key, MergeFruits, SerializedKey, VecWithNames};
+use super::{Key, SerializedKey, VecWithNames};
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -26,12 +26,8 @@ pub struct IntermediateAggregationResults {
 
 impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
     fn from(tree: SegmentAggregationResultsCollector) -> Self {
-        let metrics = tree
-            .metrics
-            .map(|metrics| VecWithNames::from_other(metrics));
-        let buckets = tree
-            .buckets
-            .map(|buckets| VecWithNames::from_other(buckets));
+        let metrics = tree.metrics.map(VecWithNames::from_other);
+        let buckets = tree.buckets.map(VecWithNames::from_other);
 
         Self { metrics, buckets }
     }
@@ -42,16 +38,18 @@ impl IntermediateAggregationResults {
     ///
     /// The order of the values need to be the same on both results. This is ensured when the same
     /// (key values) are present on the underlying VecWithNames struct.
-    pub fn merge_fruits(&mut self, other: &IntermediateAggregationResults) {
-        if let (Some(buckets_left), Some(buckets_right)) = (&mut self.buckets, &other.buckets) {
-            for (bucket_left, bucket_right) in buckets_left.values_mut().zip(buckets_right.values())
+    pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) {
+        if let (Some(buckets_left), Some(buckets_right)) = (&mut self.buckets, other.buckets) {
+            for (bucket_left, bucket_right) in
+                buckets_left.values_mut().zip(buckets_right.into_values())
             {
                 bucket_left.merge_fruits(bucket_right);
             }
         }
 
-        if let (Some(metrics_left), Some(metrics_right)) = (&mut self.metrics, &other.metrics) {
-            for (metric_left, metric_right) in metrics_left.values_mut().zip(metrics_right.values())
+        if let (Some(metrics_left), Some(metrics_right)) = (&mut self.metrics, other.metrics) {
+            for (metric_left, metric_right) in
+                metrics_left.values_mut().zip(metrics_right.into_values())
             {
                 metric_left.merge_fruits(metric_right);
             }
@@ -91,7 +89,7 @@ impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
 }
 
 impl IntermediateMetricResult {
-    fn merge_fruits(&mut self, other: &IntermediateMetricResult) {
+    fn merge_fruits(&mut self, other: IntermediateMetricResult) {
         match (self, other) {
             (
                 IntermediateMetricResult::Average(avg_data_left),
@@ -106,7 +104,7 @@ impl IntermediateMetricResult {
                 stats_left.merge_fruits(stats_right);
             }
             _ => {
-                panic!("incompatible fruit types in tree {:?}", other);
+                panic!("incompatible fruit types in tree");
             }
         }
     }
@@ -142,7 +140,7 @@ impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
 }
 
 impl IntermediateBucketResult {
-    fn merge_fruits(&mut self, other: &IntermediateBucketResult) {
+    fn merge_fruits(&mut self, other: IntermediateBucketResult) {
         match (self, other) {
             (
                 IntermediateBucketResult::Range(entries_left),
@@ -162,7 +160,7 @@ impl IntermediateBucketResult {
             ) => {
                 let mut buckets = entries_left
                     .drain(..)
-                    .merge_join_by(entries_right.iter(), |left, right| {
+                    .merge_join_by(entries_right.into_iter(), |left, right| {
                         left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
                     })
                     .map(|either| match either {
@@ -171,7 +169,7 @@ impl IntermediateBucketResult {
                             left
                         }
                         itertools::EitherOrBoth::Left(left) => left,
-                        itertools::EitherOrBoth::Right(right) => right.clone(),
+                        itertools::EitherOrBoth::Right(right) => right,
                     })
                     .collect();
 
@@ -187,20 +185,22 @@ impl IntermediateBucketResult {
     }
 }
 
+trait MergeFruits {
+    fn merge_fruits(&mut self, other: Self);
+}
+
 fn merge_maps<V: MergeFruits + Clone>(
     entries_left: &mut FnvHashMap<SerializedKey, V>,
-    entries_right: &FnvHashMap<SerializedKey, V>,
+    mut entries_right: FnvHashMap<SerializedKey, V>,
 ) {
     for (name, entry_left) in entries_left.iter_mut() {
-        if let Some(entry_right) = entries_right.get(name) {
+        if let Some(entry_right) = entries_right.remove(name) {
             entry_left.merge_fruits(entry_right);
         }
     }
 
-    for (key, res) in entries_right.iter() {
-        if !entries_left.contains_key(key) {
-            entries_left.insert(key.clone(), res.clone());
-        }
+    for (key, res) in entries_right.into_iter() {
+        entries_left.entry(key).or_insert(res);
     }
 }
 
@@ -285,16 +285,16 @@ impl From<SegmentRangeBucketEntry> for IntermediateRangeBucketEntry {
 }
 
 impl MergeFruits for IntermediateRangeBucketEntry {
-    fn merge_fruits(&mut self, other: &IntermediateRangeBucketEntry) {
+    fn merge_fruits(&mut self, other: IntermediateRangeBucketEntry) {
         self.doc_count += other.doc_count;
-        self.sub_aggregation.merge_fruits(&other.sub_aggregation);
+        self.sub_aggregation.merge_fruits(other.sub_aggregation);
     }
 }
 
 impl MergeFruits for IntermediateHistogramBucketEntry {
-    fn merge_fruits(&mut self, other: &IntermediateHistogramBucketEntry) {
+    fn merge_fruits(&mut self, other: IntermediateHistogramBucketEntry) {
         self.doc_count += other.doc_count;
-        self.sub_aggregation.merge_fruits(&other.sub_aggregation);
+        self.sub_aggregation.merge_fruits(other.sub_aggregation);
     }
 }
 
@@ -372,7 +372,7 @@ mod tests {
             ("blue".to_string(), 25, "1900".to_string(), 50),
         ]);
 
-        tree_left.merge_fruits(&tree_right);
+        tree_left.merge_fruits(tree_right);
 
         let tree_expected = get_test_tree(&[
             ("red".to_string(), 110, "1900".to_string(), 55),
@@ -393,7 +393,7 @@ mod tests {
             ("green".to_string(), 25, "1900".to_string(), 50),
         ]);
 
-        tree_left.merge_fruits(&tree_right);
+        tree_left.merge_fruits(tree_right);
 
         let tree_expected = get_test_tree(&[
             ("red".to_string(), 110, "1900".to_string(), 55),

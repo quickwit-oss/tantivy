@@ -98,8 +98,8 @@ impl SegmentAggregationResultsCollector {
         force_flush: bool,
     ) {
         if let Some(metrics) = &mut self.metrics {
-            for (agg_with_accessor, collector) in
-                agg_with_accessor.metrics.values().zip(metrics.values_mut())
+            for (collector, agg_with_accessor) in
+                metrics.values_mut().zip(agg_with_accessor.metrics.values())
             {
                 collector
                     .collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor);
@@ -107,8 +107,8 @@ impl SegmentAggregationResultsCollector {
         }
 
         if let Some(buckets) = &mut self.buckets {
-            for (agg_with_accessor, collector) in
-                agg_with_accessor.buckets.values().zip(buckets.values_mut())
+            for (collector, agg_with_accessor) in
+                buckets.values_mut().zip(agg_with_accessor.buckets.values())
             {
                 collector.collect_block(
                     &self.staged_docs[..self.num_staged_docs],

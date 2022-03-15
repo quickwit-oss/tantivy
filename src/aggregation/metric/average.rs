@@ -94,7 +94,7 @@ impl IntermediateAverage {
     }
 
     /// Merge average data into this instance.
-    pub fn merge_fruits(&mut self, other: &IntermediateAverage) {
+    pub fn merge_fruits(&mut self, other: IntermediateAverage) {
         self.sum += other.sum;
         self.doc_count += other.doc_count;
     }

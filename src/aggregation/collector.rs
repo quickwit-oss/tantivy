@@ -75,13 +75,7 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&self.agg, reader)?;
-        let result =
-            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
-        Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor,
-            result,
-        })
+        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader)
     }
 
     fn requires_scoring(&self) -> bool {
@@ -101,7 +95,7 @@ fn merge_fruits(
 ) -> crate::Result<IntermediateAggregationResults> {
     if let Some(mut fruit) = segment_fruits.pop() {
         for next_fruit in segment_fruits {
-            fruit.merge_fruits(&next_fruit);
+            fruit.merge_fruits(next_fruit);
         }
         Ok(fruit)
     } else {
@@ -128,7 +122,7 @@ impl AggregationSegmentCollector {
         let result =
             SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor,
+            aggs: aggs_with_accessor.into(),
             result,
         })
     }

@@ -231,6 +231,9 @@ impl<T: Clone> VecWithNames<T> {
     fn keys(&self) -> impl Iterator<Item = &str> + '_ {
         self.keys.iter().map(|key| key.as_str())
     }
+    fn into_values(self) -> impl Iterator<Item = T> {
+        self.values.into_iter()
+    }
     fn values(&self) -> impl Iterator<Item = &T> + '_ {
         self.values.iter()
     }
@@ -259,10 +262,6 @@ pub enum Key {
     Str(String),
     /// f64 key
     F64(f64),
-}
-
-trait MergeFruits {
-    fn merge_fruits(&mut self, other: &Self);
 }
 
 impl Display for Key {
@@ -368,14 +367,14 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_for_tests()?;
-            for i in values {
+            for &i in values {
                 // writing the segment
                 index_writer.add_document(doc!(
                     text_field => "cool",
-                    score_field => *i as u64,
-                    score_field_f64 => *i as f64,
-                    score_field_i64 => *i as i64,
-                    fraction_field => *i as f64/100.0,
+                    score_field => i as u64,
+                    score_field_f64 => i as f64,
+                    score_field_i64 => i as i64,
+                    fraction_field => i as f64/100.0,
                 ))?;
                 index_writer.commit()?;
             }

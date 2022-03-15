@@ -92,7 +92,7 @@ impl IntermediateStats {
     }
 
     /// Merge data from other stats into this instance.
-    pub fn merge_fruits(&mut self, other: &IntermediateStats) {
+    pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
         self.sum += other.sum;
         self.squared_sum += other.squared_sum;

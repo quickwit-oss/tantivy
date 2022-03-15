@@ -208,7 +208,7 @@ impl SegmentHistogramCollector {
         let first_bucket_num =
             get_bucket_num_f64(min, req.interval, req.offset.unwrap_or(0.0)) as i64;
 
-        let bounds = req.hard_bounds.clone().unwrap_or(HistogramBounds {
+        let bounds = req.hard_bounds.unwrap_or(HistogramBounds {
             min: f64::MIN,
             max: f64::MAX,
         });
@@ -319,7 +319,7 @@ impl SegmentHistogramCollector {
                 get_bucket_val(val, self.req.interval, self.offset) as f64
             );
 
-            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor);
+            self.increment_bucket(bucket_pos, doc, bucket_with_accessor);
         }
     }
 
