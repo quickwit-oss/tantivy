@@ -87,6 +87,10 @@ pub enum BucketResult {
     /// sub_aggregations.
     Histogram {
         /// The buckets.
+        ///
+        /// If there are holes depends on the request, if min_doc_count is 0, then there are no
+        /// holes between the first and last bucket.
+        /// See [HistogramAggregation](super::agg_request::HistogramAggregation)
         buckets: Vec<BucketEntry>,
     },
 }

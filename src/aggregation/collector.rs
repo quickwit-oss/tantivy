@@ -122,7 +122,7 @@ impl AggregationSegmentCollector {
         let result =
             SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor.into(),
+            aggs: aggs_with_accessor,
             result,
         })
     }
