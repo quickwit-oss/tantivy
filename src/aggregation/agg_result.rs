@@ -90,7 +90,7 @@ pub enum BucketResult {
         ///
         /// If there are holes depends on the request, if min_doc_count is 0, then there are no
         /// holes between the first and last bucket.
-        /// See [HistogramAggregation](super::agg_request::HistogramAggregation)
+        /// See [HistogramAggregation](super::bucket::HistogramAggregation)
         buckets: Vec<BucketEntry>,
     },
 }
@@ -161,7 +161,7 @@ impl From<IntermediateBucketResult> for BucketResult {
 /// sub_aggregations.
 ///
 /// # JSON Format
-/// ```ignore
+/// ```json
 /// {
 ///   ...
 ///     "my_histogram": {
@@ -182,7 +182,7 @@ impl From<IntermediateBucketResult> for BucketResult {
 ///    }
 ///    ...
 /// }
-///  ```
+/// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketEntry {
     /// The identifier of the bucket.
@@ -208,7 +208,7 @@ impl From<IntermediateHistogramBucketEntry> for BucketEntry {
 /// sub_aggregations.
 ///
 /// # JSON Format
-/// ```ignore
+/// ```json
 /// {
 ///   ...
 ///     "my_ranges": {
@@ -233,7 +233,7 @@ impl From<IntermediateHistogramBucketEntry> for BucketEntry {
 ///    }
 ///    ...
 /// }
-///  ```
+/// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeBucketEntry {
     /// The identifier of the bucket.
