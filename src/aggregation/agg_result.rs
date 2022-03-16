@@ -114,24 +114,29 @@ impl From<IntermediateBucketResult> for BucketResult {
             }
             IntermediateBucketResult::Histogram { buckets, req } => {
                 let buckets = if req.min_doc_count() == 0 {
-                    // We need to fill up the buckets for the total ranges, so that there are no
-                    // gaps
-                    let minmax = buckets.iter().minmax_by_key(|bucket| bucket.key);
-                    let all_buckets: Vec<f64> = match minmax {
-                        itertools::MinMaxResult::MinMax(min, max) => {
-                            generate_buckets(&req, min.key, max.key)
-                        }
-                        _ => vec![],
+                    // With min_doc_count != 0, we may need to add buckets, so that there are no
+                    // gaps, since intermediate result does not contain empty buckets (filtered to
+                    // reduce serialization size).
+                    let fill_gaps_buckets = if buckets.len() > 1 {
+                        // buckets are sorted
+                        let min = buckets[0].key;
+                        let max = buckets[buckets.len() - 1].key;
+                        generate_buckets(&req, min, max)
+                    } else {
+                        vec![]
                     };
 
                     buckets
                         .into_iter()
-                        .merge_join_by(all_buckets.into_iter(), |existing_bucket, all_bucket| {
-                            existing_bucket
-                                .key
-                                .partial_cmp(all_bucket)
-                                .unwrap_or(Ordering::Equal)
-                        })
+                        .merge_join_by(
+                            fill_gaps_buckets.into_iter(),
+                            |existing_bucket, fill_gaps_bucket| {
+                                existing_bucket
+                                    .key
+                                    .partial_cmp(fill_gaps_bucket)
+                                    .unwrap_or(Ordering::Equal)
+                            },
+                        )
                         .map(|either| match either {
                             itertools::EitherOrBoth::Both(existing, _) => existing.into(),
                             itertools::EitherOrBoth::Left(existing) => existing.into(),
