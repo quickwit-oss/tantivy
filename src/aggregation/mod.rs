@@ -200,8 +200,7 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 
 impl<T: Clone> VecWithNames<T> {
     fn from_other<K: Clone + Into<T>>(entries: VecWithNames<K>) -> Self {
-        let mut values = Vec::with_capacity(entries.len());
-        values.extend(entries.values.into_iter().map(Into::into));
+        let values = entries.values.into_iter().map(Into::into).collect();
         Self {
             keys: entries.keys,
             values,
@@ -242,9 +241,6 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())
-    }
-    fn len(&self) -> usize {
-        self.values.len()
     }
     fn is_empty(&self) -> bool {
         self.keys.is_empty()

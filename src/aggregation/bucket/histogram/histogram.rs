@@ -913,7 +913,6 @@ mod tests {
         let agg_res = searcher.search(&term_query, &collector).unwrap();
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        println!("{}", &serde_json::to_string_pretty(&agg_res)?);
 
         assert_eq!(res["histogram"]["buckets"][0]["key"], 6.0);
         assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
@@ -922,6 +921,44 @@ mod tests {
         assert_eq!(res["histogram"]["buckets"][38]["key"], 44.0);
         assert_eq!(res["histogram"]["buckets"][38]["doc_count"], 1);
         assert_eq!(res["histogram"]["buckets"][39], Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_single_bucket_test_single_segment() -> crate::Result<()> {
+        histogram_single_bucket_test_with_opt(true)
+    }
+
+    #[test]
+    fn histogram_single_bucket_test_multi_segment() -> crate::Result<()> {
+        histogram_single_bucket_test_with_opt(false)
+    }
+
+    fn histogram_single_bucket_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let index = get_test_index_2_segments(merge_segments)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 100000.0,
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_res = exec_request(agg_req, &index)?;
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 0.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 9);
+        assert_eq!(res["histogram"]["buckets"][1], Value::Null);
 
         Ok(())
     }

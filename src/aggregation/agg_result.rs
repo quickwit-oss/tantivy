@@ -117,7 +117,7 @@ impl From<IntermediateBucketResult> for BucketResult {
                     // We need to fill up the buckets for the total ranges, so that there are no
                     // gaps
                     let minmax = buckets.iter().minmax_by_key(|bucket| bucket.key);
-                    let all_buckets = match minmax {
+                    let all_buckets: Vec<f64> = match minmax {
                         itertools::MinMaxResult::MinMax(min, max) => {
                             generate_buckets(&req, min.key, max.key)
                         }
