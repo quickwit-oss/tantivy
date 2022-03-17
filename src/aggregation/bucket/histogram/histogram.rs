@@ -1,12 +1,18 @@
+use std::cmp::Ordering;
 use std::fmt::Display;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use crate::aggregation::agg_req::CollectorAggregations;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
+use crate::aggregation::agg_result::BucketEntry;
 use crate::aggregation::f64_from_fastfield_u64;
-use crate::aggregation::intermediate_agg_result::IntermediateBucketResult;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
+};
 use crate::aggregation::segment_agg_result::{
     SegmentAggregationResultsCollector, SegmentHistogramBucketEntry,
 };
@@ -208,7 +214,7 @@ impl SegmentHistogramCollector {
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
         let max = f64_from_fastfield_u64(accessor.max_value(), &field_type);
 
-        let (min, max) = get_req_min_max(req, min, max);
+        let (min, max) = get_req_min_max(req, Some((min, max)));
 
         // We compute and generate the buckets range (min, max) based on the request and the min
         // max in the fast field, but this is likely not ideal when this is a subbucket, where many
@@ -231,8 +237,6 @@ impl SegmentHistogramCollector {
             })
             .collect();
 
-        let (min, _) = get_req_min_max(req, min, max);
-
         let first_bucket_num =
             get_bucket_num_f64(min, req.interval, req.offset.unwrap_or(0.0)) as i64;
 
@@ -245,7 +249,7 @@ impl SegmentHistogramCollector {
             buckets,
             field_type,
             interval: req.interval,
-            offset: req.offset.unwrap_or(0f64),
+            offset: req.offset.unwrap_or(0.0),
             first_bucket_num,
             bounds,
             sub_aggregations,
@@ -381,11 +385,94 @@ fn get_bucket_val(val: f64, interval: f64, offset: f64) -> f64 {
     bucket_pos * interval + offset
 }
 
-fn get_req_min_max(req: &HistogramAggregation, mut min: f64, mut max: f64) -> (f64, f64) {
+// Convert to BucketEntry and fill gaps
+fn intermediate_buckets_to_final_buckets_fill_gaps(
+    buckets: Vec<IntermediateHistogramBucketEntry>,
+    histogram_req: &HistogramAggregation,
+    sub_aggregation: &CollectorAggregations,
+) -> Vec<BucketEntry> {
+    // Generate the the full list of buckets without gaps.
+    //
+    // The bounds are the min max from the current buckets, optionally extended by
+    // extended_bounds from the request
+    let min_max = if buckets.is_empty() {
+        None
+    } else {
+        let min = buckets[0].key;
+        let max = buckets[buckets.len() - 1].key;
+        Some((min, max))
+    };
+    let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
+
+    let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(&sub_aggregation);
+
+    // Use merge_join_by to fill in gaps, since buckets are sorted
+    let buckets = buckets
+        .into_iter()
+        .merge_join_by(
+            fill_gaps_buckets.into_iter(),
+            |existing_bucket, fill_gaps_bucket| {
+                existing_bucket
+                    .key
+                    .partial_cmp(fill_gaps_bucket)
+                    .unwrap_or(Ordering::Equal)
+            },
+        )
+        .map(|either| match either {
+            // Ignore the generated bucket
+            itertools::EitherOrBoth::Both(existing, _) => existing,
+            itertools::EitherOrBoth::Left(existing) => existing,
+            // Add missing bucket
+            itertools::EitherOrBoth::Right(missing_bucket) => IntermediateHistogramBucketEntry {
+                key: missing_bucket,
+                doc_count: 0,
+                sub_aggregation: empty_sub_aggregation.clone(),
+            },
+        })
+        .map(|intermediate_bucket| {
+            BucketEntry::from_intermediate_and_req(intermediate_bucket, &sub_aggregation)
+        })
+        .collect_vec();
+    return buckets;
+}
+
+// Convert to BucketEntry
+pub(crate) fn intermediate_buckets_to_final_buckets(
+    buckets: Vec<IntermediateHistogramBucketEntry>,
+    histogram_req: &HistogramAggregation,
+    sub_aggregation: &CollectorAggregations,
+) -> Vec<BucketEntry> {
+    if histogram_req.min_doc_count() == 0 {
+        // With min_doc_count != 0, we may need to add buckets, so that there are no
+        // gaps, since intermediate result does not contain empty buckets (filtered to
+        // reduce serialization size).
+        let buckets = intermediate_buckets_to_final_buckets_fill_gaps(
+            buckets,
+            histogram_req,
+            sub_aggregation,
+        );
+        return buckets;
+    } else {
+        let buckets = buckets
+            .into_iter()
+            .filter(|bucket| bucket.doc_count >= histogram_req.min_doc_count())
+            .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, &sub_aggregation))
+            .collect_vec();
+        return buckets;
+    };
+}
+
+/// Applies req extended_bounds/hard_bounds on the min_max value
+///
+/// May return (f64::MAX, f64::MIN), if there is no range.
+fn get_req_min_max(req: &HistogramAggregation, min_max: Option<(f64, f64)>) -> (f64, f64) {
+    let (mut min, mut max) = min_max.unwrap_or((f64::MAX, f64::MIN));
+
     if let Some(extended_bounds) = &req.extended_bounds {
         min = min.min(extended_bounds.min);
         max = max.max(extended_bounds.max);
     }
+
     if let Some(hard_bounds) = &req.hard_bounds {
         min = min.max(hard_bounds.min);
         max = max.min(hard_bounds.max);
@@ -394,9 +481,20 @@ fn get_req_min_max(req: &HistogramAggregation, mut min: f64, mut max: f64) -> (f
     (min, max)
 }
 
-/// Generates buckets with req.interval, for given min, max
+/// Generates buckets with req.interval
+/// range is computed for provided min_max and request extended_bounds/hard_bounds
 pub(crate) fn generate_buckets(req: &HistogramAggregation, min: f64, max: f64) -> Vec<f64> {
-    let (min, max) = get_req_min_max(req, min, max);
+    generate_buckets_with_opt_minmax(req, Some((min, max)))
+}
+
+/// Generates buckets with req.interval
+/// Range is computed for provided min_max and request extended_bounds/hard_bounds
+/// returns empty vec when there is no range to span
+pub(crate) fn generate_buckets_with_opt_minmax(
+    req: &HistogramAggregation,
+    min_max: Option<(f64, f64)>,
+) -> Vec<f64> {
+    let (min, max) = get_req_min_max(req, min_max);
 
     let offset = req.offset.unwrap_or(0.0);
     let first_bucket_num = get_bucket_num_f64(min, req.interval, offset) as i64;
@@ -1089,6 +1187,64 @@ mod tests {
         assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["histogram"]["buckets"][10]["key"], 12.0);
         assert_eq!(res["histogram"]["buckets"][10]["doc_count"], 0);
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds { min: 2.0, max: 5.0 }),
+                    hard_bounds: Some(HistogramBounds {
+                        min: 2.0,
+                        max: 12.0,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 2.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][10], Value::Null);
+
+        // hard_bounds will not extend the result
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    hard_bounds: Some(HistogramBounds {
+                        min: 2.0,
+                        max: 12.0,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": []
+                }
+            })
+        );
 
         let agg_req: Aggregations = vec![
             (
