@@ -13,6 +13,7 @@ keywords = ["search", "information", "retrieval"]
 edition = "2018"
 
 [dependencies]
+oneshot = "0.1"
 base64 = "0.13"
 byteorder = "1.4.3"
 crc32fast = "1.2.1"

@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use futures::executor::block_on;
-
     use crate::collector::TopDocs;
     use crate::core::Index;
     use crate::fastfield::{AliveBitSet, FastFieldReader, MultiValuedFastFieldReader};
@@ -50,7 +48,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+            assert!(index_writer.merge(&segment_ids).wait().is_ok());
             assert!(index_writer.wait_merging_threads().is_ok());
         }
         index
@@ -140,7 +138,7 @@ mod tests {
         {
             let segment_ids = index.searchable_segment_ids()?;
             let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
         Ok(index)

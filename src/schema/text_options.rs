@@ -106,7 +106,7 @@ impl TextFieldIndexing {
 
     /// Returns the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
-        &self.tokenizer.name()
+        self.tokenizer.name()
     }
 
     /// Sets fieldnorms

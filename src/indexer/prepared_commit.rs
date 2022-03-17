@@ -1,7 +1,5 @@
-use futures::executor::block_on;
-
 use super::IndexWriter;
-use crate::Opstamp;
+use crate::{FutureResult, Opstamp};
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {
@@ -37,7 +35,7 @@ impl<'a> PreparedCommit<'a> {
     /// Proceeds to commit.
     /// See `.commit_async()`.
     pub fn commit(self) -> crate::Result<Opstamp> {
-        block_on(self.commit_async())
+        self.commit_async().wait()
     }
 
     /// Proceeds to commit.
@@ -45,12 +43,10 @@ impl<'a> PreparedCommit<'a> {
     /// Unfortunately, contrary to what `PrepareCommit` may suggests,
     /// this operation is not at all really light.
     /// At this point deletes have not been flushed yet.
-    pub async fn commit_async(self) -> crate::Result<Opstamp> {
+    pub fn commit_async(self) -> FutureResult<Opstamp> {
         info!("committing {}", self.opstamp);
         self.index_writer
             .segment_updater()
             .schedule_commit(self.opstamp, self.payload)
-            .await?;
-        Ok(self.opstamp)
     }
 }

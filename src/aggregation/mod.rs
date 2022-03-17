@@ -284,8 +284,6 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-
-    use futures::executor::block_on;
     use serde_json::Value;
 
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
@@ -348,7 +346,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
 
@@ -549,7 +547,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
 
@@ -984,7 +982,7 @@ mod tests {
                     .searchable_segment_ids()
                     .expect("Searchable segments failed.");
                 let mut index_writer = index.writer_for_tests()?;
-                block_on(index_writer.merge(&segment_ids))?;
+                index_writer.merge(&segment_ids).wait()?;
                 index_writer.wait_merging_threads()?;
             }
 

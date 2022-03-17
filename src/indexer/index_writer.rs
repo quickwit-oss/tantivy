@@ -5,8 +5,6 @@ use std::thread::JoinHandle;
 
 use common::BitSet;
 use crossbeam::channel;
-use futures::executor::block_on;
-use futures::future::Future;
 use smallvec::smallvec;
 
 use super::operation::{AddOperation, UserOperation};
@@ -24,7 +22,7 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::schema::{Document, IndexRecordOption, Term};
-use crate::Opstamp;
+use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
 // in the `memory_arena` goes below MARGIN_IN_BYTES.
@@ -214,7 +212,7 @@ fn index_documents(
     meta.untrack_temp_docstore();
     // update segment_updater inventory to remove tempstore
     let segment_entry = SegmentEntry::new(meta, delete_cursor, alive_bitset_opt);
-    block_on(segment_updater.schedule_add_segment(segment_entry))?;
+    segment_updater.schedule_add_segment(segment_entry).wait()?;
     Ok(())
 }
 
@@ -368,7 +366,9 @@ impl IndexWriter {
     pub fn add_segment(&self, segment_meta: SegmentMeta) -> crate::Result<()> {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        block_on(self.segment_updater.schedule_add_segment(segment_entry))
+        self.segment_updater
+            .schedule_add_segment(segment_entry)
+            .wait()
     }
 
     /// Creates a new segment.
@@ -516,13 +516,10 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(
-        &mut self,
-        segment_ids: &[SegmentId],
-    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<SegmentMeta> {
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
         let segment_updater = self.segment_updater.clone();
-        async move { segment_updater.start_merge(merge_operation)?.await }
+        segment_updater.start_merge(merge_operation)
     }
 
     /// Closes the current document channel send.
@@ -781,7 +778,6 @@ impl Drop for IndexWriter {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use futures::executor::block_on;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -1456,7 +1452,7 @@ mod tests {
                         .searchable_segment_ids()
                         .expect("Searchable segments failed.");
                     if segment_ids.len() >= 2 {
-                        block_on(index_writer.merge(&segment_ids)).unwrap();
+                        index_writer.merge(&segment_ids).wait().unwrap();
                         assert!(index_writer.segment_updater().wait_merging_thread().is_ok());
                     }
                 }
@@ -1472,7 +1468,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             if segment_ids.len() >= 2 {
-                block_on(index_writer.merge(&segment_ids)).unwrap();
+                index_writer.merge(&segment_ids).wait().unwrap();
                 assert!(index_writer.wait_merging_threads().is_ok());
             }
         }

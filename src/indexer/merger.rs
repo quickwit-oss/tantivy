@@ -1133,7 +1133,6 @@ impl IndexMerger {
 #[cfg(test)]
 mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
-    use futures::executor::block_on;
     use schema::FAST;
 
     use crate::collector::tests::{
@@ -1207,7 +1206,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
         {
@@ -1456,7 +1455,7 @@ mod tests {
         {
             // merging the segments
             let segment_ids = index.searchable_segment_ids()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             reader.reload()?;
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -1549,7 +1548,7 @@ mod tests {
         {
             // Test merging a single segment in order to remove deletes.
             let segment_ids = index.searchable_segment_ids()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             reader.reload()?;
 
             let searcher = reader.searcher();
@@ -1769,7 +1768,10 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_for_tests().unwrap();
-            block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
             reader.reload().unwrap();
             test_searcher(
@@ -1824,7 +1826,7 @@ mod tests {
         let segment_ids = index
             .searchable_segment_ids()
             .expect("Searchable segments failed.");
-        block_on(index_writer.merge(&segment_ids))?;
+        index_writer.merge(&segment_ids).wait()?;
         reader.reload()?;
         // commit has not been called yet. The document should still be
         // there.
@@ -1851,7 +1853,7 @@ mod tests {
             index_writer.commit()?;
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
             let segment_ids = index.searchable_segment_ids()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
 
             // assert delete has not been committed
             reader.reload()?;
@@ -1952,7 +1954,7 @@ mod tests {
         {
             let segment_ids = index.searchable_segment_ids()?;
             let mut index_writer = index.writer_for_tests()?;
-            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
         reader.reload()?;
@@ -2080,7 +2082,7 @@ mod tests {
             .iter()
             .map(|reader| reader.segment_id())
             .collect();
-        block_on(writer.merge(&segment_ids[..]))?;
+        writer.merge(&segment_ids[..]).wait()?;
 
         reader.reload()?;
         let searcher = reader.searcher();
