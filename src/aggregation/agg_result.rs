@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::{Aggregations, CollectorAggregations, CollectorBucketAggregation};
+use super::agg_req::{Aggregations, AggregationsInternal, BucketAggregationInternal};
 use super::bucket::intermediate_buckets_to_final_buckets;
 use super::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
@@ -37,7 +37,7 @@ impl AggregationResults {
     /// for internal processing
     fn from_intermediate_and_req_internal(
         results: IntermediateAggregationResults,
-        req: &CollectorAggregations,
+        req: &AggregationsInternal,
     ) -> Self {
         let mut result = HashMap::default();
 
@@ -145,7 +145,7 @@ pub enum BucketResult {
 impl BucketResult {
     fn from_intermediate_and_req(
         bucket_result: IntermediateBucketResult,
-        req: &CollectorBucketAggregation,
+        req: &BucketAggregationInternal,
     ) -> Self {
         match bucket_result {
             IntermediateBucketResult::Range(range_map) => {
@@ -217,7 +217,7 @@ pub struct BucketEntry {
 impl BucketEntry {
     pub(crate) fn from_intermediate_and_req(
         entry: IntermediateHistogramBucketEntry,
-        req: &CollectorAggregations,
+        req: &AggregationsInternal,
     ) -> Self {
         BucketEntry {
             key: Key::F64(entry.key),
@@ -280,7 +280,7 @@ pub struct RangeBucketEntry {
 impl RangeBucketEntry {
     fn from_intermediate_and_req(
         entry: IntermediateRangeBucketEntry,
-        req: &CollectorAggregations,
+        req: &AggregationsInternal,
     ) -> Self {
         RangeBucketEntry {
             key: entry.key,

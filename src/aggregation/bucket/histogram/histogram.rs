@@ -4,7 +4,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_req::CollectorAggregations;
+use crate::aggregation::agg_req::AggregationsInternal;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
@@ -389,7 +389,7 @@ fn get_bucket_val(val: f64, interval: f64, offset: f64) -> f64 {
 fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &CollectorAggregations,
+    sub_aggregation: &AggregationsInternal,
 ) -> Vec<BucketEntry> {
     // Generate the the full list of buckets without gaps.
     //
@@ -440,7 +440,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
 pub(crate) fn intermediate_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &CollectorAggregations,
+    sub_aggregation: &AggregationsInternal,
 ) -> Vec<BucketEntry> {
     if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no

@@ -61,12 +61,12 @@ pub type Aggregations = HashMap<String, Aggregation>;
 
 /// Like Aggregations, but optimized to work with the aggregation result
 #[derive(Clone, Debug)]
-pub(crate) struct CollectorAggregations {
+pub(crate) struct AggregationsInternal {
     pub(crate) metrics: VecWithNames<MetricAggregation>,
-    pub(crate) buckets: VecWithNames<CollectorBucketAggregation>,
+    pub(crate) buckets: VecWithNames<BucketAggregationInternal>,
 }
 
-impl From<Aggregations> for CollectorAggregations {
+impl From<Aggregations> for AggregationsInternal {
     fn from(aggs: Aggregations) -> Self {
         let mut metrics = vec![];
         let mut buckets = vec![];
@@ -74,7 +74,7 @@ impl From<Aggregations> for CollectorAggregations {
             match agg {
                 Aggregation::Bucket(bucket) => buckets.push((
                     key,
-                    CollectorBucketAggregation {
+                    BucketAggregationInternal {
                         bucket_agg: bucket.bucket_agg,
                         sub_aggregation: bucket.sub_aggregation.into(),
                     },
@@ -90,15 +90,16 @@ impl From<Aggregations> for CollectorAggregations {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct CollectorBucketAggregation {
+// Like BucketAggregation, but optimized to work with the result
+pub(crate) struct BucketAggregationInternal {
     /// Bucket aggregation strategy to group documents.
     pub bucket_agg: BucketAggregationType,
     /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
     /// bucket.
-    pub sub_aggregation: CollectorAggregations,
+    pub sub_aggregation: AggregationsInternal,
 }
 
-impl CollectorBucketAggregation {
+impl BucketAggregationInternal {
     pub(crate) fn as_histogram(&self) -> &HistogramAggregation {
         match &self.bucket_agg {
             BucketAggregationType::Range(_) => panic!("unexpected aggregation"),

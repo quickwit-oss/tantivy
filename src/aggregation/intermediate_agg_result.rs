@@ -8,7 +8,7 @@ use fnv::FnvHashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::{BucketAggregationType, CollectorAggregations, MetricAggregation};
+use super::agg_req::{AggregationsInternal, BucketAggregationType, MetricAggregation};
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::{
     SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentHistogramBucketEntry,
@@ -34,7 +34,7 @@ impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults
 }
 
 impl IntermediateAggregationResults {
-    pub(crate) fn empty_from_req(req: &CollectorAggregations) -> Self {
+    pub(crate) fn empty_from_req(req: &AggregationsInternal) -> Self {
         let metrics = if req.metrics.is_empty() {
             None
         } else {
