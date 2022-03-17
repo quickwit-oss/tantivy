@@ -17,7 +17,7 @@ use crate::DocId;
 ///         "field": "score",
 ///     }
 ///  }
-///  ```
+/// ```
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StatsAggregation {
@@ -62,9 +62,8 @@ pub struct IntermediateStats {
     min: f64,
     max: f64,
 }
-
-impl IntermediateStats {
-    fn new() -> Self {
+impl Default for IntermediateStats {
+    fn default() -> Self {
         Self {
             count: 0,
             sum: 0.0,
@@ -73,7 +72,9 @@ impl IntermediateStats {
             max: f64::MIN,
         }
     }
+}
 
+impl IntermediateStats {
     pub(crate) fn avg(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -142,7 +143,7 @@ impl SegmentStatsCollector {
     pub fn from_req(field_type: Type) -> Self {
         Self {
             field_type,
-            stats: IntermediateStats::new(),
+            stats: IntermediateStats::default(),
         }
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
@@ -182,11 +183,49 @@ mod tests {
     };
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::metric::StatsAggregation;
-    use crate::aggregation::tests::get_test_index_2_segments;
+    use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values};
     use crate::aggregation::AggregationCollector;
-    use crate::query::TermQuery;
+    use crate::query::{AllQuery, TermQuery};
     use crate::schema::IndexRecordOption;
     use crate::Term;
+
+    #[test]
+    fn test_aggregation_stats_empty_index() -> crate::Result<()> {
+        // test index without segments
+        let values = vec![];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = vec![(
+            "stats".to_string(),
+            Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                "score".to_string(),
+            ))),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1);
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["stats"],
+            json!({
+                "avg": Value::Null,
+                "count": 0,
+                "max": Value::Null,
+                "min": Value::Null,
+                "standard_deviation": Value::Null,
+                "sum": 0.0
+            })
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_aggregation_stats() -> crate::Result<()> {

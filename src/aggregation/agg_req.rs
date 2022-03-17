@@ -51,12 +51,61 @@ use serde::{Deserialize, Serialize};
 use super::bucket::HistogramAggregation;
 pub use super::bucket::RangeAggregation;
 use super::metric::{AverageAggregation, StatsAggregation};
+use super::VecWithNames;
 
 /// The top-level aggregation request structure, which contains [Aggregation] and their user defined
 /// names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
+
+/// Like Aggregations, but optimized to work with the aggregation result
+#[derive(Clone, Debug)]
+pub(crate) struct CollectorAggregations {
+    pub(crate) metrics: VecWithNames<MetricAggregation>,
+    pub(crate) buckets: VecWithNames<CollectorBucketAggregation>,
+}
+
+impl From<Aggregations> for CollectorAggregations {
+    fn from(aggs: Aggregations) -> Self {
+        let mut metrics = vec![];
+        let mut buckets = vec![];
+        for (key, agg) in aggs {
+            match agg {
+                Aggregation::Bucket(bucket) => buckets.push((
+                    key,
+                    CollectorBucketAggregation {
+                        bucket_agg: bucket.bucket_agg,
+                        sub_aggregation: bucket.sub_aggregation.into(),
+                    },
+                )),
+                Aggregation::Metric(metric) => metrics.push((key, metric)),
+            }
+        }
+        Self {
+            metrics: VecWithNames::from_entries(metrics),
+            buckets: VecWithNames::from_entries(buckets),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CollectorBucketAggregation {
+    /// Bucket aggregation strategy to group documents.
+    pub bucket_agg: BucketAggregationType,
+    /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
+    /// bucket.
+    pub sub_aggregation: CollectorAggregations,
+}
+
+impl CollectorBucketAggregation {
+    pub(crate) fn as_histogram(&self) -> &HistogramAggregation {
+        match &self.bucket_agg {
+            BucketAggregationType::Range(_) => panic!("unexpected aggregation"),
+            BucketAggregationType::Histogram(histogram) => histogram,
+        }
+    }
+}
 
 /// Extract all fast field names used in the tree.
 pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {

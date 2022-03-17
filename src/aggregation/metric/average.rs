@@ -20,7 +20,7 @@ use crate::DocId;
 ///         "field": "score",
 ///     }
 ///  }
-///  ```
+/// ```
 pub struct AverageAggregation {
     /// The field name to compute the stats on.
     pub field: String,

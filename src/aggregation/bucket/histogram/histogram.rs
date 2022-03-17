@@ -158,7 +158,7 @@ pub struct SegmentHistogramCollector {
     buckets: Vec<SegmentHistogramBucketEntry>,
     sub_aggregations: Option<Vec<SegmentAggregationResultsCollector>>,
     field_type: Type,
-    req: HistogramAggregation,
+    interval: f64,
     offset: f64,
     first_bucket_num: i64,
     bounds: HistogramBounds,
@@ -195,10 +195,7 @@ impl SegmentHistogramCollector {
             );
         };
 
-        IntermediateBucketResult::Histogram {
-            buckets,
-            req: self.req,
-        }
+        IntermediateBucketResult::Histogram { buckets }
     }
 
     pub(crate) fn from_req_and_validate(
@@ -247,7 +244,7 @@ impl SegmentHistogramCollector {
         Ok(Self {
             buckets,
             field_type,
-            req: req.clone(),
+            interval: req.interval,
             offset: req.offset.unwrap_or(0f64),
             first_bucket_num,
             bounds,
@@ -263,7 +260,7 @@ impl SegmentHistogramCollector {
         force_flush: bool,
     ) {
         let bounds = self.bounds;
-        let interval = self.req.interval;
+        let interval = self.interval;
         let offset = self.offset;
         let first_bucket_num = self.first_bucket_num;
         let get_bucket_num =
@@ -316,12 +313,12 @@ impl SegmentHistogramCollector {
             if !bounds.contains(val) {
                 continue;
             }
-            let bucket_pos = (get_bucket_num_f64(val, self.req.interval, self.offset) as i64
+            let bucket_pos = (get_bucket_num_f64(val, self.interval, self.offset) as i64
                 - self.first_bucket_num) as usize;
 
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
-                get_bucket_val(val, self.req.interval, self.offset) as f64
+                get_bucket_val(val, self.interval, self.offset) as f64
             );
             self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
         }
@@ -347,7 +344,7 @@ impl SegmentHistogramCollector {
         if bounds.contains(val) {
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
-                get_bucket_val(val, self.req.interval, self.offset) as f64
+                get_bucket_val(val, self.interval, self.offset) as f64
             );
 
             self.increment_bucket(bucket_pos, doc, bucket_with_accessor);
@@ -449,6 +446,10 @@ fn generate_buckets_test() {
     let buckets = generate_buckets(&histogram_req, 0.5, 0.75);
     assert_eq!(buckets, vec![0.5]);
 
+    // no bucket
+    let buckets = generate_buckets(&histogram_req, f64::MAX, f64::MIN);
+    assert_eq!(buckets, vec![] as Vec<f64>);
+
     // With extended_bounds
     let histogram_req = HistogramAggregation {
         field: "dummy".to_string(),
@@ -468,6 +469,10 @@ fn generate_buckets_test() {
 
     // Single bucket, but extended_bounds
     let buckets = generate_buckets(&histogram_req, 0.5, 0.75);
+    assert_eq!(buckets, vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+
+    // no bucket, but extended_bounds
+    let buckets = generate_buckets(&histogram_req, f64::MAX, f64::MIN);
     assert_eq!(buckets, vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
 
     // With invalid extended_bounds
@@ -525,8 +530,9 @@ mod tests {
 
     use super::*;
     use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
     };
+    use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{
         get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
     };
@@ -536,11 +542,29 @@ mod tests {
     use crate::{Index, Term};
 
     fn exec_request(agg_req: Aggregations, index: &Index) -> crate::Result<Value> {
+        exec_request_with_query(agg_req, index, None)
+    }
+    fn exec_request_with_query(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+    ) -> crate::Result<Value> {
         let collector = AggregationCollector::from_aggs(agg_req);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector)?;
+        let agg_res = if let Some((field, term)) = query {
+            let text_field = reader.searcher().schema().get_field(field).unwrap();
+
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+
+            searcher.search(&term_query, &collector)?
+        } else {
+            searcher.search(&AllQuery, &collector)?
+        };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         Ok(res)
@@ -760,6 +784,113 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn histogram_extended_bounds_test_multi_segment() -> crate::Result<()> {
+        histogram_extended_bounds_test_with_opt(false)
+    }
+    #[test]
+    fn histogram_extended_bounds_test_single_segment() -> crate::Result<()> {
+        histogram_extended_bounds_test_with_opt(true)
+    }
+    fn histogram_extended_bounds_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let values = vec![5.0];
+        let index = get_test_index_from_values(merge_segments, &values)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds {
+                        min: 2.0,
+                        max: 12.0,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 2.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][10]["key"], 12.0);
+        assert_eq!(res["histogram"]["buckets"][10]["doc_count"], 0);
+
+        // 2 hits
+        let values = vec![5.0, 5.5];
+        let index = get_test_index_from_values(merge_segments, &values)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds { min: 3.0, max: 6.0 }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 4.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 5.0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 2);
+        assert_eq!(res["histogram"]["buckets"][3]["key"], 6.0);
+        assert_eq!(res["histogram"]["buckets"][3]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][4], Value::Null);
+
+        // 1 hit outside bounds
+        let values = vec![15.0];
+        let index = get_test_index_from_values(merge_segments, &values)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds { min: 3.0, max: 6.0 }),
+                    hard_bounds: Some(HistogramBounds { min: 3.0, max: 6.0 }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 4.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 5.0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][3]["key"], 6.0);
+        assert_eq!(res["histogram"]["buckets"][3]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][4], Value::Null);
+
+        Ok(())
+    }
+
     #[test]
     fn histogram_hard_bounds_test_multi_segment() -> crate::Result<()> {
         histogram_hard_bounds_test_with_opt(false)
@@ -871,16 +1002,16 @@ mod tests {
     }
 
     #[test]
-    fn histogram_empty_bucket_behaviour_test_single_segment() -> crate::Result<()> {
-        histogram_empty_bucket_behaviour_test_with_opt(true)
+    fn histogram_empty_result_behaviour_test_single_segment() -> crate::Result<()> {
+        histogram_empty_result_behaviour_test_with_opt(true)
     }
 
     #[test]
-    fn histogram_empty_bucket_behaviour_test_multi_segment() -> crate::Result<()> {
-        histogram_empty_bucket_behaviour_test_with_opt(false)
+    fn histogram_empty_result_behaviour_test_multi_segment() -> crate::Result<()> {
+        histogram_empty_result_behaviour_test_with_opt(false)
     }
 
-    fn histogram_empty_bucket_behaviour_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+    fn histogram_empty_result_behaviour_test_with_opt(merge_segments: bool) -> crate::Result<()> {
         let index = get_test_index_2_segments(merge_segments)?;
 
         let agg_req: Aggregations = vec![(
@@ -897,30 +1028,130 @@ mod tests {
         .into_iter()
         .collect();
 
-        // let res = exec_request(agg_req, &index)?;
+        let res = exec_request_with_query(agg_req.clone(), &index, Some(("text", "blubberasdf")))?;
 
-        let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "nohit"),
-            IndexRecordOption::Basic,
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": []
+                }
+            })
         );
 
-        let collector = AggregationCollector::from_aggs(agg_req);
+        // test index without segments
+        let values = vec![];
 
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&term_query, &collector).unwrap();
+        // Don't merge empty segments
+        let index = get_test_index_from_values(false, &values)?;
 
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, Some(("text", "blubberasdf")))?;
 
-        assert_eq!(res["histogram"]["buckets"][0]["key"], 6.0);
-        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
-        assert_eq!(res["histogram"]["buckets"][37]["key"], 43.0);
-        assert_eq!(res["histogram"]["buckets"][37]["doc_count"], 0);
-        assert_eq!(res["histogram"]["buckets"][38]["key"], 44.0);
-        assert_eq!(res["histogram"]["buckets"][38]["doc_count"], 1);
-        assert_eq!(res["histogram"]["buckets"][39], Value::Null);
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": []
+                }
+            })
+        );
+
+        // test index without segments
+        let values = vec![];
+
+        // Don't merge empty segments
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds {
+                        min: 2.0,
+                        max: 12.0,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 2.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][10]["key"], 12.0);
+        assert_eq!(res["histogram"]["buckets"][10]["doc_count"], 0);
+
+        let agg_req: Aggregations = vec![
+            (
+                "stats".to_string(),
+                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation {
+                    field: "score_f64".to_string(),
+                })),
+            ),
+            (
+                "avg".to_string(),
+                Aggregation::Metric(MetricAggregation::Average(AverageAggregation {
+                    field: "score_f64".to_string(),
+                })),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 1.0,
+                    extended_bounds: Some(HistogramBounds {
+                        min: 2.0,
+                        max: 12.0,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: agg_req,
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(
+            res["histogram"]["buckets"][0],
+            json!({
+                "avg": {
+                    "value": Value::Null
+                },
+                "doc_count": 0,
+                "key": 2.0,
+                "stats": {
+                    "sum": 0.0,
+                    "count": 0,
+                    "min": Value::Null,
+                    "max": Value::Null,
+                    "avg": Value::Null,
+                    "standard_deviation": Value::Null,
+                }
+            })
+        );
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 2.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 3.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["histogram"]["buckets"][10]["key"], 12.0);
+        assert_eq!(res["histogram"]["buckets"][10]["doc_count"], 0);
 
         Ok(())
     }

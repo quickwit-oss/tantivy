@@ -5,7 +5,7 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::{SegmentReader, TantivyError};
+use crate::SegmentReader;
 
 /// Collector for aggregations.
 ///
@@ -86,7 +86,7 @@ impl Collector for AggregationCollector {
         &self,
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
-        merge_fruits(segment_fruits).map(|res| res.into())
+        merge_fruits(segment_fruits).map(|res| (res, self.agg.clone()).into())
     }
 }
 
@@ -99,9 +99,7 @@ fn merge_fruits(
         }
         Ok(fruit)
     } else {
-        Err(TantivyError::InvalidArgument(
-            "no fruits provided in merge_fruits".to_string(),
-        ))
+        Ok(IntermediateAggregationResults::default())
     }
 }
 

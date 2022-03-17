@@ -453,10 +453,10 @@ mod tests {
                 .unwrap();
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req);
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
 
             let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap().into()
+            (searcher.search(&term_query, &collector).unwrap(), agg_req).into()
         } else {
             let collector = AggregationCollector::from_aggs(agg_req);
 
@@ -835,7 +835,7 @@ mod tests {
             // Test de/serialization roundtrip on intermediate_agg_result
             let res: IntermediateAggregationResults =
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            res.into()
+            (res, agg_req.clone()).into()
         } else {
             let collector = AggregationCollector::from_aggs(agg_req.clone());
 
