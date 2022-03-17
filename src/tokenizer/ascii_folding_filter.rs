@@ -29,7 +29,7 @@ impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
         }
         if !self.token_mut().text.is_ascii() {
             // ignore its already ascii
-            to_ascii(&mut self.tail.token_mut().text, &mut self.buffer);
+            to_ascii(&self.tail.token().text, &mut self.buffer);
             mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
         }
         true
