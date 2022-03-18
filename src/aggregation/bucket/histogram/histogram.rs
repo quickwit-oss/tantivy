@@ -86,7 +86,7 @@ pub struct HistogramAggregation {
     pub offset: Option<f64>,
     /// The minimum number of documents in a bucket to be returned. Defaults to 0.
     pub min_doc_count: Option<u64>,
-    /// Limit the data range.
+    /// Limits the data range to `[min, max]` closed interval.
     ///
     /// This can be used to filter values if they are not in the data range.
     ///
