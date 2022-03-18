@@ -74,7 +74,9 @@ pub struct HistogramAggregation {
     /// The interval to chunk your data range. The buckets span ranges of [0..interval).
     /// Must be a positive value.
     pub interval: f64,
-    /// Intervals intersect at 0 by default, offset can move the interval.
+    /// Intervals implicitely defines an absolute grid of buckets `[interval * k, interval * (k + 1))`.
+    ///
+    /// Offset makes it possible to shift this grid into `[offset + interval * k, offset + interval * (k + 1))
     /// Offset has to be in the range [0, interval).
     ///
     /// As an example. If there are two documents with value 8 and 12 and interval 10.0, they would
