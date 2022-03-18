@@ -33,7 +33,6 @@ fs2={ version = "0.4.3", optional = true }
 levenshtein_automata = "0.2"
 uuid = { version = "0.8.2", features = ["v4", "serde"] }
 crossbeam = "0.8.1"
-futures = { version = "0.3.15", features = ["thread-pool"] }
 tantivy-query-grammar = { version="0.15.0", path="./query-grammar" }
 tantivy-bitpacker = { version="0.1", path="./bitpacker" }
 common = { version = "0.2", path = "./common/", package = "tantivy-common" }
@@ -72,6 +71,7 @@ criterion = "0.3.5"
 test-log = "0.2.8"
 env_logger = "0.9.0"
 pprof = {version= "0.7", features=["flamegraph", "criterion"]}
+futures = "0.3.15"
 
 [dev-dependencies.fail]
 version = "0.5"

@@ -35,7 +35,7 @@ impl<'a> PreparedCommit<'a> {
     /// Proceeds to commit.
     /// See `.commit_async()`.
     pub fn commit(self) -> crate::Result<Opstamp> {
-        self.commit_async().wait()
+        self.commit_future().wait()
     }
 
     /// Proceeds to commit.
@@ -43,7 +43,7 @@ impl<'a> PreparedCommit<'a> {
     /// Unfortunately, contrary to what `PrepareCommit` may suggests,
     /// this operation is not at all really light.
     /// At this point deletes have not been flushed yet.
-    pub fn commit_async(self) -> FutureResult<Opstamp> {
+    pub fn commit_future(self) -> FutureResult<Opstamp> {
         info!("committing {}", self.opstamp);
         self.index_writer
             .segment_updater()

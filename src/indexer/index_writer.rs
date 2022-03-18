@@ -465,8 +465,8 @@ impl IndexWriter {
     }
 
     /// Detects and removes the files that are not used by the index anymore.
-    pub async fn garbage_collect_files(&self) -> crate::Result<GarbageCollectionResult> {
-        self.segment_updater.schedule_garbage_collect().await
+    pub fn garbage_collect_files(&self) -> FutureResult<GarbageCollectionResult> {
+        self.segment_updater.schedule_garbage_collect()
     }
 
     /// Deletes all documents from the index
