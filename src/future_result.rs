@@ -105,6 +105,7 @@ mod tests {
     }
 
     #[test]
+
     fn test_scheduled_result_error() {
         let (scheduled_result, tx): (FutureResult<()>, _) = FutureResult::create("failed");
         drop(tx);

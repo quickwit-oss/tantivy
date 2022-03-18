@@ -1625,9 +1625,9 @@ mod tests {
 
     #[test]
     fn test_to_ascii() {
-        let mut input = "Rámon".to_string();
+        let input = "Rámon".to_string();
         let mut buffer = String::new();
-        to_ascii(&mut input, &mut buffer);
+        to_ascii(&input, &mut buffer);
         assert_eq!("Ramon", buffer);
     }
 

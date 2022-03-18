@@ -539,17 +539,17 @@ impl SegmentUpdater {
                 merge_operation.target_opstamp(),
             ) {
                 Ok(after_merge_segment_entry) => {
-                    let segment_meta =
+                    let segment_meta_res =
                         segment_updater.end_merge(merge_operation, after_merge_segment_entry);
-                    let _send_result = merging_future_send.send(segment_meta);
+                    let _send_result = merging_future_send.send(segment_meta_res);
                 }
-                Err(e) => {
+                Err(merge_error) => {
                     warn!(
                         "Merge of {:?} was cancelled: {:?}",
                         merge_operation.segment_ids().to_vec(),
-                        e
+                        merge_error
                     );
-                    // ... cancel merge
+                    let _send_result = merging_future_send.send(Err(merge_error));
                     assert!(!cfg!(test), "Merge failed.");
                 }
             }
