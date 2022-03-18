@@ -129,18 +129,20 @@ mod macros;
 /// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
 pub use time;
 
+use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
 /// A date/time value with second precision.
 ///
-/// This timestamp does not carry any time zone information.
+/// This timestamp does not carry any explicit time zone information.
 /// Users are responsible for applying the provided conversion
-/// functions consistently.
+/// functions consistently. Internally the time zone is assumed
+/// to be UTC, which is also used implicitly for JSON serialization.
 ///
 /// All constructors and conversions are provided as explicit
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
     unix_timestamp: i64,
 }
@@ -197,6 +199,13 @@ impl DateTime {
         // Discard the UTC time zone offset
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
         PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
+    }
+}
+
+impl fmt::Debug for DateTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let utc_rfc3339 = self.to_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
+        f.write_str(&utc_rfc3339)
     }
 }
 

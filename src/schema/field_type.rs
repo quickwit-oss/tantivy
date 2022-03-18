@@ -361,10 +361,8 @@ mod tests {
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
-        assert_eq!(
-            format!("{:?}", date),
-            "Date(DateTime { unix_timestamp: 1570857650 })"
-        );
+        // Time zone is converted to UTC and subseconds are discarded
+        assert_eq!("Date(2019-10-12T05:20:50Z)", format!("{:?}", date));
     }
 
     #[test]
