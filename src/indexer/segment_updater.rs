@@ -354,8 +354,9 @@ impl SegmentUpdater {
         if !self.is_alive() {
             return crate::TantivyError::SystemError("Segment updater killed".to_string()).into();
         }
-        let (scheduled_result, sender) =
-            FutureResult::create("A segment_updater future did not succeed. This should never happen.");
+        let (scheduled_result, sender) = FutureResult::create(
+            "A segment_updater future did not succeed. This should never happen.",
+        );
         self.pool.spawn(|| {
             let task_result = task();
             let _ = sender.send(task_result);

@@ -33,7 +33,7 @@ impl<'a> PreparedCommit<'a> {
     }
 
     /// Proceeds to commit.
-    /// See `.commit_async()`.
+    /// See `.commit_future()`.
     pub fn commit(self) -> crate::Result<Opstamp> {
         self.commit_future().wait()
     }
