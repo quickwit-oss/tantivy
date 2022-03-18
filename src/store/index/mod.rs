@@ -41,7 +41,6 @@ mod tests {
 
     use std::io;
 
-    use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
 
     use super::{SkipIndex, SkipIndexBuilder};
@@ -145,7 +144,7 @@ mod tests {
         index_writer.delete_term(Term::from_field_text(text, "testb"));
         index_writer.commit()?;
         let segment_ids = index.searchable_segment_ids()?;
-        block_on(index_writer.merge(&segment_ids))?;
+        index_writer.merge(&segment_ids).wait().unwrap();
         let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 30);

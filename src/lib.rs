@@ -123,10 +123,12 @@ mod functional_test;
 
 #[macro_use]
 mod macros;
+mod future_result;
 
 pub use chrono;
 
 pub use crate::error::TantivyError;
+pub use crate::future_result::FutureResult;
 
 /// Tantivy result.
 ///
@@ -308,6 +310,7 @@ pub mod tests {
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::FastFieldReader;
+    use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::*;
     use crate::{DocAddress, Index, Postings, ReloadPolicy};
@@ -935,8 +938,6 @@ pub mod tests {
     // motivated by #729
     #[test]
     fn test_update_via_delete_insert() -> crate::Result<()> {
-        use futures::executor::block_on;
-
         use crate::collector::Count;
         use crate::indexer::NoMergePolicy;
         use crate::query::AllQuery;
@@ -990,8 +991,7 @@ pub mod tests {
             .iter()
             .map(|reader| reader.segment_id())
             .collect();
-        block_on(index_writer.merge(&segment_ids)).unwrap();
-
+        index_writer.merge(&segment_ids).wait()?;
         index_reader.reload()?;
         let searcher = index_reader.searcher();
         assert_eq!(searcher.search(&AllQuery, &Count)?, DOC_COUNT as usize);
@@ -1006,6 +1006,7 @@ pub mod tests {
         let schema = builder.build();
         let index = Index::create_in_dir(&index_path, schema)?;
         let mut writer = index.writer(50_000_000)?;
+        writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..5000 {
             writer.add_document(doc!(body => "foo"))?;
             writer.add_document(doc!(body => "boo"))?;
@@ -1017,8 +1018,7 @@ pub mod tests {
         writer.delete_term(Term::from_field_text(body, "foo"));
         writer.commit()?;
         let segment_ids = index.searchable_segment_ids()?;
-        let _ = futures::executor::block_on(writer.merge(&segment_ids));
-
+        writer.merge(&segment_ids).wait()?;
         assert!(index.validate_checksum()?.is_empty());
         Ok(())
     }

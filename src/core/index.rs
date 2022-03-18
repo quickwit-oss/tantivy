@@ -781,24 +781,24 @@ mod tests {
         for i in 0u64..8_000u64 {
             writer.add_document(doc!(field => i))?;
         }
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        let _handle = directory.watch(WatchCallback::new(move || {
-            let _ = sender.send(());
-        }));
+
         writer.commit()?;
         let mem_right_after_commit = directory.total_mem_usage();
-        assert!(receiver.recv().is_ok());
+
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .try_into()?;
-
         assert_eq!(reader.searcher().num_docs(), 8_000);
+        assert_eq!(reader.searcher().segment_readers().len(), 8);
+
         writer.wait_merging_threads()?;
+
         let mem_right_after_merge_finished = directory.total_mem_usage();
 
         reader.reload().unwrap();
         let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
         assert_eq!(searcher.num_docs(), 8_000);
         assert!(
             mem_right_after_merge_finished < mem_right_after_commit,

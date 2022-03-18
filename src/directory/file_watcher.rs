@@ -53,7 +53,9 @@ impl FileWatcher {
                         if metafile_has_changed {
                             info!("Meta file {:?} was modified", path);
                             current_checksum_opt = Some(checksum);
-                            futures::executor::block_on(callbacks.broadcast());
+                            // We actually ignore callbacks failing here.
+                            // We just wait for the end of their execution.
+                            let _ = callbacks.broadcast().wait();
                         }
                     }
 
