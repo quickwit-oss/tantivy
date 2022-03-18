@@ -7,7 +7,10 @@
 //! Results of intermediate buckets are
 //! [IntermediateBucketResult](super::intermediate_agg_result::IntermediateBucketResult)
 
+mod histogram;
 mod range;
 
+pub(crate) use histogram::SegmentHistogramCollector;
+pub use histogram::*;
 pub(crate) use range::SegmentRangeCollector;
 pub use range::*;

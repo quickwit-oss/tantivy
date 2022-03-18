@@ -30,6 +30,11 @@ use crate::{DocId, TantivyError};
 /// [crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry] on the
 /// DistributedAggregationCollector.
 ///
+/// # Limitations/Compatibility
+/// Overlapping ranges are not yet supported.
+///
+/// The keyed parameter (elasticsearch) is not yet supported.
+///
 /// # Request JSON Format
 /// ```json
 /// {
@@ -42,8 +47,8 @@ use crate::{DocId, TantivyError};
 ///             { "from": 20.0 }
 ///         ]
 ///     }
-///  }
-///  ```
+/// }
+/// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
