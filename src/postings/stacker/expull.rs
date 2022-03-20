@@ -134,13 +134,23 @@ impl ExpUnrolledLinkedList {
         ExpUnrolledLinkedListWriter { eull: self, arena }
     }
 
-    pub fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
+    pub fn iter_bytes<'c, 'a: 'c, 'b: 'c>(
+        &'a self,
+        arena: &'b MemoryArena,
+    ) -> impl Iterator<Item = u8> + 'c {
+        self.get_blocks(arena)
+            .into_iter()
+            .flat_map(|el| el.iter().cloned())
+    }
+
+    pub fn get_blocks<'c, 'a: 'c, 'b: 'c>(&'a self, arena: &'b MemoryArena) -> Vec<&'c [u8]> {
+        let mut blocks = vec![];
         let len = self.len as usize;
         if len <= FIRST_BLOCK {
-            output.extend_from_slice(&self.inlined_data[..len]);
-            return;
+            blocks.push(&self.inlined_data[..len]);
+            return blocks;
         }
-        output.extend_from_slice(&self.inlined_data[..FIRST_BLOCK]);
+        blocks.push(&self.inlined_data[..FIRST_BLOCK]);
         let mut cur = FIRST_BLOCK;
         let mut addr = load(&self.inlined_data[FIRST_BLOCK..]);
         loop {
@@ -150,13 +160,18 @@ impl ExpUnrolledLinkedList {
             } as usize;
             let data = arena.slice(addr, cap);
             if cur + cap >= len {
-                output.extend_from_slice(&data[..(len - cur)]);
-                return;
+                blocks.push(&data[..(len - cur)]);
+                return blocks;
             }
-            output.extend_from_slice(data);
+            blocks.push(data);
             cur += cap;
             addr = arena.read(addr.offset(cap as u32));
         }
+    }
+
+    #[cfg(test)]
+    fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
+        output.extend(self.iter_bytes(arena));
     }
 }
 
