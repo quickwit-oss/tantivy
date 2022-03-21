@@ -19,7 +19,7 @@ to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
-If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on Tantivy. 
+If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on top of Tantivy. 
 
 # Benchmark
 
