@@ -148,4 +148,4 @@ $ gdb run
 - [lnx](https://github.com/lnx-search/lnx) (An adaptable search engine API)
 - and many more!
 3. On average, how much faster is Tantivy compared to Lucene?
-- According to our [benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
+- According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
