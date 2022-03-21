@@ -146,6 +146,5 @@ $ gdb run
 - [seshat](https://github.com/matrix-org/seshat/) (A matrix message database/indexer)
 - [tantiny](https://github.com/baygeldin/tantiny) (Tiny full-text search for Ruby)
 - [lnx](https://github.com/lnx-search/lnx) (An adaptable search engine API)
-- and many more!
 3. On average, how much faster is Tantivy compared to Lucene?
 - According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
