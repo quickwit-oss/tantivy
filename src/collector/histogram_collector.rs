@@ -152,9 +152,9 @@ mod tests {
     use query::AllQuery;
 
     use super::{add_vecs, HistogramCollector, HistogramComputer};
-    use crate::chrono::{TimeZone, Utc};
     use crate::schema::{Schema, FAST};
-    use crate::{doc, query, Index};
+    use crate::time::{Date, Month};
+    use crate::{doc, query, DateTime, Index};
 
     #[test]
     fn test_add_histograms_simple() {
@@ -273,16 +273,20 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_with_num_threads(1, 4_000_000)?;
-        writer.add_document(doc!(date_field=>Utc.ymd(1982, 9, 17).and_hms(0, 0,0)))?;
-        writer.add_document(doc!(date_field=>Utc.ymd(1986, 3, 9).and_hms(0, 0, 0)))?;
-        writer.add_document(doc!(date_field=>Utc.ymd(1983, 9, 27).and_hms(0, 0, 0)))?;
+        writer.add_document(doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+        writer.add_document(
+            doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1986, Month::March, 9)?.with_hms(0, 0, 0)?)),
+        )?;
+        writer.add_document(doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?)))?;
         writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let all_query = AllQuery;
         let week_histogram_collector = HistogramCollector::new(
             date_field,
-            Utc.ymd(1980, 1, 1).and_hms(0, 0, 0),
+            DateTime::new_primitive(
+                Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
+            ),
             3600 * 24 * 365, // it is just for a unit test... sorry leap years.
             10,
         );

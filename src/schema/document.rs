@@ -110,7 +110,7 @@ impl Document {
         self.add_field_value(field, value);
     }
 
-    /// Add a date field
+    /// Add a date field with unspecified time zone offset
     pub fn add_date(&mut self, field: Field, value: DateTime) {
         self.add_field_value(field, value);
     }

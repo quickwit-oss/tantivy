@@ -1,3 +1,14 @@
+Unreleased
+================================
+- For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
+  - The `time` crate is re-exported as `tantivy::time` instead of `tantivy::chrono`.
+  - The type alias `tantivy::DateTime` has been removed.
+  - `Value::Date` wraps `time::PrimitiveDateTime` without time zone information.
+  - Internally date/time values are stored as seconds since UNIX epoch in UTC.
+  - Converting a `time::OffsetDateTime` to `Value::Date` implicitly converts the value into UTC.
+    If this is not desired do the time zone conversion yourself and use `time::PrimitiveDateTime`
+    directly instead.
+
 Tantivy 0.17
 ================================
 - LogMergePolicy now triggers merges if the ratio of deleted documents reaches a threshold (@shikhar @fulmicoton) [#115](https://github.com/quickwit-oss/tantivy/issues/115)

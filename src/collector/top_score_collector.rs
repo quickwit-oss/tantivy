@@ -714,7 +714,9 @@ mod tests {
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
-    use crate::{DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::OffsetDateTime;
+    use crate::{DateTime, DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -890,28 +892,32 @@ mod tests {
 
     #[test]
     fn test_top_field_collector_datetime() -> crate::Result<()> {
-        use std::str::FromStr;
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let birthday = schema_builder.add_date_field("birthday", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let pr_birthday = crate::DateTime::from_str("1898-04-09T00:00:00+00:00")?;
+        let pr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+            "1898-04-09T00:00:00+00:00",
+            &Rfc3339,
+        )?);
         index_writer.add_document(doc!(
             name => "Paul Robeson",
-            birthday => pr_birthday
+            birthday => pr_birthday,
         ))?;
-        let mr_birthday = crate::DateTime::from_str("1947-11-08T00:00:00+00:00")?;
+        let mr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+            "1947-11-08T00:00:00+00:00",
+            &Rfc3339,
+        )?);
         index_writer.add_document(doc!(
             name => "Minnie Riperton",
-            birthday => mr_birthday
+            birthday => mr_birthday,
         ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(birthday);
-        let top_docs: Vec<(crate::DateTime, DocAddress)> =
-            searcher.search(&AllQuery, &top_collector)?;
+        let top_docs: Vec<(DateTime, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[

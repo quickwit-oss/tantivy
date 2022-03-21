@@ -1,4 +1,3 @@
-use chrono::Utc;
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
 
@@ -6,8 +5,10 @@ use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use crate::schema::Type;
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
-use crate::{DocId, Term};
+use crate::{DateTime, DocId, Term};
 
 /// This object is a map storing the last position for a given path for the current document
 /// being indexed.
@@ -151,7 +152,7 @@ fn index_json_value<'a>(
                 );
             }
             TextOrDateTime::DateTime(dt) => {
-                json_term_writer.set_fast_value(dt);
+                json_term_writer.set_fast_value(DateTime::new_utc(dt));
                 postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
             }
         },
@@ -184,13 +185,13 @@ fn index_json_value<'a>(
 
 enum TextOrDateTime<'a> {
     Text(&'a str),
-    DateTime(crate::DateTime),
+    DateTime(OffsetDateTime),
 }
 
 fn infer_type_from_str(text: &str) -> TextOrDateTime {
-    match chrono::DateTime::parse_from_rfc3339(text) {
+    match OffsetDateTime::parse(text, &Rfc3339) {
         Ok(dt) => {
-            let dt_utc = dt.with_timezone(&Utc);
+            let dt_utc = dt.to_offset(UtcOffset::UTC);
             TextOrDateTime::DateTime(dt_utc)
         }
         Err(_) => TextOrDateTime::Text(text),

@@ -1,11 +1,11 @@
-use std::str::FromStr;
-
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
 use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::OffsetDateTime;
 use crate::{doc, DateTime, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
@@ -26,11 +26,11 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let index = Index::create_in_ram(schema);
 
     let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
-    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_str("1898-04-09T00:00:00+00:00").unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_str("2020-04-09T00:00:00+00:00").unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_str("2019-04-20T00:00:00+00:00").unwrap()))?;
-    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()))?;
-    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_str("2018-04-09T00:00:00+00:00").unwrap()))?;
+    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::new_utc(OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::new_utc(OffsetDateTime::parse("2018-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;
@@ -55,7 +55,9 @@ pub fn test_filter_collector() -> crate::Result<()> {
     assert_eq!(filtered_top_docs.len(), 0);
 
     fn date_filter(value: DateTime) -> bool {
-        (value - DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()).num_weeks() > 0
+        (value.to_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
+            .whole_weeks()
+            > 0
     }
 
     let filter_dates_collector = FilterCollector::new(date, &date_filter, TopDocs::with_limit(5));

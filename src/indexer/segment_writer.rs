@@ -1,7 +1,7 @@
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::core::Segment;
-use crate::fastfield::FastFieldsWriter;
+use crate::fastfield::{FastFieldsWriter, FastValue as _};
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -244,7 +244,7 @@ impl SegmentWriter {
                 FieldType::Date(_) => {
                     for value in values {
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_i64(date_val.timestamp());
+                        term_buffer.set_u64(date_val.to_u64());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
@@ -414,16 +414,16 @@ pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-
     use super::compute_initial_table_size;
     use crate::collector::Count;
     use crate::indexer::json_term_writer::JsonTermWriter;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
     use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::time::format_description::well_known::Rfc3339;
+    use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::{DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED};
+    use crate::{DateTime, DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED};
 
     #[test]
     fn test_hashmap_size() {
@@ -523,11 +523,9 @@ mod tests {
         json_term_writer.pop_path_segment();
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("date");
-        json_term_writer.set_fast_value(
-            chrono::DateTime::parse_from_rfc3339("1985-04-12T23:20:50.52Z")
-                .unwrap()
-                .with_timezone(&Utc),
-        );
+        json_term_writer.set_fast_value(DateTime::new_utc(
+            OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
+        ));
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
 

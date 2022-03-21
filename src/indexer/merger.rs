@@ -1146,9 +1146,10 @@ mod tests {
         Cardinality, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
         TextFieldIndexing, INDEXED, TEXT,
     };
+    use crate::time::OffsetDateTime;
     use crate::{
-        assert_nearly_equals, schema, DocAddress, DocSet, IndexSettings, IndexSortByField,
-        IndexWriter, Order, Searcher, SegmentId,
+        assert_nearly_equals, schema, DateTime, DocAddress, DocSet, IndexSettings,
+        IndexSortByField, IndexWriter, Order, Searcher, SegmentId,
     };
 
     #[test]
@@ -1166,14 +1167,14 @@ mod tests {
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader()?;
-        let curr_time = chrono::Utc::now();
+        let curr_time = OffsetDateTime::now_utc();
         {
             let mut index_writer = index.writer_for_tests()?;
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "af b",
                 score_field => 3u64,
-                date_field => curr_time,
+                date_field => DateTime::new_utc(curr_time),
                 bytes_score_field => 3u32.to_be_bytes().as_ref()
             ))?;
             index_writer.add_document(doc!(
@@ -1190,7 +1191,7 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "af b",
-                date_field => curr_time,
+                date_field => DateTime::new_utc(curr_time),
                 score_field => 11u64,
                 bytes_score_field => 11u32.to_be_bytes().as_ref()
             ))?;
@@ -1246,7 +1247,10 @@ mod tests {
                     ]
                 );
                 assert_eq!(
-                    get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)])?,
+                    get_doc_ids(vec![Term::from_field_date(
+                        date_field,
+                        DateTime::new_utc(curr_time)
+                    )])?,
                     vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
             }
