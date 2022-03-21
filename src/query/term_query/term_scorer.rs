@@ -125,7 +125,6 @@ impl Scorer for TermScorer {
 
 #[cfg(test)]
 mod tests {
-    use futures::executor::block_on;
     use proptest::prelude::*;
 
     use crate::merge_policy::NoMergePolicy;
@@ -321,9 +320,7 @@ mod tests {
                 .collect();
             test_block_wand_aux(&term_query, &searcher)?;
         }
-        {
-            let _ = block_on(writer.merge(&segment_ids[..]));
-        }
+        writer.merge(&segment_ids[..]).wait().unwrap();
         {
             reader.reload()?;
             let searcher = reader.searcher();

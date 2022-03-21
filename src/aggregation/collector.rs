@@ -5,7 +5,7 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::{SegmentReader, TantivyError};
+use crate::SegmentReader;
 
 /// Collector for aggregations.
 ///
@@ -75,13 +75,7 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let aggs_with_accessor = get_aggs_with_accessor_and_validate(&self.agg, reader)?;
-        let result =
-            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
-        Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor,
-            result,
-        })
+        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader)
     }
 
     fn requires_scoring(&self) -> bool {
@@ -92,7 +86,8 @@ impl Collector for AggregationCollector {
         &self,
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
-        merge_fruits(segment_fruits).map(|res| res.into())
+        merge_fruits(segment_fruits)
+            .map(|res| AggregationResults::from_intermediate_and_req(res, self.agg.clone()))
     }
 }
 
@@ -101,13 +96,11 @@ fn merge_fruits(
 ) -> crate::Result<IntermediateAggregationResults> {
     if let Some(mut fruit) = segment_fruits.pop() {
         for next_fruit in segment_fruits {
-            fruit.merge_fruits(&next_fruit);
+            fruit.merge_fruits(next_fruit);
         }
         Ok(fruit)
     } else {
-        Err(TantivyError::InvalidArgument(
-            "no fruits provided in merge_fruits".to_string(),
-        ))
+        Ok(IntermediateAggregationResults::default())
     }
 }
 

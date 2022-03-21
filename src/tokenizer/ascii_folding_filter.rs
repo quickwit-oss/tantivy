@@ -29,7 +29,7 @@ impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
         }
         if !self.token_mut().text.is_ascii() {
             // ignore its already ascii
-            to_ascii(&mut self.tail.token_mut().text, &mut self.buffer);
+            to_ascii(&self.tail.token().text, &mut self.buffer);
             mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
         }
         true
@@ -1625,9 +1625,9 @@ mod tests {
 
     #[test]
     fn test_to_ascii() {
-        let mut input = "Rámon".to_string();
+        let input = "Rámon".to_string();
         let mut buffer = String::new();
-        to_ascii(&mut input, &mut buffer);
+        to_ascii(&input, &mut buffer);
         assert_eq!("Ramon", buffer);
     }
 

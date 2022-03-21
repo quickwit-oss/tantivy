@@ -29,6 +29,12 @@ pub enum IndexRecordOption {
     WithFreqsAndPositions,
 }
 
+impl Default for IndexRecordOption {
+    fn default() -> Self {
+        IndexRecordOption::Basic
+    }
+}
+
 impl IndexRecordOption {
     /// Returns true if this option includes encoding
     /// term frequencies.

@@ -502,8 +502,7 @@ mod tests {
             .map(SegmentReader::segment_id)
             .collect();
         assert_eq!(segment_ids.len(), 2);
-        let merge_future = index_writer.merge(&segment_ids[..]);
-        futures::executor::block_on(merge_future)?;
+        index_writer.merge(&segment_ids[..]).wait().unwrap();
         reader.reload()?;
         assert_eq!(reader.searcher().segment_readers().len(), 1);
         Ok(())

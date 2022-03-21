@@ -1,7 +1,7 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
-use super::bucket::RangeAggregation;
+use super::bucket::{HistogramAggregation, RangeAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
 use crate::fastfield::{type_and_cardinality, DynamicFastFieldReader, FastType};
@@ -47,6 +47,9 @@ impl BucketAggregationWithAccessor {
             BucketAggregationType::Range(RangeAggregation {
                 field: field_name,
                 ranges: _,
+            }) => get_ff_reader_and_validate(reader, field_name)?,
+            BucketAggregationType::Histogram(HistogramAggregation {
+                field: field_name, ..
             }) => get_ff_reader_and_validate(reader, field_name)?,
         };
         let sub_aggregation = sub_aggregation.clone();
