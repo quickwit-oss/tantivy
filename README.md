@@ -25,7 +25,7 @@ performance for different types of queries/collections.
 
 Your mileage WILL vary depending on the nature of queries and their load.
 
-<img src="doc/assets/images/benchmark.png">
+<img src="doc/assets/images/searchbenchmark.png">
 
 # Features
 
