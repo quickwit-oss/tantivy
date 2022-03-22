@@ -140,6 +140,8 @@ $ gdb run
 - Python → [tantivy-py](https://github.com/quickwit-oss/tantivy-py)
 - Ruby → [tantiny](https://github.com/baygeldin/tantiny)
 
+You can also find other bindings on [GitHub](https://github.com/search?q=tantivy) but they may be less maintained.
+
 ### What are some examples of Tantivy use?
 
 - [seshat](https://github.com/matrix-org/seshat/) (A matrix message database/indexer)
