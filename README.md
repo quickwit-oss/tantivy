@@ -144,9 +144,9 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 
 ### What are some examples of Tantivy use?
 
-- [seshat](https://github.com/matrix-org/seshat/) (A matrix message database/indexer)
-- [tantiny](https://github.com/baygeldin/tantiny) (Tiny full-text search for Ruby)
-- [lnx](https://github.com/lnx-search/lnx) (An adaptable search engine API)
+- [seshat](https://github.com/matrix-org/seshat/): A matrix message database/indexer
+- [tantiny](https://github.com/baygeldin/tantiny): Tiny full-text search for Ruby
+- [lnx](https://github.com/lnx-search/lnx): An adaptable search engine API
 - and [more](https://github.com/search?q=tantivy)!
 
 ### On average, how much faster is Tantivy compared to Lucene?
