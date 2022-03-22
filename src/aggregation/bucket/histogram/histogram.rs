@@ -407,10 +407,11 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     };
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 
-    let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(&sub_aggregation);
+    let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(sub_aggregation);
 
     // Use merge_join_by to fill in gaps, since buckets are sorted
-    let buckets = buckets
+
+    buckets
         .into_iter()
         .merge_join_by(
             fill_gaps_buckets.into_iter(),
@@ -433,10 +434,9 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
             },
         })
         .map(|intermediate_bucket| {
-            BucketEntry::from_intermediate_and_req(intermediate_bucket, &sub_aggregation)
+            BucketEntry::from_intermediate_and_req(intermediate_bucket, sub_aggregation)
         })
-        .collect_vec();
-    return buckets;
+        .collect_vec()
 }
 
 // Convert to BucketEntry
@@ -449,20 +449,15 @@ pub(crate) fn intermediate_buckets_to_final_buckets(
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
         // reduce serialization size).
-        let buckets = intermediate_buckets_to_final_buckets_fill_gaps(
-            buckets,
-            histogram_req,
-            sub_aggregation,
-        );
-        return buckets;
+
+        intermediate_buckets_to_final_buckets_fill_gaps(buckets, histogram_req, sub_aggregation)
     } else {
-        let buckets = buckets
+        buckets
             .into_iter()
             .filter(|bucket| bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, &sub_aggregation))
-            .collect_vec();
-        return buckets;
-    };
+            .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, sub_aggregation))
+            .collect_vec()
+    }
 }
 
 /// Applies req extended_bounds/hard_bounds on the min_max value
