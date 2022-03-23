@@ -5,9 +5,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
+
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
 
-**Tantivy** is a **full text search engine library** written in Rust.
+**Tantivy** is a **full-text search engine library** written in Rust.
 
 It is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elasticsearch](https://www.elastic.co/products/elasticsearch) or [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
 an off-the-shelf search engine server, but rather a crate that can be used
@@ -15,19 +16,23 @@ to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
+If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on top of Tantivy. 
+
 # Benchmark
 
-The following [benchmark](https://tantivy-search.github.io/bench/) break downs
-performance for different type of queries / collection.
+The following [benchmark](https://tantivy-search.github.io/bench/) breakdowns
+performance for different types of queries/collections.
 
 Your mileage WILL vary depending on the nature of queries and their load.
+
+<img src="doc/assets/images/searchbenchmark.png">
 
 # Features
 
 - Full-text search
 - Configurable tokenizer (stemming available for 17 Latin languages with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
-- Tiny startup time (<10ms), perfect for command line tools
+- Tiny startup time (<10ms), perfect for command-line tools
 - BM25 scoring (the same as Lucene)
 - Natural query language (e.g. `(michael AND jackson) OR "king of pop"`)
 - Phrase queries search (e.g. `"michael jackson"`)
@@ -42,23 +47,25 @@ Your mileage WILL vary depending on the nature of queries and their load.
 - Range queries
 - Faceted search
 - Configurable indexing (optional term frequency and position indexing)
+- JSON Field
+- Aggregation Collector: range buckets, average, and stats metrics
+- LogMergePolicy with deletes
+- Searcher Warmer API
 - Cheesy logo with a horse
 
 ## Non-features
 
-- Distributed search is out of the scope of Tantivy. That being said, Tantivy is a
-library upon which one could build a distributed search. Serializable/mergeable collector state for instance,
-are within the scope of Tantivy.
+Distributed search is out of the scope of Tantivy, but if you are looking for this feature, check out [Quickwit](https://github.com/quickwit-oss/quickwit/).
 
 
 # Getting started
 
-Tantivy works on stable Rust (>= 1.27) and supports Linux, MacOS, and Windows.
+Tantivy works on stable Rust (>= 1.27) and supports Linux, macOS, and Windows.
 
 - [Tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
-- [tantivy-cli and its tutorial](https://github.com/quickwit-oss/tantivy-cli) - `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
+- [tantivy-cli and its tutorial](https://github.com/quickwit-oss/tantivy-cli) - `tantivy-cli` is an actual command-line interface that makes it easy for you to create a search engine,
 index documents, and search via the CLI or a small server with a REST API.
-It walks you through getting a wikipedia search engine up and running in a few minutes.
+It walks you through getting a Wikipedia search engine up and running in a few minutes.
 - [Reference doc for the last released version](https://docs.rs/tantivy/)
 
 # How can I support this project?
@@ -118,3 +125,28 @@ By default, `rustc` compiles everything in the `examples/` directory in debug mo
 rust-gdb target/debug/examples/$EXAMPLE_NAME
 $ gdb run
 ```
+# Companies Using Tantivy 
+
+<p align="left">
+<img align="center" src="doc/assets/images/Nuclia.png" alt="Nuclia" height="25" width="auto" /> &nbsp;
+<img align="center" src="doc/assets/images/humanfirst.png" alt="Humanfirst.ai" height="30" width="auto" />&nbsp;
+<img align="center" src="doc/assets/images/element.io.svg" alt="Element.io" height="25" width="auto" />
+</p>
+
+
+# FAQ
+### Can I use Tantivy in other languages?
+- Python → [tantivy-py](https://github.com/quickwit-oss/tantivy-py)
+- Ruby → [tantiny](https://github.com/baygeldin/tantiny)
+
+You can also find other bindings on [GitHub](https://github.com/search?q=tantivy) but they may be less maintained.
+
+### What are some examples of Tantivy use?
+
+- [seshat](https://github.com/matrix-org/seshat/): A matrix message database/indexer
+- [tantiny](https://github.com/baygeldin/tantiny): Tiny full-text search for Ruby
+- [lnx](https://github.com/lnx-search/lnx): adaptable, typo tolerant search engine with a REST API
+- and [more](https://github.com/search?q=tantivy)!
+
+### On average, how much faster is Tantivy compared to Lucene?
+- According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
