@@ -128,7 +128,6 @@ $ gdb run
 # Companies Using Tantivy 
 
 <p align="left">
-<img align="center" src="doc/assets/images/etsy.svg" alt="Etsy" height="25" width="auto" /> &nbsp;
 <img align="center" src="doc/assets/images/Nuclia.png" alt="Nuclia" height="25" width="auto" /> &nbsp;
 <img align="center" src="doc/assets/images/humanfirst.png" alt="Humanfirst.ai" height="30" width="auto" />&nbsp;
 <img align="center" src="doc/assets/images/element.io.svg" alt="Element.io" height="25" width="auto" />
