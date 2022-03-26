@@ -1,5 +1,3 @@
-use fastfield_codecs::piecewise_linear::PiecewiseLinearFastFieldReader;
-use fastfield_codecs::piecewise_linear::PiecewiseLinearFastFieldSerializer;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -14,7 +12,10 @@ use fastfield_codecs::linearinterpol::{
 };
 #[allow(deprecated)]
 use fastfield_codecs::multilinearinterpol::{
-    MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader,
+    MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+};
+use fastfield_codecs::piecewise_linear::{
+    PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
 };
 use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer};
 

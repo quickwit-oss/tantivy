@@ -1,14 +1,9 @@
-use crate::FastFieldCodecReader;
-use crate::FastFieldCodecSerializer;
-use crate::FastFieldDataAccess;
-use crate::FastFieldStats;
 use std::io::{self, Read, Write};
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
-use common::BinarySerializable;
-use common::DeserializeFrom;
-use tantivy_bitpacker::BitUnpacker;
+use common::{BinarySerializable, DeserializeFrom};
+use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const BLOCK_SIZE: u64 = 128;
 
@@ -232,7 +227,7 @@ mod tests {
         assert!(actual_compression < 0.2);
         assert!(actual_compression > 0.006);
         assert!(estimate < 0.20);
-        //assert!(estimate > 0.15);
+        // assert!(estimate > 0.15);
     }
 
     #[test]

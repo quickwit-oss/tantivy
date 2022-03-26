@@ -4,11 +4,11 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use fastfield_codecs::{
-        bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
-        piecewise_linear::{PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer},
-        *,
+    use fastfield_codecs::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
+    use fastfield_codecs::piecewise_linear::{
+        PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
     };
+    use fastfield_codecs::*;
 
     fn get_data() -> Vec<u64> {
         let mut data: Vec<_> = (100..55000_u64)

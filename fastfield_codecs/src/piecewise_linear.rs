@@ -1,30 +1,23 @@
-/*!
+//! PiecewiseLinear codec uses piecewise linear functions for every block of 512 values to predict
+//! values and fast field values. The difference with real fast field values is then stored.
+//! For every block, the linear function can be expressed as
+//! `computed_value = slope * block_position + first_value + positive_offset`
+//! where:
+//! - `block_position` is the position inside of the block from 0 to 511
+//! - `first_value` is the first value on the block
+//! - `positive_offset` is computed such that we ensure the diff `real_value - computed_value` is
+//!   always positive.
+//!
+//! 21 bytes is needed to store the block metadata, it adds an overhead of 21 * 8 / 512 = 0,33 bits
+//! per element.
 
-PiecewiseLinear codec uses piecewise linear functions for every block of 512 values to predict values
-and fast field values. The difference with real fast field values is then stored.
-For every block, the linear function can be expressed as
-`computed_value = slope * block_position + first_value + positive_offset`
-where:
-- `block_position` is the position inside of the block from 0 to 511
-- `first_value` is the first value on the block
-- `positive_offset` is computed such that we ensure the diff `real_value - computed_value` is always positive.
-
-21 bytes is needed to store the block metadata, it adds an overhead of 21 * 8 / 512 = 0,33 bits per element.
-
-*/
-
-use crate::FastFieldCodecReader;
-use crate::FastFieldCodecSerializer;
-use crate::FastFieldDataAccess;
-use crate::FastFieldStats;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
-use common::BinarySerializable;
-use common::DeserializeFrom;
-use tantivy_bitpacker::BitUnpacker;
+use common::{BinarySerializable, DeserializeFrom};
+use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const BLOCK_SIZE: u64 = 512;
 
@@ -287,8 +280,8 @@ impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
             .unwrap();
 
         // Estimate one block and extrapolate the cost to all blocks.
-        // the theory would be that we don't have the actual max_distance, but we are close within 50%
-        // threshold.
+        // the theory would be that we don't have the actual max_distance, but we are close within
+        // 50% threshold.
         // It is multiplied by 2 because in a log case scenario the line would be as much above as
         // below. So the offset would = max_distance
         let relative_max_value = (max_distance as f32 * 1.5) * 2.0;

@@ -92,9 +92,9 @@ impl FastFieldDataAccess for Vec<u64> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
-        piecewise_linear::{PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer},
+    use crate::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
+    use crate::piecewise_linear::{
+        PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
     };
 
     pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(

@@ -1,16 +1,15 @@
-use crate::directory::CompositeWrite;
-use crate::directory::WritePtr;
-use crate::schema::Field;
-use common::BinarySerializable;
-use common::CountingWriter;
-pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
-pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
-use fastfield_codecs::piecewise_linear::PiecewiseLinearFastFieldSerializer;
-pub use fastfield_codecs::FastFieldCodecSerializer;
-pub use fastfield_codecs::FastFieldDataAccess;
-pub use fastfield_codecs::FastFieldStats;
-use itertools::Itertools;
 use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter};
+pub use fastfield_codecs::bitpacked::{
+    BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
+};
+use fastfield_codecs::piecewise_linear::PiecewiseLinearFastFieldSerializer;
+pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use itertools::Itertools;
+
+use crate::directory::{CompositeWrite, WritePtr};
+use crate::schema::Field;
 
 /// `CompositeFastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
@@ -213,19 +212,16 @@ impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
 
 #[cfg(test)]
 mod tests {
-    use common::BinarySerializable;
     use std::path::Path;
 
+    use common::BinarySerializable;
     use fastfield_codecs::FastFieldStats;
     use itertools::Itertools;
 
-    use crate::{
-        directory::{RamDirectory, WritePtr},
-        schema::Field,
-        Directory,
-    };
-
     use super::CompositeFastFieldSerializer;
+    use crate::directory::{RamDirectory, WritePtr};
+    use crate::schema::Field;
+    use crate::Directory;
 
     #[test]
     fn new_u64_fast_field_with_best_codec() -> crate::Result<()> {

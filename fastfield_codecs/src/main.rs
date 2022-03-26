@@ -1,5 +1,10 @@
 #[macro_use]
 extern crate prettytable;
+use std::fs::File;
+use std::io;
+use std::io::BufRead;
+use std::time::{Duration, Instant};
+
 use common::f64_to_u64;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader;
 #[cfg(feature = "unstable")]
@@ -7,15 +12,10 @@ use fastfield_codecs::frame_of_reference::{FORFastFieldReader, FORFastFieldSeria
 use fastfield_codecs::piecewise_linear::{
     PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
 };
-use fastfield_codecs::FastFieldCodecReader;
-use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
+use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 use rand::prelude::StdRng;
 use rand::Rng;
-use std::fs::File;
-use std::io;
-use std::io::BufRead;
-use std::time::{Duration, Instant};
 
 fn main() {
     let mut table = Table::new();

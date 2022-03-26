@@ -88,9 +88,9 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
-///
 #[deprecated(
-    note = "Linear interpolation works best only on very rare cases and piecewise linear codec already works great on them."
+    note = "Linear interpolation works best only on very rare cases and piecewise linear codec \
+            already works great on them."
 )]
 pub struct LinearInterpolFastFieldSerializer {}
 

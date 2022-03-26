@@ -191,7 +191,8 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
 #[deprecated(
-    note = "MultiLinearInterpol is replaced by PiecewiseLinear codec which fixes the slope and is a little bit more optimized."
+    note = "MultiLinearInterpol is replaced by PiecewiseLinear codec which fixes the slope and is \
+            a little bit more optimized."
 )]
 pub struct MultiLinearInterpolFastFieldSerializer {}
 
