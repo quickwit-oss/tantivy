@@ -23,7 +23,6 @@ const BLOCK_SIZE: u64 = 512;
 
 #[derive(Clone)]
 pub struct PiecewiseLinearFastFieldReader {
-    num_vals: u64,
     min_value: u64,
     max_value: u64,
     block_readers: Vec<BlockReader>,
@@ -136,7 +135,6 @@ impl FastFieldCodecReader for PiecewiseLinearFastFieldReader {
             current_data_offset += num_bits as u64 * BLOCK_SIZE / 8;
         }
         Ok(Self {
-            num_vals: footer.num_vals,
             min_value: footer.min_value,
             max_value: footer.max_value,
             block_readers,

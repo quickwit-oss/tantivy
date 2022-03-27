@@ -227,7 +227,7 @@ mod tests {
         assert!(actual_compression < 0.2);
         assert!(actual_compression > 0.006);
         assert!(estimate < 0.20);
-        // assert!(estimate > 0.15);
+        assert!(estimate > 0.10);
     }
 
     #[test]

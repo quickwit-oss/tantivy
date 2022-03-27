@@ -55,11 +55,11 @@ fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
             id: T::ID,
         };
     }
-    return CodecEstimationResult {
+    CodecEstimationResult {
         ratio: T::estimate_compression_ratio(fastfield_accessor, stats),
         name: T::NAME,
         id: T::ID,
-    };
+    }
 }
 
 impl CompositeFastFieldSerializer {
@@ -101,15 +101,13 @@ impl CompositeFastFieldSerializer {
         idx: usize,
     ) -> io::Result<()> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
-        let mut estimations = vec![];
-        estimations.push(codec_estimation::<BitpackedFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-        ));
-        estimations.push(codec_estimation::<PiecewiseLinearFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-        ));
+        let estimations = vec![
+            codec_estimation::<BitpackedFastFieldSerializer, _>(stats.clone(), &fastfield_accessor),
+            codec_estimation::<PiecewiseLinearFastFieldSerializer, _>(
+                stats.clone(),
+                &fastfield_accessor,
+            ),
+        ];
         let best_codec_result = estimations
             .iter()
             .sorted_by(|result_a, result_b| {

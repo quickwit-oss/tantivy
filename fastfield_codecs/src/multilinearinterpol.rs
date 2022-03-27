@@ -319,7 +319,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         }
         true
     }
-    /// estimation for linear interpolation is hard because, you don't know
+    /// Estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate_compression_ratio(
