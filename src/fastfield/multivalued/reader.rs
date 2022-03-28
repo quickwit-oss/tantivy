@@ -36,13 +36,35 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         start..stop
     }
 
+    /// Returns `(start, stop)`, such that the values associated
+    /// to the given documents are `start..stop`.
+    #[inline]
+    fn range_multi(&self, doc: DocId, num: u32) -> Range<u64> {
+        let start = self.idx_reader.get(doc);
+        let stop = self.idx_reader.get(doc + num);
+        start..stop
+    }
+
+    /// Returns the array of values associated to the given `doc`s.
+    #[inline]
+    pub fn get_vals_multi(&self, doc: DocId, num: u32, vals: &mut Vec<Item>) {
+        let range = self.range_multi(doc, num);
+        self.get_vals_for_range(range, vals);
+    }
+
+    /// Returns the array of values associated to the given `doc`.
+    #[inline]
+    fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<Item>) {
+        let len = (range.end - range.start) as usize;
+        vals.resize(len, Item::make_zero());
+        self.vals_reader.get_range(range.start, &mut vals[..]);
+    }
+
     /// Returns the array of values associated to the given `doc`.
     #[inline]
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let range = self.range(doc);
-        let len = (range.end - range.start) as usize;
-        vals.resize(len, Item::make_zero());
-        self.vals_reader.get_range(range.start, &mut vals[..]);
+        self.get_vals_for_range(range, vals);
     }
 
     /// Returns the minimum value for this fast field.

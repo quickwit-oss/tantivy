@@ -3,6 +3,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
+use super::flags::FastFlag;
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
 
@@ -14,6 +15,13 @@ pub struct TextOptions {
     indexing: Option<TextFieldIndexing>,
     #[serde(default)]
     stored: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_false")]
+    fast: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !(*val)
 }
 
 impl TextOptions {
@@ -25,6 +33,25 @@ impl TextOptions {
     /// Returns true if the text is to be stored.
     pub fn is_stored(&self) -> bool {
         self.stored
+    }
+
+    /// Returns true iff the value is a fast field.
+    pub fn is_fast(&self) -> bool {
+        self.fast
+    }
+
+    /// Set the field as a fast field.
+    ///
+    /// Fast fields are designed for random access.
+    /// Access time are similar to a random lookup in an array.
+    /// Text fast fields will have the term ids stored in the fast field.
+    /// The fast field will be a multivalued fast field.
+    ///
+    /// The original text can be retrieved via `ord_to_term` from the dictionary.
+    #[must_use]
+    pub fn set_fast(mut self) -> TextOptions {
+        self.fast = true;
+        self
     }
 
     /// Sets the field as stored
@@ -45,9 +72,13 @@ impl TextOptions {
 #[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
 struct TokenizerName(Cow<'static, str>);
 
+const DEFAULT_TOKENIZER_NAME: &str = "default";
+
+const NO_TOKENIZER_NAME: &str = "raw";
+
 impl Default for TokenizerName {
     fn default() -> Self {
-        TokenizerName::from_static("default")
+        TokenizerName::from_static(DEFAULT_TOKENIZER_NAME)
     }
 }
 
@@ -141,11 +172,12 @@ impl TextFieldIndexing {
 /// The field will be untokenized and indexed.
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: TokenizerName::from_static("raw"),
+        tokenizer: TokenizerName::from_static(NO_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::Basic,
     }),
     stored: false,
+    fast: false,
 };
 
 /// The field will be tokenized and indexed.
@@ -156,6 +188,7 @@ pub const TEXT: TextOptions = TextOptions {
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
     stored: false,
+    fast: false,
 };
 
 impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
@@ -166,6 +199,7 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
         TextOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
+            fast: self.fast | other.fast,
         }
     }
 }
@@ -181,6 +215,17 @@ impl From<StoredFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: true,
+            fast: false,
+        }
+    }
+}
+
+impl From<FastFlag> for TextOptions {
+    fn from(_: FastFlag) -> TextOptions {
+        TextOptions {
+            indexing: None,
+            stored: false,
+            fast: true,
         }
     }
 }

@@ -39,6 +39,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
         FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
+        FieldType::Str(options) if options.is_fast() => {
+            Some((FastType::U64, Cardinality::MultiValues))
+        }
         _ => None,
     }
 }

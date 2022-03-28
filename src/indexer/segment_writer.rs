@@ -188,7 +188,7 @@ impl SegmentWriter {
                             });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
-                                .get_multivalue_writer_mut(field)
+                                .get_term_id_writer_mut(field)
                                 .expect("writer for facet missing")
                                 .add_val(unordered_term_id);
                         }
@@ -221,6 +221,7 @@ impl SegmentWriter {
                     }
 
                     let mut indexing_position = IndexingPosition::default();
+
                     for mut token_stream in token_streams {
                         assert_eq!(term_buffer.as_slice().len(), 5);
                         postings_writer.index_text(
@@ -229,10 +230,13 @@ impl SegmentWriter {
                             term_buffer,
                             ctx,
                             &mut indexing_position,
+                            self.fast_field_writers.get_term_id_writer_mut(field),
                         );
                     }
-                    self.fieldnorms_writer
-                        .record(doc_id, field, indexing_position.num_tokens);
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer
+                            .record(doc_id, field, indexing_position.num_tokens);
+                    }
                 }
                 FieldType::U64(_) => {
                     for value in values {

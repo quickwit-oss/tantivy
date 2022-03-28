@@ -38,17 +38,17 @@ pub struct MultiValuedFastFieldWriter {
     field: Field,
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
-    is_facet: bool,
+    is_storing_term_ids: bool,
 }
 
 impl MultiValuedFastFieldWriter {
-    /// Creates a new `IntFastFieldWriter`
-    pub(crate) fn new(field: Field, is_facet: bool) -> Self {
+    /// Creates a new `MultiValuedFastFieldWriter`
+    pub(crate) fn new(field: Field, is_storing_term_ids: bool) -> Self {
         MultiValuedFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
-            is_facet,
+            is_storing_term_ids,
         }
     }
 
@@ -77,12 +77,13 @@ impl MultiValuedFastFieldWriter {
     /// all of the matching field values present in the document.
     pub fn add_document(&mut self, doc: &Document) {
         self.next_doc();
-        // facets are indexed in the `SegmentWriter` as we encode their unordered id.
-        if !self.is_facet {
-            for field_value in doc.field_values() {
-                if field_value.field == self.field {
-                    self.add_val(value_to_u64(field_value.value()));
-                }
+        // facets/texts are indexed in the `SegmentWriter` as we encode their unordered id.
+        if self.is_storing_term_ids {
+            return;
+        }
+        for field_value in doc.field_values() {
+            if field_value.field == self.field {
+                self.add_val(value_to_u64(field_value.value()));
             }
         }
     }

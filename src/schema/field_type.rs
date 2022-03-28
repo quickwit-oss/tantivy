@@ -185,6 +185,19 @@ impl FieldType {
         }
     }
 
+    /// returns true if the field is fast.
+    pub fn is_fast(&self) -> bool {
+        match *self {
+            FieldType::Str(ref text_options) => text_options.is_fast(),
+            FieldType::U64(ref int_options)
+            | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options)
+            | FieldType::Date(ref int_options) => int_options.get_fastfield_cardinality().is_some(),
+            FieldType::Facet(_) => true,
+            _ => false,
+        }
+    }
+
     /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).
     pub fn has_fieldnorms(&self) -> bool {
         match *self {

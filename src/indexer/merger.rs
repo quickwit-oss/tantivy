@@ -283,12 +283,12 @@ impl IndexMerger {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match field_type {
-                FieldType::Facet(_) => {
+                FieldType::Facet(_) | FieldType::Str(_) if field_type.is_fast() => {
                     let term_ordinal_mapping = term_ord_mappings.remove(&field).expect(
                         "Logic Error in Tantivy (Please report). Facet field should have required \
                          a`term_ordinal_mapping`.",
                     );
-                    self.write_hierarchical_facet_field(
+                    self.write_term_id_fast_field(
                         field,
                         &term_ordinal_mapping,
                         fast_field_serializer,
@@ -312,8 +312,8 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
-                FieldType::Str(_) | FieldType::JsonObject(_) => {
-                    // We don't handle json / string fast field for the moment
+                _ => {
+                    // We don't handle json fast field for the moment
                     // They can be implemented using what is done
                     // for facets in the future
                 }
@@ -590,14 +590,14 @@ impl IndexMerger {
         )
     }
 
-    fn write_hierarchical_facet_field(
+    fn write_term_id_fast_field(
         &self,
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write-hierarchical-facet-field");
+        debug_time!("write-term-id-fast-field");
 
         // Multifastfield consists of 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
@@ -848,6 +848,9 @@ impl IndexMerger {
 
         let mut term_ord_mapping_opt = match field_type {
             FieldType::Facet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
+            FieldType::Str(options) if options.is_fast() => {
+                Some(TermOrdinalMapping::new(max_term_ords))
+            }
             _ => None,
         };
 
