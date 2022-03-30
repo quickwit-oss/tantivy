@@ -48,8 +48,8 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::bucket::HistogramAggregation;
 pub use super::bucket::RangeAggregation;
+use super::bucket::{HistogramAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
 
@@ -102,8 +102,14 @@ pub(crate) struct BucketAggregationInternal {
 impl BucketAggregationInternal {
     pub(crate) fn as_histogram(&self) -> &HistogramAggregation {
         match &self.bucket_agg {
-            BucketAggregationType::Range(_) => panic!("unexpected aggregation"),
             BucketAggregationType::Histogram(histogram) => histogram,
+            _ => panic!("unexpected aggregation"),
+        }
+    }
+    pub(crate) fn as_term(&self) -> &TermsAggregation {
+        match &self.bucket_agg {
+            BucketAggregationType::Terms(terms) => terms,
+            _ => panic!("unexpected aggregation"),
         }
     }
 }
@@ -177,11 +183,15 @@ pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "histogram")]
     Histogram(HistogramAggregation),
+    /// Put data into buckets of terms.
+    #[serde(rename = "terms")]
+    Terms(TermsAggregation),
 }
 
 impl BucketAggregationType {
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
+            BucketAggregationType::Terms(terms) => fast_field_names.insert(terms.field.to_string()),
             BucketAggregationType::Range(range) => fast_field_names.insert(range.field.to_string()),
             BucketAggregationType::Histogram(histogram) => {
                 fast_field_names.insert(histogram.field.to_string())

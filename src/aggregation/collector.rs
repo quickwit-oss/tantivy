@@ -106,7 +106,7 @@ fn merge_fruits(
 
 /// AggregationSegmentCollector does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
-    aggs: AggregationsWithAccessor,
+    aggs_with_accessor: AggregationsWithAccessor,
     result: SegmentAggregationResultsCollector,
 }
 
@@ -121,7 +121,7 @@ impl AggregationSegmentCollector {
         let result =
             SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
-            aggs: aggs_with_accessor,
+            aggs_with_accessor,
             result,
         })
     }
@@ -132,11 +132,13 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        self.result.collect(doc, &self.aggs);
+        self.result.collect(doc, &self.aggs_with_accessor);
     }
 
     fn harvest(mut self) -> Self::Fruit {
-        self.result.flush_staged_docs(&self.aggs, true);
-        self.result.into()
+        self.result
+            .flush_staged_docs(&self.aggs_with_accessor, true);
+        self.result
+            .into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }
 }

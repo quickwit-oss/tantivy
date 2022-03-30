@@ -13,9 +13,7 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
-use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentHistogramBucketEntry,
-};
+use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
@@ -159,6 +157,27 @@ impl HistogramBounds {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SegmentHistogramBucketEntry {
+    pub key: f64,
+    pub doc_count: u64,
+}
+
+impl SegmentHistogramBucketEntry {
+    pub(crate) fn into_intermediate_bucket_entry(
+        self,
+        sub_aggregation: SegmentAggregationResultsCollector,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> IntermediateHistogramBucketEntry {
+        IntermediateHistogramBucketEntry {
+            key: self.key,
+            doc_count: self.doc_count,
+            sub_aggregation: sub_aggregation
+                .into_intermediate_aggregations_result(agg_with_accessor),
+        }
+    }
+}
+
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Clone, Debug, PartialEq)]
@@ -174,7 +193,10 @@ pub struct SegmentHistogramCollector {
 }
 
 impl SegmentHistogramCollector {
-    pub fn into_intermediate_bucket_result(self) -> IntermediateBucketResult {
+    pub fn into_intermediate_bucket_result(
+        self,
+        agg_with_accessor: &BucketAggregationWithAccessor,
+    ) -> IntermediateBucketResult {
         let mut buckets = Vec::with_capacity(
             self.buckets
                 .iter()
@@ -193,7 +215,12 @@ impl SegmentHistogramCollector {
                     .into_iter()
                     .zip(sub_aggregations.into_iter())
                     .filter(|(bucket, _sub_aggregation)| bucket.doc_count != 0)
-                    .map(|(bucket, sub_aggregation)| (bucket, sub_aggregation).into()),
+                    .map(|(bucket, sub_aggregation)| {
+                        bucket.into_intermediate_bucket_entry(
+                            sub_aggregation,
+                            &agg_with_accessor.sub_aggregation,
+                        )
+                    }),
             )
         } else {
             buckets.extend(
@@ -273,12 +300,13 @@ impl SegmentHistogramCollector {
         let get_bucket_num =
             |val| (get_bucket_num_f64(val, interval, offset) as i64 - first_bucket_num) as usize;
 
+        let accessor = bucket_with_accessor.accessor.as_single();
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(bucket_with_accessor.accessor.get(docs[0]));
-            let val1 = self.f64_from_fastfield_u64(bucket_with_accessor.accessor.get(docs[1]));
-            let val2 = self.f64_from_fastfield_u64(bucket_with_accessor.accessor.get(docs[2]));
-            let val3 = self.f64_from_fastfield_u64(bucket_with_accessor.accessor.get(docs[3]));
+            let val0 = self.f64_from_fastfield_u64(accessor.get(docs[0]));
+            let val1 = self.f64_from_fastfield_u64(accessor.get(docs[1]));
+            let val2 = self.f64_from_fastfield_u64(accessor.get(docs[2]));
+            let val3 = self.f64_from_fastfield_u64(accessor.get(docs[3]));
 
             let bucket_pos0 = get_bucket_num(val0);
             let bucket_pos1 = get_bucket_num(val1);
@@ -315,8 +343,7 @@ impl SegmentHistogramCollector {
             );
         }
         for doc in iter.remainder() {
-            let val =
-                f64_from_fastfield_u64(bucket_with_accessor.accessor.get(*doc), &self.field_type);
+            let val = f64_from_fastfield_u64(accessor.get(*doc), &self.field_type);
             if !bounds.contains(val) {
                 continue;
             }
@@ -630,41 +657,9 @@ mod tests {
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{
-        get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
+        exec_request, exec_request_with_query, get_test_index_2_segments,
+        get_test_index_from_values, get_test_index_with_num_docs,
     };
-    use crate::aggregation::AggregationCollector;
-    use crate::query::{AllQuery, TermQuery};
-    use crate::schema::IndexRecordOption;
-    use crate::{Index, Term};
-
-    fn exec_request(agg_req: Aggregations, index: &Index) -> crate::Result<Value> {
-        exec_request_with_query(agg_req, index, None)
-    }
-    fn exec_request_with_query(
-        agg_req: Aggregations,
-        index: &Index,
-        query: Option<(&str, &str)>,
-    ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = if let Some((field, term)) = query {
-            let text_field = reader.searcher().schema().get_field(field).unwrap();
-
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, term),
-                IndexRecordOption::Basic,
-            );
-
-            searcher.search(&term_query, &collector)?
-        } else {
-            searcher.search(&AllQuery, &collector)?
-        };
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        Ok(res)
-    }
 
     #[test]
     fn histogram_test_crooked_values() -> crate::Result<()> {

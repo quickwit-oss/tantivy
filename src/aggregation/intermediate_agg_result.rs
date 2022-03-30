@@ -9,12 +9,13 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::agg_req::{AggregationsInternal, BucketAggregationType, MetricAggregation};
+use super::agg_result::BucketResult;
+use super::bucket::{cut_off_buckets, SegmentHistogramBucketEntry, TermsAggregation};
 use super::metric::{IntermediateAverage, IntermediateStats};
-use super::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentBucketResultCollector, SegmentHistogramBucketEntry,
-    SegmentMetricResultCollector, SegmentRangeBucketEntry,
-};
+use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{Key, SerializedKey, VecWithNames};
+use crate::aggregation::agg_result::{AggregationResults, BucketEntry};
+use crate::aggregation::bucket::TermsAggregationInternal;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -22,15 +23,6 @@ use super::{Key, SerializedKey, VecWithNames};
 pub struct IntermediateAggregationResults {
     pub(crate) metrics: Option<VecWithNames<IntermediateMetricResult>>,
     pub(crate) buckets: Option<VecWithNames<IntermediateBucketResult>>,
-}
-
-impl From<SegmentAggregationResultsCollector> for IntermediateAggregationResults {
-    fn from(tree: SegmentAggregationResultsCollector) -> Self {
-        let metrics = tree.metrics.map(VecWithNames::from_other);
-        let buckets = tree.buckets.map(VecWithNames::from_other);
-
-        Self { metrics, buckets }
-    }
 }
 
 impl IntermediateAggregationResults {
@@ -169,22 +161,14 @@ pub enum IntermediateBucketResult {
         /// The buckets
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
-}
-
-impl From<SegmentBucketResultCollector> for IntermediateBucketResult {
-    fn from(collector: SegmentBucketResultCollector) -> Self {
-        match collector {
-            SegmentBucketResultCollector::Range(range) => range.into_intermediate_bucket_result(),
-            SegmentBucketResultCollector::Histogram(histogram) => {
-                histogram.into_intermediate_bucket_result()
-            }
-        }
-    }
+    /// Term aggregation
+    Terms(IntermediateTermBucketResult),
 }
 
 impl IntermediateBucketResult {
     pub(crate) fn empty_from_req(req: &BucketAggregationType) -> Self {
         match req {
+            BucketAggregationType::Terms(_) => IntermediateBucketResult::Terms(Default::default()),
             BucketAggregationType::Range(_) => IntermediateBucketResult::Range(Default::default()),
             BucketAggregationType::Histogram(_) => {
                 IntermediateBucketResult::Histogram { buckets: vec![] }
@@ -193,6 +177,16 @@ impl IntermediateBucketResult {
     }
     fn merge_fruits(&mut self, other: IntermediateBucketResult) {
         match (self, other) {
+            (
+                IntermediateBucketResult::Terms(entries_left),
+                IntermediateBucketResult::Terms(entries_right),
+            ) => {
+                merge_maps(&mut entries_left.entries, entries_right.entries);
+                entries_left.sum_other_doc_count += entries_right.sum_other_doc_count;
+                entries_left.doc_count_error_upper_bound +=
+                    entries_right.doc_count_error_upper_bound;
+            }
+
             (
                 IntermediateBucketResult::Range(entries_left),
                 IntermediateBucketResult::Range(entries_right),
@@ -232,6 +226,59 @@ impl IntermediateBucketResult {
             (IntermediateBucketResult::Histogram { .. }, _) => {
                 panic!("try merge on different types")
             }
+            (IntermediateBucketResult::Terms { .. }, _) => {
+                panic!("try merge on different types")
+            }
+        }
+    }
+}
+
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Term aggregation including error counts
+pub struct IntermediateTermBucketResult {
+    pub(crate) entries: FnvHashMap<String, IntermediateTermBucketEntry>,
+    pub(crate) sum_other_doc_count: u64,
+    pub(crate) doc_count_error_upper_bound: u64,
+}
+
+impl IntermediateTermBucketResult {
+    pub(crate) fn into_final_result(
+        self,
+        req: &TermsAggregation,
+        sub_aggregation_req: &AggregationsInternal,
+    ) -> BucketResult {
+        let req = TermsAggregationInternal::from_req(req);
+        let mut buckets: Vec<BucketEntry> = self
+            .entries
+            .into_iter()
+            .map(|(key, entry)| BucketEntry {
+                key: Key::Str(key),
+                doc_count: entry.doc_count,
+                sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
+                    entry.sub_aggregation,
+                    sub_aggregation_req,
+                ),
+            })
+            .collect();
+        buckets.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.doc_count));
+        // We ignore _term_doc_count_before_cutoff here, because it increases the upperbound error
+        // only for terms that didn't make it into the top N.
+        //
+        // This can be interesting, as a value of quality of the results, but not good to check the
+        // actual error count for the returned terms.
+        let (_term_doc_count_before_cutoff, sum_other_doc_count) =
+            cut_off_buckets(&mut buckets, req.size as usize);
+
+        let doc_count_error_upper_bound = if req.show_term_doc_count_error {
+            Some(self.doc_count_error_upper_bound)
+        } else {
+            None
+        };
+
+        BucketResult::Terms {
+            buckets,
+            sum_other_doc_count: self.sum_other_doc_count + sum_other_doc_count,
+            doc_count_error_upper_bound,
         }
     }
 }
@@ -277,26 +324,6 @@ impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
     }
 }
 
-impl
-    From<(
-        SegmentHistogramBucketEntry,
-        SegmentAggregationResultsCollector,
-    )> for IntermediateHistogramBucketEntry
-{
-    fn from(
-        entry: (
-            SegmentHistogramBucketEntry,
-            SegmentAggregationResultsCollector,
-        ),
-    ) -> Self {
-        IntermediateHistogramBucketEntry {
-            key: entry.0.key,
-            doc_count: entry.0.doc_count,
-            sub_aggregation: entry.1.into(),
-        }
-    }
-}
-
 /// This is the range entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -305,7 +332,6 @@ pub struct IntermediateRangeBucketEntry {
     pub key: Key,
     /// The number of documents in the bucket.
     pub doc_count: u64,
-    pub(crate) values: Option<Vec<u64>>,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
     /// The from range of the bucket. Equals f64::MIN when None.
@@ -316,22 +342,20 @@ pub struct IntermediateRangeBucketEntry {
     pub to: Option<f64>,
 }
 
-impl From<SegmentRangeBucketEntry> for IntermediateRangeBucketEntry {
-    fn from(entry: SegmentRangeBucketEntry) -> Self {
-        let sub_aggregation = if let Some(sub_aggregation) = entry.sub_aggregation {
-            sub_aggregation.into()
-        } else {
-            Default::default()
-        };
+/// This is the term entry for a bucket, which contains a count, and optionally
+/// sub_aggregations.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateTermBucketEntry {
+    /// The number of documents in the bucket.
+    pub doc_count: u64,
+    /// The sub_aggregation in this bucket.
+    pub sub_aggregation: IntermediateAggregationResults,
+}
 
-        IntermediateRangeBucketEntry {
-            key: entry.key,
-            doc_count: entry.doc_count,
-            values: None,
-            sub_aggregation,
-            to: entry.to,
-            from: entry.from,
-        }
+impl MergeFruits for IntermediateTermBucketEntry {
+    fn merge_fruits(&mut self, other: IntermediateTermBucketEntry) {
+        self.doc_count += other.doc_count;
+        self.sub_aggregation.merge_fruits(other.sub_aggregation);
     }
 }
 
@@ -366,7 +390,6 @@ mod tests {
                 IntermediateRangeBucketEntry {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
-                    values: None,
                     sub_aggregation: Default::default(),
                     from: None,
                     to: None,
@@ -394,7 +417,6 @@ mod tests {
                 IntermediateRangeBucketEntry {
                     key: Key::Str(key.to_string()),
                     doc_count: *doc_count,
-                    values: None,
                     from: None,
                     to: None,
                     sub_aggregation: get_sub_test_tree(&[(
