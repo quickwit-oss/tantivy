@@ -183,7 +183,7 @@ pub const STRING: TextOptions = TextOptions {
 /// The field will be tokenized and indexed.
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
-        tokenizer: TokenizerName::from_static("default"),
+        tokenizer: TokenizerName::from_static(DEFAULT_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::WithFreqsAndPositions,
     }),

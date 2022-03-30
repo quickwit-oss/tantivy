@@ -39,16 +39,19 @@ pub struct MultiValuedFastFieldWriter {
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
     is_storing_term_ids: bool,
+    is_facet: bool,
 }
 
 impl MultiValuedFastFieldWriter {
     /// Creates a new `MultiValuedFastFieldWriter`
-    pub(crate) fn new(field: Field, is_storing_term_ids: bool) -> Self {
+    pub(crate) fn new(field: Field, mut is_storing_term_ids: bool, is_facet: bool) -> Self {
+        is_storing_term_ids |= is_facet;
         MultiValuedFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
             is_storing_term_ids,
+            is_facet,
         }
     }
 
@@ -159,15 +162,15 @@ impl MultiValuedFastFieldWriter {
         {
             // writing the values themselves.
             let mut value_serializer: BitpackedFastFieldSerializerLegacy<'_, _>;
-            match mapping_opt {
-                Some(mapping) => {
-                    value_serializer = serializer.new_u64_fast_field_with_idx(
-                        self.field,
-                        0u64,
-                        mapping.len() as u64,
-                        1,
-                    )?;
+            if let Some(mapping) = mapping_opt {
+                value_serializer = serializer.new_u64_fast_field_with_idx(
+                    self.field,
+                    0u64,
+                    mapping.len() as u64,
+                    1,
+                )?;
 
+                if self.is_facet {
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
                     for vals in self.get_ordered_values(doc_id_map) {
                         doc_vals.clear();
@@ -180,17 +183,25 @@ impl MultiValuedFastFieldWriter {
                             value_serializer.add_val(val)?;
                         }
                     }
-                }
-                None => {
-                    let val_min_max = minmax(self.vals.iter().cloned());
-                    let (val_min, val_max) = val_min_max.unwrap_or((0u64, 0u64));
-                    value_serializer =
-                        serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
+                } else {
                     for vals in self.get_ordered_values(doc_id_map) {
-                        // sort values in case of remapped doc_ids?
-                        for &val in vals {
+                        let remapped_vals = vals
+                            .iter()
+                            .map(|val| *mapping.get(val).expect("Missing term ordinal"));
+                        for val in remapped_vals {
                             value_serializer.add_val(val)?;
                         }
+                    }
+                }
+            } else {
+                let val_min_max = minmax(self.vals.iter().cloned());
+                let (val_min, val_max) = val_min_max.unwrap_or((0u64, 0u64));
+                value_serializer =
+                    serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
+                for vals in self.get_ordered_values(doc_id_map) {
+                    // sort values in case of remapped doc_ids?
+                    for &val in vals {
+                        value_serializer.add_val(val)?;
                     }
                 }
             }

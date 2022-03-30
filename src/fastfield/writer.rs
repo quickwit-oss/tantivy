@@ -52,14 +52,19 @@ impl FastFieldsWriter {
                             single_value_writers.push(fast_field_writer);
                         }
                         Some(Cardinality::MultiValues) => {
-                            let fast_field_writer = MultiValuedFastFieldWriter::new(field, false);
+                            let fast_field_writer =
+                                MultiValuedFastFieldWriter::new(field, false, false);
                             multi_values_writers.push(fast_field_writer);
                         }
                         None => {}
                     }
                 }
-                FieldType::Facet(_) | FieldType::Str(_) if field_entry.is_fast() => {
-                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true);
+                FieldType::Facet(_) => {
+                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true, true);
+                    term_id_writers.push(fast_field_writer);
+                }
+                FieldType::Str(_) if field_entry.is_fast() => {
+                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true, false);
                     term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Bytes(bytes_option) => {
