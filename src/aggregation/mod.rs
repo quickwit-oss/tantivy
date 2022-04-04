@@ -147,7 +147,8 @@
 //! IntermediateAggregationResults provides the
 //! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
 //! merge multiple results. The merged result can then be converted into
-//! [agg_result::AggregationResults] via the [Into] trait.
+//! [agg_result::AggregationResults] via the
+//! [agg_result::AggregationResults::from_intermediate_and_req] method.
 
 pub mod agg_req;
 mod agg_req_with_accessor;

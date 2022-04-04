@@ -169,7 +169,7 @@ impl SegmentReader {
 
         let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
-        let fast_field_readers =
+        let fast_fields_readers =
             Arc::new(FastFieldReaders::new(schema.clone(), fast_fields_composite));
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
@@ -196,7 +196,7 @@ impl SegmentReader {
             max_doc,
             termdict_composite,
             postings_composite,
-            fast_fields_readers: fast_field_readers,
+            fast_fields_readers,
             fieldnorm_readers,
             segment_id: segment.id(),
             delete_opstamp: segment.meta().delete_opstamp(),

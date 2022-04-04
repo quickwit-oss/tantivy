@@ -93,13 +93,7 @@ impl FieldEntry {
 
     /// Returns true if the field is a int (signed or unsigned) fast field
     pub fn is_fast(&self) -> bool {
-        match self.field_type {
-            FieldType::U64(ref options)
-            | FieldType::I64(ref options)
-            | FieldType::Date(ref options)
-            | FieldType::F64(ref options) => options.is_fast(),
-            _ => false,
-        }
+        self.field_type.is_fast()
     }
 
     /// Returns true if the field is stored
@@ -144,7 +138,8 @@ mod tests {
       "fieldnorms": true,
       "tokenizer": "default"
     },
-    "stored": false
+    "stored": false,
+    "fast": false
   }
 }"#;
         let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();

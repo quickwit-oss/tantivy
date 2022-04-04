@@ -7,7 +7,7 @@ use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
-use super::FastFieldDataAccess;
+use super::{FastFieldDataAccess, FastFieldType};
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -16,6 +16,7 @@ use crate::termdict::TermOrdinal;
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
+    term_id_writers: Vec<MultiValuedFastFieldWriter>,
     single_value_writers: Vec<IntFastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
     bytes_value_writers: Vec<BytesFastFieldWriter>,
@@ -33,6 +34,7 @@ impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let mut single_value_writers = Vec::new();
+        let mut term_id_writers = Vec::new();
         let mut multi_values_writers = Vec::new();
         let mut bytes_value_writers = Vec::new();
 
@@ -50,15 +52,22 @@ impl FastFieldsWriter {
                             single_value_writers.push(fast_field_writer);
                         }
                         Some(Cardinality::MultiValues) => {
-                            let fast_field_writer = MultiValuedFastFieldWriter::new(field, false);
+                            let fast_field_writer =
+                                MultiValuedFastFieldWriter::new(field, FastFieldType::Numeric);
                             multi_values_writers.push(fast_field_writer);
                         }
                         None => {}
                     }
                 }
                 FieldType::Facet(_) => {
-                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true);
-                    multi_values_writers.push(fast_field_writer);
+                    let fast_field_writer =
+                        MultiValuedFastFieldWriter::new(field, FastFieldType::Facet);
+                    term_id_writers.push(fast_field_writer);
+                }
+                FieldType::Str(_) if field_entry.is_fast() => {
+                    let fast_field_writer =
+                        MultiValuedFastFieldWriter::new(field, FastFieldType::String);
+                    term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Bytes(bytes_option) => {
                     if bytes_option.is_fast() {
@@ -70,6 +79,7 @@ impl FastFieldsWriter {
             }
         }
         FastFieldsWriter {
+            term_id_writers,
             single_value_writers,
             multi_values_writers,
             bytes_value_writers,
@@ -78,10 +88,15 @@ impl FastFieldsWriter {
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.single_value_writers
+        self.term_id_writers
             .iter()
             .map(|w| w.mem_usage())
             .sum::<usize>()
+            + self
+                .single_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
             + self
                 .multi_values_writers
                 .iter()
@@ -92,6 +107,14 @@ impl FastFieldsWriter {
                 .iter()
                 .map(|w| w.mem_usage())
                 .sum::<usize>()
+    }
+
+    /// Get the `FastFieldWriter` associated to a field.
+    pub fn get_term_id_writer(&self, field: Field) -> Option<&MultiValuedFastFieldWriter> {
+        // TODO optimize
+        self.term_id_writers
+            .iter()
+            .find(|field_writer| field_writer.field() == field)
     }
 
     /// Get the `FastFieldWriter` associated to a field.
@@ -106,6 +129,17 @@ impl FastFieldsWriter {
     pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
+            .iter_mut()
+            .find(|field_writer| field_writer.field() == field)
+    }
+
+    /// Get the `FastFieldWriter` associated to a field.
+    pub fn get_term_id_writer_mut(
+        &mut self,
+        field: Field,
+    ) -> Option<&mut MultiValuedFastFieldWriter> {
+        // TODO optimize
+        self.term_id_writers
             .iter_mut()
             .find(|field_writer| field_writer.field() == field)
     }
@@ -137,6 +171,9 @@ impl FastFieldsWriter {
 
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
+        for field_writer in &mut self.term_id_writers {
+            field_writer.add_document(doc);
+        }
         for field_writer in &mut self.single_value_writers {
             field_writer.add_document(doc);
         }
@@ -156,6 +193,10 @@ impl FastFieldsWriter {
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
+        for field_writer in &self.term_id_writers {
+            let field = field_writer.field();
+            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
+        }
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer, doc_id_map)?;
         }
@@ -244,6 +285,10 @@ impl IntFastFieldWriter {
         self.val_count += 1;
     }
 
+    /// Extract the fast field value from the document
+    /// (or use the default value) and records it.
+    ///
+    ///
     /// Extract the value associated to the fast field for
     /// this document.
     ///
@@ -254,18 +299,17 @@ impl IntFastFieldWriter {
     /// instead.
     /// If the document has more than one value for the given field,
     /// only the first one is taken in account.
-    fn extract_val(&self, doc: &Document) -> u64 {
-        match doc.get_first(self.field) {
-            Some(v) => super::value_to_u64(v),
-            None => self.val_if_missing,
-        }
-    }
-
-    /// Extract the fast field value from the document
-    /// (or use the default value) and records it.
+    ///
+    /// Values for string fast fields are skipped.
     pub fn add_document(&mut self, doc: &Document) {
-        let val = self.extract_val(doc);
-        self.add_val(val);
+        match doc.get_first(self.field) {
+            Some(v) => {
+                self.add_val(super::value_to_u64(v));
+            }
+            None => {
+                self.add_val(self.val_if_missing);
+            }
+        };
     }
 
     /// get iterator over the data
@@ -284,6 +328,7 @@ impl IntFastFieldWriter {
         } else {
             (self.val_min, self.val_max)
         };
+
         let fastfield_accessor = WriterFastFieldAccessProvider {
             doc_id_map,
             vals: &self.vals,

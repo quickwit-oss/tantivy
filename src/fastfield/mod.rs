@@ -196,10 +196,31 @@ fn value_to_u64(value: &Value) -> u64 {
     }
 }
 
+/// The fast field type
+pub enum FastFieldType {
+    /// Numeric type, e.g. f64.
+    Numeric,
+    /// Fast field stores string ids.
+    String,
+    /// Fast field stores string ids for facets.
+    Facet,
+}
+
+impl FastFieldType {
+    fn is_storing_term_ids(&self) -> bool {
+        matches!(self, FastFieldType::String | FastFieldType::Facet)
+    }
+
+    fn is_facet(&self) -> bool {
+        matches!(self, FastFieldType::Facet)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use std::collections::HashMap;
+    use std::ops::Range;
     use std::path::Path;
 
     use common::HasLen;
@@ -211,7 +232,7 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, NumericOptions, Schema, FAST};
+    use crate::schema::{Document, Field, NumericOptions, Schema, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
     use crate::{Index, SegmentId, SegmentReader};
 
@@ -511,6 +532,205 @@ mod tests {
     #[test]
     fn test_default_datetime() {
         assert_eq!(0, DateTime::make_zero().to_unix_timestamp());
+    }
+
+    fn get_vals_for_docs(ff: &MultiValuedFastFieldReader<u64>, docs: Range<u32>) -> Vec<u64> {
+        let mut all = vec![];
+
+        for doc in docs {
+            let mut out = vec![];
+            ff.get_vals(doc, &mut out);
+            all.extend(out);
+        }
+        all
+    }
+
+    #[test]
+    fn test_text_fastfield() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            // first segment
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                text_field => "BBBBB AAAAA", // term_ord 1,2
+            ))?;
+            index_writer.add_document(doc!())?;
+            index_writer.add_document(doc!(
+                text_field => "AAAAA", // term_ord 0
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "AAAAA BBBBB", // term_ord 0
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "zumberthree", // term_ord 2, after merge term_ord 3
+            ))?;
+
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            let segment_reader = searcher.segment_reader(0);
+            let fast_fields = segment_reader.fast_fields();
+            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+            assert_eq!(
+                get_vals_for_docs(&text_fast_field, 0..5),
+                vec![1, 0, 0, 0, 1, 2]
+            );
+
+            let mut out = vec![];
+            text_fast_field.get_vals(3, &mut out);
+            assert_eq!(out, vec![0, 1]);
+
+            let inverted_index = segment_reader.inverted_index(text_field)?;
+            assert_eq!(inverted_index.terms().num_terms(), 3);
+            let mut bytes = vec![];
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+            // default tokenizer applies lower case
+            assert_eq!(bytes, "aaaaa".as_bytes());
+        }
+
+        {
+            // second segment
+            let mut index_writer = index.writer_for_tests()?;
+
+            index_writer.add_document(doc!(
+                text_field => "AAAAA", // term_ord 0
+            ))?;
+
+            index_writer.add_document(doc!(
+                text_field => "CCCCC AAAAA", // term_ord 1, after merge 2
+            ))?;
+
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
+            assert_eq!(searcher.segment_readers().len(), 2);
+            let segment_reader = searcher.segment_reader(1);
+            let fast_fields = segment_reader.fast_fields();
+            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+            assert_eq!(get_vals_for_docs(&text_fast_field, 0..3), vec![0, 1, 0]);
+        }
+        // Merging the segments
+        {
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.merge(&segment_ids).wait()?;
+            index_writer.wait_merging_threads()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+        let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+        assert_eq!(
+            get_vals_for_docs(&text_fast_field, 0..8),
+            vec![1, 0, 0, 0, 1, 3 /* next segment */, 0, 2, 0]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_string_fastfield() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", STRING | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            // first segment
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                text_field => "BBBBB", // term_ord 1
+            ))?;
+            index_writer.add_document(doc!())?;
+            index_writer.add_document(doc!(
+                text_field => "AAAAA", // term_ord 0
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "AAAAA", // term_ord 0
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "zumberthree", // term_ord 2, after merge term_ord 3
+            ))?;
+
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            let segment_reader = searcher.segment_reader(0);
+            let fast_fields = segment_reader.fast_fields();
+            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+            assert_eq!(get_vals_for_docs(&text_fast_field, 0..6), vec![1, 0, 0, 2]);
+
+            let inverted_index = segment_reader.inverted_index(text_field)?;
+            assert_eq!(inverted_index.terms().num_terms(), 3);
+            let mut bytes = vec![];
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+            assert_eq!(bytes, "AAAAA".as_bytes());
+        }
+
+        {
+            // second segment
+            let mut index_writer = index.writer_for_tests()?;
+
+            index_writer.add_document(doc!(
+                text_field => "AAAAA", // term_ord 0
+            ))?;
+
+            index_writer.add_document(doc!(
+                text_field => "CCCCC", // term_ord 1, after merge 2
+            ))?;
+
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
+            assert_eq!(searcher.segment_readers().len(), 2);
+            let segment_reader = searcher.segment_reader(1);
+            let fast_fields = segment_reader.fast_fields();
+            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+            assert_eq!(get_vals_for_docs(&text_fast_field, 0..2), vec![0, 1]);
+        }
+        // Merging the segments
+        {
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.merge(&segment_ids).wait()?;
+            index_writer.wait_merging_threads()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+        let text_fast_field = fast_fields.u64s(text_field).unwrap();
+
+        assert_eq!(
+            get_vals_for_docs(&text_fast_field, 0..9),
+            vec![1, 0, 0, 3 /* next segment */, 0, 2]
+        );
+
+        Ok(())
     }
 
     #[test]
