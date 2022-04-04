@@ -4,7 +4,7 @@ use fnv::FnvHashMap;
 use tantivy_bitpacker::minmax;
 
 use crate::fastfield::serializer::BitpackedFastFieldSerializerLegacy;
-use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer};
+use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
@@ -38,20 +38,17 @@ pub struct MultiValuedFastFieldWriter {
     field: Field,
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
-    is_storing_term_ids: bool,
-    is_facet: bool,
+    fast_field_type: FastFieldType,
 }
 
 impl MultiValuedFastFieldWriter {
     /// Creates a new `MultiValuedFastFieldWriter`
-    pub(crate) fn new(field: Field, mut is_storing_term_ids: bool, is_facet: bool) -> Self {
-        is_storing_term_ids |= is_facet;
+    pub(crate) fn new(field: Field, fast_field_type: FastFieldType) -> Self {
         MultiValuedFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
-            is_storing_term_ids,
-            is_facet,
+            fast_field_type,
         }
     }
 
@@ -81,7 +78,7 @@ impl MultiValuedFastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         self.next_doc();
         // facets/texts are indexed in the `SegmentWriter` as we encode their unordered id.
-        if self.is_storing_term_ids {
+        if self.fast_field_type.is_storing_term_ids() {
             return;
         }
         for field_value in doc.field_values() {
@@ -170,7 +167,7 @@ impl MultiValuedFastFieldWriter {
                     1,
                 )?;
 
-                if self.is_facet {
+                if self.fast_field_type.is_facet() {
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
                     for vals in self.get_ordered_values(doc_id_map) {
                         doc_vals.clear();

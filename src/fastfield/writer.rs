@@ -7,7 +7,7 @@ use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
-use super::FastFieldDataAccess;
+use super::{FastFieldDataAccess, FastFieldType};
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -53,18 +53,20 @@ impl FastFieldsWriter {
                         }
                         Some(Cardinality::MultiValues) => {
                             let fast_field_writer =
-                                MultiValuedFastFieldWriter::new(field, false, false);
+                                MultiValuedFastFieldWriter::new(field, FastFieldType::Numeric);
                             multi_values_writers.push(fast_field_writer);
                         }
                         None => {}
                     }
                 }
                 FieldType::Facet(_) => {
-                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true, true);
+                    let fast_field_writer =
+                        MultiValuedFastFieldWriter::new(field, FastFieldType::Facet);
                     term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Str(_) if field_entry.is_fast() => {
-                    let fast_field_writer = MultiValuedFastFieldWriter::new(field, true, false);
+                    let fast_field_writer =
+                        MultiValuedFastFieldWriter::new(field, FastFieldType::String);
                     term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Bytes(bytes_option) => {

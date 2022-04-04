@@ -16,12 +16,7 @@ pub struct TextOptions {
     #[serde(default)]
     stored: bool,
     #[serde(default)]
-    #[serde(skip_serializing_if = "is_false")]
     fast: bool,
-}
-
-fn is_false(val: &bool) -> bool {
-    !(*val)
 }
 
 impl TextOptions {

@@ -138,7 +138,8 @@ mod tests {
       "fieldnorms": true,
       "tokenizer": "default"
     },
-    "stored": false
+    "stored": false,
+    "fast": false
   }
 }"#;
         let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();

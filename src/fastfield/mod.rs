@@ -196,6 +196,26 @@ fn value_to_u64(value: &Value) -> u64 {
     }
 }
 
+/// The fast field type
+pub enum FastFieldType {
+    /// Numeric type, e.g. f64.
+    Numeric,
+    /// Fast field stores string ids.
+    String,
+    /// Fast field stores string ids for facets.
+    Facet,
+}
+
+impl FastFieldType {
+    fn is_storing_term_ids(&self) -> bool {
+        matches!(self, FastFieldType::String | FastFieldType::Facet)
+    }
+
+    fn is_facet(&self) -> bool {
+        matches!(self, FastFieldType::Facet)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

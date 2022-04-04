@@ -417,6 +417,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use matches::{assert_matches, matches};
+    use pretty_assertions::assert_eq;
     use serde_json;
 
     use crate::schema::field_type::ValueParsingError;
@@ -469,7 +470,8 @@ mod tests {
         "fieldnorms": true,
         "tokenizer": "default"
       },
-      "stored": false
+      "stored": false,
+      "fast": false
     }
   },
   {
@@ -481,7 +483,8 @@ mod tests {
         "fieldnorms": false,
         "tokenizer": "raw"
       },
-      "stored": false
+      "stored": false,
+      "fast": false
     }
   },
   {
@@ -784,7 +787,8 @@ mod tests {
         "fieldnorms": true,
         "tokenizer": "default"
       },
-      "stored": false
+      "stored": false,
+      "fast": false
     }
   },
   {
@@ -816,7 +820,8 @@ mod tests {
         "fieldnorms": true,
         "tokenizer": "raw"
       },
-      "stored": true
+      "stored": true,
+      "fast": false
     }
   },
   {
@@ -838,7 +843,8 @@ mod tests {
         "fieldnorms": true,
         "tokenizer": "default"
       },
-      "stored": false
+      "stored": false,
+      "fast": false
     }
   },
   {
