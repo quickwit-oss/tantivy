@@ -316,7 +316,7 @@ impl SegmentTermCollector {
         if self.req.min_doc_count == 0 {
             let mut stream = term_dict.stream()?;
             while let Some((key, _ord)) = stream.next() {
-                let key = std::str::from_utf8(&key)
+                let key = std::str::from_utf8(key)
                     .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?;
                 if !dict.contains_key(key) {
                     dict.insert(key.to_owned(), Default::default());
@@ -582,7 +582,6 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use fnv::FnvHashMap;
     use itertools::Itertools;
     use rand::seq::SliceRandom;
     use rand::thread_rng;
@@ -607,17 +606,6 @@ mod bench {
         vals
     }
 
-    fn bench_term_hashmap(b: &mut test::Bencher, num_terms: u64, total_terms: u64) {
-        let mut collector = FnvHashMap::default();
-        let vals = get_rand_terms(total_terms, num_terms);
-        b.iter(|| {
-            for val in &vals {
-                let val = collector.entry(val).or_insert(TermBucketEntry::default());
-                val.doc_count += 1;
-            }
-            collector.get(&0).cloned()
-        })
-    }
     fn bench_term_buckets(b: &mut test::Bencher, num_terms: u64, total_terms: u64) {
         let mut collector = get_collector_with_buckets(total_terms);
         let vals = get_rand_terms(total_terms, num_terms);
@@ -633,35 +621,19 @@ mod bench {
     fn bench_term_buckets_500_of_1_000_000(b: &mut test::Bencher) {
         bench_term_buckets(b, 500u64, 1_000_000u64)
     }
-    #[bench]
-    fn bench_fnv_buckets_500_of_1_000_000(b: &mut test::Bencher) {
-        bench_term_hashmap(b, 500u64, 1_000_000u64)
-    }
 
     #[bench]
     fn bench_term_buckets_1_000_000_of_50_000(b: &mut test::Bencher) {
         bench_term_buckets(b, 1_000_000u64, 50_000u64)
-    }
-    #[bench]
-    fn bench_fnv_buckets_1_000_000_of_50_000(b: &mut test::Bencher) {
-        bench_term_hashmap(b, 1_000_000u64, 50_000u64)
     }
 
     #[bench]
     fn bench_term_buckets_1_000_000_of_50(b: &mut test::Bencher) {
         bench_term_buckets(b, 1_000_000u64, 50u64)
     }
-    #[bench]
-    fn bench_fnv_buckets_1_000_000_of_50(b: &mut test::Bencher) {
-        bench_term_hashmap(b, 1_000_000u64, 50u64)
-    }
 
     #[bench]
     fn bench_term_buckets_1_000_000_of_1_000_000(b: &mut test::Bencher) {
         bench_term_buckets(b, 1_000_000u64, 1_000_000u64)
-    }
-    #[bench]
-    fn bench_fnv_buckets_1_000_000_of_1_000_000(b: &mut test::Bencher) {
-        bench_term_hashmap(b, 1_000_000u64, 1_000_000u64)
     }
 }
