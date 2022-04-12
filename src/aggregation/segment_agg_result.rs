@@ -44,18 +44,20 @@ impl SegmentAggregationResultsCollector {
     pub fn into_intermediate_aggregations_result(
         self,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> IntermediateAggregationResults {
-        let buckets = self.buckets.map(|buckets| {
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let buckets = if let Some(buckets) = self.buckets {
             let entries = buckets
                 .into_iter()
                 .zip(agg_with_accessor.buckets.values())
-                .map(|((key, bucket), acc)| (key, bucket.into_intermediate_bucket_result(acc)))
-                .collect::<Vec<(String, _)>>();
-            VecWithNames::from_entries(entries)
-        });
+                .map(|((key, bucket), acc)| Ok((key, bucket.into_intermediate_bucket_result(acc)?)))
+                .collect::<crate::Result<Vec<(String, _)>>>()?;
+            Some(VecWithNames::from_entries(entries))
+        } else {
+            None
+        };
         let metrics = self.metrics.map(VecWithNames::from_other);
 
-        IntermediateAggregationResults { metrics, buckets }
+        Ok(IntermediateAggregationResults { metrics, buckets })
     }
 
     pub(crate) fn from_req_and_validate(req: &AggregationsWithAccessor) -> crate::Result<Self> {
@@ -191,7 +193,7 @@ impl SegmentBucketResultCollector {
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
-    ) -> IntermediateBucketResult {
+    ) -> crate::Result<IntermediateBucketResult> {
         match self {
             SegmentBucketResultCollector::Terms(terms) => {
                 terms.into_intermediate_bucket_result(agg_with_accessor)

@@ -10,6 +10,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::error::DataCorruption;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
 use crate::DocId;
@@ -182,17 +183,17 @@ impl TermBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> IntermediateTermBucketEntry {
+    ) -> crate::Result<IntermediateTermBucketEntry> {
         let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregations {
-            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)
+            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
         } else {
             Default::default()
         };
 
-        IntermediateTermBucketEntry {
+        Ok(IntermediateTermBucketEntry {
             doc_count: self.doc_count,
             sub_aggregation,
-        }
+        })
     }
 }
 
@@ -288,7 +289,7 @@ impl SegmentTermCollector {
     pub(crate) fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
-    ) -> IntermediateBucketResult {
+    ) -> crate::Result<IntermediateBucketResult> {
         let mut entries: Vec<_> = self.term_buckets.entries.into_iter().collect();
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
@@ -307,15 +308,29 @@ impl SegmentTermCollector {
                 .ord_to_term(term_id as u64, &mut buffer)
                 .expect("could not find term");
             dict.insert(
-                String::from_utf8(buffer.to_vec()).unwrap(),
-                entry.into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation),
+                String::from_utf8(buffer.to_vec())
+                    .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?,
+                entry.into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation)?,
             );
         }
-        IntermediateBucketResult::Terms(IntermediateTermBucketResult {
-            entries: dict,
-            sum_other_doc_count,
-            doc_count_error_upper_bound: term_doc_count_before_cutoff,
-        })
+        if self.req.min_doc_count == 0 {
+            let mut stream = term_dict.stream()?;
+            while let Some((key, _ord)) = stream.next() {
+                let key = std::str::from_utf8(&key)
+                    .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?;
+                if !dict.contains_key(key) {
+                    dict.insert(key.to_owned(), Default::default());
+                }
+            }
+        }
+
+        Ok(IntermediateBucketResult::Terms(
+            IntermediateTermBucketResult {
+                entries: dict,
+                sum_other_doc_count,
+                doc_count_error_upper_bound: term_doc_count_before_cutoff,
+            },
+        ))
     }
 
     #[inline]

@@ -128,20 +128,20 @@ impl SegmentRangeBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> IntermediateRangeBucketEntry {
+    ) -> crate::Result<IntermediateRangeBucketEntry> {
         let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregation {
-            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)
+            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
         } else {
             Default::default()
         };
 
-        IntermediateRangeBucketEntry {
+        Ok(IntermediateRangeBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
             sub_aggregation,
             from: self.from,
             to: self.to,
-        }
+        })
     }
 }
 
@@ -149,23 +149,23 @@ impl SegmentRangeCollector {
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
-    ) -> IntermediateBucketResult {
+    ) -> crate::Result<IntermediateBucketResult> {
         let field_type = self.field_type;
 
         let buckets = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {
-                (
+                Ok((
                     range_to_string(&range_bucket.range, &field_type),
                     range_bucket
                         .bucket
-                        .into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation),
-                )
+                        .into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation)?,
+                ))
             })
-            .collect();
+            .collect::<crate::Result<_>>()?;
 
-        IntermediateBucketResult::Range(buckets)
+        Ok(IntermediateBucketResult::Range(buckets))
     }
 
     pub(crate) fn from_req_and_validate(
@@ -395,7 +395,8 @@ mod tests {
             ranges,
         };
 
-        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type).unwrap()
+        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type)
+            .expect("unexpected error")
     }
 
     #[test]

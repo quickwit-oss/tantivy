@@ -168,13 +168,13 @@ impl SegmentHistogramBucketEntry {
         self,
         sub_aggregation: SegmentAggregationResultsCollector,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> IntermediateHistogramBucketEntry {
-        IntermediateHistogramBucketEntry {
+    ) -> crate::Result<IntermediateHistogramBucketEntry> {
+        Ok(IntermediateHistogramBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
             sub_aggregation: sub_aggregation
-                .into_intermediate_aggregations_result(agg_with_accessor),
-        }
+                .into_intermediate_aggregations_result(agg_with_accessor)?,
+        })
     }
 }
 
@@ -196,7 +196,7 @@ impl SegmentHistogramCollector {
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
-    ) -> IntermediateBucketResult {
+    ) -> crate::Result<IntermediateBucketResult> {
         let mut buckets = Vec::with_capacity(
             self.buckets
                 .iter()
@@ -210,18 +210,20 @@ impl SegmentHistogramCollector {
         //
         // Empty buckets may be added later again in the final result, depending on the request.
         if let Some(sub_aggregations) = self.sub_aggregations {
-            buckets.extend(
-                self.buckets
-                    .into_iter()
-                    .zip(sub_aggregations.into_iter())
-                    .filter(|(bucket, _sub_aggregation)| bucket.doc_count != 0)
-                    .map(|(bucket, sub_aggregation)| {
-                        bucket.into_intermediate_bucket_entry(
-                            sub_aggregation,
-                            &agg_with_accessor.sub_aggregation,
-                        )
-                    }),
-            )
+            for bucket_res in self
+                .buckets
+                .into_iter()
+                .zip(sub_aggregations.into_iter())
+                .filter(|(bucket, _sub_aggregation)| bucket.doc_count != 0)
+                .map(|(bucket, sub_aggregation)| {
+                    bucket.into_intermediate_bucket_entry(
+                        sub_aggregation,
+                        &agg_with_accessor.sub_aggregation,
+                    )
+                })
+            {
+                buckets.push(bucket_res?);
+            }
         } else {
             buckets.extend(
                 self.buckets
@@ -231,7 +233,7 @@ impl SegmentHistogramCollector {
             );
         };
 
-        IntermediateBucketResult::Histogram { buckets }
+        Ok(IntermediateBucketResult::Histogram { buckets })
     }
 
     pub(crate) fn from_req_and_validate(

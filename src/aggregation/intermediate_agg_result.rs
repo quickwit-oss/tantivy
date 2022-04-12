@@ -345,7 +345,7 @@ pub struct IntermediateRangeBucketEntry {
 
 /// This is the term entry for a bucket, which contains a count, and optionally
 /// sub_aggregations.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateTermBucketEntry {
     /// The number of documents in the bucket.
     pub doc_count: u64,

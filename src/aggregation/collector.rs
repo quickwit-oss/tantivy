@@ -92,11 +92,12 @@ impl Collector for AggregationCollector {
 }
 
 fn merge_fruits(
-    mut segment_fruits: Vec<IntermediateAggregationResults>,
+    mut segment_fruits: Vec<crate::Result<IntermediateAggregationResults>>,
 ) -> crate::Result<IntermediateAggregationResults> {
-    if let Some(mut fruit) = segment_fruits.pop() {
+    if let Some(fruit) = segment_fruits.pop() {
+        let mut fruit = fruit?;
         for next_fruit in segment_fruits {
-            fruit.merge_fruits(next_fruit);
+            fruit.merge_fruits(next_fruit?);
         }
         Ok(fruit)
     } else {
@@ -128,7 +129,7 @@ impl AggregationSegmentCollector {
 }
 
 impl SegmentCollector for AggregationSegmentCollector {
-    type Fruit = IntermediateAggregationResults;
+    type Fruit = crate::Result<IntermediateAggregationResults>;
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
