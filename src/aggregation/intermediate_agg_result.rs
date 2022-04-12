@@ -251,6 +251,7 @@ impl IntermediateTermBucketResult {
         let mut buckets: Vec<BucketEntry> = self
             .entries
             .into_iter()
+            .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
             .map(|(key, entry)| BucketEntry {
                 key: Key::Str(key),
                 doc_count: entry.doc_count,

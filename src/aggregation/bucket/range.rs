@@ -39,7 +39,7 @@ use crate::{DocId, TantivyError};
 /// # Request JSON Format
 /// ```json
 /// {
-///     "range": {
+///     "my_ranges": {
 ///         "field": "score",
 ///         "ranges": [
 ///             { "to": 3.0 },

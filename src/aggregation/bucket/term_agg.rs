@@ -53,7 +53,7 @@ use crate::DocId;
 /// ```json
 /// {
 ///     "genres": {
-///         "field": "genre",
+///         "terms":{ "field": "genre" }
 ///     }
 /// }
 /// ```
@@ -65,9 +65,20 @@ pub struct TermsAggregation {
     /// Larger values for size are more expensive.
     pub size: Option<u32>,
 
-    /// The get more accurate results, we fetch more than `size` from each segment.
-    /// By default we fetch `shard_size` terms, which defaults to size * 1.5 + 10.
+    /// Unused by tantivy.
+    ///
+    /// Since tantivy doesn't know shards, this parameter is merely there to be used by consumers
+    /// of tantivy. shard_size is the number of terms returned by each shard.
+    /// The default value in elasticsearch is size * 1.5 + 10.
+    ///
+    /// Should never be smaller than size.
     pub shard_size: Option<u32>,
+
+    /// The get more accurate results, we fetch more than `size` from each segment.
+    /// TODO document default
+    ///
+    /// Increasing this value is will increase the cost for more accuracy.
+    pub segment_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
@@ -76,8 +87,8 @@ pub struct TermsAggregation {
     #[serde(default = "default_show_term_doc_count_error")]
     pub show_term_doc_count_error: bool,
 
-    /// Filter all terms than are lower `min_doc_count`.
-    pub min_doc_count: Option<usize>,
+    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    pub min_doc_count: Option<u64>,
 }
 impl Default for TermsAggregation {
     fn default() -> Self {
@@ -87,6 +98,7 @@ impl Default for TermsAggregation {
             shard_size: Default::default(),
             show_term_doc_count_error: true,
             min_doc_count: Default::default(),
+            segment_size: Default::default(),
         }
     }
 }
@@ -104,44 +116,42 @@ pub(crate) struct TermsAggregationInternal {
     /// Larger values for size are more expensive.
     pub size: u32,
 
-    /// The get more accurate results, we fetch more than `size` from each segment.
-    /// By default we fetch `shard_size` terms, which defaults to size * 1.5 + 10.
-    ///
-    /// Cannot be smaller than size. In that case it will be set automatically to size.
-    pub shard_size: u32,
-
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
     /// doc_count returned by each shard. It’s the sum of the size of the largest bucket on
     /// each segment that didn’t fit into `shard_size`.
     pub show_term_doc_count_error: bool,
 
-    /// Filter all terms than are lower `min_doc_count`.
-    pub min_doc_count: Option<usize>,
+    /// The get more accurate results, we fetch more than `size` from each segment.
+    ///
+    /// Increasing this value is will increase the cost for more accuracy.
+    pub segment_size: u32,
+
+    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    pub min_doc_count: u64,
 }
 
 impl TermsAggregationInternal {
     pub(crate) fn from_req(req: &TermsAggregation) -> Self {
         let size = req.size.unwrap_or(10);
 
-        let mut shard_size = req
-            .shard_size
+        let mut segment_size = req
+            .segment_size
             .unwrap_or((size as f32 * 1.5_f32) as u32 + 10);
 
-        shard_size = shard_size.max(size);
+        segment_size = segment_size.max(size);
         TermsAggregationInternal {
             field: req.field.to_string(),
             size,
-            shard_size,
+            segment_size,
             show_term_doc_count_error: req.show_term_doc_count_error,
-            min_doc_count: req.min_doc_count,
+            min_doc_count: req.min_doc_count.unwrap_or(1),
         }
     }
 }
 
-const TERM_BUCKET_SIZE: usize = 100;
 #[derive(Clone, Debug, PartialEq)]
-/// Chunks the term_id value range in TERM_BUCKET_SIZE blocks.
+/// Container to store term_ids and their buckets.
 struct TermBuckets {
     pub(crate) entries: FnvHashMap<u32, TermBucketEntry>,
     blueprint: Option<SegmentAggregationResultsCollector>,
@@ -189,10 +199,9 @@ impl TermBucketEntry {
 impl TermBuckets {
     pub(crate) fn from_req_and_validate(
         sub_aggregation: &AggregationsWithAccessor,
-        max_term_id: usize,
+        _max_term_id: usize,
     ) -> crate::Result<Self> {
         let has_sub_aggregations = sub_aggregation.is_empty();
-        let _num_chunks = (max_term_id / TERM_BUCKET_SIZE) + 1;
 
         let blueprint = if has_sub_aggregations {
             let sub_aggregation =
@@ -259,7 +268,7 @@ impl SegmentTermCollector {
         let term_buckets =
             TermBuckets::from_req_and_validate(sub_aggregations, max_term_id as usize)?;
 
-        let has_sub_aggregations = sub_aggregations.is_empty();
+        let has_sub_aggregations = !sub_aggregations.is_empty();
         let blueprint = if has_sub_aggregations {
             let sub_aggregation =
                 SegmentAggregationResultsCollector::from_req_and_validate(sub_aggregations)?;
@@ -283,7 +292,7 @@ impl SegmentTermCollector {
         let mut entries: Vec<_> = self.term_buckets.entries.into_iter().collect();
 
         let (term_doc_count_before_cutoff, sum_other_doc_count) =
-            cut_off_buckets(&mut entries, self.req.shard_size as usize);
+            cut_off_buckets(&mut entries, self.req.segment_size as usize);
 
         let inverted_index = agg_with_accessor
             .inverted_index
@@ -403,7 +412,8 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 mod tests {
     use super::*;
     use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
+        get_term_dict_field_names, Aggregation, Aggregations, BucketAggregation,
+        BucketAggregationType,
     };
     use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
 
@@ -476,6 +486,37 @@ mod tests {
         );
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 1);
 
+        // test min_doc_count
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    size: Some(2),
+                    shard_size: Some(2),
+                    min_doc_count: Some(3),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req.clone(), &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(
+            res["my_texts"]["buckets"][1]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with min_doc_count
+
+        assert_eq!(
+            get_term_dict_field_names(&agg_req),
+            vec!["string_id".to_string(),].into_iter().collect()
+        );
+
         Ok(())
     }
 
@@ -496,7 +537,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     size: Some(2),
-                    shard_size: Some(2),
+                    segment_size: Some(2),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
@@ -598,5 +639,14 @@ mod bench {
     #[bench]
     fn bench_fnv_buckets_1_000_000_of_50(b: &mut test::Bencher) {
         bench_term_hashmap(b, 1_000_000u64, 50u64)
+    }
+
+    #[bench]
+    fn bench_term_buckets_1_000_000_of_1_000_000(b: &mut test::Bencher) {
+        bench_term_buckets(b, 1_000_000u64, 1_000_000u64)
+    }
+    #[bench]
+    fn bench_fnv_buckets_1_000_000_of_1_000_000(b: &mut test::Bencher) {
+        bench_term_hashmap(b, 1_000_000u64, 1_000_000u64)
     }
 }

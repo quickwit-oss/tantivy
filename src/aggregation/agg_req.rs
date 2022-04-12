@@ -114,6 +114,15 @@ impl BucketAggregationInternal {
     }
 }
 
+/// Extract all fields, where the term directory is used in the tree.
+pub fn get_term_dict_field_names(aggs: &Aggregations) -> HashSet<String> {
+    let mut term_dict_field_names = Default::default();
+    for el in aggs.values() {
+        el.get_term_dict_field_names(&mut term_dict_field_names)
+    }
+    term_dict_field_names
+}
+
 /// Extract all fast field names used in the tree.
 pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     let mut fast_field_names = Default::default();
@@ -136,6 +145,12 @@ pub enum Aggregation {
 }
 
 impl Aggregation {
+    fn get_term_dict_field_names(&self, term_field_names: &mut HashSet<String>) {
+        if let Aggregation::Bucket(bucket) = self {
+            bucket.get_term_dict_field_names(term_field_names)
+        }
+    }
+
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
             Aggregation::Bucket(bucket) => bucket.get_fast_field_names(fast_field_names),
@@ -168,6 +183,11 @@ pub struct BucketAggregation {
 }
 
 impl BucketAggregation {
+    fn get_term_dict_field_names(&self, term_dict_field_names: &mut HashSet<String>) {
+        if let BucketAggregationType::Terms(terms) = &self.bucket_agg {
+            term_dict_field_names.insert(terms.field.to_string());
+        }
+    }
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         self.bucket_agg.get_fast_field_names(fast_field_names);
         fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));

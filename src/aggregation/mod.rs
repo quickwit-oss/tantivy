@@ -456,15 +456,13 @@ mod tests {
         merge_segments: bool,
         use_distributed_collector: bool,
     ) -> crate::Result<()> {
-        let index = get_test_index_with_num_docs(merge_segments, 80)?;
+        let mut values_and_terms = (0..80)
+            .map(|val| vec![(val as f64, "terma".to_string())])
+            .collect::<Vec<_>>();
+        values_and_terms.last_mut().unwrap()[0].1 = "termb".to_string();
+        let index = get_test_index_from_values_and_terms(merge_segments, &values_and_terms)?;
 
         let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
 
         assert_eq!(DOC_BLOCK_SIZE, 64);
         // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
@@ -509,6 +507,19 @@ mod tests {
                     }
                 }
             }
+        },
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id"
+            },
+            "aggs": {
+                "bucketsL2": {
+                    "histogram": {
+                        "field": "score",
+                        "interval":  70.0
+                    }
+                }
+            }
         }
         });
 
@@ -521,17 +532,18 @@ mod tests {
 
             let searcher = reader.searcher();
             AggregationResults::from_intermediate_and_req(
-                searcher.search(&term_query, &collector).unwrap(),
+                searcher.search(&AllQuery, &collector).unwrap(),
                 agg_req,
             )
         } else {
             let collector = AggregationCollector::from_aggs(agg_req);
 
             let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
+            searcher.search(&AllQuery, &collector).unwrap()
         };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        // println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["bucketsL1"]["buckets"][0]["doc_count"], 3);
         assert_eq!(
@@ -557,6 +569,46 @@ mod tests {
             80 - 70
         );
         assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 80 - 70);
+
+        assert_eq!(
+            res["term_agg_test"],
+            json!(
+            {
+                "buckets": [
+                  {
+                    "bucketsL2": {
+                      "buckets": [
+                        {
+                          "doc_count": 70,
+                          "key": 0.0
+                        },
+                        {
+                          "doc_count": 9,
+                          "key": 70.0
+                        }
+                      ]
+                    },
+                    "doc_count": 79,
+                    "key": "terma"
+                  },
+                  {
+                    "bucketsL2": {
+                      "buckets": [
+                        {
+                          "doc_count": 1,
+                          "key": 70.0
+                        }
+                      ]
+                    },
+                    "doc_count": 1,
+                    "key": "termb"
+                  }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+              }
+            )
+        );
 
         Ok(())
     }
@@ -1085,6 +1137,9 @@ mod tests {
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
             let index = Index::create_from_tempdir(schema_builder.build())?;
             let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
+            let many_terms_data = (0..150_000)
+                .map(|num| format!("author{}", num))
+                .collect::<Vec<_>>();
             {
                 let mut rng = thread_rng();
                 let mut index_writer = index.writer_for_tests()?;
@@ -1093,7 +1148,7 @@ mod tests {
                     let val: f64 = rng.gen_range(0.0..1_000_000.0);
                     index_writer.add_document(doc!(
                         text_field => "cool",
-                        text_field_many_terms => val.to_string(),
+                        text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                         text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                         score_field => val as u64,
                         score_field_f64 => val as f64,
