@@ -158,7 +158,7 @@ impl DateTime {
     ///
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
-    pub const fn new_utc(dt: OffsetDateTime) -> Self {
+    pub const fn from_utc(dt: OffsetDateTime) -> Self {
         Self::from_unix_timestamp(dt.unix_timestamp())
     }
 
@@ -166,19 +166,19 @@ impl DateTime {
     ///
     /// Implicitly assumes that the given date/time is in UTC!
     /// Otherwise the original value must only be reobtained with
-    /// [`to_primitive()`].
-    pub const fn new_primitive(dt: PrimitiveDateTime) -> Self {
-        Self::new_utc(dt.assume_utc())
+    /// [`Self::into_primitive()`].
+    pub const fn from_primitive(dt: PrimitiveDateTime) -> Self {
+        Self::from_utc(dt.assume_utc())
     }
 
     /// Convert to UNIX timestamp
-    pub const fn to_unix_timestamp(self) -> i64 {
+    pub const fn into_unix_timestamp(self) -> i64 {
         let Self { unix_timestamp } = self;
         unix_timestamp
     }
 
     /// Convert to UTC `OffsetDateTime`
-    pub fn to_utc(self) -> OffsetDateTime {
+    pub fn into_utc(self) -> OffsetDateTime {
         let Self { unix_timestamp } = self;
         let utc_datetime =
             OffsetDateTime::from_unix_timestamp(unix_timestamp).expect("valid UNIX timestamp");
@@ -187,16 +187,16 @@ impl DateTime {
     }
 
     /// Convert to `OffsetDateTime` with the given time zone
-    pub fn to_offset(self, offset: UtcOffset) -> OffsetDateTime {
-        self.to_utc().to_offset(offset)
+    pub fn into_offset(self, offset: UtcOffset) -> OffsetDateTime {
+        self.into_utc().to_offset(offset)
     }
 
     /// Convert to `PrimitiveDateTime` without any time zone
     ///
-    /// The value should have been constructed with [`from_primitive()`].
+    /// The value should have been constructed with [`Self::from_primitive()`].
     /// Otherwise the time zone is implicitly assumed to be UTC.
-    pub fn to_primitive(self) -> PrimitiveDateTime {
-        let utc_datetime = self.to_utc();
+    pub fn into_primitive(self) -> PrimitiveDateTime {
+        let utc_datetime = self.into_utc();
         // Discard the UTC time zone offset
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
         PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
@@ -205,7 +205,7 @@ impl DateTime {
 
 impl fmt::Debug for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let utc_rfc3339 = self.to_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
+        let utc_rfc3339 = self.into_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
         f.write_str(&utc_rfc3339)
     }
 }

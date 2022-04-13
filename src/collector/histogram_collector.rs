@@ -273,18 +273,18 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_with_num_threads(1, 4_000_000)?;
-        writer.add_document(doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+        writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
         writer.add_document(
-            doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1986, Month::March, 9)?.with_hms(0, 0, 0)?)),
+            doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1986, Month::March, 9)?.with_hms(0, 0, 0)?)),
         )?;
-        writer.add_document(doc!(date_field=>DateTime::new_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?)))?;
+        writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?)))?;
         writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let all_query = AllQuery;
         let week_histogram_collector = HistogramCollector::new(
             date_field,
-            DateTime::new_primitive(
+            DateTime::from_primitive(
                 Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
             ),
             3600 * 24 * 365, // it is just for a unit test... sorry leap years.

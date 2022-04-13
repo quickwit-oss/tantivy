@@ -334,7 +334,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                Ok(Term::from_field_date(field, DateTime::new_utc(dt)))
+                Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
             }
             FieldType::Str(ref str_options) => {
                 let option = str_options.get_indexing_options().ok_or_else(|| {
@@ -408,7 +408,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                let dt_term = Term::from_field_date(field, DateTime::new_utc(dt));
+                let dt_term = Term::from_field_date(field, DateTime::from_utc(dt));
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
@@ -711,7 +711,7 @@ fn generate_literals_for_json_object(
                 json_term_writer.set_fast_value(f64_val);
             }
             NumValue::DateTime(dt_val) => {
-                json_term_writer.set_fast_value(DateTime::new_utc(dt_val));
+                json_term_writer.set_fast_value(DateTime::from_utc(dt_val));
             }
         }
         logical_literals.push(LogicalLiteral::Term(json_term_writer.term().clone()));

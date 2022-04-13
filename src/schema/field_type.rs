@@ -267,7 +267,7 @@ impl FieldType {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
                             })?;
-                        Ok(DateTime::new_utc(dt_with_fixed_tz).into())
+                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
                     FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
@@ -387,7 +387,7 @@ mod tests {
         let naive_date = Date::from_calendar_date(1982, Month::September, 17).unwrap();
         let naive_time = Time::from_hms(13, 20, 0).unwrap();
         let date_time = PrimitiveDateTime::new(naive_date, naive_time);
-        doc.add_date(date_field, DateTime::new_primitive(date_time));
+        doc.add_date(date_field, DateTime::from_primitive(date_time));
         let doc_json = schema.to_json(&doc);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
     }

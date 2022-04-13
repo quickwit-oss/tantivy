@@ -527,7 +527,7 @@ mod tests {
         json_term_writer.pop_path_segment();
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("date");
-        json_term_writer.set_fast_value(DateTime::new_utc(
+        json_term_writer.set_fast_value(DateTime::from_utc(
             OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
         ));
         assert!(term_stream.advance());

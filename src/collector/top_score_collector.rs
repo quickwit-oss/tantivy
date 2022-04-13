@@ -898,7 +898,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let pr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+        let pr_birthday = DateTime::from_utc(OffsetDateTime::parse(
             "1898-04-09T00:00:00+00:00",
             &Rfc3339,
         )?);
@@ -906,7 +906,7 @@ mod tests {
             name => "Paul Robeson",
             birthday => pr_birthday,
         ))?;
-        let mr_birthday = DateTime::new_utc(OffsetDateTime::parse(
+        let mr_birthday = DateTime::from_utc(OffsetDateTime::parse(
             "1947-11-08T00:00:00+00:00",
             &Rfc3339,
         )?);

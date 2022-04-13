@@ -43,7 +43,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
-            Value::Date(ref date) => time::serde::rfc3339::serialize(&date.to_utc(), serializer),
+            Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
@@ -409,12 +409,12 @@ mod tests {
 
     #[test]
     fn test_serialize_date() {
-        let value = Value::from(DateTime::new_utc(
+        let value = Value::from(DateTime::from_utc(
             OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap(),
         ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
         assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57Z""#);
-        let value = Value::from(DateTime::new_utc(
+        let value = Value::from(DateTime::from_utc(
             OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap(),
         ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
