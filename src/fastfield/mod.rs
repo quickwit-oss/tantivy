@@ -167,7 +167,7 @@ impl FastValue for DateTime {
     }
 
     fn to_u64(&self) -> u64 {
-        self.to_unix_timestamp().to_u64()
+        self.into_unix_timestamp().to_u64()
     }
 
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
@@ -178,7 +178,7 @@ impl FastValue for DateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.to_unix_timestamp().as_u64()
+        self.into_unix_timestamp().as_u64()
     }
 
     fn to_type() -> Type {
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield_i64_u64() {
-        let datetime = DateTime::new_utc(OffsetDateTime::UNIX_EPOCH);
+        let datetime = DateTime::from_utc(OffsetDateTime::UNIX_EPOCH);
         assert_eq!(i64::from_u64(datetime.to_u64()), 0i64);
     }
 
@@ -511,7 +511,7 @@ mod tests {
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer
-            .add_document(doc!(date_field =>DateTime::new_utc(OffsetDateTime::now_utc())))?;
+            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc())))?;
         index_writer.commit()?;
         index_writer.add_document(doc!())?;
         index_writer.commit()?;
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_default_datetime() {
-        assert_eq!(0, DateTime::make_zero().to_unix_timestamp());
+        assert_eq!(0, DateTime::make_zero().into_unix_timestamp());
     }
 
     fn get_vals_for_docs(ff: &MultiValuedFastFieldReader<u64>, docs: Range<u32>) -> Vec<u64> {
@@ -768,23 +768,23 @@ mod tests {
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
         let mut dates = vec![];
         {
-            assert_eq!(date_fast_field.get(0u32).to_unix_timestamp(), 1i64);
+            assert_eq!(date_fast_field.get(0u32).into_unix_timestamp(), 1i64);
             dates_fast_field.get_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].to_unix_timestamp(), 2i64);
-            assert_eq!(dates[1].to_unix_timestamp(), 3i64);
+            assert_eq!(dates[0].into_unix_timestamp(), 2i64);
+            assert_eq!(dates[1].into_unix_timestamp(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get(1u32).to_unix_timestamp(), 4i64);
+            assert_eq!(date_fast_field.get(1u32).into_unix_timestamp(), 4i64);
             dates_fast_field.get_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get(2u32).to_unix_timestamp(), 0i64);
+            assert_eq!(date_fast_field.get(2u32).into_unix_timestamp(), 0i64);
             dates_fast_field.get_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].to_unix_timestamp(), 5i64);
-            assert_eq!(dates[1].to_unix_timestamp(), 6i64);
+            assert_eq!(dates[0].into_unix_timestamp(), 5i64);
+            assert_eq!(dates[1].into_unix_timestamp(), 6i64);
         }
         Ok(())
     }

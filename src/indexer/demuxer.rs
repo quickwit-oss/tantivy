@@ -116,14 +116,14 @@ pub fn demux(
 ) -> crate::Result<Vec<Index>> {
     let mut indices = vec![];
     for (target_segment_ord, output_directory) in output_directories.into_iter().enumerate() {
-        let delete_bitsets = get_alive_bitsets(demux_mapping, target_segment_ord as u32)
+        let alive_bitset = get_alive_bitsets(demux_mapping, target_segment_ord as u32)
             .into_iter()
             .map(Some)
             .collect_vec();
         let index = merge_filtered_segments(
             segments,
             target_settings.clone(),
-            delete_bitsets,
+            alive_bitset,
             output_directory,
         )?;
         indices.push(index);
@@ -141,7 +141,7 @@ mod tests {
     use crate::{DocAddress, Term};
 
     #[test]
-    fn test_demux_map_to_deletebitset() {
+    fn test_demux_map_to_alive_bitset() {
         let max_value = 2;
         let mut demux_mapping = DemuxMapping::default();
         // segment ordinal 0 mapping

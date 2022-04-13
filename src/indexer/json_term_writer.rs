@@ -153,7 +153,7 @@ fn index_json_value<'a>(
                 );
             }
             TextOrDateTime::DateTime(dt) => {
-                json_term_writer.set_fast_value(DateTime::new_utc(dt));
+                json_term_writer.set_fast_value(DateTime::from_utc(dt));
                 postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
             }
         },

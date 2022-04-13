@@ -188,14 +188,14 @@ mod bench {
     }
 
     #[bench]
-    fn bench_deletebitset_iter_deser_on_fly(bench: &mut Bencher) {
+    fn bench_alive_bitset_iter_deser_on_fly(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]
-    fn bench_deletebitset_access(bench: &mut Bencher) {
+    fn bench_alive_bitset_access(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| {
@@ -206,14 +206,14 @@ mod bench {
     }
 
     #[bench]
-    fn bench_deletebitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
+    fn bench_alive_bitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&get_alive(), 1_000_000);
 
         bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]
-    fn bench_deletebitset_access_1_8_alive(bench: &mut Bencher) {
+    fn bench_alive_bitset_access_1_8_alive(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&get_alive(), 1_000_000);
 
         bench.iter(|| {

@@ -170,8 +170,8 @@ impl IndexMerger {
         index_settings: IndexSettings,
         segments: &[Segment],
     ) -> crate::Result<IndexMerger> {
-        let delete_bitsets = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, index_settings, segments, delete_bitsets)
+        let alive_bitset = segments.iter().map(|_| None).collect_vec();
+        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset)
     }
 
     // Create merge with a custom delete set.
@@ -180,7 +180,7 @@ impl IndexMerger {
     // corresponds to the segment index.
     //
     // If `None` is provided for custom alive set, the regular alive set will be used.
-    // If a delete_bitsets is provided, the union between the provided and regular
+    // If a alive_bitset is provided, the union between the provided and regular
     // alive set will be used.
     //
     // This can be used to merge but also apply an additional filter.
@@ -1177,7 +1177,7 @@ mod tests {
             index_writer.add_document(doc!(
                 text_field => "af b",
                 score_field => 3u64,
-                date_field => DateTime::new_utc(curr_time),
+                date_field => DateTime::from_utc(curr_time),
                 bytes_score_field => 3u32.to_be_bytes().as_ref()
             ))?;
             index_writer.add_document(doc!(
@@ -1194,7 +1194,7 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "af b",
-                date_field => DateTime::new_utc(curr_time),
+                date_field => DateTime::from_utc(curr_time),
                 score_field => 11u64,
                 bytes_score_field => 11u32.to_be_bytes().as_ref()
             ))?;
@@ -1252,7 +1252,7 @@ mod tests {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_date(
                         date_field,
-                        DateTime::new_utc(curr_time)
+                        DateTime::from_utc(curr_time)
                     )])?,
                     vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
