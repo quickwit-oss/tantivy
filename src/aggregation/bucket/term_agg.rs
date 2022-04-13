@@ -439,7 +439,9 @@ mod tests {
         get_term_dict_field_names, Aggregation, Aggregations, BucketAggregation,
         BucketAggregationType,
     };
-    use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
+    use crate::aggregation::tests::{
+        exec_request, exec_request_with_query, get_test_index_from_terms,
+    };
 
     #[test]
     fn terms_aggregation_test_single_segment() -> crate::Result<()> {
@@ -560,8 +562,7 @@ mod tests {
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
-                    size: Some(2),
-                    segment_size: Some(2),
+                    min_doc_count: Some(0),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
@@ -570,19 +571,17 @@ mod tests {
         .into_iter()
         .collect();
 
-        let res = exec_request(agg_req, &index)?;
+        let res = exec_request_with_query(agg_req, &index, Some(("string_id", "terma")))?;
         println!("{}", &serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
-        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 3);
-        assert_eq!(
-            res["my_texts"]["buckets"][2]["doc_count"],
-            serde_json::Value::Null
-        );
-        assert_eq!(res["my_texts"]["sum_other_doc_count"], 4);
-        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 2);
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
 
         Ok(())
     }
