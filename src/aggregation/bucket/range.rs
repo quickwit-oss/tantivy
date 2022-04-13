@@ -223,7 +223,10 @@ impl SegmentRangeCollector {
         force_flush: bool,
     ) {
         let mut iter = doc.chunks_exact(4);
-        let accessor = bucket_with_accessor.accessor.as_single();
+        let accessor = bucket_with_accessor
+            .accessor
+            .as_single()
+            .expect("unexpected fast field cardinatility");
         for docs in iter.by_ref() {
             let val1 = accessor.get(docs[0]);
             let val2 = accessor.get(docs[1]);

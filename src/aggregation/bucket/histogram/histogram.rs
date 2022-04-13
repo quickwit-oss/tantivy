@@ -302,7 +302,10 @@ impl SegmentHistogramCollector {
         let get_bucket_num =
             |val| (get_bucket_num_f64(val, interval, offset) as i64 - first_bucket_num) as usize;
 
-        let accessor = bucket_with_accessor.accessor.as_single();
+        let accessor = bucket_with_accessor
+            .accessor
+            .as_single()
+            .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
             let val0 = self.f64_from_fastfield_u64(accessor.get(docs[0]));

@@ -37,6 +37,7 @@
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
 //!     - [Range](bucket::RangeAggregation)
+//!     - [Terms](bucket::TermsAggregation)
 //! - [Metric](metric)
 //!     - [Average](metric::AverageAggregation)
 //!     - [Stats](metric::StatsAggregation)
@@ -1099,7 +1100,7 @@ mod tests {
         let agg_res = avg_on_field("scores_i64");
         assert_eq!(
             format!("{:?}", agg_res),
-            r#"InvalidArgument("Invalid field type in aggregation I64, only Cardinality::SingleValue supported")"#
+            r#"InvalidArgument("Invalid field cardinality on field scores_i64 expected SingleValue, but got MultiValues")"#
         );
 
         Ok(())

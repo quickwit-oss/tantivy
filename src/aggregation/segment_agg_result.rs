@@ -214,7 +214,9 @@ impl SegmentBucketResultCollector {
                     terms_req,
                     &req.sub_aggregation,
                     req.field_type,
-                    req.accessor.as_multi(),
+                    req.accessor
+                        .as_multi()
+                        .expect("unexpected fast field cardinatility"),
                 )?,
             ))),
             BucketAggregationType::Range(range_req) => {
@@ -229,7 +231,9 @@ impl SegmentBucketResultCollector {
                     histogram,
                     &req.sub_aggregation,
                     req.field_type,
-                    req.accessor.as_single(),
+                    req.accessor
+                        .as_single()
+                        .expect("unexpected fast field cardinatility"),
                 )?,
             ))),
         }

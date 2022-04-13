@@ -15,37 +15,38 @@ use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
 use crate::DocId;
 
-/// Creates one bucket for every unique term
+/// Creates a bucket for every unique term
 ///
 /// ### Terminology
-/// Shard and Segment are equivalent.
+/// Shard parameters are supposed to be equivalent to elasticsearch shard parameter.
+/// Since they are
 ///
 /// ## Document count error
-/// To improve performance, results from one segment are cut off at `shard_size`. On a single
-/// segment this is fine. When combining results of multiple segments, terms that
+/// To improve performance, results from one segment are cut off at `segment_size`. On a index with
+/// a single segment this is fine. When combining results of multiple segments, terms that
 /// don't make it in the top n of a shard increase the theoretical upper bound error by lowest
 /// term-count.
 ///
-/// Even with a larger `shard_size` value, doc_count values for a terms aggregation may be
+/// Even with a larger `segment_size` value, doc_count values for a terms aggregation may be
 /// approximate. As a result, any sub-aggregations on the terms aggregation may also be approximate.
-/// sum_other_doc_count is the number of documents that didn’t make it into the the top size terms.
-/// If this is greater than 0, you can be sure that the terms agg had to throw away some buckets,
-/// either because they didn’t fit into size on the root node or they didn’t fit into
-/// shard_size on the leaf node.
+/// `sum_other_doc_count` is the number of documents that didn’t make it into the the top size
+/// terms. If this is greater than 0, you can be sure that the terms agg had to throw away some
+/// buckets, either because they didn’t fit into size on the root node or they didn’t fit into
+/// `segment_size` on the segment node.
 ///
 /// ## Per bucket document count error
-/// If you set the show_term_doc_count_error parameter to true, the terms aggregation will include
+/// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will include
 /// doc_count_error_upper_bound, which is an upper bound to the error on the doc_count returned by
-/// each shard. It’s the sum of the size of the largest bucket on each shard that didn’t fit into
+/// each segment. It’s the sum of the size of the largest bucket on each shard that didn’t fit into
 /// shard_size.
 ///
 /// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [RangeBucketEntry](crate::aggregation::agg_result::RangeBucketEntry) on the
+/// [TermBucketEntry](crate::aggregation::agg_result::BucketEntry) on the
 /// AggregationCollector.
 ///
 /// Result type is
 /// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry] on the
+/// [crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry] on the
 /// DistributedAggregationCollector.
 ///
 /// # Limitations/Compatibility
@@ -76,9 +77,10 @@ pub struct TermsAggregation {
     pub shard_size: Option<u32>,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
-    /// TODO document default
     ///
     /// Increasing this value is will increase the cost for more accuracy.
+    ///
+    /// Defaults to 10 * size.
     pub segment_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
@@ -89,6 +91,8 @@ pub struct TermsAggregation {
     pub show_term_doc_count_error: bool,
 
     /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    ///
+    /// **Expensive**: When set to 0, this will return all terms in the field.
     pub min_doc_count: Option<u64>,
 }
 impl Default for TermsAggregation {
@@ -115,6 +119,8 @@ pub(crate) struct TermsAggregationInternal {
     pub field: String,
     /// By default, the top 10 terms with the most documents are returned.
     /// Larger values for size are more expensive.
+    ///
+    /// Defaults to 10.
     pub size: u32,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
@@ -129,6 +135,8 @@ pub(crate) struct TermsAggregationInternal {
     pub segment_size: u32,
 
     /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    ///
+    /// *Expensive*: When set to 0, this will return all terms in the field.
     pub min_doc_count: u64,
 }
 
@@ -136,9 +144,7 @@ impl TermsAggregationInternal {
     pub(crate) fn from_req(req: &TermsAggregation) -> Self {
         let size = req.size.unwrap_or(10);
 
-        let mut segment_size = req
-            .segment_size
-            .unwrap_or((size as f32 * 1.5_f32) as u32 + 10);
+        let mut segment_size = req.segment_size.unwrap_or(size * 10);
 
         segment_size = segment_size.max(size);
         TermsAggregationInternal {
@@ -340,7 +346,10 @@ impl SegmentTermCollector {
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
     ) {
-        let accessor = bucket_with_accessor.accessor.as_multi();
+        let accessor = bucket_with_accessor
+            .accessor
+            .as_multi()
+            .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         let mut vals1 = vec![];
         let mut vals2 = vec![];
@@ -531,6 +540,49 @@ mod tests {
             get_term_dict_field_names(&agg_req),
             vec!["string_id".to_string(),].into_iter().collect()
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_min_doc_count_special_case() -> crate::Result<()> {
+        let terms_per_segment = vec![
+            vec!["terma", "terma", "termb", "termb", "termb", "termc"], /* termc doesn't make it
+                                                                         * from this segment */
+            vec!["terma", "terma", "termb", "termc", "termc"], /* termb doesn't make it from
+                                                                * this segment */
+        ];
+
+        let index = get_test_index_from_terms(false, &terms_per_segment)?;
+
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    size: Some(2),
+                    segment_size: Some(2),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+        println!("{}", &serde_json::to_string_pretty(&res).unwrap());
+
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 3);
+        assert_eq!(
+            res["my_texts"]["buckets"][2]["doc_count"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 4);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 2);
 
         Ok(())
     }

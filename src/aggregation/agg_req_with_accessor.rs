@@ -37,16 +37,16 @@ pub(crate) enum FastFieldAccessor {
     Single(DynamicFastFieldReader<u64>),
 }
 impl FastFieldAccessor {
-    pub fn as_single(&self) -> &DynamicFastFieldReader<u64> {
+    pub fn as_single(&self) -> Option<&DynamicFastFieldReader<u64>> {
         match self {
-            FastFieldAccessor::Multi(_) => panic!("unexpected ff cardinality"),
-            FastFieldAccessor::Single(reader) => reader,
+            FastFieldAccessor::Multi(_) => None,
+            FastFieldAccessor::Single(reader) => Some(reader),
         }
     }
-    pub fn as_multi(&self) -> &MultiValuedFastFieldReader<u64> {
+    pub fn as_multi(&self) -> Option<&MultiValuedFastFieldReader<u64>> {
         match self {
-            FastFieldAccessor::Multi(reader) => reader,
-            FastFieldAccessor::Single(_) => panic!("unexpected ff cardinality"),
+            FastFieldAccessor::Multi(reader) => Some(reader),
+            FastFieldAccessor::Single(_) => None,
         }
     }
 }
@@ -73,10 +73,10 @@ impl BucketAggregationWithAccessor {
             BucketAggregationType::Range(RangeAggregation {
                 field: field_name,
                 ranges: _,
-            }) => get_ff_reader_and_validate(reader, field_name, false)?,
+            }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
-            }) => get_ff_reader_and_validate(reader, field_name, false)?,
+            }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
@@ -85,7 +85,7 @@ impl BucketAggregationWithAccessor {
                     .get_field(field_name)
                     .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
                 inverted_index = Some(reader.inverted_index(field)?);
-                get_ff_reader_and_validate(reader, field_name, true)?
+                get_ff_reader_and_validate(reader, field_name, Cardinality::MultiValues)?
             }
         };
         let sub_aggregation = sub_aggregation.clone();
@@ -115,10 +115,14 @@ impl MetricAggregationWithAccessor {
         match &metric {
             MetricAggregation::Average(AverageAggregation { field: field_name })
             | MetricAggregation::Stats(StatsAggregation { field: field_name }) => {
-                let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name, false)?;
+                let (accessor, field_type) =
+                    get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?;
 
                 Ok(MetricAggregationWithAccessor {
-                    accessor: accessor.as_single().clone(),
+                    accessor: accessor
+                        .as_single()
+                        .expect("unexpected fast field cardinatility")
+                        .clone(),
                     field_type,
                     metric: metric.clone(),
                 })
@@ -155,10 +159,11 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
     ))
 }
 
+/// Get fast field reader with given cardinatility.
 fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
-    multi: bool,
+    cardinality: Cardinality,
 ) -> crate::Result<(FastFieldAccessor, Type)> {
     let field = reader
         .schema()
@@ -166,11 +171,17 @@ fn get_ff_reader_and_validate(
         .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
     let field_type = reader.schema().get_field_entry(field).field_type();
 
-    if let Some((ff_type, cardinality)) = type_and_cardinality(field_type) {
-        if (!multi && cardinality == Cardinality::MultiValues) || ff_type == FastType::Date {
+    if let Some((ff_type, field_cardinality)) = type_and_cardinality(field_type) {
+        if ff_type == FastType::Date {
             return Err(TantivyError::InvalidArgument(format!(
-                "Invalid field type in aggregation {:?}, only Cardinality::SingleValue supported",
-                field_type.value_type()
+                "Unsupported field type date in aggregation"
+            )));
+        }
+
+        if cardinality != field_cardinality {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Invalid field cardinality on field {} expected {:?}, but got {:?}",
+                field_name, cardinality, field_cardinality
             )));
         }
     } else {
@@ -181,13 +192,12 @@ fn get_ff_reader_and_validate(
     };
 
     let ff_fields = reader.fast_fields();
-    if multi {
-        ff_fields
-            .u64s_lenient(field)
-            .map(|field| (FastFieldAccessor::Multi(field), field_type.value_type()))
-    } else {
-        ff_fields
+    match cardinality {
+        Cardinality::SingleValue => ff_fields
             .u64_lenient(field)
-            .map(|field| (FastFieldAccessor::Single(field), field_type.value_type()))
+            .map(|field| (FastFieldAccessor::Single(field), field_type.value_type())),
+        Cardinality::MultiValues => ff_fields
+            .u64s_lenient(field)
+            .map(|field| (FastFieldAccessor::Multi(field), field_type.value_type())),
     }
 }
