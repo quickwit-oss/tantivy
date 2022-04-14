@@ -51,6 +51,9 @@ use crate::DocId;
 ///
 /// # Limitations/Compatibility
 ///
+/// Each segment returns up to [segment_size](TermsAggregation::segment_size) results. This
+/// differences to elasticsearch behaviour.
+///
 /// # Request JSON Format
 /// ```json
 /// {
@@ -87,6 +90,8 @@ pub struct TermsAggregation {
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
     /// doc_count returned by each shard. It’s the sum of the size of the largest bucket on
     /// each segment that didn’t fit into `shard_size`.
+    ///
+    /// Defaults to true.
     #[serde(default = "default_show_term_doc_count_error")]
     pub show_term_doc_count_error: bool,
 

@@ -179,15 +179,16 @@ impl BucketResult {
             IntermediateBucketResult::Histogram { buckets } => {
                 let buckets = intermediate_buckets_to_final_buckets(
                     buckets,
-                    req.as_histogram(),
+                    req.as_histogram().expect("unexpected aggregation"),
                     &req.sub_aggregation,
                 );
 
                 BucketResult::Histogram { buckets }
             }
-            IntermediateBucketResult::Terms(terms) => {
-                terms.into_final_result(req.as_term(), &req.sub_aggregation)
-            }
+            IntermediateBucketResult::Terms(terms) => terms.into_final_result(
+                req.as_term().expect("unexpected aggregation"),
+                &req.sub_aggregation,
+            ),
         }
     }
 }

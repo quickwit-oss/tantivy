@@ -100,16 +100,16 @@ pub(crate) struct BucketAggregationInternal {
 }
 
 impl BucketAggregationInternal {
-    pub(crate) fn as_histogram(&self) -> &HistogramAggregation {
+    pub(crate) fn as_histogram(&self) -> Option<&HistogramAggregation> {
         match &self.bucket_agg {
-            BucketAggregationType::Histogram(histogram) => histogram,
-            _ => panic!("unexpected aggregation"),
+            BucketAggregationType::Histogram(histogram) => Some(histogram),
+            _ => None,
         }
     }
-    pub(crate) fn as_term(&self) -> &TermsAggregation {
+    pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
         match &self.bucket_agg {
-            BucketAggregationType::Terms(terms) => terms,
-            _ => panic!("unexpected aggregation"),
+            BucketAggregationType::Terms(terms) => Some(terms),
+            _ => None,
         }
     }
 }
