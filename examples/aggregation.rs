@@ -122,7 +122,7 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
-    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    let res: Value = serde_json::to_value(&agg_res)?;
     println!("{}", serde_json::to_string_pretty(&res)?);
 
     Ok(())

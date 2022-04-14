@@ -9,11 +9,12 @@ use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
-use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector};
+use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
+use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
     AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
 };
-use super::{Key, VecWithNames};
+use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
 use crate::DocId;
 
@@ -40,6 +41,25 @@ impl Debug for SegmentAggregationResultsCollector {
 }
 
 impl SegmentAggregationResultsCollector {
+    pub fn into_intermediate_aggregations_result(
+        self,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let buckets = if let Some(buckets) = self.buckets {
+            let entries = buckets
+                .into_iter()
+                .zip(agg_with_accessor.buckets.values())
+                .map(|((key, bucket), acc)| Ok((key, bucket.into_intermediate_bucket_result(acc)?)))
+                .collect::<crate::Result<Vec<(String, _)>>>()?;
+            Some(VecWithNames::from_entries(entries))
+        } else {
+            None
+        };
+        let metrics = self.metrics.map(VecWithNames::from_other);
+
+        Ok(IntermediateAggregationResults { metrics, buckets })
+    }
+
     pub(crate) fn from_req_and_validate(req: &AggregationsWithAccessor) -> crate::Result<Self> {
         let buckets = req
             .buckets
@@ -97,6 +117,9 @@ impl SegmentAggregationResultsCollector {
         agg_with_accessor: &AggregationsWithAccessor,
         force_flush: bool,
     ) {
+        if self.num_staged_docs == 0 {
+            return;
+        }
         if let Some(metrics) = &mut self.metrics {
             for (collector, agg_with_accessor) in
                 metrics.values_mut().zip(agg_with_accessor.metrics.values())
@@ -162,12 +185,40 @@ impl SegmentMetricResultCollector {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentBucketResultCollector {
     Range(SegmentRangeCollector),
-    Histogram(SegmentHistogramCollector),
+    Histogram(Box<SegmentHistogramCollector>),
+    Terms(Box<SegmentTermCollector>),
 }
 
 impl SegmentBucketResultCollector {
+    pub fn into_intermediate_bucket_result(
+        self,
+        agg_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<IntermediateBucketResult> {
+        match self {
+            SegmentBucketResultCollector::Terms(terms) => {
+                terms.into_intermediate_bucket_result(agg_with_accessor)
+            }
+            SegmentBucketResultCollector::Range(range) => {
+                range.into_intermediate_bucket_result(agg_with_accessor)
+            }
+            SegmentBucketResultCollector::Histogram(histogram) => {
+                histogram.into_intermediate_bucket_result(agg_with_accessor)
+            }
+        }
+    }
+
     pub fn from_req_and_validate(req: &BucketAggregationWithAccessor) -> crate::Result<Self> {
         match &req.bucket_agg {
+            BucketAggregationType::Terms(terms_req) => Ok(Self::Terms(Box::new(
+                SegmentTermCollector::from_req_and_validate(
+                    terms_req,
+                    &req.sub_aggregation,
+                    req.field_type,
+                    req.accessor
+                        .as_multi()
+                        .expect("unexpected fast field cardinatility"),
+                )?,
+            ))),
             BucketAggregationType::Range(range_req) => {
                 Ok(Self::Range(SegmentRangeCollector::from_req_and_validate(
                     range_req,
@@ -175,14 +226,16 @@ impl SegmentBucketResultCollector {
                     req.field_type,
                 )?))
             }
-            BucketAggregationType::Histogram(histogram) => Ok(Self::Histogram(
+            BucketAggregationType::Histogram(histogram) => Ok(Self::Histogram(Box::new(
                 SegmentHistogramCollector::from_req_and_validate(
                     histogram,
                     &req.sub_aggregation,
                     req.field_type,
-                    &req.accessor,
+                    req.accessor
+                        .as_single()
+                        .expect("unexpected fast field cardinatility"),
                 )?,
-            )),
+            ))),
         }
     }
 
@@ -200,34 +253,9 @@ impl SegmentBucketResultCollector {
             SegmentBucketResultCollector::Histogram(histogram) => {
                 histogram.collect_block(doc, bucket_with_accessor, force_flush)
             }
+            SegmentBucketResultCollector::Terms(terms) => {
+                terms.collect_block(doc, bucket_with_accessor, force_flush)
+            }
         }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SegmentHistogramBucketEntry {
-    pub key: f64,
-    pub doc_count: u64,
-}
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct SegmentRangeBucketEntry {
-    pub key: Key,
-    pub doc_count: u64,
-    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
-    /// The from range of the bucket. Equals f64::MIN when None.
-    pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None.
-    pub to: Option<f64>,
-}
-
-impl Debug for SegmentRangeBucketEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SegmentRangeBucketEntry")
-            .field("key", &self.key)
-            .field("doc_count", &self.doc_count)
-            .field("from", &self.from)
-            .field("to", &self.to)
-            .finish()
     }
 }

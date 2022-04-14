@@ -8,8 +8,9 @@ Unreleased
   - Converting a `time::OffsetDateTime` to `Value::Date` implicitly converts the value into UTC.
     If this is not desired do the time zone conversion yourself and use `time::PrimitiveDateTime`
     directly instead.
-- Add [histogram](https://github.com/quickwit-oss/tantivy/pull/1306) aggregation (@PSeitz).
-- Add support for fastfield on text fields (@PSeitz).
+- Add [histogram](https://github.com/quickwit-oss/tantivy/pull/1306) aggregation (@PSeitz)
+- Add support for fastfield on text fields (@PSeitz)
+- Add terms aggregation (@PSeitz)
 
 Tantivy 0.17
 ================================

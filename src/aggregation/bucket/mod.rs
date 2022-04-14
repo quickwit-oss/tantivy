@@ -9,8 +9,10 @@
 
 mod histogram;
 mod range;
+mod term_agg;
 
 pub(crate) use histogram::SegmentHistogramCollector;
 pub use histogram::*;
 pub(crate) use range::SegmentRangeCollector;
 pub use range::*;
+pub use term_agg::*;

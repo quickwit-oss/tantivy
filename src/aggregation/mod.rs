@@ -37,6 +37,7 @@
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
 //!     - [Range](bucket::RangeAggregation)
+//!     - [Terms](bucket::TermsAggregation)
 //! - [Metric](metric)
 //!     - [Average](metric::AverageAggregation)
 //!     - [Stats](metric::StatsAggregation)
@@ -318,7 +319,7 @@ mod tests {
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
-    use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
+    use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::{Index, Term};
 
     fn get_avg_req(field_name: &str) -> Aggregation {
@@ -337,17 +338,80 @@ mod tests {
         )
     }
 
+    pub fn exec_request(agg_req: Aggregations, index: &Index) -> crate::Result<Value> {
+        exec_request_with_query(agg_req, index, None)
+    }
+    pub fn exec_request_with_query(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+    ) -> crate::Result<Value> {
+        let collector = AggregationCollector::from_aggs(agg_req);
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res = if let Some((field, term)) = query {
+            let text_field = reader.searcher().schema().get_field(field).unwrap();
+
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+
+            searcher.search(&term_query, &collector)?
+        } else {
+            searcher.search(&AllQuery, &collector)?
+        };
+
+        // Test serialization/deserialization rountrip
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        Ok(res)
+    }
+
     pub fn get_test_index_from_values(
         merge_segments: bool,
         values: &[f64],
+    ) -> crate::Result<Index> {
+        // Every value gets its own segment
+        let mut segment_and_values = vec![];
+        for value in values {
+            segment_and_values.push(vec![(*value, value.to_string())]);
+        }
+        get_test_index_from_values_and_terms(merge_segments, &segment_and_values)
+    }
+
+    pub fn get_test_index_from_terms(
+        merge_segments: bool,
+        values: &[Vec<&str>],
+    ) -> crate::Result<Index> {
+        // Every value gets its own segment
+        let segment_and_values = values
+            .iter()
+            .map(|terms| {
+                terms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, term)| (i as f64, term.to_string()))
+                    .collect()
+            })
+            .collect::<Vec<_>>();
+        get_test_index_from_values_and_terms(merge_segments, &segment_and_values)
+    }
+
+    pub fn get_test_index_from_values_and_terms(
+        merge_segments: bool,
+        segment_and_values: &[Vec<(f64, String)>],
     ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
+            .set_fast()
             .set_stored();
-        let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
+        let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
+        let string_field_id = schema_builder.add_text_field("string_id", STRING | FAST);
         let score_fieldtype =
             crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
@@ -360,15 +424,20 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_for_tests()?;
-            for &i in values {
-                // writing the segment
-                index_writer.add_document(doc!(
-                    text_field => "cool",
-                    score_field => i as u64,
-                    score_field_f64 => i as f64,
-                    score_field_i64 => i as i64,
-                    fraction_field => i as f64/100.0,
-                ))?;
+            for values in segment_and_values {
+                for (i, term) in values {
+                    let i = *i;
+                    // writing the segment
+                    index_writer.add_document(doc!(
+                        text_field => "cool",
+                        text_field_id => term.to_string(),
+                        string_field_id => term.to_string(),
+                        score_field => i as u64,
+                        score_field_f64 => i as f64,
+                        score_field_i64 => i as i64,
+                        fraction_field => i as f64/100.0,
+                    ))?;
+                }
                 index_writer.commit()?;
             }
         }
@@ -389,15 +458,13 @@ mod tests {
         merge_segments: bool,
         use_distributed_collector: bool,
     ) -> crate::Result<()> {
-        let index = get_test_index_with_num_docs(merge_segments, 80)?;
+        let mut values_and_terms = (0..80)
+            .map(|val| vec![(val as f64, "terma".to_string())])
+            .collect::<Vec<_>>();
+        values_and_terms.last_mut().unwrap()[0].1 = "termb".to_string();
+        let index = get_test_index_from_values_and_terms(merge_segments, &values_and_terms)?;
 
         let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
 
         assert_eq!(DOC_BLOCK_SIZE, 64);
         // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
@@ -442,6 +509,19 @@ mod tests {
                     }
                 }
             }
+        },
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id"
+            },
+            "aggs": {
+                "bucketsL2": {
+                    "histogram": {
+                        "field": "score",
+                        "interval":  70.0
+                    }
+                }
+            }
         }
         });
 
@@ -454,14 +534,14 @@ mod tests {
 
             let searcher = reader.searcher();
             AggregationResults::from_intermediate_and_req(
-                searcher.search(&term_query, &collector).unwrap(),
+                searcher.search(&AllQuery, &collector).unwrap(),
                 agg_req,
             )
         } else {
             let collector = AggregationCollector::from_aggs(agg_req);
 
             let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
+            searcher.search(&AllQuery, &collector).unwrap()
         };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
@@ -490,6 +570,46 @@ mod tests {
             80 - 70
         );
         assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 80 - 70);
+
+        assert_eq!(
+            res["term_agg_test"],
+            json!(
+            {
+                "buckets": [
+                  {
+                    "bucketsL2": {
+                      "buckets": [
+                        {
+                          "doc_count": 70,
+                          "key": 0.0
+                        },
+                        {
+                          "doc_count": 9,
+                          "key": 70.0
+                        }
+                      ]
+                    },
+                    "doc_count": 79,
+                    "key": "terma"
+                  },
+                  {
+                    "bucketsL2": {
+                      "buckets": [
+                        {
+                          "doc_count": 1,
+                          "key": 70.0
+                        }
+                      ]
+                    },
+                    "doc_count": 1,
+                    "key": "termb"
+                  }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+              }
+            )
+        );
 
         Ok(())
     }
@@ -968,7 +1088,7 @@ mod tests {
         let agg_res = avg_on_field("text");
         assert_eq!(
             format!("{:?}", agg_res),
-            r#"InvalidArgument("Only single value fast fields of type f64, u64, i64 are supported, but got Str ")"#
+            r#"InvalidArgument("Only fast fields of type f64, u64, i64 are supported, but got Str ")"#
         );
 
         let agg_res = avg_on_field("not_exist_field");
@@ -980,7 +1100,7 @@ mod tests {
         let agg_res = avg_on_field("scores_i64");
         assert_eq!(
             format!("{:?}", agg_res),
-            r#"InvalidArgument("Invalid field type in aggregation I64, only Cardinality::SingleValue supported")"#
+            r#"InvalidArgument("Invalid field cardinality on field scores_i64 expected SingleValue, but got MultiValues")"#
         );
 
         Ok(())
@@ -989,11 +1109,12 @@ mod tests {
     #[cfg(all(test, feature = "unstable"))]
     mod bench {
 
+        use rand::prelude::SliceRandom;
         use rand::{thread_rng, Rng};
         use test::{self, Bencher};
 
         use super::*;
-        use crate::aggregation::bucket::{HistogramAggregation, HistogramBounds};
+        use crate::aggregation::bucket::{HistogramAggregation, HistogramBounds, TermsAggregation};
         use crate::aggregation::metric::StatsAggregation;
         use crate::query::AllQuery;
 
@@ -1005,6 +1126,10 @@ mod tests {
                 )
                 .set_stored();
             let text_field = schema_builder.add_text_field("text", text_fieldtype);
+            let text_field_many_terms =
+                schema_builder.add_text_field("text_many_terms", STRING | FAST);
+            let text_field_few_terms =
+                schema_builder.add_text_field("text_few_terms", STRING | FAST);
             let score_fieldtype =
                 crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
             let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
@@ -1012,6 +1137,10 @@ mod tests {
                 schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
             let index = Index::create_from_tempdir(schema_builder.build())?;
+            let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
+            let many_terms_data = (0..15_000)
+                .map(|num| format!("author{}", num))
+                .collect::<Vec<_>>();
             {
                 let mut rng = thread_rng();
                 let mut index_writer = index.writer_for_tests()?;
@@ -1020,6 +1149,8 @@ mod tests {
                     let val: f64 = rng.gen_range(0.0..1_000_000.0);
                     index_writer.add_document(doc!(
                         text_field => "cool",
+                        text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
+                        text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                         score_field => val as u64,
                         score_field_f64 => val as f64,
                         score_field_i64 => val as i64,
@@ -1166,6 +1297,64 @@ mod tests {
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
                     searcher.search(&term_query, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_terms_few(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req: Aggregations = vec![(
+                    "my_texts".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_few_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
+
+                agg_res
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_terms_many(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req: Aggregations = vec![(
+                    "my_texts".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req);
+
+                let searcher = reader.searcher();
+                let agg_res: AggregationResults =
+                    searcher.search(&AllQuery, &collector).unwrap().into();
 
                 agg_res
             });

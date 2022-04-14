@@ -11,7 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::agg_req::{Aggregations, AggregationsInternal, BucketAggregationInternal};
-use super::bucket::intermediate_buckets_to_final_buckets;
+use super::bucket::{intermediate_buckets_to_final_buckets, GetDocCount};
 use super::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
     IntermediateMetricResult, IntermediateRangeBucketEntry,
@@ -34,8 +34,8 @@ impl AggregationResults {
     /// Convert and intermediate result and its aggregation request to the final result
     ///
     /// Internal function, CollectorAggregations is used instead Aggregations, which is optimized
-    /// for internal processing
-    fn from_intermediate_and_req_internal(
+    /// for internal processing, by splitting metric and buckets into seperate groups.
+    pub(crate) fn from_intermediate_and_req_internal(
         results: IntermediateAggregationResults,
         req: &AggregationsInternal,
     ) -> Self {
@@ -140,6 +140,18 @@ pub enum BucketResult {
         /// See [HistogramAggregation](super::bucket::HistogramAggregation)
         buckets: Vec<BucketEntry>,
     },
+    /// This is the term result
+    Terms {
+        /// The buckets.
+        ///
+        /// See [TermsAggregation](super::bucket::TermsAggregation)
+        buckets: Vec<BucketEntry>,
+        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
+        sum_other_doc_count: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        /// The upper bound error for the doc count of each term.
+        doc_count_error_upper_bound: Option<u64>,
+    },
 }
 
 impl BucketResult {
@@ -167,12 +179,16 @@ impl BucketResult {
             IntermediateBucketResult::Histogram { buckets } => {
                 let buckets = intermediate_buckets_to_final_buckets(
                     buckets,
-                    req.as_histogram(),
+                    req.as_histogram().expect("unexpected aggregation"),
                     &req.sub_aggregation,
                 );
 
                 BucketResult::Histogram { buckets }
             }
+            IntermediateBucketResult::Terms(terms) => terms.into_final_result(
+                req.as_term().expect("unexpected aggregation"),
+                &req.sub_aggregation,
+            ),
         }
     }
 }
@@ -227,6 +243,11 @@ impl BucketEntry {
                 req,
             ),
         }
+    }
+}
+impl GetDocCount for BucketEntry {
+    fn doc_count(&self) -> u64 {
+        self.doc_count
     }
 }
 

@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
@@ -5,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
-use crate::aggregation::intermediate_agg_result::IntermediateBucketResult;
-use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentRangeBucketEntry,
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateBucketResult, IntermediateRangeBucketEntry,
 };
+use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
 use crate::fastfield::FastFieldReader;
 use crate::schema::Type;
@@ -38,7 +39,7 @@ use crate::{DocId, TantivyError};
 /// # Request JSON Format
 /// ```json
 /// {
-///     "range": {
+///     "my_ranges": {
 ///         "field": "score",
 ///         "ranges": [
 ///             { "to": 3.0 },
@@ -102,22 +103,70 @@ pub struct SegmentRangeCollector {
     field_type: Type,
 }
 
+#[derive(Clone, PartialEq)]
+pub(crate) struct SegmentRangeBucketEntry {
+    pub key: Key,
+    pub doc_count: u64,
+    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
+    /// The from range of the bucket. Equals f64::MIN when None.
+    pub from: Option<f64>,
+    /// The to range of the bucket. Equals f64::MAX when None. Open interval, `to` is not
+    /// inclusive.
+    pub to: Option<f64>,
+}
+
+impl Debug for SegmentRangeBucketEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentRangeBucketEntry")
+            .field("key", &self.key)
+            .field("doc_count", &self.doc_count)
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .finish()
+    }
+}
+impl SegmentRangeBucketEntry {
+    pub(crate) fn into_intermediate_bucket_entry(
+        self,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateRangeBucketEntry> {
+        let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregation {
+            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
+        } else {
+            Default::default()
+        };
+
+        Ok(IntermediateRangeBucketEntry {
+            key: self.key,
+            doc_count: self.doc_count,
+            sub_aggregation,
+            from: self.from,
+            to: self.to,
+        })
+    }
+}
+
 impl SegmentRangeCollector {
-    pub fn into_intermediate_bucket_result(self) -> IntermediateBucketResult {
+    pub fn into_intermediate_bucket_result(
+        self,
+        agg_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<IntermediateBucketResult> {
         let field_type = self.field_type;
 
         let buckets = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {
-                (
+                Ok((
                     range_to_string(&range_bucket.range, &field_type),
-                    range_bucket.bucket.into(),
-                )
+                    range_bucket
+                        .bucket
+                        .into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation)?,
+                ))
             })
-            .collect();
+            .collect::<crate::Result<_>>()?;
 
-        IntermediateBucketResult::Range(buckets)
+        Ok(IntermediateBucketResult::Range(buckets))
     }
 
     pub(crate) fn from_req_and_validate(
@@ -175,11 +224,15 @@ impl SegmentRangeCollector {
         force_flush: bool,
     ) {
         let mut iter = doc.chunks_exact(4);
+        let accessor = bucket_with_accessor
+            .accessor
+            .as_single()
+            .expect("unexpected fast field cardinatility");
         for docs in iter.by_ref() {
-            let val1 = bucket_with_accessor.accessor.get(docs[0]);
-            let val2 = bucket_with_accessor.accessor.get(docs[1]);
-            let val3 = bucket_with_accessor.accessor.get(docs[2]);
-            let val4 = bucket_with_accessor.accessor.get(docs[3]);
+            let val1 = accessor.get(docs[0]);
+            let val2 = accessor.get(docs[1]);
+            let val3 = accessor.get(docs[2]);
+            let val4 = accessor.get(docs[3]);
             let bucket_pos1 = self.get_bucket_pos(val1);
             let bucket_pos2 = self.get_bucket_pos(val2);
             let bucket_pos3 = self.get_bucket_pos(val3);
@@ -191,7 +244,7 @@ impl SegmentRangeCollector {
             self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation);
         }
         for doc in iter.remainder() {
-            let val = bucket_with_accessor.accessor.get(*doc);
+            let val = accessor.get(*doc);
             let bucket_pos = self.get_bucket_pos(val);
             self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
         }
@@ -346,7 +399,8 @@ mod tests {
             ranges,
         };
 
-        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type).unwrap()
+        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type)
+            .expect("unexpected error")
     }
 
     #[test]
@@ -487,11 +541,7 @@ mod tests {
 
     #[test]
     fn range_binary_search_test_f64() {
-        let ranges = vec![
-            //(f64::MIN..10.0).into(),
-            (10.0..100.0).into(),
-            //(100.0..f64::MAX).into(),
-        ];
+        let ranges = vec![(10.0..100.0).into()];
 
         let collector = get_collector_from_ranges(ranges, Type::F64);
         let search = |val: u64| collector.get_bucket_pos(val);
