@@ -121,7 +121,7 @@ impl MetricAggregationWithAccessor {
                 Ok(MetricAggregationWithAccessor {
                     accessor: accessor
                         .as_single()
-                        .expect("unexpected fast field cardinatility")
+                        .expect("unexpected fast field cardinality")
                         .clone(),
                     field_type,
                     metric: metric.clone(),
@@ -173,9 +173,9 @@ fn get_ff_reader_and_validate(
 
     if let Some((ff_type, field_cardinality)) = type_and_cardinality(field_type) {
         if ff_type == FastType::Date {
-            return Err(TantivyError::InvalidArgument(format!(
-                "Unsupported field type date in aggregation"
-            )));
+            return Err(TantivyError::InvalidArgument(
+                "Unsupported field type date in aggregation".to_string(),
+            ));
         }
 
         if cardinality != field_cardinality {

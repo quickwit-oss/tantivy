@@ -110,7 +110,8 @@ pub(crate) struct SegmentRangeBucketEntry {
     pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
     /// The from range of the bucket. Equals f64::MIN when None.
     pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None.
+    /// The to range of the bucket. Equals f64::MAX when None. Open interval, `to` is not
+    /// inclusive.
     pub to: Option<f64>,
 }
 

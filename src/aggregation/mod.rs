@@ -363,6 +363,7 @@ mod tests {
             searcher.search(&AllQuery, &collector)?
         };
 
+        // Test serialization/deserialization rountrip
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         Ok(res)
     }
@@ -544,7 +545,6 @@ mod tests {
         };
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        // println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["bucketsL1"]["buckets"][0]["doc_count"], 3);
         assert_eq!(
@@ -1138,7 +1138,7 @@ mod tests {
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
             let index = Index::create_from_tempdir(schema_builder.build())?;
             let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
-            let many_terms_data = (0..150_000)
+            let many_terms_data = (0..15_000)
                 .map(|num| format!("author{}", num))
                 .collect::<Vec<_>>();
             {
