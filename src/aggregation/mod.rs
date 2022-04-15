@@ -313,8 +313,11 @@ mod tests {
     use super::bucket::RangeAggregation;
     use super::collector::AggregationCollector;
     use super::metric::AverageAggregation;
-    use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
+    use crate::aggregation::agg_req::{
+        get_term_dict_field_names, BucketAggregationType, MetricAggregation,
+    };
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::bucket::TermsAggregation;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
@@ -628,8 +631,10 @@ mod tests {
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
+            .set_fast()
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        schema_builder.add_text_field("dummy_text", STRING);
         let score_fieldtype =
             crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
@@ -834,10 +839,21 @@ mod tests {
             IndexRecordOption::Basic,
         );
 
-        let sub_agg_req: Aggregations =
-            vec![("average_in_range".to_string(), get_avg_req("score"))]
-                .into_iter()
-                .collect();
+        let sub_agg_req: Aggregations = vec![
+            ("average_in_range".to_string(), get_avg_req("score")),
+            (
+                "term_agg".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "text".to_string(),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }),
+            ),
+        ]
+        .into_iter()
+        .collect();
         let agg_req: Aggregations = if use_elastic_json_req {
             let elasticsearch_compatible_json_req = r#"
 {
@@ -853,7 +869,8 @@ mod tests {
       ]
     },
     "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
+      "average_in_range": { "avg": { "field": "score" } },
+      "term_agg": { "terms": { "field": "text" } }
     }
   },
   "rangei64": {
@@ -868,7 +885,8 @@ mod tests {
       ]
     },
     "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
+      "average_in_range": { "avg": { "field": "score" } },
+      "term_agg": { "terms": { "field": "text" } }
     }
   },
   "average": {
@@ -886,7 +904,8 @@ mod tests {
       ]
     },
     "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
+      "average_in_range": { "avg": { "field": "score" } },
+      "term_agg": { "terms": { "field": "text" } }
     }
   }
 }
@@ -944,6 +963,9 @@ mod tests {
             .collect();
             agg_req
         };
+
+        let field_names = get_term_dict_field_names(&agg_req);
+        assert_eq!(field_names, vec!["text".to_string()].into_iter().collect());
 
         let agg_res: AggregationResults = if use_distributed_collector {
             let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
@@ -1085,7 +1107,7 @@ mod tests {
             searcher.search(&AllQuery, &collector).unwrap_err()
         };
 
-        let agg_res = avg_on_field("text");
+        let agg_res = avg_on_field("dummy_text");
         assert_eq!(
             format!("{:?}", agg_res),
             r#"InvalidArgument("Only fast fields of type f64, u64, i64 are supported, but got Str ")"#
