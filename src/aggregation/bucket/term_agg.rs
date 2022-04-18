@@ -37,8 +37,8 @@ use crate::DocId;
 /// ## Per bucket document count error
 /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will include
 /// doc_count_error_upper_bound, which is an upper bound to the error on the doc_count returned by
-/// each segment. It’s the sum of the size of the largest bucket on each shard that didn’t fit into
-/// shard_size.
+/// each segment. It’s the sum of the size of the largest bucket on each segment that didn’t fit
+/// into segment_size.
 ///
 /// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
 /// [TermBucketEntry](crate::aggregation::agg_result::BucketEntry) on the
@@ -131,7 +131,7 @@ pub(crate) struct TermsAggregationInternal {
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
     /// doc_count returned by each shard. It’s the sum of the size of the largest bucket on
-    /// each segment that didn’t fit into `shard_size`.
+    /// each segment that didn’t fit into `segment_size`.
     pub show_term_doc_count_error: bool,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
@@ -524,7 +524,6 @@ mod tests {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     size: Some(2),
-                    shard_size: Some(2),
                     min_doc_count: Some(3),
                     ..Default::default()
                 }),
@@ -554,10 +553,8 @@ mod tests {
     #[test]
     fn terms_aggregation_min_doc_count_special_case() -> crate::Result<()> {
         let terms_per_segment = vec![
-            vec!["terma", "terma", "termb", "termb", "termb", "termc"], /* termc doesn't make it
-                                                                         * from this segment */
-            vec!["terma", "terma", "termb", "termc", "termc"], /* termb doesn't make it from
-                                                                * this segment */
+            vec!["terma", "terma", "termb", "termb", "termb", "termc"],
+            vec!["terma", "terma", "termb", "termc", "termc"],
         ];
 
         let index = get_test_index_from_terms(false, &terms_per_segment)?;
@@ -576,8 +573,8 @@ mod tests {
         .into_iter()
         .collect();
 
+        // searching for terma, but min_doc_count will return all terms
         let res = exec_request_with_query(agg_req, &index, Some(("string_id", "terma")))?;
-        println!("{}", &serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
@@ -618,7 +615,6 @@ mod tests {
         .collect();
 
         let res = exec_request(agg_req, &index)?;
-        println!("{}", &serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);

@@ -187,6 +187,7 @@ impl BucketAggregation {
         if let BucketAggregationType::Terms(terms) = &self.bucket_agg {
             term_dict_field_names.insert(terms.field.to_string());
         }
+        term_dict_field_names.extend(get_term_dict_field_names(&self.sub_aggregation));
     }
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         self.bucket_agg.get_fast_field_names(fast_field_names);
