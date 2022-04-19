@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::aggregation::f64_from_fastfield_u64;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
-use crate::DocId;
+use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes stats of numeric values that are
 /// extracted from the aggregated documents.
@@ -51,6 +51,23 @@ pub struct Stats {
     pub max: Option<f64>,
     /// The average of the values. None for count == 0.
     pub avg: Option<f64>,
+}
+
+impl Stats {
+    pub(crate) fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match agg_property {
+            "count" => Ok(Some(self.count as f64)),
+            "sum" => Ok(Some(self.sum)),
+            "standard_deviation" => Ok(self.standard_deviation),
+            "min" => Ok(self.min),
+            "max" => Ok(self.max),
+            "avg" => Ok(self.avg),
+            _ => Err(TantivyError::InvalidArgument(format!(
+                "unknown property {} on stats metric aggregation",
+                agg_property
+            ))),
+        }
+    }
 }
 
 /// IntermediateStats contains the mergeable version for stats.

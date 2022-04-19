@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use super::agg_req::{AggregationsInternal, BucketAggregationType, MetricAggregation};
 use super::agg_result::BucketResult;
-use super::bucket::{cut_off_buckets, SegmentHistogramBucketEntry, TermsAggregation};
+use super::bucket::{
+    cut_off_buckets, get_agg_name_and_property, GetDocCount, Order, OrderTarget,
+    SegmentHistogramBucketEntry, TermsAggregation,
+};
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{Key, SerializedKey, VecWithNames};
@@ -154,7 +157,7 @@ impl IntermediateMetricResult {
 pub enum IntermediateBucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub_aggregations.
-    Range(FnvHashMap<SerializedKey, IntermediateRangeBucketEntry>),
+    Range(IntermediateRangeBucketResult),
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
     Histogram {
@@ -178,34 +181,34 @@ impl IntermediateBucketResult {
     fn merge_fruits(&mut self, other: IntermediateBucketResult) {
         match (self, other) {
             (
-                IntermediateBucketResult::Terms(entries_left),
-                IntermediateBucketResult::Terms(entries_right),
+                IntermediateBucketResult::Terms(term_res_left),
+                IntermediateBucketResult::Terms(term_res_right),
             ) => {
-                merge_maps(&mut entries_left.entries, entries_right.entries);
-                entries_left.sum_other_doc_count += entries_right.sum_other_doc_count;
-                entries_left.doc_count_error_upper_bound +=
-                    entries_right.doc_count_error_upper_bound;
+                merge_maps(&mut term_res_left.entries, term_res_right.entries);
+                term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
+                term_res_left.doc_count_error_upper_bound +=
+                    term_res_right.doc_count_error_upper_bound;
             }
 
             (
-                IntermediateBucketResult::Range(entries_left),
-                IntermediateBucketResult::Range(entries_right),
+                IntermediateBucketResult::Range(range_res_left),
+                IntermediateBucketResult::Range(range_res_right),
             ) => {
-                merge_maps(entries_left, entries_right);
+                merge_maps(&mut range_res_left.buckets, range_res_right.buckets);
             }
             (
                 IntermediateBucketResult::Histogram {
-                    buckets: entries_left,
+                    buckets: buckets_left,
                     ..
                 },
                 IntermediateBucketResult::Histogram {
-                    buckets: entries_right,
+                    buckets: buckets_right,
                     ..
                 },
             ) => {
-                let mut buckets = entries_left
+                let mut buckets = buckets_left
                     .drain(..)
-                    .merge_join_by(entries_right.into_iter(), |left, right| {
+                    .merge_join_by(buckets_right.into_iter(), |left, right| {
                         left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
                     })
                     .map(|either| match either {
@@ -218,7 +221,7 @@ impl IntermediateBucketResult {
                     })
                     .collect();
 
-                std::mem::swap(entries_left, &mut buckets);
+                std::mem::swap(buckets_left, &mut buckets);
             }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
@@ -234,6 +237,12 @@ impl IntermediateBucketResult {
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Range aggregation including error counts
+pub struct IntermediateRangeBucketResult {
+    pub(crate) buckets: FnvHashMap<SerializedKey, IntermediateRangeBucketEntry>,
+}
+
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
     pub(crate) entries: FnvHashMap<String, IntermediateTermBucketEntry>,
@@ -246,22 +255,75 @@ impl IntermediateTermBucketResult {
         self,
         req: &TermsAggregation,
         sub_aggregation_req: &AggregationsInternal,
-    ) -> BucketResult {
+    ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
         let mut buckets: Vec<BucketEntry> = self
             .entries
             .into_iter()
             .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
-            .map(|(key, entry)| BucketEntry {
-                key: Key::Str(key),
-                doc_count: entry.doc_count,
-                sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
-                    entry.sub_aggregation,
-                    sub_aggregation_req,
-                ),
+            .map(|(key, entry)| {
+                Ok(BucketEntry {
+                    key: Key::Str(key),
+                    doc_count: entry.doc_count,
+                    sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
+                        entry.sub_aggregation,
+                        sub_aggregation_req,
+                    )?,
+                })
             })
-            .collect();
-        buckets.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.doc_count));
+            .collect::<crate::Result<_>>()?;
+
+        let order = req.order.order;
+        match req.order.target {
+            OrderTarget::Key => {
+                buckets.sort_by(|bucket1, bucket2| {
+                    if req.order.order == Order::Desc {
+                        bucket1
+                            .key
+                            .partial_cmp(&bucket2.key)
+                            .expect("expected type string, which is always sortable")
+                    } else {
+                        bucket2
+                            .key
+                            .partial_cmp(&bucket1.key)
+                            .expect("expected type string, which is always sortable")
+                    }
+                });
+            }
+            OrderTarget::Count => {
+                if req.order.order == Order::Desc {
+                    buckets.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.doc_count()));
+                } else {
+                    buckets.sort_unstable_by_key(|bucket| bucket.doc_count());
+                }
+            }
+            OrderTarget::SubAggregation(name) => {
+                let (agg_name, agg_property) = get_agg_name_and_property(&name);
+                let mut buckets_with_val = buckets
+                    .into_iter()
+                    .map(|bucket| {
+                        let val = bucket
+                            .sub_aggregation
+                            .get_value_from_aggregation(agg_name, agg_property)?
+                            .unwrap_or(f64::NAN);
+                        Ok((bucket, val))
+                    })
+                    .collect::<crate::Result<Vec<_>>>()?;
+
+                buckets_with_val.sort_by(|(_, val1), (_, val2)| {
+                    // TODO use total_cmp in next rust stable release
+                    match &order {
+                        Order::Desc => val2.partial_cmp(val1).unwrap_or(std::cmp::Ordering::Equal),
+                        Order::Asc => val1.partial_cmp(val2).unwrap_or(std::cmp::Ordering::Equal),
+                    }
+                });
+                buckets = buckets_with_val
+                    .into_iter()
+                    .map(|(bucket, _val)| bucket)
+                    .collect_vec();
+            }
+        }
+
         // We ignore _term_doc_count_before_cutoff here, because it increases the upperbound error
         // only for terms that didn't make it into the top N.
         //
@@ -276,11 +338,11 @@ impl IntermediateTermBucketResult {
             None
         };
 
-        BucketResult::Terms {
+        Ok(BucketResult::Terms {
             buckets,
             sum_other_doc_count: self.sum_other_doc_count + sum_other_doc_count,
             doc_count_error_upper_bound,
-        }
+        })
     }
 }
 
@@ -399,7 +461,7 @@ mod tests {
         }
         map.insert(
             "my_agg_level2".to_string(),
-            IntermediateBucketResult::Range(buckets),
+            IntermediateBucketResult::Range(IntermediateRangeBucketResult { buckets }),
         );
         IntermediateAggregationResults {
             buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
@@ -429,7 +491,7 @@ mod tests {
         }
         map.insert(
             "my_agg_level1".to_string(),
-            IntermediateBucketResult::Range(buckets),
+            IntermediateBucketResult::Range(IntermediateRangeBucketResult { buckets }),
         );
         IntermediateAggregationResults {
             buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),

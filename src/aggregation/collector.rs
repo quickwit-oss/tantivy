@@ -86,8 +86,8 @@ impl Collector for AggregationCollector {
         &self,
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
-        merge_fruits(segment_fruits)
-            .map(|res| AggregationResults::from_intermediate_and_req(res, self.agg.clone()))
+        let res = merge_fruits(segment_fruits)?;
+        AggregationResults::from_intermediate_and_req(res, self.agg.clone())
     }
 }
 

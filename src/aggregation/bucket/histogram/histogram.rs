@@ -425,7 +425,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
-) -> Vec<BucketEntry> {
+) -> crate::Result<Vec<BucketEntry>> {
     // Generate the the full list of buckets without gaps.
     //
     // The bounds are the min max from the current buckets, optionally extended by
@@ -468,7 +468,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
         .map(|intermediate_bucket| {
             BucketEntry::from_intermediate_and_req(intermediate_bucket, sub_aggregation)
         })
-        .collect_vec()
+        .collect::<crate::Result<Vec<_>>>()
 }
 
 // Convert to BucketEntry
@@ -476,7 +476,7 @@ pub(crate) fn intermediate_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
-) -> Vec<BucketEntry> {
+) -> crate::Result<Vec<BucketEntry>> {
     if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
@@ -488,7 +488,7 @@ pub(crate) fn intermediate_buckets_to_final_buckets(
             .into_iter()
             .filter(|bucket| bucket.doc_count >= histogram_req.min_doc_count())
             .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, sub_aggregation))
-            .collect_vec()
+            .collect::<crate::Result<Vec<_>>>()
     }
 }
 
