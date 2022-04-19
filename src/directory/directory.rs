@@ -62,7 +62,7 @@ impl Drop for DirectoryLockGuard {
 
 enum TryAcquireLockError {
     FileExists,
-    IoError(io::Error),
+    IoError(io::ErrorKind),
 }
 
 fn try_acquire_lock(
@@ -73,7 +73,9 @@ fn try_acquire_lock(
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
         OpenWriteError::IoError { io_error, .. } => TryAcquireLockError::IoError(io_error),
     })?;
-    write.flush().map_err(TryAcquireLockError::IoError)?;
+    write
+        .flush()
+        .map_err(|err| TryAcquireLockError::IoError(err.kind()))?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
@@ -196,8 +198,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
                         return Err(LockError::LockBusy);
                     }
                 }
-                Err(TryAcquireLockError::IoError(io_error)) => {
-                    return Err(LockError::IoError(io_error));
+                Err(TryAcquireLockError::IoError(io_error_kind)) => {
+                    return Err(LockError::IoError(io_error_kind));
                 }
             }
         }

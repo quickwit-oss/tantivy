@@ -174,7 +174,8 @@ impl MmapDirectory {
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RamDirectory.
     pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
-        let tempdir = TempDir::new().map_err(OpenDirectoryError::FailedToCreateTempDir)?;
+        let tempdir =
+            TempDir::new().map_err(|err| OpenDirectoryError::FailedToCreateTempDir(err.kind()))?;
         Ok(MmapDirectory::new(
             tempdir.path().to_path_buf(),
             Some(tempdir),
@@ -422,9 +423,10 @@ impl Directory for MmapDirectory {
             .write(true)
             .create(true) //< if the file does not exist yet, create it.
             .open(&full_path)
-            .map_err(LockError::IoError)?;
+            .map_err(|err| LockError::IoError(err.kind()))?;
         if lock.is_blocking {
-            file.lock_exclusive().map_err(LockError::IoError)?;
+            file.lock_exclusive()
+                .map_err(|err| LockError::IoError(err.kind()))?;
         } else {
             file.try_lock_exclusive().map_err(|_| LockError::LockBusy)?
         }

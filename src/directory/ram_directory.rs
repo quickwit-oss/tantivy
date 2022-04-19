@@ -183,8 +183,8 @@ impl Directory for RamDirectory {
         Ok(self
             .fs
             .read()
-            .map_err(|e| OpenReadError::IoError {
-                io_error: io::Error::new(io::ErrorKind::Other, e.to_string()),
+            .map_err(|_e| OpenReadError::IoError {
+                io_error: io::ErrorKind::Other,
                 filepath: path.to_path_buf(),
             })?
             .exists(path))
@@ -208,7 +208,7 @@ impl Directory for RamDirectory {
             self.open_read(path)?
                 .read_bytes()
                 .map_err(|io_error| OpenReadError::IoError {
-                    io_error,
+                    io_error: io_error.kind(),
                     filepath: path.to_path_buf(),
                 })?;
         Ok(bytes.as_slice().to_owned())

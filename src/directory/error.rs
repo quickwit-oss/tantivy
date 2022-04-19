@@ -4,7 +4,7 @@ use std::{fmt, io};
 use crate::Version;
 
 /// Error while trying to acquire a directory lock.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum LockError {
     /// Failed to acquired a lock as it is already held by another
     /// client.
@@ -16,11 +16,11 @@ pub enum LockError {
     LockBusy,
     /// Trying to acquire a lock failed with an `IoError`
     #[error("Failed to acquire the lock due to an io:Error.")]
-    IoError(io::Error),
+    IoError(io::ErrorKind),
 }
 
 /// Error that may occur when opening a directory
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum OpenDirectoryError {
     /// The underlying directory does not exists.
     #[error("Directory does not exist: '{0}'.")]
@@ -30,12 +30,12 @@ pub enum OpenDirectoryError {
     NotADirectory(PathBuf),
     /// Failed to create a temp directory.
     #[error("Failed to create a temporary directory: '{0}'.")]
-    FailedToCreateTempDir(io::Error),
+    FailedToCreateTempDir(io::ErrorKind),
     /// IoError
     #[error("IoError '{io_error:?}' while create directory in: '{directory_path:?}'.")]
     IoError {
-        /// underlying io Error.
-        io_error: io::Error,
+        /// underlying io ErrorKind.
+        io_error: io::ErrorKind,
         /// directory we tried to open.
         directory_path: PathBuf,
     },
@@ -45,14 +45,14 @@ impl OpenDirectoryError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, directory_path: PathBuf) -> Self {
         Self::IoError {
-            io_error,
+            io_error: io_error.kind(),
             directory_path,
         }
     }
 }
 
 /// Error that may occur when starting to write in a file
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum OpenWriteError {
     /// Our directory is WORM, writing an existing file is forbidden.
     /// Checkout the `Directory` documentation.
@@ -62,8 +62,8 @@ pub enum OpenWriteError {
     /// writing in the underlying IO device.
     #[error("IoError '{io_error:?}' while opening file for write: '{filepath}'.")]
     IoError {
-        /// The underlying `io::Error`.
-        io_error: io::Error,
+        /// The underlying `io::ErrorKind`.
+        io_error: io::ErrorKind,
         /// File path of the file that tantivy failed to open for write.
         filepath: PathBuf,
     },
@@ -72,11 +72,15 @@ pub enum OpenWriteError {
 impl OpenWriteError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IoError { io_error, filepath }
+        Self::IoError {
+            io_error: io_error.kind(),
+            filepath,
+        }
     }
 }
 /// Type of index incompatibility between the library and the index found on disk
 /// Used to catch and provide a hint to solve this incompatibility issue
+#[derive(Clone)]
 pub enum Incompatibility {
     /// This library cannot decompress the index found on disk
     CompressionMismatch {
@@ -135,7 +139,7 @@ impl fmt::Debug for Incompatibility {
 }
 
 /// Error that may occur when accessing a file read
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum OpenReadError {
     /// The file does not exists.
     #[error("Files does not exists: {0:?}")]
@@ -146,7 +150,7 @@ pub enum OpenReadError {
     )]
     IoError {
         /// The underlying `io::Error`.
-        io_error: io::Error,
+        io_error: io::ErrorKind,
         /// File path of the file that tantivy failed to open for read.
         filepath: PathBuf,
     },
@@ -158,7 +162,10 @@ pub enum OpenReadError {
 impl OpenReadError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IoError { io_error, filepath }
+        Self::IoError {
+            io_error: io_error.kind(),
+            filepath,
+        }
     }
 }
 /// Error that may occur when trying to delete a file

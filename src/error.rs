@@ -15,6 +15,7 @@ use crate::{query, schema};
 /// Represents a `DataCorruption` error.
 ///
 /// When facing data corruption, tantivy actually panics or returns this error.
+#[derive(Clone)]
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
     comment: String,
@@ -50,7 +51,7 @@ impl fmt::Debug for DataCorruption {
 }
 
 /// The library's error enum
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum TantivyError {
     /// Failed to open the directory.
     #[error("Failed to open the directory: '{0:?}'")]
@@ -68,8 +69,13 @@ pub enum TantivyError {
     #[error("Failed to acquire Lockfile: {0:?}. {1:?}")]
     LockFailure(LockError, Option<String>),
     /// IO Error.
-    #[error("An IO error occurred: '{0}'")]
-    IoError(#[from] io::Error),
+    #[error("An IO error occurred: '{message}'")]
+    IoError {
+        /// The io error formatted as string
+        message: String,
+        /// Io ErrorKind
+        kind: io::ErrorKind,
+    },
     /// Data corruption.
     #[error("Data corrupted: '{0:?}'")]
     DataCorruption(DataCorruption),
@@ -100,11 +106,16 @@ pub enum TantivyError {
 }
 
 #[cfg(feature = "quickwit")]
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[doc(hidden)]
 pub enum AsyncIoError {
-    #[error("io::Error `{0}`")]
-    Io(#[from] io::Error),
+    #[error("An IO error occurred: '{message}'")]
+    Io {
+        /// The io error formatted as string
+        message: String,
+        /// Io ErrorKind
+        kind: io::ErrorKind,
+    },
     #[error("Asynchronous API is unsupported by this directory")]
     AsyncUnsupported,
 }
@@ -113,10 +124,23 @@ pub enum AsyncIoError {
 impl From<AsyncIoError> for TantivyError {
     fn from(async_io_err: AsyncIoError) -> Self {
         match async_io_err {
-            AsyncIoError::Io(io_err) => TantivyError::from(io_err),
+            AsyncIoError::Io { message, kind } => TantivyError::IoError {
+                message: message,
+                kind: kind,
+            },
             AsyncIoError::AsyncUnsupported => {
                 TantivyError::SystemError(format!("{:?}", async_io_err))
             }
+        }
+    }
+}
+
+#[cfg(feature = "quickwit")]
+impl From<io::Error> for AsyncIoError {
+    fn from(io_error: io::Error) -> AsyncIoError {
+        AsyncIoError::Io {
+            message: io_error.to_string(),
+            kind: io_error.kind(),
         }
     }
 }
@@ -175,7 +199,17 @@ impl From<schema::DocParsingError> for TantivyError {
 
 impl From<serde_json::Error> for TantivyError {
     fn from(error: serde_json::Error) -> TantivyError {
-        TantivyError::IoError(error.into())
+        let io_error: io::Error = error.into();
+        io_error.into()
+    }
+}
+
+impl From<io::Error> for TantivyError {
+    fn from(io_error: io::Error) -> TantivyError {
+        TantivyError::IoError {
+            message: io_error.to_string(),
+            kind: io_error.kind(),
+        }
     }
 }
 

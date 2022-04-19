@@ -244,14 +244,14 @@ impl ManagedDirectory {
         let reader = self.directory.open_read(path)?;
         let (footer, data) =
             Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IoError {
-                io_error,
+                io_error: io_error.kind(),
                 filepath: path.to_path_buf(),
             })?;
         let bytes = data
             .read_bytes()
             .map_err(|io_error| OpenReadError::IoError {
                 filepath: path.to_path_buf(),
-                io_error,
+                io_error: io_error.kind(),
             })?;
         let mut hasher = Hasher::new();
         hasher.update(bytes.as_slice());
