@@ -34,7 +34,7 @@ impl AggregationResults {
         } else {
             // Validation is be done during request parsing, so we can't reach this state.
             Err(TantivyError::InternalError(format!(
-                "Can't find aggregation in {}",
+                "Can't find aggregation {:?} in sub_aggregations",
                 name
             )))
         }
@@ -124,9 +124,9 @@ impl AggregationResult {
         agg_property: &str,
     ) -> crate::Result<Option<f64>> {
         match self {
-            AggregationResult::BucketResult(_bucket) => Err(TantivyError::InvalidArgument(
-                "bucket aggregation not supported to retrieve value, only metrics aggregations \
-                 are supported."
+            AggregationResult::BucketResult(_bucket) => Err(TantivyError::InternalError(
+                "Tried to retrieve value from bucket aggregation. This is not supported and \
+                 should not happen during collection, but should be catched during validation"
                     .to_string(),
             )),
             AggregationResult::MetricResult(metric) => metric.get_value(agg_property),
