@@ -32,10 +32,11 @@ impl AggregationResults {
         if let Some(agg) = self.0.get(name) {
             agg.get_value_from_aggregation(name, agg_property)
         } else {
-            // Should return an error here? Missing aggregation could be intentional to save
-            // memory.
-            // Validation can be done during request parsing
-            Ok(None)
+            // Validation is be done during request parsing, so we can't reach this state.
+            Err(TantivyError::InternalError(format!(
+                "Can't find aggregation in {}",
+                name
+            )))
         }
     }
 
@@ -55,8 +56,6 @@ impl AggregationResults {
         results: IntermediateAggregationResults,
         req: &AggregationsInternal,
     ) -> crate::Result<Self> {
-        // let mut result = HashMap::default();
-
         // Important assumption:
         // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
         // request
