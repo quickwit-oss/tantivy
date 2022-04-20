@@ -104,6 +104,10 @@ pub struct TermsAggregation {
     /// Set the order. `String` is here a target, which is either "_count", "_key", or the name of
     /// a metric sub_aggregation.
     ///
+    /// Single value metrics like average can be adressed by its name.
+    /// Multi value metrics like stats are required to adress their field by name e.g.
+    /// "stats.avg"
+    ///
     /// Examples in JSON format:
     /// { "_count": "asc" }
     /// { "_key": "asc" }
