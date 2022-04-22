@@ -25,7 +25,7 @@ use crate::{DateTime, Score};
 pub enum QueryParserError {
     /// Error in the query syntax
     #[error("Syntax Error")]
-    SyntaxError,
+    SyntaxError(String),
     /// This query is unsupported.
     #[error("Unsupported query: {0}")]
     UnsupportedQuery(String),
@@ -273,8 +273,8 @@ impl QueryParser {
 
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
-        let user_input_ast =
-            tantivy_query_grammar::parse_query(query).map_err(|_| QueryParserError::SyntaxError)?;
+        let user_input_ast = tantivy_query_grammar::parse_query(query)
+            .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
         self.compute_logical_ast(user_input_ast)
     }
 
