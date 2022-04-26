@@ -25,7 +25,7 @@ use crate::{DateTime, Score};
 pub enum QueryParserError {
     /// Error in the query syntax
     #[error("Syntax Error")]
-    SyntaxError,
+    SyntaxError(String),
     /// This query is unsupported.
     #[error("Unsupported query: {0}")]
     UnsupportedQuery(String),
@@ -273,8 +273,8 @@ impl QueryParser {
 
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
-        let user_input_ast =
-            tantivy_query_grammar::parse_query(query).map_err(|_| QueryParserError::SyntaxError)?;
+        let user_input_ast = tantivy_query_grammar::parse_query(query)
+            .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -547,7 +547,7 @@ impl QueryParser {
                     .map(|json_field| (json_field, full_path.as_str(), literal.phrase.as_str()))
                     .collect();
                 if triplets.is_empty() {
-                    return Err(QueryParserError::FieldDoesNotExist(field_name.to_string()));
+                    return Err(QueryParserError::FieldDoesNotExist(full_path.to_string()));
                 }
                 Ok(triplets)
             }
@@ -1220,9 +1220,11 @@ mod test {
     #[test]
     pub fn test_query_parser_field_does_not_exist() {
         let query_parser = make_query_parser();
-        assert_matches!(
-            query_parser.parse_query("boujou:\"18446744073709551615\""),
-            Err(QueryParserError::FieldDoesNotExist(_))
+        assert_eq!(
+            query_parser
+                .parse_query("boujou:\"18446744073709551615\"")
+                .unwrap_err(),
+            QueryParserError::FieldDoesNotExist("boujou".to_string())
         );
     }
 
