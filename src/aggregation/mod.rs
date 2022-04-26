@@ -247,6 +247,14 @@ impl<T: Clone> VecWithNames<T> {
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
+    fn len(&self) -> usize {
+        self.keys.len()
+    }
+    fn get(&self, name: &str) -> Option<&T> {
+        self.keys()
+            .position(|key| key == name)
+            .map(|pos| &self.values[pos])
+    }
 }
 
 /// The serialized key is used in a HashMap.
@@ -540,6 +548,7 @@ mod tests {
                 searcher.search(&AllQuery, &collector).unwrap(),
                 agg_req,
             )
+            .unwrap()
         } else {
             let collector = AggregationCollector::from_aggs(agg_req);
 
@@ -975,7 +984,7 @@ mod tests {
             // Test de/serialization roundtrip on intermediate_agg_result
             let res: IntermediateAggregationResults =
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            AggregationResults::from_intermediate_and_req(res, agg_req.clone())
+            AggregationResults::from_intermediate_and_req(res, agg_req.clone()).unwrap()
         } else {
             let collector = AggregationCollector::from_aggs(agg_req.clone());
 

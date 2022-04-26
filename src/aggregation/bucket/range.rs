@@ -7,7 +7,7 @@ use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateBucketResult, IntermediateRangeBucketEntry,
+    IntermediateBucketResult, IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
@@ -166,7 +166,9 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        Ok(IntermediateBucketResult::Range(buckets))
+        Ok(IntermediateBucketResult::Range(
+            IntermediateRangeBucketResult { buckets },
+        ))
     }
 
     pub(crate) fn from_req_and_validate(

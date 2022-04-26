@@ -29,6 +29,17 @@ pub(crate) struct SegmentAggregationResultsCollector {
     num_staged_docs: usize,
 }
 
+impl Default for SegmentAggregationResultsCollector {
+    fn default() -> Self {
+        Self {
+            metrics: Default::default(),
+            buckets: Default::default(),
+            staged_docs: [0; DOC_BLOCK_SIZE],
+            num_staged_docs: Default::default(),
+        }
+    }
+}
+
 impl Debug for SegmentAggregationResultsCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentAggregationResultsCollector")
@@ -216,7 +227,7 @@ impl SegmentBucketResultCollector {
                     req.field_type,
                     req.accessor
                         .as_multi()
-                        .expect("unexpected fast field cardinatility"),
+                        .expect("unexpected fast field cardinality"),
                 )?,
             ))),
             BucketAggregationType::Range(range_req) => {
@@ -233,7 +244,7 @@ impl SegmentBucketResultCollector {
                     req.field_type,
                     req.accessor
                         .as_single()
-                        .expect("unexpected fast field cardinatility"),
+                        .expect("unexpected fast field cardinality"),
                 )?,
             ))),
         }

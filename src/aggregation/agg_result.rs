@@ -7,84 +7,132 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::{Aggregations, AggregationsInternal, BucketAggregationInternal};
+use super::agg_req::{
+    Aggregations, AggregationsInternal, BucketAggregationInternal, MetricAggregation,
+};
 use super::bucket::{intermediate_buckets_to_final_buckets, GetDocCount};
 use super::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
     IntermediateMetricResult, IntermediateRangeBucketEntry,
 };
 use super::metric::{SingleMetricResult, Stats};
-use super::Key;
+use super::{Key, VecWithNames};
+use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
 pub struct AggregationResults(pub HashMap<String, AggregationResult>);
 
 impl AggregationResults {
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        if let Some(agg) = self.0.get(name) {
+            agg.get_value_from_aggregation(name, agg_property)
+        } else {
+            // Validation is be done during request parsing, so we can't reach this state.
+            Err(TantivyError::InternalError(format!(
+                "Can't find aggregation {:?} in sub_aggregations",
+                name
+            )))
+        }
+    }
+
     /// Convert and intermediate result and its aggregation request to the final result
     pub fn from_intermediate_and_req(
         results: IntermediateAggregationResults,
         agg: Aggregations,
-    ) -> Self {
+    ) -> crate::Result<Self> {
         AggregationResults::from_intermediate_and_req_internal(results, &(agg.into()))
     }
+
     /// Convert and intermediate result and its aggregation request to the final result
     ///
     /// Internal function, CollectorAggregations is used instead Aggregations, which is optimized
     /// for internal processing, by splitting metric and buckets into seperate groups.
     pub(crate) fn from_intermediate_and_req_internal(
-        results: IntermediateAggregationResults,
+        intermediate_results: IntermediateAggregationResults,
         req: &AggregationsInternal,
-    ) -> Self {
-        let mut result = HashMap::default();
-
+    ) -> crate::Result<Self> {
         // Important assumption:
         // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
         // request
-        if let Some(buckets) = results.buckets {
-            result.extend(buckets.into_iter().zip(req.buckets.values()).map(
-                |((key, bucket), req)| {
-                    (
-                        key,
-                        AggregationResult::BucketResult(BucketResult::from_intermediate_and_req(
-                            bucket, req,
-                        )),
-                    )
-                },
-            ));
-        } else {
-            result.extend(req.buckets.iter().map(|(key, req)| {
-                let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-                (
-                    key.to_string(),
-                    AggregationResult::BucketResult(BucketResult::from_intermediate_and_req(
-                        empty_bucket,
-                        req,
-                    )),
-                )
-            }));
-        }
+        let mut results: HashMap<String, AggregationResult> = HashMap::new();
 
-        if let Some(metrics) = results.metrics {
-            result.extend(
-                metrics
-                    .into_iter()
-                    .map(|(key, metric)| (key, AggregationResult::MetricResult(metric.into()))),
-            );
+        if let Some(buckets) = intermediate_results.buckets {
+            add_coverted_final_buckets_to_result(&mut results, buckets, &req.buckets)?
         } else {
-            result.extend(req.metrics.iter().map(|(key, req)| {
-                let empty_bucket = IntermediateMetricResult::empty_from_req(req);
-                (
-                    key.to_string(),
-                    AggregationResult::MetricResult(empty_bucket.into()),
-                )
-            }));
+            // When there are no buckets, we create empty buckets, so that the serialized json
+            // format is constant
+            add_empty_final_buckets_to_result(&mut results, &req.buckets)?
+        };
+
+        if let Some(metrics) = intermediate_results.metrics {
+            add_converted_final_metrics_to_result(&mut results, metrics);
+        } else {
+            // When there are no metrics, we create empty metric results, so that the serialized
+            // json format is constant
+            add_empty_final_metrics_to_result(&mut results, &req.metrics)?;
         }
-        Self(result)
+        Ok(Self(results))
     }
+}
+
+fn add_converted_final_metrics_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    metrics: VecWithNames<IntermediateMetricResult>,
+) {
+    results.extend(
+        metrics
+            .into_iter()
+            .map(|(key, metric)| (key, AggregationResult::MetricResult(metric.into()))),
+    );
+}
+
+fn add_empty_final_metrics_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    req_metrics: &VecWithNames<MetricAggregation>,
+) -> crate::Result<()> {
+    results.extend(req_metrics.iter().map(|(key, req)| {
+        let empty_bucket = IntermediateMetricResult::empty_from_req(req);
+        (
+            key.to_string(),
+            AggregationResult::MetricResult(empty_bucket.into()),
+        )
+    }));
+    Ok(())
+}
+
+fn add_empty_final_buckets_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    req_buckets: &VecWithNames<BucketAggregationInternal>,
+) -> crate::Result<()> {
+    let requested_buckets = req_buckets.iter();
+    for (key, req) in requested_buckets {
+        let empty_bucket = AggregationResult::BucketResult(BucketResult::empty_from_req(req)?);
+        results.insert(key.to_string(), empty_bucket);
+    }
+    Ok(())
+}
+
+fn add_coverted_final_buckets_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    buckets: VecWithNames<IntermediateBucketResult>,
+    req_buckets: &VecWithNames<BucketAggregationInternal>,
+) -> crate::Result<()> {
+    assert_eq!(buckets.len(), req_buckets.len());
+
+    let buckets_with_request = buckets.into_iter().zip(req_buckets.values());
+    for ((key, bucket), req) in buckets_with_request {
+        let result =
+            AggregationResult::BucketResult(BucketResult::from_intermediate_and_req(bucket, req)?);
+        results.insert(key, result);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -97,6 +145,23 @@ pub enum AggregationResult {
     MetricResult(MetricResult),
 }
 
+impl AggregationResult {
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        _name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        match self {
+            AggregationResult::BucketResult(_bucket) => Err(TantivyError::InternalError(
+                "Tried to retrieve value from bucket aggregation. This is not supported and \
+                 should not happen during collection, but should be catched during validation"
+                    .to_string(),
+            )),
+            AggregationResult::MetricResult(metric) => metric.get_value(agg_property),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// MetricResult
@@ -107,6 +172,14 @@ pub enum MetricResult {
     Stats(Stats),
 }
 
+impl MetricResult {
+    fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match self {
+            MetricResult::Average(avg) => Ok(avg.value),
+            MetricResult::Stats(stats) => stats.get_value(agg_property),
+        }
+    }
+}
 impl From<IntermediateMetricResult> for MetricResult {
     fn from(metric: IntermediateMetricResult) -> Self {
         match metric {
@@ -155,38 +228,48 @@ pub enum BucketResult {
 }
 
 impl BucketResult {
+    pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
+        let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
+
+        Ok(BucketResult::from_intermediate_and_req(empty_bucket, req)?)
+    }
+
     fn from_intermediate_and_req(
         bucket_result: IntermediateBucketResult,
         req: &BucketAggregationInternal,
-    ) -> Self {
+    ) -> crate::Result<Self> {
         match bucket_result {
-            IntermediateBucketResult::Range(range_map) => {
-                let mut buckets: Vec<RangeBucketEntry> = range_map
+            IntermediateBucketResult::Range(range_res) => {
+                let mut buckets: Vec<RangeBucketEntry> = range_res
+                    .buckets
                     .into_iter()
                     .map(|(_, bucket)| {
                         RangeBucketEntry::from_intermediate_and_req(bucket, &req.sub_aggregation)
                     })
-                    .collect_vec();
+                    .collect::<crate::Result<Vec<_>>>()?;
 
-                buckets.sort_by(|a, b| {
-                    a.from
+                buckets.sort_by(|left, right| {
+                    // TODO use total_cmp next stable rust release
+                    left.from
                         .unwrap_or(f64::MIN)
-                        .partial_cmp(&b.from.unwrap_or(f64::MIN))
+                        .partial_cmp(&right.from.unwrap_or(f64::MIN))
                         .unwrap_or(Ordering::Equal)
                 });
-                BucketResult::Range { buckets }
+                Ok(BucketResult::Range { buckets })
             }
             IntermediateBucketResult::Histogram { buckets } => {
                 let buckets = intermediate_buckets_to_final_buckets(
                     buckets,
-                    req.as_histogram().expect("unexpected aggregation"),
+                    req.as_histogram()
+                        .expect("unexpected aggregation, expected histogram aggregation"),
                     &req.sub_aggregation,
-                );
+                )?;
 
-                BucketResult::Histogram { buckets }
+                Ok(BucketResult::Histogram { buckets })
             }
             IntermediateBucketResult::Terms(terms) => terms.into_final_result(
-                req.as_term().expect("unexpected aggregation"),
+                req.as_term()
+                    .expect("unexpected aggregation, expected term aggregation"),
                 &req.sub_aggregation,
             ),
         }
@@ -226,7 +309,7 @@ pub struct BucketEntry {
     /// Number of documents in the bucket.
     pub doc_count: u64,
     #[serde(flatten)]
-    /// sub-aggregations in this bucket.
+    /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
 }
 
@@ -234,15 +317,20 @@ impl BucketEntry {
     pub(crate) fn from_intermediate_and_req(
         entry: IntermediateHistogramBucketEntry,
         req: &AggregationsInternal,
-    ) -> Self {
-        BucketEntry {
+    ) -> crate::Result<Self> {
+        Ok(BucketEntry {
             key: Key::F64(entry.key),
             doc_count: entry.doc_count,
             sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
                 entry.sub_aggregation,
                 req,
-            ),
-        }
+            )?,
+        })
+    }
+}
+impl GetDocCount for &BucketEntry {
+    fn doc_count(&self) -> u64 {
+        self.doc_count
     }
 }
 impl GetDocCount for BucketEntry {
@@ -302,16 +390,16 @@ impl RangeBucketEntry {
     fn from_intermediate_and_req(
         entry: IntermediateRangeBucketEntry,
         req: &AggregationsInternal,
-    ) -> Self {
-        RangeBucketEntry {
+    ) -> crate::Result<Self> {
+        Ok(RangeBucketEntry {
             key: entry.key,
             doc_count: entry.doc_count,
             sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
                 entry.sub_aggregation,
                 req,
-            ),
+            )?,
             to: entry.to,
             from: entry.from,
-        }
+        })
     }
 }
