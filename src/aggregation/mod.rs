@@ -247,6 +247,9 @@ impl<T: Clone> VecWithNames<T> {
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
+    fn len(&self) -> usize {
+        self.keys.len()
+    }
     fn get(&self, name: &str) -> Option<&T> {
         self.keys()
             .position(|key| key == name)

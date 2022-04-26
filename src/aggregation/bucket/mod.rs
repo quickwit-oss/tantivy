@@ -132,9 +132,9 @@ fn custom_order_serde_test() {
 
     assert_eq!(order, order_deser);
 
-    let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str(&"{}");
+    let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str("{}");
     assert!(order_deser.is_err());
 
-    let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str(&"[]");
+    let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str("[]");
     assert!(order_deser.is_err());
 }

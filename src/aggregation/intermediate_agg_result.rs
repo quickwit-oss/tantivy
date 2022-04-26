@@ -206,7 +206,7 @@ impl IntermediateBucketResult {
                     ..
                 },
             ) => {
-                let mut buckets = buckets_left
+                let buckets = buckets_left
                     .drain(..)
                     .merge_join_by(buckets_right.into_iter(), |left, right| {
                         left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
@@ -221,7 +221,7 @@ impl IntermediateBucketResult {
                     })
                     .collect();
 
-                std::mem::swap(buckets_left, &mut buckets);
+                *buckets_left = buckets;
             }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
@@ -276,18 +276,13 @@ impl IntermediateTermBucketResult {
         let order = req.order.order;
         match req.order.target {
             OrderTarget::Key => {
-                buckets.sort_by(|bucket1, bucket2| {
+                buckets.sort_by(|left, right| {
                     if req.order.order == Order::Desc {
-                        bucket1
-                            .key
-                            .partial_cmp(&bucket2.key)
-                            .expect("expected type string, which is always sortable")
+                        left.key.partial_cmp(&right.key)
                     } else {
-                        bucket2
-                            .key
-                            .partial_cmp(&bucket1.key)
-                            .expect("expected type string, which is always sortable")
+                        right.key.partial_cmp(&left.key)
                     }
+                    .expect("expected type string, which is always sortable")
                 });
             }
             OrderTarget::Count => {

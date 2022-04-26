@@ -70,6 +70,7 @@ pub struct TermsAggregation {
     pub field: String,
     /// By default, the top 10 terms with the most documents are returned.
     /// Larger values for size are more expensive.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub size: Option<u32>,
 
     /// Unused by tantivy.
@@ -79,6 +80,7 @@ pub struct TermsAggregation {
     /// The default value in elasticsearch is size * 1.5 + 10.
     ///
     /// Should never be smaller than size.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub shard_size: Option<u32>,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
@@ -86,6 +88,7 @@ pub struct TermsAggregation {
     /// Increasing this value is will increase the cost for more accuracy.
     ///
     /// Defaults to 10 * size.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub segment_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
@@ -94,11 +97,13 @@ pub struct TermsAggregation {
     /// each segment that didn’t fit into `shard_size`.
     ///
     /// Defaults to true when ordering by counts desc.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub show_term_doc_count_error: Option<bool>,
 
     /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
     ///
     /// **Expensive**: When set to 0, this will return all terms in the field.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub min_doc_count: Option<u64>,
 
     /// Set the order. `String` is here a target, which is either "_count", "_key", or the name of
@@ -112,6 +117,7 @@ pub struct TermsAggregation {
     /// { "_count": "asc" }
     /// { "_key": "asc" }
     /// { "average_price": "asc" }
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub order: Option<CustomOrder>,
 }
 
@@ -290,6 +296,7 @@ impl SegmentTermCollector {
             TermBuckets::from_req_and_validate(sub_aggregations, max_term_id as usize)?;
 
         if let Some(custom_order) = req.order.as_ref() {
+            // Validate sub aggregtion exists
             if let OrderTarget::SubAggregation(sub_agg_name) = &custom_order.target {
                 let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
 
@@ -335,8 +342,8 @@ impl SegmentTermCollector {
                 // defer order and cut_off after loading the texts from the dictionary
             }
             OrderTarget::SubAggregation(_name) => {
-                // don't sort of cutt off since it's hard to make assumptions on the quality of the
-                // results when cutting off, du to unknown nature of the sub_aggregation (possible
+                // don't sort and cut off since it's hard to make assumptions on the quality of the
+                // results when cutting off du to unknown nature of the sub_aggregation (possible
                 // to check).
             }
             OrderTarget::Count => {
@@ -1161,6 +1168,47 @@ mod tests {
             res["my_texts"]["doc_count_error_upper_bound"],
             serde_json::Value::Null
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_json_format() -> crate::Result<()> {
+        let agg_req: Aggregations = vec![(
+            "term_agg_test".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    size: Some(2),
+                    segment_size: Some(2),
+                    order: Some(CustomOrder {
+                        target: OrderTarget::Key,
+                        order: Order::Desc,
+                    }),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let elasticsearch_compatible_json = json!(
+        {
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id",
+                "size": 2u64,
+                "segment_size": 2u64,
+                "order": {"_key": "desc"}
+            }
+        }
+        });
+
+        let agg_req_deser: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        assert_eq!(agg_req, agg_req_deser);
 
         Ok(())
     }
