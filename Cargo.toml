@@ -10,7 +10,7 @@ homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 oneshot = "0.1.3"

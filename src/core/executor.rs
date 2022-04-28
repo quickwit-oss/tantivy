@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicUsize;
+
 use crossbeam::channel;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
@@ -47,16 +49,17 @@ impl Executor {
         match self {
             Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
             Executor::ThreadPool(pool) => {
-                let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
-                let num_fruits = args_with_indices.len();
+                // let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
+                let args: Vec<A> = args.collect();
+                let num_fruits = args.len();
                 let fruit_receiver = {
                     let (fruit_sender, fruit_receiver) = channel::unbounded();
                     pool.scope(|scope| {
-                        for arg_with_idx in args_with_indices {
+                        for (idx, arg) in args.into_iter().enumerate() {
+                            let idx = AtomicUsize::new(idx);
                             scope.spawn(|_| {
-                                let (idx, arg) = arg_with_idx;
                                 let fruit = f(arg);
-                                if let Err(err) = fruit_sender.send((idx, fruit)) {
+                                if let Err(err) = fruit_sender.send((idx.into_inner(), fruit)) {
                                     error!(
                                         "Failed to send search task. It probably means all search \
                                          threads have panicked. {:?}",
