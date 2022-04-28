@@ -24,7 +24,7 @@ use crate::{DateTime, Score};
 #[derive(Debug, PartialEq, Eq, Error)]
 pub enum QueryParserError {
     /// Error in the query syntax
-    #[error("Syntax Error")]
+    #[error("Syntax Error: {0}")]
     SyntaxError(String),
     /// This query is unsupported.
     #[error("Unsupported query: {0}")]
