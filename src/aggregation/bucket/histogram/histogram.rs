@@ -56,7 +56,7 @@ use crate::{DocId, TantivyError};
 ///     "prices": {
 ///         "histogram": {
 ///             "field": "price",
-///             "interval": 10,
+///             "interval": 10
 ///         }
 ///     }
 /// }
@@ -69,16 +69,17 @@ use crate::{DocId, TantivyError};
 pub struct HistogramAggregation {
     /// The field to aggregate on.
     pub field: String,
-    /// The interval to chunk your data range. The buckets span ranges of [0..interval).
+    /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
     pub interval: f64,
     /// Intervals implicitely defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
     ///
-    /// Offset makes it possible to shift this grid into `[offset + interval * k, offset + interval
-    /// * (k + 1)) Offset has to be in the range [0, interval).
+    /// Offset makes it possible to shift this grid into
+    /// `[offset + interval * k, offset + interval * (k + 1))`. Offset has to be in the range [0,
+    /// interval).
     ///
-    /// As an example. If there are two documents with value 8 and 12 and interval 10.0, they would
+    /// As an example, if there are two documents with value 9 and 12 and interval 10.0, they would
     /// fall into the buckets with the key 0 and 10.
     /// With offset 5 and interval 10, they would both fall into the bucket with they key 5 and the
     /// range [5..15)
@@ -91,6 +92,22 @@ pub struct HistogramAggregation {
     ///
     /// hard_bounds only limits the buckets, to force a range set both extended_bounds and
     /// hard_bounds to the same range.
+    ///
+    /// ## Example
+    /// ```json
+    /// {
+    ///     "prices": {
+    ///        "histogram": {
+    ///            "field": "price",
+    ///            "interval": 10,
+    ///            "hard_bounds": {
+    ///                "min": 0,
+    ///                "max": 100
+    ///            }
+    ///        }
+    ///    }
+    /// }
+    /// ```
     pub hard_bounds: Option<HistogramBounds>,
     /// Can be set to extend your bounds. The range of the buckets is by default defined by the
     /// data range of the values of the documents. As the name suggests, this can only be used to
