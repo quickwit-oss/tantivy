@@ -149,6 +149,7 @@ impl SegmentWriter {
     pub fn mem_usage(&self) -> usize {
         self.ctx.mem_usage()
             + self.fieldnorms_writer.mem_usage()
+            + self.per_field_postings_writers.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
     }

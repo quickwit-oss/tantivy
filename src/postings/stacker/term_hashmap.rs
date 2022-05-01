@@ -36,6 +36,7 @@ impl Default for KeyValue {
 }
 
 impl KeyValue {
+    #[inline]
     fn is_empty(self) -> bool {
         self.key_value_addr.is_null()
     }
@@ -55,6 +56,12 @@ pub struct TermHashMap {
     mask: usize,
     occupied: Vec<usize>,
     len: usize,
+}
+
+impl Default for TermHashMap {
+    fn default() -> Self {
+        Self::new(1 << 10)
+    }
 }
 
 struct QuadraticProbing {

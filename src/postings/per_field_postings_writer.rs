@@ -10,9 +10,10 @@ pub(crate) struct PerFieldPostingsWriter {
 
 impl PerFieldPostingsWriter {
     pub fn for_schema(schema: &Schema) -> Self {
+        let num_fields = schema.num_fields();
         let per_field_postings_writers = schema
             .fields()
-            .map(|(_, field_entry)| posting_writer_from_field_entry(field_entry))
+            .map(|(_, field_entry)| posting_writer_from_field_entry(field_entry, num_fields))
             .collect();
         PerFieldPostingsWriter {
             per_field_postings_writers,
@@ -26,9 +27,19 @@ impl PerFieldPostingsWriter {
     pub(crate) fn get_for_field_mut(&mut self, field: Field) -> &mut dyn PostingsWriter {
         self.per_field_postings_writers[field.field_id() as usize].as_mut()
     }
+
+    pub(crate) fn mem_usage(&self) -> usize {
+        self.per_field_postings_writers
+            .iter()
+            .map(|postings_writer| postings_writer.mem_usage())
+            .sum()
+    }
 }
 
-fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
+fn posting_writer_from_field_entry(
+    field_entry: &FieldEntry,
+    _num_fields: usize,
+) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
