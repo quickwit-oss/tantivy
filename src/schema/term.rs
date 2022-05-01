@@ -33,23 +33,27 @@ pub const JSON_END_OF_PATH: u8 = 0u8;
 ///
 /// It actually wraps a `Vec<u8>`.
 #[derive(Clone)]
-pub struct Term<B = Vec<u8>>(B)
-where
-    B: AsRef<[u8]>;
+pub struct Term<B = Vec<u8>> {
+    data: B,
+}
 
 impl AsMut<Vec<u8>> for Term {
     fn as_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.0
+        &mut self.data
     }
 }
 
 impl Term {
     pub(crate) fn new() -> Term {
-        Term(Vec::with_capacity(100))
+        Term {
+            data: Vec::with_capacity(100),
+        }
     }
 
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
-        let mut term = Term(vec![0u8; FAST_VALUE_TERM_LEN]);
+        let mut term = Term {
+            data: vec![0u8; FAST_VALUE_TERM_LEN],
+        };
         term.set_field(T::to_type(), field);
         term.set_u64(val.to_u64());
         term
@@ -87,9 +91,11 @@ impl Term {
     }
 
     fn create_bytes_term(typ: Type, field: Field, bytes: &[u8]) -> Term {
-        let mut term = Term(vec![0u8; 5 + bytes.len()]);
+        let mut term = Term {
+            data: vec![0u8; 5 + bytes.len()],
+        };
         term.set_field(typ, field);
-        term.0.extend_from_slice(bytes);
+        term.data.extend_from_slice(bytes);
         term
     }
 
@@ -99,10 +105,10 @@ impl Term {
     }
 
     pub(crate) fn set_field(&mut self, typ: Type, field: Field) {
-        self.0.clear();
-        self.0
+        self.data.clear();
+        self.data
             .extend_from_slice(field.field_id().to_be_bytes().as_ref());
-        self.0.push(typ.to_code());
+        self.data.push(typ.to_code());
     }
 
     /// Sets a u64 value in the term.
@@ -117,7 +123,7 @@ impl Term {
     }
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
-        self.0.resize(FAST_VALUE_TERM_LEN, 0u8);
+        self.data.resize(FAST_VALUE_TERM_LEN, 0u8);
         self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
@@ -138,8 +144,8 @@ impl Term {
 
     /// Sets the value of a `Bytes` field.
     pub fn set_bytes(&mut self, bytes: &[u8]) {
-        self.0.resize(5, 0u8);
-        self.0.extend(bytes);
+        self.data.resize(5, 0u8);
+        self.data.extend(bytes);
     }
 
     /// Set the texts only, keeping the field untouched.
@@ -150,17 +156,17 @@ impl Term {
     /// Removes the value_bytes and set the type code.
     pub fn clear_with_type(&mut self, typ: Type) {
         self.truncate(5);
-        self.0[4] = typ.to_code();
+        self.data[4] = typ.to_code();
     }
 
     /// Truncate the term right after the field and the type code.
     pub fn truncate(&mut self, len: usize) {
-        self.0.truncate(len);
+        self.data.truncate(len);
     }
 
     /// Truncate the term right after the field and the type code.
     pub fn append_bytes(&mut self, bytes: &[u8]) {
-        self.0.extend_from_slice(bytes);
+        self.data.extend_from_slice(bytes);
     }
 }
 
@@ -198,7 +204,7 @@ where
     B: AsRef<[u8]>,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.as_ref().hash(state)
+        self.data.as_ref().hash(state)
     }
 }
 
@@ -208,7 +214,7 @@ where
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
-        Term(data)
+        Term { data }
     }
 
     fn typ_code(&self) -> u8 {
@@ -226,7 +232,7 @@ where
     /// Returns the field.
     pub fn field(&self) -> Field {
         let mut field_id_bytes = [0u8; 4];
-        field_id_bytes.copy_from_slice(&self.0.as_ref()[..4]);
+        field_id_bytes.copy_from_slice(&self.data.as_ref()[..4]);
         Field::from_field_id(u32::from_be_bytes(field_id_bytes))
     }
 
@@ -325,7 +331,7 @@ where
     /// If the term is a u64, its value is encoded according
     /// to `byteorder::LittleEndian`.
     pub fn value_bytes(&self) -> &[u8] {
-        &self.0.as_ref()[5..]
+        &self.data.as_ref()[5..]
     }
 
     /// Returns the underlying `&[u8]`.
@@ -333,7 +339,7 @@ where
     /// Do NOT rely on this byte representation in the index.
     /// This value is likely to change in the future.
     pub(crate) fn as_slice(&self) -> &[u8] {
-        self.0.as_ref()
+        self.data.as_ref()
     }
 }
 
