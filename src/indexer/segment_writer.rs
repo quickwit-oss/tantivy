@@ -224,7 +224,7 @@ impl SegmentWriter {
                     let mut indexing_position = IndexingPosition::default();
 
                     for mut token_stream in token_streams {
-                        assert_eq!(term_buffer.as_slice().len(), 5);
+                        //assert_eq!(term_buffer.as_slice().len(), 5);
                         postings_writer.index_text(
                             doc_id,
                             &mut *token_stream,

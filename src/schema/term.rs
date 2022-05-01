@@ -17,7 +17,7 @@ use crate::DateTime;
 ///
 /// - <value> is,  if this is not the json term, a binary representation specific to the type.
 /// If it is a JSON Term, then it is preprended with the path that leads to this leaf value.
-const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+const FAST_VALUE_TERM_LEN: usize = 8;
 
 /// Separates the different segments of
 /// the json path.
@@ -35,6 +35,8 @@ pub const JSON_END_OF_PATH: u8 = 0u8;
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>> {
     data: B,
+    field: Field,
+    field_type: Type,
 }
 
 impl AsMut<Vec<u8>> for Term {
@@ -45,15 +47,19 @@ impl AsMut<Vec<u8>> for Term {
 
 impl Term {
     pub(crate) fn new() -> Term {
+        Self::with_capacity(32)
+    }
+
+    pub(crate) fn with_capacity(cap: usize) -> Term {
         Term {
-            data: Vec::with_capacity(100),
+            data: Vec::with_capacity(cap),
+            field: Field::from_field_id(0),
+            field_type: Type::Str,
         }
     }
 
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
-        let mut term = Term {
-            data: vec![0u8; FAST_VALUE_TERM_LEN],
-        };
+        let mut term = Term::with_capacity(FAST_VALUE_TERM_LEN);
         term.set_field(T::to_type(), field);
         term.set_u64(val.to_u64());
         term
@@ -91,9 +97,7 @@ impl Term {
     }
 
     fn create_bytes_term(typ: Type, field: Field, bytes: &[u8]) -> Term {
-        let mut term = Term {
-            data: vec![0u8; 5 + bytes.len()],
-        };
+        let mut term = Term::with_capacity(bytes.len());
         term.set_field(typ, field);
         term.data.extend_from_slice(bytes);
         term
@@ -105,10 +109,9 @@ impl Term {
     }
 
     pub(crate) fn set_field(&mut self, typ: Type, field: Field) {
+        self.field = field;
+        self.field_type = typ;
         self.data.clear();
-        self.data
-            .extend_from_slice(field.field_id().to_be_bytes().as_ref());
-        self.data.push(typ.to_code());
     }
 
     /// Sets a u64 value in the term.
@@ -119,11 +122,9 @@ impl Term {
     /// the natural order of the values.
     pub fn set_u64(&mut self, val: u64) {
         self.set_fast_value(val);
-        self.set_bytes(val.to_be_bytes().as_ref());
     }
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
-        self.data.resize(FAST_VALUE_TERM_LEN, 0u8);
         self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
@@ -144,7 +145,7 @@ impl Term {
 
     /// Sets the value of a `Bytes` field.
     pub fn set_bytes(&mut self, bytes: &[u8]) {
-        self.data.resize(5, 0u8);
+        self.data.clear();
         self.data.extend(bytes);
     }
 
@@ -155,8 +156,8 @@ impl Term {
 
     /// Removes the value_bytes and set the type code.
     pub fn clear_with_type(&mut self, typ: Type) {
-        self.truncate(5);
-        self.data[4] = typ.to_code();
+        self.data.clear();
+        self.field_type = typ;
     }
 
     /// Truncate the term right after the field and the type code.
@@ -214,14 +215,19 @@ where
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
-        Term { data }
+        Term {
+            data,
+            field: Field::from_field_id(0),
+            field_type: Type::Str,
+        }
     }
 
     fn typ_code(&self) -> u8 {
-        *self
-            .as_slice()
-            .get(4)
-            .expect("the byte representation is too short")
+        self.field_type as u8
+        //*self
+        //.as_slice()
+        //.get(4)
+        //.expect("the byte representation is too short")
     }
 
     /// Return the type of the term.
@@ -231,55 +237,10 @@ where
 
     /// Returns the field.
     pub fn field(&self) -> Field {
-        let mut field_id_bytes = [0u8; 4];
-        field_id_bytes.copy_from_slice(&self.data.as_ref()[..4]);
-        Field::from_field_id(u32::from_be_bytes(field_id_bytes))
-    }
-
-    /// Returns the `u64` value stored in a term.
-    ///
-    /// Returns None if the term is not of the u64 type, or if the term byte representation
-    /// is invalid.
-    pub fn as_u64(&self) -> Option<u64> {
-        self.get_fast_type::<u64>()
-    }
-
-    fn get_fast_type<T: FastValue>(&self) -> Option<T> {
-        if self.typ() != T::to_type() {
-            return None;
-        }
-        let mut value_bytes = [0u8; 8];
-        let bytes = self.value_bytes();
-        if bytes.len() != 8 {
-            return None;
-        }
-        value_bytes.copy_from_slice(self.value_bytes());
-        let value_u64 = u64::from_be_bytes(value_bytes);
-        Some(FastValue::from_u64(value_u64))
-    }
-
-    /// Returns the `i64` value stored in a term.
-    ///
-    /// Returns None if the term is not of the i64 type, or if the term byte representation
-    /// is invalid.
-    pub fn as_i64(&self) -> Option<i64> {
-        self.get_fast_type::<i64>()
-    }
-
-    /// Returns the `f64` value stored in a term.
-    ///
-    /// Returns None if the term is not of the f64 type, or if the term byte representation
-    /// is invalid.
-    pub fn as_f64(&self) -> Option<f64> {
-        self.get_fast_type::<f64>()
-    }
-
-    /// Returns the `Date` value stored in a term.
-    ///
-    /// Returns None if the term is not of the Date type, or if the term byte representation
-    /// is invalid.
-    pub fn as_date(&self) -> Option<DateTime> {
-        self.get_fast_type::<DateTime>()
+        self.field
+        //let mut field_id_bytes = [0u8; 4];
+        //field_id_bytes.copy_from_slice(&self.data.as_ref()[..4]);
+        //Field::from_field_id(u32::from_be_bytes(field_id_bytes))
     }
 
     /// Returns the text associated with the term.
@@ -287,41 +248,13 @@ where
     /// Returns None if the field is not of string type
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
-        if self.as_slice().len() < 5 {
-            return None;
-        }
+        //if self.as_slice().len() < 5 {
+        //return None;
+        //}
         if self.typ() != Type::Str {
             return None;
         }
         str::from_utf8(self.value_bytes()).ok()
-    }
-
-    /// Returns the facet associated with the term.
-    ///
-    /// Returns None if the field is not of facet type
-    /// or if the bytes are not valid utf-8.
-    pub fn as_facet(&self) -> Option<Facet> {
-        if self.as_slice().len() < 5 {
-            return None;
-        }
-        if self.typ() != Type::Facet {
-            return None;
-        }
-        let facet_encode_str = str::from_utf8(self.value_bytes()).ok()?;
-        Some(Facet::from_encoded_string(facet_encode_str.to_string()))
-    }
-
-    /// Returns the bytes associated with the term.
-    ///
-    /// Returns None if the field is not of bytes type.
-    pub fn as_bytes(&self) -> Option<&[u8]> {
-        if self.as_slice().len() < 5 {
-            return None;
-        }
-        if self.typ() != Type::Bytes {
-            return None;
-        }
-        Some(self.value_bytes())
     }
 
     /// Returns the serialized value of the term.
@@ -331,7 +264,7 @@ where
     /// If the term is a u64, its value is encoded according
     /// to `byteorder::LittleEndian`.
     pub fn value_bytes(&self) -> &[u8] {
-        &self.data.as_ref()[5..]
+        &self.data.as_ref()
     }
 
     /// Returns the underlying `&[u8]`.
@@ -448,6 +381,5 @@ mod tests {
         assert_eq!(term.field(), count_field);
         assert_eq!(term.typ(), Type::U64);
         assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
-        assert_eq!(term.as_u64(), Some(983u64))
     }
 }

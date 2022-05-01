@@ -208,7 +208,7 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
         term: &Term,
         ctx: &mut IndexingContext,
     ) -> UnorderedTermId {
-        debug_assert!(term.as_slice().len() >= 4);
+        //debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
         let arena = &mut ctx.arena;
         self.term_map
