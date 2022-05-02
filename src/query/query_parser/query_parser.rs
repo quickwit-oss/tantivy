@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
@@ -30,7 +30,7 @@ pub enum QueryParserError {
     #[error("Unsupported query: {0}")]
     UnsupportedQuery(String),
     /// The query references a field that is not in the schema
-    #[error("Field does not exists: '{0:?}'")]
+    #[error("Field does not exists: '{0}'")]
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64` or `i64`-field, but the value
     /// is neither.
@@ -53,11 +53,11 @@ pub enum QueryParserError {
     NoDefaultFieldDeclared,
     /// The field searched for is not declared
     /// as indexed in the schema.
-    #[error("The field '{0:?}' is not declared as indexed")]
+    #[error("The field '{0}' is not declared as indexed")]
     FieldNotIndexed(String),
     /// A phrase query was requested for a field that does not
     /// have any positions indexed.
-    #[error("The field '{0:?}' does not have positions indexed")]
+    #[error("The field '{0}' does not have positions indexed")]
     FieldDoesNotHavePositionsIndexed(String),
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
@@ -169,7 +169,7 @@ pub struct QueryParser {
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
     boost: HashMap<Field, Score>,
-    field_names: BTreeSet<String>,
+    field_names: HashMap<String, Field>,
 }
 
 fn all_negative(ast: &LogicalAst) -> bool {
@@ -180,6 +180,31 @@ fn all_negative(ast: &LogicalAst) -> bool {
             .iter()
             .all(|(ref occur, child)| (*occur == Occur::MustNot) || all_negative(child)),
     }
+}
+
+// Returns the position (in byte offsets) of the unescaped '.' in the `field_path`.
+//
+// This function operates directly on bytes (as opposed to codepoint), relying
+// on a encoding property of utf-8 for its correctness.
+fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
+    let mut splitting_dots_pos = Vec::new();
+    let mut escape_state = false;
+    for (pos, b) in field_path.bytes().enumerate() {
+        if escape_state {
+            escape_state = false;
+            continue;
+        }
+        match b {
+            b'\\' => {
+                escape_state = true;
+            }
+            b'.' => {
+                splitting_dots_pos.push(pos);
+            }
+            _ => {}
+        }
+    }
+    splitting_dots_pos
 }
 
 impl QueryParser {
@@ -193,7 +218,7 @@ impl QueryParser {
     ) -> QueryParser {
         let field_names = schema
             .fields()
-            .map(|(_, field_entry)| field_entry.name().to_string())
+            .map(|(field, field_entry)| (field_entry.name().to_string(), field))
             .collect();
         QueryParser {
             schema,
@@ -207,25 +232,18 @@ impl QueryParser {
 
     // Splits a full_path as written in a query, into a field name and a
     // json path.
-    pub(crate) fn split_full_path<'a>(&self, full_path: &'a str) -> (&'a str, &'a str) {
-        if full_path.is_empty() {
-            return ("", "");
+    pub(crate) fn split_full_path<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
+        if let Some(field) = self.field_names.get(full_path) {
+            return Some((*field, ""));
         }
-        if self.field_names.contains(full_path) {
-            return (full_path, "");
-        }
-        let mut result = ("", full_path);
-        let mut cursor = 0;
-        while let Some(pos) = full_path[cursor..].find('.') {
-            cursor += pos;
-            let prefix = &full_path[..cursor];
-            let suffix = &full_path[cursor + 1..];
-            if self.field_names.contains(prefix) {
-                result = (prefix, suffix);
+        let mut splitting_period_pos: Vec<usize> = locate_splitting_dots(full_path);
+        while let Some(pos) = splitting_period_pos.pop() {
+            let (prefix, suffix) = full_path.split_at(pos);
+            if let Some(field) = self.field_names.get(prefix) {
+                return Some((*field, &suffix[1..]));
             }
-            cursor += 1;
         }
-        result
+        None
     }
 
     /// Creates a `QueryParser`, given
@@ -276,12 +294,6 @@ impl QueryParser {
         let user_input_ast = tantivy_query_grammar::parse_query(query)
             .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
         self.compute_logical_ast(user_input_ast)
-    }
-
-    fn resolve_field_name(&self, field_name: &str) -> Result<Field, QueryParserError> {
-        self.schema
-            .get_field(field_name)
-            .ok_or_else(|| QueryParserError::FieldDoesNotExist(String::from(field_name)))
     }
 
     fn compute_logical_ast(
@@ -389,6 +401,12 @@ impl QueryParser {
         let field_name = field_entry.name();
         if !field_type.is_indexed() {
             return Err(QueryParserError::FieldNotIndexed(field_name.to_string()));
+        }
+        if field_type.value_type() != Type::Json && !json_path.is_empty() {
+            let field_name = self.schema.get_field_name(field);
+            return Err(QueryParserError::FieldDoesNotExist(format!(
+                "{field_name}.{json_path}"
+            )));
         }
         match *field_type {
             FieldType::U64(_) => {
@@ -531,37 +549,56 @@ impl QueryParser {
         })
     }
 
-    fn compute_path_triplet_for_literal<'a>(
+    /// Given a literal, returns the list of terms that should be searched.
+    ///
+    /// The terms are identified by a triplet:
+    /// - tantivy field
+    /// - field_path: tantivy has JSON fields. It is possible to target a member of a JSON
+    /// object by naturally extending the json field name with a "." separated field_path
+    /// - field_phrase: the phrase that is being searched.
+    ///
+    /// The literal identifies the targetted field by a so-called *full field path*,
+    /// specified before the ":". (e.g. identity.username:fulmicoton).
+    ///
+    /// The way we split the full field path into (field_name, field_path) can be ambiguous,
+    /// because field_names can contain "." themselves.
+    // For instance if a field is named `one.two` and another one is named `one`,
+    /// should `one.two:three` target `one.two` with field path `` or or `one` with
+    /// the field path `two`.
+    ///
+    /// In this case tantivy, just picks the solution with the longest field name.
+    ///
+    /// Quirk: As a hack for quickwit, we do not split over a dot that appear escaped '\.'.
+    fn compute_path_triplets_for_literal<'a>(
         &self,
         literal: &'a UserInputLiteral,
     ) -> Result<Vec<(Field, &'a str, &'a str)>, QueryParserError> {
-        match &literal.field_name {
-            Some(ref full_path) => {
-                // We need to add terms associated to json default fields.
-                let (field_name, path) = self.split_full_path(full_path);
-                if let Ok(field) = self.resolve_field_name(field_name) {
-                    return Ok(vec![(field, path, literal.phrase.as_str())]);
-                }
-                let triplets: Vec<(Field, &str, &str)> = self
-                    .default_indexed_json_fields()
-                    .map(|json_field| (json_field, full_path.as_str(), literal.phrase.as_str()))
-                    .collect();
-                if triplets.is_empty() {
-                    return Err(QueryParserError::FieldDoesNotExist(full_path.to_string()));
-                }
-                Ok(triplets)
+        let full_path = if let Some(full_path) = &literal.field_name {
+            full_path
+        } else {
+            // The user did not specify any path...
+            // We simply target default fields.
+            if self.default_fields.is_empty() {
+                return Err(QueryParserError::NoDefaultFieldDeclared);
             }
-            None => {
-                if self.default_fields.is_empty() {
-                    return Err(QueryParserError::NoDefaultFieldDeclared);
-                }
-                Ok(self
-                    .default_fields
-                    .iter()
-                    .map(|default_field| (*default_field, "", literal.phrase.as_str()))
-                    .collect::<Vec<(Field, &str, &str)>>())
-            }
+            return Ok(self
+                .default_fields
+                .iter()
+                .map(|default_field| (*default_field, "", literal.phrase.as_str()))
+                .collect::<Vec<(Field, &str, &str)>>());
+        };
+        if let Some((field, path)) = self.split_full_path(full_path) {
+            return Ok(vec![(field, path, literal.phrase.as_str())]);
         }
+        // We need to add terms associated to json default fields.
+        let triplets: Vec<(Field, &str, &str)> = self
+            .default_indexed_json_fields()
+            .map(|json_field| (json_field, full_path.as_str(), literal.phrase.as_str()))
+            .collect();
+        if triplets.is_empty() {
+            return Err(QueryParserError::FieldDoesNotExist(full_path.to_string()));
+        }
+        Ok(triplets)
     }
 
     fn compute_logical_ast_from_leaf(
@@ -571,7 +608,7 @@ impl QueryParser {
         match leaf {
             UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, &str, &str)> =
-                    self.compute_path_triplet_for_literal(&literal)?;
+                    self.compute_path_triplets_for_literal(&literal)?;
                 let mut asts: Vec<LogicalAst> = Vec::new();
                 for (field, json_path, phrase) in term_phrases {
                     for ast in self.compute_logical_ast_for_leaf(field, json_path, phrase)? {
@@ -598,8 +635,9 @@ impl QueryParser {
                         "Range query need to target a specific field.".to_string(),
                     )
                 })?;
-                let (field_name, json_path) = self.split_full_path(&full_path);
-                let field = self.resolve_field_name(field_name)?;
+                let (field, json_path) = self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone()))?;
                 let field_entry = self.schema.get_field_entry(field);
                 let value_type = field_entry.field_type().value_type();
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Range {
@@ -1400,28 +1438,55 @@ mod test {
     }
 
     #[test]
+    fn test_escaped_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field(r#"a\.b"#, STRING);
+        let schema = schema_builder.build();
+        let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
+        let query = query_parser.parse_query(r#"a\.b:hello"#).unwrap();
+        assert_eq!(
+            format!("{:?}", query),
+            "TermQuery(Term(type=Str, field=0, \"hello\"))"
+        );
+    }
+
+    #[test]
     fn test_split_full_path() {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("second", STRING);
         schema_builder.add_text_field("first", STRING);
         schema_builder.add_text_field("first.toto", STRING);
+        schema_builder.add_text_field("first.toto.titi", STRING);
         schema_builder.add_text_field("third.a.b.c", STRING);
         let schema = schema_builder.build();
-        let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
+        let query_parser =
+            QueryParser::new(schema.clone(), Vec::new(), TokenizerManager::default());
         assert_eq!(
             query_parser.split_full_path("first.toto"),
-            ("first.toto", "")
+            Some((schema.get_field("first.toto").unwrap(), ""))
+        );
+        assert_eq!(
+            query_parser.split_full_path("first.toto.bubu"),
+            Some((schema.get_field("first.toto").unwrap(), "bubu"))
+        );
+        assert_eq!(
+            query_parser.split_full_path("first.toto.titi"),
+            Some((schema.get_field("first.toto.titi").unwrap(), ""))
         );
         assert_eq!(
             query_parser.split_full_path("first.titi"),
-            ("first", "titi")
+            Some((schema.get_field("first").unwrap(), "titi"))
         );
-        assert_eq!(query_parser.split_full_path("third"), ("", "third"));
-        assert_eq!(
-            query_parser.split_full_path("hello.toto"),
-            ("", "hello.toto")
-        );
-        assert_eq!(query_parser.split_full_path(""), ("", ""));
-        assert_eq!(query_parser.split_full_path("firsty"), ("", "firsty"));
+        assert_eq!(query_parser.split_full_path("third"), None);
+        assert_eq!(query_parser.split_full_path("hello.toto"), None);
+        assert_eq!(query_parser.split_full_path(""), None);
+        assert_eq!(query_parser.split_full_path("firsty"), None);
+    }
+
+    #[test]
+    fn test_locate_splitting_dots() {
+        assert_eq!(&super::locate_splitting_dots("a.b.c"), &[1, 3]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\.b.c"#), &[4]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\..b.c"#), &[3, 5]);
     }
 }
