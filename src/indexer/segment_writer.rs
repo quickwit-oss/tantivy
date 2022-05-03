@@ -6,8 +6,7 @@ use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
-    compute_table_size, serialize_postings, IndexingContext, IndexingPosition,
-    PerFieldPostingsWriter, PostingsWriter,
+    serialize_postings, IndexingContext, IndexingPosition, PerFieldPostingsWriter, PostingsWriter,
 };
 use crate::schema::{FieldEntry, FieldType, FieldValue, Schema, Term, Value};
 use crate::store::{StoreReader, StoreWriter};
@@ -15,25 +14,6 @@ use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer,
 };
 use crate::{DocId, Document, Opstamp, SegmentComponent};
-
-/// Computes the initial size of the hash table.
-///
-/// Returns the recommended initial table size as a power of 2.
-///
-/// Note this is a very dumb way to compute log2, but it is easier to proofread that way.
-fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
-    let table_memory_upper_bound = per_thread_memory_budget / 3;
-    (10..20) // We cap it at 2^19 = 512K capacity.
-        .map(|power| 1 << power)
-        .take_while(|capacity| compute_table_size(*capacity) < table_memory_upper_bound)
-        .last()
-        .ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!(
-                "per thread memory budget (={per_thread_memory_budget}) is too small. Raise the \
-                 memory budget or lower the number of threads."
-            ))
-        })
-}
 
 fn remap_doc_opstamps(
     opstamps: Vec<Opstamp>,
@@ -78,12 +58,11 @@ impl SegmentWriter {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(
-        memory_budget_in_bytes: usize,
+        _memory_budget_in_bytes: usize,
         segment: Segment,
         schema: Schema,
     ) -> crate::Result<SegmentWriter> {
         let tokenizer_manager = segment.index().tokenizers().clone();
-        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let per_field_text_analyzers = schema
@@ -106,7 +85,7 @@ impl SegmentWriter {
             .collect();
         Ok(SegmentWriter {
             max_doc: 0,
-            ctx: IndexingContext::new(table_size),
+            ctx: IndexingContext::new(),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             segment_serializer,
@@ -224,7 +203,7 @@ impl SegmentWriter {
                     let mut indexing_position = IndexingPosition::default();
 
                     for mut token_stream in token_streams {
-                        //assert_eq!(term_buffer.as_slice().len(), 5);
+                        // assert_eq!(term_buffer.as_slice().len(), 5);
                         postings_writer.index_text(
                             doc_id,
                             &mut *token_stream,
@@ -419,7 +398,6 @@ pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
 
 #[cfg(test)]
 mod tests {
-    use super::compute_initial_table_size;
     use crate::collector::Count;
     use crate::indexer::json_term_writer::JsonTermWriter;
     use crate::postings::TermInfo;
@@ -429,15 +407,6 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED};
-
-    #[test]
-    fn test_hashmap_size() {
-        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
-        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
-        assert_eq!(compute_initial_table_size(10_000_000).unwrap(), 1 << 17);
-        assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
-        assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
-    }
 
     #[test]
     fn test_prepare_for_store() {

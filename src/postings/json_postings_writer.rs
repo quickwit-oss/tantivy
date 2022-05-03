@@ -1,5 +1,6 @@
 use std::io;
 
+use super::stacker::TermHashMap;
 use crate::fastfield::MultiValuedFastFieldWriter;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
@@ -12,8 +13,6 @@ use crate::schema::term::as_json_path_type_value_bytes;
 use crate::schema::Type;
 use crate::tokenizer::TokenStream;
 use crate::{DocId, Term};
-
-use super::stacker::TermHashMap;
 
 #[derive(Default)]
 pub(crate) struct JsonPostingsWriter<Rec: Recorder> {

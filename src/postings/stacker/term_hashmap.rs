@@ -1,19 +1,12 @@
+use std::convert::TryInto;
 use std::{iter, mem, slice};
 
-use byteorder::{ByteOrder, NativeEndian};
 use murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::store;
 use crate::postings::UnorderedTermId;
 use crate::Term;
-
-/// Returns the actual memory size in bytes
-/// required to create a table with a given capacity.
-/// required to create a table of size
-pub(crate) fn compute_table_size(capacity: usize) -> usize {
-    capacity * mem::size_of::<KeyValue>()
-}
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external memory arena.
@@ -52,7 +45,6 @@ impl KeyValue {
 /// or copying the key as long as there is no insert.
 pub struct TermHashMap {
     table: Box<[KeyValue]>,
-    memory_arena: MemoryArena,
     mask: usize,
     occupied: Vec<usize>,
     len: usize,
@@ -82,18 +74,21 @@ impl QuadraticProbing {
     }
 }
 
-pub struct Iter<'a> {
+pub struct Iter<'a, 'm> {
     hashmap: &'a TermHashMap,
+    memory_arena: &'m MemoryArena,
     inner: slice::Iter<'a, usize>,
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = (Term<&'a [u8]>, Addr, UnorderedTermId);
+impl<'a, 'm> Iterator for Iter<'a, 'm> {
+    type Item = (Term<&'m [u8]>, Addr, UnorderedTermId);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
-            let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
+            let (key, offset): (&'m [u8], Addr) = self
+                .hashmap
+                .get_key_value(kv.key_value_addr, self.memory_arena);
             (Term::wrap(key), offset, kv.unordered_term_id)
         })
     }
@@ -113,21 +108,19 @@ impl TermHashMap {
     pub(crate) fn new(table_size: usize) -> TermHashMap {
         assert!(table_size > 0);
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
-        let memory_arena = MemoryArena::new();
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
             .take(table_size_power_of_2)
             .collect();
         TermHashMap {
             table: table.into_boxed_slice(),
-            memory_arena,
             mask: table_size_power_of_2 - 1,
             occupied: Vec::with_capacity(table_size_power_of_2 / 2),
             len: 0,
         }
     }
 
-    pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
-        self.memory_arena.read(addr)
+    pub fn read<Item: Copy + 'static>(&self, addr: Addr, memory_arena: &MemoryArena) -> Item {
+        memory_arena.read(addr)
     }
 
     fn probe(&self, hash: u32) -> QuadraticProbing {
@@ -136,6 +129,8 @@ impl TermHashMap {
 
     pub fn mem_usage(&self) -> usize {
         self.table.len() * mem::size_of::<KeyValue>()
+            + self.occupied.len()
+                * std::mem::size_of_val(&self.occupied.get(0).cloned().unwrap_or_default())
     }
 
     fn is_saturated(&self) -> bool {
@@ -143,16 +138,22 @@ impl TermHashMap {
     }
 
     #[inline]
-    fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
-        let data = self.memory_arena.slice_from(addr);
-        let key_bytes_len = NativeEndian::read_u16(data) as usize;
-        let key_bytes: &[u8] = &data[2..][..key_bytes_len];
+    fn get_key_value<'m>(&self, addr: Addr, memory_arena: &'m MemoryArena) -> (&'m [u8], Addr) {
+        let data = memory_arena.slice_from(addr);
+        let (key_bytes_len_enc, data) = data.split_at(2);
+        let key_bytes_len: u16 = u16::from_ne_bytes(key_bytes_len_enc.try_into().unwrap());
+        let key_bytes: &[u8] = &data[..key_bytes_len as usize];
         (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
     }
 
     #[inline]
-    fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
-        let (stored_key, value_addr) = self.get_key_value(addr);
+    fn get_value_addr_if_key_match(
+        &self,
+        target_key: &[u8],
+        addr: Addr,
+        memory_arena: &mut MemoryArena,
+    ) -> Option<Addr> {
+        let (stored_key, value_addr) = self.get_key_value(addr, memory_arena);
         if stored_key == target_key {
             Some(value_addr)
         } else {
@@ -176,10 +177,11 @@ impl TermHashMap {
         self.len
     }
 
-    pub fn iter(&self) -> Iter<'_> {
+    pub fn iter<'a, 'm>(&'a self, memory_arena: &'m MemoryArena) -> Iter<'a, 'm> {
         Iter {
             inner: self.occupied.iter(),
             hashmap: self,
+            memory_arena,
         }
     }
 
@@ -216,6 +218,7 @@ impl TermHashMap {
     pub fn mutate_or_create<V, TMutator>(
         &mut self,
         key: &[u8],
+        memory_arena: &mut MemoryArena,
         mut updater: TMutator,
     ) -> UnorderedTermId
     where
@@ -226,28 +229,33 @@ impl TermHashMap {
             self.resize();
         }
         let hash = murmurhash2(key);
+
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
+
             if kv.is_empty() {
                 // The key does not exists yet.
                 let val = updater(None);
                 let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
-                let key_addr = self.memory_arena.allocate_space(num_bytes);
+                let key_addr = memory_arena.allocate_space(num_bytes);
                 {
-                    let data = self.memory_arena.slice_mut(key_addr, num_bytes);
-                    NativeEndian::write_u16(data, key.len() as u16);
-                    let stop = 2 + key.len();
-                    data[2..stop].copy_from_slice(key);
+                    let data = memory_arena.slice_mut(key_addr, num_bytes);
+                    let (key_len, data) = data.split_at_mut(2);
+                    key_len.copy_from_slice(&(key.len() as u16).to_le_bytes());
+                    let stop = key.len();
+                    data[..key.len()].copy_from_slice(key);
                     store(&mut data[stop..], val);
                 }
                 return self.set_bucket(hash, key_addr, bucket);
             } else if kv.hash == hash {
-                if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
-                    let v = self.memory_arena.read(val_addr);
+                if let Some(val_addr) =
+                    self.get_value_addr_if_key_match(key, kv.key_value_addr, memory_arena)
+                {
+                    let v = memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
-                    self.memory_arena.write_at(val_addr, new_v);
+                    memory_arena.write_at(val_addr, new_v);
                     return kv.unordered_term_id;
                 }
             }
@@ -261,26 +269,28 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{compute_previous_power_of_two, TermHashMap};
+    use crate::postings::stacker::MemoryArena;
 
     #[test]
     fn test_hash_map() {
+        let mut arena = MemoryArena::new();
         let mut hash_map: TermHashMap = TermHashMap::new(1 << 18);
-        hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
+        hash_map.mutate_or_create(b"abc", &mut arena, |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             3u32
         });
-        hash_map.mutate_or_create(b"abcd", |opt_val: Option<u32>| {
+        hash_map.mutate_or_create(b"abcd", &mut arena, |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             4u32
         });
-        hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
+        hash_map.mutate_or_create(b"abc", &mut arena, |opt_val: Option<u32>| {
             assert_eq!(opt_val, Some(3u32));
             5u32
         });
         let mut vanilla_hash_map = HashMap::new();
-        let iter_values = hash_map.iter();
+        let iter_values = hash_map.iter(&arena);
         for (key, addr, _) in iter_values {
-            let val: u32 = hash_map.memory_arena.read(addr);
+            let val: u32 = arena.read(addr);
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);

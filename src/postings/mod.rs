@@ -26,7 +26,6 @@ pub(crate) use self::postings_writer::{serialize_postings, IndexingPosition, Pos
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
-pub(crate) use self::stacker::compute_table_size;
 pub use self::term_info::TermInfo;
 
 pub(crate) type UnorderedTermId = u64;

@@ -78,9 +78,7 @@ impl Document {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where
-        Facet: From<F>,
-    {
+    where Facet: From<F> {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add_field_value(field, value);

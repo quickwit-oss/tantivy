@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::Range;
 
 use fnv::FnvHashMap;
 
@@ -40,7 +39,7 @@ pub(crate) fn serialize_postings(
 
         let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
             Vec::with_capacity(postings_writer.term_map().len());
-        term_offsets.extend(postings_writer.term_map().iter());
+        term_offsets.extend(postings_writer.term_map().iter(&ctx.arena_terms));
         term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
 
         let field_entry = schema.get_field_entry(field);
@@ -121,7 +120,7 @@ pub(crate) trait PostingsWriter {
         indexing_position: &mut IndexingPosition,
         mut term_id_fast_field_writer_opt: Option<&mut MultiValuedFastFieldWriter>,
     ) {
-        let end_of_path_idx = term_buffer.as_slice().len();
+        let end_of_path_idx = term_buffer.value_bytes().len();
         let mut num_tokens = 0;
         let mut end_position = 0;
         token_stream.process(&mut |token: &Token| {
@@ -183,7 +182,7 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
         term_index: &TermHashMap,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
-        let recorder: Rec = term_index.read(addr);
+        let recorder: Rec = term_index.read(addr, &ctx.arena_terms);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
         serializer.new_term(term.value_bytes(), term_doc_freq)?;
         recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
@@ -208,11 +207,14 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
         term: &Term,
         ctx: &mut IndexingContext,
     ) -> UnorderedTermId {
-        //debug_assert!(term.as_slice().len() >= 4);
+        //debug_assert!(term.value_bytes().len() >= 1);
         self.total_num_tokens += 1;
         let arena = &mut ctx.arena;
-        self.term_map
-            .mutate_or_create(term.as_slice(), |opt_recorder: Option<Rec>| {
+        let arena_terms = &mut ctx.arena_terms;
+        self.term_map.mutate_or_create(
+            term.value_bytes(),
+            arena_terms,
+            |opt_recorder: Option<Rec>| {
                 if let Some(mut recorder) = opt_recorder {
                     let current_doc = recorder.current_doc();
                     if current_doc != doc {
@@ -227,7 +229,8 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
                     recorder.record_position(position, arena);
                     recorder
                 }
-            }) as UnorderedTermId
+            },
+        ) as UnorderedTermId
     }
 
     fn serialize(

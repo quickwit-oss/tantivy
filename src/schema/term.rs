@@ -172,17 +172,15 @@ impl Term {
 }
 
 impl<B> Ord for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_slice().cmp(other.as_slice())
+        self.value_bytes().cmp(other.value_bytes())
     }
 }
 
 impl<B> PartialOrd for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -190,19 +188,17 @@ where
 }
 
 impl<B> PartialEq for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn eq(&self, other: &Self) -> bool {
-        self.as_slice() == other.as_slice()
+        self.value_bytes() == other.value_bytes()
     }
 }
 
 impl<B> Eq for Term<B> where B: AsRef<[u8]> {}
 
 impl<B> Hash for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.data.as_ref().hash(state)
@@ -210,8 +206,7 @@ where
 }
 
 impl<B> Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
@@ -224,10 +219,6 @@ where
 
     fn typ_code(&self) -> u8 {
         self.field_type as u8
-        //*self
-        //.as_slice()
-        //.get(4)
-        //.expect("the byte representation is too short")
     }
 
     /// Return the type of the term.
@@ -238,9 +229,6 @@ where
     /// Returns the field.
     pub fn field(&self) -> Field {
         self.field
-        //let mut field_id_bytes = [0u8; 4];
-        //field_id_bytes.copy_from_slice(&self.data.as_ref()[..4]);
-        //Field::from_field_id(u32::from_be_bytes(field_id_bytes))
     }
 
     /// Returns the text associated with the term.
@@ -248,9 +236,6 @@ where
     /// Returns None if the field is not of string type
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
-        //if self.as_slice().len() < 5 {
-        //return None;
-        //}
         if self.typ() != Type::Str {
             return None;
         }
@@ -265,14 +250,6 @@ where
     /// to `byteorder::LittleEndian`.
     pub fn value_bytes(&self) -> &[u8] {
         &self.data.as_ref()
-    }
-
-    /// Returns the underlying `&[u8]`.
-    ///
-    /// Do NOT rely on this byte representation in the index.
-    /// This value is likely to change in the future.
-    pub(crate) fn as_slice(&self) -> &[u8] {
-        self.data.as_ref()
     }
 }
 
@@ -344,8 +321,7 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
 }
 
 impl<B> fmt::Debug for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let field_id = self.field().field_id();
@@ -380,6 +356,6 @@ mod tests {
         let term = Term::from_field_u64(count_field, 983u64);
         assert_eq!(term.field(), count_field);
         assert_eq!(term.typ(), Type::U64);
-        assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
+        assert_eq!(term.value_bytes().len(), super::FAST_VALUE_TERM_LEN);
     }
 }

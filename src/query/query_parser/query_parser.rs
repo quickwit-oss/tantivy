@@ -718,7 +718,7 @@ fn generate_literals_for_json_object(
     }
     json_term_writer.close_path_and_set_type(Type::Str);
     drop(json_term_writer);
-    let term_num_bytes = term.as_slice().len();
+    let term_num_bytes = term.value_bytes().len();
     let mut token_stream = text_analyzer.token_stream(phrase);
     let mut terms: Vec<(usize, Term)> = Vec::new();
     token_stream.process(&mut |token| {

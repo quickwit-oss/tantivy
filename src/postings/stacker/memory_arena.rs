@@ -24,7 +24,7 @@
 //! stores your object using `ptr::write_unaligned` and `ptr::read_unaligned`.
 use std::{mem, ptr};
 
-const NUM_BITS_PAGE_ADDR: usize = 17;
+const NUM_BITS_PAGE_ADDR: usize = 20;
 const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 
 /// Represents a pointer into the `MemoryArena`
