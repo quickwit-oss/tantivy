@@ -25,7 +25,9 @@ use crossbeam::channel;
 use smallvec::SmallVec;
 
 pub use self::index_writer::IndexWriter;
-pub(crate) use self::json_term_writer::JsonTermWriter;
+pub(crate) use self::json_term_writer::{
+    generate_term_from_json_writer, generate_terms_from_json_writer, JsonTermWriter,
+};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
