@@ -230,8 +230,7 @@ pub enum BucketResult {
 impl BucketResult {
     pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
         let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-
-        Ok(BucketResult::from_intermediate_and_req(empty_bucket, req)?)
+        BucketResult::from_intermediate_and_req(empty_bucket, req)
     }
 
     fn from_intermediate_and_req(
