@@ -1,6 +1,5 @@
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
-use std::io;
 use std::io::Write;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -27,7 +26,7 @@ use crate::indexer::{
     SegmentSerializer,
 };
 use crate::schema::Schema;
-use crate::{FutureResult, Opstamp, TantivyError};
+use crate::{FutureResult, Opstamp};
 
 const NUM_MERGE_THREADS: usize = 4;
 
@@ -73,10 +72,12 @@ fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()>
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
-    fail_point!("save_metas", |msg| Err(TantivyError::from(io::Error::new(
-        io::ErrorKind::Other,
-        msg.unwrap_or_else(|| "Undefined".to_string())
-    ))));
+    fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            msg.unwrap_or_else(|| "Undefined".to_string())
+        )
+    )));
     directory.sync_directory()?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
