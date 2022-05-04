@@ -49,7 +49,6 @@ impl Executor {
         match self {
             Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
             Executor::ThreadPool(pool) => {
-                // let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
                 let args: Vec<A> = args.collect();
                 let num_fruits = args.len();
                 let fruit_receiver = {
