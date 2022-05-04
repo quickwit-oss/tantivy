@@ -199,6 +199,29 @@ fn infer_type_from_str(text: &str) -> TextOrDateTime {
     }
 }
 
+// Tries to infer a JSON type from a string
+pub(crate) fn infer_fast_value_term(
+    json_term_writer: &mut JsonTermWriter,
+    phrase: &str,
+) -> Option<Term> {
+    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
+        let dt_utc = dt.to_offset(UtcOffset::UTC);
+        return Some(generate_term_from_json_writer(
+            json_term_writer,
+            DateTime::from_utc(dt_utc),
+        ));
+    }
+    if let Ok(u64_val) = str::parse::<u64>(phrase) {
+        return Some(generate_term_from_json_writer(json_term_writer, u64_val));
+    }
+    if let Ok(i64_val) = str::parse::<i64>(phrase) {
+        return Some(generate_term_from_json_writer(json_term_writer, i64_val));
+    }
+    if let Ok(f64_val) = str::parse::<f64>(phrase) {
+        return Some(generate_term_from_json_writer(json_term_writer, f64_val));
+    }
+    None
+}
 // helper function to generate a Term from a json fastvalue
 pub(crate) fn generate_term_from_json_writer<T: FastValue>(
     json_term_writer: &mut JsonTermWriter,

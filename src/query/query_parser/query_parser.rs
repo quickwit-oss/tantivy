@@ -7,9 +7,7 @@ use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInp
 
 use super::logical_ast::*;
 use crate::core::Index;
-use crate::indexer::{
-    generate_term_from_json_writer, generate_terms_from_json_writer, JsonTermWriter,
-};
+use crate::indexer::{generate_terms_from_json_writer, infer_fast_value_term, JsonTermWriter};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
     TermQuery,
@@ -18,7 +16,7 @@ use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
-use crate::time::{OffsetDateTime, UtcOffset};
+use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTime, Score};
 
@@ -660,26 +658,6 @@ fn generate_literals_for_str(
         ));
     }
     Ok(Some(LogicalLiteral::Phrase(terms)))
-}
-
-fn infer_fast_value_term(json_term_writer: &mut JsonTermWriter, phrase: &str) -> Option<Term> {
-    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
-        let dt_utc = dt.to_offset(UtcOffset::UTC);
-        return Some(generate_term_from_json_writer(
-            json_term_writer,
-            DateTime::from_utc(dt_utc),
-        ));
-    }
-    if let Ok(u64_val) = str::parse::<u64>(phrase) {
-        return Some(generate_term_from_json_writer(json_term_writer, u64_val));
-    }
-    if let Ok(i64_val) = str::parse::<i64>(phrase) {
-        return Some(generate_term_from_json_writer(json_term_writer, i64_val));
-    }
-    if let Ok(f64_val) = str::parse::<f64>(phrase) {
-        return Some(generate_term_from_json_writer(json_term_writer, f64_val));
-    }
-    None
 }
 
 fn generate_literals_for_json_object(
