@@ -42,6 +42,11 @@ impl TextOptions {
     /// Text fast fields will have the term ids stored in the fast field.
     /// The fast field will be a multivalued fast field.
     ///
+    /// The effective cardinality depends on the tokenizer. When creating fast fields on text
+    /// fields it is recommended to use the "raw" tokenizer, since it will store the original text
+    /// unchanged. The "default" tokenizer will store the terms as lower case and this will be
+    /// reflected in the dictionary.
+    ///
     /// The original text can be retrieved via `ord_to_term` from the dictionary.
     #[must_use]
     pub fn set_fast(mut self) -> TextOptions {

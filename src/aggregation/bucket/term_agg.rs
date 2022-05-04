@@ -81,6 +81,7 @@ pub struct TermsAggregation {
     ///
     /// Should never be smaller than size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(alias = "split_size")]
     pub shard_size: Option<u32>,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
@@ -1201,6 +1202,51 @@ mod tests {
                 "size": 2u64,
                 "segment_size": 2u64,
                 "order": {"_key": "desc"}
+            }
+        }
+        });
+
+        let agg_req_deser: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        assert_eq!(agg_req, agg_req_deser);
+
+        let elasticsearch_compatible_json = json!(
+        {
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id",
+                "split_size": 2u64,
+            }
+        }
+        });
+
+        // test alias shard_size, split_size
+        let agg_req: Aggregations = vec![(
+            "term_agg_test".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    shard_size: Some(2),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_req_deser: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        assert_eq!(agg_req, agg_req_deser);
+
+        let elasticsearch_compatible_json = json!(
+        {
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id",
+                "shard_size": 2u64,
             }
         }
         });
