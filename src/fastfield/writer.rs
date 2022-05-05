@@ -300,7 +300,7 @@ impl IntFastFieldWriter {
     /// If the document has more than one value for the given field,
     /// only the first one is taken in account.
     ///
-    /// Values for string fast fields are skipped.
+    /// Values on text fast fields are skipped.
     pub fn add_document(&mut self, doc: &Document) {
         match doc.get_first(self.field) {
             Some(v) => {

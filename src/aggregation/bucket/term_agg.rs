@@ -97,11 +97,11 @@ pub struct TermsAggregation {
     /// doc_count returned by each shard. It’s the sum of the size of the largest bucket on
     /// each segment that didn’t fit into `shard_size`.
     ///
-    /// Defaults to true when ordering by counts desc.
+    /// Defaults to true when ordering by count desc.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub show_term_doc_count_error: Option<bool>,
 
-    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    /// Filter all terms that are lower than `min_doc_count`. Defaults to 1.
     ///
     /// **Expensive**: When set to 0, this will return all terms in the field.
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -144,7 +144,7 @@ pub(crate) struct TermsAggregationInternal {
     /// Increasing this value is will increase the cost for more accuracy.
     pub segment_size: u32,
 
-    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    /// Filter all terms that are lower than `min_doc_count`. Defaults to 1.
     ///
     /// *Expensive*: When set to 0, this will return all terms in the field.
     pub min_doc_count: u64,
