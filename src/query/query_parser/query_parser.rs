@@ -7,7 +7,9 @@ use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInp
 
 use super::logical_ast::*;
 use crate::core::Index;
-use crate::indexer::{generate_terms_from_json_writer, infer_fast_value_term, JsonTermWriter};
+use crate::indexer::{
+    convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
+};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
     TermQuery,
@@ -671,10 +673,10 @@ fn generate_literals_for_json_object(
     let mut logical_literals = Vec::new();
     let mut term = Term::new();
     let mut json_term_writer = JsonTermWriter::initialize(field, json_path, &mut term);
-    if let Some(term) = infer_fast_value_term(&mut json_term_writer, phrase) {
+    if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
         logical_literals.push(LogicalLiteral::Term(term));
     }
-    let terms = generate_terms_from_json_writer(&mut json_term_writer, phrase, text_analyzer);
+    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, text_analyzer);
     drop(json_term_writer);
     if terms.len() <= 1 {
         for (_, term) in terms {
