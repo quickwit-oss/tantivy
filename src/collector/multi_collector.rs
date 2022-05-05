@@ -5,6 +5,7 @@ use super::{Collector, SegmentCollector};
 use crate::collector::Fruit;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
+/// MultiFruit keeps Fruits from every nested Collector
 pub struct MultiFruit {
     sub_fruits: Vec<Option<Box<dyn Fruit>>>,
 }
@@ -79,6 +80,7 @@ impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector
     }
 }
 
+/// FruitHandle stores reference to the corresponding collector inside MultiCollector
 pub struct FruitHandle<TFruit: Fruit> {
     pos: usize,
     _phantom: PhantomData<TFruit>,

@@ -92,7 +92,7 @@ mod histogram_collector;
 pub use histogram_collector::HistogramCollector;
 
 mod multi_collector;
-pub use self::multi_collector::MultiCollector;
+pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 
 mod top_collector;
 
