@@ -18,7 +18,7 @@ use crate::Occur;
 const SPECIAL_CHARS: &[char] = &[
     '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
 ];
-const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|\~|!|\\|\*| )"#;
+const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|\~|!|\\|\*|\s)"#;
 
 /// Parses a field_name
 /// A field name must have at least one character and be followed by a colon.
@@ -34,7 +34,8 @@ fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
             take_while(|c| !SPECIAL_CHARS.contains(&c)),
         ),
         '\\',
-        satisfy(|c| SPECIAL_CHARS.contains(&c)),
+        satisfy(|_| true), /* if the next character is not a special char, the \ will be treated
+                            * as the \ character. */
     ))
     .skip(char(':'))
     .map(|s| ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string())
@@ -516,14 +517,26 @@ mod test {
     }
 
     #[test]
-    fn test_field_name() -> TestParseResult {
+    fn test_field_name() {
         assert_eq!(
             super::field_name().parse(".my.field.name:a"),
             Ok((".my.field.name".to_string(), "a"))
         );
         assert_eq!(
+            super::field_name().parse(r#"my\　field:a"#),
+            Ok(("my　field".to_string(), "a"))
+        );
+        assert_eq!(
+            super::field_name().parse(r#"にんじん:a"#),
+            Ok(("にんじん".to_string(), "a"))
+        );
+        assert_eq!(
             super::field_name().parse("my\\ field\\ name:a"),
             Ok(("my field name".to_string(), "a"))
+        );
+        assert_eq!(
+            super::field_name().parse(r#"my\field:a"#),
+            Ok((r#"my\field"#.to_string(), "a"))
         );
         assert!(super::field_name().parse("my field:a").is_err());
         assert_eq!(
@@ -534,14 +547,21 @@ mod test {
             super::field_name().parse("my_field_name:a"),
             Ok(("my_field_name".to_string(), "a"))
         );
+        assert_eq!(
+            super::field_name().parse("myfield.b:hello").unwrap(),
+            ("myfield.b".to_string(), "hello")
+        );
+        assert_eq!(
+            super::field_name().parse(r#"myfield\.b:hello"#).unwrap(),
+            (r#"myfield\.b"#.to_string(), "hello")
+        );
         assert!(super::field_name().parse("my_field_name").is_err());
         assert!(super::field_name().parse(":a").is_err());
         assert!(super::field_name().parse("-my_field:a").is_err());
         assert_eq!(
-            super::field_name().parse("_my_field:a")?,
-            ("_my_field".to_string(), "a")
+            super::field_name().parse("_my_field:a"),
+            Ok(("_my_field".to_string(), "a"))
         );
-        Ok(())
     }
 
     #[test]
