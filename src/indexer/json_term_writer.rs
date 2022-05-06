@@ -257,8 +257,11 @@ pub struct JsonTermWriter<'a> {
 }
 
 impl<'a> JsonTermWriter<'a> {
-    // Prepares writing terms for a given field
-    pub fn initialize(field: Field, json_path: &str, term_buffer: &'a mut Term) -> Self {
+    pub fn from_field_and_json_path(
+        field: Field,
+        json_path: &str,
+        term_buffer: &'a mut Term,
+    ) -> Self {
         term_buffer.set_field(Type::Json, field);
         let mut json_term_writer = Self::wrap(term_buffer);
         for segment in json_path.split('.') {
