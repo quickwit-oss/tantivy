@@ -146,7 +146,7 @@ where
 
     pub fn write_key(&mut self, key: &[u8]) {
         // If this is the first key in the block, we use it to
-        // shorten the last term in block in the last block.
+        // shorten the last term in the last block.
         if self.first_ordinal_of_the_block == self.num_terms {
             self.index_builder
                 .shorten_last_block_key_given_next_key(key);
