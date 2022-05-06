@@ -81,8 +81,8 @@ pub struct TermsAggregation {
     ///
     /// Should never be smaller than size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    #[serde(alias = "split_size")]
-    pub shard_size: Option<u32>,
+    #[serde(alias = "shard_size")]
+    pub split_size: Option<u32>,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
     ///
@@ -573,7 +573,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     size: Some(2),
-                    shard_size: Some(2),
+                    split_size: Some(2),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
@@ -1227,7 +1227,7 @@ mod tests {
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
-                    shard_size: Some(2),
+                    split_size: Some(2),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
