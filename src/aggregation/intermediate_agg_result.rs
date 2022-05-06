@@ -24,7 +24,9 @@ use crate::aggregation::bucket::TermsAggregationInternal;
 /// intermediate results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) metrics: Option<VecWithNames<IntermediateMetricResult>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) buckets: Option<VecWithNames<IntermediateBucketResult>>,
 }
 

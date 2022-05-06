@@ -81,7 +81,8 @@ pub struct TermsAggregation {
     ///
     /// Should never be smaller than size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub shard_size: Option<u32>,
+    #[serde(alias = "shard_size")]
+    pub split_size: Option<u32>,
 
     /// The get more accurate results, we fetch more than `size` from each segment.
     ///
@@ -96,11 +97,11 @@ pub struct TermsAggregation {
     /// doc_count returned by each shard. It’s the sum of the size of the largest bucket on
     /// each segment that didn’t fit into `shard_size`.
     ///
-    /// Defaults to true when ordering by counts desc.
+    /// Defaults to true when ordering by count desc.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub show_term_doc_count_error: Option<bool>,
 
-    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    /// Filter all terms that are lower than `min_doc_count`. Defaults to 1.
     ///
     /// **Expensive**: When set to 0, this will return all terms in the field.
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -143,7 +144,7 @@ pub(crate) struct TermsAggregationInternal {
     /// Increasing this value is will increase the cost for more accuracy.
     pub segment_size: u32,
 
-    /// Filter all terms than are lower `min_doc_count`. Defaults to 1.
+    /// Filter all terms that are lower than `min_doc_count`. Defaults to 1.
     ///
     /// *Expensive*: When set to 0, this will return all terms in the field.
     pub min_doc_count: u64,
@@ -572,7 +573,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     size: Some(2),
-                    shard_size: Some(2),
+                    split_size: Some(2),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
@@ -1201,6 +1202,51 @@ mod tests {
                 "size": 2u64,
                 "segment_size": 2u64,
                 "order": {"_key": "desc"}
+            }
+        }
+        });
+
+        let agg_req_deser: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        assert_eq!(agg_req, agg_req_deser);
+
+        let elasticsearch_compatible_json = json!(
+        {
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id",
+                "split_size": 2u64,
+            }
+        }
+        });
+
+        // test alias shard_size, split_size
+        let agg_req: Aggregations = vec![(
+            "term_agg_test".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    split_size: Some(2),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_req_deser: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        assert_eq!(agg_req, agg_req_deser);
+
+        let elasticsearch_compatible_json = json!(
+        {
+        "term_agg_test":{
+            "terms": {
+                "field": "string_id",
+                "shard_size": 2u64,
             }
         }
         });

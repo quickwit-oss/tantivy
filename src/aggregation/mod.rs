@@ -20,7 +20,8 @@
 //!
 //! #### Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type u64, f64 and i64.
+//! Currently aggregations work only on single value fast fields of type u64, f64, i64 and
+//! fast fields on text fields.
 //!
 //! # JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.

@@ -1364,4 +1364,29 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn histogram_invalid_request() -> crate::Result<()> {
+        let index = get_test_index_2_segments(true)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 0.0,
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_res = exec_request(agg_req, &index);
+
+        assert!(agg_res.is_err());
+
+        Ok(())
+    }
 }
