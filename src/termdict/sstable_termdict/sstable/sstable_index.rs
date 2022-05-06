@@ -56,7 +56,7 @@ fn find_shorter_str_in_between(left: &mut Vec<u8>, right: &[u8]) {
     // It is possible to do one character shorter in some case,
     // but it is not worth the extra complexity
     for pos in (common_len + 1)..left.len() {
-        if left[pos] != 255u8 {
+        if left[pos] != u8::MAX {
             left[pos] += 1;
             left.truncate(pos + 1);
             return;
