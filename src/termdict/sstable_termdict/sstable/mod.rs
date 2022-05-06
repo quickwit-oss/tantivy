@@ -145,6 +145,12 @@ where
     }
 
     pub fn write_key(&mut self, key: &[u8]) {
+        // If this is the first key in the block, we use it to
+        // shorten the last term in the last block.
+        if self.first_ordinal_of_the_block == self.num_terms {
+            self.index_builder
+                .shorten_last_block_key_given_next_key(key);
+        }
         let keep_len = common_prefix_len(&self.previous_key, key);
         let add_len = key.len() - keep_len;
         let increasing_keys = add_len > 0 && (self.previous_key.len() == keep_len)
@@ -273,11 +279,12 @@ mod test {
                 33u8, 18u8, 19u8, // keep 1 push 1 | 20
                 17u8, 20u8, 0u8, 0u8, 0u8, 0u8, // no more blocks
                 // index
-                161, 102, 98, 108, 111, 99, 107, 115, 129, 162, 104, 108, 97, 115, 116, 95, 107,
-                101, 121, 130, 17, 20, 106, 98, 108, 111, 99, 107, 95, 97, 100, 100, 114, 162, 106,
-                98, 121, 116, 101, 95, 114, 97, 110, 103, 101, 162, 101, 115, 116, 97, 114, 116, 0,
-                99, 101, 110, 100, 11, 109, 102, 105, 114, 115, 116, 95, 111, 114, 100, 105, 110,
-                97, 108, 0, 15, 0, 0, 0, 0, 0, 0, 0, // offset for the index
+                161, 102, 98, 108, 111, 99, 107, 115, 129, 162, 115, 108, 97, 115, 116, 95, 107,
+                101, 121, 95, 111, 114, 95, 103, 114, 101, 97, 116, 101, 114, 130, 17, 20, 106, 98,
+                108, 111, 99, 107, 95, 97, 100, 100, 114, 162, 106, 98, 121, 116, 101, 95, 114, 97,
+                110, 103, 101, 162, 101, 115, 116, 97, 114, 116, 0, 99, 101, 110, 100, 11, 109,
+                102, 105, 114, 115, 116, 95, 111, 114, 100, 105, 110, 97, 108, 0, 15, 0, 0, 0, 0,
+                0, 0, 0, // offset for the index
                 3u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8 // num terms
             ]
         );
