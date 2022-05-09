@@ -25,6 +25,13 @@ pub struct TokenizerManager {
 }
 
 impl TokenizerManager {
+    /// Creates an empty tokenizer manager.
+    pub fn new() -> Self {
+        Self {
+            tokenizers: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where TextAnalyzer: From<T> {
@@ -52,9 +59,7 @@ impl Default for TokenizerManager {
     /// - en_stem
     /// - ja
     fn default() -> TokenizerManager {
-        let manager = TokenizerManager {
-            tokenizers: Arc::new(RwLock::new(HashMap::new())),
-        };
+        let manager = TokenizerManager::new();
         manager.register("raw", RawTokenizer);
         manager.register(
             "default",

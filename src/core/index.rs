@@ -74,6 +74,7 @@ fn load_metas(
 pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: IndexSettings,
+    tokenizer_manager: TokenizerManager,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -86,6 +87,7 @@ impl IndexBuilder {
         Self {
             schema: None,
             index_settings: IndexSettings::default(),
+            tokenizer_manager: TokenizerManager::default(),
         }
     }
 
@@ -100,6 +102,12 @@ impl IndexBuilder {
     #[must_use]
     pub fn schema(mut self, schema: Schema) -> Self {
         self.schema = Some(schema);
+        self
+    }
+
+    /// Set the tokenizers .
+    pub fn tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
+        self.tokenizer_manager = tokenizers;
         self
     }
 
@@ -154,7 +162,8 @@ impl IndexBuilder {
         if !Index::exists(&*dir)? {
             return self.create(dir);
         }
-        let index = Index::open(dir)?;
+        let mut index = Index::open(dir)?;
+        index.set_tokenizers(self.tokenizer_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             Ok(index)
         } else {
@@ -176,7 +185,8 @@ impl IndexBuilder {
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
         metas.index_settings = self.index_settings;
-        let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
+        let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
+        index.set_tokenizers(self.tokenizer_manager);
         Ok(index)
     }
 }
@@ -304,6 +314,11 @@ impl Index {
         }
     }
 
+    /// Setter for the tokenizer manager.
+    pub fn set_tokenizers(&mut self, tokenizers: TokenizerManager) {
+        self.tokenizers = tokenizers;
+    }
+
     /// Accessor for the tokenizer manager.
     pub fn tokenizers(&self) -> &TokenizerManager {
         &self.tokenizers
@@ -314,20 +329,31 @@ impl Index {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let tokenizer_manager: &TokenizerManager = self.tokenizers();
-        let tokenizer_name_opt: Option<TextAnalyzer> = match field_type {
-            FieldType::Str(text_options) => text_options
-                .get_indexing_options()
-                .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
-                .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name)),
-            _ => None,
+        let indexing_options_opt = match field_type {
+            FieldType::JsonObject(options) => options.get_text_indexing_options(),
+            FieldType::Str(options) => options.get_indexing_options(),
+            _ => {
+                return Err(TantivyError::SchemaError(format!(
+                    "{:?} is not a text field.",
+                    field_entry.name()
+                )))
+            }
         };
-        match tokenizer_name_opt {
-            Some(tokenizer) => Ok(tokenizer),
-            None => Err(TantivyError::SchemaError(format!(
-                "{:?} is not a text field.",
-                field_entry.name()
-            ))),
-        }
+        let indexing_options = indexing_options_opt.ok_or_else(|| {
+            TantivyError::InvalidArgument(format!(
+                "No indexing options set for field {:?}",
+                field_entry
+            ))
+        })?;
+
+        tokenizer_manager
+            .get(indexing_options.tokenizer())
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!(
+                    "No Tokenizer found for field {:?}",
+                    field_entry
+                ))
+            })
     }
 
     /// Create a default `IndexReader` for the given index.
@@ -557,7 +583,8 @@ impl fmt::Debug for Index {
 mod tests {
     use crate::directory::{RamDirectory, WatchCallback};
     use crate::schema::{Field, Schema, INDEXED, TEXT};
-    use crate::{Directory, Index, IndexReader, IndexSettings, ReloadPolicy};
+    use crate::tokenizer::TokenizerManager;
+    use crate::{Directory, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy};
 
     #[test]
     fn test_indexer_for_field() {
@@ -571,6 +598,21 @@ mod tests {
             format!("{:?}", index.tokenizer_for_field(num_likes_field).err()),
             "Some(SchemaError(\"\\\"num_likes\\\" is not a text field.\"))"
         );
+    }
+
+    #[test]
+    fn test_set_tokenizer_manager() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("num_likes", INDEXED);
+        schema_builder.add_text_field("body", TEXT);
+        let schema = schema_builder.build();
+        let index = IndexBuilder::new()
+            // set empty tokenizer manager
+            .tokenizers(TokenizerManager::new())
+            .schema(schema)
+            .create_in_ram()
+            .unwrap();
+        assert!(index.tokenizers().get("raw").is_none());
     }
 
     #[test]
