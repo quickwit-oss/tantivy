@@ -7,7 +7,9 @@ use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInp
 
 use super::logical_ast::*;
 use crate::core::Index;
-use crate::indexer::JsonTermWriter;
+use crate::indexer::{
+    convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
+};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
     TermQuery,
@@ -16,7 +18,7 @@ use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
-use crate::time::{OffsetDateTime, UtcOffset};
+use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTime, Score};
 
@@ -698,30 +700,6 @@ fn generate_literals_for_str(
     Ok(Some(LogicalLiteral::Phrase(terms)))
 }
 
-enum NumValue {
-    U64(u64),
-    I64(i64),
-    F64(f64),
-    DateTime(OffsetDateTime),
-}
-
-fn infer_type_num(phrase: &str) -> Option<NumValue> {
-    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
-        let dt_utc = dt.to_offset(UtcOffset::UTC);
-        return Some(NumValue::DateTime(dt_utc));
-    }
-    if let Ok(u64_val) = str::parse::<u64>(phrase) {
-        return Some(NumValue::U64(u64_val));
-    }
-    if let Ok(i64_val) = str::parse::<i64>(phrase) {
-        return Some(NumValue::I64(i64_val));
-    }
-    if let Ok(f64_val) = str::parse::<f64>(phrase) {
-        return Some(NumValue::F64(f64_val));
-    }
-    None
-}
-
 fn generate_literals_for_json_object(
     field_name: &str,
     field: Field,
@@ -732,38 +710,13 @@ fn generate_literals_for_json_object(
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
     let mut logical_literals = Vec::new();
     let mut term = Term::new();
-    term.set_field(Type::Json, field);
-    let mut json_term_writer = JsonTermWriter::wrap(&mut term);
-    for segment in json_path.split('.') {
-        json_term_writer.push_path_segment(segment);
+    let mut json_term_writer =
+        JsonTermWriter::from_field_and_json_path(field, json_path, &mut term);
+    if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
+        logical_literals.push(LogicalLiteral::Term(term));
     }
-    if let Some(num_value) = infer_type_num(phrase) {
-        match num_value {
-            NumValue::U64(u64_val) => {
-                json_term_writer.set_fast_value(u64_val);
-            }
-            NumValue::I64(i64_val) => {
-                json_term_writer.set_fast_value(i64_val);
-            }
-            NumValue::F64(f64_val) => {
-                json_term_writer.set_fast_value(f64_val);
-            }
-            NumValue::DateTime(dt_val) => {
-                json_term_writer.set_fast_value(DateTime::from_utc(dt_val));
-            }
-        }
-        logical_literals.push(LogicalLiteral::Term(json_term_writer.term().clone()));
-    }
-    json_term_writer.close_path_and_set_type(Type::Str);
+    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, text_analyzer);
     drop(json_term_writer);
-    let term_num_bytes = term.as_slice().len();
-    let mut token_stream = text_analyzer.token_stream(phrase);
-    let mut terms: Vec<(usize, Term)> = Vec::new();
-    token_stream.process(&mut |token| {
-        term.truncate(term_num_bytes);
-        term.append_bytes(token.text.as_bytes());
-        terms.push((token.position, term.clone()));
-    });
     if terms.len() <= 1 {
         for (_, term) in terms {
             logical_literals.push(LogicalLiteral::Term(term));

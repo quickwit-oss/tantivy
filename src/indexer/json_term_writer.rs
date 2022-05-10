@@ -4,7 +4,7 @@ use murmurhash32::murmurhash2;
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
-use crate::schema::Type;
+use crate::schema::{Field, Type};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -199,12 +199,77 @@ fn infer_type_from_str(text: &str) -> TextOrDateTime {
     }
 }
 
+// Tries to infer a JSON type from a string
+pub(crate) fn convert_to_fast_value_and_get_term(
+    json_term_writer: &mut JsonTermWriter,
+    phrase: &str,
+) -> Option<Term> {
+    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
+        let dt_utc = dt.to_offset(UtcOffset::UTC);
+        return Some(set_fastvalue_and_get_term(
+            json_term_writer,
+            DateTime::from_utc(dt_utc),
+        ));
+    }
+    if let Ok(u64_val) = str::parse::<u64>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, u64_val));
+    }
+    if let Ok(i64_val) = str::parse::<i64>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, i64_val));
+    }
+    if let Ok(f64_val) = str::parse::<f64>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, f64_val));
+    }
+    None
+}
+// helper function to generate a Term from a json fastvalue
+pub(crate) fn set_fastvalue_and_get_term<T: FastValue>(
+    json_term_writer: &mut JsonTermWriter,
+    value: T,
+) -> Term {
+    json_term_writer.set_fast_value(value);
+    json_term_writer.term().clone()
+}
+
+// helper function to generate a list of terms with their positions from a textual json value
+pub(crate) fn set_string_and_get_terms(
+    json_term_writer: &mut JsonTermWriter,
+    value: &str,
+    text_analyzer: &TextAnalyzer,
+) -> Vec<(usize, Term)> {
+    let mut positions_and_terms = Vec::<(usize, Term)>::new();
+    json_term_writer.close_path_and_set_type(Type::Str);
+    let term_num_bytes = json_term_writer.term_buffer.as_slice().len();
+    let mut token_stream = text_analyzer.token_stream(value);
+    token_stream.process(&mut |token| {
+        json_term_writer.term_buffer.truncate(term_num_bytes);
+        json_term_writer
+            .term_buffer
+            .append_bytes(token.text.as_bytes());
+        positions_and_terms.push((token.position, json_term_writer.term().clone()));
+    });
+    positions_and_terms
+}
+
 pub struct JsonTermWriter<'a> {
     term_buffer: &'a mut Term,
     path_stack: Vec<usize>,
 }
 
 impl<'a> JsonTermWriter<'a> {
+    pub fn from_field_and_json_path(
+        field: Field,
+        json_path: &str,
+        term_buffer: &'a mut Term,
+    ) -> Self {
+        term_buffer.set_field(Type::Json, field);
+        let mut json_term_writer = Self::wrap(term_buffer);
+        for segment in json_path.split('.') {
+            json_term_writer.push_path_segment(segment);
+        }
+        json_term_writer
+    }
+
     pub fn wrap(term_buffer: &'a mut Term) -> Self {
         term_buffer.clear_with_type(Type::Json);
         let mut path_stack = Vec::with_capacity(10);
