@@ -252,33 +252,27 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        let end_term = if self.has_slop() {
-            self.num_terms
-        } else {
-            self.num_terms - 1
-        };
-        for i in 1..end_term {
+        for i in 1..self.num_terms {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
                     .positions(&mut self.right);
             }
-            intersection_len = if self.has_slop() {
-                intersection_with_slop(
+            if self.has_slop() {
+                intersection_len = intersection_with_slop(
                     &mut self.left[..intersection_len],
                     &self.right[..],
                     self.slop,
-                )
-            } else {
-                intersection(&mut self.left[..intersection_len], &self.right[..])
-            };
+                );
+            } else if i < self.num_terms - 1 {
+                // the intersection for the last term is done by intersection_(count|exists)
+                intersection_len =
+                    intersection(&mut self.left[..intersection_len], &self.right[..]);
+            }
             if intersection_len == 0 {
                 return 0;
             }
         }
-        self.intersection_docset
-            .docset_mut_specialized(self.num_terms - 1)
-            .positions(&mut self.right);
         intersection_len
     }
 
