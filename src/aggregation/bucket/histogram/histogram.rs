@@ -482,14 +482,12 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
                 sub_aggregation: empty_sub_aggregation.clone(),
             },
         })
-        .map(|intermediate_bucket| {
-            BucketEntry::from_intermediate_and_req(intermediate_bucket, sub_aggregation)
-        })
+        .map(|intermediate_bucket| intermediate_bucket.into_final_bucket_entry(sub_aggregation))
         .collect::<crate::Result<Vec<_>>>()
 }
 
 // Convert to BucketEntry
-pub(crate) fn intermediate_buckets_to_final_buckets(
+pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
@@ -503,8 +501,8 @@ pub(crate) fn intermediate_buckets_to_final_buckets(
     } else {
         buckets
             .into_iter()
-            .filter(|bucket| bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, sub_aggregation))
+            .filter(|histogram_bucket| histogram_bucket.doc_count >= histogram_req.min_doc_count())
+            .map(|histogram_bucket| histogram_bucket.into_final_bucket_entry(sub_aggregation))
             .collect::<crate::Result<Vec<_>>>()
     }
 }
@@ -546,7 +544,7 @@ pub(crate) fn generate_buckets_with_opt_minmax(
     let offset = req.offset.unwrap_or(0.0);
     let first_bucket_num = get_bucket_num_f64(min, req.interval, offset) as i64;
     let last_bucket_num = get_bucket_num_f64(max, req.interval, offset) as i64;
-    let mut buckets = vec![];
+    let mut buckets = Vec::with_capacity((first_bucket_num..=last_bucket_num).count());
     for bucket_pos in first_bucket_num..=last_bucket_num {
         let bucket_key = bucket_pos as f64 * req.interval + offset;
         buckets.push(bucket_key);

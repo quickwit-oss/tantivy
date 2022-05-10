@@ -317,7 +317,7 @@ fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> crate::Resu
 }
 
 /// Extends the provided buckets to contain the whole value range, by inserting buckets at the
-/// beginning and end.
+/// beginning and end and filling gaps.
 fn extend_validate_ranges(
     buckets: &[RangeAggregationRange],
     field_type: &Type,
