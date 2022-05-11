@@ -388,8 +388,9 @@ mod binary_serialize {
                     }
                 }
                 JSON_OBJ_CODE => {
-                    let map = serde_json::from_reader(reader)?;
-                    Ok(Value::JsonObject(map))
+                    let mut de = serde_json::Deserializer::from_reader(reader);
+                    let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de)?;
+                    Ok(Value::JsonObject(json_map))
                 }
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
