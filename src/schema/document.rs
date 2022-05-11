@@ -229,7 +229,13 @@ mod tests {
     #[test]
     fn test_doc_serialization_issue() {
         let mut doc = Document::default();
-        doc.add_json_object(Field::from_field_id(0), serde_json::json!({"key": 2u64}).as_object().unwrap().clone());
+        doc.add_json_object(
+            Field::from_field_id(0),
+            serde_json::json!({"key": 2u64})
+                .as_object()
+                .unwrap()
+                .clone(),
+        );
         doc.add_text(Field::from_field_id(1), "hello");
         assert_eq!(doc.field_values().len(), 2);
         let mut payload: Vec<u8> = Vec::new();
