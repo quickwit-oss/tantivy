@@ -175,12 +175,12 @@ pub trait Collector: Sync + Send {
         if let Some(alive_bitset) = reader.alive_bitset() {
             weight.for_each(reader, &mut |doc, score| {
                 if alive_bitset.is_alive(doc) {
-                    segment_collector.collect(doc, score);
+                    segment_collector.collect(doc, score).unwrap(); // TODO
                 }
             })?;
         } else {
             weight.for_each(reader, &mut |doc, score| {
-                segment_collector.collect(doc, score);
+                segment_collector.collect(doc, score).unwrap(); // TODO
             })?;
         }
         Ok(segment_collector.harvest())
@@ -190,10 +190,11 @@ pub trait Collector: Sync + Send {
 impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {
     type Fruit = Option<TSegmentCollector::Fruit>;
 
-    fn collect(&mut self, doc: DocId, score: Score) {
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
         if let Some(segment_collector) = self {
-            segment_collector.collect(doc, score);
+            segment_collector.collect(doc, score)?;
         }
+        Ok(())
     }
 
     fn harvest(self) -> Self::Fruit {
@@ -253,7 +254,7 @@ pub trait SegmentCollector: 'static {
     type Fruit: Fruit;
 
     /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, doc: DocId, score: Score);
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()>;
 
     /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;
@@ -308,9 +309,10 @@ where
 {
     type Fruit = (Left::Fruit, Right::Fruit);
 
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score);
-        self.1.collect(doc, score);
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
+        self.0.collect(doc, score)?;
+        self.1.collect(doc, score)?;
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -372,10 +374,11 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
 
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score);
-        self.1.collect(doc, score);
-        self.2.collect(doc, score);
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
+        self.0.collect(doc, score)?;
+        self.1.collect(doc, score)?;
+        self.2.collect(doc, score)?;
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -446,11 +449,12 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
 
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score);
-        self.1.collect(doc, score);
-        self.2.collect(doc, score);
-        self.3.collect(doc, score);
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
+        self.0.collect(doc, score)?;
+        self.1.collect(doc, score)?;
+        self.2.collect(doc, score)?;
+        self.3.collect(doc, score)?;
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

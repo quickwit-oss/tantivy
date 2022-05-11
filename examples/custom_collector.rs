@@ -102,11 +102,12 @@ struct StatsSegmentCollector {
 impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
-    fn collect(&mut self, doc: u32, _score: Score) {
+    fn collect(&mut self, doc: u32, _score: Score) -> crate::Result<()> {
         let value = self.fast_field_reader.get(doc) as f64;
         self.stats.count += 1;
         self.stats.sum += value;
         self.stats.squared_sum += value * value;
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

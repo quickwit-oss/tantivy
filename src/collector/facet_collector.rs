@@ -333,7 +333,7 @@ impl Collector for FacetCollector {
 impl SegmentCollector for FacetSegmentCollector {
     type Fruit = FacetCounts;
 
-    fn collect(&mut self, doc: DocId, _: Score) {
+    fn collect(&mut self, doc: DocId, _: Score) -> crate::Result<()> {
         self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords_buf {
@@ -345,6 +345,7 @@ impl SegmentCollector for FacetSegmentCollector {
             };
             previous_collapsed_ord = collapsed_ord;
         }
+        Ok(())
     }
 
     /// Returns the results of the collection.

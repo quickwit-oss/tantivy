@@ -132,8 +132,9 @@ impl SegmentCollector for AggregationSegmentCollector {
     type Fruit = crate::Result<IntermediateAggregationResults>;
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
+    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) -> crate::Result<()> {
         self.result.collect(doc, &self.aggs_with_accessor);
+        Ok(())
     }
 
     fn harvest(mut self) -> Self::Fruit {

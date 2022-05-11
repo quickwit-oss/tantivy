@@ -138,9 +138,10 @@ impl Collector for TestCollector {
 impl SegmentCollector for TestSegmentCollector {
     type Fruit = TestFruit;
 
-    fn collect(&mut self, doc: DocId, score: Score) {
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
         self.fruit.docs.push(DocAddress::new(self.segment_id, doc));
         self.fruit.scores.push(score);
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -198,9 +199,10 @@ impl Collector for FastFieldTestCollector {
 impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
-    fn collect(&mut self, doc: DocId, _score: Score) {
+    fn collect(&mut self, doc: DocId, _score: Score) -> crate::Result<()> {
         let val = self.reader.get(doc);
         self.vals.push(val);
+        Ok(())
     }
 
     fn harvest(self) -> Vec<u64> {
@@ -255,9 +257,10 @@ impl Collector for BytesFastFieldTestCollector {
 impl SegmentCollector for BytesFastFieldSegmentCollector {
     type Fruit = Vec<u8>;
 
-    fn collect(&mut self, doc: u32, _score: Score) {
+    fn collect(&mut self, doc: u32, _score: Score) -> crate::Result<()> {
         let data = self.reader.get_bytes(doc);
         self.vals.extend(data);
+        Ok(())
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

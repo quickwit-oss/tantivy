@@ -93,9 +93,10 @@ where
 {
     type Fruit = Vec<(TScore, DocAddress)>;
 
-    fn collect(&mut self, doc: DocId, score: Score) {
+    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
         let score = self.segment_scorer.score(doc, score);
         self.segment_collector.collect(doc, score);
+        Ok(())
     }
 
     fn harvest(self) -> Vec<(TScore, DocAddress)> {
