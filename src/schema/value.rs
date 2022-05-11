@@ -388,8 +388,16 @@ mod binary_serialize {
                     }
                 }
                 JSON_OBJ_CODE => {
-                    let map = serde_json::from_reader(reader)?;
-                    Ok(Value::JsonObject(map))
+                    // As explained in
+                    // https://docs.serde.rs/serde_json/fn.from_reader.html
+                    //
+                    // `T::from_reader(..)` expects EOF after reading the object,
+                    // which is not what we want here.
+                    //
+                    // For this reason we need to create our own `Deserializer`.
+                    let mut de = serde_json::Deserializer::from_reader(reader);
+                    let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de)?;
+                    Ok(Value::JsonObject(json_map))
                 }
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
