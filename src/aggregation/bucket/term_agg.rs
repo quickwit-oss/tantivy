@@ -246,8 +246,7 @@ impl TermBuckets {
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
         blueprint: &Option<SegmentAggregationResultsCollector>,
-    ) {
-        // self.ensure_vec_exists(term_ids);
+    ) -> crate::Result<()> {
         for &term_id in term_ids {
             let entry = self
                 .entries
@@ -255,17 +254,19 @@ impl TermBuckets {
                 .or_insert_with(|| TermBucketEntry::from_blueprint(blueprint));
             entry.doc_count += 1;
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.collect(doc, bucket_with_accessor);
+                sub_aggregations.collect(doc, bucket_with_accessor)?;
             }
         }
+        Ok(())
     }
 
-    fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) {
+    fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         for entry in &mut self.entries.values_mut() {
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.flush_staged_docs(agg_with_accessor, false);
+                sub_aggregations.flush_staged_docs(agg_with_accessor, false)?;
             }
         }
+        Ok(())
     }
 }
 
@@ -421,7 +422,7 @@ impl SegmentTermCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         let accessor = bucket_with_accessor
             .accessor
             .as_multi()
@@ -442,25 +443,25 @@ impl SegmentTermCollector {
                 docs[0],
                 &bucket_with_accessor.sub_aggregation,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals2,
                 docs[1],
                 &bucket_with_accessor.sub_aggregation,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals3,
                 docs[2],
                 &bucket_with_accessor.sub_aggregation,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals4,
                 docs[3],
                 &bucket_with_accessor.sub_aggregation,
                 &self.blueprint,
-            );
+            )?;
         }
         for &doc in iter.remainder() {
             accessor.get_vals(doc, &mut vals1);
@@ -470,12 +471,13 @@ impl SegmentTermCollector {
                 doc,
                 &bucket_with_accessor.sub_aggregation,
                 &self.blueprint,
-            );
+            )?;
         }
         if force_flush {
             self.term_buckets
-                .force_flush(&bucket_with_accessor.sub_aggregation);
+                .force_flush(&bucket_with_accessor.sub_aggregation)?;
         }
+        Ok(())
     }
 }
 

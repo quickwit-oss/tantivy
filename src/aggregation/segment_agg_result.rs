@@ -115,21 +115,22 @@ impl SegmentAggregationResultsCollector {
         &mut self,
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
         if self.num_staged_docs == self.staged_docs.len() {
-            self.flush_staged_docs(agg_with_accessor, false);
+            self.flush_staged_docs(agg_with_accessor, false)?;
         }
+        Ok(())
     }
 
     pub(crate) fn flush_staged_docs(
         &mut self,
         agg_with_accessor: &AggregationsWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         if self.num_staged_docs == 0 {
-            return;
+            return Ok(());
         }
         if let Some(metrics) = &mut self.metrics {
             for (collector, agg_with_accessor) in
@@ -148,11 +149,12 @@ impl SegmentAggregationResultsCollector {
                     &self.staged_docs[..self.num_staged_docs],
                     agg_with_accessor,
                     force_flush,
-                );
+                )?;
             }
         }
 
         self.num_staged_docs = 0;
+        Ok(())
     }
 }
 
@@ -256,17 +258,18 @@ impl SegmentBucketResultCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect_block(doc, bucket_with_accessor, force_flush);
+                range.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
             SegmentBucketResultCollector::Histogram(histogram) => {
-                histogram.collect_block(doc, bucket_with_accessor, force_flush)
+                histogram.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
             SegmentBucketResultCollector::Terms(terms) => {
-                terms.collect_block(doc, bucket_with_accessor, force_flush)
+                terms.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
         }
+        Ok(())
     }
 }

@@ -311,7 +311,7 @@ impl SegmentHistogramCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         let bounds = self.bounds;
         let interval = self.interval;
         let offset = self.offset;
@@ -341,28 +341,28 @@ impl SegmentHistogramCollector {
                 bucket_pos0,
                 docs[0],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val1,
                 &bounds,
                 bucket_pos1,
                 docs[1],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val2,
                 &bounds,
                 bucket_pos2,
                 docs[2],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val3,
                 &bounds,
                 bucket_pos3,
                 docs[3],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
         }
         for doc in iter.remainder() {
             let val = f64_from_fastfield_u64(accessor.get(*doc), &self.field_type);
@@ -376,16 +376,17 @@ impl SegmentHistogramCollector {
                 self.buckets[bucket_pos].key,
                 get_bucket_val(val, self.interval, self.offset) as f64
             );
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
                 for sub_aggregation in sub_aggregations {
                     sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush)?;
                 }
             }
         }
+        Ok(())
     }
 
     #[inline]
@@ -396,15 +397,16 @@ impl SegmentHistogramCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         if bounds.contains(val) {
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
                 get_bucket_val(val, self.interval, self.offset) as f64
             );
 
-            self.increment_bucket(bucket_pos, doc, bucket_with_accessor);
+            self.increment_bucket(bucket_pos, doc, bucket_with_accessor)?;
         }
+        Ok(())
     }
 
     #[inline]
@@ -413,12 +415,13 @@ impl SegmentHistogramCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         let bucket = &mut self.buckets[bucket_pos];
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
-            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor);
+            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor)?;
         }
+        Ok(())
     }
 
     fn f64_from_fastfield_u64(&self, val: u64) -> f64 {

@@ -133,13 +133,13 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) -> crate::Result<()> {
-        self.result.collect(doc, &self.aggs_with_accessor);
+        self.result.collect(doc, &self.aggs_with_accessor)?;
         Ok(())
     }
 
     fn harvest(mut self) -> Self::Fruit {
         self.result
-            .flush_staged_docs(&self.aggs_with_accessor, true);
+            .flush_staged_docs(&self.aggs_with_accessor, true)?;
         self.result
             .into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }

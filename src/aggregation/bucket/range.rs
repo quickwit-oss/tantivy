@@ -224,7 +224,7 @@ impl SegmentRangeCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         let mut iter = doc.chunks_exact(4);
         let accessor = bucket_with_accessor
             .accessor
@@ -240,24 +240,25 @@ impl SegmentRangeCollector {
             let bucket_pos3 = self.get_bucket_pos(val3);
             let bucket_pos4 = self.get_bucket_pos(val4);
 
-            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation)?;
+            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation)?;
+            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation)?;
+            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
         }
         for doc in iter.remainder() {
             let val = accessor.get(*doc);
             let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             for bucket in &mut self.buckets {
                 if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
                     sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush)?;
                 }
             }
         }
+        Ok(())
     }
 
     #[inline]
@@ -266,13 +267,14 @@ impl SegmentRangeCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         let bucket = &mut self.buckets[bucket_pos];
 
         bucket.bucket.doc_count += 1;
         if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-            sub_aggregation.collect(doc, bucket_with_accessor);
+            sub_aggregation.collect(doc, bucket_with_accessor)?;
         }
+        Ok(())
     }
 
     #[inline]
