@@ -28,7 +28,7 @@
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
-//! let collector = AggregationCollector::from_aggs(agg_req);
+//! let collector = AggregationCollector::from_aggs(agg_req, None);
 //! let searcher = reader.searcher();
 //! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
@@ -68,7 +68,7 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req);
+//!     let collector = AggregationCollector::from_aggs(agg_req, None);
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
@@ -358,7 +358,7 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req);
+        let collector = AggregationCollector::from_aggs(agg_req, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -547,7 +547,7 @@ mod tests {
                 .unwrap();
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
@@ -555,7 +555,7 @@ mod tests {
                 .into_final_bucket_result(agg_req)
                 .unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req);
+            let collector = AggregationCollector::from_aggs(agg_req, None);
 
             let searcher = reader.searcher();
             searcher.search(&AllQuery, &collector).unwrap()
@@ -792,7 +792,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(field_names, vec!["text".to_string()].into_iter().collect());
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             let res = searcher.search(&term_query, &collector).unwrap();
@@ -991,7 +991,7 @@ mod tests {
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
             res.into_final_bucket_result(agg_req.clone()).unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req.clone());
+            let collector = AggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
@@ -1049,7 +1049,7 @@ mod tests {
         );
 
         // Test empty result set
-        let collector = AggregationCollector::from_aggs(agg_req);
+        let collector = AggregationCollector::from_aggs(agg_req, None);
         let searcher = reader.searcher();
         searcher.search(&query_with_no_hits, &collector).unwrap();
 
@@ -1114,7 +1114,7 @@ mod tests {
             .into_iter()
             .collect();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1);
+            let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
             let searcher = reader.searcher();
 
@@ -1227,7 +1227,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1258,7 +1258,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1289,7 +1289,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1328,7 +1328,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1357,7 +1357,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req);
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1386,7 +1386,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req);
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1422,7 +1422,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1457,7 +1457,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1496,7 +1496,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1526,7 +1526,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1582,7 +1582,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =

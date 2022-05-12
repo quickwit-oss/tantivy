@@ -35,7 +35,7 @@ pub struct IntermediateAggregationResults {
 }
 
 impl IntermediateAggregationResults {
-    /// Convert and intermediate result and its aggregation request to the final result
+    /// Convert intermediate result and its aggregation request to the final result.
     pub(crate) fn into_final_bucket_result(
         self,
         req: Aggregations,
@@ -43,7 +43,7 @@ impl IntermediateAggregationResults {
         self.into_final_bucket_result_internal(&(req.into()))
     }
 
-    /// Convert and intermediate result and its aggregation request to the final result
+    /// Convert intermediate result and its aggregation request to the final result.
     ///
     /// Internal function, AggregationsInternal is used instead Aggregations, which is optimized
     /// for internal processing, by splitting metric and buckets into seperate groups.

@@ -11,9 +11,7 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    validate_bucket_count, SegmentAggregationResultsCollector,
-};
+use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
 use crate::error::DataCorruption;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
@@ -246,23 +244,23 @@ impl TermBuckets {
         &mut self,
         term_ids: &[u64],
         doc: DocId,
-        bucket_with_accessor: &BucketAggregationWithAccessor,
+        sub_aggregation: &AggregationsWithAccessor,
+        bucket_count: &BucketCount,
         blueprint: &Option<SegmentAggregationResultsCollector>,
     ) -> crate::Result<()> {
         for &term_id in term_ids {
             let entry = self.entries.entry(term_id as u32).or_insert_with(|| {
-                bucket_with_accessor
-                    .bucket_count
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                bucket_count.add_count(1);
 
                 TermBucketEntry::from_blueprint(blueprint)
             });
             entry.doc_count += 1;
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.collect(doc, &bucket_with_accessor.sub_aggregation)?;
+                sub_aggregations.collect(doc, &sub_aggregation)?;
             }
         }
-        validate_bucket_count(&bucket_with_accessor.bucket_count)?;
+        bucket_count.validate_bucket_count()?;
+
         Ok(())
     }
 
@@ -447,25 +445,29 @@ impl SegmentTermCollector {
             self.term_buckets.increment_bucket(
                 &vals1,
                 docs[0],
-                bucket_with_accessor,
+                &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals2,
                 docs[1],
-                bucket_with_accessor,
+                &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals3,
                 docs[2],
-                bucket_with_accessor,
+                &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals4,
                 docs[3],
-                bucket_with_accessor,
+                &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
         }
@@ -475,7 +477,8 @@ impl SegmentTermCollector {
             self.term_buckets.increment_bucket(
                 &vals1,
                 doc,
-                bucket_with_accessor,
+                &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
         }
@@ -1326,9 +1329,15 @@ mod bench {
         let mut collector = get_collector_with_buckets(total_terms);
         let vals = get_rand_terms(total_terms, num_terms);
         let aggregations_with_accessor: AggregationsWithAccessor = Default::default();
+        let bucket_count: BucketCount = BucketCount {
+            bucket_count: Default::default(),
+            max_bucket_count: 1_000_001u32,
+        };
         b.iter(|| {
             for &val in &vals {
-                collector.increment_bucket(&[val], 0, &aggregations_with_accessor, &None);
+                collector
+                    .increment_bucket(&[val], 0, &aggregations_with_accessor, &bucket_count, &None)
+                    .unwrap();
             }
         })
     }

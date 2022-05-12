@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 use std::ops::Range;
-use std::rc::Rc;
-use std::sync::atomic::AtomicU32;
 
 use fnv::FnvHashMap;
 use serde::{Deserialize, Serialize};
@@ -12,9 +10,7 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    validate_bucket_count, SegmentAggregationResultsCollector,
-};
+use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key, SerializedKey};
 use crate::fastfield::FastFieldReader;
 use crate::schema::Type;
@@ -179,7 +175,7 @@ impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
-        bucket_count: &Rc<AtomicU32>,
+        bucket_count: &BucketCount,
         field_type: Type,
     ) -> crate::Result<Self> {
         // The range input on the request is f64.
@@ -218,8 +214,8 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        bucket_count.fetch_add(buckets.len() as u32, std::sync::atomic::Ordering::Relaxed);
-        validate_bucket_count(bucket_count)?;
+        bucket_count.add_count(buckets.len() as u32);
+        bucket_count.validate_bucket_count()?;
 
         Ok(SegmentRangeCollector {
             buckets,
@@ -438,7 +434,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req);
+        let collector = AggregationCollector::from_aggs(agg_req, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();

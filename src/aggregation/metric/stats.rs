@@ -222,7 +222,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -299,7 +299,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();

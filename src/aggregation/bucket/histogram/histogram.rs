@@ -13,9 +13,7 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
-use crate::aggregation::segment_agg_result::{
-    validate_bucket_count, SegmentAggregationResultsCollector,
-};
+use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
@@ -254,8 +252,8 @@ impl SegmentHistogramCollector {
 
         agg_with_accessor
             .bucket_count
-            .fetch_add(buckets.len() as u32, std::sync::atomic::Ordering::Relaxed);
-        validate_bucket_count(&agg_with_accessor.bucket_count)?;
+            .add_count(buckets.len() as u32);
+        agg_with_accessor.bucket_count.validate_bucket_count()?;
 
         Ok(IntermediateBucketResult::Histogram { buckets })
     }
