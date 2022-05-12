@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 use std::ops::Range;
+use std::rc::Rc;
+use std::sync::atomic::AtomicU32;
 
+use fnv::FnvHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
@@ -9,8 +12,10 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
+use crate::aggregation::segment_agg_result::{
+    validate_bucket_count, SegmentAggregationResultsCollector,
+};
+use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key, SerializedKey};
 use crate::fastfield::FastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
@@ -153,7 +158,7 @@ impl SegmentRangeCollector {
     ) -> crate::Result<IntermediateBucketResult> {
         let field_type = self.field_type;
 
-        let buckets = self
+        let buckets: FnvHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {
@@ -174,12 +179,13 @@ impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
+        bucket_count: &Rc<AtomicU32>,
         field_type: Type,
     ) -> crate::Result<Self> {
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
-        let buckets = extend_validate_ranges(&req.ranges, &field_type)?
+        let buckets: Vec<_> = extend_validate_ranges(&req.ranges, &field_type)?
             .iter()
             .map(|range| {
                 let to = if range.end == u64::MAX {
@@ -211,6 +217,9 @@ impl SegmentRangeCollector {
                 })
             })
             .collect::<crate::Result<_>>()?;
+
+        bucket_count.fetch_add(buckets.len() as u32, std::sync::atomic::Ordering::Relaxed);
+        validate_bucket_count(bucket_count)?;
 
         Ok(SegmentRangeCollector {
             buckets,
@@ -403,8 +412,13 @@ mod tests {
             ranges,
         };
 
-        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type)
-            .expect("unexpected error")
+        SegmentRangeCollector::from_req_and_validate(
+            &req,
+            &Default::default(),
+            &Default::default(),
+            field_type,
+        )
+        .expect("unexpected error")
     }
 
     #[test]

@@ -49,10 +49,10 @@ impl Weight for TermWeight {
     fn for_each(
         &self,
         reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId, Score),
+        callback: &mut dyn FnMut(DocId, Score) -> crate::Result<()>,
     ) -> crate::Result<()> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
-        for_each_scorer(&mut scorer, callback);
+        for_each_scorer(&mut scorer, callback)?;
         Ok(())
     }
 

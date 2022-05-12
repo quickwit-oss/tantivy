@@ -417,7 +417,9 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
-                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::Basic)
+                    .set_fieldnorms(false),
             )
             .set_fast()
             .set_stored();
@@ -435,7 +437,8 @@ mod tests {
         );
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_for_tests()?;
+            // let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
             for values in segment_and_values {
                 for (i, term) in values {
                     let i = *i;
@@ -457,9 +460,11 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
-            index_writer.merge(&segment_ids).wait()?;
-            index_writer.wait_merging_threads()?;
+            if segment_ids.len() > 1 {
+                let mut index_writer = index.writer_for_tests()?;
+                index_writer.merge(&segment_ids).wait()?;
+                index_writer.wait_merging_threads()?;
+            }
         }
 
         Ok(index)

@@ -102,7 +102,7 @@ struct StatsSegmentCollector {
 impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
-    fn collect(&mut self, doc: u32, _score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: u32, _score: Score) -> tantivy::Result<()> {
         let value = self.fast_field_reader.get(doc) as f64;
         self.stats.count += 1;
         self.stats.sum += value;

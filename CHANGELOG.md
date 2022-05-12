@@ -11,6 +11,7 @@ Unreleased
 - Add [histogram](https://github.com/quickwit-oss/tantivy/pull/1306) aggregation (@PSeitz)
 - Add support for fastfield on text fields (@PSeitz)
 - Add terms aggregation (@PSeitz)
+- API Change: `SegmentCollector.collect` changed to return a `Result`. 
 
 Tantivy 0.17
 ================================

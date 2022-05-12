@@ -62,6 +62,7 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) field_type: Type,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
+    pub(crate) bucket_count: Rc<AtomicU32>,
 }
 
 impl BucketAggregationWithAccessor {
@@ -69,6 +70,7 @@ impl BucketAggregationWithAccessor {
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
+        bucket_count: Rc<AtomicU32>,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let mut inverted_index = None;
         let (accessor, field_type) = match &bucket {
@@ -97,6 +99,7 @@ impl BucketAggregationWithAccessor {
             sub_aggregation: get_aggs_with_accessor_and_validate(&sub_aggregation, reader)?,
             bucket_agg: bucket.clone(),
             inverted_index,
+            bucket_count,
         })
     }
 }
@@ -137,6 +140,7 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
 ) -> crate::Result<AggregationsWithAccessor> {
+    let bucket_count: Rc<AtomicU32> = Default::default();
     let mut metrics = vec![];
     let mut buckets = vec![];
     for (key, agg) in aggs.iter() {
@@ -147,6 +151,7 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
+                    Rc::clone(&bucket_count),
                 )?,
             )),
             Aggregation::Metric(metric) => metrics.push((

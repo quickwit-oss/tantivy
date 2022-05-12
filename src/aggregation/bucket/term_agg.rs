@@ -11,7 +11,9 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::aggregation::segment_agg_result::{
+    validate_bucket_count, SegmentAggregationResultsCollector,
+};
 use crate::error::DataCorruption;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
@@ -244,19 +246,23 @@ impl TermBuckets {
         &mut self,
         term_ids: &[u64],
         doc: DocId,
-        bucket_with_accessor: &AggregationsWithAccessor,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
         blueprint: &Option<SegmentAggregationResultsCollector>,
     ) -> crate::Result<()> {
         for &term_id in term_ids {
-            let entry = self
-                .entries
-                .entry(term_id as u32)
-                .or_insert_with(|| TermBucketEntry::from_blueprint(blueprint));
+            let entry = self.entries.entry(term_id as u32).or_insert_with(|| {
+                bucket_with_accessor
+                    .bucket_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                TermBucketEntry::from_blueprint(blueprint)
+            });
             entry.doc_count += 1;
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.collect(doc, bucket_with_accessor)?;
+                sub_aggregations.collect(doc, &bucket_with_accessor.sub_aggregation)?;
             }
         }
+        validate_bucket_count(&bucket_with_accessor.bucket_count)?;
         Ok(())
     }
 
@@ -441,25 +447,25 @@ impl SegmentTermCollector {
             self.term_buckets.increment_bucket(
                 &vals1,
                 docs[0],
-                &bucket_with_accessor.sub_aggregation,
+                bucket_with_accessor,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals2,
                 docs[1],
-                &bucket_with_accessor.sub_aggregation,
+                bucket_with_accessor,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals3,
                 docs[2],
-                &bucket_with_accessor.sub_aggregation,
+                bucket_with_accessor,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
                 &vals4,
                 docs[3],
-                &bucket_with_accessor.sub_aggregation,
+                bucket_with_accessor,
                 &self.blueprint,
             )?;
         }
@@ -469,7 +475,7 @@ impl SegmentTermCollector {
             self.term_buckets.increment_bucket(
                 &vals1,
                 doc,
-                &bucket_with_accessor.sub_aggregation,
+                bucket_with_accessor,
                 &self.blueprint,
             )?;
         }
@@ -1171,6 +1177,33 @@ mod tests {
             res["my_texts"]["doc_count_error_upper_bound"],
             serde_json::Value::Null
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_term_bucket_limit() -> crate::Result<()> {
+        let terms: Vec<String> = (0..100_000).map(|el| el.to_string()).collect();
+        let terms_per_segment = vec![terms.iter().map(|el| el.as_str()).collect()];
+
+        let index = get_test_index_from_terms(true, &terms_per_segment)?;
+
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    min_doc_count: Some(0),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None);
+        assert!(res.is_err());
 
         Ok(())
     }

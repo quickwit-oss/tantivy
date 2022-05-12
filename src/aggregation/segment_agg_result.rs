@@ -4,6 +4,8 @@
 //! merging.
 
 use std::fmt::Debug;
+use std::rc::Rc;
+use std::sync::atomic::AtomicU32;
 
 use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
@@ -16,7 +18,7 @@ use super::metric::{
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
-use crate::DocId;
+use crate::{DocId, TantivyError};
 
 pub(crate) const DOC_BLOCK_SIZE: usize = 64;
 pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
@@ -236,6 +238,7 @@ impl SegmentBucketResultCollector {
                 Ok(Self::Range(SegmentRangeCollector::from_req_and_validate(
                     range_req,
                     &req.sub_aggregation,
+                    &req.bucket_count,
                     req.field_type,
                 )?))
             }
@@ -272,4 +275,13 @@ impl SegmentBucketResultCollector {
         }
         Ok(())
     }
+}
+
+pub(crate) fn validate_bucket_count(bucket_count: &Rc<AtomicU32>) -> crate::Result<()> {
+    if bucket_count.load(std::sync::atomic::Ordering::Relaxed) > 65000 {
+        return Err(TantivyError::InvalidArgument(
+            "Aborting aggregation because too many buckets were created".to_string(),
+        ));
+    }
+    Ok(())
 }
