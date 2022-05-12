@@ -184,6 +184,66 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     count
 }
 
+fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    let mut count = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_index < left_len && right_index < right_len {
+        let left_val = left[left_index];
+        let right_val = right[right_index];
+        let right_slop = if right_val >= slop {
+            right_val - slop
+        } else {
+            0
+        };
+
+        if left_val < right_slop {
+            left_index += 1;
+        } else if right_slop <= left_val && left_val <= right_val {
+            while left_index + 1 < left_len {
+                let next_left_val = left[left_index + 1];
+                if next_left_val > right_val {
+                    break;
+                }
+                left_index += 1;
+            }
+            count += 1;
+            left_index += 1;
+            right_index += 1;
+        } else if left_val > right_val {
+            right_index += 1;
+        }
+    }
+    count
+}
+
+fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_index < left_len && right_index < right_len {
+        let left_val = left[left_index];
+        let right_val = right[right_index];
+        let right_slop = if right_val >= slop {
+            right_val - slop
+        } else {
+            0
+        };
+
+        if left_val < right_slop {
+            left_index += 1;
+        } else if right_slop <= left_val && left_val <= right_val {
+            return true;
+        } else if left_val > right_val {
+            right_index += 1;
+        }
+    }
+    return false;
+}
+
 impl<TPostings: Postings> PhraseScorer<TPostings> {
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
@@ -237,11 +297,25 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_exists(&mut self) -> bool {
         let intersection_len = self.compute_phrase_match();
+        if self.has_slop() {
+            return intersection_exists_with_slop(
+                &self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            );
+        }
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
         let intersection_len = self.compute_phrase_match();
+        if self.has_slop() {
+            return intersection_count_with_slop(
+                &self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            ) as u32;
+        }
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 
@@ -252,27 +326,28 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_terms {
+        for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
                     .positions(&mut self.right);
             }
-            if self.has_slop() {
-                intersection_len = intersection_with_slop(
+            intersection_len = if self.has_slop() {
+                intersection_with_slop(
                     &mut self.left[..intersection_len],
                     &self.right[..],
                     self.slop,
-                );
-            } else if i < self.num_terms - 1 {
-                // the intersection for the last term is done by intersection_(count|exists)
-                intersection_len =
-                    intersection(&mut self.left[..intersection_len], &self.right[..]);
-            }
+                )
+            } else {
+                intersection(&mut self.left[..intersection_len], &self.right[..])
+            };
             if intersection_len == 0 {
                 return 0;
             }
         }
+        self.intersection_docset
+            .docset_mut_specialized(self.num_terms - 1)
+            .positions(&mut self.right);
         intersection_len
     }
 
