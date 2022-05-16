@@ -21,17 +21,51 @@ const LRU_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
-type BlockCache = Arc<Mutex<LruCache<usize, Block>>>;
-
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
     compressor: Compressor,
     data: FileSlice,
-    cache: BlockCache,
-    cache_hits: Arc<AtomicUsize>,
-    cache_misses: Arc<AtomicUsize>,
     skip_index: Arc<SkipIndex>,
     space_usage: StoreSpaceUsage,
+    cache: BlockCache,
+}
+
+struct BlockCache {
+    cache: Mutex<LruCache<usize, Block>>,
+    cache_hits: Arc<AtomicUsize>,
+    cache_misses: Arc<AtomicUsize>,
+}
+
+pub struct CacheStats {
+    pub num_entries: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+}
+
+impl BlockCache {
+    fn get_from_cache(&self, pos: &usize) -> Option<Block> {
+        if let Some(block) = self.cache.lock().unwrap().get(pos) {
+            self.cache_hits.fetch_add(1, Ordering::SeqCst);
+            return Some(block.clone());
+        }
+        self.cache_misses.fetch_add(1, Ordering::SeqCst);
+        None
+    }
+
+    fn put_into_cache(&self, pos: usize, data: Block) {
+        self.cache.lock().unwrap().put(pos, data);
+    }
+
+    fn stats(&self) -> CacheStats {
+        CacheStats {
+            cache_hits: self.cache_hits.load(Ordering::Relaxed),
+            cache_misses: self.cache_misses.load(Ordering::Relaxed),
+            num_entries: self.len(),
+        }
+    }
+    fn len(&self) -> usize {
+        self.cache.lock().unwrap().len()
+    }
 }
 
 impl StoreReader {
@@ -46,9 +80,11 @@ impl StoreReader {
         Ok(StoreReader {
             compressor: footer.compressor,
             data: data_file,
-            cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY))),
-            cache_hits: Default::default(),
-            cache_misses: Default::default(),
+            cache: BlockCache {
+                cache: Mutex::new(LruCache::new(LRU_CACHE_CAPACITY)),
+                cache_hits: Default::default(),
+                cache_misses: Default::default(),
+            },
             skip_index: Arc::new(skip_index),
             space_usage,
         })
@@ -62,8 +98,19 @@ impl StoreReader {
         self.compressor
     }
 
-    fn block_checkpoint(&self, doc_id: DocId) -> Option<Checkpoint> {
-        self.skip_index.seek(doc_id)
+    /// Returns the cache hit and miss statistics of the store reader.
+    pub fn cache_stats(&self) -> CacheStats {
+        self.cache.stats()
+    }
+
+    /// Get checkpoint for DocId. The checkpoint can be used to load a block containing the
+    /// document.
+    ///
+    /// Advanced API. In most cases use [get](Self::get).
+    pub fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
+        self.skip_index.seek(doc_id).ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
+        })
     }
 
     pub(crate) fn block_data(&self) -> io::Result<OwnedBytes> {
@@ -74,24 +121,30 @@ impl StoreReader {
         self.data.slice(checkpoint.byte_range.clone()).read_bytes()
     }
 
-    fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
-            self.cache_hits.fetch_add(1, Ordering::SeqCst);
-            return Ok(block.clone());
+    /// Loads and decompresses a block.
+    ///
+    /// Advanced API. In most cases use [get](Self::get).
+    pub fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
+        if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
+            return Ok(block);
         }
 
-        self.cache_misses.fetch_add(1, Ordering::SeqCst);
-
         let compressed_block = self.compressed_block(checkpoint)?;
+
+        self.decompress_block(compressed_block, checkpoint.byte_range.start)
+    }
+
+    fn decompress_block(
+        &self,
+        compressed_block: OwnedBytes,
+        cache_key: usize,
+    ) -> io::Result<Block> {
         let mut decompressed_block = vec![];
         self.compressor
             .decompress(compressed_block.as_slice(), &mut decompressed_block)?;
 
         let block = OwnedBytes::new(decompressed_block);
-        self.cache
-            .lock()
-            .unwrap()
-            .put(checkpoint.byte_range.start, block.clone());
+        self.cache.put_into_cache(cache_key, block.clone());
 
         Ok(block)
     }
@@ -110,18 +163,26 @@ impl StoreReader {
         Ok(Document::deserialize(&mut doc_bytes)?)
     }
 
-    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a
-    /// document and its start and end position within the block.
+    /// Returns raw bytes of a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
     pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
-        let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
-        })?;
+        let checkpoint = self.block_checkpoint(doc_id)?;
         let block = self.read_block(&checkpoint)?;
+        Self::get_document_bytes_from_block(block, doc_id, &checkpoint)
+    }
+
+    /// Advanced API.
+    ///
+    /// In most cases use [get_document_bytes](Self::get_document_bytes).
+    pub fn get_document_bytes_from_block(
+        block: OwnedBytes,
+        doc_id: DocId,
+        checkpoint: &Checkpoint,
+    ) -> crate::Result<OwnedBytes> {
         let mut cursor = &block[..];
         let cursor_len_before = cursor.len();
         for _ in checkpoint.doc_range.start..doc_id {
@@ -242,53 +303,34 @@ impl StoreReader {
 
 #[cfg(feature = "quickwit")]
 impl StoreReader {
-    async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
-            self.cache_hits.fetch_add(1, Ordering::SeqCst);
+    /// Advanced API.
+    ///
+    /// In most cases use [get_async](Self::get_async)
+    ///
+    /// Loads and decompresses a block asynchronously.
+    pub async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
+        if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
             return Ok(block.clone());
         }
-
-        self.cache_misses.fetch_add(1, Ordering::SeqCst);
 
         let compressed_block = self
             .data
             .slice(checkpoint.byte_range.clone())
             .read_bytes_async()
             .await?;
-        let mut decompressed_block = vec![];
-        self.compressor
-            .decompress(compressed_block.as_slice(), &mut decompressed_block)?;
-
-        let block = OwnedBytes::new(decompressed_block);
-        self.cache
-            .lock()
-            .unwrap()
-            .put(checkpoint.byte_range.start, block.clone());
-
+        let block = self.decompress_block(compressed_block, checkpoint.byte_range.start)?;
         Ok(block)
     }
 
     /// Fetches a document asynchronously.
-    async fn get_document_bytes_async(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
-        let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
-        })?;
+    pub async fn get_document_bytes_async(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
+        let checkpoint = self.block_checkpoint(doc_id)?;
         let block = self.read_block_async(&checkpoint).await?;
-        let mut cursor = &block[..];
-        let cursor_len_before = cursor.len();
-        for _ in checkpoint.doc_range.start..doc_id {
-            let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-            cursor = &cursor[doc_length..];
-        }
-        let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-        let start_pos = cursor_len_before - cursor.len();
-        let end_pos = cursor_len_before - cursor.len() + doc_length;
-        Ok(block.slice(start_pos..end_pos))
+        Self::get_document_bytes_from_block(block, doc_id, &checkpoint)
     }
 
-    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a
-    /// document and its start and end position within the block.
-    pub(crate) async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
+    /// Reads raw bytes of a given document. Async version of [get](Self::get).
+    pub async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
         Ok(Document::deserialize(&mut doc_bytes)?)
     }
@@ -320,58 +362,30 @@ mod tests {
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file)?;
 
-        assert_eq!(store.cache.lock().unwrap().len(), 0);
-        assert_eq!(store.cache_hits.load(Ordering::SeqCst), 0);
-        assert_eq!(store.cache_misses.load(Ordering::SeqCst), 0);
+        assert_eq!(store.cache.len(), 0);
+        assert_eq!(store.cache_stats().cache_hits, 0);
+        assert_eq!(store.cache_stats().cache_misses, 0);
 
         let doc = store.get(0)?;
         assert_eq!(get_text_field(&doc, &title), Some("Doc 0"));
 
-        assert_eq!(store.cache.lock().unwrap().len(), 1);
-        assert_eq!(store.cache_hits.load(Ordering::SeqCst), 0);
-        assert_eq!(store.cache_misses.load(Ordering::SeqCst), 1);
-        assert_eq!(
-            store
-                .cache
-                .lock()
-                .unwrap()
-                .peek_lru()
-                .map(|(&k, _)| k as usize),
-            Some(0)
-        );
+        assert_eq!(store.cache.len(), 1);
+        assert_eq!(store.cache_stats().cache_hits, 0);
+        assert_eq!(store.cache_stats().cache_misses, 1);
 
         let doc = store.get(499)?;
         assert_eq!(get_text_field(&doc, &title), Some("Doc 499"));
 
-        assert_eq!(store.cache.lock().unwrap().len(), 2);
-        assert_eq!(store.cache_hits.load(Ordering::SeqCst), 0);
-        assert_eq!(store.cache_misses.load(Ordering::SeqCst), 2);
-
-        assert_eq!(
-            store
-                .cache
-                .lock()
-                .unwrap()
-                .peek_lru()
-                .map(|(&k, _)| k as usize),
-            Some(0)
-        );
+        assert_eq!(store.cache.len(), 2);
+        assert_eq!(store.cache_stats().cache_hits, 0);
+        assert_eq!(store.cache_stats().cache_misses, 2);
 
         let doc = store.get(0)?;
         assert_eq!(get_text_field(&doc, &title), Some("Doc 0"));
 
-        assert_eq!(store.cache.lock().unwrap().len(), 2);
-        assert_eq!(store.cache_hits.load(Ordering::SeqCst), 1);
-        assert_eq!(store.cache_misses.load(Ordering::SeqCst), 2);
-        assert_eq!(
-            store
-                .cache
-                .lock()
-                .unwrap()
-                .peek_lru()
-                .map(|(&k, _)| k as usize),
-            Some(9210)
-        );
+        assert_eq!(store.cache.len(), 2);
+        assert_eq!(store.cache_stats().cache_hits, 1);
+        assert_eq!(store.cache_stats().cache_misses, 2);
 
         Ok(())
     }
