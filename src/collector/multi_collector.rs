@@ -87,10 +87,10 @@ pub struct FruitHandle<TFruit: Fruit> {
 }
 
 impl<TFruit: Fruit> FruitHandle<TFruit> {
-    // Extract a typed fruit off a multifruit.
-    //
-    // This function involves downcasting and can panic if the multifruit was
-    // created using faulty code.
+    /// Extract a typed fruit off a multifruit.
+    ///
+    /// This function involves downcasting and can panic if the multifruit was
+    /// created using faulty code.
     pub fn extract(self, fruits: &mut MultiFruit) -> TFruit {
         let boxed_fruit = fruits.sub_fruits[self.pos].take().expect("");
         *boxed_fruit
