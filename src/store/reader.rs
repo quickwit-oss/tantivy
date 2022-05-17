@@ -107,7 +107,7 @@ impl StoreReader {
     /// document.
     ///
     /// Advanced API. In most cases use [get](Self::get).
-    pub fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
+    fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
         self.skip_index.seek(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })
@@ -124,7 +124,7 @@ impl StoreReader {
     /// Loads and decompresses a block.
     ///
     /// Advanced API. In most cases use [get](Self::get).
-    pub fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
+    fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
         if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
             return Ok(block);
         }
@@ -178,7 +178,7 @@ impl StoreReader {
     /// Advanced API.
     ///
     /// In most cases use [get_document_bytes](Self::get_document_bytes).
-    pub fn get_document_bytes_from_block(
+    fn get_document_bytes_from_block(
         block: OwnedBytes,
         doc_id: DocId,
         checkpoint: &Checkpoint,
@@ -308,7 +308,7 @@ impl StoreReader {
     /// In most cases use [get_async](Self::get_async)
     ///
     /// Loads and decompresses a block asynchronously.
-    pub async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
+    async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
         if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
             return Ok(block.clone());
         }
