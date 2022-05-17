@@ -172,19 +172,33 @@ pub trait Collector: Sync + Send {
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let mut segment_collector = self.for_segment(segment_ord as u32, reader)?;
 
+        let mut cache_pos = 0;
+        let mut cache = [(0, 0.0); 64];
+
         if let Some(alive_bitset) = reader.alive_bitset() {
             weight.for_each(reader, &mut |doc, score| {
                 if alive_bitset.is_alive(doc) {
-                    segment_collector.collect(doc, score)?;
+                    cache[cache_pos] = (doc, score);
+                    cache_pos += 1;
+                    if cache_pos == 64 {
+                        segment_collector.collect_block(&cache)?;
+                        cache_pos = 0;
+                    }
                 }
                 Ok(())
             })?;
         } else {
             weight.for_each(reader, &mut |doc, score| {
-                segment_collector.collect(doc, score)?;
+                cache[cache_pos] = (doc, score);
+                cache_pos += 1;
+                if cache_pos == 64 {
+                    segment_collector.collect_block(&cache)?;
+                    cache_pos = 0;
+                }
                 Ok(())
             })?;
         }
+        segment_collector.collect_block(&cache[..cache_pos])?;
         Ok(segment_collector.harvest())
     }
 }
@@ -258,6 +272,14 @@ pub trait SegmentCollector: 'static {
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()>;
 
+    /// The query pushes the scored document to the collector via this method.
+    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
+        for (doc, score) in docs {
+            self.collect(*doc, *score)?;
+        }
+        Ok(())
+    }
+
     /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;
 }
@@ -314,6 +336,12 @@ where
     fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
         self.0.collect(doc, score)?;
         self.1.collect(doc, score)?;
+        Ok(())
+    }
+
+    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
+        self.0.collect_block(docs)?;
+        self.1.collect_block(docs)?;
         Ok(())
     }
 
@@ -380,6 +408,13 @@ where
         self.0.collect(doc, score)?;
         self.1.collect(doc, score)?;
         self.2.collect(doc, score)?;
+        Ok(())
+    }
+
+    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
+        self.0.collect_block(docs)?;
+        self.1.collect_block(docs)?;
+        self.2.collect_block(docs)?;
         Ok(())
     }
 
@@ -456,6 +491,14 @@ where
         self.1.collect(doc, score)?;
         self.2.collect(doc, score)?;
         self.3.collect(doc, score)?;
+        Ok(())
+    }
+
+    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
+        self.0.collect_block(docs)?;
+        self.1.collect_block(docs)?;
+        self.2.collect_block(docs)?;
+        self.3.collect_block(docs)?;
         Ok(())
     }
 

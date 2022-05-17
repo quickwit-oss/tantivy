@@ -704,6 +704,14 @@ impl SegmentCollector for TopScoreSegmentCollector {
         Ok(())
     }
 
+    #[inline]
+    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
+        for (doc, score) in docs {
+            self.0.collect(*doc, *score);
+        }
+        Ok(())
+    }
+
     fn harvest(self) -> Vec<(Score, DocAddress)> {
         self.0.harvest()
     }
