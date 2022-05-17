@@ -66,6 +66,15 @@ impl BlockCache {
     fn len(&self) -> usize {
         self.cache.lock().unwrap().len()
     }
+
+    #[cfg(test)]
+    fn peek_lru(&self) -> Option<usize> {
+        self.cache
+            .lock()
+            .unwrap()
+            .peek_lru()
+            .map(|(&k, _)| k as usize)
+    }
 }
 
 impl StoreReader {
@@ -373,6 +382,8 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 0);
         assert_eq!(store.cache_stats().cache_misses, 1);
 
+        assert_eq!(store.cache.peek_lru(), Some(0));
+
         let doc = store.get(499)?;
         assert_eq!(get_text_field(&doc, &title), Some("Doc 499"));
 
@@ -380,12 +391,16 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 0);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
+        assert_eq!(store.cache.peek_lru(), Some(0));
+
         let doc = store.get(0)?;
         assert_eq!(get_text_field(&doc, &title), Some("Doc 0"));
 
         assert_eq!(store.cache.len(), 2);
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
+
+        assert_eq!(store.cache.peek_lru(), Some(9210));
 
         Ok(())
     }
