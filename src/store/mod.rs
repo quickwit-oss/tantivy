@@ -360,6 +360,7 @@ mod bench {
                 directory.open_write(path).unwrap(),
                 1_000,
                 Compressor::default(),
+                16_384,
             );
             directory.delete(path).unwrap();
         });
@@ -373,6 +374,7 @@ mod bench {
             directory.open_write(path).unwrap(),
             1_000,
             Compressor::default(),
+            16_384,
         );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file).unwrap();
