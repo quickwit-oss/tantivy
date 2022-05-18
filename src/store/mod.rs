@@ -50,6 +50,9 @@ mod compression_brotli;
 #[cfg(feature = "snappy-compression")]
 mod compression_snap;
 
+#[cfg(feature = "zstd-compression")]
+mod compression_zstd_block;
+
 #[cfg(test)]
 pub mod tests {
 
@@ -188,6 +191,12 @@ pub mod tests {
     #[test]
     fn test_store_brotli() -> crate::Result<()> {
         test_store(Compressor::Brotli, BLOCK_SIZE)
+    }
+
+    #[cfg(feature = "zstd-compression")]
+    #[test]
+    fn test_store_zstd() -> crate::Result<()> {
+        test_store(Compressor::Zstd, BLOCK_SIZE)
     }
 
     #[test]

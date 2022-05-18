@@ -26,6 +26,9 @@ pub enum Compressor {
     #[serde(rename = "snappy")]
     /// Use the snap compressor
     Snappy,
+    #[serde(rename = "zstd")]
+    /// Use the zstd compressor
+    Zstd,
 }
 
 impl Default for Compressor {
@@ -36,6 +39,8 @@ impl Default for Compressor {
             Compressor::Brotli
         } else if cfg!(feature = "snappy-compression") {
             Compressor::Snappy
+        } else if cfg!(feature = "zstd-compression") {
+            Compressor::Zstd
         } else {
             Compressor::None
         }
@@ -49,6 +54,7 @@ impl Compressor {
             1 => Compressor::Lz4,
             2 => Compressor::Brotli,
             3 => Compressor::Snappy,
+            4 => Compressor::Zstd,
             _ => panic!("unknown compressor id {:?}", id),
         }
     }
@@ -58,6 +64,7 @@ impl Compressor {
             Self::Lz4 => 1,
             Self::Brotli => 2,
             Self::Snappy => 3,
+            Self::Zstd => 4,
         }
     }
     #[inline]
@@ -96,6 +103,16 @@ impl Compressor {
                 #[cfg(not(feature = "snappy-compression"))]
                 {
                     panic!("snappy-compression feature flag not activated");
+                }
+            }
+            Self::Zstd => {
+                #[cfg(feature = "zstd-compression")]
+                {
+                    super::compression_zstd_block::compress(uncompressed, compressed)
+                }
+                #[cfg(not(feature = "zstd-compression"))]
+                {
+                    panic!("zstd-compression feature flag not activated");
                 }
             }
         }
@@ -141,6 +158,16 @@ impl Compressor {
                 #[cfg(not(feature = "snappy-compression"))]
                 {
                     panic!("snappy-compression feature flag not activated");
+                }
+            }
+            Self::Zstd => {
+                #[cfg(feature = "zstd-compression")]
+                {
+                    super::compression_zstd_block::decompress(compressed, decompressed)
+                }
+                #[cfg(not(feature = "zstd-compression"))]
+                {
+                    panic!("zstd-compression feature flag not activated");
                 }
             }
         }
