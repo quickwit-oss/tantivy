@@ -9,7 +9,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
 
     let count_size = std::mem::size_of::<u64>();
 
-    let max_size: usize = zstd::compress_bound(uncompressed.len()) + count_size;
+    let max_size: usize = zstd::zstd_safe::compress_bound(uncompressed.len()) + count_size;
 
     compressed.resize(max_size, 0);
 
@@ -32,7 +32,7 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
 
     let count_size = std::mem::size_of::<u64>();
 
-    let uncompressed_size_bytes: &[u8; count_size] = compressed
+    let uncompressed_size_bytes: &[u8; 8] = compressed
         .get(..count_size)
         .ok_or(io::ErrorKind::InvalidData)?
         .try_into()
@@ -40,11 +40,11 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
 
     let uncompressed_size = u64::from_le_bytes(*uncompressed_size_bytes);
 
-    decompressed.resize(uncompressed_size, 0);
+    decompressed.resize(uncompressed_size as usize, 0);
     let decompressed_size = decompress_to_buffer(&compressed[count_size..], decompressed)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
 
-    if decompressed_size != uncompressed_size {
+    if decompressed_size != uncompressed_size as usize {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "doc store block not completely decompressed, data corruption".to_string(),
