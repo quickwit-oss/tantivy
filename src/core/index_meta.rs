@@ -239,7 +239,7 @@ impl InnerSegmentMeta {
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -248,7 +248,26 @@ pub struct IndexSettings {
     /// The `Compressor` used to compress the doc store.
     #[serde(default)]
     pub docstore_compression: Compressor,
+    #[serde(default = "default_docstore_blocksize")]
+    /// The size of each block that will be compressed and written to disk
+    pub docstore_blocksize: usize,
 }
+
+/// Must be a function to be compatible with serde defaults
+fn default_docstore_blocksize() -> usize {
+    16_384
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        Self {
+            sort_by_field: None,
+            docstore_compression: Compressor::default(),
+            docstore_blocksize: default_docstore_blocksize(),
+        }
+    }
+}
+
 /// Settings to presort the documents in an index
 ///
 /// Presorting documents can greatly performance
