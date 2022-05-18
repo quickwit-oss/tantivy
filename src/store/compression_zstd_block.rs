@@ -5,12 +5,10 @@ use zstd::DEFAULT_COMPRESSION_LEVEL;
 
 #[inline]
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
+    let count_size = std::mem::size_of::<u32>();
+    let max_size = zstd::zstd_safe::compress_bound(uncompressed.len()) + count_size;
+
     compressed.clear();
-
-    let count_size = std::mem::size_of::<u64>();
-
-    let max_size: usize = zstd::zstd_safe::compress_bound(uncompressed.len()) + count_size;
-
     compressed.resize(max_size, 0);
 
     let compressed_size = compress_to_buffer(
@@ -20,7 +18,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
     )
     .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
 
-    compressed[0..count_size].copy_from_slice(&(uncompressed.len() as u64).to_le_bytes());
+    compressed[0..count_size].copy_from_slice(&(uncompressed.len() as u32).to_le_bytes());
     compressed.resize(compressed_size + count_size, 0);
 
     Ok(())
@@ -28,23 +26,22 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
 
 #[inline]
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
+    let count_size = std::mem::size_of::<u32>();
+    let uncompressed_size = u32::from_le_bytes(
+        compressed
+            .get(..count_size)
+            .ok_or(io::ErrorKind::InvalidData)?
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
     decompressed.clear();
+    decompressed.resize(uncompressed_size, 0);
 
-    let count_size = std::mem::size_of::<u64>();
-
-    let uncompressed_size_bytes: &[u8; 8] = compressed
-        .get(..count_size)
-        .ok_or(io::ErrorKind::InvalidData)?
-        .try_into()
-        .unwrap();
-
-    let uncompressed_size = u64::from_le_bytes(*uncompressed_size_bytes);
-
-    decompressed.resize(uncompressed_size as usize, 0);
     let decompressed_size = decompress_to_buffer(&compressed[count_size..], decompressed)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
 
-    if decompressed_size != uncompressed_size as usize {
+    if decompressed_size != uncompressed_size {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "doc store block not completely decompressed, data corruption".to_string(),
