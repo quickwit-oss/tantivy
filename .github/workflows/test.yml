@@ -33,7 +33,7 @@ jobs:
             components: rustfmt, clippy
 
     - name: Run tests
-      run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,failpoints --verbose --workspace
+      run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints --verbose --workspace
 
     - name: Run tests quickwit feature
       run: cargo +stable test --features mmap,quickwit,failpoints --verbose --workspace
