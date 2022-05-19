@@ -7,7 +7,7 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::SegmentReader;
+use crate::{SegmentReader, TantivyError};
 
 pub const MAX_BUCKET_COUNT: u32 = 65000;
 
@@ -133,6 +133,7 @@ fn merge_fruits(
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
     result: SegmentAggregationResultsCollector,
+    error: Option<TantivyError>,
 }
 
 impl AggregationSegmentCollector {
@@ -150,6 +151,7 @@ impl AggregationSegmentCollector {
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,
+            error: None,
         })
     }
 }
@@ -159,10 +161,18 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        self.result.collect(doc, &self.aggs_with_accessor)?;
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(err) = self.result.collect(doc, &self.aggs_with_accessor) {
+            self.error = Some(err);
+        }
     }
 
     fn harvest(mut self) -> Self::Fruit {
+        if let Some(err) = self.error {
+            return Err(err);
+        }
         self.result
             .flush_staged_docs(&self.aggs_with_accessor, true)?;
         self.result

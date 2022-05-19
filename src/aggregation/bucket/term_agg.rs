@@ -256,7 +256,7 @@ impl TermBuckets {
             });
             entry.doc_count += 1;
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.collect(doc, &sub_aggregation)?;
+                sub_aggregations.collect(doc, sub_aggregation)?;
             }
         }
         bucket_count.validate_bucket_count()?;
