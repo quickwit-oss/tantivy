@@ -70,11 +70,6 @@ impl SegmentCollector for SegmentCountCollector {
         Ok(())
     }
 
-    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
-        self.count += docs.len();
-        Ok(())
-    }
-
     fn harvest(self) -> usize {
         self.count
     }

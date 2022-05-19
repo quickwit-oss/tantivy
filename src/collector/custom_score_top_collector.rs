@@ -8,8 +8,7 @@ pub(crate) struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
 }
 
 impl<TCustomScorer, TScore> CustomScoreTopCollector<TCustomScorer, TScore>
-where
-    TScore: Clone + PartialOrd,
+where TScore: Clone + PartialOrd
 {
     pub(crate) fn new(
         custom_scorer: TCustomScorer,
@@ -97,14 +96,6 @@ where
         Ok(())
     }
 
-    fn collect_block(&mut self, docs: &[(DocId, Score)]) -> crate::Result<()> {
-        for (doc, _score) in docs {
-            let score = self.segment_scorer.score(*doc);
-            self.segment_collector.collect(*doc, score);
-        }
-        Ok(())
-    }
-
     fn harvest(self) -> Vec<(TScore, DocAddress)> {
         self.segment_collector.harvest()
     }
@@ -123,8 +114,7 @@ where
 }
 
 impl<F, TScore> CustomSegmentScorer<TScore> for F
-where
-    F: 'static + FnMut(DocId) -> TScore,
+where F: 'static + FnMut(DocId) -> TScore
 {
     fn score(&mut self, doc: DocId) -> TScore {
         (self)(doc)
