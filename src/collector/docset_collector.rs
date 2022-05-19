@@ -50,9 +50,8 @@ pub struct DocSetChildCollector {
 impl SegmentCollector for DocSetChildCollector {
     type Fruit = (u32, HashSet<DocId>);
 
-    fn collect(&mut self, doc: crate::DocId, _score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: crate::DocId, _score: Score) {
         self.docs.insert(doc);
-        Ok(())
     }
 
     fn harvest(self) -> (u32, HashSet<DocId>) {

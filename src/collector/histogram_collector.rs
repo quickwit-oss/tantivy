@@ -91,10 +91,9 @@ pub struct SegmentHistogramCollector {
 impl SegmentCollector for SegmentHistogramCollector {
     type Fruit = Vec<u64>;
 
-    fn collect(&mut self, doc: DocId, _score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: DocId, _score: Score) {
         let value = self.ff_reader.get(doc);
         self.histogram_computer.add_value(value);
-        Ok(())
     }
 
     fn harvest(self) -> Self::Fruit {

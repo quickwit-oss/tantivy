@@ -699,9 +699,8 @@ pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 impl SegmentCollector for TopScoreSegmentCollector {
     type Fruit = Vec<(Score, DocAddress)>;
 
-    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: DocId, score: Score) {
         self.0.collect(doc, score);
-        Ok(())
     }
 
     fn harvest(self) -> Vec<(Score, DocAddress)> {

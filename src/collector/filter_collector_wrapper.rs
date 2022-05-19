@@ -173,12 +173,11 @@ where
 {
     type Fruit = TSegmentCollector::Fruit;
 
-    fn collect(&mut self, doc: u32, score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: u32, score: Score) {
         let value = self.fast_field_reader.get(doc);
         if (self.predicate)(value) {
-            self.segment_collector.collect(doc, score)?;
+            self.segment_collector.collect(doc, score)
         }
-        Ok(())
     }
 
     fn harvest(self) -> <TSegmentCollector as SegmentCollector>::Fruit {

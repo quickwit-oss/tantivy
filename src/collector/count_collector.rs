@@ -65,9 +65,8 @@ pub struct SegmentCountCollector {
 impl SegmentCollector for SegmentCountCollector {
     type Fruit = usize;
 
-    fn collect(&mut self, _: DocId, _: Score) -> crate::Result<()> {
+    fn collect(&mut self, _: DocId, _: Score) {
         self.count += 1;
-        Ok(())
     }
 
     fn harvest(self) -> usize {
@@ -93,18 +92,18 @@ mod tests {
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1.0).unwrap();
+            count_collector.collect(0u32, 1.0);
             assert_eq!(count_collector.harvest(), 1);
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1.0).unwrap();
+            count_collector.collect(0u32, 1.0);
             assert_eq!(count_collector.harvest(), 1);
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1.0).unwrap();
-            count_collector.collect(1u32, 1.0).unwrap();
+            count_collector.collect(0u32, 1.0);
+            count_collector.collect(1u32, 1.0);
             assert_eq!(count_collector.harvest(), 2);
         }
     }

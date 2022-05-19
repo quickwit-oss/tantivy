@@ -52,9 +52,8 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
 impl SegmentCollector for Box<dyn BoxableSegmentCollector> {
     type Fruit = Box<dyn Fruit>;
 
-    fn collect(&mut self, doc: u32, score: Score) -> crate::Result<()> {
-        self.as_mut().collect(doc, score)?;
-        Ok(())
+    fn collect(&mut self, doc: u32, score: Score) {
+        self.as_mut().collect(doc, score);
     }
 
     fn harvest(self) -> Box<dyn Fruit> {
@@ -63,7 +62,7 @@ impl SegmentCollector for Box<dyn BoxableSegmentCollector> {
 }
 
 pub trait BoxableSegmentCollector {
-    fn collect(&mut self, doc: u32, score: Score) -> crate::Result<()>;
+    fn collect(&mut self, doc: u32, score: Score);
     fn harvest_from_box(self: Box<Self>) -> Box<dyn Fruit>;
 }
 
@@ -72,8 +71,8 @@ pub struct SegmentCollectorWrapper<TSegmentCollector: SegmentCollector>(TSegment
 impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector
     for SegmentCollectorWrapper<TSegmentCollector>
 {
-    fn collect(&mut self, doc: u32, score: Score) -> crate::Result<()> {
-        self.0.collect(doc, score)
+    fn collect(&mut self, doc: u32, score: Score) {
+        self.0.collect(doc, score);
     }
 
     fn harvest_from_box(self: Box<Self>) -> Box<dyn Fruit> {
@@ -229,11 +228,10 @@ pub struct MultiCollectorChild {
 impl SegmentCollector for MultiCollectorChild {
     type Fruit = MultiFruit;
 
-    fn collect(&mut self, doc: DocId, score: Score) -> crate::Result<()> {
+    fn collect(&mut self, doc: DocId, score: Score) {
         for child in &mut self.children {
-            child.collect(doc, score)?;
+            child.collect(doc, score);
         }
-        Ok(())
     }
 
     fn harvest(self) -> MultiFruit {

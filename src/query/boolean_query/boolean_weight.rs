@@ -186,17 +186,17 @@ impl Weight for BooleanWeight {
     fn for_each(
         &self,
         reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId, Score) -> crate::Result<()>,
+        callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer::<SumWithCoordsCombiner>(reader, 1.0)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 let mut union_scorer =
                     Union::<TermScorer, SumWithCoordsCombiner>::from(term_scorers);
-                for_each_scorer(&mut union_scorer, callback)?;
+                for_each_scorer(&mut union_scorer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
-                for_each_scorer(scorer.as_mut(), callback)?;
+                for_each_scorer(scorer.as_mut(), callback);
             }
         }
         Ok(())
