@@ -1,4 +1,4 @@
-use std::io::{self, Read, Write};
+use std::io;
 
 use zstd::bulk::{compress_to_buffer, decompress_to_buffer};
 use zstd::DEFAULT_COMPRESSION_LEVEL;
@@ -15,8 +15,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
         uncompressed,
         &mut compressed[count_size..],
         DEFAULT_COMPRESSION_LEVEL,
-    )
-    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
+    )?;
 
     compressed[0..count_size].copy_from_slice(&(uncompressed.len() as u32).to_le_bytes());
     compressed.resize(compressed_size + count_size, 0);
@@ -38,8 +37,7 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
     decompressed.clear();
     decompressed.resize(uncompressed_size, 0);
 
-    let decompressed_size = decompress_to_buffer(&compressed[count_size..], decompressed)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
+    let decompressed_size = decompress_to_buffer(&compressed[count_size..], decompressed)?;
 
     if decompressed_size != uncompressed_size {
         return Err(io::Error::new(
