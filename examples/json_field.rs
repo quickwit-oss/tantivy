@@ -52,6 +52,7 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
 
     // # Default fields: event_type and attributes
+    // By setting attributes as a default field it allows omitting attributes itself, e.g. "target", instead of "attributes.target"
     let query_parser = QueryParser::for_index(&index, vec![event_type, attributes]);
     {
         let query = query_parser.parse_query("target:submit-button")?;
