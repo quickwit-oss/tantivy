@@ -241,7 +241,7 @@ fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool
             right_index += 1;
         }
     }
-    return false;
+    false
 }
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
