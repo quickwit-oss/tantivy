@@ -75,7 +75,7 @@ fn main() -> tantivy::Result<()> {
         assert_eq!(hits.len(), 1);
     }
     {
-        // The default json fields need to be prefixed by the path
+        // The sub-fields in the json field marked as default field still need to be explicitly addressed
         let query = query_parser.parse_query("click AND 133")?;
         let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
         assert_eq!(hits.len(), 0);
