@@ -82,13 +82,8 @@ fn main() -> tantivy::Result<()> {
         let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
         assert_eq!(hits.len(), 0);
     }
-    // ## Default json fields are ignored if they collide with the schema
     {
-        let query = query_parser.parse_query("holiday-sale")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
-        assert_eq!(hits.len(), 0);
-    }
-    {
+        // Default json fields are ignored if they collide with the schema
         let query = query_parser.parse_query("event_type:holiday-sale")?;
         let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
         assert_eq!(hits.len(), 0);
