@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use crossbeam::channel::{unbounded, Receiver, RecvError, Sender};
+use crossbeam_channel::{unbounded, Receiver, RecvError, Sender};
 
 pub struct GenerationItem<T> {
     generation: usize,
@@ -197,7 +197,7 @@ mod tests {
 
     use std::{iter, mem};
 
-    use crossbeam::channel;
+    use crossbeam_channel as channel;
 
     use super::{Pool, Queue};
 

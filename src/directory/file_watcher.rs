@@ -110,7 +110,7 @@ mod tests {
         let tmp_file = tmp_dir.path().join("watched.txt");
 
         let counter: Arc<AtomicUsize> = Default::default();
-        let (tx, rx) = crossbeam::channel::unbounded();
+        let (tx, rx) = crossbeam_channel::unbounded();
         let timeout = Duration::from_millis(100);
 
         let watcher = FileWatcher::new(&tmp_file);
@@ -153,7 +153,7 @@ mod tests {
         let tmp_file = tmp_dir.path().join("watched.txt");
 
         let counter: Arc<AtomicUsize> = Default::default();
-        let (tx, rx) = crossbeam::channel::unbounded();
+        let (tx, rx) = crossbeam_channel::unbounded();
         let timeout = Duration::from_millis(100);
 
         let watcher = FileWatcher::new(&tmp_file);

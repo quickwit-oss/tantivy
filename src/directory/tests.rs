@@ -181,7 +181,7 @@ fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
 
 fn test_watch(directory: &dyn Directory) {
     let counter: Arc<AtomicUsize> = Default::default();
-    let (tx, rx) = crossbeam::channel::unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     let timeout = Duration::from_millis(500);
 
     let handle = directory

@@ -21,7 +21,7 @@ pub mod segment_updater;
 mod segment_writer;
 mod stamper;
 
-use crossbeam::channel;
+use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
 pub use self::index_writer::IndexWriter;
