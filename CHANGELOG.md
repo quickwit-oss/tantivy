@@ -1,4 +1,4 @@
-Unreleased
+Tantivy 0.18
 ================================
 - For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
   - The `time` crate is re-exported as `tantivy::time` instead of `tantivy::chrono`.
@@ -11,6 +11,7 @@ Unreleased
 - Add [histogram](https://github.com/quickwit-oss/tantivy/pull/1306) aggregation (@PSeitz)
 - Add support for fastfield on text fields (@PSeitz)
 - Add terms aggregation (@PSeitz)
+- Add support for zstd compression (@kryesh)
 
 Tantivy 0.17
 ================================
