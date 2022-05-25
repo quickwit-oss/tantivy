@@ -11,8 +11,6 @@ use crate::schema::Document;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 
-const BLOCK_SIZE: usize = 16_384;
-
 /// Write tantivy's [`Store`](./index.html)
 ///
 /// Contrary to the other components of `tantivy`,
@@ -22,6 +20,7 @@ const BLOCK_SIZE: usize = 16_384;
 /// The skip list index on the other hand, is built in memory.
 pub struct StoreWriter {
     compressor: Compressor,
+    block_size: usize,
     doc: DocId,
     first_doc_in_block: DocId,
     offset_index_writer: SkipIndexBuilder,
@@ -35,9 +34,10 @@ impl StoreWriter {
     ///
     /// The store writer will writes blocks on disc as
     /// document are added.
-    pub fn new(writer: WritePtr, compressor: Compressor) -> StoreWriter {
+    pub fn new(writer: WritePtr, compressor: Compressor, block_size: usize) -> StoreWriter {
         StoreWriter {
             compressor,
+            block_size,
             doc: 0,
             first_doc_in_block: 0,
             offset_index_writer: SkipIndexBuilder::new(),
@@ -65,7 +65,7 @@ impl StoreWriter {
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
         self.current_block.write_all(serialized_document)?;
         self.doc += 1;
-        if self.current_block.len() > BLOCK_SIZE {
+        if self.current_block.len() > self.block_size {
             self.write_and_compress_block()?;
         }
         Ok(())
@@ -86,7 +86,7 @@ impl StoreWriter {
         self.current_block
             .write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
-        if self.current_block.len() > BLOCK_SIZE {
+        if self.current_block.len() > self.block_size {
             self.write_and_compress_block()?;
         }
         Ok(())

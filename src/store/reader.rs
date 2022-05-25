@@ -304,6 +304,8 @@ mod tests {
     use crate::store::tests::write_lorem_ipsum_store;
     use crate::Directory;
 
+    const BLOCK_SIZE: usize = 16_384;
+
     fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
         doc.get_first(*field).and_then(|f| f.as_text())
     }
@@ -313,7 +315,7 @@ mod tests {
         let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default());
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file)?;

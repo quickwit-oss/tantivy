@@ -372,9 +372,10 @@ fn remap_and_write(
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
         let compressor = serializer.segment().index().settings().docstore_compression;
+        let block_size = serializer.segment().index().settings().docstore_blocksize;
         let old_store_writer = std::mem::replace(
             &mut serializer.store_writer,
-            StoreWriter::new(store_write, compressor),
+            StoreWriter::new(store_write, compressor, block_size),
         );
         old_store_writer.close()?;
         let store_read = StoreReader::open(

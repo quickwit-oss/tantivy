@@ -23,6 +23,7 @@ tantivy-fst = "0.3.0"
 memmap2 = { version = "0.5.3", optional = true }
 lz4_flex = { version = "0.9.2", default-features = false, features = ["checked-decode"], optional = true }
 brotli = { version = "3.3.4", optional = true }
+zstd = { version = "0.11", optional = true }
 snap = { version = "1.0.5", optional = true }
 tempfile = { version = "3.3.0", optional = true }
 log = "0.4.16"
@@ -93,6 +94,7 @@ mmap = ["fs2", "tempfile", "memmap2"]
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4_flex"]
 snappy-compression = ["snap"]
+zstd-compression = ["zstd"]
 
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
