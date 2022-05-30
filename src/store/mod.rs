@@ -86,7 +86,7 @@ pub mod tests {
             schema_builder.add_text_field("title", TextOptions::default().set_stored());
         let schema = schema_builder.build();
         {
-            let mut store_writer = StoreWriter::new(writer, compressor, blocksize);
+            let mut store_writer = StoreWriter::new(writer, compressor, blocksize, None);
             for i in 0..num_docs {
                 let mut doc = Document::default();
                 doc.add_field_value(field_body, LOREM.to_string());

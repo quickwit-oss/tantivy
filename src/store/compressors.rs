@@ -68,10 +68,11 @@ impl Compressor {
         }
     }
     #[inline]
-    pub(crate) fn compress_into(
+    pub(crate) fn compress(
         &self,
         uncompressed: &[u8],
         compressed: &mut Vec<u8>,
+        _compression_level: Option<i32>,
     ) -> io::Result<()> {
         match self {
             Self::None => {
@@ -112,7 +113,11 @@ impl Compressor {
             Self::Zstd => {
                 #[cfg(feature = "zstd-compression")]
                 {
-                    super::compression_zstd_block::compress(uncompressed, compressed)
+                    super::compression_zstd_block::compress(
+                        uncompressed,
+                        compressed,
+                        _compression_level,
+                    )
                 }
                 #[cfg(not(feature = "zstd-compression"))]
                 {

@@ -251,6 +251,11 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The compression level, which will be forwarded to the underlying compressor (if
+    /// applicaple).
+    pub docstore_compression_level: Option<i32>,
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -264,6 +269,7 @@ impl Default for IndexSettings {
             sort_by_field: None,
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
+            docstore_compression_level: None,
         }
     }
 }
