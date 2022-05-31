@@ -69,6 +69,11 @@ impl Term {
         Term::from_fast_value(field, &val)
     }
 
+    /// Builds a term given a field, and a f64-value
+    pub fn from_field_bool(field: Field, val: bool) -> Term {
+        Term::from_fast_value(field, &val)
+    }
+
     /// Builds a term given a field, and a DateTime value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
         Term::from_fast_value(field, &val)
@@ -132,6 +137,11 @@ impl Term {
 
     /// Sets a `f64` value in the term.
     pub fn set_f64(&mut self, val: f64) {
+        self.set_fast_value(val);
+    }
+
+    /// Sets a `bool` value in the term.
+    pub fn set_bool(&mut self, val: bool) {
         self.set_fast_value(val);
     }
 
@@ -262,6 +272,14 @@ where B: AsRef<[u8]>
         self.get_fast_type::<f64>()
     }
 
+    /// Returns the `f64` value stored in a term.
+    ///
+    /// Returns None if the term is not of the f64 type, or if the term byte representation
+    /// is invalid.
+    pub fn as_bool(&self) -> Option<bool> {
+        self.get_fast_type::<bool>()
+    }
+
     /// Returns the `Date` value stored in a term.
     ///
     /// Returns None if the term is not of the Date type, or if the term byte representation
@@ -371,6 +389,9 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
         }
         Type::F64 => {
             write_opt(f, get_fast_type::<f64>(bytes))?;
+        }
+        Type::Bool => {
+            write_opt(f, get_fast_type::<bool>(bytes))?;
         }
         // TODO pretty print these types too.
         Type::Date => {

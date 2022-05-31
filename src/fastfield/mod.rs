@@ -160,6 +160,37 @@ impl FastValue for f64 {
     }
 }
 
+impl FastValue for bool {
+    fn from_u64(val: u64) -> Self {
+        match val {
+            0 => false,
+            _ => true,
+        }
+    }
+
+    fn to_u64(&self) -> u64 {
+        match self {
+            false => 0,
+            true => 1,
+        }
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::Bool(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        *self as u64
+    }
+
+    fn to_type() -> Type {
+        Type::Bool
+    }
+}
+
 impl FastValue for DateTime {
     fn from_u64(timestamp_u64: u64) -> Self {
         let unix_timestamp = i64::from_u64(timestamp_u64);

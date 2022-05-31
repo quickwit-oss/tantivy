@@ -266,6 +266,13 @@ impl SegmentWriter {
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
+                FieldType::Bool(_) => {
+                    for value in values {
+                        let bool_val = value.as_bool().ok_or_else(make_schema_error)?;
+                        term_buffer.set_bool(bool_val);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    }
+                }
                 FieldType::Bytes(_) => {
                     for value in values {
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;

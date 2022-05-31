@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
-use std::str::FromStr;
+use std::str::{FromStr, ParseBoolError};
 
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 
@@ -46,6 +46,10 @@ pub enum QueryParserError {
     /// is not a f64.
     #[error("Invalid query: Only excluding terms given")]
     ExpectedFloat(#[from] ParseFloatError),
+    /// The query contains a term for a bool field, but the value
+    /// is not a bool.
+    #[error("Expected a bool value: '{0:?}'")]
+    ExpectedBool(#[from] ParseBoolError),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
     #[error("Invalid query: Only excluding terms given")]
     AllButQueryForbidden,
@@ -346,6 +350,10 @@ impl QueryParser {
                 let val: f64 = f64::from_str(phrase)?;
                 Ok(Term::from_field_f64(field, val))
             }
+            FieldType::Bool(_) => {
+                let val: bool = bool::from_str(phrase)?;
+                Ok(Term::from_field_bool(field, val))
+            }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
                 Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
@@ -425,6 +433,11 @@ impl QueryParser {
                 let val: f64 = f64::from_str(phrase)?;
                 let f64_term = Term::from_field_f64(field, val);
                 Ok(vec![LogicalLiteral::Term(f64_term)])
+            }
+            FieldType::Bool(_) => {
+                let val: bool = bool::from_str(phrase)?;
+                let bool_term = Term::from_field_bool(field, val);
+                Ok(vec![LogicalLiteral::Term(bool_term)])
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
