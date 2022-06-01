@@ -254,7 +254,7 @@ impl IntFastFieldWriter {
         self.vals.mem_usage()
     }
 
-    /// Returns the field that this writer is targetting.
+    /// Returns the field that this writer is targeting.
     pub fn field(&self) -> Field {
         self.field
     }

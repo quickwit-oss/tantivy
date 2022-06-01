@@ -38,7 +38,7 @@ Note: Tantivy 0.16 does not do this optimization yet.
 In principle there are many algorithms possible that exploit the monotonically increasing nature. (aggregations maybe?)
 
 ## Usage
-The index sorting can be configured setting [`sort_by_field`](https://github.com/quickwit-oss/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of tantvy 0.16 only fast fields are allowed to be used.
+The index sorting can be configured setting [`sort_by_field`](https://github.com/quickwit-oss/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of Tantivy 0.16 only fast fields are allowed to be used.
 
 ```
 let settings = IndexSettings {

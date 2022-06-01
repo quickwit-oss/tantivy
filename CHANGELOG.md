@@ -29,7 +29,7 @@ Tantivy 0.17
 
 Tantivy 0.16.2
 ================================
-- Bugfix in FuzzyTermQuery. (tranposition_cost_one was not doing anything)
+- Bugfix in FuzzyTermQuery. (transposition_cost_one was not doing anything)
 
 Tantivy 0.16.1
 ========================
