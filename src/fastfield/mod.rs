@@ -819,6 +819,51 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    pub fn test_fastfield_bool() {
+        let test_fastfield = DynamicFastFieldReader::<bool>::from(vec![true, false, true, false]);
+        assert_eq!(test_fastfield.get(0), true);
+        assert_eq!(test_fastfield.get(1), false);
+        assert_eq!(test_fastfield.get(2), true);
+        assert_eq!(test_fastfield.get(3), false);
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_small() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+        
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            fast_field_writers.add_document(&doc!(field=>true));
+            fast_field_writers.add_document(&doc!(field=>false));
+            fast_field_writers.add_document(&doc!(field=>true));
+            fast_field_writers.add_document(&doc!(field=>false));
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(&path).unwrap();
+        assert_eq!(file.len(), 5);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        assert_eq!(fast_field_reader.get(0), true);
+        assert_eq!(fast_field_reader.get(1), false);
+        assert_eq!(fast_field_reader.get(2), true);
+        assert_eq!(fast_field_reader.get(3), false);
+
+        Ok(())
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
