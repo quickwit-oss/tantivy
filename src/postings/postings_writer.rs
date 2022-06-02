@@ -82,7 +82,11 @@ pub(crate) fn serialize_postings(
                     .collect();
                 unordered_term_mappings.insert(field, mapping);
             }
-            FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) | FieldType::Bool(_) => {}
+            FieldType::U64(_)
+            | FieldType::I64(_)
+            | FieldType::F64(_)
+            | FieldType::Date(_)
+            | FieldType::Bool(_) => {}
             FieldType::Bytes(_) => {}
             FieldType::JsonObject(_) => {}
         }

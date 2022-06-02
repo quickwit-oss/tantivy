@@ -79,8 +79,7 @@ impl<'de> Deserialize<'de> for Value {
             }
 
             fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where E: serde::de::Error {
                 Ok(Value::Bool(v))
             }
 
