@@ -466,6 +466,9 @@ mod tests {
             .set_indexed()
             .set_fieldnorm()
             .set_fast(Cardinality::SingleValue);
+        let is_read_options = NumericOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field(
             "author",
@@ -478,6 +481,7 @@ mod tests {
         schema_builder.add_u64_field("count", count_options);
         schema_builder.add_i64_field("popularity", popularity_options);
         schema_builder.add_f64_field("score", score_options);
+        schema_builder.add_bool_field("is_read", is_read_options);
         let schema = schema_builder.build();
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         let expected = r#"[
@@ -536,6 +540,16 @@ mod tests {
       "fast": "single",
       "stored": false
     }
+  },
+  {
+    "name": "is_read",
+    "type": "bool",
+    "options": {
+      "indexed": false,
+      "fieldnorms": false,
+      "fast": "single",
+      "stored": true
+    }
   }
 ]"#;
         assert_eq!(schema_json, expected);
@@ -568,6 +582,11 @@ mod tests {
             assert_eq!("score", field_entry.name());
             assert_eq!(4, field.field_id());
         }
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("is_read", field_entry.name());
+            assert_eq!(5, field.field_id());
+        }
         assert!(fields.next().is_none());
     }
 
@@ -577,14 +596,19 @@ mod tests {
         let count_options = NumericOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
+        let is_read_options = NumericOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
+        schema_builder.add_bool_field("is_read", is_read_options);
         let schema = schema_builder.build();
         let doc_json = r#"{
                 "title": "my title",
                 "author": "fulmicoton",
-                "count": 4
+                "count": 4,
+                "is_read": true
         }"#;
         let doc = schema.parse_document(doc_json).unwrap();
 

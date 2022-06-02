@@ -458,4 +458,15 @@ mod tests {
         assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
         assert_eq!(term.as_u64(), Some(983u64))
     }
+
+    #[test]
+    pub fn test_term_bool() {
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("bool", INDEXED);
+        let term = Term::from_field_bool(bool_field, true);
+        assert_eq!(term.field(), bool_field);
+        assert_eq!(term.typ(), Type::Bool);
+        assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
+        assert_eq!(term.as_bool(), Some(true))
+    }
 }
