@@ -40,10 +40,9 @@ impl SegmentSerializer {
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
         let compressor = segment.index().settings().docstore_compression;
         let blocksize = segment.index().settings().docstore_blocksize;
-        let compression_level = segment.index().settings().docstore_compression_level;
         Ok(SegmentSerializer {
             segment,
-            store_writer: StoreWriter::new(store_write, compressor, blocksize, compression_level),
+            store_writer: StoreWriter::new(store_write, compressor, blocksize),
             fast_field_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,
