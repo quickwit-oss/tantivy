@@ -222,8 +222,9 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
+        Value::Bool(val) => val.to_u64(),
         Value::Date(val) => val.to_u64(),
-        _ => panic!("Expected a u64/i64/f64/date field, got {:?} ", value),
+        _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
     }
 }
 
@@ -833,7 +834,7 @@ mod tests {
     pub fn test_fastfield_bool_small() -> crate::Result<()> {
         let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
-        
+
         let mut schema_builder = Schema::builder();
         schema_builder.add_bool_field("field_bool", FAST);
         let schema = schema_builder.build();
@@ -853,7 +854,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 5);
+        assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
