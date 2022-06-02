@@ -484,6 +484,7 @@ mod tests {
             r#"{
             "toto": "titi",
             "float": -0.2,
+            "bool": true,
             "unsigned": 1,
             "signed": -2,
             "complexobject": {
@@ -526,6 +527,13 @@ mod tests {
         let mut term_stream = term_dict.stream().unwrap();
 
         let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+
+        json_term_writer.push_path_segment("bool");
+        json_term_writer.set_fast_value(true);
+        assert!(term_stream.advance());
+        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+
+        json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("complexobject");
         json_term_writer.push_path_segment("field.with.dot");
         json_term_writer.set_fast_value(1u64);
