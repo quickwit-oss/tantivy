@@ -865,6 +865,73 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    pub fn test_fastfield_bool_large() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for _ in 0..50 {
+                fast_field_writers.add_document(&doc!(field=>true));
+                fast_field_writers.add_document(&doc!(field=>false));
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(&path).unwrap();
+        assert_eq!(file.len(), 48);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        for i in 0..25 {
+            assert_eq!(fast_field_reader.get(i * 2), true);
+            assert_eq!(fast_field_reader.get(i * 2 + 1), false);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_default_value() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            let doc = Document::default();
+            fast_field_writers.add_document(&doc);
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(&path).unwrap();
+        assert_eq!(file.len(), 35);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        assert_eq!(fast_field_reader.get(0), false);
+
+        Ok(())
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
