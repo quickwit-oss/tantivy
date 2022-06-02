@@ -280,15 +280,23 @@ impl QueryParser {
     ///
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
-    ///
-    /// There is currently no lenient mode for the query parser
-    /// which makes it a bad choice for a public/broad user search engine.
-    ///
-    /// Implementing a lenient mode for this query parser is tracked
-    /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
+    }
+
+    /// Parses a query but on failure performs a best effort at returning a valid query.
+    pub fn parse_query_leniently(&self, query: &str) -> (Box<dyn Query>, Option<QueryParserError>) {
+        match self.parse_query(query) {
+            Ok(q) => (q, None),
+            Err(e1) => match self.parse_query(
+                &query.replace(tantivy_query_grammar::SPECIAL_CHARS_NO_SPACE, "")
+            ) {
+                Ok(q) => (q, Some(e1)),
+                // Fall back to an empty search if removing special characters is not valid.
+                Err(e2) => (self.parse_query("").unwrap(), Some(e2)),
+            },
+        }
     }
 
     /// Parse the user query into an AST.
@@ -982,6 +990,27 @@ mod test {
             ),
             false,
         );
+    }
+
+    #[test]
+    pub fn test_parse_query_leniently_invalid_query() {
+        let query_parser = make_query_parser();
+        let query_result = query_parser.parse_query_leniently("(+a");
+        let query = query_result.0;
+        let query_error = query_result.1;
+        assert_eq!(format!("{:?}", query), format!("{:?}", query_parser.parse_query("a").unwrap()));
+        assert_eq!(format!("{:?}", query_error), "Some(SyntaxError(\"(+a\"))");
+    }
+
+    #[test]
+    pub fn test_parse_query_leniently_valid_query() {
+        let query_string = "apples";
+        let query_parser = make_query_parser();
+        let query_result = query_parser.parse_query_leniently(query_string);
+        let query = query_result.0;
+        let query_error = query_result.1;
+        assert_eq!(format!("{:?}", query), format!("{:?}", query_parser.parse_query(query_string).unwrap()));
+        assert_eq!(format!("{:?}", query_error), "None");
     }
 
     #[test]

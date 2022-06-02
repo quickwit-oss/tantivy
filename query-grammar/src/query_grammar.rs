@@ -15,6 +15,9 @@ use crate::Occur;
 
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
+pub const SPECIAL_CHARS_NO_SPACE: &[char] = &[
+    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*',
+];
 const SPECIAL_CHARS: &[char] = &[
     '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
 ];
