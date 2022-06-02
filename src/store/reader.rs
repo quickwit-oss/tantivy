@@ -43,8 +43,8 @@ pub struct CacheStats {
 }
 
 impl BlockCache {
-    fn get_from_cache(&self, pos: &usize) -> Option<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(pos) {
+    fn get_from_cache(&self, pos: usize) -> Option<Block> {
+        if let Some(block) = self.cache.lock().unwrap().get(&pos) {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
             return Some(block.clone());
         }
@@ -134,7 +134,7 @@ impl StoreReader {
     ///
     /// Advanced API. In most cases use [get](Self::get).
     fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
-        if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
+        if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
             return Ok(block);
         }
 
@@ -318,7 +318,7 @@ impl StoreReader {
     ///
     /// Loads and decompresses a block asynchronously.
     async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
-        if let Some(block) = self.cache.get_from_cache(&checkpoint.byte_range.start) {
+        if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
             return Ok(block.clone());
         }
 
