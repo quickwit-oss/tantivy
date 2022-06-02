@@ -126,7 +126,7 @@ impl StoreReader {
         self.data.read_bytes()
     }
 
-    fn compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
+    fn get_compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
         self.data.slice(checkpoint.byte_range.clone()).read_bytes()
     }
 
@@ -134,28 +134,17 @@ impl StoreReader {
     ///
     /// Advanced API. In most cases use [get](Self::get).
     fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
-        if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
+        let cache_key = checkpoint.byte_range.start;
+        if let Some(block) = self.cache.get_from_cache(cache_key) {
             return Ok(block);
         }
 
-        let compressed_block = self.compressed_block(checkpoint)?;
+        let compressed_block = self.get_compressed_block(checkpoint)?;
+        let decompressed_block = OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
 
-        self.decompress_block(compressed_block, checkpoint.byte_range.start)
-    }
+        self.cache.put_into_cache(cache_key, decompressed_block.clone());
 
-    fn decompress_block(
-        &self,
-        compressed_block: OwnedBytes,
-        cache_key: usize,
-    ) -> io::Result<Block> {
-        let mut decompressed_block = vec![];
-        self.compressor
-            .decompress(compressed_block.as_slice(), &mut decompressed_block)?;
-
-        let block = OwnedBytes::new(decompressed_block);
-        self.cache.put_into_cache(cache_key, block.clone());
-
-        Ok(block)
+        Ok(decompressed_block)
     }
 
     /// Reads a given document.

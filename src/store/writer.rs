@@ -130,7 +130,7 @@ impl StoreWriter {
         assert!(self.doc > 0);
         self.intermediary_buffer.clear();
         self.compressor
-            .compress(&self.current_block[..], &mut self.intermediary_buffer)?;
+            .compress_into(&self.current_block[..], &mut self.intermediary_buffer)?;
         let start_offset = self.writer.written_bytes() as usize;
         self.writer.write_all(&self.intermediary_buffer)?;
         let end_offset = self.writer.written_bytes() as usize;
