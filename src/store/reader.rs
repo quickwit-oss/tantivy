@@ -140,9 +140,11 @@ impl StoreReader {
         }
 
         let compressed_block = self.get_compressed_block(checkpoint)?;
-        let decompressed_block = OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
+        let decompressed_block =
+            OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
 
-        self.cache.put_into_cache(cache_key, decompressed_block.clone());
+        self.cache
+            .put_into_cache(cache_key, decompressed_block.clone());
 
         Ok(decompressed_block)
     }
@@ -318,9 +320,11 @@ impl StoreReader {
             .read_bytes_async()
             .await?;
 
-        let decompressed_block = OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
+        let decompressed_block =
+            OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
 
-        self.cache.put_into_cache(cache_key, decompressed_block.clone());
+        self.cache
+            .put_into_cache(cache_key, decompressed_block.clone());
 
         Ok(decompressed_block)
     }
