@@ -76,7 +76,7 @@ impl FastFieldsWriter {
                         bytes_value_writers.push(fast_field_writer);
                     }
                 }
-                _ => {}
+                FieldType::Str(_) | FieldType::JsonObject(_) => {},
             }
         }
         FastFieldsWriter {
