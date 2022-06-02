@@ -307,6 +307,7 @@ impl StoreReader {
     ///
     /// Loads and decompresses a block asynchronously.
     async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
+        let cache_key = checkpoint.byte_range.start;
         if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
             return Ok(block.clone());
         }
@@ -316,8 +317,12 @@ impl StoreReader {
             .slice(checkpoint.byte_range.clone())
             .read_bytes_async()
             .await?;
-        let block = self.decompress_block(compressed_block, checkpoint.byte_range.start)?;
-        Ok(block)
+
+        let decompressed_block = OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
+
+        self.cache.put_into_cache(cache_key, decompressed_block.clone());
+
+        Ok(decompressed_block)
     }
 
     /// Fetches a document asynchronously.
