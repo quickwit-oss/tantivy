@@ -123,7 +123,7 @@ impl Compressor {
     }
 
     pub(crate) fn decompress(&self, compressed_block: &[u8]) -> io::Result<Vec<u8>> {
-        let mut decompressed_block = Vec::with_capacity(compressed_block.len() * 2);
+        let mut decompressed_block = vec![];
         self.decompress_into(compressed_block, &mut decompressed_block)?;
         Ok(decompressed_block)
     }
