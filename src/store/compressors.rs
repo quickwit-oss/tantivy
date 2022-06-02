@@ -68,7 +68,11 @@ impl Compressor {
         }
     }
     #[inline]
-    pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
+    pub(crate) fn compress_into(
+        &self,
+        uncompressed: &[u8],
+        compressed: &mut Vec<u8>,
+    ) -> io::Result<()> {
         match self {
             Self::None => {
                 compressed.clear();
@@ -118,8 +122,14 @@ impl Compressor {
         }
     }
 
+    pub(crate) fn decompress(&self, compressed_block: &[u8]) -> io::Result<Vec<u8>> {
+        let mut decompressed_block = vec![];
+        self.decompress_into(compressed_block, &mut decompressed_block)?;
+        Ok(decompressed_block)
+    }
+
     #[inline]
-    pub(crate) fn decompress(
+    pub(crate) fn decompress_into(
         &self,
         compressed: &[u8],
         decompressed: &mut Vec<u8>,
