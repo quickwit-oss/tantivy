@@ -249,7 +249,7 @@ For instance, when the phrase query "the art of war" does not match "the war of 
 To make it possible, it is possible to specify in the schema that a field should store positions in addition to being indexed.
 
 The token positions of all of the terms are then stored in a separate file with the extension `.pos`.
-The [TermInfo](src/postings/term_info.rs) gives an offset (expressed in position this time) in this file. As we iterate throught the docset,
+The [TermInfo](src/postings/term_info.rs) gives an offset (expressed in position this time) in this file. As we iterate through the docset,
 we advance the position reader by the number of term frequencies of the current document.
 
 ## [fieldnorms/](src/fieldnorms): Here is my doc, how many tokens in this field?

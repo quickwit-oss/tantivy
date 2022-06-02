@@ -86,7 +86,7 @@ If one more json field is defined, things get even more complicated.
 ## Default json field
 
 If the schema contains a text field called "text" and a json field that is set as a default field:
-`text:hello` could be reasonably interpreted as targetting the text field or as targetting the json field called `json_dynamic` with the json_path "text".
+`text:hello` could be reasonably interpreted as targeting the text field or as targeting the json field called `json_dynamic` with the json_path "text".
 
 If there is such an ambiguity, we decide to only search in the "text" field: `text:hello`.
 
