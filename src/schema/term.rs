@@ -272,9 +272,9 @@ where B: AsRef<[u8]>
         self.get_fast_type::<f64>()
     }
 
-    /// Returns the `f64` value stored in a term.
+    /// Returns the `bool` value stored in a term.
     ///
-    /// Returns None if the term is not of the f64 type, or if the term byte representation
+    /// Returns None if the term is not of the bool type, or if the term byte representation
     /// is invalid.
     pub fn as_bool(&self) -> Option<bool> {
         self.get_fast_type::<bool>()
