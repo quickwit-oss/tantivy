@@ -298,6 +298,7 @@ impl IndexMerger {
                 FieldType::U64(ref options)
                 | FieldType::I64(ref options)
                 | FieldType::F64(ref options)
+                | FieldType::Bool(ref options)
                 | FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
                         self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
@@ -312,7 +313,7 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
-                _ => {
+                FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
                     // We don't handle json fast field for the moment
                     // They can be implemented using what is done
                     // for facets in the future
