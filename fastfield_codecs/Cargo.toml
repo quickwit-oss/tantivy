@@ -15,7 +15,7 @@ prettytable-rs = {version="0.8.0", optional= true}
 rand = {version="0.8.3", optional= true}
 
 [dev-dependencies]
-more-asserts = "0.2.1"
+more-asserts = "0.3.0"
 rand = "0.8.3"
 
 [features]
