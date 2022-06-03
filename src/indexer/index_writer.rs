@@ -1385,6 +1385,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
+        let bool_field = schema_builder.add_bool_field("bool", FAST | INDEXED | STORED);
         let text_field = schema_builder.add_text_field(
             "text_field",
             TextOptions::default()
@@ -1399,6 +1400,12 @@ mod tests {
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
+            NumericOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_stored(),
+        );
+        let multi_bools = schema_builder.add_bool_field(
+            "multi_bools",
             NumericOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_stored(),
@@ -1435,6 +1442,9 @@ mod tests {
                             bytes_field => id.to_le_bytes().as_slice(),
                             multi_numbers=> id,
                             multi_numbers => id,
+                            bool_field => (id % 2u64) != 0,
+                            multi_bools => (id % 2u64) != 0,
+                            multi_bools => (id % 2u64) == 0,
                             text_field => id.to_string(),
                             facet_field => facet,
                             large_text_field=> LOREM
@@ -1522,11 +1532,18 @@ mod tests {
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
+            // let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
             for doc in segment_reader.doc_ids_alive() {
                 let mut vals = vec![];
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
+
+                // let mut bool_vals = vec![];
+                // bool_ff_reader.get_vals(doc, &mut bool_vals);
+                // assert_eq!(bool_vals.len(), 2);
+                // assert_ne!(bool_vals[0], bool_vals[1]);
+
                 assert!(expected_ids_and_num_occurrences.contains_key(&vals[0]));
             }
         }
@@ -1557,6 +1574,18 @@ mod tests {
                     .as_u64()
                     .unwrap();
                 assert_eq!(id, id2);
+                let bool = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(bool_field)
+                    .unwrap()
+                    .as_bool()
+                    .unwrap();
+                let doc = store_reader.get(doc_id).unwrap();
+                let mut bool2 = doc.get_all(multi_bools);
+                assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
+                assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());
+                assert_eq!(None, bool2.next())
             }
         }
         // test search
