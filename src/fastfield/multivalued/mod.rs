@@ -226,6 +226,37 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_multivalued_bool() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bool_field(
+            "multifield",
+            NumericOptions::default().set_fast(Cardinality::MultiValues),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(field=> true, field => false))?;
+        index_writer.add_document(doc!())?;
+        index_writer.add_document(doc!(field=> false))?;
+        index_writer.add_document(doc!(field=> true, field => true, field => false))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let mut vals = Vec::new();
+        let multi_value_reader = segment_reader.fast_fields().bools(field).unwrap();
+        multi_value_reader.get_vals(2, &mut vals);
+        assert_eq!(&vals, &[false]);
+        multi_value_reader.get_vals(0, &mut vals);
+        assert_eq!(&vals, &[true, false]);
+        multi_value_reader.get_vals(1, &mut vals);
+        assert!(vals.is_empty());
+        multi_value_reader.get_vals(3, &mut vals);
+        assert_eq!(&vals, &[true, true, false]);
+        Ok(())
+    }
+
     fn test_multivalued_no_panic(ops: &[IndexingOp]) -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field(
