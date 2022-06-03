@@ -78,8 +78,7 @@ impl<'de> Deserialize<'de> for Value {
                 Ok(Value::F64(v))
             }
 
-            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-            where E: serde::de::Error {
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
                 Ok(Value::Bool(v))
             }
 
