@@ -1532,17 +1532,17 @@ mod tests {
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
-            // let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
+            let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
             for doc in segment_reader.doc_ids_alive() {
                 let mut vals = vec![];
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
 
-                // let mut bool_vals = vec![];
-                // bool_ff_reader.get_vals(doc, &mut bool_vals);
-                // assert_eq!(bool_vals.len(), 2);
-                // assert_ne!(bool_vals[0], bool_vals[1]);
+                let mut bool_vals = vec![];
+                bool_ff_reader.get_vals(doc, &mut bool_vals);
+                assert_eq!(bool_vals.len(), 2);
+                assert_ne!(bool_vals[0], bool_vals[1]);
 
                 assert!(expected_ids_and_num_occurrences.contains_key(&vals[0]));
             }
