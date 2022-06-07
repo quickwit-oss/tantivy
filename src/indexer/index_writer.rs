@@ -1497,23 +1497,23 @@ mod tests {
             })
             .collect();
 
-        let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
-        let num_docs_expected = expected_ids_and_num_occurences
+        let (expected_ids_and_num_occurrences, deleted_ids) = expected_ids(ops);
+        let num_docs_expected = expected_ids_and_num_occurrences
             .iter()
-            .map(|(_, id_occurences)| *id_occurences as usize)
+            .map(|(_, id_occurrences)| *id_occurrences as usize)
             .sum::<usize>();
         assert_eq!(searcher.num_docs() as usize, num_docs_expected);
         assert_eq!(old_searcher.num_docs() as usize, num_docs_expected);
         assert_eq!(
             ids_old_searcher,
-            expected_ids_and_num_occurences
+            expected_ids_and_num_occurrences
                 .keys()
                 .cloned()
                 .collect::<HashSet<_>>()
         );
         assert_eq!(
             ids,
-            expected_ids_and_num_occurences
+            expected_ids_and_num_occurrences
                 .keys()
                 .cloned()
                 .collect::<HashSet<_>>()
@@ -1527,7 +1527,7 @@ mod tests {
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
-                assert!(expected_ids_and_num_occurences.contains_key(&vals[0]));
+                assert!(expected_ids_and_num_occurrences.contains_key(&vals[0]));
             }
         }
 
@@ -1537,7 +1537,7 @@ mod tests {
             // test store iterator
             for doc in store_reader.iter(segment_reader.alive_bitset()) {
                 let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
-                assert!(expected_ids_and_num_occurences.contains_key(&id));
+                assert!(expected_ids_and_num_occurrences.contains_key(&id));
             }
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
@@ -1548,7 +1548,7 @@ mod tests {
                     .unwrap()
                     .as_u64()
                     .unwrap();
-                assert!(expected_ids_and_num_occurences.contains_key(&id));
+                assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 let id2 = store_reader
                     .get(doc_id)
                     .unwrap()
@@ -1572,7 +1572,7 @@ mod tests {
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
 
-        for (existing_id, count) in expected_ids_and_num_occurences {
+        for (existing_id, count) in expected_ids_and_num_occurrences {
             assert_eq!(do_search(&existing_id.to_string()).len() as u64, count);
         }
         for existing_id in deleted_ids {

@@ -23,7 +23,7 @@ pub enum IndexRecordOption {
     #[serde(rename = "freq")]
     WithFreqs,
     /// records the document id, the term frequency and the positions of
-    /// the occurences in the document.
+    /// the occurrences in the document.
     /// Positions are required to run [PhraseQueries](../query/struct.PhraseQuery.html).
     #[serde(rename = "position")]
     WithFreqsAndPositions,

@@ -11,11 +11,11 @@ use crate::Searcher;
 /// The documents matched by the boolean query are
 /// those which
 /// * match all of the sub queries associated with the
-/// `Must` occurence
+/// `Must` occurrence
 /// * match none of the sub queries associated with the
-/// `MustNot` occurence.
+/// `MustNot` occurrence.
 /// * match at least one of the subqueries that is not
-/// a `MustNot` occurence.
+/// a `MustNot` occurrence.
 ///
 ///
 /// You can combine other query types and their `Occur`ances into one `BooleanQuery`
