@@ -8,7 +8,7 @@ use ownedbytes::OwnedBytes;
 
 use super::footer::DocStoreFooter;
 use super::index::SkipIndex;
-use super::Compressor;
+use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
@@ -23,7 +23,7 @@ type Block = OwnedBytes;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
-    compressor: Compressor,
+    decompressor: Decompressor,
     data: FileSlice,
     skip_index: Arc<SkipIndex>,
     space_usage: StoreSpaceUsage,
@@ -87,7 +87,7 @@ impl StoreReader {
         let space_usage = StoreSpaceUsage::new(data_file.len(), offset_index_file.len());
         let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
-            compressor: footer.compressor,
+            decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
                 cache: Mutex::new(LruCache::new(LRU_CACHE_CAPACITY)),
@@ -103,8 +103,8 @@ impl StoreReader {
         self.skip_index.checkpoints()
     }
 
-    pub(crate) fn compressor(&self) -> Compressor {
-        self.compressor
+    pub(crate) fn decompressor(&self) -> Decompressor {
+        self.decompressor
     }
 
     /// Returns the cache hit and miss statistics of the store reader.
@@ -141,7 +141,7 @@ impl StoreReader {
 
         let compressed_block = self.get_compressed_block(checkpoint)?;
         let decompressed_block =
-            OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
+            OwnedBytes::new(self.decompressor.decompress(compressed_block.as_ref())?);
 
         self.cache
             .put_into_cache(cache_key, decompressed_block.clone());
@@ -321,7 +321,7 @@ impl StoreReader {
             .await?;
 
         let decompressed_block =
-            OwnedBytes::new(self.compressor.decompress(compressed_block.as_ref())?);
+            OwnedBytes::new(self.decompressor.decompress(compressed_block.as_ref())?);
 
         self.cache
             .put_into_cache(cache_key, decompressed_block.clone());
@@ -351,6 +351,7 @@ mod tests {
     use crate::directory::RamDirectory;
     use crate::schema::{Document, Field};
     use crate::store::tests::write_lorem_ipsum_store;
+    use crate::store::Compressor;
     use crate::Directory;
 
     const BLOCK_SIZE: usize = 16_384;

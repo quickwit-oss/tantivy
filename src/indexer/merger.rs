@@ -1073,7 +1073,7 @@ impl IndexMerger {
                     //
                     // take 7 in order to not walk over all checkpoints.
                     || store_reader.block_checkpoints().take(7).count() < 6
-                    || store_reader.compressor() != store_writer.compressor()
+                    || store_reader.decompressor() != store_writer.compressor().into()
                 {
                     for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
                         let doc_bytes = doc_bytes_res?;

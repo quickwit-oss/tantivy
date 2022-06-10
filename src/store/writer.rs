@@ -5,7 +5,7 @@ use common::{BinarySerializable, CountingWriter, VInt};
 use super::compressors::Compressor;
 use super::footer::DocStoreFooter;
 use super::index::SkipIndexBuilder;
-use super::StoreReader;
+use super::{Decompressor, StoreReader};
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Document;
 use crate::store::index::Checkpoint;
@@ -152,7 +152,7 @@ impl StoreWriter {
             self.write_and_compress_block()?;
         }
         let header_offset: u64 = self.writer.written_bytes() as u64;
-        let footer = DocStoreFooter::new(header_offset, self.compressor);
+        let footer = DocStoreFooter::new(header_offset, Decompressor::from(self.compressor));
         self.offset_index_writer.write(&mut self.writer)?;
         footer.serialize(&mut self.writer)?;
         self.writer.terminate()
