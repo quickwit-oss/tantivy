@@ -239,7 +239,8 @@ mod tests {
         index_writer.add_document(doc!(bool_field=> true, bool_field => false))?;
         index_writer.add_document(doc!())?;
         index_writer.add_document(doc!(bool_field=> false))?;
-        index_writer.add_document(doc!(bool_field=> true, bool_field => true, bool_field => false))?;
+        index_writer
+            .add_document(doc!(bool_field=> true, bool_field => true, bool_field => false))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
