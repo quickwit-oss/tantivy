@@ -57,8 +57,8 @@ For a better idea of how indexing works, you may read the [following blog post](
 
 Deletes happen by deleting a "term". Tantivy does not offer any notion of primary id, so it is up to the user to use a field in their schema as if it was a primary id, and delete the associated term if they want to delete only one specific document.
 
-On commit, tantivy will find all of the segments with documents matching this existing term and create a [tombstone file](src/fastfield/delete.rs) that represents the bitset of the document that are deleted.
-Like all segment files, this file is immutable. Because it is possible to have more than one tombstone file at a given instant, the tombstone filename has the format ``` segment_id . commit_opstamp . del```.
+On commit, tantivy will find all of the segments with documents matching this existing term and remove from [alive bitset file](src/fastfield/alive_bitset.rs) that represents the bitset of the alive document ids.
+Like all segment files, this file is immutable. Because it is possible to have more than one alive bitset file at a given instant, the alive bitset filename has the format ``` segment_id . commit_opstamp . del```.
 
 An opstamp is simply an incremental id that identifies any operation applied to the index. For instance, performing a commit or adding a document.
 
