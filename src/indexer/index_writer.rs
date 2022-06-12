@@ -158,9 +158,9 @@ pub(crate) fn advance_deletes(
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-        let mut delete_file = segment.open_write(SegmentComponent::Delete)?;
-        write_alive_bitset(&alive_bitset, &mut delete_file)?;
-        delete_file.terminate()?;
+        let mut alive_doc_file = segment.open_write(SegmentComponent::Delete)?;
+        write_alive_bitset(&alive_bitset, &mut alive_doc_file)?;
+        alive_doc_file.terminate()?;
     }
 
     segment_entry.set_meta(segment.meta().clone());
