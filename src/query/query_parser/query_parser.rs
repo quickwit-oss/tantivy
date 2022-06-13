@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
-use std::str::FromStr;
+use std::str::{FromStr, ParseBoolError};
 
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 
@@ -46,6 +46,10 @@ pub enum QueryParserError {
     /// is not a f64.
     #[error("Invalid query: Only excluding terms given")]
     ExpectedFloat(#[from] ParseFloatError),
+    /// The query contains a term for a bool field, but the value
+    /// is not a bool.
+    #[error("Expected a bool value: '{0:?}'")]
+    ExpectedBool(#[from] ParseBoolError),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
     #[error("Invalid query: Only excluding terms given")]
     AllButQueryForbidden,
@@ -346,6 +350,10 @@ impl QueryParser {
                 let val: f64 = f64::from_str(phrase)?;
                 Ok(Term::from_field_f64(field, val))
             }
+            FieldType::Bool(_) => {
+                let val: bool = bool::from_str(phrase)?;
+                Ok(Term::from_field_bool(field, val))
+            }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
                 Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
@@ -425,6 +433,11 @@ impl QueryParser {
                 let val: f64 = f64::from_str(phrase)?;
                 let f64_term = Term::from_field_f64(field, val);
                 Ok(vec![LogicalLiteral::Term(f64_term)])
+            }
+            FieldType::Bool(_) => {
+                let val: bool = bool::from_str(phrase)?;
+                let bool_term = Term::from_field_bool(field, val);
+                Ok(vec![LogicalLiteral::Term(bool_term)])
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
@@ -797,6 +810,8 @@ mod test {
         schema_builder.add_bytes_field("bytes_not_indexed", STORED);
         schema_builder.add_json_field("json", TEXT);
         schema_builder.add_json_field("json_not_indexed", STORED);
+        schema_builder.add_bool_field("bool", INDEXED);
+        schema_builder.add_bool_field("notindexed_bool", STORED);
         schema_builder.build()
     }
 
@@ -912,6 +927,10 @@ mod test {
             is_not_indexed_err("notindexed_i64:-234324"),
             Some(String::from("notindexed_i64"))
         );
+        assert_eq!(
+            is_not_indexed_err("notindexed_bool:true"),
+            Some(String::from("notindexed_bool"))
+        );
     }
 
     #[test]
@@ -994,6 +1013,18 @@ mod test {
     }
 
     #[test]
+    fn test_parse_bool() {
+        test_parse_query_to_logical_ast_helper(
+            "bool:true",
+            &format!(
+                "{:?}",
+                Term::from_field_bool(Field::from_field_id(16u32), true),
+            ),
+            false,
+        );
+    }
+
+    #[test]
     fn test_parse_bytes_not_indexed() {
         let error = parse_query_to_logical_ast("bytes_not_indexed:aaa", false).unwrap_err();
         assert!(matches!(error, QueryParserError::FieldNotIndexed(_)));
@@ -1033,6 +1064,15 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
             r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            true,
+        );
+    }
+
+    #[test]
+    fn test_json_field_possibly_a_bool() {
+        test_parse_query_to_logical_ast_helper(
+            "json.titi:true",
+            r#"(Term(type=Json, field=14, path=titi, vtype=Bool, true) Term(type=Json, field=14, path=titi, vtype=Str, "true"))"#,
             true,
         );
     }
@@ -1284,6 +1324,17 @@ mod test {
             query_parser.parse_query("float:1.8a"),
             Err(QueryParserError::ExpectedFloat(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_bool() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("bool:brie"),
+            Err(QueryParserError::ExpectedBool(_))
+        );
+        assert!(query_parser.parse_query("bool:\"true\"").is_ok());
+        assert!(query_parser.parse_query("bool:\"false\"").is_ok());
     }
 
     #[test]

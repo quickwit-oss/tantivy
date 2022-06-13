@@ -123,8 +123,7 @@ fn index_json_value<'a>(
     match json_value {
         serde_json::Value::Null => {}
         serde_json::Value::Bool(val_bool) => {
-            let bool_u64 = if *val_bool { 1u64 } else { 0u64 };
-            json_term_writer.set_fast_value(bool_u64);
+            json_term_writer.set_fast_value(*val_bool);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
         serde_json::Value::Number(number) => {
@@ -219,6 +218,9 @@ pub(crate) fn convert_to_fast_value_and_get_term(
     }
     if let Ok(f64_val) = str::parse::<f64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, f64_val));
+    }
+    if let Ok(bool_val) = str::parse::<bool>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, bool_val));
     }
     None
 }
@@ -431,6 +433,20 @@ mod tests {
         assert_eq!(
             json_writer.term().as_slice(),
             b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
+        )
+    }
+
+    #[test]
+    fn test_bool_term() {
+        let field = Field::from_field_id(1);
+        let mut term = Term::new();
+        term.set_field(Type::Json, field);
+        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        json_writer.push_path_segment("color");
+        json_writer.set_fast_value(true);
+        assert_eq!(
+            json_writer.term().as_slice(),
+            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
         )
     }
 

@@ -248,6 +248,11 @@ pub mod test {
     }
 
     #[test]
+    fn test_serialize_bool() {
+        fixed_size_test::<bool>();
+    }
+
+    #[test]
     fn test_serialize_string() {
         assert_eq!(serialize_test(String::from("")), 1);
         assert_eq!(serialize_test(String::from("ぽよぽよ")), 1 + 3 * 4);
