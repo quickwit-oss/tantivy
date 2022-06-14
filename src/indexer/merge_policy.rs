@@ -9,7 +9,7 @@ pub struct MergeCandidate(pub Vec<SegmentId>);
 
 /// The `MergePolicy` defines which segments should be merged.
 ///
-/// Every time a the list of segments changes, the segment updater
+/// Every time the list of segments changes, the segment updater
 /// asks the merge policy if some segments should be merged.
 pub trait MergePolicy: marker::Send + marker::Sync + Debug {
     /// Given the list of segment metas, returns the list of merge candidates.
