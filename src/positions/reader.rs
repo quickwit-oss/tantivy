@@ -6,11 +6,11 @@ use crate::directory::OwnedBytes;
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::postings::compression::{BlockDecoder, VIntDecoder};
 
-/// When accessing the position of a term, we get a positions_idx from the `Terminfo`.
-/// This means we need to skip to the `nth` positions efficiently.
+/// When accessing the positions of a term, we get a positions_idx from the `Terminfo`.
+/// This means we need to skip to the `nth` position efficiently.
 ///
 /// Blocks are compressed using bitpacking, so `skip_read` contains the number of bits
-/// (values can go from 0bit to 32 bits) required to decompress every block.
+/// (values can go from 0 to 32 bits) required to decompress every block.
 ///
 /// A given block obviously takes `(128 x  num_bit_for_the_block / num_bits_in_a_byte)`,
 /// so skipping a block without decompressing it is just a matter of advancing that many
