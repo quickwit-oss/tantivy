@@ -2,12 +2,12 @@
 //! a given Field of a given document.
 //!
 //! This metric is important to compute the score of a
-//! document : a document having a query word in one its short fields
+//! document: a document having a query word in one of its short fields
 //! (e.g. title)  is likely to be more relevant than in one of its longer field
 //! (e.g. body).
 //!
 //! It encodes `fieldnorm` on one byte with some precision loss,
-//! using the exact same scheme as Lucene. Each value is place on a log-scale
+//! using the exact same scheme as Lucene. Each value is placed on a log-scale
 //! that takes values from `0` to `255`.
 //!
 //! A value on this scale is identified by a `fieldnorm_id`.
