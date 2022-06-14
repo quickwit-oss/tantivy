@@ -175,9 +175,9 @@ impl SegmentReader {
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let original_bitset = if segment.meta().has_deletes() {
-            let delete_file_slice = segment.open_read(SegmentComponent::Delete)?;
-            let delete_data = delete_file_slice.read_bytes()?;
-            Some(AliveBitSet::open(delete_data))
+            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
+            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
+            Some(AliveBitSet::open(alive_doc_data))
         } else {
             None
         };
@@ -295,8 +295,7 @@ impl SegmentReader {
         self.delete_opstamp
     }
 
-    /// Returns the bitset representing
-    /// the documents that have been deleted.
+    /// Returns the bitset representing the alive `DocId`s.
     pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
         self.alive_bitset_opt.as_ref()
     }
@@ -305,7 +304,7 @@ impl SegmentReader {
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.alive_bitset()
-            .map(|delete_set| delete_set.is_deleted(doc))
+            .map(|alive_bitset| alive_bitset.is_deleted(doc))
             .unwrap_or(false)
     }
 
