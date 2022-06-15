@@ -71,17 +71,7 @@
 //! setting the field as stored defines whether the field will be
 //! returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called,
 //! and setting the field as indexed means that we will be able perform queries such as
-//! `num_stars:10`. Note that unlike text fields, u64 can only be indexed in one way for the moment.
-//! This may change when we will start supporting range queries.
-//!
-//! The `fast` option on the other hand is specific to u64 fields, and is only relevant
-//! if you are implementing your own queries. This functionality is somewhat similar to Lucene's
-//! `DocValues`.
-//!
-//! u64 that are indexed as fast will be stored in a special data structure that will
-//! make it possible to access the u64 value given the doc id rapidly. This is useful if the value
-//! of the field is required during scoring or collection for instance.
-//!
+//! `num_stars:10`. Note that unlike text fields, numeric fields can only be indexed in one way for the moment.
 //!
 //! ### Shortcuts
 //!
@@ -97,6 +87,21 @@
 //! let mut schema_builder = Schema::builder();
 //! schema_builder.add_u64_field("num_stars", INDEXED | STORED);
 //! schema_builder.add_text_field("title", TEXT | STORED);
+//! let schema = schema_builder.build();
+//! ```
+//!
+//! ### Fast fields
+//! This functionality is somewhat similar to Lucene's `DocValues`.
+//!
+//! Fields that are indexed as [FAST] will be stored in a special data structure that will
+//! make it possible to access the value given the doc id rapidly. This is useful if the value
+//! of the field is required during scoring or collection for instance.
+//!
+//! ```
+//! use tantivy::schema::*;
+//! let mut schema_builder = Schema::builder();
+//! schema_builder.add_u64_field("population", STORED | FAST);
+//! schema_builder.add_text_field("zip_code", INDEXED | STRING | FAST);
 //! let schema = schema_builder.build();
 //! ```
 

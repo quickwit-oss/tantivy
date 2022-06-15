@@ -11,10 +11,7 @@ use crate::DateTime;
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
 ///
-/// Documents are fundamentally a collection of unordered couple `(field, value)`.
-/// In this list, one field may appear more than once.
-
-/// Documents are really just a list of couple `(field, value)`.
+/// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct Document {
@@ -78,7 +75,9 @@ impl Document {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add_field_value(field, value);
@@ -125,7 +124,7 @@ impl Document {
         self.add_field_value(field, value.into());
     }
 
-    /// Add a bytes field
+    /// Add a JSON field
     pub fn add_json_object(
         &mut self,
         field: Field,

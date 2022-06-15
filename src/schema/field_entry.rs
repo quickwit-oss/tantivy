@@ -96,7 +96,7 @@ impl FieldEntry {
         self.field_type.has_fieldnorms()
     }
 
-    /// Returns true if the field is a int (signed or unsigned) fast field
+    /// Returns true if the field is a fast field
     pub fn is_fast(&self) -> bool {
         self.field_type.is_fast()
     }

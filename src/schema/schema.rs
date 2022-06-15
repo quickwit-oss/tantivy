@@ -292,7 +292,7 @@ impl Schema {
         self.0.fields_map.get(field_name).cloned()
     }
 
-    /// Create a named document off the doc.
+    /// Create document from a named doc.
     pub fn convert_named_doc(
         &self,
         named_doc: NamedFieldDocument,
@@ -308,7 +308,7 @@ impl Schema {
         Ok(document)
     }
 
-    /// Create a named document off the doc.
+    /// Create a named document from the doc.
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {
@@ -367,7 +367,9 @@ impl Schema {
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for e in &self.0.fields {
             seq.serialize_element(e)?;
@@ -378,7 +380,9 @@ impl Serialize for Schema {
 
 impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         struct SchemaVisitor;
 
         impl<'de> Visitor<'de> for SchemaVisitor {
@@ -389,7 +393,9 @@ impl<'de> Deserialize<'de> for Schema {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where A: SeqAccess<'de> {
+            where
+                A: SeqAccess<'de>,
+            {
                 let mut schema = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),

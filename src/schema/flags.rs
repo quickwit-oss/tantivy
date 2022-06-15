@@ -36,8 +36,6 @@ pub struct FastFlag;
 ///
 /// Fast fields can be random-accessed rapidly. Fields useful for scoring, filtering
 /// or collection should be mark as fast fields.
-/// The `FAST` flag can only be used when building `NumericOptions` (`u64`, `i64`, `f64` and `bool`
-/// fields)
 pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
     head: FastFlag,
     tail: (),

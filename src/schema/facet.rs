@@ -74,17 +74,18 @@ impl Facet {
     /// Creates a `Facet` from its binary representation.
     pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, FromUtf8Error> {
         // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
-        // Ok(Facet(String::from_utf8(encoded_bytes)?))
         String::from_utf8(encoded_bytes).map(Facet)
     }
 
     /// Parse a text representation of a facet.
     ///
-    /// It is conceptually, if one of the steps of this path
-    /// contains a `/` or a `\`, it should be escaped
-    /// using an anti-slash `/`.
+    /// If one of the segments of this path
+    /// contains a `/`, it should be escaped
+    /// using an anti-slash `\`.
     pub fn from_text<T>(path: &T) -> Result<Facet, FacetParseError>
-    where T: ?Sized + AsRef<str> {
+    where
+        T: ?Sized + AsRef<str>,
+    {
         #[derive(Copy, Clone)]
         enum State {
             Escaped,
@@ -210,14 +211,18 @@ fn escape_slashes(s: &str) -> Cow<'_, str> {
 
 impl Serialize for Facet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&self.to_string())
     }
 }
 
 impl<'de> Deserialize<'de> for Facet {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         <&'de str as Deserialize<'de>>::deserialize(deserializer).map(Facet::from)
     }
 }
