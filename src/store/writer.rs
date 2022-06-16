@@ -56,9 +56,13 @@ impl StoreWriter {
         let thread_builder = thread::Builder::new().name("docstore compressor thread".to_string());
 
         // Data channel to send fs writes, to write only from current thread
-        let (data_sender, data_receiver) = sync_channel(3);
+        let (data_sender, data_receiver): (SyncSender<OwnedBytes>, Receiver<OwnedBytes>) =
+            sync_channel(3);
         // Channel to send uncompressed data to compressor channel
-        let (block_sender, block_receiver) = sync_channel(3);
+        let (block_sender, block_receiver): (
+            SyncSender<BlockCompressorMessage>,
+            Receiver<BlockCompressorMessage>,
+        ) = sync_channel(3);
         let thread_join_handle = thread_builder.spawn(move || {
             let mut block_compressor = BlockCompressor::new(compressor, data_sender);
             while let Ok(packet) = block_receiver.recv() {
@@ -116,17 +120,15 @@ impl StoreWriter {
                 Ok(data) => {
                     self.writer.write_all(data.as_slice())?;
                 }
-                Err(err) => match err {
-                    TryRecvError::Empty => {
-                        break;
-                    }
-                    TryRecvError::Disconnected => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            "compressor data channel unexpected closed".to_string(),
-                        ));
-                    }
-                },
+                Err(TryRecvError::Empty) => {
+                    break;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "compressor data channel unexpected closed".to_string(),
+                    ));
+                }
             }
         }
 
