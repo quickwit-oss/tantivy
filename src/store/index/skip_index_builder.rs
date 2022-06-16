@@ -87,7 +87,7 @@ impl SkipIndexBuilder {
         }
     }
 
-    pub fn write<W: Write>(mut self, output: &mut W) -> io::Result<()> {
+    pub fn serialize_into<W: Write>(mut self, output: &mut W) -> io::Result<()> {
         let mut last_pointer = None;
         for skip_layer in self.layers.iter_mut() {
             if let Some(checkpoint) = last_pointer {
