@@ -19,6 +19,8 @@ use crate::tokenizer::{
 ///  * `en_stem` : Like `default`, but also applies stemming on the
 ///  resulting tokens. Stemming can improve the recall of your
 ///  search engine.
+/// * `whitespace` : Splits the text on whitespaces.
+///
 #[derive(Clone)]
 pub struct TokenizerManager {
     tokenizers: Arc<RwLock<HashMap<String, TextAnalyzer>>>,
@@ -34,7 +36,9 @@ impl TokenizerManager {
 
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
-    where TextAnalyzer: From<T> {
+    where
+        TextAnalyzer: From<T>,
+    {
         let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()
@@ -55,9 +59,6 @@ impl TokenizerManager {
 impl Default for TokenizerManager {
     /// Creates an `TokenizerManager` prepopulated with
     /// the default pre-configured tokenizers of `tantivy`.
-    /// - simple
-    /// - en_stem
-    /// - ja
     fn default() -> TokenizerManager {
         let manager = TokenizerManager::new();
         manager.register("raw", RawTokenizer);

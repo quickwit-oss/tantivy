@@ -155,11 +155,12 @@ impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 ///
-/// See `TokenStream` for more information.
+/// See [TokenStream] for more information.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
 impl<'a, T> From<T> for BoxTokenStream<'a>
-where T: TokenStream + 'a
+where
+    T: TokenStream + 'a,
 {
     fn from(token_stream: T) -> BoxTokenStream<'a> {
         BoxTokenStream(Box::new(token_stream))
@@ -181,7 +182,7 @@ impl<'a> DerefMut for BoxTokenStream<'a> {
 
 /// Simple wrapper of `Box<dyn TokenFilter + 'a>`.
 ///
-/// See `TokenStream` for more information.
+/// See [TokenStream] for more information.
 pub struct BoxTokenFilter(Box<dyn TokenFilter>);
 
 impl Deref for BoxTokenFilter {

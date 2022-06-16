@@ -101,7 +101,7 @@
 //! use tantivy::schema::*;
 //! let mut schema_builder = Schema::builder();
 //! schema_builder.add_u64_field("population", STORED | FAST);
-//! schema_builder.add_text_field("zip_code", INDEXED | STRING | FAST);
+//! schema_builder.add_text_field("zip_code", STRING | FAST);
 //! let schema = schema_builder.build();
 //! ```
 
