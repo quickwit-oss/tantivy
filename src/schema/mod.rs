@@ -71,7 +71,8 @@
 //! setting the field as stored defines whether the field will be
 //! returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called,
 //! and setting the field as indexed means that we will be able perform queries such as
-//! `num_stars:10`. Note that unlike text fields, numeric fields can only be indexed in one way for the moment.
+//! `num_stars:10`. Note that unlike text fields, numeric fields can only be indexed in one way for
+//! the moment.
 //!
 //! ### Shortcuts
 //!

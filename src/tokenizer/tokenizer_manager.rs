@@ -20,7 +20,6 @@ use crate::tokenizer::{
 ///  resulting tokens. Stemming can improve the recall of your
 ///  search engine.
 /// * `whitespace` : Splits the text on whitespaces.
-///
 #[derive(Clone)]
 pub struct TokenizerManager {
     tokenizers: Arc<RwLock<HashMap<String, TextAnalyzer>>>,
@@ -36,9 +35,7 @@ impl TokenizerManager {
 
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
-    where
-        TextAnalyzer: From<T>,
-    {
+    where TextAnalyzer: From<T> {
         let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()

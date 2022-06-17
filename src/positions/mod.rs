@@ -3,13 +3,13 @@
 //! In "The beauty and the beast", the term "the" appears in position 0 and position 4.
 //! This information is useful to run phrase queries.
 //!
-//! The [position](../enum.SegmentComponent.html#variant.Positions) file contains all of the bitpacked positions delta,
-//! for all terms of a given field, one term after the other.
+//! The [position](../enum.SegmentComponent.html#variant.Positions) file contains all of the
+//! bitpacked positions delta, for all terms of a given field, one term after the other.
 //!
 //! Each term is encoded independently.
-//! Like for positing lists, tantivy relies on simd bitpacking to encode the positions delta in blocks
-//! of 128 deltas. Because we rarely have a multiple of 128, a final block may encode the remaining
-//! values variable byte encoding.
+//! Like for positing lists, tantivy relies on simd bitpacking to encode the positions delta in
+//! blocks of 128 deltas. Because we rarely have a multiple of 128, a final block may encode the
+//! remaining values variable byte encoding.
 //!
 //! In order to make reading possible, the term delta positions first encodes the number of
 //! bitpacked blocks, then the bitwidth for each blocks, then the actual bitpacked block and finally
