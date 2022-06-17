@@ -222,7 +222,7 @@ impl StoreWriter {
     }
 }
 
-/// BlockCompressor is seperated from StoreWriter, to be run in an own thread
+/// BlockCompressor is separated from StoreWriter, to be run in an own thread
 pub struct BlockCompressor {
     compressor: Compressor,
     doc: DocId,
