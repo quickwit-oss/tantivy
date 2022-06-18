@@ -40,14 +40,19 @@ impl Debug for UserInputLeaf {
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
+    pub matching_distance: u32,
 }
 
 impl fmt::Debug for UserInputLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self.field_name {
-            Some(ref field_name) => write!(formatter, "\"{}\":\"{}\"", field_name, self.phrase),
-            None => write!(formatter, "\"{}\"", self.phrase),
+        if let Some(ref field) = self.field_name {
+            write!(formatter, "\"{}\":", field)?;
         }
+        write!(formatter, "\"{}\"", self.phrase)?;
+        if self.matching_distance > 0 {
+            write!(formatter, "~{}", self.matching_distance)?;
+        }
+        Ok(())
     }
 }
 

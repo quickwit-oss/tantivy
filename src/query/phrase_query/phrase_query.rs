@@ -40,7 +40,12 @@ impl PhraseQuery {
     /// Creates a new `PhraseQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhraseQuery {
+    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> PhraseQuery {
+        PhraseQuery::new_with_offset_and_slop(terms, 0)
+    }
+
+    /// Creates a new `PhraseQuery` given a list of terms, their offsets and a slop
+    pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhraseQuery {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
@@ -54,7 +59,7 @@ impl PhraseQuery {
         PhraseQuery {
             field,
             phrase_terms: terms,
-            slop: 0,
+            slop,
         }
     }
 

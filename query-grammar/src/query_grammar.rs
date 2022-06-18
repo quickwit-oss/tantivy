@@ -120,22 +120,35 @@ fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
     let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
-    phrase.or(word())
+    negative_number().or(phrase.or(word()))
 }
 
 fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
-    let term_val_with_field = negative_number().or(term_val());
-    (field_name(), term_val_with_field).map(|(field_name, phrase)| UserInputLiteral {
-        field_name: Some(field_name),
-        phrase,
+    (field_name(), term_val(), matching_distance_val()).map(
+        |(field_name, phrase, matching_distance)| UserInputLiteral {
+            field_name: Some(field_name),
+            phrase,
+            matching_distance,
+        },
+    )
+}
+
+fn matching_distance_val<'a>() -> impl Parser<&'a str, Output = u32> {
+    let matching_distance = (char('~'), many1(digit())).map(|(_, distance): (_, String)| distance);
+    optional(matching_distance).map(|distance| match distance {
+        Some(d) => d.parse::<u32>().unwrap(),
+        _ => 0,
     })
 }
 
 fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let term_default_field = term_val().map(|phrase| UserInputLiteral {
-        field_name: None,
-        phrase,
-    });
+    let term_default_field =
+        (term_val(), matching_distance_val()).map(|(phrase, matching_distance)| UserInputLiteral {
+            field_name: None,
+            phrase,
+            matching_distance,
+        });
+
     attempt(term_query())
         .or(term_default_field)
         .map(UserInputLeaf::from)
@@ -713,5 +726,21 @@ mod test {
             "\"1.2.foo.bar\":[\"1.1\" TO \"*\"}",
         );
         test_is_parse_err("abc +    ");
+    }
+
+    #[test]
+    fn test_matching_distance() {
+        assert!(parse_to_ast().parse("\"a b\"~").is_err());
+        assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
+        // assert!(parse_to_ast().parse("\"a b\"^2~4").is_err());
+        test_parse_query_to_ast_helper("\"a b\"^2~4", "(*(\"a b\")^2 *\"~4\")");
+
+        test_parse_query_to_ast_helper("~", "\"~\"");
+        test_parse_query_to_ast_helper("a~2", "\"a~2\"");
+        test_parse_query_to_ast_helper("\"a b\"~0", "\"a b\"");
+        test_parse_query_to_ast_helper("\"a b\"~1", "\"a b\"~1");
+        test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
+        test_parse_query_to_ast_helper("foo:\"a b\"~300", "\"foo\":\"a b\"~300");
+        test_parse_query_to_ast_helper("\"a b\"~300^2", "(\"a b\"~300)^2");
     }
 }
