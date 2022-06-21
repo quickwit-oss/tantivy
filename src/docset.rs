@@ -24,7 +24,6 @@ pub trait DocSet: Send {
     ///
     /// Calling `.advance()` on a terminated DocSet should be supported, and TERMINATED should
     /// be returned.
-    /// TODO Test existing docsets.
     fn advance(&mut self) -> DocId;
 
     /// Advances the DocSet forward until reaching the target, or going to the

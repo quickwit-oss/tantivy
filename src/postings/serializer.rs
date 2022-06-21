@@ -43,7 +43,7 @@ use crate::{DocId, Score};
 /// * `close()`
 ///
 /// Terms have to be pushed in a lexicographically-sorted order.
-/// Within a term, document have to be pushed in increasing order.
+/// Within a term, documents have to be pushed in increasing order.
 ///
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
@@ -55,7 +55,7 @@ pub struct InvertedIndexSerializer {
 }
 
 impl InvertedIndexSerializer {
-    /// Open a new `PostingsSerializer` for the given segment
+    /// Open a new `InvertedIndexSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
         use crate::SegmentComponent::{Positions, Postings, Terms};
         let inv_index_serializer = InvertedIndexSerializer {
@@ -187,7 +187,7 @@ impl<'a> FieldSerializer<'a> {
         Ok(term_ordinal)
     }
 
-    /// Serialize the information that a document contains the current term,
+    /// Serialize the information that a document contains for the current term:
     /// its term frequency, and the position deltas.
     ///
     /// At this point, the positions are already `delta-encoded`.
@@ -207,7 +207,7 @@ impl<'a> FieldSerializer<'a> {
 
     /// Finish the serialization for this term postings.
     ///
-    /// If the current block is incomplete, it need to be encoded
+    /// If the current block is incomplete, it needs to be encoded
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
@@ -231,7 +231,7 @@ impl<'a> FieldSerializer<'a> {
         Ok(())
     }
 
-    /// Closes the current current field.
+    /// Closes the current field.
     pub fn close(mut self) -> io::Result<()> {
         self.close_term()?;
         if let Some(positions_serializer) = self.positions_serializer_opt {

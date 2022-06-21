@@ -15,13 +15,13 @@ pub trait StoreCompressor {
 pub enum Decompressor {
     /// No compression
     None,
-    /// Use the lz4 compressor (block format)
+    /// Use the lz4 decompressor (block format)
     Lz4,
-    /// Use the brotli compressor
+    /// Use the brotli decompressor
     Brotli,
-    /// Use the snap compressor
+    /// Use the snap decompressor
     Snappy,
-    /// Use the zstd compressor
+    /// Use the zstd decompressor
     Zstd,
 }
 

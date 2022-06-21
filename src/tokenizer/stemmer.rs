@@ -54,7 +54,7 @@ impl Language {
     }
 }
 
-/// `Stemmer` token filter. Several languages are supported, see `Language` for the available
+/// `Stemmer` token filter. Several languages are supported, see [Language] for the available
 /// languages.
 /// Tokens are expected to be lowercased beforehand.
 #[derive(Clone)]

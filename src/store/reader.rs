@@ -108,7 +108,7 @@ impl StoreReader {
     }
 
     /// Returns the cache hit and miss statistics of the store reader.
-    pub fn cache_stats(&self) -> CacheStats {
+    pub(crate) fn cache_stats(&self) -> CacheStats {
         self.cache.stats()
     }
 

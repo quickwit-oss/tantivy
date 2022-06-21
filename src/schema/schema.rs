@@ -292,7 +292,7 @@ impl Schema {
         self.0.fields_map.get(field_name).cloned()
     }
 
-    /// Create a named document off the doc.
+    /// Create document from a named doc.
     pub fn convert_named_doc(
         &self,
         named_doc: NamedFieldDocument,
@@ -308,7 +308,7 @@ impl Schema {
         Ok(document)
     }
 
-    /// Create a named document off the doc.
+    /// Create a named document from the doc.
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {

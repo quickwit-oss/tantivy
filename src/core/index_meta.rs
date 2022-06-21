@@ -270,7 +270,7 @@ impl Default for IndexSettings {
 
 /// Settings to presort the documents in an index
 ///
-/// Presorting documents can greatly performance
+/// Presorting documents can greatly improve performance
 /// in some scenarios, by applying top n
 /// optimizations.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
