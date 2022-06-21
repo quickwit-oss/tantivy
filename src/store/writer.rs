@@ -92,6 +92,7 @@ impl StoreWriter {
         self.intermediary_buffer.capacity() + self.current_block.capacity()
     }
 
+    /// Checks if the current block is full, and if so, compresses and flushes it.
     fn check_flush_block(&mut self) -> io::Result<()> {
         if self.current_block.len() > self.block_size {
             let block = self.get_current_block();
