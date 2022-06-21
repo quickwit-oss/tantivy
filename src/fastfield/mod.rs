@@ -162,10 +162,7 @@ impl FastValue for f64 {
 
 impl FastValue for bool {
     fn from_u64(val: u64) -> Self {
-        match val {
-            0 => false,
-            _ => true,
-        }
+        !matches!(val, 0)
     }
 
     fn to_u64(&self) -> u64 {
@@ -853,7 +850,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
@@ -889,7 +886,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 48);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
@@ -923,7 +920,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 35);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();

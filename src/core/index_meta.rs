@@ -469,7 +469,7 @@ mod tests {
     fn test_serialize_metas_invalid_comp() {
         let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
-        let err = serde_json::from_str::<UntrackedIndexMeta>(&json).unwrap_err();
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
             "unknown variant `zsstd`, expected one of `none`, `lz4`, `brotli`, `snappy`, `zstd`, \
@@ -479,7 +479,7 @@ mod tests {
 
         let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(bla=10)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
-        let err = serde_json::from_str::<UntrackedIndexMeta>(&json).unwrap_err();
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
             "unknown zstd option \"bla\" at line 1 column 103".to_string()
