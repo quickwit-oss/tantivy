@@ -162,7 +162,7 @@ impl FastValue for f64 {
 
 impl FastValue for bool {
     fn from_u64(val: u64) -> Self {
-        !matches!(val, 0)
+        val != 0u64
     }
 
     fn to_u64(&self) -> u64 {
