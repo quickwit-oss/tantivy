@@ -49,7 +49,7 @@ impl StoreWriter {
         compressor: Compressor,
         block_size: usize,
     ) -> io::Result<StoreWriter> {
-        let thread_builder = thread::Builder::new().name("docstore compressor thread".to_string());
+        let thread_builder = thread::Builder::new().name("docstore-compressor-thread".to_string());
 
         // Channel to send uncompressed data to compressor channel
         let (block_sender, block_receiver): (
