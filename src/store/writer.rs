@@ -1,9 +1,8 @@
 use std::io::{self, Write};
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TryRecvError};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::{self, JoinHandle};
 
-use common::{BinarySerializable, VInt};
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, CountingWriter, VInt};
 
 use super::compressors::Compressor;
 use super::footer::DocStoreFooter;
@@ -28,14 +27,11 @@ pub struct StoreWriter {
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 
-    writer: WritePtr,
-    // the channel to communicate with the compressor thread.
+    // the channel to send data to the compressor thread.
     compressor_sender: SyncSender<BlockCompressorMessage>,
-    // the channel to receive data to write from the compressor thread.
-    data_receiver: Receiver<OwnedBytes>,
 
     // the handle to check for errors on the thread
-    compressor_thread_handle: JoinHandle<io::Result<(DocStoreFooter, SkipIndexBuilder)>>,
+    compressor_thread_handle: JoinHandle<io::Result<()>>,
 }
 
 enum BlockCompressorMessage {
@@ -55,16 +51,13 @@ impl StoreWriter {
     ) -> io::Result<StoreWriter> {
         let thread_builder = thread::Builder::new().name("docstore compressor thread".to_string());
 
-        // Data channel to send fs writes, to write only from current thread
-        let (data_sender, data_receiver): (SyncSender<OwnedBytes>, Receiver<OwnedBytes>) =
-            sync_channel(3);
         // Channel to send uncompressed data to compressor channel
         let (block_sender, block_receiver): (
             SyncSender<BlockCompressorMessage>,
             Receiver<BlockCompressorMessage>,
         ) = sync_channel(3);
         let thread_join_handle = thread_builder.spawn(move || {
-            let mut block_compressor = BlockCompressor::new(compressor, data_sender);
+            let mut block_compressor = BlockCompressor::new(compressor, writer);
             while let Ok(packet) = block_receiver.recv() {
                 match packet {
                     BlockCompressorMessage::AddBlock(block) => {
@@ -84,10 +77,8 @@ impl StoreWriter {
             num_docs_in_current_block: 0,
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
-            writer,
             compressor_sender: block_sender,
             compressor_thread_handle: thread_join_handle,
-            data_receiver,
         })
     }
 
@@ -106,32 +97,7 @@ impl StoreWriter {
             self.compressor_sender
                 .send(BlockCompressorMessage::AddBlock(block))
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-            self.fetch_writes_from_channel()?;
         }
-        Ok(())
-    }
-
-    /// Try to empty the queue to write into the file.
-    ///
-    /// This is done in order to avoid writing from multiple threads into the file.
-    fn fetch_writes_from_channel(&mut self) -> io::Result<()> {
-        loop {
-            match self.data_receiver.try_recv() {
-                Ok(data) => {
-                    self.writer.write_all(data.as_slice())?;
-                }
-                Err(TryRecvError::Empty) => {
-                    break;
-                }
-                Err(TryRecvError::Disconnected) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "compressor data channel unexpected closed".to_string(),
-                    ));
-                }
-            }
-        }
-
         Ok(())
     }
 
@@ -204,21 +170,11 @@ impl StoreWriter {
         }
         drop(self.compressor_sender);
 
-        // Wait for remaining data on the channel to write
-        while let Ok(data) = self.data_receiver.recv() {
-            self.writer.write_all(data.as_slice())?;
-        }
-
-        // The compressor thread should have finished already, since data_receiver stopped
-        // receiving
-        let (docstore_footer, offset_index_writer) = self
-            .compressor_thread_handle
+        self.compressor_thread_handle
             .join()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))??;
 
-        offset_index_writer.serialize_into(&mut self.writer)?;
-        docstore_footer.serialize(&mut self.writer)?;
-        self.writer.terminate()
+        Ok(())
     }
 }
 
@@ -228,8 +184,7 @@ pub struct BlockCompressor {
     doc: DocId,
     offset_index_writer: SkipIndexBuilder,
     intermediary_buffer: Vec<u8>,
-    written_bytes: usize,
-    data_sender: SyncSender<OwnedBytes>,
+    writer: CountingWriter<WritePtr>,
 }
 
 struct DocumentBlock {
@@ -244,14 +199,13 @@ impl DocumentBlock {
 }
 
 impl BlockCompressor {
-    fn new(compressor: Compressor, data_sender: SyncSender<OwnedBytes>) -> Self {
+    fn new(compressor: Compressor, writer: WritePtr) -> Self {
         Self {
             compressor,
             doc: 0,
             offset_index_writer: SkipIndexBuilder::new(),
             intermediary_buffer: Vec::new(),
-            written_bytes: 0,
-            data_sender,
+            writer: CountingWriter::wrap(writer),
         }
     }
 
@@ -261,17 +215,13 @@ impl BlockCompressor {
         self.compressor
             .compress_into(&block.data[..], &mut self.intermediary_buffer)?;
 
-        let byte_range = self.written_bytes..self.written_bytes + self.intermediary_buffer.len();
-
-        self.data_sender
-            .send(OwnedBytes::new(self.intermediary_buffer.to_owned()))
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-
-        self.written_bytes += byte_range.len();
+        let start_offset = self.writer.written_bytes() as usize;
+        self.writer.write_all(&self.intermediary_buffer)?;
+        let end_offset = self.writer.written_bytes() as usize;
 
         self.register_checkpoint(Checkpoint {
             doc_range: self.doc..self.doc + block.num_docs_in_block,
-            byte_range,
+            byte_range: start_offset..end_offset,
         });
         Ok(())
     }
@@ -290,14 +240,11 @@ impl BlockCompressor {
             self.compress_block(block)?;
         }
         let doc_shift = self.doc;
-        let start_shift = self.written_bytes;
+        let start_shift = self.writer.written_bytes() as usize;
 
         // just bulk write all of the block of the given reader.
-        self.data_sender
-            .send(store_reader.block_data()?)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-
-        self.written_bytes += store_reader.block_data()?.as_slice().len();
+        self.writer
+            .write_all(store_reader.block_data()?.as_slice())?;
 
         // concatenate the index of the `store_reader`, after translating
         // its start doc id and its start file offset.
@@ -310,12 +257,13 @@ impl BlockCompressor {
         }
         Ok(())
     }
-    fn close(self) -> io::Result<(DocStoreFooter, SkipIndexBuilder)> {
-        drop(self.data_sender);
+    fn close(mut self) -> io::Result<()> {
+        let header_offset: u64 = self.writer.written_bytes() as u64;
+        let docstore_footer =
+            DocStoreFooter::new(header_offset, Decompressor::from(self.compressor));
 
-        let header_offset: u64 = self.written_bytes as u64;
-        let footer = DocStoreFooter::new(header_offset, Decompressor::from(self.compressor));
-
-        Ok((footer, self.offset_index_writer))
+        self.offset_index_writer.serialize_into(&mut self.writer)?;
+        docstore_footer.serialize(&mut self.writer)?;
+        self.writer.terminate()
     }
 }
