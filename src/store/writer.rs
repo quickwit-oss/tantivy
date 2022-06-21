@@ -68,7 +68,8 @@ impl StoreWriter {
                     }
                 }
             }
-            block_compressor.close()
+            block_compressor.close()?;
+            Ok(())
         })?;
 
         Ok(StoreWriter {
