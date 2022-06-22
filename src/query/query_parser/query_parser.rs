@@ -168,6 +168,9 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// It is also possible to define a boost for a some specific field, at the query parser level.
 /// (See [`set_boost(...)`](#method.set_field_boost) ). Typically you may want to boost a title
 /// field.
+///
+/// Phrase terms support the `~` distance operator which allows to set the phrase's matching
+/// distance in words. `"big wolf"~1 will return documents containing the phrase `"big bad wolf"`.
 #[derive(Clone)]
 pub struct QueryParser {
     schema: Schema,

@@ -16,9 +16,9 @@ use crate::Occur;
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
 const SPECIAL_CHARS: &[char] = &[
-    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
+    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '!', '\\', '*', ' ',
 ];
-const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|\~|!|\\|\*|\s)"#;
+const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|!|\\|\*|\s)"#;
 
 /// Parses a field_name
 /// A field name must have at least one character and be followed by a colon.
@@ -536,16 +536,8 @@ mod test {
             Ok((".my.field.name".to_string(), "a"))
         );
         assert_eq!(
-            super::field_name().parse(r#"my\　field:a"#),
-            Ok(("my　field".to_string(), "a"))
-        );
-        assert_eq!(
             super::field_name().parse(r#"にんじん:a"#),
             Ok(("にんじん".to_string(), "a"))
-        );
-        assert_eq!(
-            super::field_name().parse("my\\ field\\ name:a"),
-            Ok(("my field name".to_string(), "a"))
         );
         assert_eq!(
             super::field_name().parse(r#"my\field:a"#),
@@ -575,6 +567,17 @@ mod test {
             super::field_name().parse("_my_field:a"),
             Ok(("_my_field".to_string(), "a"))
         );
+        assert_eq!(
+            super::field_name().parse("~my~field:a"),
+            Ok(("~my~field".to_string(), "a"))
+        );
+        for special_char in SPECIAL_CHARS.iter() {
+            let query = &format!("\\{special_char}my\\{special_char}field:a");
+            assert_eq!(
+                super::field_name().parse(&query),
+                Ok((format!("{special_char}my{special_char}field"), "a"))
+            );
+        }
     }
 
     #[test]
@@ -733,8 +736,9 @@ mod test {
         assert!(parse_to_ast().parse("\"a b\"~").is_err());
         assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
         assert!(parse_to_ast().parse("\"a b\"^2~4").is_err());
-        assert!(parse_to_ast().parse("~").is_err());
+        assert!(parse_to_ast().parse("~/Documents").is_err());
 
+        test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
         test_parse_query_to_ast_helper("a~2", "\"a\"~2");
         test_parse_query_to_ast_helper("\"a b\"~0", "\"a b\"");
         test_parse_query_to_ast_helper("\"a b\"~1", "\"a b\"~1");
