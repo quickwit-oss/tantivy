@@ -101,17 +101,20 @@ impl StoreWriter {
 
     /// Flushes current uncompressed block and sends to compressor.
     fn send_current_block_to_compressor(&mut self) -> io::Result<()> {
+        // We don't do anything if the current block is empty to begin with.
+        if self.current_block.is_empty() {
+            return Ok(());
+        }
         let block = DocumentBlock {
             data: self.current_block.to_owned(),
             num_docs_in_block: self.num_docs_in_current_block,
         };
         self.current_block.clear();
         self.num_docs_in_current_block = 0;
-        if !block.is_empty() {
-            self.compressor_sender
-                .send(BlockCompressorMessage::AddBlock(block))
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-        }
+        self.compressor_sender
+            .send(BlockCompressorMessage::AddBlock(block))
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+
         Ok(())
     }
 
@@ -189,12 +192,6 @@ pub struct BlockCompressor {
 struct DocumentBlock {
     data: Vec<u8>,
     num_docs_in_block: DocId,
-}
-
-impl DocumentBlock {
-    fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
 }
 
 impl BlockCompressor {
