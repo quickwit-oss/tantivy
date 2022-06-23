@@ -42,7 +42,7 @@ impl SegmentSerializer {
         let blocksize = segment.index().settings().docstore_blocksize;
         Ok(SegmentSerializer {
             segment,
-            store_writer: StoreWriter::new(store_write, compressor, blocksize),
+            store_writer: StoreWriter::new(store_write, compressor, blocksize)?,
             fast_field_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,

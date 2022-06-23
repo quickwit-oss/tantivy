@@ -382,7 +382,7 @@ fn remap_and_write(
         let block_size = serializer.segment().index().settings().docstore_blocksize;
         let old_store_writer = std::mem::replace(
             &mut serializer.store_writer,
-            StoreWriter::new(store_write, compressor, block_size),
+            StoreWriter::new(store_write, compressor, block_size)?,
         );
         old_store_writer.close()?;
         let store_read = StoreReader::open(

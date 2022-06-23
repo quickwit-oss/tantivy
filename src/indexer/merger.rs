@@ -1081,7 +1081,7 @@ impl IndexMerger {
                         store_writer.store_bytes(&doc_bytes)?;
                     }
                 } else {
-                    store_writer.stack(&store_reader)?;
+                    store_writer.stack(store_reader)?;
                 }
             }
         }
