@@ -153,3 +153,12 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 
 ### On average, how much faster is Tantivy compared to Lucene?
 - According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
+
+### Does tantivy support incremental indexing?
+- Yes.
+
+### How can I edit documents?
+- Data in tantivy is immutable. To edit a document, the document needs to be deleted and reindexed.
+
+### When will my documents be searchable during indexing?
+- Documents will be searchable after a `commit` is called on an `IndexWriter`. Existing `IndexReader`s will also need to be reloaded in order to reflect the changes. Finally, changes are only visible to newly acquired `Searcher`.
