@@ -161,4 +161,4 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 - Data in tantivy is immutable. To edit a document, the document needs to be deleted and reindexed.
 
 ### When will my documents be searchable during indexing?
-- Documents will be searchable after a `commit` is called on an `IndexWriter`. Committing also causes the current segment to be serialized to a disk. When reaching the memory budget during indexing, a segment also gets serialized to the disk, but the data will not be searchable until a `commit` is called. It is important to `reload` the existing `IndexReader` for changes to be visible.
+- Documents will be searchable after a `commit` is called on an `IndexWriter`. Existing `IndexReader`s will also need to be reloaded in order to reflect the changes. Finally, changes are only visible to newly acquired `Searcher`.
