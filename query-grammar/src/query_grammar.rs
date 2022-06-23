@@ -134,9 +134,14 @@ fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
 }
 
 fn matching_distance_val<'a>() -> impl Parser<&'a str, Output = u32> {
-    let matching_distance = (char('~'), many1(digit())).map(|(_, distance): (_, String)| distance);
+    let matching_distance = (char('~'), many1(digit())).and_then(|(_, distance): (_, String)| {
+        match distance.parse::<u32>() {
+            Ok(d) => Ok(d),
+            _ => Err(StringStreamError::UnexpectedParse),
+        }
+    });
     optional(matching_distance).map(|distance| match distance {
-        Some(d) => d.parse::<u32>().unwrap(),
+        Some(d) => d,
         _ => 0,
     })
 }
@@ -736,6 +741,8 @@ mod test {
         assert!(parse_to_ast().parse("\"a b\"~").is_err());
         assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
         assert!(parse_to_ast().parse("\"a b\"^2~4").is_err());
+        assert!(parse_to_ast().parse("\"a b\"~a").is_err());
+        assert!(parse_to_ast().parse("\"a b\"~100000000000000000").is_err());
         assert!(parse_to_ast().parse("~/Documents").is_err());
 
         test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
