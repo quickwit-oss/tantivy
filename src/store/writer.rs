@@ -126,7 +126,7 @@ impl StoreWriter {
         // intermediary_buffer due to the borrow checker
         // a new buffer costs ~1% indexing performance
         let doc_num_bytes = self.intermediary_buffer.len();
-        VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
+        VInt(doc_num_bytes as u64).serialize_into_vec(&mut self.current_block);
         self.current_block
             .write_all(&self.intermediary_buffer[..])?;
         self.num_docs_in_current_block += 1;
