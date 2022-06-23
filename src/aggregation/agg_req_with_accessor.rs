@@ -1,10 +1,13 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
+use std::rc::Rc;
+use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
+use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
 use crate::fastfield::{
     type_and_cardinality, DynamicFastFieldReader, FastType, MultiValuedFastFieldReader,
@@ -60,6 +63,7 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) field_type: Type,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
+    pub(crate) bucket_count: BucketCount,
 }
 
 impl BucketAggregationWithAccessor {
@@ -67,6 +71,8 @@ impl BucketAggregationWithAccessor {
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
+        bucket_count: Rc<AtomicU32>,
+        max_bucket_count: u32,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let mut inverted_index = None;
         let (accessor, field_type) = match &bucket {
@@ -92,9 +98,18 @@ impl BucketAggregationWithAccessor {
         Ok(BucketAggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggs_with_accessor_and_validate(&sub_aggregation, reader)?,
+            sub_aggregation: get_aggs_with_accessor_and_validate(
+                &sub_aggregation,
+                reader,
+                bucket_count.clone(),
+                max_bucket_count,
+            )?,
             bucket_agg: bucket.clone(),
             inverted_index,
+            bucket_count: BucketCount {
+                bucket_count,
+                max_bucket_count,
+            },
         })
     }
 }
@@ -134,6 +149,8 @@ impl MetricAggregationWithAccessor {
 pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
+    bucket_count: Rc<AtomicU32>,
+    max_bucket_count: u32,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut metrics = vec![];
     let mut buckets = vec![];
@@ -145,6 +162,8 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
+                    Rc::clone(&bucket_count),
+                    max_bucket_count,
                 )?,
             )),
             Aggregation::Metric(metric) => metrics.push((

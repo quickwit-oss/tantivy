@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
@@ -5,19 +7,27 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::SegmentReader;
+use crate::{SegmentReader, TantivyError};
+
+pub const MAX_BUCKET_COUNT: u32 = 65000;
 
 /// Collector for aggregations.
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
 pub struct AggregationCollector {
     agg: Aggregations,
+    max_bucket_count: u32,
 }
 
 impl AggregationCollector {
     /// Create collector from aggregation request.
-    pub fn from_aggs(agg: Aggregations) -> Self {
-        Self { agg }
+    ///
+    /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
+    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
+        Self {
+            agg,
+            max_bucket_count: max_bucket_count.unwrap_or(MAX_BUCKET_COUNT),
+        }
     }
 }
 
@@ -28,15 +38,21 @@ impl AggregationCollector {
 /// # Purpose
 /// AggregationCollector returns `IntermediateAggregationResults` and not the final
 /// `AggregationResults`, so that results from differenct indices can be merged and then converted
-/// into the final `AggregationResults` via the `into()` method.
+/// into the final `AggregationResults` via the `into_final_result()` method.
 pub struct DistributedAggregationCollector {
     agg: Aggregations,
+    max_bucket_count: u32,
 }
 
 impl DistributedAggregationCollector {
     /// Create collector from aggregation request.
-    pub fn from_aggs(agg: Aggregations) -> Self {
-        Self { agg }
+    ///
+    /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
+    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
+        Self {
+            agg,
+            max_bucket_count: max_bucket_count.unwrap_or(MAX_BUCKET_COUNT),
+        }
     }
 }
 
@@ -50,7 +66,11 @@ impl Collector for DistributedAggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader)
+        AggregationSegmentCollector::from_agg_req_and_reader(
+            &self.agg,
+            reader,
+            self.max_bucket_count,
+        )
     }
 
     fn requires_scoring(&self) -> bool {
@@ -75,7 +95,11 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader)
+        AggregationSegmentCollector::from_agg_req_and_reader(
+            &self.agg,
+            reader,
+            self.max_bucket_count,
+        )
     }
 
     fn requires_scoring(&self) -> bool {
@@ -87,7 +111,7 @@ impl Collector for AggregationCollector {
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
         let res = merge_fruits(segment_fruits)?;
-        AggregationResults::from_intermediate_and_req(res, self.agg.clone())
+        res.into_final_bucket_result(self.agg.clone())
     }
 }
 
@@ -109,6 +133,7 @@ fn merge_fruits(
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
     result: SegmentAggregationResultsCollector,
+    error: Option<TantivyError>,
 }
 
 impl AggregationSegmentCollector {
@@ -117,13 +142,16 @@ impl AggregationSegmentCollector {
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
         reader: &SegmentReader,
+        max_bucket_count: u32,
     ) -> crate::Result<Self> {
-        let aggs_with_accessor = get_aggs_with_accessor_and_validate(agg, reader)?;
+        let aggs_with_accessor =
+            get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
         let result =
             SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,
+            error: None,
         })
     }
 }
@@ -133,12 +161,20 @@ impl SegmentCollector for AggregationSegmentCollector {
 
     #[inline]
     fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        self.result.collect(doc, &self.aggs_with_accessor);
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(err) = self.result.collect(doc, &self.aggs_with_accessor) {
+            self.error = Some(err);
+        }
     }
 
     fn harvest(mut self) -> Self::Fruit {
+        if let Some(err) = self.error {
+            return Err(err);
+        }
         self.result
-            .flush_staged_docs(&self.aggs_with_accessor, true);
+            .flush_staged_docs(&self.aggs_with_accessor, true)?;
         self.result
             .into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }

@@ -3,16 +3,20 @@
 //! indices.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::{AggregationsInternal, BucketAggregationType, MetricAggregation};
-use super::agg_result::BucketResult;
+use super::agg_req::{
+    Aggregations, AggregationsInternal, BucketAggregationInternal, BucketAggregationType,
+    MetricAggregation,
+};
+use super::agg_result::{AggregationResult, BucketResult, RangeBucketEntry};
 use super::bucket::{
-    cut_off_buckets, get_agg_name_and_property, GetDocCount, Order, OrderTarget,
-    SegmentHistogramBucketEntry, TermsAggregation,
+    cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
+    GetDocCount, Order, OrderTarget, SegmentHistogramBucketEntry, TermsAggregation,
 };
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::SegmentMetricResultCollector;
@@ -31,6 +35,46 @@ pub struct IntermediateAggregationResults {
 }
 
 impl IntermediateAggregationResults {
+    /// Convert intermediate result and its aggregation request to the final result.
+    pub(crate) fn into_final_bucket_result(
+        self,
+        req: Aggregations,
+    ) -> crate::Result<AggregationResults> {
+        self.into_final_bucket_result_internal(&(req.into()))
+    }
+
+    /// Convert intermediate result and its aggregation request to the final result.
+    ///
+    /// Internal function, AggregationsInternal is used instead Aggregations, which is optimized
+    /// for internal processing, by splitting metric and buckets into seperate groups.
+    pub(crate) fn into_final_bucket_result_internal(
+        self,
+        req: &AggregationsInternal,
+    ) -> crate::Result<AggregationResults> {
+        // Important assumption:
+        // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
+        // request
+        let mut results: HashMap<String, AggregationResult> = HashMap::new();
+
+        if let Some(buckets) = self.buckets {
+            convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets)?
+        } else {
+            // When there are no buckets, we create empty buckets, so that the serialized json
+            // format is constant
+            add_empty_final_buckets_to_result(&mut results, &req.buckets)?
+        };
+
+        if let Some(metrics) = self.metrics {
+            convert_and_add_final_metrics_to_result(&mut results, metrics);
+        } else {
+            // When there are no metrics, we create empty metric results, so that the serialized
+            // json format is constant
+            add_empty_final_metrics_to_result(&mut results, &req.metrics)?;
+        }
+
+        Ok(AggregationResults(results))
+    }
+
     pub(crate) fn empty_from_req(req: &AggregationsInternal) -> Self {
         let metrics = if req.metrics.is_empty() {
             None
@@ -88,6 +132,58 @@ impl IntermediateAggregationResults {
             }
         }
     }
+}
+
+fn convert_and_add_final_metrics_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    metrics: VecWithNames<IntermediateMetricResult>,
+) {
+    results.extend(
+        metrics
+            .into_iter()
+            .map(|(key, metric)| (key, AggregationResult::MetricResult(metric.into()))),
+    );
+}
+
+fn add_empty_final_metrics_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    req_metrics: &VecWithNames<MetricAggregation>,
+) -> crate::Result<()> {
+    results.extend(req_metrics.iter().map(|(key, req)| {
+        let empty_bucket = IntermediateMetricResult::empty_from_req(req);
+        (
+            key.to_string(),
+            AggregationResult::MetricResult(empty_bucket.into()),
+        )
+    }));
+    Ok(())
+}
+
+fn add_empty_final_buckets_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    req_buckets: &VecWithNames<BucketAggregationInternal>,
+) -> crate::Result<()> {
+    let requested_buckets = req_buckets.iter();
+    for (key, req) in requested_buckets {
+        let empty_bucket = AggregationResult::BucketResult(BucketResult::empty_from_req(req)?);
+        results.insert(key.to_string(), empty_bucket);
+    }
+    Ok(())
+}
+
+fn convert_and_add_final_buckets_to_result(
+    results: &mut HashMap<String, AggregationResult>,
+    buckets: VecWithNames<IntermediateBucketResult>,
+    req_buckets: &VecWithNames<BucketAggregationInternal>,
+) -> crate::Result<()> {
+    assert_eq!(buckets.len(), req_buckets.len());
+
+    let buckets_with_request = buckets.into_iter().zip(req_buckets.values());
+    for ((key, bucket), req) in buckets_with_request {
+        let result = AggregationResult::BucketResult(bucket.into_final_bucket_result(req)?);
+        results.insert(key, result);
+    }
+    Ok(())
 }
 
 /// An aggregation is either a bucket or a metric.
@@ -171,6 +267,45 @@ pub enum IntermediateBucketResult {
 }
 
 impl IntermediateBucketResult {
+    pub(crate) fn into_final_bucket_result(
+        self,
+        req: &BucketAggregationInternal,
+    ) -> crate::Result<BucketResult> {
+        match self {
+            IntermediateBucketResult::Range(range_res) => {
+                let mut buckets: Vec<RangeBucketEntry> = range_res
+                    .buckets
+                    .into_iter()
+                    .map(|(_, bucket)| bucket.into_final_bucket_entry(&req.sub_aggregation))
+                    .collect::<crate::Result<Vec<_>>>()?;
+
+                buckets.sort_by(|left, right| {
+                    // TODO use total_cmp next stable rust release
+                    left.from
+                        .unwrap_or(f64::MIN)
+                        .partial_cmp(&right.from.unwrap_or(f64::MIN))
+                        .unwrap_or(Ordering::Equal)
+                });
+                Ok(BucketResult::Range { buckets })
+            }
+            IntermediateBucketResult::Histogram { buckets } => {
+                let buckets = intermediate_histogram_buckets_to_final_buckets(
+                    buckets,
+                    req.as_histogram()
+                        .expect("unexpected aggregation, expected histogram aggregation"),
+                    &req.sub_aggregation,
+                )?;
+
+                Ok(BucketResult::Histogram { buckets })
+            }
+            IntermediateBucketResult::Terms(terms) => terms.into_final_result(
+                req.as_term()
+                    .expect("unexpected aggregation, expected term aggregation"),
+                &req.sub_aggregation,
+            ),
+        }
+    }
+
     pub(crate) fn empty_from_req(req: &BucketAggregationType) -> Self {
         match req {
             BucketAggregationType::Terms(_) => IntermediateBucketResult::Terms(Default::default()),
@@ -267,10 +402,9 @@ impl IntermediateTermBucketResult {
                 Ok(BucketEntry {
                     key: Key::Str(key),
                     doc_count: entry.doc_count,
-                    sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
-                        entry.sub_aggregation,
-                        sub_aggregation_req,
-                    )?,
+                    sub_aggregation: entry
+                        .sub_aggregation
+                        .into_final_bucket_result_internal(sub_aggregation_req)?,
                 })
             })
             .collect::<crate::Result<_>>()?;
@@ -374,6 +508,21 @@ pub struct IntermediateHistogramBucketEntry {
     pub sub_aggregation: IntermediateAggregationResults,
 }
 
+impl IntermediateHistogramBucketEntry {
+    pub(crate) fn into_final_bucket_entry(
+        self,
+        req: &AggregationsInternal,
+    ) -> crate::Result<BucketEntry> {
+        Ok(BucketEntry {
+            key: Key::F64(self.key),
+            doc_count: self.doc_count,
+            sub_aggregation: self
+                .sub_aggregation
+                .into_final_bucket_result_internal(req)?,
+        })
+    }
+}
+
 impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
     fn from(entry: SegmentHistogramBucketEntry) -> Self {
         IntermediateHistogramBucketEntry {
@@ -400,6 +549,23 @@ pub struct IntermediateRangeBucketEntry {
     /// The to range of the bucket. Equals f64::MAX when None.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
+}
+
+impl IntermediateRangeBucketEntry {
+    pub(crate) fn into_final_bucket_entry(
+        self,
+        req: &AggregationsInternal,
+    ) -> crate::Result<RangeBucketEntry> {
+        Ok(RangeBucketEntry {
+            key: self.key,
+            doc_count: self.doc_count,
+            sub_aggregation: self
+                .sub_aggregation
+                .into_final_bucket_result_internal(req)?,
+            to: self.to,
+            from: self.from,
+        })
+    }
 }
 
 /// This is the term entry for a bucket, which contains a count, and optionally
