@@ -124,35 +124,31 @@ fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
 }
 
 fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
-    (field_name(), term_val(), matching_distance_val()).map(
-        |(field_name, phrase, matching_distance)| UserInputLiteral {
-            field_name: Some(field_name),
-            phrase,
-            matching_distance,
-        },
-    )
+    (field_name(), term_val(), slop_val()).map(|(field_name, phrase, slop)| UserInputLiteral {
+        field_name: Some(field_name),
+        phrase,
+        slop,
+    })
 }
 
-fn matching_distance_val<'a>() -> impl Parser<&'a str, Output = u32> {
-    let matching_distance = (char('~'), many1(digit())).and_then(|(_, distance): (_, String)| {
-        match distance.parse::<u32>() {
+fn slop_val<'a>() -> impl Parser<&'a str, Output = u32> {
+    let slop =
+        (char('~'), many1(digit())).and_then(|(_, slop): (_, String)| match slop.parse::<u32>() {
             Ok(d) => Ok(d),
             _ => Err(StringStreamError::UnexpectedParse),
-        }
-    });
-    optional(matching_distance).map(|distance| match distance {
+        });
+    optional(slop).map(|slop| match slop {
         Some(d) => d,
         _ => 0,
     })
 }
 
 fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let term_default_field =
-        (term_val(), matching_distance_val()).map(|(phrase, matching_distance)| UserInputLiteral {
-            field_name: None,
-            phrase,
-            matching_distance,
-        });
+    let term_default_field = (term_val(), slop_val()).map(|(phrase, slop)| UserInputLiteral {
+        field_name: None,
+        phrase,
+        slop,
+    });
 
     attempt(term_query())
         .or(term_default_field)
@@ -737,7 +733,7 @@ mod test {
     }
 
     #[test]
-    fn test_matching_distance() {
+    fn test_slop() {
         assert!(parse_to_ast().parse("\"a b\"~").is_err());
         assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
         assert!(parse_to_ast().parse("\"a b\"^2~4").is_err());

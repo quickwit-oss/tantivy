@@ -40,7 +40,7 @@ impl Debug for UserInputLeaf {
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
-    pub matching_distance: u32,
+    pub slop: u32,
 }
 
 impl fmt::Debug for UserInputLiteral {
@@ -49,8 +49,8 @@ impl fmt::Debug for UserInputLiteral {
             write!(formatter, "\"{}\":", field)?;
         }
         write!(formatter, "\"{}\"", self.phrase)?;
-        if self.matching_distance > 0 {
-            write!(formatter, "~{}", self.matching_distance)?;
+        if self.slop > 0 {
+            write!(formatter, "~{}", self.slop)?;
         }
         Ok(())
     }

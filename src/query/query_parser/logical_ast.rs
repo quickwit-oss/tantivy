@@ -74,10 +74,10 @@ impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
-            LogicalLiteral::Phrase(ref terms, distance) => {
+            LogicalLiteral::Phrase(ref terms, slop) => {
                 write!(formatter, "\"{:?}\"", terms)?;
-                if distance > 0 {
-                    write!(formatter, "~{:?}", distance)
+                if slop > 0 {
+                    write!(formatter, "~{:?}", slop)
                 } else {
                     Ok(())
                 }

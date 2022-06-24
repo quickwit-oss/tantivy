@@ -169,8 +169,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// (See [`set_boost(...)`](#method.set_field_boost) ). Typically you may want to boost a title
 /// field.
 ///
-/// Phrase terms support the `~` distance operator which allows to set the phrase's matching
-/// distance in words. `"big wolf"~1 will return documents containing the phrase `"big bad wolf"`.
+/// Phrase terms support the `~` slop operator which allows to set the phrase's matching
+/// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
 #[derive(Clone)]
 pub struct QueryParser {
     schema: Schema,
@@ -408,7 +408,7 @@ impl QueryParser {
         field: Field,
         json_path: &str,
         phrase: &str,
-        matching_distance: u32,
+        slop: u32,
     ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -465,7 +465,7 @@ impl QueryParser {
                     field_name,
                     field,
                     phrase,
-                    matching_distance,
+                    slop,
                     &text_analyzer,
                     index_record_option,
                 )?
@@ -631,12 +631,9 @@ impl QueryParser {
                     self.compute_path_triplets_for_literal(&literal)?;
                 let mut asts: Vec<LogicalAst> = Vec::new();
                 for (field, json_path, phrase) in term_phrases {
-                    for ast in self.compute_logical_ast_for_leaf(
-                        field,
-                        json_path,
-                        phrase,
-                        literal.matching_distance,
-                    )? {
+                    for ast in
+                        self.compute_logical_ast_for_leaf(field, json_path, phrase, literal.slop)?
+                    {
                         // Apply some field specific boost defined at the query parser level.
                         let boost = self.field_boost(field);
                         asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
@@ -680,8 +677,8 @@ impl QueryParser {
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
-        LogicalLiteral::Phrase(term_with_offsets, distance) => Box::new(
-            PhraseQuery::new_with_offset_and_slop(term_with_offsets, distance),
+        LogicalLiteral::Phrase(term_with_offsets, slop) => Box::new(
+            PhraseQuery::new_with_offset_and_slop(term_with_offsets, slop),
         ),
         LogicalLiteral::Range {
             field,
@@ -699,7 +696,7 @@ fn generate_literals_for_str(
     field_name: &str,
     field: Field,
     phrase: &str,
-    matching_distance: u32,
+    slop: u32,
     text_analyzer: &TextAnalyzer,
     index_record_option: IndexRecordOption,
 ) -> Result<Option<LogicalLiteral>, QueryParserError> {
@@ -721,7 +718,7 @@ fn generate_literals_for_str(
             field_name.to_string(),
         ));
     }
-    Ok(Some(LogicalLiteral::Phrase(terms, matching_distance)))
+    Ok(Some(LogicalLiteral::Phrase(terms, slop)))
 }
 
 fn generate_literals_for_json_object(
@@ -1506,10 +1503,20 @@ mod test {
     }
 
     #[test]
-    pub fn test_phrase_matching_distance() {
+    pub fn test_phrase_slop() {
+        test_parse_query_to_logical_ast_helper(
+            "\"a b\"~0",
+            r#"("[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b"))]" "[(0, Term(type=Str, field=1, "a")), (1, Term(type=Str, field=1, "b"))]")"#,
+            false,
+        );
         test_parse_query_to_logical_ast_helper(
             "\"a b\"~2",
             r#"("[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b"))]"~2 "[(0, Term(type=Str, field=1, "a")), (1, Term(type=Str, field=1, "b"))]"~2)"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:\"a b~4\"~2",
+            r#""[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b")), (2, Term(type=Str, field=0, "4"))]"~2"#,
             false,
         );
     }
