@@ -166,6 +166,7 @@ use std::fmt::Display;
 
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
+    MAX_BUCKET_COUNT,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

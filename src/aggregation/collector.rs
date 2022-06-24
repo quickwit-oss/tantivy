@@ -9,6 +9,7 @@ use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_valida
 use crate::collector::{Collector, SegmentCollector};
 use crate::{SegmentReader, TantivyError};
 
+/// The default max bucket count, before the aggregation fails.
 pub const MAX_BUCKET_COUNT: u32 = 65000;
 
 /// Collector for aggregations.
@@ -22,6 +23,7 @@ pub struct AggregationCollector {
 impl AggregationCollector {
     /// Create collector from aggregation request.
     ///
+    /// Aggregation fails when the total bucket count is higher than max_bucket_count.
     /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
     pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
         Self {
