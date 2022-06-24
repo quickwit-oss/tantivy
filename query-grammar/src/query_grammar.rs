@@ -49,10 +49,10 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
     (
         satisfy(|c: char| {
             !c.is_whitespace()
-                && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~'].contains(&c)
+                && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
         }),
         many(satisfy(|c: char| {
-            !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')', '~'].contains(&c)
+            !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
         })),
     )
         .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
@@ -736,13 +736,13 @@ mod test {
     fn test_slop() {
         assert!(parse_to_ast().parse("\"a b\"~").is_err());
         assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
-        assert!(parse_to_ast().parse("\"a b\"^2~4").is_err());
         assert!(parse_to_ast().parse("\"a b\"~a").is_err());
         assert!(parse_to_ast().parse("\"a b\"~100000000000000000").is_err());
-        assert!(parse_to_ast().parse("~/Documents").is_err());
 
+        test_parse_query_to_ast_helper("\"a b\"^2~4", "(*(\"a b\")^2 *\"~4\")");
         test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
-        test_parse_query_to_ast_helper("a~2", "\"a\"~2");
+        test_parse_query_to_ast_helper("~Document", "\"~Document\"");
+        test_parse_query_to_ast_helper("a~2", "\"a~2\"");
         test_parse_query_to_ast_helper("\"a b\"~0", "\"a b\"");
         test_parse_query_to_ast_helper("\"a b\"~1", "\"a b\"~1");
         test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
