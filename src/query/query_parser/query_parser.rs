@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
@@ -11,8 +12,8 @@ use crate::indexer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
-    TermQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
+    RangeQuery, TermQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
@@ -169,8 +170,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// (See [`set_boost(...)`](#method.set_field_boost) ). Typically you may want to boost a title
 /// field.
 ///
-/// Phrase terms support the `~` slop operator which allows to set the phrase's matching
-/// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
+/// Quoted terms support the `~` slop operator which allows to set:
+/// * a phrase's matching distance in words. `"big wolf"~1` will return documents containing the
+///   phrase `"big bad wolf"`.
+/// * a word's edit distance. `"big"~2 wolf` will return documents containing `bad wolf`.
 #[derive(Clone)]
 pub struct QueryParser {
     schema: Schema,
@@ -677,6 +680,7 @@ impl QueryParser {
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
+        LogicalLiteral::TermWithSlop(term, slop) => Box::new(FuzzyTermQuery::new(term, slop, true)),
         LogicalLiteral::Phrase(term_with_offsets, slop) => Box::new(
             PhraseQuery::new_with_offset_and_slop(term_with_offsets, slop),
         ),
@@ -707,10 +711,17 @@ fn generate_literals_for_str(
         terms.push((token.position, term));
     });
     if terms.len() <= 1 {
+        if slop == 0 {
+            return Ok(terms
+                .into_iter()
+                .next()
+                .map(|(_, term)| LogicalLiteral::Term(term)));
+        }
+        let converted_slop = cmp::min(slop, u8::MAX.into()) as u8;
         let term_literal_opt = terms
             .into_iter()
             .next()
-            .map(|(_, term)| LogicalLiteral::Term(term));
+            .map(|(_, term)| LogicalLiteral::TermWithSlop(term, converted_slop));
         return Ok(term_literal_opt);
     }
     if !index_record_option.has_positions() {
@@ -1503,7 +1514,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_phrase_slop() {
+    pub fn test_quotes_slop() {
         test_parse_query_to_logical_ast_helper(
             "\"a b\"~0",
             r#"("[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b"))]" "[(0, Term(type=Str, field=1, "a")), (1, Term(type=Str, field=1, "b"))]")"#,
@@ -1517,6 +1528,21 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "title:\"a b~4\"~2",
             r#""[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b")), (2, Term(type=Str, field=0, "4"))]"~2"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "\"a\"~0",
+            r#"(Term(type=Str, field=0, "a") Term(type=Str, field=1, "a"))"#, // regular term query
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:\"a\"~2",
+            r#""Term(type=Str, field=0, "a")"~2"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:\"b~4\"~2",
+            r#""[(0, Term(type=Str, field=0, "b")), (1, Term(type=Str, field=0, "4"))]"~2"#, /* we'd rather have "Term(type=Str, field=0, "b~4")"~2 */
             false,
         );
     }

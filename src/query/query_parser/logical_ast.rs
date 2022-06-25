@@ -8,6 +8,7 @@ use crate::Score;
 #[derive(Clone)]
 pub enum LogicalLiteral {
     Term(Term),
+    TermWithSlop(Term, u8),
     Phrase(Vec<(usize, Term)>, u32),
     Range {
         field: Field,
@@ -74,6 +75,14 @@ impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
+            LogicalLiteral::TermWithSlop(ref term, slop) => {
+                write!(formatter, "\"{:?}\"", term)?;
+                if slop > 0 {
+                    write!(formatter, "~{:?}", slop)
+                } else {
+                    Ok(())
+                }
+            }
             LogicalLiteral::Phrase(ref terms, slop) => {
                 write!(formatter, "\"{:?}\"", terms)?;
                 if slop > 0 {
