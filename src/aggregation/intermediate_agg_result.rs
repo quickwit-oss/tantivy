@@ -36,10 +36,7 @@ pub struct IntermediateAggregationResults {
 
 impl IntermediateAggregationResults {
     /// Convert intermediate result and its aggregation request to the final result.
-    pub(crate) fn into_final_bucket_result(
-        self,
-        req: Aggregations,
-    ) -> crate::Result<AggregationResults> {
+    pub fn into_final_bucket_result(self, req: Aggregations) -> crate::Result<AggregationResults> {
         self.into_final_bucket_result_internal(&(req.into()))
     }
 
