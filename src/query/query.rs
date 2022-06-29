@@ -16,7 +16,7 @@ use crate::{DocAddress, Term};
 /// - a set of documents
 /// - a way to score these documents
 ///
-/// When performing a [search](#method.search),  these documents will then
+/// When performing a [search](Searcher::search),  these documents will then
 /// be pushed to a [Collector](../collector/trait.Collector.html),
 /// which will in turn be in charge of deciding what to do with them.
 ///

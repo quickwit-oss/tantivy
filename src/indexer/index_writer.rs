@@ -158,9 +158,9 @@ pub(crate) fn advance_deletes(
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-        let mut delete_file = segment.open_write(SegmentComponent::Delete)?;
-        write_alive_bitset(&alive_bitset, &mut delete_file)?;
-        delete_file.terminate()?;
+        let mut alive_doc_file = segment.open_write(SegmentComponent::Delete)?;
+        write_alive_bitset(&alive_bitset, &mut alive_doc_file)?;
+        alive_doc_file.terminate()?;
     }
 
     segment_entry.set_meta(segment.meta().clone());
@@ -1385,6 +1385,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
+        let bool_field = schema_builder.add_bool_field("bool", FAST | INDEXED | STORED);
         let text_field = schema_builder.add_text_field(
             "text_field",
             TextOptions::default()
@@ -1399,6 +1400,12 @@ mod tests {
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
+            NumericOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_stored(),
+        );
+        let multi_bools = schema_builder.add_bool_field(
+            "multi_bools",
             NumericOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_stored(),
@@ -1435,6 +1442,9 @@ mod tests {
                             bytes_field => id.to_le_bytes().as_slice(),
                             multi_numbers=> id,
                             multi_numbers => id,
+                            bool_field => (id % 2u64) != 0,
+                            multi_bools => (id % 2u64) != 0,
+                            multi_bools => (id % 2u64) == 0,
                             text_field => id.to_string(),
                             facet_field => facet,
                             large_text_field=> LOREM
@@ -1497,23 +1507,23 @@ mod tests {
             })
             .collect();
 
-        let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
-        let num_docs_expected = expected_ids_and_num_occurences
+        let (expected_ids_and_num_occurrences, deleted_ids) = expected_ids(ops);
+        let num_docs_expected = expected_ids_and_num_occurrences
             .iter()
-            .map(|(_, id_occurences)| *id_occurences as usize)
+            .map(|(_, id_occurrences)| *id_occurrences as usize)
             .sum::<usize>();
         assert_eq!(searcher.num_docs() as usize, num_docs_expected);
         assert_eq!(old_searcher.num_docs() as usize, num_docs_expected);
         assert_eq!(
             ids_old_searcher,
-            expected_ids_and_num_occurences
+            expected_ids_and_num_occurrences
                 .keys()
                 .cloned()
                 .collect::<HashSet<_>>()
         );
         assert_eq!(
             ids,
-            expected_ids_and_num_occurences
+            expected_ids_and_num_occurrences
                 .keys()
                 .cloned()
                 .collect::<HashSet<_>>()
@@ -1522,12 +1532,19 @@ mod tests {
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
+            let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
             for doc in segment_reader.doc_ids_alive() {
                 let mut vals = vec![];
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
-                assert!(expected_ids_and_num_occurences.contains_key(&vals[0]));
+
+                let mut bool_vals = vec![];
+                bool_ff_reader.get_vals(doc, &mut bool_vals);
+                assert_eq!(bool_vals.len(), 2);
+                assert_ne!(bool_vals[0], bool_vals[1]);
+
+                assert!(expected_ids_and_num_occurrences.contains_key(&vals[0]));
             }
         }
 
@@ -1537,7 +1554,7 @@ mod tests {
             // test store iterator
             for doc in store_reader.iter(segment_reader.alive_bitset()) {
                 let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
-                assert!(expected_ids_and_num_occurences.contains_key(&id));
+                assert!(expected_ids_and_num_occurrences.contains_key(&id));
             }
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
@@ -1548,7 +1565,7 @@ mod tests {
                     .unwrap()
                     .as_u64()
                     .unwrap();
-                assert!(expected_ids_and_num_occurences.contains_key(&id));
+                assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 let id2 = store_reader
                     .get(doc_id)
                     .unwrap()
@@ -1557,6 +1574,18 @@ mod tests {
                     .as_u64()
                     .unwrap();
                 assert_eq!(id, id2);
+                let bool = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(bool_field)
+                    .unwrap()
+                    .as_bool()
+                    .unwrap();
+                let doc = store_reader.get(doc_id).unwrap();
+                let mut bool2 = doc.get_all(multi_bools);
+                assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
+                assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());
+                assert_eq!(None, bool2.next())
             }
         }
         // test search
@@ -1572,7 +1601,7 @@ mod tests {
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
 
-        for (existing_id, count) in expected_ids_and_num_occurences {
+        for (existing_id, count) in expected_ids_and_num_occurrences {
             assert_eq!(do_search(&existing_id.to_string()).len() as u64, count);
         }
         for existing_id in deleted_ids {

@@ -160,6 +160,34 @@ impl FastValue for f64 {
     }
 }
 
+impl FastValue for bool {
+    fn from_u64(val: u64) -> Self {
+        val != 0u64
+    }
+
+    fn to_u64(&self) -> u64 {
+        match self {
+            false => 0,
+            true => 1,
+        }
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::Bool(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        *self as u64
+    }
+
+    fn to_type() -> Type {
+        Type::Bool
+    }
+}
+
 impl FastValue for DateTime {
     fn from_u64(timestamp_u64: u64) -> Self {
         let unix_timestamp = i64::from_u64(timestamp_u64);
@@ -191,8 +219,9 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
+        Value::Bool(val) => val.to_u64(),
         Value::Date(val) => val.to_u64(),
-        _ => panic!("Expected a u64/i64/f64/date field, got {:?} ", value),
+        _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
     }
 }
 
@@ -786,6 +815,118 @@ mod tests {
             assert_eq!(dates[0].into_unix_timestamp(), 5i64);
             assert_eq!(dates[1].into_unix_timestamp(), 6i64);
         }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fastfield_bool() {
+        let test_fastfield = DynamicFastFieldReader::<bool>::from(vec![true, false, true, false]);
+        assert_eq!(test_fastfield.get(0), true);
+        assert_eq!(test_fastfield.get(1), false);
+        assert_eq!(test_fastfield.get(2), true);
+        assert_eq!(test_fastfield.get(3), false);
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_small() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            fast_field_writers.add_document(&doc!(field=>true));
+            fast_field_writers.add_document(&doc!(field=>false));
+            fast_field_writers.add_document(&doc!(field=>true));
+            fast_field_writers.add_document(&doc!(field=>false));
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 36);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        assert_eq!(fast_field_reader.get(0), true);
+        assert_eq!(fast_field_reader.get(1), false);
+        assert_eq!(fast_field_reader.get(2), true);
+        assert_eq!(fast_field_reader.get(3), false);
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_large() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for _ in 0..50 {
+                fast_field_writers.add_document(&doc!(field=>true));
+                fast_field_writers.add_document(&doc!(field=>false));
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 48);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        for i in 0..25 {
+            assert_eq!(fast_field_reader.get(i * 2), true);
+            assert_eq!(fast_field_reader.get(i * 2 + 1), false);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_default_value() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            let doc = Document::default();
+            fast_field_writers.add_document(&doc);
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 35);
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(field).unwrap();
+        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        assert_eq!(fast_field_reader.get(0), false);
+
         Ok(())
     }
 }

@@ -4,19 +4,22 @@
 //! merging.
 
 use std::fmt::Debug;
+use std::rc::Rc;
+use std::sync::atomic::AtomicU32;
 
 use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
+use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
     AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
-use crate::DocId;
+use crate::{DocId, TantivyError};
 
 pub(crate) const DOC_BLOCK_SIZE: usize = 64;
 pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
@@ -115,21 +118,22 @@ impl SegmentAggregationResultsCollector {
         &mut self,
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
         if self.num_staged_docs == self.staged_docs.len() {
-            self.flush_staged_docs(agg_with_accessor, false);
+            self.flush_staged_docs(agg_with_accessor, false)?;
         }
+        Ok(())
     }
 
     pub(crate) fn flush_staged_docs(
         &mut self,
         agg_with_accessor: &AggregationsWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         if self.num_staged_docs == 0 {
-            return;
+            return Ok(());
         }
         if let Some(metrics) = &mut self.metrics {
             for (collector, agg_with_accessor) in
@@ -148,11 +152,12 @@ impl SegmentAggregationResultsCollector {
                     &self.staged_docs[..self.num_staged_docs],
                     agg_with_accessor,
                     force_flush,
-                );
+                )?;
             }
         }
 
         self.num_staged_docs = 0;
+        Ok(())
     }
 }
 
@@ -234,6 +239,7 @@ impl SegmentBucketResultCollector {
                 Ok(Self::Range(SegmentRangeCollector::from_req_and_validate(
                     range_req,
                     &req.sub_aggregation,
+                    &req.bucket_count,
                     req.field_type,
                 )?))
             }
@@ -256,17 +262,52 @@ impl SegmentBucketResultCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect_block(doc, bucket_with_accessor, force_flush);
+                range.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
             SegmentBucketResultCollector::Histogram(histogram) => {
-                histogram.collect_block(doc, bucket_with_accessor, force_flush)
+                histogram.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
             SegmentBucketResultCollector::Terms(terms) => {
-                terms.collect_block(doc, bucket_with_accessor, force_flush)
+                terms.collect_block(doc, bucket_with_accessor, force_flush)?;
             }
         }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct BucketCount {
+    /// The counter which is shared between the aggregations for one request.
+    pub(crate) bucket_count: Rc<AtomicU32>,
+    pub(crate) max_bucket_count: u32,
+}
+
+impl Default for BucketCount {
+    fn default() -> Self {
+        Self {
+            bucket_count: Default::default(),
+            max_bucket_count: MAX_BUCKET_COUNT,
+        }
+    }
+}
+
+impl BucketCount {
+    pub(crate) fn validate_bucket_count(&self) -> crate::Result<()> {
+        if self.get_count() > self.max_bucket_count {
+            return Err(TantivyError::InvalidArgument(
+                "Aborting aggregation because too many buckets were created".to_string(),
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn add_count(&self, count: u32) {
+        self.bucket_count
+            .fetch_add(count as u32, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub(crate) fn get_count(&self) -> u32 {
+        self.bucket_count.load(std::sync::atomic::Ordering::Relaxed)
     }
 }

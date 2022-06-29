@@ -69,6 +69,11 @@ impl Term {
         Term::from_fast_value(field, &val)
     }
 
+    /// Builds a term given a field, and a f64-value
+    pub fn from_field_bool(field: Field, val: bool) -> Term {
+        Term::from_fast_value(field, &val)
+    }
+
     /// Builds a term given a field, and a DateTime value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
         Term::from_fast_value(field, &val)
@@ -132,6 +137,11 @@ impl Term {
 
     /// Sets a `f64` value in the term.
     pub fn set_f64(&mut self, val: f64) {
+        self.set_fast_value(val);
+    }
+
+    /// Sets a `bool` value in the term.
+    pub fn set_bool(&mut self, val: bool) {
         self.set_fast_value(val);
     }
 
@@ -262,6 +272,14 @@ where B: AsRef<[u8]>
         self.get_fast_type::<f64>()
     }
 
+    /// Returns the `bool` value stored in a term.
+    ///
+    /// Returns None if the term is not of the bool type, or if the term byte representation
+    /// is invalid.
+    pub fn as_bool(&self) -> Option<bool> {
+        self.get_fast_type::<bool>()
+    }
+
     /// Returns the `Date` value stored in a term.
     ///
     /// Returns None if the term is not of the Date type, or if the term byte representation
@@ -372,6 +390,9 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
         Type::F64 => {
             write_opt(f, get_fast_type::<f64>(bytes))?;
         }
+        Type::Bool => {
+            write_opt(f, get_fast_type::<bool>(bytes))?;
+        }
         // TODO pretty print these types too.
         Type::Date => {
             write_opt(f, get_fast_type::<DateTime>(bytes))?;
@@ -436,5 +457,16 @@ mod tests {
         assert_eq!(term.typ(), Type::U64);
         assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
         assert_eq!(term.as_u64(), Some(983u64))
+    }
+
+    #[test]
+    pub fn test_term_bool() {
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("bool", INDEXED);
+        let term = Term::from_field_bool(bool_field, true);
+        assert_eq!(term.field(), bool_field);
+        assert_eq!(term.typ(), Type::Bool);
+        assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
+        assert_eq!(term.as_bool(), Some(true))
     }
 }

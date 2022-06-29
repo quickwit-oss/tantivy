@@ -46,6 +46,8 @@ pub enum Type {
     I64 = b'i',
     /// `f64`
     F64 = b'f',
+    /// `bool`
+    Bool = b'o',
     /// `date(i64) timestamp`
     Date = b'd',
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
@@ -56,11 +58,12 @@ pub enum Type {
     Json = b'j',
 }
 
-const ALL_TYPES: [Type; 8] = [
+const ALL_TYPES: [Type; 9] = [
     Type::Str,
     Type::U64,
     Type::I64,
     Type::F64,
+    Type::Bool,
     Type::Date,
     Type::Facet,
     Type::Bytes,
@@ -86,6 +89,7 @@ impl Type {
             Type::U64 => "U64",
             Type::I64 => "I64",
             Type::F64 => "F64",
+            Type::Bool => "Bool",
             Type::Date => "Date",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
@@ -101,6 +105,7 @@ impl Type {
             b'u' => Some(Type::U64),
             b'i' => Some(Type::I64),
             b'f' => Some(Type::F64),
+            b'o' => Some(Type::Bool),
             b'd' => Some(Type::Date),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
@@ -125,6 +130,8 @@ pub enum FieldType {
     I64(NumericOptions),
     /// 64-bits float 64 field type configuration
     F64(NumericOptions),
+    /// Bool field type configuration
+    Bool(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
     Date(NumericOptions),
     /// Hierachical Facet
@@ -143,6 +150,7 @@ impl FieldType {
             FieldType::U64(_) => Type::U64,
             FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
+            FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
@@ -156,7 +164,8 @@ impl FieldType {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options) => int_options.is_indexed(),
+            | FieldType::F64(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
@@ -193,7 +202,8 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.get_fastfield_cardinality().is_some(),
+            | FieldType::Date(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality().is_some(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(_) => false,
         }
@@ -209,7 +219,8 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.fieldnorms(),
+            | FieldType::Date(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.fieldnorms(),
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
@@ -232,7 +243,8 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => {
+            | FieldType::Date(ref int_options)
+            | FieldType::Bool(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
@@ -277,6 +289,10 @@ impl FieldType {
                             json: JsonValue::String(field_text),
                         })
                     }
+                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                        expected: "a boolean",
+                        json: JsonValue::String(field_text),
+                    }),
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
                     FieldType::Bytes(_) => base64::decode(&field_text)
                         .map(Value::Bytes)
@@ -318,6 +334,10 @@ impl FieldType {
                         })
                     }
                 }
+                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                    expected: "a boolean",
+                    json: JsonValue::Number(field_val_num),
+                }),
                 FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
                     Err(ValueParsingError::TypeError {
                         expected: "a string",
@@ -346,6 +366,13 @@ impl FieldType {
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
+                }),
+            },
+            JsonValue::Bool(json_bool_val) => match self {
+                FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Bool(json_bool_val),
                 }),
             },
             _ => Err(ValueParsingError::TypeError {

@@ -62,7 +62,7 @@ impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
 pub struct AntiCallToken(());
 
 /// Trait used to indicate when no more write need to be done on a writer
-pub trait TerminatingWrite: Write {
+pub trait TerminatingWrite: Write + Send {
     /// Indicate that the writer will no longer be used. Internally call terminate_ref.
     fn terminate(mut self) -> io::Result<()>
     where Self: Sized {

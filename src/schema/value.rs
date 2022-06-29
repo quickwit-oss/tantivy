@@ -22,6 +22,8 @@ pub enum Value {
     I64(i64),
     /// 64-bits Float `f64`
     F64(f64),
+    /// Bool value
+    Bool(bool),
     /// Date/time with second precision
     Date(DateTime),
     /// Facet
@@ -43,6 +45,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
+            Value::Bool(b) => serializer.serialize_bool(b),
             Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
@@ -73,6 +76,10 @@ impl<'de> Deserialize<'de> for Value {
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
                 Ok(Value::F64(v))
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(Value::Bool(v))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
@@ -151,6 +158,17 @@ impl Value {
         }
     }
 
+    /// Returns the bool value, provided the value is of the `Bool` type.
+    ///
+    /// Return None if the value is not of type `Bool`.
+    pub fn as_bool(&self) -> Option<bool> {
+        if let Value::Bool(value) = self {
+            Some(*value)
+        } else {
+            None
+        }
+    }
+
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
@@ -206,6 +224,12 @@ impl From<i64> for Value {
 impl From<f64> for Value {
     fn from(v: f64) -> Value {
         Value::F64(v)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(b: bool) -> Self {
+        Value::Bool(b)
     }
 }
 
@@ -281,6 +305,7 @@ mod binary_serialize {
     const F64_CODE: u8 = 6;
     const EXT_CODE: u8 = 7;
     const JSON_OBJ_CODE: u8 = 8;
+    const BOOL_CODE: u8 = 9;
 
     // extended types
 
@@ -316,6 +341,10 @@ mod binary_serialize {
                 Value::F64(ref val) => {
                     F64_CODE.serialize(writer)?;
                     f64_to_u64(*val).serialize(writer)
+                }
+                Value::Bool(ref val) => {
+                    BOOL_CODE.serialize(writer)?;
+                    val.serialize(writer)
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
@@ -356,6 +385,10 @@ mod binary_serialize {
                 F64_CODE => {
                     let value = u64_to_f64(u64::deserialize(reader)?);
                     Ok(Value::F64(value))
+                }
+                BOOL_CODE => {
+                    let value = bool::deserialize(reader)?;
+                    Ok(Value::Bool(value))
                 }
                 DATE_CODE => {
                     let unix_timestamp = i64::deserialize(reader)?;

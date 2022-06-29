@@ -23,7 +23,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     }
 }
 
-/// `RangeQuery` match all documents that have at least one term within a defined range.
+/// `RangeQuery` matches all documents that have at least one term within a defined range.
 ///
 /// Matched document will all get a constant `Score` of one.
 ///

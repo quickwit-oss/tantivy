@@ -33,11 +33,13 @@
 //! !
 
 mod compressors;
+mod decompressors;
 mod footer;
 mod index;
 mod reader;
 mod writer;
-pub use self::compressors::Compressor;
+pub use self::compressors::{Compressor, ZstdCompressor};
+pub use self::decompressors::Decompressor;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
@@ -86,7 +88,7 @@ pub mod tests {
             schema_builder.add_text_field("title", TextOptions::default().set_stored());
         let schema = schema_builder.build();
         {
-            let mut store_writer = StoreWriter::new(writer, compressor, blocksize);
+            let mut store_writer = StoreWriter::new(writer, compressor, blocksize).unwrap();
             for i in 0..num_docs {
                 let mut doc = Document::default();
                 doc.add_field_value(field_body, LOREM.to_string());
@@ -196,7 +198,7 @@ pub mod tests {
     #[cfg(feature = "zstd-compression")]
     #[test]
     fn test_store_zstd() -> crate::Result<()> {
-        test_store(Compressor::Zstd, BLOCK_SIZE)
+        test_store(Compressor::Zstd(ZstdCompressor::default()), BLOCK_SIZE)
     }
 
     #[test]
@@ -267,8 +269,8 @@ pub mod tests {
             index.reader().unwrap().searcher().segment_readers()[0]
                 .get_store_reader()
                 .unwrap()
-                .compressor(),
-            Compressor::Lz4
+                .decompressor(),
+            Decompressor::Lz4
         );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
@@ -294,7 +296,7 @@ pub mod tests {
                 LOREM.to_string()
             );
         }
-        assert_eq!(store.compressor(), Compressor::Snappy);
+        assert_eq!(store.decompressor(), Decompressor::Snappy);
 
         Ok(())
     }

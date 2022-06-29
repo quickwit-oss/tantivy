@@ -24,7 +24,8 @@ pub enum SegmentComponent {
     Store,
     /// Temporary storage of the documents, before streamed to `Store`.
     TempStore,
-    /// Bitset describing which document of the segment is deleted.
+    /// Bitset describing which document of the segment is alive.
+    /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
 }
 

@@ -21,6 +21,7 @@ pub(crate) enum FastType {
     I64,
     U64,
     F64,
+    Bool,
     Date,
 }
 
@@ -35,6 +36,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::F64(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::F64, cardinality)),
+        FieldType::Bool(options) => options
+            .get_fastfield_cardinality()
+            .map(|cardinality| (FastType::Bool, cardinality)),
         FieldType::Date(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
@@ -166,6 +170,14 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
+    /// Returns the `bool` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a bool fast field, this method returns an Error.
+    pub fn bool(&self, field: Field) -> crate::Result<DynamicFastFieldReader<bool>> {
+        self.check_type(field, FastType::Bool, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
+    }
+
     /// Returns a `u64s` multi-valued fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
@@ -195,6 +207,14 @@ impl FastFieldReaders {
     /// If `field` is not a f64 multi-valued fast field, this method returns an Error.
     pub fn f64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<f64>> {
         self.check_type(field, FastType::F64, Cardinality::MultiValues)?;
+        self.typed_fast_field_multi_reader(field)
+    }
+
+    /// Returns a `bools` multi-valued fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a bool multi-valued fast field, this method returns an Error.
+    pub fn bools(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<bool>> {
+        self.check_type(field, FastType::Bool, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
     }
 
