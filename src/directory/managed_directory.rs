@@ -242,16 +242,13 @@ impl ManagedDirectory {
     /// Verify checksum of a managed file
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
-        let (footer, data) =
-            Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IoError {
-                io_error,
-                filepath: path.to_path_buf(),
-            })?;
+        let (footer, data) = Footer::extract_footer(reader)
+            .map_err(|io_error| OpenReadError::wrap_io_error(io_error, path.to_path_buf()))?;
         let bytes = data
             .read_bytes()
             .map_err(|io_error| OpenReadError::IoError {
+                io_error: Arc::new(io_error),
                 filepath: path.to_path_buf(),
-                io_error,
             })?;
         let mut hasher = Hasher::new();
         hasher.update(bytes.as_slice());

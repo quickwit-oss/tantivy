@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::marker::{Send, Sync};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io, thread};
 
@@ -62,7 +63,12 @@ impl Drop for DirectoryLockGuard {
 
 enum TryAcquireLockError {
     FileExists,
-    IoError(io::Error),
+    IoError(Arc<io::Error>),
+}
+impl From<io::Error> for TryAcquireLockError {
+    fn from(io_error: io::Error) -> Self {
+        Self::IoError(Arc::new(io_error))
+    }
 }
 
 fn try_acquire_lock(
@@ -73,7 +79,7 @@ fn try_acquire_lock(
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
         OpenWriteError::IoError { io_error, .. } => TryAcquireLockError::IoError(io_error),
     })?;
-    write.flush().map_err(TryAcquireLockError::IoError)?;
+    write.flush().map_err(TryAcquireLockError::from)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
