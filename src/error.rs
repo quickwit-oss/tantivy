@@ -1,7 +1,7 @@
 //! Definition of Tantivy's errors and results.
 
 use std::path::PathBuf;
-use std::sync::PoisonError;
+use std::sync::{Arc, PoisonError};
 use std::{fmt, io};
 
 use thiserror::Error;
@@ -15,6 +15,7 @@ use crate::{query, schema};
 /// Represents a `DataCorruption` error.
 ///
 /// When facing data corruption, tantivy actually panics or returns this error.
+#[derive(Clone)]
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
     comment: String,
@@ -50,7 +51,7 @@ impl fmt::Debug for DataCorruption {
 }
 
 /// The library's error enum
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum TantivyError {
     /// Failed to open the directory.
     #[error("Failed to open the directory: '{0:?}'")]
@@ -69,7 +70,7 @@ pub enum TantivyError {
     LockFailure(LockError, Option<String>),
     /// IO Error.
     #[error("An IO error occurred: '{0}'")]
-    IoError(#[from] io::Error),
+    IoError(Arc<io::Error>),
     /// Data corruption.
     #[error("Data corrupted: '{0:?}'")]
     DataCorruption(DataCorruption),
@@ -125,6 +126,11 @@ impl From<AsyncIoError> for TantivyError {
     }
 }
 
+impl From<io::Error> for TantivyError {
+    fn from(io_err: io::Error) -> TantivyError {
+        TantivyError::IoError(Arc::new(io_err))
+    }
+}
 impl From<DataCorruption> for TantivyError {
     fn from(data_corruption: DataCorruption) -> TantivyError {
         TantivyError::DataCorruption(data_corruption)
@@ -179,7 +185,7 @@ impl From<schema::DocParsingError> for TantivyError {
 
 impl From<serde_json::Error> for TantivyError {
     fn from(error: serde_json::Error) -> TantivyError {
-        TantivyError::IoError(error.into())
+        TantivyError::IoError(Arc::new(error.into()))
     }
 }
 
