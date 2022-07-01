@@ -1030,18 +1030,25 @@ impl IndexMerger {
         debug_time!("write-storable-fields");
         debug!("write-storable-field");
 
-        let store_readers: Vec<_> = self
-            .readers
-            .iter()
-            .map(|reader| reader.get_store_reader())
-            .collect::<Result<_, _>>()?;
-        let mut document_iterators: Vec<_> = store_readers
-            .iter()
-            .enumerate()
-            .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
-            .collect();
         if !doc_id_mapping.is_trivial() {
             debug!("non-trivial-doc-id-mapping");
+
+            let store_readers: Vec<_> = self
+                .readers
+                .iter()
+                .map(|reader| reader.get_store_reader())
+                .collect::<Result<_, _>>()?;
+
+            for store_reader in &store_readers {
+                store_reader.set_cache_size(50);
+            }
+
+            let mut document_iterators: Vec<_> = store_readers
+                .iter()
+                .enumerate()
+                .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
+                .collect();
+
             for (old_doc_id, reader_ordinal) in doc_id_mapping.iter() {
                 let doc_bytes_it = &mut document_iterators[*reader_ordinal as usize];
                 if let Some(doc_bytes_res) = doc_bytes_it.next() {
@@ -1059,6 +1066,7 @@ impl IndexMerger {
             debug!("trivial-doc-id-mapping");
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
+                store_reader.set_cache_size(1);
                 if reader.has_deletes()
                     // If there is not enough data in the store, we avoid stacking in order to
                     // avoid creating many small blocks in the doc store. Once we have 5 full blocks,

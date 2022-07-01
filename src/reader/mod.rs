@@ -13,6 +13,7 @@ use self::pool::Pool;
 use self::warming::WarmingState;
 use crate::core::searcher::SearcherGeneration;
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
+use crate::store::LRU_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
@@ -47,6 +48,7 @@ pub struct IndexReaderBuilder {
     index: Index,
     warmers: Vec<Weak<dyn Warmer>>,
     num_warming_threads: usize,
+    doc_store_cache_size: usize,
 }
 
 impl IndexReaderBuilder {
@@ -58,6 +60,7 @@ impl IndexReaderBuilder {
             index,
             warmers: Vec::new(),
             num_warming_threads: 1,
+            doc_store_cache_size: LRU_CACHE_CAPACITY,
         }
     }
 
@@ -76,6 +79,7 @@ impl IndexReaderBuilder {
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
+            doc_store_cache_size: self.doc_store_cache_size,
             searcher_pool: Pool::new(),
             warming_state,
             searcher_generation_counter: Default::default(),
@@ -157,6 +161,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 
 struct InnerIndexReader {
     num_searchers: usize,
+    doc_store_cache_size: usize,
     index: Index,
     warming_state: WarmingState,
     searcher_pool: Pool<Searcher>,
@@ -203,6 +208,7 @@ impl InnerIndexReader {
                 self.index.clone(),
                 segment_readers.clone(),
                 searcher_generation.clone(),
+                self.doc_store_cache_size,
             )
         })
         .take(self.num_searchers)

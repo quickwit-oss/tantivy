@@ -1,4 +1,6 @@
 use std::io;
+use std::iter::Sum;
+use std::ops::AddAssign;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -17,7 +19,7 @@ use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 
-const LRU_CACHE_CAPACITY: usize = 100;
+pub(crate) const LRU_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
@@ -30,16 +32,11 @@ pub struct StoreReader {
     cache: BlockCache,
 }
 
+/// The cache for decompressed blocks.
 struct BlockCache {
     cache: Mutex<LruCache<usize, Block>>,
     cache_hits: Arc<AtomicUsize>,
     cache_misses: Arc<AtomicUsize>,
-}
-
-pub struct CacheStats {
-    pub num_entries: usize,
-    pub cache_hits: usize,
-    pub cache_misses: usize,
 }
 
 impl BlockCache {
@@ -67,6 +64,10 @@ impl BlockCache {
         self.cache.lock().unwrap().len()
     }
 
+    fn set_size(&self, size: usize) {
+        self.cache.lock().unwrap().resize(size);
+    }
+
     #[cfg(test)]
     fn peek_lru(&self) -> Option<usize> {
         self.cache
@@ -74,6 +75,37 @@ impl BlockCache {
             .unwrap()
             .peek_lru()
             .map(|(&k, _)| k as usize)
+    }
+}
+
+#[derive(Debug, Default)]
+/// CacheStats for the `StoreReader`.
+pub struct CacheStats {
+    /// The number of entries in the cache
+    pub num_entries: usize,
+    /// The number of cache hits.
+    pub cache_hits: usize,
+    /// The number of cache misses.
+    pub cache_misses: usize,
+}
+
+impl AddAssign for CacheStats {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            num_entries: self.num_entries + other.num_entries,
+            cache_hits: self.cache_hits + other.cache_hits,
+            cache_misses: self.cache_misses + other.cache_misses,
+        };
+    }
+}
+
+impl Sum for CacheStats {
+    fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+        let mut first = iter.next().unwrap_or_default();
+        for el in iter {
+            first += el;
+        }
+        first
     }
 }
 
@@ -110,6 +142,11 @@ impl StoreReader {
     /// Returns the cache hit and miss statistics of the store reader.
     pub(crate) fn cache_stats(&self) -> CacheStats {
         self.cache.stats()
+    }
+
+    /// Set lru cache size for decompressed blocks. Defaults to 100 (LRU_CACHE_CAPACITY).
+    pub(crate) fn set_cache_size(&self, size: usize) {
+        self.cache.set_size(size)
     }
 
     /// Get checkpoint for DocId. The checkpoint can be used to load a block containing the

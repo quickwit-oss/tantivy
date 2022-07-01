@@ -40,7 +40,8 @@ mod reader;
 mod writer;
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
-pub use self::reader::StoreReader;
+pub(crate) use self::reader::LRU_CACHE_CAPACITY;
+pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
 
 #[cfg(feature = "lz4-compression")]
