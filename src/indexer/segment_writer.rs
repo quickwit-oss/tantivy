@@ -389,6 +389,7 @@ fn remap_and_write(
             serializer
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
+            50,
         )?;
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
             let doc_bytes = store_read.get_document_bytes(old_doc_id)?;

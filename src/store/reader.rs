@@ -19,7 +19,7 @@ use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 
-pub(crate) const LRU_CACHE_CAPACITY: usize = 100;
+pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
@@ -62,10 +62,6 @@ impl BlockCache {
     }
     fn len(&self) -> usize {
         self.cache.lock().unwrap().len()
-    }
-
-    fn set_size(&self, size: usize) {
-        self.cache.lock().unwrap().resize(size);
     }
 
     #[cfg(test)]
@@ -111,7 +107,7 @@ impl Sum for CacheStats {
 
 impl StoreReader {
     /// Opens a store reader
-    pub fn open(store_file: FileSlice) -> io::Result<StoreReader> {
+    pub fn open(store_file: FileSlice, cache_size: usize) -> io::Result<StoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -122,7 +118,7 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: Mutex::new(LruCache::new(LRU_CACHE_CAPACITY)),
+                cache: Mutex::new(LruCache::new(cache_size)),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },
@@ -142,11 +138,6 @@ impl StoreReader {
     /// Returns the cache hit and miss statistics of the store reader.
     pub(crate) fn cache_stats(&self) -> CacheStats {
         self.cache.stats()
-    }
-
-    /// Set lru cache size for decompressed blocks. Defaults to 100 (LRU_CACHE_CAPACITY).
-    pub(crate) fn set_cache_size(&self, size: usize) {
-        self.cache.set_size(size)
     }
 
     /// Get checkpoint for DocId. The checkpoint can be used to load a block containing the
@@ -405,7 +396,7 @@ mod tests {
         let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
 
         assert_eq!(store.cache.len(), 0);
         assert_eq!(store.cache_stats().cache_hits, 0);

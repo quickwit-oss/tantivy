@@ -1036,12 +1036,8 @@ impl IndexMerger {
             let store_readers: Vec<_> = self
                 .readers
                 .iter()
-                .map(|reader| reader.get_store_reader())
+                .map(|reader| reader.get_store_reader(50))
                 .collect::<Result<_, _>>()?;
-
-            for store_reader in &store_readers {
-                store_reader.set_cache_size(50);
-            }
 
             let mut document_iterators: Vec<_> = store_readers
                 .iter()
@@ -1065,8 +1061,7 @@ impl IndexMerger {
         } else {
             debug!("trivial-doc-id-mapping");
             for reader in &self.readers {
-                let store_reader = reader.get_store_reader()?;
-                store_reader.set_cache_size(1);
+                let store_reader = reader.get_store_reader(1)?;
                 if reader.has_deletes()
                     // If there is not enough data in the store, we avoid stacking in order to
                     // avoid creating many small blocks in the doc store. Once we have 5 full blocks,

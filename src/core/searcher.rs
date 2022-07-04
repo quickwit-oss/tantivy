@@ -81,12 +81,8 @@ impl Searcher {
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
-            .map(SegmentReader::get_store_reader)
+            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
             .collect::<io::Result<Vec<_>>>()?;
-
-        for store_reader in &store_readers {
-            store_reader.set_cache_size(doc_store_cache_size);
-        }
 
         Ok(Searcher {
             schema,

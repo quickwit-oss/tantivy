@@ -13,7 +13,7 @@ use self::pool::Pool;
 use self::warming::WarmingState;
 use crate::core::searcher::SearcherGeneration;
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
-use crate::store::LRU_CACHE_CAPACITY;
+use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
@@ -60,7 +60,7 @@ impl IndexReaderBuilder {
             index,
             warmers: Vec::new(),
             num_warming_threads: 1,
-            doc_store_cache_size: LRU_CACHE_CAPACITY,
+            doc_store_cache_size: DOCSTORE_CACHE_CAPACITY,
         }
     }
 

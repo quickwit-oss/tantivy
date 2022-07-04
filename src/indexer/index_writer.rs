@@ -792,6 +792,7 @@ mod tests {
         self, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
+    use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term};
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -1550,7 +1551,9 @@ mod tests {
 
         // doc store tests
         for segment_reader in searcher.segment_readers().iter() {
-            let store_reader = segment_reader.get_store_reader().unwrap();
+            let store_reader = segment_reader
+                .get_store_reader(DOCSTORE_CACHE_CAPACITY)
+                .unwrap();
             // test store iterator
             for doc in store_reader.iter(segment_reader.alive_bitset()) {
                 let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
