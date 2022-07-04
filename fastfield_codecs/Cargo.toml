@@ -3,7 +3,7 @@ name = "fastfield_codecs"
 version = "0.2.0"
 authors = ["Pascal Seitz <pascal@quickwit.io>"]
 license = "MIT"
-edition = "2018"
+edition = "2021"
 description = "Fast field codecs used by tantivy"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
