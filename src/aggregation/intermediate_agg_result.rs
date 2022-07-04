@@ -277,11 +277,9 @@ impl IntermediateBucketResult {
                     .collect::<crate::Result<Vec<_>>>()?;
 
                 buckets.sort_by(|left, right| {
-                    // TODO use total_cmp next stable rust release
                     left.from
                         .unwrap_or(f64::MIN)
-                        .partial_cmp(&right.from.unwrap_or(f64::MIN))
-                        .unwrap_or(Ordering::Equal)
+                        .total_cmp(&right.from.unwrap_or(f64::MIN))
                 });
                 Ok(BucketResult::Range { buckets })
             }
@@ -438,12 +436,9 @@ impl IntermediateTermBucketResult {
                     })
                     .collect::<crate::Result<Vec<_>>>()?;
 
-                buckets_with_val.sort_by(|(_, val1), (_, val2)| {
-                    // TODO use total_cmp in next rust stable release
-                    match &order {
-                        Order::Desc => val2.partial_cmp(val1).unwrap_or(std::cmp::Ordering::Equal),
-                        Order::Asc => val1.partial_cmp(val2).unwrap_or(std::cmp::Ordering::Equal),
-                    }
+                buckets_with_val.sort_by(|(_, val1), (_, val2)| match &order {
+                    Order::Desc => val2.total_cmp(val1),
+                    Order::Asc => val1.total_cmp(val2),
                 });
                 buckets = buckets_with_val
                     .into_iter()
