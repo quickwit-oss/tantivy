@@ -16,8 +16,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose --workspace
     - name: Install latest nightly to test also against unstable feature flag
       uses: actions-rs/toolchain@v1
       with:
@@ -25,12 +23,15 @@ jobs:
             override: true
             components: rustfmt
 
-    - name: Install latest nightly to test also against unstable feature flag
+    - name: Install stable
       uses: actions-rs/toolchain@v1
       with:
-            toolchain: "1.62"
+            toolchain: stable
             override: true
             components: rustfmt, clippy
+
+    - name: Build
+      run: cargo build --verbose --workspace
 
     - name: Run tests
       run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints --verbose --workspace
