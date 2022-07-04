@@ -271,8 +271,8 @@ impl Collector for FacetCollector {
             let mut facet_streamer = facet_reader.facet_dict().range().into_stream()?;
             if facet_streamer.advance() {
                 'outer: loop {
-                    // at the begining of this loop, facet_streamer
-                    // is positionned on a term that has not been processed yet.
+                    // at the beginning of this loop, facet_streamer
+                    // is positioned on a term that has not been processed yet.
                     let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
                     match skip_result {
                         SkipResult::Found => {

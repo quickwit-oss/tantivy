@@ -69,10 +69,8 @@ pub fn test_filter_collector() -> crate::Result<()> {
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
-/// It is unusable in pr
-///
-/// actise, as it does not store
-/// the segment ordinals
+/// It is unusable in practise, as it does
+/// not store the segment ordinals
 pub struct TestCollector {
     pub compute_score: bool,
 }

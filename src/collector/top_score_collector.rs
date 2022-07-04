@@ -79,7 +79,7 @@ where
 /// sorted by their score.
 ///
 /// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity for collecting the top `K` out of `n` documents
+/// The theoretical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
 ///
 /// This collector guarantees a stable sorting in case of a tie on the
@@ -283,7 +283,7 @@ impl TopDocs {
     ///
     /// # See also
     ///
-    /// To confortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
+    /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
     /// [.order_by_fast_field(...)](#method.order_by_fast_field) method.
     pub fn order_by_u64_field(
         self,

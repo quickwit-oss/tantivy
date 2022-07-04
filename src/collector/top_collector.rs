@@ -137,7 +137,7 @@ where T: PartialOrd + Clone
 /// sorted by type `T`.
 ///
 /// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity for collecting the top `K` out of `n` documents
+/// The theoretical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
 pub(crate) struct TopSegmentCollector<T> {
     limit: usize,
