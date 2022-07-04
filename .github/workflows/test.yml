@@ -28,7 +28,7 @@ jobs:
     - name: Install latest nightly to test also against unstable feature flag
       uses: actions-rs/toolchain@v1
       with:
-            toolchain: stable
+            toolchain: "1.62"
             override: true
             components: rustfmt, clippy
 
