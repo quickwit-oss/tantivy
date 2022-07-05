@@ -133,8 +133,8 @@ impl SegmentReader {
     }
 
     /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone())
+    pub fn get_store_reader(&self, cache_size: usize) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone(), cache_size)
     }
 
     /// Open a new segment for reading.
@@ -326,7 +326,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
-            self.get_store_reader()?.space_usage(),
+            self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)

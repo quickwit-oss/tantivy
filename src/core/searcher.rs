@@ -6,7 +6,7 @@ use crate::core::{Executor, SegmentReader};
 use crate::query::Query;
 use crate::schema::{Document, Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
-use crate::store::StoreReader;
+use crate::store::{CacheStats, StoreReader};
 use crate::{DocAddress, Index, Opstamp, SegmentId, TrackedObject};
 
 /// Identifies the searcher generation accessed by a [Searcher].
@@ -77,11 +77,13 @@ impl Searcher {
         index: Index,
         segment_readers: Vec<SegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
+        doc_store_cache_size: usize,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
-            .map(SegmentReader::get_store_reader)
+            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
             .collect::<io::Result<Vec<_>>>()?;
+
         Ok(Searcher {
             schema,
             index,
@@ -108,6 +110,18 @@ impl Searcher {
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let store_reader = &self.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
+    }
+
+    /// The cache stats for the underlying store reader.
+    ///
+    /// Aggregates the sum for each segment store reader.
+    pub fn doc_store_cache_stats(&self) -> CacheStats {
+        let cache_stats: CacheStats = self
+            .store_readers
+            .iter()
+            .map(|reader| reader.cache_stats())
+            .sum();
+        cache_stats
     }
 
     /// Fetches a document in an asynchronous manner.

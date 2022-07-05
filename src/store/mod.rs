@@ -40,7 +40,8 @@ mod reader;
 mod writer;
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
-pub use self::reader::StoreReader;
+pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
+pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
 
 #[cfg(feature = "lz4-compression")]
@@ -114,7 +115,7 @@ pub mod tests {
         let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4, BLOCK_SIZE);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
@@ -154,7 +155,7 @@ pub mod tests {
         let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor, blocksize);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
@@ -231,7 +232,7 @@ pub mod tests {
 
         let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
-        let store = reader.get_store_reader()?;
+        let store = reader.get_store_reader(10)?;
         for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().as_text().unwrap(),
@@ -267,7 +268,7 @@ pub mod tests {
         }
         assert_eq!(
             index.reader().unwrap().searcher().segment_readers()[0]
-                .get_store_reader()
+                .get_store_reader(10)
                 .unwrap()
                 .decompressor(),
             Decompressor::Lz4
@@ -288,7 +289,7 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader().unwrap();
+        let store = reader.get_store_reader(10).unwrap();
 
         for doc in store.iter(reader.alive_bitset()).take(50) {
             assert_eq!(
@@ -335,7 +336,7 @@ pub mod tests {
         let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader()?;
+        let store = reader.get_store_reader(10)?;
         assert_eq!(store.block_checkpoints().count(), 1);
         Ok(())
     }
@@ -379,7 +380,7 @@ mod bench {
             16_384,
         );
         let store_file = directory.open_read(path).unwrap();
-        let store = StoreReader::open(store_file).unwrap();
+        let store = StoreReader::open(store_file, 10).unwrap();
         b.iter(|| store.iter(None).collect::<Vec<_>>());
     }
 }

@@ -1,4 +1,6 @@
 use std::io;
+use std::iter::Sum;
+use std::ops::AddAssign;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -17,7 +19,7 @@ use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 
-const LRU_CACHE_CAPACITY: usize = 100;
+pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
@@ -30,16 +32,11 @@ pub struct StoreReader {
     cache: BlockCache,
 }
 
+/// The cache for decompressed blocks.
 struct BlockCache {
     cache: Mutex<LruCache<usize, Block>>,
     cache_hits: Arc<AtomicUsize>,
     cache_misses: Arc<AtomicUsize>,
-}
-
-pub struct CacheStats {
-    pub num_entries: usize,
-    pub cache_hits: usize,
-    pub cache_misses: usize,
 }
 
 impl BlockCache {
@@ -77,9 +74,40 @@ impl BlockCache {
     }
 }
 
+#[derive(Debug, Default)]
+/// CacheStats for the `StoreReader`.
+pub struct CacheStats {
+    /// The number of entries in the cache
+    pub num_entries: usize,
+    /// The number of cache hits.
+    pub cache_hits: usize,
+    /// The number of cache misses.
+    pub cache_misses: usize,
+}
+
+impl AddAssign for CacheStats {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            num_entries: self.num_entries + other.num_entries,
+            cache_hits: self.cache_hits + other.cache_hits,
+            cache_misses: self.cache_misses + other.cache_misses,
+        };
+    }
+}
+
+impl Sum for CacheStats {
+    fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+        let mut first = iter.next().unwrap_or_default();
+        for el in iter {
+            first += el;
+        }
+        first
+    }
+}
+
 impl StoreReader {
     /// Opens a store reader
-    pub fn open(store_file: FileSlice) -> io::Result<StoreReader> {
+    pub fn open(store_file: FileSlice, cache_size: usize) -> io::Result<StoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -90,7 +118,7 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: Mutex::new(LruCache::new(LRU_CACHE_CAPACITY)),
+                cache: Mutex::new(LruCache::new(cache_size)),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },
@@ -368,7 +396,7 @@ mod tests {
         let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
 
         assert_eq!(store.cache.len(), 0);
         assert_eq!(store.cache_stats().cache_hits, 0);
