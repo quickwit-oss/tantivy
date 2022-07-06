@@ -124,6 +124,15 @@ impl IndexReaderBuilder {
         self
     }
 
+    /// Sets the cache size of the doc store readers.
+    ///
+    /// The doc store readers cache by default DOCSTORE_CACHE_CAPACITY(100) decompressed blocks.
+    #[must_use]
+    pub fn doc_store_cache_size(mut self, doc_store_cache_size: usize) -> IndexReaderBuilder {
+        self.doc_store_cache_size = doc_store_cache_size;
+        self
+    }
+
     /// Sets the number of [Searcher] to pool.
     ///
     /// See [IndexReader::searcher()].
