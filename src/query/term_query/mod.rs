@@ -141,7 +141,7 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let reader = index.reader()?;
-        assert_eq!(term_query.count(&*reader.searcher())?, 1);
+        assert_eq!(term_query.count(&reader.searcher())?, 1);
         Ok(())
     }
 

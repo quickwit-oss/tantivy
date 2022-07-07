@@ -145,11 +145,7 @@ fn main() -> tantivy::Result<()> {
     let warmers: Vec<Weak<dyn Warmer>> = vec![Arc::downgrade(
         &(price_dynamic_column.clone() as Arc<dyn Warmer>),
     )];
-    let reader: IndexReader = index
-        .reader_builder()
-        .warmers(warmers)
-        .num_searchers(1)
-        .try_into()?;
+    let reader: IndexReader = index.reader_builder().warmers(warmers).try_into()?;
     reader.reload()?;
 
     let query_parser = QueryParser::for_index(&index, vec![text]);

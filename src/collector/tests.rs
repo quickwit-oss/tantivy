@@ -263,7 +263,7 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
     }
 }
 
-fn make_test_searcher() -> crate::Result<crate::LeasedItem<Searcher>> {
+fn make_test_searcher() -> crate::Result<Searcher> {
     let schema = Schema::builder().build();
     let index = Index::create_in_ram(schema);
     let mut index_writer = index.writer_for_tests()?;

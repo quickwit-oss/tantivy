@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use crate::collector::Collector;
@@ -62,12 +63,9 @@ impl SearcherGeneration {
 ///
 /// It guarantees that the `Segment` will not be removed before
 /// the destruction of the `Searcher`.
+#[derive(Clone)]
 pub struct Searcher {
-    schema: Schema,
-    index: Index,
-    segment_readers: Vec<SegmentReader>,
-    store_readers: Vec<StoreReader>,
-    generation: TrackedObject<SearcherGeneration>,
+    inner: Arc<SearcherInner>,
 }
 
 impl Searcher {
@@ -79,28 +77,24 @@ impl Searcher {
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_size: usize,
     ) -> io::Result<Searcher> {
-        let store_readers: Vec<StoreReader> = segment_readers
-            .iter()
-            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
-            .collect::<io::Result<Vec<_>>>()?;
-
-        Ok(Searcher {
+        let inner = SearcherInner::new(
             schema,
             index,
             segment_readers,
-            store_readers,
             generation,
-        })
+            doc_store_cache_size,
+        )?;
+        Ok(inner.into())
     }
 
     /// Returns the `Index` associated to the `Searcher`
     pub fn index(&self) -> &Index {
-        &self.index
+        &self.inner.index
     }
 
     /// [SearcherGeneration] which identifies the version of the snapshot held by this `Searcher`.
     pub fn generation(&self) -> &SearcherGeneration {
-        self.generation.as_ref()
+        self.inner.generation.as_ref()
     }
 
     /// Fetches a document from tantivy's store given a `DocAddress`.
@@ -108,7 +102,7 @@ impl Searcher {
     /// The searcher uses the segment ordinal to route the
     /// the request to the right `Segment`.
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
-        let store_reader = &self.store_readers[doc_address.segment_ord as usize];
+        let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
     }
 
@@ -117,6 +111,7 @@ impl Searcher {
     /// Aggregates the sum for each segment store reader.
     pub fn doc_store_cache_stats(&self) -> CacheStats {
         let cache_stats: CacheStats = self
+            .inner
             .store_readers
             .iter()
             .map(|reader| reader.cache_stats())
@@ -127,18 +122,19 @@ impl Searcher {
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
     pub async fn doc_async(&self, doc_address: DocAddress) -> crate::Result<Document> {
-        let store_reader = &self.store_readers[doc_address.segment_ord as usize];
+        let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
     }
 
     /// Access the schema associated to the index of this searcher.
     pub fn schema(&self) -> &Schema {
-        &self.schema
+        &self.inner.schema
     }
 
     /// Returns the overall number of documents in the index.
     pub fn num_docs(&self) -> u64 {
-        self.segment_readers
+        self.inner
+            .segment_readers
             .iter()
             .map(|segment_reader| u64::from(segment_reader.num_docs()))
             .sum::<u64>()
@@ -148,7 +144,7 @@ impl Searcher {
     /// the given term.
     pub fn doc_freq(&self, term: &Term) -> crate::Result<u64> {
         let mut total_doc_freq = 0;
-        for segment_reader in &self.segment_readers {
+        for segment_reader in &self.inner.segment_readers {
             let inverted_index = segment_reader.inverted_index(term.field())?;
             let doc_freq = inverted_index.doc_freq(term)?;
             total_doc_freq += u64::from(doc_freq);
@@ -158,12 +154,12 @@ impl Searcher {
 
     /// Return the list of segment readers
     pub fn segment_readers(&self) -> &[SegmentReader] {
-        &self.segment_readers
+        &self.inner.segment_readers
     }
 
     /// Returns the segment_reader associated with the given segment_ord
     pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
-        &self.segment_readers[segment_ord as usize]
+        &self.inner.segment_readers[segment_ord as usize]
     }
 
     /// Runs a query on the segment readers wrapped by the searcher.
@@ -185,7 +181,7 @@ impl Searcher {
         query: &dyn Query,
         collector: &C,
     ) -> crate::Result<C::Fruit> {
-        let executor = self.index.search_executor();
+        let executor = self.inner.index.search_executor();
         self.search_with_executor(query, collector, executor)
     }
 
@@ -222,17 +218,61 @@ impl Searcher {
     /// Summarize total space usage of this searcher.
     pub fn space_usage(&self) -> io::Result<SearcherSpaceUsage> {
         let mut space_usage = SearcherSpaceUsage::new();
-        for segment_reader in &self.segment_readers {
+        for segment_reader in self.segment_readers() {
             space_usage.add_segment(segment_reader.space_usage()?);
         }
         Ok(space_usage)
     }
 }
 
+impl From<SearcherInner> for Searcher {
+    fn from(inner: SearcherInner) -> Self {
+        Searcher {
+            inner: Arc::new(inner),
+        }
+    }
+}
+
+/// Holds a list of `SegmentReader`s ready for search.
+///
+/// It guarantees that the `Segment` will not be removed before
+/// the destruction of the `Searcher`.
+pub struct SearcherInner {
+    schema: Schema,
+    index: Index,
+    segment_readers: Vec<SegmentReader>,
+    store_readers: Vec<StoreReader>,
+    generation: TrackedObject<SearcherGeneration>,
+}
+
+impl SearcherInner {
+    /// Creates a new `Searcher`
+    pub(crate) fn new(
+        schema: Schema,
+        index: Index,
+        segment_readers: Vec<SegmentReader>,
+        generation: TrackedObject<SearcherGeneration>,
+        doc_store_cache_size: usize,
+    ) -> io::Result<SearcherInner> {
+        let store_readers: Vec<StoreReader> = segment_readers
+            .iter()
+            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
+            .collect::<io::Result<Vec<_>>>()?;
+
+        Ok(SearcherInner {
+            schema,
+            index,
+            segment_readers,
+            store_readers,
+            generation,
+        })
+    }
+}
+
 impl fmt::Debug for Searcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let segment_ids = self
-            .segment_readers
+            .segment_readers()
             .iter()
             .map(SegmentReader::segment_id)
             .collect::<Vec<_>>();
