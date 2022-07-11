@@ -53,6 +53,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     similarity_weight: Bm25Weight,
     scoring_enabled: bool,
     slop: u32,
+    used_slop: u32,
 }
 
 /// Returns true if and only if the two sorted arrays contain a common element
@@ -139,12 +140,18 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 /// the value in right and that the distance to the previous token is lte to the slop.
 ///
 /// Returns the length of the intersection
-fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
+fn intersection_with_slop(
+    left: &mut [u32],
+    right: &[u32],
+    slop: u32,
+    used_slop: u32,
+) -> (usize, u32) {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
+    let mut used_slop = used_slop;
     while left_index < left_len && right_index < right_len {
         let left_val = left[left_index];
         let right_val = right[right_index];
@@ -172,6 +179,7 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
                 // the next value is better.
                 left_index += 1;
             }
+            used_slop += right_val - left[left_index];
             // store the match in left.
             left[count] = right_val;
             count += 1;
@@ -181,15 +189,21 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
             right_index += 1;
         }
     }
-    count
+    (count, used_slop)
 }
 
-fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize {
+fn intersection_count_with_slop(
+    left: &[u32],
+    right: &[u32],
+    slop: u32,
+    used_slop: u32,
+) -> (usize, u32) {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
+    let mut used_slop = used_slop;
     while left_index < left_len && right_index < right_len {
         let left_val = left[left_index];
         let right_val = right[right_index];
@@ -209,6 +223,7 @@ fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize
                 }
                 left_index += 1;
             }
+            used_slop += right_val - left[left_index];
             count += 1;
             left_index += 1;
             right_index += 1;
@@ -216,7 +231,7 @@ fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize
             right_index += 1;
         }
     }
-    count
+    (count, used_slop)
 }
 
 fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool {
@@ -274,6 +289,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             fieldnorm_reader,
             scoring_enabled,
             slop,
+            used_slop: 0u32,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
             scorer.advance();
@@ -296,7 +312,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_exists(&mut self) -> bool {
-        let intersection_len = self.compute_phrase_match();
+        let (intersection_len, _) = self.compute_phrase_match();
         if self.has_slop() {
             return intersection_exists_with_slop(
                 &self.left[..intersection_len],
@@ -308,24 +324,27 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
-        let intersection_len = self.compute_phrase_match();
+        let (intersection_len, used_slop) = self.compute_phrase_match();
         if self.has_slop() {
-            return intersection_count_with_slop(
+            let (count, used_slop) = intersection_count_with_slop(
                 &self.left[..intersection_len],
                 &self.right[..],
                 self.slop,
-            ) as u32;
+                used_slop,
+            );
+            self.used_slop = used_slop;
+            return count as u32;
         }
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 
-    fn compute_phrase_match(&mut self) -> usize {
+    fn compute_phrase_match(&mut self) -> (usize, u32) {
         {
             self.intersection_docset
                 .docset_mut_specialized(0)
                 .positions(&mut self.left);
         }
-        let mut intersection_len = self.left.len();
+        let mut intersection_len = (self.left.len(), 0);
         for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
@@ -334,15 +353,19 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             }
             intersection_len = if self.has_slop() {
                 intersection_with_slop(
-                    &mut self.left[..intersection_len],
+                    &mut self.left[..intersection_len.0],
                     &self.right[..],
                     self.slop,
+                    intersection_len.1,
                 )
             } else {
-                intersection(&mut self.left[..intersection_len], &self.right[..])
+                (
+                    intersection(&mut self.left[..intersection_len.0], &self.right[..]),
+                    0,
+                )
             };
-            if intersection_len == 0 {
-                return 0;
+            if intersection_len.0 == 0 {
+                return (0, 0);
             }
         }
         self.intersection_docset
@@ -388,6 +411,15 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        if self.has_slop() {
+            // we use slop+1 rather than slop to garantee the resulting ratio is > 0
+            let allowed_slop = (self.slop + 1) as f32 * self.phrase_count as f32;
+            let spare_slop_ratio = 1f32 - self.used_slop as f32 / allowed_slop;
+            return self
+                .similarity_weight
+                .score(fieldnorm_id, self.phrase_count)
+                * spare_slop_ratio;
+        }
         self.similarity_weight
             .score(fieldnorm_id, self.phrase_count)
     }
@@ -414,8 +446,8 @@ mod tests {
         }
         let mut right_vec = Vec::from(right);
         let right_mut = &mut right_vec[..];
-        let count = intersection_with_slop(left_mut, right_mut, slop);
-        assert_eq!(&left_mut[..count], expected);
+        let count = intersection_with_slop(left_mut, right_mut, slop, 0);
+        assert_eq!(&left_mut[..count.0], expected);
     }
 
     #[test]
@@ -440,21 +472,29 @@ mod tests {
         test_intersection_aux(&[1, 3, 5], &[2, 4, 6], &[], 0);
     }
 
-    fn test_merge(left: &[u32], right: &[u32], expected_left: &[u32], slop: u32) {
+    fn test_merge(
+        left: &[u32],
+        right: &[u32],
+        expected_left: &[u32],
+        expected_used: u32,
+        slop: u32,
+    ) {
         let mut left_vec = Vec::from(left);
         let left_mut = &mut left_vec[..];
         let mut right_vec = Vec::from(right);
         let right_mut = &mut right_vec[..];
-        let count = intersection_with_slop(left_mut, right_mut, slop);
-        assert_eq!(&left_mut[..count], expected_left);
+        let count = intersection_with_slop(left_mut, right_mut, slop, 0);
+        assert_eq!(&left_mut[..count.0], expected_left);
+        assert_eq!(count.1, expected_used);
     }
 
     #[test]
     fn test_merge_slop() {
-        test_merge(&[1, 2], &[1], &[1], 1);
-        test_merge(&[3], &[4], &[4], 2);
-        test_merge(&[3], &[4], &[4], 2);
-        test_merge(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12], 10);
+        test_merge(&[1, 2], &[1], &[1], 0, 1);
+        test_merge(&[3], &[4], &[4], 1, 2);
+        test_merge(&[3], &[4], &[4], 1, 2);
+        test_merge(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12], 0, 0);
+        test_merge(&[1, 5, 6], &[2, 6, 7], &[2, 6], 1, 10); // we don't answer 2,6,7
     }
 }
 
