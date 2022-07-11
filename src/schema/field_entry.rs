@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::{
-    is_valid_field_name, FacetOptions, FieldType, JsonObjectOptions, NumericOptions, TextOptions,
+    is_valid_field_name, DateOptions, FacetOptions, FieldType, JsonObjectOptions, NumericOptions,
+    TextOptions,
 };
 
 /// A `FieldEntry` represents a field and its configuration.
@@ -55,7 +56,7 @@ impl FieldEntry {
     }
 
     /// Creates a new date field entry.
-    pub fn new_date(field_name: String, date_options: NumericOptions) -> FieldEntry {
+    pub fn new_date(field_name: String, date_options: DateOptions) -> FieldEntry {
         Self::new(field_name, FieldType::Date(date_options))
     }
 
@@ -107,8 +108,8 @@ impl FieldEntry {
             FieldType::U64(ref options)
             | FieldType::I64(ref options)
             | FieldType::F64(ref options)
-            | FieldType::Date(ref options)
             | FieldType::Bool(ref options) => options.is_stored(),
+            FieldType::Date(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
             FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),

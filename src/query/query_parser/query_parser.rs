@@ -1068,7 +1068,6 @@ mod test {
 
     #[test]
     fn test_json_field_possibly_a_date() {
-        // Subseconds are discarded
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
             r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
@@ -1352,9 +1351,16 @@ mod test {
             query_parser.parse_query("date:18a"),
             Err(QueryParserError::DateFormatError(_))
         );
-        assert!(query_parser
-            .parse_query("date:\"1985-04-12T23:20:50.52Z\"")
-            .is_ok());
+        test_parse_query_to_logical_ast_helper(
+            r#"date:"2010-11-21T09:55:06.000000000+02:00""#,
+            r#"Term(type=Date, field=9, 2010-11-21T07:55:06Z)"#,
+            true,
+        );
+        test_parse_query_to_logical_ast_helper(
+            r#"date:"1985-04-12T23:20:50.52Z""#,
+            r#"Term(type=Date, field=9, 1985-04-12T23:20:50Z)"#,
+            true,
+        );
     }
 
     #[test]

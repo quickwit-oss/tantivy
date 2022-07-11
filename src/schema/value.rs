@@ -24,7 +24,7 @@ pub enum Value {
     F64(f64),
     /// Bool value
     Bool(bool),
-    /// Date/time with second precision
+    /// Date/time with microseconds precision
     Date(DateTime),
     /// Facet
     Facet(Facet),
@@ -251,7 +251,7 @@ impl<'a> From<&'a [u8]> for Value {
     }
 }
 
-impl<'a> From<Facet> for Value {
+impl From<Facet> for Value {
     fn from(facet: Facet) -> Value {
         Value::Facet(facet)
     }
@@ -348,8 +348,10 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    let DateTime { unix_timestamp } = val;
-                    unix_timestamp.serialize(writer)
+                    let DateTime {
+                        timestamp_micros, ..
+                    } = val;
+                    timestamp_micros.serialize(writer)
                 }
                 Value::Facet(ref facet) => {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
@@ -391,8 +393,10 @@ mod binary_serialize {
                     Ok(Value::Bool(value))
                 }
                 DATE_CODE => {
-                    let unix_timestamp = i64::deserialize(reader)?;
-                    Ok(Value::Date(DateTime::from_unix_timestamp(unix_timestamp)))
+                    let timestamp_micros = i64::deserialize(reader)?;
+                    Ok(Value::Date(DateTime::from_timestamp_micros(
+                        timestamp_micros,
+                    )))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),

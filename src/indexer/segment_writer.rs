@@ -14,7 +14,7 @@ use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer,
 };
-use crate::{DocId, Document, Opstamp, SegmentComponent};
+use crate::{DatePrecision, DocId, Document, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
 ///
@@ -248,7 +248,7 @@ impl SegmentWriter {
                 FieldType::Date(_) => {
                     for value in values {
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_u64(date_val.to_u64());
+                        term_buffer.set_u64(date_val.truncate(DatePrecision::Seconds).to_u64());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }

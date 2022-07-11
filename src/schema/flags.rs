@@ -1,6 +1,7 @@
 use std::ops::BitOr;
 
 use crate::schema::{NumericOptions, TextOptions};
+use crate::DateOptions;
 
 #[derive(Clone)]
 pub struct StoredFlag;
@@ -61,6 +62,14 @@ impl<T: Clone + Into<NumericOptions>> BitOr<NumericOptions> for SchemaFlagList<T
     type Output = NumericOptions;
 
     fn bitor(self, rhs: NumericOptions) -> Self::Output {
+        self.head.into() | rhs
+    }
+}
+
+impl<T: Clone + Into<DateOptions>> BitOr<DateOptions> for SchemaFlagList<T, ()> {
+    type Output = DateOptions;
+
+    fn bitor(self, rhs: DateOptions) -> Self::Output {
         self.head.into() | rhs
     }
 }

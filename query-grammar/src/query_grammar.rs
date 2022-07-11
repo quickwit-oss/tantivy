@@ -575,7 +575,7 @@ mod test {
         for special_char in SPECIAL_CHARS.iter() {
             let query = &format!("\\{special_char}my\\{special_char}field:a");
             assert_eq!(
-                super::field_name().parse(&query),
+                super::field_name().parse(query),
                 Ok((format!("{special_char}my{special_char}field"), "a"))
             );
         }
