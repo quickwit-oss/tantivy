@@ -14,7 +14,7 @@ pub struct BitpackedFastFieldReader {
     pub max_value_u64: u64,
 }
 
-impl<'data> FastFieldCodecReader for BitpackedFastFieldReader {
+impl FastFieldCodecReader for BitpackedFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - 16);

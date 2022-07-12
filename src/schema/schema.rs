@@ -134,7 +134,7 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_date_field<T: Into<NumericOptions>>(
+    pub fn add_date_field<T: Into<DateOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
@@ -813,7 +813,7 @@ mod tests {
                 .set_tokenizer("raw")
                 .set_index_option(IndexRecordOption::Basic),
         );
-        let timestamp_options = NumericOptions::default()
+        let timestamp_options = DateOptions::default()
             .set_stored()
             .set_indexed()
             .set_fieldnorm()
@@ -875,7 +875,8 @@ mod tests {
       "indexed": true,
       "fieldnorms": true,
       "fast": "single",
-      "stored": true
+      "stored": true,
+      "precision": "seconds"
     }
   },
   {

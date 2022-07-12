@@ -8,7 +8,7 @@ use crate::schema::{Field, Type};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
-use crate::{DateTime, DocId, Term};
+use crate::{DatePrecision, DateTime, DocId, Term};
 
 /// This object is a map storing the last position for a given path for the current document
 /// being indexed.
@@ -323,9 +323,16 @@ impl<'a> JsonTermWriter<'a> {
 
     pub fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.close_path_and_set_type(T::to_type());
+        let value = if T::to_type() == Type::Date {
+            DateTime::from_u64(val.to_u64())
+                .truncate(DatePrecision::Seconds)
+                .to_u64()
+        } else {
+            val.to_u64()
+        };
         self.term_buffer
             .as_mut()
-            .extend_from_slice(val.to_u64().to_be_bytes().as_slice());
+            .extend_from_slice(value.to_be_bytes().as_slice());
     }
 
     #[cfg(test)]

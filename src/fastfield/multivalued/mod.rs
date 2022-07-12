@@ -13,7 +13,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
+    use crate::schema::{Cardinality, DateOptions, Facet, FacetOptions, NumericOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::{Duration, OffsetDateTime};
     use crate::{DateTime, Document, Index, Term};
@@ -58,7 +58,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
-            NumericOptions::default()
+            DateOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_indexed()
                 .set_fieldnorm()
