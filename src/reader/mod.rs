@@ -2,12 +2,13 @@ mod warming;
 
 use std::convert::TryInto;
 use std::sync::atomic::AtomicU64;
-use std::sync::{atomic, Arc, Mutex, Weak};
+use std::sync::{atomic, Arc, Weak};
 
+use arc_swap::ArcSwap;
 pub use warming::Warmer;
 
 use self::warming::WarmingState;
-use crate::core::searcher::SearcherGeneration;
+use crate::core::searcher::{SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
 use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
@@ -153,7 +154,7 @@ struct InnerIndexReader {
     doc_store_cache_size: usize,
     index: Index,
     warming_state: WarmingState,
-    searcher: Mutex<Searcher>,
+    searcher: arc_swap::ArcSwap<SearcherInner>,
     searcher_generation_counter: Arc<AtomicU64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
@@ -183,7 +184,7 @@ impl InnerIndexReader {
             doc_store_cache_size,
             index,
             warming_state,
-            searcher: Mutex::new(searcher),
+            searcher: ArcSwap::from(searcher),
             searcher_generation_counter,
             searcher_generation_inventory,
         })
@@ -219,17 +220,18 @@ impl InnerIndexReader {
         doc_store_cache_size: usize,
         warming_state: &WarmingState,
         searcher_generation: TrackedObject<SearcherGeneration>,
-    ) -> crate::Result<Searcher> {
+    ) -> crate::Result<Arc<SearcherInner>> {
         let segment_readers = Self::open_segment_readers(index)?;
         let schema = index.schema();
-        let searcher: Searcher = Searcher::new(
+        let searcher = Arc::new(SearcherInner::new(
             schema,
             index.clone(),
             segment_readers,
             searcher_generation,
             doc_store_cache_size,
-        )?;
-        warming_state.warm_new_searcher_generation(&searcher)?;
+        )?);
+
+        warming_state.warm_new_searcher_generation(&searcher.clone().into())?;
         Ok(searcher)
     }
 
@@ -247,16 +249,13 @@ impl InnerIndexReader {
             searcher_generation,
         )?;
 
-        {
-            let mut old_searcher = self.searcher.lock().unwrap();
-            *old_searcher = searcher;
-        }
+        self.searcher.store(searcher);
 
         Ok(())
     }
 
     fn searcher(&self) -> Searcher {
-        self.searcher.lock().unwrap().clone()
+        self.searcher.load().clone().into()
     }
 }
 

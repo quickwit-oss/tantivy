@@ -59,6 +59,7 @@ measure_time = "0.8.2"
 pretty_assertions = "1.2.1"
 serde_cbor = { version = "0.11.2", optional = true }
 async-trait = "0.1.53"
+arc-swap = "1.5.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

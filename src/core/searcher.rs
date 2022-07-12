@@ -69,24 +69,6 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Creates a new `Searcher`
-    pub(crate) fn new(
-        schema: Schema,
-        index: Index,
-        segment_readers: Vec<SegmentReader>,
-        generation: TrackedObject<SearcherGeneration>,
-        doc_store_cache_size: usize,
-    ) -> io::Result<Searcher> {
-        let inner = SearcherInner::new(
-            schema,
-            index,
-            segment_readers,
-            generation,
-            doc_store_cache_size,
-        )?;
-        Ok(inner.into())
-    }
-
     /// Returns the `Index` associated to the `Searcher`
     pub fn index(&self) -> &Index {
         &self.inner.index
@@ -225,11 +207,9 @@ impl Searcher {
     }
 }
 
-impl From<SearcherInner> for Searcher {
-    fn from(inner: SearcherInner) -> Self {
-        Searcher {
-            inner: Arc::new(inner),
-        }
+impl From<Arc<SearcherInner>> for Searcher {
+    fn from(inner: Arc<SearcherInner>) -> Self {
+        Searcher { inner }
     }
 }
 
@@ -237,7 +217,7 @@ impl From<SearcherInner> for Searcher {
 ///
 /// It guarantees that the `Segment` will not be removed before
 /// the destruction of the `Searcher`.
-pub struct SearcherInner {
+pub(crate) struct SearcherInner {
     schema: Schema,
     index: Index,
     segment_readers: Vec<SegmentReader>,
