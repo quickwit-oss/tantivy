@@ -307,7 +307,6 @@ pub use crate::indexer::demuxer::*;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
-pub use crate::reader::LeasedItem;
 pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
 
 /// Index format version.

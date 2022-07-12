@@ -273,7 +273,6 @@ mod tests {
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .num_warming_threads(num_warming_threads)
-            .num_searchers(num_searchers)
             .warmers(vec![
                 Arc::downgrade(&warmer1) as Weak<dyn Warmer>,
                 Arc::downgrade(&warmer2) as Weak<dyn Warmer>,

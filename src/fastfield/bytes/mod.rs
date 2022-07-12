@@ -6,8 +6,6 @@ pub use self::writer::BytesFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Deref;
-
     use crate::query::TermQuery;
     use crate::schema::{BytesOptions, IndexRecordOption, Schema, Value, FAST, INDEXED, STORED};
     use crate::{DocAddress, DocSet, Index, Searcher, Term};
@@ -37,9 +35,7 @@ mod tests {
         Ok(())
     }
 
-    fn create_index_for_test<T: Into<BytesOptions>>(
-        byte_options: T,
-    ) -> crate::Result<impl Deref<Target = Searcher>> {
+    fn create_index_for_test<T: Into<BytesOptions>>(byte_options: T) -> crate::Result<Searcher> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_bytes_field("string_bytes", byte_options.into());
         let schema = schema_builder.build();
@@ -86,7 +82,7 @@ mod tests {
         let field = searcher.schema().get_field("string_bytes").unwrap();
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-        let term_weight = term_query.specialized_weight(&*searcher, true)?;
+        let term_weight = term_query.specialized_weight(&searcher, true)?;
         let term_scorer = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         Ok(())
@@ -99,7 +95,7 @@ mod tests {
         let field = searcher.schema().get_field("string_bytes").unwrap();
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-        let term_weight_err = term_query.specialized_weight(&*searcher, false);
+        let term_weight_err = term_query.specialized_weight(&searcher, false);
         assert!(matches!(
             term_weight_err,
             Err(crate::TantivyError::SchemaError(_))

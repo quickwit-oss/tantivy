@@ -3,7 +3,7 @@ Tantivy 0.19
 - Updated [Date Field Type](https://github.com/quickwit-oss/tantivy/pull/1396)
   The `DateTime` type has been updated to hold timestamps with microseconds precision.
   `DateOptions` and `DatePrecision` have been added to configure Date fields. The precision is used to hint on fast values compression. Otherwise, seconds precision is used everywhere else (i.e terms, indexing).
-
+- Remove Searcher pool and make `Searcher` cloneable.
 
 Tantivy 0.18
 ================================
