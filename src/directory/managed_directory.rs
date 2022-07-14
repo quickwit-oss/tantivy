@@ -269,9 +269,9 @@ impl ManagedDirectory {
 }
 
 impl Directory for ManagedDirectory {
-    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
         let file_slice = self.open_read(path)?;
-        Ok(Box::new(file_slice))
+        Ok(Arc::new(file_slice))
     }
 
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {

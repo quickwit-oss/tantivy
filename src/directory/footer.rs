@@ -156,6 +156,7 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 mod tests {
 
     use std::io;
+    use std::sync::Arc;
 
     use common::BinarySerializable;
 
@@ -168,7 +169,7 @@ mod tests {
         let footer = Footer::new(123);
         footer.append_footer(&mut buf).unwrap();
         let owned_bytes = OwnedBytes::new(buf);
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let (footer_deser, _body) = Footer::extract_footer(fileslice).unwrap();
         assert_eq!(footer_deser.crc(), footer.crc());
     }
@@ -181,7 +182,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -198,7 +199,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
         assert_eq!(
@@ -217,7 +218,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert_eq!(
