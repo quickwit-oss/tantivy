@@ -51,8 +51,7 @@ impl FileHandle for &'static [u8] {
 }
 
 impl<B> From<B> for FileSlice
-where
-    B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync,
+where B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync
 {
     fn from(bytes: B) -> FileSlice {
         FileSlice::new(Arc::new(OwnedBytes::new(bytes)))
@@ -236,11 +235,11 @@ impl FileHandle for OwnedBytes {
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::sync::Arc;
 
     use common::HasLen;
 
     use super::{FileHandle, FileSlice};
-    use std::sync::Arc;
 
     #[test]
     fn test_file_slice() -> io::Result<()> {
