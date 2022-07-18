@@ -1,4 +1,4 @@
-use common::read_u32_vint;
+use common::read_u32_vint_iter;
 
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -9,41 +9,13 @@ const POSITION_END: u32 = 0;
 
 #[derive(Default)]
 pub(crate) struct BufferLender {
-    buffer_u8: Vec<u8>,
     buffer_u32: Vec<u32>,
 }
 
 impl BufferLender {
-    pub fn lend_u8(&mut self) -> &mut Vec<u8> {
-        self.buffer_u8.clear();
-        &mut self.buffer_u8
-    }
-    pub fn lend_all(&mut self) -> (&mut Vec<u8>, &mut Vec<u32>) {
-        self.buffer_u8.clear();
+    pub fn lend(&mut self) -> &mut Vec<u32> {
         self.buffer_u32.clear();
-        (&mut self.buffer_u8, &mut self.buffer_u32)
-    }
-}
-
-pub struct VInt32Reader<'a> {
-    data: &'a [u8],
-}
-
-impl<'a> VInt32Reader<'a> {
-    fn new(data: &'a [u8]) -> VInt32Reader<'a> {
-        VInt32Reader { data }
-    }
-}
-
-impl<'a> Iterator for VInt32Reader<'a> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<u32> {
-        if self.data.is_empty() {
-            None
-        } else {
-            Some(read_u32_vint(&mut self.data))
-        }
+        &mut self.buffer_u32
     }
 }
 
@@ -118,21 +90,20 @@ impl Recorder for NothingRecorder {
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let (buffer, doc_ids) = buffer_lender.lend_all();
-        self.stack.read_to_end(arena, buffer);
-        // TODO avoid reading twice.
+        let doc_ids = buffer_lender.lend();
+        let mut iter = self.stack.iter_bytes(arena);
         if let Some(doc_id_map) = doc_id_map {
-            doc_ids.extend(
-                VInt32Reader::new(&buffer[..])
-                    .map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)),
-            );
+            while let Some(old_doc_id) = read_u32_vint_iter(&mut iter) {
+                doc_ids.push(doc_id_map.get_new_doc_id(old_doc_id));
+            }
+
             doc_ids.sort_unstable();
 
             for doc in doc_ids {
                 serializer.write_doc(*doc, 0u32, &[][..]);
             }
         } else {
-            for doc in VInt32Reader::new(&buffer[..]) {
+            while let Some(doc) = read_u32_vint_iter(&mut iter) {
                 serializer.write_doc(doc, 0u32, &[][..]);
             }
         }
@@ -189,15 +160,13 @@ impl Recorder for TermFrequencyRecorder {
         arena: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
         serializer: &mut FieldSerializer<'_>,
-        buffer_lender: &mut BufferLender,
+        _buffer_lender: &mut BufferLender,
     ) {
-        let buffer = buffer_lender.lend_u8();
-        self.stack.read_to_end(arena, buffer);
-        let mut u32_it = VInt32Reader::new(&buffer[..]);
+        let mut iter = self.stack.iter_bytes(arena);
         if let Some(doc_id_map) = doc_id_map {
             let mut doc_id_and_tf = vec![];
-            while let Some(old_doc_id) = u32_it.next() {
-                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+            while let Some(old_doc_id) = read_u32_vint_iter(&mut iter) {
+                let term_freq = read_u32_vint_iter(&mut iter).unwrap_or(self.current_tf);
                 doc_id_and_tf.push((doc_id_map.get_new_doc_id(old_doc_id), term_freq));
             }
             doc_id_and_tf.sort_unstable_by_key(|&(doc_id, _)| doc_id);
@@ -206,8 +175,8 @@ impl Recorder for TermFrequencyRecorder {
                 serializer.write_doc(doc_id, tf, &[][..]);
             }
         } else {
-            while let Some(doc) = u32_it.next() {
-                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+            while let Some(doc) = read_u32_vint_iter(&mut iter) {
+                let term_freq = read_u32_vint_iter(&mut iter).unwrap_or(self.current_tf);
                 serializer.write_doc(doc, term_freq, &[][..]);
             }
         }
@@ -264,15 +233,14 @@ impl Recorder for TfAndPositionRecorder {
         serializer: &mut FieldSerializer<'_>,
         buffer_lender: &mut BufferLender,
     ) {
-        let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
-        self.stack.read_to_end(arena, buffer_u8);
-        let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+        let buffer_positions = buffer_lender.lend();
+        let mut iter = self.stack.iter_bytes(arena);
         let mut doc_id_and_positions = vec![];
-        while let Some(doc) = u32_it.next() {
+        while let Some(doc) = read_u32_vint_iter(&mut iter) {
             let mut prev_position_plus_one = 1u32;
             buffer_positions.clear();
             loop {
-                match u32_it.next() {
+                match read_u32_vint_iter(&mut iter) {
                     Some(POSITION_END) | None => {
                         break;
                     }
@@ -307,44 +275,21 @@ impl Recorder for TfAndPositionRecorder {
 #[cfg(test)]
 mod tests {
 
-    use common::write_u32_vint;
-
-    use super::{BufferLender, VInt32Reader};
+    use super::BufferLender;
 
     #[test]
     fn test_buffer_lender() {
         let mut buffer_lender = BufferLender::default();
-        {
-            let buf = buffer_lender.lend_u8();
-            assert!(buf.is_empty());
-            buf.push(1u8);
-        }
-        {
-            let buf = buffer_lender.lend_u8();
-            assert!(buf.is_empty());
-            buf.push(1u8);
-        }
-        {
-            let (_, buf) = buffer_lender.lend_all();
-            assert!(buf.is_empty());
-            buf.push(1u32);
-        }
-        {
-            let (_, buf) = buffer_lender.lend_all();
-            assert!(buf.is_empty());
-            buf.push(1u32);
-        }
-    }
 
-    #[test]
-    fn test_vint_u32() {
-        let mut buffer = vec![];
-        let vals = [0, 1, 324_234_234, u32::max_value()];
-        for &i in &vals {
-            assert!(write_u32_vint(i, &mut buffer).is_ok());
+        {
+            let buf = buffer_lender.lend();
+            assert!(buf.is_empty());
+            buf.push(1u32);
         }
-        assert_eq!(buffer.len(), 1 + 1 + 5 + 5);
-        let res: Vec<u32> = VInt32Reader::new(&buffer[..]).collect();
-        assert_eq!(&res[..], &vals[..]);
+        {
+            let buf = buffer_lender.lend();
+            assert!(buf.is_empty());
+            buf.push(1u32);
+        }
     }
 }

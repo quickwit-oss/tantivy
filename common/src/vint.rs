@@ -71,8 +71,8 @@ pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
 ///
 /// # May Panic
 /// If the payload does not start by a valid `vint`
-fn vint_len(data: &[u8]) -> usize {
-    for (i, &val) in data.iter().enumerate().take(5) {
+fn vint_len(data: impl Iterator<Item = (usize, u8)>) -> usize {
+    for (i, val) in data.take(5) {
         if val >= STOP_BIT {
             return i + 1;
         }
@@ -93,8 +93,29 @@ pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
     result
 }
 
+/// Reads a vint `u32` from a iterator, and
+/// forwards the iterator.
+pub fn read_u32_vint_iter(data: &mut impl Iterator<Item = u8>) -> Option<u32> {
+    let mut result = 0u32;
+    let mut shift = 0u32;
+    loop {
+        match data.next() {
+            Some(b) => {
+                result |= u32::from(b % 128u8) << shift;
+                if b >= STOP_BIT {
+                    return Some(result);
+                }
+                shift += 7;
+            }
+            _ => {
+                return None;
+            }
+        }
+    }
+}
+
 pub fn read_u32_vint_no_advance(data: &[u8]) -> (u32, usize) {
-    let vlen = vint_len(data);
+    let vlen = vint_len(data.iter().cloned().enumerate());
     let mut result = 0u32;
     let mut shift = 0u64;
     for &b in &data[..vlen] {
