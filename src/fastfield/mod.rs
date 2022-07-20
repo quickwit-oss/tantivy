@@ -276,10 +276,17 @@ mod tests {
         schema_builder.build()
     });
 
+    pub static SCHEMAI64: Lazy<Schema> = Lazy::new(|| {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("field", FAST);
+        schema_builder.build()
+    });
+
     pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
+    pub static FIELDI64: Lazy<Field> = Lazy::new(|| SCHEMAI64.get_field("field").unwrap());
 
     #[test]
-    pub fn test_fastfield() {
+    pub fn test_fastfield2() {
         let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
@@ -309,7 +316,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 37);
+        assert_eq!(file.len(), 55);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
@@ -340,7 +347,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 62);
+        assert_eq!(file.len(), 80);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -376,7 +383,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
+        assert_eq!(file.len(), 53);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -408,7 +415,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80043);
+        assert_eq!(file.len(), 80061);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -448,7 +455,8 @@ mod tests {
         }
         let file = directory.open_read(path).unwrap();
         // assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        assert_eq!(file.len(), 10175_usize); // linear interpol size
+        // assert_eq!(file.len(), 10201_usize); // linear interpol size, before gcd = min_value
+        assert_eq!(file.len(), 93_usize);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();
@@ -505,10 +513,15 @@ mod tests {
         permutation
     }
 
-    #[test]
-    fn test_intfastfield_permutation() -> crate::Result<()> {
+    // Warning: this generates the same permutation at each call
+    pub fn generate_permutation_gcd() -> Vec<u64> {
+        let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        permutation
+    }
+
+    fn test_intfastfield_permutation_with_data(permutation: Vec<u64>) -> crate::Result<()> {
         let path = Path::new("test");
-        let permutation = generate_permutation();
         let n = permutation.len();
         let directory = RamDirectory::create();
         {
@@ -527,12 +540,24 @@ mod tests {
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
 
-            let mut a = 0u64;
-            for _ in 0..n {
+            for a in 0..n {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
-                a = fast_field_reader.get(a as u32);
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_intfastfield_permutation_gcd() -> crate::Result<()> {
+        let permutation = generate_permutation_gcd();
+        test_intfastfield_permutation_with_data(permutation)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_intfastfield_permutation() -> crate::Result<()> {
+        let permutation = generate_permutation();
+        test_intfastfield_permutation_with_data(permutation)?;
         Ok(())
     }
 
@@ -861,7 +886,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 36);
+        assert_eq!(file.len(), 54);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -897,7 +922,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 48);
+        assert_eq!(file.len(), 66);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -931,7 +956,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
+        assert_eq!(file.len(), 53);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -951,6 +976,7 @@ mod bench {
     use super::tests::{generate_permutation, FIELD, SCHEMA};
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::fastfield::tests::generate_permutation_gcd;
     use crate::fastfield::FastFieldReader;
 
     #[bench]
@@ -1017,6 +1043,40 @@ mod bench {
     fn bench_intfastfield_fflookup(b: &mut Bencher) {
         let path = Path::new("test");
         let permutation = generate_permutation();
+        let directory: RamDirectory = RamDirectory::create();
+        {
+            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
+            for &x in &permutation {
+                fast_field_writers.add_document(&doc!(*FIELD=>x));
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(&path).unwrap();
+        {
+            let fast_fields_composite = CompositeFile::open(&file).unwrap();
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
+
+            b.iter(|| {
+                let n = test::black_box(1000u32);
+                let mut a = 0u32;
+                for _ in 0u32..n {
+                    a = fast_field_reader.get(a) as u32;
+                }
+                a
+            });
+        }
+    }
+
+    #[bench]
+    fn bench_intfastfield_fflookup_gcd(b: &mut Bencher) {
+        let path = Path::new("test");
+        let permutation = generate_permutation_gcd();
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();

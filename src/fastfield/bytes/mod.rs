@@ -11,7 +11,7 @@ mod tests {
     use crate::{DocAddress, DocSet, Index, Searcher, Term};
 
     #[test]
-    fn test_bytes() -> crate::Result<()> {
+    fn test_bytes2() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let bytes_field = schema_builder.add_bytes_field("bytesfield", FAST);
         let schema = schema_builder.build();

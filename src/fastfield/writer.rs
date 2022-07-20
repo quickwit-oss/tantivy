@@ -370,23 +370,25 @@ impl IntFastFieldWriter {
         };
 
         if let Some(doc_id_map) = doc_id_map {
-            let iter = doc_id_map
-                .iter_old_doc_ids()
-                .map(|doc_id| self.vals.get(doc_id as usize));
+            let iter_gen = || {
+                doc_id_map
+                    .iter_old_doc_ids()
+                    .map(|doc_id| self.vals.get(doc_id as usize))
+            };
             serializer.create_auto_detect_u64_fast_field(
                 self.field,
                 stats,
                 fastfield_accessor,
-                iter.clone(),
-                iter,
+                iter_gen,
             )?;
         } else {
+            let iter_gen = || self.vals.iter();
+
             serializer.create_auto_detect_u64_fast_field(
                 self.field,
                 stats,
                 fastfield_accessor,
-                self.vals.iter(),
-                self.vals.iter(),
+                iter_gen,
             )?;
         };
         Ok(())

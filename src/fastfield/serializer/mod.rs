@@ -1,3 +1,5 @@
+mod gcd;
+
 use std::io::{self, Write};
 
 use common::{BinarySerializable, CountingWriter};
@@ -9,6 +11,7 @@ use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerialize
 pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 use crate::directory::{CompositeWrite, WritePtr};
+use crate::fastfield::serializer::gcd::{find_gcd, GCD_DEFAULT};
 use crate::schema::Field;
 
 /// `CompositeFastFieldSerializer` is in charge of serializing
@@ -33,7 +36,44 @@ use crate::schema::Field;
 /// * `close()`
 pub struct CompositeFastFieldSerializer {
     composite_write: CompositeWrite<WritePtr>,
+    codec_enable_checker: FastFieldCodecEnableCheck,
 }
+
+pub struct FastFieldCodecEnableCheck {
+    enabled_codecs: Vec<FastFieldCodecName>,
+}
+impl FastFieldCodecEnableCheck {
+    fn allow_all() -> Self {
+        FastFieldCodecEnableCheck {
+            enabled_codecs: ALL_CODECS.to_vec(),
+        }
+    }
+    fn is_enabled(&self, codec_name: FastFieldCodecName) -> bool {
+        self.enabled_codecs.contains(&codec_name)
+    }
+}
+
+impl From<FastFieldCodecName> for FastFieldCodecEnableCheck {
+    fn from(codec_name: FastFieldCodecName) -> Self {
+        FastFieldCodecEnableCheck {
+            enabled_codecs: vec![codec_name],
+        }
+    }
+}
+
+pub const FF_HEADER_MAGIC_NUMBER: u8 = 123u8;
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+enum FastFieldCodecName {
+    Bitpacked,
+    LinearInterpol,
+    BlockwiseLinearInterpol,
+}
+const ALL_CODECS: &[FastFieldCodecName; 3] = &[
+    FastFieldCodecName::Bitpacked,
+    FastFieldCodecName::LinearInterpol,
+    FastFieldCodecName::BlockwiseLinearInterpol,
+];
 
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
@@ -52,60 +92,128 @@ fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
 impl CompositeFastFieldSerializer {
     /// Constructor
     pub fn from_write(write: WritePtr) -> io::Result<CompositeFastFieldSerializer> {
+        Self::from_write_with_codec(write, FastFieldCodecEnableCheck::allow_all())
+    }
+
+    /// Constructor
+    pub fn from_write_with_codec(
+        write: WritePtr,
+        codec_enable_checker: FastFieldCodecEnableCheck,
+    ) -> io::Result<CompositeFastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(CompositeFastFieldSerializer { composite_write })
+        Ok(CompositeFastFieldSerializer {
+            composite_write,
+            codec_enable_checker,
+        })
     }
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn create_auto_detect_u64_fast_field(
+    pub fn create_auto_detect_u64_fast_field<F, I>(
         &mut self,
         field: Field,
         stats: FastFieldStats,
         fastfield_accessor: impl FastFieldDataAccess,
-        data_iter_1: impl Iterator<Item = u64>,
-        data_iter_2: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
+        iter_gen: F,
+    ) -> io::Result<()>
+    where
+        F: Fn() -> I,
+        I: Iterator<Item = u64>,
+    {
         self.create_auto_detect_u64_fast_field_with_idx(
             field,
             stats,
             fastfield_accessor,
-            data_iter_1,
-            data_iter_2,
+            iter_gen,
             0,
         )
     }
+
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn create_auto_detect_u64_fast_field_with_idx(
+    pub fn write_header<W: Write>(
+        field_write: &mut W,
+        field_id: u8,
+        stats: FastFieldStats,
+        gcd: Option<u64>,
+    ) -> io::Result<()> {
+        FF_HEADER_MAGIC_NUMBER.serialize(field_write)?;
+        let header_version = 1_u8;
+        header_version.serialize(field_write)?;
+
+        field_id.serialize(field_write)?;
+        gcd.unwrap_or(GCD_DEFAULT).serialize(field_write)?;
+        stats.min_value.serialize(field_write)?;
+
+        Ok(())
+    }
+
+    /// Serialize data into a new u64 fast field. The best compression codec will be chosen
+    /// automatically.
+    pub fn create_auto_detect_u64_fast_field_with_idx<F, I>(
         &mut self,
         field: Field,
         stats: FastFieldStats,
         fastfield_accessor: impl FastFieldDataAccess,
-        data_iter_1: impl Iterator<Item = u64>,
-        data_iter_2: impl Iterator<Item = u64>,
+        iter_gen: F,
         idx: usize,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        F: Fn() -> I,
+        I: Iterator<Item = u64>,
+    {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
+
+        struct WrappedFFAccess<T: FastFieldDataAccess> {
+            fastfield_accessor: T,
+            min_value: u64,
+            gcd: u64,
+        }
+        impl<T: FastFieldDataAccess> FastFieldDataAccess for WrappedFFAccess<T> {
+            fn get_val(&self, position: u64) -> u64 {
+                (self.fastfield_accessor.get_val(position) - self.min_value) / self.gcd
+            }
+        }
+        let gcd = find_gcd(&fastfield_accessor, stats.clone(), iter_gen()).unwrap_or(GCD_DEFAULT);
+        let fastfield_accessor = WrappedFFAccess {
+            fastfield_accessor,
+            min_value: stats.min_value,
+            gcd,
+        };
 
         let mut estimations = vec![];
 
-        codec_estimation::<BitpackedFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-            &mut estimations,
-        );
-        codec_estimation::<LinearInterpolFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-            &mut estimations,
-        );
-        codec_estimation::<MultiLinearInterpolFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-            &mut estimations,
-        );
+        if self
+            .codec_enable_checker
+            .is_enabled(FastFieldCodecName::Bitpacked)
+        {
+            codec_estimation::<BitpackedFastFieldSerializer, _>(
+                stats.clone(),
+                &fastfield_accessor,
+                &mut estimations,
+            );
+        }
+        if self
+            .codec_enable_checker
+            .is_enabled(FastFieldCodecName::LinearInterpol)
+        {
+            codec_estimation::<LinearInterpolFastFieldSerializer, _>(
+                stats.clone(),
+                &fastfield_accessor,
+                &mut estimations,
+            );
+        }
+        if self
+            .codec_enable_checker
+            .is_enabled(FastFieldCodecName::BlockwiseLinearInterpol)
+        {
+            codec_estimation::<MultiLinearInterpolFastFieldSerializer, _>(
+                stats.clone(),
+                &fastfield_accessor,
+                &mut estimations,
+            );
+        }
         if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {
             warn!(
@@ -122,15 +230,27 @@ impl CompositeFastFieldSerializer {
             "choosing fast field codec {} for field_id {:?}",
             name, field
         ); // todo print actual field name
-        id.serialize(field_write)?;
+
+        Self::write_header(field_write, id, stats.clone(), Some(gcd))?;
+        let min_value = stats.min_value;
+        // let min_value = 0;
+        let stats = FastFieldStats {
+            min_value: 0,
+            max_value: (stats.max_value - stats.min_value) / gcd,
+            num_vals: stats.num_vals,
+        };
+        let iter1 = iter_gen().map(|val| (val - min_value) / gcd);
+        let iter2 = iter_gen().map(|val| (val - min_value) / gcd);
+        // let iter1 = iter_gen();
+        // let iter2 = iter_gen();
         match name {
             BitpackedFastFieldSerializer::NAME => {
                 BitpackedFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
                     stats,
-                    data_iter_1,
-                    data_iter_2,
+                    iter1,
+                    iter2,
                 )?;
             }
             LinearInterpolFastFieldSerializer::NAME => {
@@ -138,8 +258,8 @@ impl CompositeFastFieldSerializer {
                     field_write,
                     &fastfield_accessor,
                     stats,
-                    data_iter_1,
-                    data_iter_2,
+                    iter1,
+                    iter2,
                 )?;
             }
             MultiLinearInterpolFastFieldSerializer::NAME => {
@@ -147,17 +267,27 @@ impl CompositeFastFieldSerializer {
                     field_write,
                     &fastfield_accessor,
                     stats,
-                    data_iter_1,
-                    data_iter_2,
+                    iter1,
+                    iter2,
                 )?;
             }
             _ => {
                 panic!("unknown fastfield serializer {}", name)
             }
-        };
+        }
         field_write.flush()?;
 
         Ok(())
+    }
+
+    /// Start serializing a new u64 fast field
+    pub fn serialize_into(
+        &mut self,
+        field: Field,
+        min_value: u64,
+        max_value: u64,
+    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
+        self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
     /// Start serializing a new u64 fast field

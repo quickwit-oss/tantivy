@@ -75,6 +75,7 @@ impl BinarySerializable for Function {
         self.positive_val_offset.serialize(write)?;
         self.slope.serialize(write)?;
         self.num_bits.serialize(write)?;
+
         Ok(())
     }
 
@@ -193,13 +194,16 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     const NAME: &'static str = "MultiLinearInterpol";
     const ID: u8 = 3;
     /// Creates a new fast field serializer.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &impl FastFieldDataAccess,
+    fn serialize<W>(
+        write: &mut W,
+        fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         _data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        W: Write,
+    {
         assert!(stats.min_value <= stats.max_value);
 
         let first_val = fastfield_accessor.get_val(0);

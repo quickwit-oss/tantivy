@@ -109,13 +109,16 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
     const ID: u8 = 2;
     /// Creates a new fast field serializer.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &impl FastFieldDataAccess,
+    fn serialize<W>(
+        write: &mut W,
+        fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        W: Write,
+    {
         assert!(stats.min_value <= stats.max_value);
 
         let first_val = fastfield_accessor.get_val(0);
