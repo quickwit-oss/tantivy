@@ -105,8 +105,8 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     /// It requires a `min_value` and a `max_value` to compute
     /// compute the minimum number of bits required to encode
     /// values.
-    fn serialize<W: Write>(
-        write: &mut W,
+    fn serialize(
+        write: &mut impl Write,
         _fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,

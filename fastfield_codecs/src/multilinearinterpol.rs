@@ -194,16 +194,13 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     const NAME: &'static str = "MultiLinearInterpol";
     const ID: u8 = 3;
     /// Creates a new fast field serializer.
-    fn serialize<W>(
-        write: &mut W,
+    fn serialize(
+        write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         _data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()>
-    where
-        W: Write,
-    {
+    ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
         let first_val = fastfield_accessor.get_val(0);

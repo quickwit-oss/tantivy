@@ -40,15 +40,13 @@ pub trait FastFieldCodecSerializer {
     /// Serializes the data using the serializer into write.
     /// There are multiple iterators, in case the codec needs to read the data multiple times.
     /// The iterators should be preferred over using fastfield_accessor for performance reasons.
-    fn serialize<W>(
-        write: &mut W,
+    fn serialize(
+        write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()>
-    where
-        W: Write;
+    ) -> io::Result<()>;
 }
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
