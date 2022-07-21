@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::Arc;
 
 use common::BinarySerializable;
 use once_cell::sync::Lazy;
@@ -138,7 +139,7 @@ impl TermDictionary {
     }
 
     pub fn from_bytes(owned_bytes: OwnedBytes) -> crate::Result<TermDictionary> {
-        TermDictionary::open(FileSlice::new(Box::new(owned_bytes)))
+        TermDictionary::open(FileSlice::new(Arc::new(owned_bytes)))
     }
 
     /// Creates an empty term dictionary which contains no terms.

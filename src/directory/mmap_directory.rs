@@ -310,7 +310,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 impl Directory for MmapDirectory {
-    fn get_file_handle(&self, path: &Path) -> result::Result<Box<dyn FileHandle>, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> result::Result<Arc<dyn FileHandle>, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -331,7 +331,7 @@ impl Directory for MmapDirectory {
             })
             .unwrap_or_else(OwnedBytes::empty);
 
-        Ok(Box::new(owned_bytes))
+        Ok(Arc::new(owned_bytes))
     }
 
     /// Any entry associated to the path in the mmap will be
