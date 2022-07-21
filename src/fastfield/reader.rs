@@ -63,27 +63,27 @@ pub trait FastFieldReader<Item: FastValue>: Clone {
 }
 
 struct FFHeader {
-    field_id: u8,
+    codec_id: u8,
     gcd: u64,
     min_value: u64,
 }
 
 fn read_header(bytes: &mut OwnedBytes) -> FFHeader {
-    let magic_number_or_field_id = bytes.read_u8();
-    if magic_number_or_field_id == FF_HEADER_MAGIC_NUMBER {
+    let magic_number_or_codec_id = bytes.read_u8();
+    if magic_number_or_codec_id == FF_HEADER_MAGIC_NUMBER {
         let _header_version = bytes.read_u8();
-        let field_id = bytes.read_u8();
+        let codec_id = bytes.read_u8();
         let gcd = bytes.read_u64();
         let min_value = bytes.read_u64();
         FFHeader {
-            field_id,
+            codec_id,
             gcd,
             min_value,
         }
     } else {
         // old version
         FFHeader {
-            field_id: magic_number_or_field_id,
+            codec_id: magic_number_or_codec_id,
             gcd: 1,
             min_value: 0,
         }
@@ -149,7 +149,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
         let mut bytes = file.read_bytes()?;
         let header = read_header(&mut bytes);
 
-        Self::open_from_id(bytes, header.field_id, header.gcd, header.min_value)
+        Self::open_from_id(bytes, header.codec_id, header.gcd, header.min_value)
     }
 }
 
@@ -203,7 +203,7 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
         let header = read_header(&mut bytes);
-        let id = header.field_id;
+        let id = header.codec_id;
         assert_eq!(
             BitpackedFastFieldSerializer::ID,
             id,

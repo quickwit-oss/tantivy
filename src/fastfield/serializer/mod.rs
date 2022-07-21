@@ -134,7 +134,7 @@ impl CompositeFastFieldSerializer {
     /// automatically.
     pub fn write_header<W: Write>(
         field_write: &mut W,
-        field_id: u8,
+        codec_id: u8,
         stats: FastFieldStats,
         gcd: Option<u64>,
     ) -> io::Result<()> {
@@ -142,7 +142,7 @@ impl CompositeFastFieldSerializer {
         let header_version = 1_u8;
         header_version.serialize(field_write)?;
 
-        field_id.serialize(field_write)?;
+        codec_id.serialize(field_write)?;
         gcd.unwrap_or(GCD_DEFAULT).serialize(field_write)?;
         stats.min_value.serialize(field_write)?;
 
