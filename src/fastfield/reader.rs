@@ -290,7 +290,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn min_value(&self) -> Item {
-        Item::from_u64(self.reader.min_value() * self.gcd + self.min_value)
+        Item::from_u64(self.min_value + self.reader.min_value() * self.gcd)
     }
 
     /// Returns the maximum value for this fast field.
@@ -299,7 +299,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn max_value(&self) -> Item {
-        Item::from_u64((self.reader.max_value() * self.gcd) + self.min_value)
+        Item::from_u64(self.min_value + self.reader.max_value() * self.gcd)
     }
 }
 
