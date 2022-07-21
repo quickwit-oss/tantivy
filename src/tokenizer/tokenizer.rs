@@ -30,7 +30,7 @@ impl Default for Token {
         Token {
             offset_from: 0,
             offset_to: 0,
-            position: usize::max_value(),
+            position: usize::MAX,
             text: String::with_capacity(200),
             position_length: 1,
         }

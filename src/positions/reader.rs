@@ -47,7 +47,7 @@ impl PositionReader {
             bit_widths: bit_widths.clone(),
             positions: positions.clone(),
             block_decoder: BlockDecoder::default(),
-            block_offset: std::i64::MAX as u64,
+            block_offset: i64::MAX as u64,
             anchor_offset: 0u64,
             original_bit_widths: bit_widths,
             original_positions: positions,
@@ -57,7 +57,7 @@ impl PositionReader {
     fn reset(&mut self) {
         self.positions = self.original_positions.clone();
         self.bit_widths = self.original_bit_widths.clone();
-        self.block_offset = std::i64::MAX as u64;
+        self.block_offset = i64::MAX as u64;
         self.anchor_offset = 0u64;
     }
 

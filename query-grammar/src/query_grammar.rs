@@ -299,7 +299,7 @@ fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
 
 fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
-        Some(boost) if (boost - 1.0).abs() > std::f64::EPSILON => {
+        Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
             UserInputAst::Boost(Box::new(leaf), boost)
         }
         _ => leaf,
