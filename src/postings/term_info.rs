@@ -19,13 +19,13 @@ pub struct TermInfo {
 impl TermInfo {
     pub(crate) fn posting_num_bytes(&self) -> u32 {
         let num_bytes = self.postings_range.len();
-        assert!(num_bytes <= std::u32::MAX as usize);
+        assert!(num_bytes <= u32::MAX as usize);
         num_bytes as u32
     }
 
     pub(crate) fn positions_num_bytes(&self) -> u32 {
         let num_bytes = self.positions_range.len();
-        assert!(num_bytes <= std::u32::MAX as usize);
+        assert!(num_bytes <= u32::MAX as usize);
         num_bytes as u32
     }
 }

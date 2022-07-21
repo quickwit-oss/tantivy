@@ -42,7 +42,7 @@ pub struct Addr(u32);
 impl Addr {
     /// Creates a null pointer.
     pub fn null_pointer() -> Addr {
-        Addr(u32::max_value())
+        Addr(u32::MAX)
     }
 
     /// Returns the `Addr` object for `addr + offset`
@@ -64,7 +64,7 @@ impl Addr {
 
     /// Returns true if and only if the `Addr` is null.
     pub fn is_null(self) -> bool {
-        self.0 == u32::max_value()
+        self.0 == u32::MAX
     }
 }
 

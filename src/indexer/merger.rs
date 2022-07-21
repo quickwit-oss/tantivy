@@ -688,8 +688,8 @@ impl IndexMerger {
         let offsets =
             self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
-        let mut min_value = u64::max_value();
-        let mut max_value = u64::min_value();
+        let mut min_value = u64::MAX;
+        let mut max_value = u64::MIN;
         let mut num_vals = 0;
 
         let mut vals = Vec::with_capacity(100);

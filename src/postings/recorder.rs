@@ -92,7 +92,7 @@ impl Default for NothingRecorder {
     fn default() -> Self {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: u32::MAX,
         }
     }
 }
@@ -230,7 +230,7 @@ impl Default for TfAndPositionRecorder {
     fn default() -> Self {
         TfAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: u32::MAX,
             term_doc_freq: 0u32,
         }
     }
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn test_vint_u32() {
         let mut buffer = vec![];
-        let vals = [0, 1, 324_234_234, u32::max_value()];
+        let vals = [0, 1, 324_234_234, u32::MAX];
         for &i in &vals {
             assert!(write_u32_vint(i, &mut buffer).is_ok());
         }

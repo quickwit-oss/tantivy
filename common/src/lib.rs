@@ -104,8 +104,6 @@ pub fn u64_to_f64(val: u64) -> f64 {
 #[cfg(test)]
 pub mod test {
 
-    use std::f64;
-
     use proptest::prelude::*;
 
     use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, BinarySerializable, FixedSize};
@@ -135,11 +133,11 @@ pub mod test {
 
     #[test]
     fn test_i64_converter() {
-        assert_eq!(i64_to_u64(i64::min_value()), u64::min_value());
-        assert_eq!(i64_to_u64(i64::max_value()), u64::max_value());
+        assert_eq!(i64_to_u64(i64::MIN), u64::MIN);
+        assert_eq!(i64_to_u64(i64::MAX), u64::MAX);
         test_i64_converter_helper(0i64);
-        test_i64_converter_helper(i64::min_value());
-        test_i64_converter_helper(i64::max_value());
+        test_i64_converter_helper(i64::MIN);
+        test_i64_converter_helper(i64::MAX);
         for i in -1000i64..1000i64 {
             test_i64_converter_helper(i);
         }

@@ -155,7 +155,7 @@ pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 /// Tokenizer are in charge of not emitting tokens larger than this value.
 /// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
 /// `2^16 - 1 - 5`, the token will simply be ignored downstream.
-pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 5;
+pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
 pub mod tests {

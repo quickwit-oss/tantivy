@@ -268,7 +268,7 @@ impl IntFastFieldWriter {
             vals: BlockedBitpacker::new(),
             val_count: 0,
             val_if_missing: 0u64,
-            val_min: u64::max_value(),
+            val_min: u64::MAX,
             val_max: 0,
         }
     }

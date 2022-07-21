@@ -199,7 +199,7 @@ mod tests {
         aux_test_vint(0);
         aux_test_vint(1);
         aux_test_vint(5);
-        aux_test_vint(u64::max_value());
+        aux_test_vint(u64::MAX);
         for i in 1..9 {
             let power_of_128 = 1u64 << (7 * i);
             aux_test_vint(power_of_128 - 1u64);
@@ -228,6 +228,6 @@ mod tests {
             aux_test_serialize_vint_u32(power_of_128);
             aux_test_serialize_vint_u32(power_of_128 + 1u32);
         }
-        aux_test_serialize_vint_u32(u32::max_value());
+        aux_test_serialize_vint_u32(u32::MAX);
     }
 }

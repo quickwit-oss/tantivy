@@ -99,7 +99,7 @@ impl BlockSegmentPostings {
 
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: std::usize::MAX,
+            loaded_offset: usize::MAX,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             block_max_score_cache: None,
@@ -169,7 +169,7 @@ impl BlockSegmentPostings {
             split_into_skips_and_postings(doc_freq, postings_data)?;
         self.data = postings_data;
         self.block_max_score_cache = None;
-        self.loaded_offset = std::usize::MAX;
+        self.loaded_offset = usize::MAX;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {

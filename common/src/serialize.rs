@@ -229,7 +229,7 @@ pub mod test {
         fixed_size_test::<u32>();
         assert_eq!(4, serialize_test(3u32));
         assert_eq!(4, serialize_test(5u32));
-        assert_eq!(4, serialize_test(u32::max_value()));
+        assert_eq!(4, serialize_test(u32::MAX));
     }
 
     #[test]
@@ -277,6 +277,6 @@ pub mod test {
         assert_eq!(serialize_test(VInt(1234u64)), 2);
         assert_eq!(serialize_test(VInt(16_383u64)), 2);
         assert_eq!(serialize_test(VInt(16_384u64)), 3);
-        assert_eq!(serialize_test(VInt(u64::max_value())), 10);
+        assert_eq!(serialize_test(VInt(u64::MAX)), 10);
     }
 }
