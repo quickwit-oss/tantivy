@@ -50,35 +50,51 @@ impl FragmentCandidate {
 }
 
 /// `Snippet`
-/// Contains a fragment of a document, and some highlighed parts inside it.
+/// Contains a fragment of a document, and some highlighted parts inside it.
 #[derive(Debug)]
 pub struct Snippet {
     fragment: String,
     highlighted: Vec<Range<usize>>,
+    highlighten_prefix: String,
+    highlighten_postfix: String,
 }
 
-const HIGHLIGHTEN_PREFIX: &str = "<b>";
-const HIGHLIGHTEN_POSTFIX: &str = "</b>";
-
 impl Snippet {
+    // TODO add a comment
+    fn new(
+        fragment: &str,
+        highlighted: Vec<Range<usize>>,
+        highlighten_prefix: &str,
+        highlighten_postfix: &str,
+    ) -> Self {
+        Self {
+            fragment: fragment.to_string(),
+            highlighted,
+            highlighten_prefix: highlighten_prefix.to_string(),
+            highlighten_postfix: highlighten_postfix.to_string(),
+        }
+    }
+
     /// Create a new, empty, `Snippet`
     pub fn empty() -> Snippet {
         Snippet {
             fragment: String::new(),
             highlighted: Vec::new(),
+            highlighten_prefix: String::new(),
+            highlighten_postfix: String::new(),
         }
     }
 
-    /// Returns a hignlightned html from the `Snippet`.
+    /// Returns a highlighted html from the `Snippet`.
     pub fn to_html(&self) -> String {
         let mut html = String::new();
         let mut start_from: usize = 0;
 
         for item in self.highlighted.iter() {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
-            html.push_str(HIGHLIGHTEN_PREFIX);
+            html.push_str(&self.highlighten_prefix);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
-            html.push_str(HIGHLIGHTEN_POSTFIX);
+            html.push_str(&self.highlighten_postfix);
             start_from = item.end;
         }
         html.push_str(&encode_minimal(
@@ -92,7 +108,7 @@ impl Snippet {
         &self.fragment
     }
 
-    /// Returns a list of higlighted positions from the `Snippet`.
+    /// Returns a list of highlighted positions from the `Snippet`.
     pub fn highlighted(&self) -> &[Range<usize>] {
         &self.highlighted
     }
@@ -148,7 +164,12 @@ fn search_fragments<'a>(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str) -> Snippet {
+fn select_best_fragment_combination(
+    fragments: &[FragmentCandidate],
+    text: &str,
+    highlighten_prefix: &str,
+    highlighten_postfix: &str,
+) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
             .score
@@ -167,17 +188,16 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
             .iter()
             .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
-        Snippet {
-            fragment: fragment_text.to_string(),
+        Snippet::new(
+            fragment_text,
             highlighted,
-        }
+            highlighten_prefix,
+            highlighten_postfix,
+        )
     } else {
         // when there no fragments to chose from,
         // for now create a empty snippet
-        Snippet {
-            fragment: String::new(),
-            highlighted: vec![],
-        }
+        Snippet::empty()
     }
 }
 
@@ -227,6 +247,8 @@ pub struct SnippetGenerator {
     tokenizer: TextAnalyzer,
     field: Field,
     max_num_chars: usize,
+    highlighten_prefix: String,
+    highlighten_postfix: String,
 }
 
 impl SnippetGenerator {
@@ -260,6 +282,8 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS,
+            highlighten_prefix: "<b>".to_string(),
+            highlighten_postfix: "</b>".to_string(),
         })
     }
 
@@ -290,7 +314,12 @@ impl SnippetGenerator {
     pub fn snippet(&self, text: &str) -> Snippet {
         let fragment_candidates =
             search_fragments(&self.tokenizer, text, &self.terms_text, self.max_num_chars);
-        select_best_fragment_combination(&fragment_candidates[..], text)
+        select_best_fragment_combination(
+            &fragment_candidates[..],
+            text,
+            &self.highlighten_prefix,
+            &self.highlighten_postfix,
+        )
     }
 }
 
@@ -320,6 +349,9 @@ to the project are from community members.[15]
 Rust won first place for "most loved programming language" in the Stack Overflow Developer
 Survey in 2016, 2017, and 2018."#;
 
+    const HIGHLIGHTEN_PREFIX: &str = "<b>";
+    const HIGHLIGHTEN_POSTFIX: &str = "</b>";
+
     #[test]
     fn test_snippet() {
         let terms = btreemap! {
@@ -333,7 +365,12 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            TEST_TEXT,
+            "<b class=\"super-super\">",
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(
             snippet.fragment,
             "Rust is a systems programming language sponsored by\nMozilla which describes it as a \
@@ -341,7 +378,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(
             snippet.to_html(),
-            "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
+            "<b class=\"super-super\">Rust</b> is a systems programming <b class=\"super-super\">language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         )
     }
@@ -359,7 +396,12 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+            let snippet = select_best_fragment_combination(
+                &fragments[..],
+                TEST_TEXT,
+                HIGHLIGHTEN_PREFIX,
+                HIGHLIGHTEN_POSTFIX,
+            );
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
         {
@@ -374,7 +416,12 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+            let snippet = select_best_fragment_combination(
+                &fragments[..],
+                TEST_TEXT,
+                HIGHLIGHTEN_PREFIX,
+                HIGHLIGHTEN_POSTFIX,
+            );
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
     }
@@ -396,7 +443,12 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 7);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            text,
+            HIGHLIGHTEN_PREFIX,
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
@@ -418,7 +470,12 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 8);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            text,
+            HIGHLIGHTEN_PREFIX,
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
@@ -441,7 +498,12 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 0);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            text,
+            HIGHLIGHTEN_PREFIX,
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
@@ -457,7 +519,12 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            text,
+            HIGHLIGHTEN_PREFIX,
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
     }
@@ -470,7 +537,12 @@ Survey in 2016, 2017, and 2018."#;
         let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(
+            &fragments[..],
+            text,
+            HIGHLIGHTEN_PREFIX,
+            HIGHLIGHTEN_POSTFIX,
+        );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
     }
