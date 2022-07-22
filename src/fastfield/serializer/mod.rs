@@ -175,7 +175,9 @@ impl CompositeFastFieldSerializer {
                 (self.fastfield_accessor.get_val(position) - self.min_value) / self.gcd
             }
         }
-        let gcd = find_gcd(&fastfield_accessor, stats.clone(), iter_gen()).unwrap_or(GCD_DEFAULT);
+        // let gcd = find_gcd(&fastfield_accessor, stats.clone(),
+        // iter_gen()).unwrap_or(GCD_DEFAULT);
+        let gcd = find_gcd(iter_gen(), stats.min_value).unwrap_or(GCD_DEFAULT);
         let fastfield_accessor = WrappedFFAccess {
             fastfield_accessor,
             min_value: stats.min_value,

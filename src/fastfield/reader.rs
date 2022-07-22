@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
 
-use common::BinarySerializable;
 use fastfield_codecs::bitpacked::{
     BitpackedFastFieldReader as BitpackedReader, BitpackedFastFieldSerializer,
 };

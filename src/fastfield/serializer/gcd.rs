@@ -1,71 +1,46 @@
-use fastfield_codecs::{FastFieldDataAccess, FastFieldStats};
+use fastdivide::DividerU64;
 use gcd::Gcd;
-use libdivide::Divider;
 
 pub const GCD_DEFAULT: u64 = 1;
 
-fn compute_gcd(vals: &[u64], base: u64) -> u64 {
-    let mut gcd = (vals[0] - base).gcd(vals[1] - base);
-
-    for el in vals.iter().map(|el| el - base) {
-        gcd = gcd.gcd(el);
-    }
-    gcd
-}
-
-fn is_valid_gcd(vals: impl Iterator<Item = u64>, divider: u64, base: u64) -> bool {
-    if divider <= 1 {
-        return false;
-    }
-    let d = Divider::new(divider).unwrap(); // this is slow
-
-    for val in vals {
-        let val = val - base;
-        if val != (val / &d) * divider {
-            return false;
+pub fn find_gcd(mut numbers: impl Iterator<Item = u64>, base: u64) -> Option<u64> {
+    let mut num1 = 0;
+    let mut num2 = 0;
+    loop {
+        let num = numbers.next()? - base;
+        if num1 == 0 {
+            num1 = num;
+        }
+        if num2 == 0 {
+            num2 = num;
+        }
+        if num1 != 0 && num2 != 0 {
+            break;
         }
     }
-    true
-}
-
-fn get_samples(fastfield_accessor: &impl FastFieldDataAccess, stats: &FastFieldStats) -> Vec<u64> {
-    // let's sample at 0%, 5%, 10% .. 95%, 100%
-    let num_samples = stats.num_vals.min(20);
-    let step_size = 100.0 / num_samples as f32;
-    let mut sample_values = (0..num_samples)
-        .map(|idx| (idx as f32 * step_size / 100.0 * stats.num_vals as f32) as usize)
-        .map(|pos| fastfield_accessor.get_val(pos as u64))
-        .collect::<Vec<_>>();
-
-    sample_values.push(stats.min_value);
-    sample_values.push(stats.max_value);
-    sample_values
-}
-
-pub(crate) fn find_gcd_from_samples(
-    samples: &[u64],
-    vals: impl Iterator<Item = u64>,
-    base: u64,
-) -> Option<u64> {
-    let estimate_gcd = compute_gcd(samples, base);
-    if is_valid_gcd(vals, estimate_gcd, base) {
-        Some(estimate_gcd)
-    } else {
-        None
-    }
-}
-
-pub(crate) fn find_gcd(
-    fastfield_accessor: &impl FastFieldDataAccess,
-    stats: FastFieldStats,
-    vals: impl Iterator<Item = u64>,
-) -> Option<u64> {
-    if stats.num_vals == 0 {
+    let mut gcd = (num1).gcd(num2);
+    if gcd == 0 {
         return None;
     }
 
-    let samples = get_samples(fastfield_accessor, &stats);
-    find_gcd_from_samples(&samples, vals, stats.min_value)
+    let mut gcd_divider = DividerU64::divide_by(gcd);
+    for val in numbers {
+        let val = val - base;
+        if val == 0 {
+            continue;
+        }
+        let rem = val - (gcd_divider.divide(val)) * gcd;
+        if rem == 0 {
+            continue;
+        }
+        gcd = gcd.gcd(val);
+        if gcd == 1 {
+            return None;
+        }
+
+        gcd_divider = DividerU64::divide_by(gcd);
+    }
+    Some(gcd)
 }
 
 #[cfg(test)]
@@ -75,7 +50,6 @@ mod tests {
 
     use common::HasLen;
 
-    use super::*;
     use crate::directory::{CompositeFile, RamDirectory, WritePtr};
     use crate::fastfield::serializer::{FastFieldCodecEnableCheck, FastFieldCodecName, ALL_CODECS};
     use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
@@ -198,29 +172,5 @@ mod tests {
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
-    }
-
-    #[test]
-    fn test_gcd() {
-        let data = vec![
-            9223372036854775808_u64,
-            9223372036854775808,
-            9223372036854775808,
-        ];
-
-        let gcd = find_gcd_from_samples(&data, data.iter().cloned(), *data.iter().min().unwrap());
-        assert_eq!(gcd, None);
-    }
-
-    #[test]
-    fn test_gcd2() {
-        let data = vec![
-            9223372036854775808_u64,
-            9223372036854776808,
-            9223372036854777808,
-        ];
-
-        let gcd = find_gcd_from_samples(&data, data.iter().cloned(), *data.iter().min().unwrap());
-        assert_eq!(gcd, Some(1000));
     }
 }
