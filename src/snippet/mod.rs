@@ -287,6 +287,12 @@ impl SnippetGenerator {
         })
     }
 
+    /// Sets highlighten prefix and postfix.
+    pub fn set_highlighten_elements(&mut self, prefix: &str, postfix: &str) {
+        self.highlighten_prefix = prefix.to_string();
+        self.highlighten_postfix = postfix.to_string()
+    }
+
     /// Sets a maximum number of chars.
     pub fn set_max_num_chars(&mut self, max_num_chars: usize) {
         self.max_num_chars = max_num_chars;
@@ -634,6 +640,51 @@ Survey in 2016, 2017, and 2018."#;
                 snippet.to_html(),
                 "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its \
                  <b>designers</b> intend it to"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_snippet_generator_custom_highlighten_elements() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_tokenizer("en_stem")
+                .set_index_option(IndexRecordOption::Basic),
+        );
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_for_tests()?;
+            let doc = doc!(text_field => TEST_TEXT);
+            index_writer.add_document(doc)?;
+            index_writer.commit()?;
+        }
+        let searcher = index.reader().unwrap().searcher();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let query = query_parser.parse_query("rust design").unwrap();
+        let mut snippet_generator =
+            SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
+        {
+            let snippet = snippet_generator.snippet(TEST_TEXT);
+            assert_eq!(
+                snippet.to_html(),
+                "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to \
+                 C++[according to whom?],\nbut its <b>designers</b> intend it to provide better \
+                 memory safety"
+            );
+        }
+        {
+            snippet_generator.set_max_num_chars(90);
+            snippet_generator.set_highlighten_elements("<q class=\"super\">", "</q>");
+            let snippet = snippet_generator.snippet(TEST_TEXT);
+            assert_eq!(
+                snippet.to_html(),
+                "<q class=\"super\">Rust</q> is syntactically similar to C++[according to whom?],\nbut its \
+                <q class=\"super\">designers</q> intend it to"
             );
         }
         Ok(())
