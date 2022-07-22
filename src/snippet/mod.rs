@@ -60,7 +60,7 @@ pub struct Snippet {
 }
 
 impl Snippet {
-    // TODO add a comment
+    /// Create a new `Snippet`.
     fn new(
         fragment: &str,
         highlighted: Vec<Range<usize>>,
@@ -75,7 +75,7 @@ impl Snippet {
         }
     }
 
-    /// Create a new, empty, `Snippet`
+    /// Create a new, empty, `Snippet`.
     pub fn empty() -> Snippet {
         Snippet {
             fragment: String::new(),
