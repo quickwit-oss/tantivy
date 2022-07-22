@@ -1063,10 +1063,9 @@ mod bench {
             let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
-                let n = test::black_box(1000u32);
                 let mut a = 0u32;
-                for _ in 0u32..n {
-                    a = fast_field_reader.get(a) as u32;
+                for i in 0u32..permutation.len() as u32 {
+                    a = fast_field_reader.get(i) as u32;
                 }
                 a
             });
@@ -1097,10 +1096,9 @@ mod bench {
             let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
-                let n = test::black_box(1000u32);
                 let mut a = 0u32;
-                for _ in 0u32..n {
-                    a = fast_field_reader.get(a) as u32;
+                for i in 0u32..permutation.len() as u32 {
+                    a = fast_field_reader.get(i) as u32;
                 }
                 a
             });
