@@ -11,6 +11,9 @@ use crate::{Document, Score, Searcher};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
+const DEFAULT_HIGHLIGHTEN_PREFIX: &str = "<b>";
+const DEFAULT_HIGHLIGHTEN_POSTFIX: &str = "</b>";
+
 #[derive(Debug)]
 pub struct FragmentCandidate {
     score: Score,
@@ -282,8 +285,8 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS,
-            highlighten_prefix: "<b>".to_string(),
-            highlighten_postfix: "</b>".to_string(),
+            highlighten_prefix: DEFAULT_HIGHLIGHTEN_PREFIX.to_string(),
+            highlighten_postfix: DEFAULT_HIGHLIGHTEN_POSTFIX.to_string(),
         })
     }
 
@@ -335,7 +338,10 @@ mod tests {
 
     use maplit::btreemap;
 
-    use super::{search_fragments, select_best_fragment_combination};
+    use super::{
+        search_fragments, select_best_fragment_combination, DEFAULT_HIGHLIGHTEN_POSTFIX,
+        DEFAULT_HIGHLIGHTEN_PREFIX,
+    };
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
     use crate::tokenizer::SimpleTokenizer;
@@ -355,9 +361,6 @@ to the project are from community members.[15]
 Rust won first place for "most loved programming language" in the Stack Overflow Developer
 Survey in 2016, 2017, and 2018."#;
 
-    const HIGHLIGHTEN_PREFIX: &str = "<b>";
-    const HIGHLIGHTEN_POSTFIX: &str = "</b>";
-
     #[test]
     fn test_snippet() {
         let terms = btreemap! {
@@ -375,7 +378,7 @@ Survey in 2016, 2017, and 2018."#;
             &fragments[..],
             TEST_TEXT,
             "<b class=\"super-super\">",
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(
             snippet.fragment,
@@ -405,8 +408,8 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(
                 &fragments[..],
                 TEST_TEXT,
-                HIGHLIGHTEN_PREFIX,
-                HIGHLIGHTEN_POSTFIX,
+                DEFAULT_HIGHLIGHTEN_PREFIX,
+                DEFAULT_HIGHLIGHTEN_POSTFIX,
             );
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
@@ -425,8 +428,8 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(
                 &fragments[..],
                 TEST_TEXT,
-                HIGHLIGHTEN_PREFIX,
-                HIGHLIGHTEN_POSTFIX,
+                DEFAULT_HIGHLIGHTEN_PREFIX,
+                DEFAULT_HIGHLIGHTEN_POSTFIX,
             );
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
@@ -452,8 +455,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            HIGHLIGHTEN_PREFIX,
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_PREFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
@@ -479,8 +482,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            HIGHLIGHTEN_PREFIX,
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_PREFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
@@ -507,8 +510,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            HIGHLIGHTEN_PREFIX,
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_PREFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
@@ -528,8 +531,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            HIGHLIGHTEN_PREFIX,
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_PREFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
@@ -546,8 +549,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            HIGHLIGHTEN_PREFIX,
-            HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTEN_PREFIX,
+            DEFAULT_HIGHLIGHTEN_POSTFIX,
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
