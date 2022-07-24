@@ -1150,7 +1150,7 @@ pub mod tests {
         assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
         assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
         // We don't store nanosecond level precision.
-        assert_ne!(dt.to_hms_nano(), now.to_hms_nano());
+        assert_eq!(dt.nanosecond(), now.microsecond() * 1000);
 
         let dt = DateTime::from_timestamp_secs(now.unix_timestamp()).into_utc();
         assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
