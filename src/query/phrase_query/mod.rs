@@ -1,10 +1,14 @@
+mod exact_phrase_scorer;
 mod phrase_query;
 mod phrase_scorer;
 mod phrase_weight;
+mod slop_phrase_scorer;
 
+pub use self::exact_phrase_scorer::ExactPhraseScorer;
 pub use self::phrase_query::PhraseQuery;
 pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
+pub use self::slop_phrase_scorer::SlopPhraseScorer;
 
 #[cfg(test)]
 pub mod tests {

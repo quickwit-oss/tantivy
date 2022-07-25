@@ -1,9 +1,10 @@
-use super::PhraseScorer;
+use super::{ExactPhraseScorer, SlopPhraseScorer};
 use crate::core::SegmentReader;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
+use crate::query::phrase_query::phrase_scorer::PhraseScorer;
 use crate::query::{EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{IndexRecordOption, Term};
 use crate::{DocId, DocSet, Score};
@@ -45,10 +46,66 @@ impl PhraseWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
-        let similarity_weight = self.similarity_weight.boost_by(boost);
-        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+    ) -> crate::Result<Option<Box<dyn PhraseScorer>>> {
+        match self.get_scorer_params(reader, boost)? {
+            Some((term_postings_list, similarity_weight, fieldnorm_reader)) => {
+                if self.slop == 0 {
+                    Ok(Some(Box::new(ExactPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                    ))))
+                } else {
+                    Ok(Some(Box::new(SlopPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                        self.slop,
+                    ))))
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn phrase_scorer_as_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+    ) -> crate::Result<Option<Box<dyn Scorer>>> {
+        match self.get_scorer_params(reader, boost)? {
+            Some((term_postings_list, similarity_weight, fieldnorm_reader)) => {
+                if self.slop == 0 {
+                    Ok(Some(Box::new(ExactPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                    ))))
+                } else {
+                    Ok(Some(Box::new(SlopPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                        self.slop,
+                    ))))
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn get_scorer_params(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+    ) -> crate::Result<Option<(Vec<(usize, SegmentPostings)>, Bm25Weight, FieldNormReader)>> {
         let mut term_postings_list = Vec::new();
+        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+        let similarity_weight = self.similarity_weight.boost_by(boost);
         if reader.has_deletes() {
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
@@ -72,12 +129,10 @@ impl PhraseWeight {
                 }
             }
         }
-        Ok(Some(PhraseScorer::new(
+        Ok(Some((
             term_postings_list,
             similarity_weight,
             fieldnorm_reader,
-            self.scoring_enabled,
-            self.slop,
         )))
     }
 
@@ -88,7 +143,7 @@ impl PhraseWeight {
 
 impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
+        if let Some(scorer) = self.phrase_scorer_as_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
             Ok(Box::new(EmptyScorer))
