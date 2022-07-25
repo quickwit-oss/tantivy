@@ -35,8 +35,6 @@ use crate::{DocId, TantivyError};
 /// # Limitations/Compatibility
 /// Overlapping ranges are not yet supported.
 ///
-/// The keyed parameter (elasticsearch) is not yet supported.
-///
 /// # Request JSON Format
 /// ```json
 /// {
@@ -51,13 +49,16 @@ use crate::{DocId, TantivyError};
 ///     }
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field: String,
     /// Note that this aggregation includes the from value and excludes the to value for each
     /// range. Extra buckets will be created until the first to, and last from, if necessary.
     pub ranges: Vec<RangeAggregationRange>,
+    /// Whether to return the buckets as a hash map
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyed: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -406,6 +407,7 @@ mod tests {
         let req = RangeAggregation {
             field: "dummy".to_string(),
             ranges,
+            ..Default::default()
         };
 
         SegmentRangeCollector::from_req_and_validate(
@@ -427,6 +429,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "fraction_f64".to_string(),
                     ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                    ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
             }),

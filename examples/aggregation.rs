@@ -110,6 +110,7 @@ fn main() -> tantivy::Result<()> {
                     (9f64..14f64).into(),
                     (14f64..20f64).into(),
                 ],
+                ..Default::default()
             }),
             sub_aggregation: sub_agg_req_1.clone(),
         }),

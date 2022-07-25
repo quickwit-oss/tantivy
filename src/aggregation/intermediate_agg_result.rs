@@ -21,7 +21,7 @@ use super::bucket::{
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{Key, SerializedKey, VecWithNames};
-use crate::aggregation::agg_result::{AggregationResults, BucketEntry};
+use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
@@ -281,6 +281,21 @@ impl IntermediateBucketResult {
                         .unwrap_or(f64::MIN)
                         .total_cmp(&right.from.unwrap_or(f64::MIN))
                 });
+
+                let is_keyed = req
+                    .as_range()
+                    .expect("unexpected aggregation, expected range aggregation")
+                    .keyed
+                    .is_some();
+                let buckets = if is_keyed {
+                    let mut bucket_map = HashMap::new();
+                    for bucket in buckets {
+                        bucket_map.insert(bucket.key.to_string(), bucket);
+                    }
+                    BucketEntries::HashMap(bucket_map)
+                } else {
+                    BucketEntries::Vec(buckets)
+                };
                 Ok(BucketResult::Range { buckets })
             }
             IntermediateBucketResult::Histogram { buckets } => {
@@ -291,6 +306,15 @@ impl IntermediateBucketResult {
                     &req.sub_aggregation,
                 )?;
 
+                let buckets = if req.as_histogram().unwrap().keyed.is_some() {
+                    let mut bucket_map = HashMap::new();
+                    for bucket in buckets {
+                        bucket_map.insert(bucket.key.to_string(), bucket);
+                    }
+                    BucketEntries::HashMap(bucket_map)
+                } else {
+                    BucketEntries::Vec(buckets)
+                };
                 Ok(BucketResult::Histogram { buckets })
             }
             IntermediateBucketResult::Terms(terms) => terms.into_final_result(

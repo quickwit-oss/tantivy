@@ -132,6 +132,7 @@
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: None,
 //!             }),
 //!             sub_aggregation: sub_agg_req_1.clone(),
 //!         }),
@@ -765,6 +766,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -775,6 +777,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_f64".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -785,6 +788,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_i64".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -941,6 +945,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -955,6 +960,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -969,6 +975,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req,
                     }),
@@ -1416,6 +1423,7 @@ mod tests {
                                 (40000f64..50000f64).into(),
                                 (50000f64..60000f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: Default::default(),
                     }),
@@ -1575,6 +1583,7 @@ mod tests {
                                     (7000f64..20000f64).into(),
                                     (20000f64..60000f64).into(),
                                 ],
+                                ..Default::default()
                             }),
                             sub_aggregation: sub_agg_req_1.clone(),
                         }),

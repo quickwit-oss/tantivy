@@ -104,7 +104,7 @@ pub enum BucketResult {
     /// sub_aggregations.
     Range {
         /// The range buckets sorted by range.
-        buckets: Vec<RangeBucketEntry>,
+        buckets: BucketEntries<RangeBucketEntry>,
     },
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
@@ -114,7 +114,7 @@ pub enum BucketResult {
         /// If there are holes depends on the request, if min_doc_count is 0, then there are no
         /// holes between the first and last bucket.
         /// See [HistogramAggregation](super::bucket::HistogramAggregation)
-        buckets: Vec<BucketEntry>,
+        buckets: BucketEntries<BucketEntry>,
     },
     /// This is the term result
     Terms {
@@ -135,6 +135,17 @@ impl BucketResult {
         let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
         empty_bucket.into_final_bucket_result(req)
     }
+}
+
+/// This is the wrapper of buckets entries, which can be vector or hashmap
+/// depending on if it's keyed or not.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BucketEntries<T> {
+    /// Vector format bucket entries
+    Vec(Vec<T>),
+    /// HashMap format bucket entries
+    HashMap(HashMap<String, T>),
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally

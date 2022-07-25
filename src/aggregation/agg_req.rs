@@ -20,6 +20,7 @@
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: None,
 //!             }),
 //!             sub_aggregation: Default::default(),
 //!         }),
@@ -100,6 +101,12 @@ pub(crate) struct BucketAggregationInternal {
 }
 
 impl BucketAggregationInternal {
+    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
+        match &self.bucket_agg {
+            BucketAggregationType::Range(range) => Some(range),
+            _ => None,
+        }
+    }
     pub(crate) fn as_histogram(&self) -> Option<&HistogramAggregation> {
         match &self.bucket_agg {
             BucketAggregationType::Histogram(histogram) => Some(histogram),
@@ -264,6 +271,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
             }),
@@ -312,6 +320,7 @@ mod tests {
                             (7f64..20f64).into(),
                             (20f64..f64::MAX).into(),
                         ],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -337,6 +346,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    ..Default::default()
                 }),
                 sub_aggregation: agg_req2,
             }),

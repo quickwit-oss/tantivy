@@ -285,6 +285,7 @@ mod tests {
                             (7f64..19f64).into(),
                             (19f64..20f64).into(),
                         ],
+                        ..Default::default()
                     }),
                     sub_aggregation: iter::once((
                         "stats".to_string(),

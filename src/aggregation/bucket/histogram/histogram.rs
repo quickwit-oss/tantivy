@@ -117,6 +117,9 @@ pub struct HistogramAggregation {
     /// Cannot be set in conjunction with min_doc_count > 0, since the empty buckets from extended
     /// bounds would not be returned.
     pub extended_bounds: Option<HistogramBounds>,
+    /// Whether to return the buckets as a hash map
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyed: Option<bool>,
 }
 
 impl HistogramAggregation {
