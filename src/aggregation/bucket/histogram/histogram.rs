@@ -1398,4 +1398,46 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn histogram_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 50.0,
+                    keyed: Some(true),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": {
+                        "0": {
+                            "key": 0.0,
+                            "doc_count": 50
+                        },
+                        "50": {
+                            "key": 50.0,
+                            "doc_count": 50
+                        }
+                    }
+                }
+            })
+        );
+
+        Ok(())
+    }
 }

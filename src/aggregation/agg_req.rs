@@ -271,7 +271,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
-                    ..Default::default()
+                    keyed: Some(true),
                 }),
                 sub_aggregation: Default::default(),
             }),
@@ -298,7 +298,8 @@ mod tests {
         {
           "from": 20.0
         }
-      ]
+      ],
+      "keyed": true
     }
   }
 }"#;
