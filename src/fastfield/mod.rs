@@ -286,7 +286,7 @@ mod tests {
     pub static FIELDI64: Lazy<Field> = Lazy::new(|| SCHEMAI64.get_field("field").unwrap());
 
     #[test]
-    pub fn test_fastfield2() {
+    pub fn test_fastfield() {
         let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);

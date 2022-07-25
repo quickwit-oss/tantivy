@@ -3,34 +3,18 @@ use gcd::Gcd;
 
 pub const GCD_DEFAULT: u64 = 1;
 
-pub fn find_gcd(mut numbers: impl Iterator<Item = u64>, base: u64) -> Option<u64> {
-    let mut num1 = 0;
-    let mut num2 = 0;
-    loop {
-        let num = numbers.next()? - base;
-        if num1 == 0 {
-            num1 = num;
-        }
-        if num2 == 0 {
-            num2 = num;
-        }
-        if num1 != 0 && num2 != 0 {
-            break;
-        }
-    }
-    let mut gcd = (num1).gcd(num2);
-    if gcd == 0 {
+// Find GCD for iterator of numbers
+pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
+    let mut numbers = numbers.filter(|n| *n != 0);
+    let mut gcd = (numbers.next()?).gcd(numbers.next()?);
+    if gcd == 1 {
         return None;
     }
 
     let mut gcd_divider = DividerU64::divide_by(gcd);
     for val in numbers {
-        let val = val - base;
-        if val == 0 {
-            continue;
-        }
-        let rem = val - (gcd_divider.divide(val)) * gcd;
-        if rem == 0 {
+        let remainder = val - (gcd_divider.divide(val)) * gcd;
+        if remainder == 0 {
             continue;
         }
         gcd = gcd.gcd(val);
