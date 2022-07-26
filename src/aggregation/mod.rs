@@ -132,7 +132,7 @@
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-//!                 keyed: None,
+//!                 keyed: false,
 //!             }),
 //!             sub_aggregation: sub_agg_req_1.clone(),
 //!         }),
