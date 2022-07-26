@@ -93,7 +93,8 @@
 //!         { "from": 3.0, "to": 7.0 },
 //!         { "from": 7.0, "to": 20.0 },
 //!         { "from": 20.0 }
-//!       ]
+//!       ],
+//!       "keyed": false
 //!     },
 //!     "aggs": {
 //!       "average_in_range": { "avg": { "field": "score" } }
