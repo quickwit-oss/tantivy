@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use fnv::FnvHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::agg_req::BucketAggregationInternal;
@@ -145,7 +146,7 @@ pub enum BucketEntries<T> {
     /// Vector format bucket entries
     Vec(Vec<T>),
     /// HashMap format bucket entries
-    HashMap(HashMap<String, T>),
+    HashMap(FnvHashMap<String, T>),
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally

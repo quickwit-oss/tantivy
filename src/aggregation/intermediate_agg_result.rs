@@ -287,7 +287,8 @@ impl IntermediateBucketResult {
                     .expect("unexpected aggregation, expected range aggregation")
                     .keyed;
                 let buckets = if is_keyed {
-                    let mut bucket_map = HashMap::new();
+                    let mut bucket_map =
+                        FnvHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
                     for bucket in buckets {
                         bucket_map.insert(bucket.key.to_string(), bucket);
                     }
@@ -306,7 +307,8 @@ impl IntermediateBucketResult {
                 )?;
 
                 let buckets = if req.as_histogram().unwrap().keyed {
-                    let mut bucket_map = HashMap::new();
+                    let mut bucket_map =
+                        FnvHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
                     for bucket in buckets {
                         bucket_map.insert(bucket.key.to_string(), bucket);
                     }
