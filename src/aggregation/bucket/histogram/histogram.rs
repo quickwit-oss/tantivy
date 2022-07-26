@@ -116,6 +116,7 @@ pub struct HistogramAggregation {
     /// bounds would not be returned.
     pub extended_bounds: Option<HistogramBounds>,
     /// Whether to return the buckets as a hash map
+    #[serde(default)]
     pub keyed: bool,
 }
 

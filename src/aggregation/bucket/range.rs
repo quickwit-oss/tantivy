@@ -57,6 +57,7 @@ pub struct RangeAggregation {
     /// range. Extra buckets will be created until the first to, and last from, if necessary.
     pub ranges: Vec<RangeAggregationRange>,
     /// Whether to return the buckets as a hash map
+    #[serde(default)]
     pub keyed: bool,
 }
 
