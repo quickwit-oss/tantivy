@@ -271,7 +271,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
-                    keyed: Some(true),
+                    keyed: true,
                 }),
                 sub_aggregation: Default::default(),
             }),

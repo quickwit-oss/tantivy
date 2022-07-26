@@ -48,8 +48,6 @@ use crate::{DocId, TantivyError};
 ///
 /// # Limitations/Compatibility
 ///
-/// The keyed parameter (elasticsearch) is not yet supported.
-///
 /// # JSON Format
 /// ```json
 /// {
@@ -118,8 +116,7 @@ pub struct HistogramAggregation {
     /// bounds would not be returned.
     pub extended_bounds: Option<HistogramBounds>,
     /// Whether to return the buckets as a hash map
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub keyed: Option<bool>,
+    pub keyed: bool,
 }
 
 impl HistogramAggregation {
@@ -1409,7 +1406,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 50.0,
-                    keyed: Some(true),
+                    keyed: true,
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),

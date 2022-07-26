@@ -285,8 +285,7 @@ impl IntermediateBucketResult {
                 let is_keyed = req
                     .as_range()
                     .expect("unexpected aggregation, expected range aggregation")
-                    .keyed
-                    .is_some();
+                    .keyed;
                 let buckets = if is_keyed {
                     let mut bucket_map = HashMap::new();
                     for bucket in buckets {
@@ -306,7 +305,7 @@ impl IntermediateBucketResult {
                     &req.sub_aggregation,
                 )?;
 
-                let buckets = if req.as_histogram().unwrap().keyed.is_some() {
+                let buckets = if req.as_histogram().unwrap().keyed {
                     let mut bucket_map = HashMap::new();
                     for bucket in buckets {
                         bucket_map.insert(bucket.key.to_string(), bucket);

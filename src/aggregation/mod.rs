@@ -503,13 +503,15 @@ mod tests {
         "bucketsL1": {
             "range": {
                 "field": "score",
-                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
+                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ],
+                "keyed": false
             },
             "aggs": {
                 "bucketsL2": {
                     "range": {
                         "field": "score",
-                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
+                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ],
+                        "keyed": false
                     }
                 }
             }
@@ -519,12 +521,14 @@ mod tests {
                 "field": "score",
                 "interval":  70.0,
                 "offset": 3.0,
+                "keyed": false
             },
             "aggs": {
                 "bucketsL2": {
                     "histogram": {
                         "field": "score",
-                        "interval":  70.0
+                        "interval":  70.0,
+                        "keyed": false
                     }
                 }
             }
@@ -537,7 +541,8 @@ mod tests {
                 "bucketsL2": {
                     "histogram": {
                         "field": "score",
-                        "interval":  70.0
+                        "interval":  70.0,
+                        "keyed": false
                     }
                 }
             }
@@ -885,7 +890,8 @@ mod tests {
         { "from": 7.0, "to": 19.0 },
         { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
-      ]
+      ],
+      "keyed": false
     },
     "aggs": {
       "average_in_range": { "avg": { "field": "score" } },
@@ -901,7 +907,8 @@ mod tests {
         { "from": 7.0, "to": 19.0 },
         { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
-      ]
+      ],
+      "keyed": false
     },
     "aggs": {
       "average_in_range": { "avg": { "field": "score" } },
@@ -920,7 +927,8 @@ mod tests {
         { "from": 7.0, "to": 19.0 },
         { "from": 19.0, "to": 20.0 },
         { "from": 20.0 }
-      ]
+      ],
+      "keyed": false
     },
     "aggs": {
       "average_in_range": { "avg": { "field": "score" } },

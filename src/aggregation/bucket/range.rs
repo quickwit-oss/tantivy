@@ -57,8 +57,7 @@ pub struct RangeAggregation {
     /// range. Extra buckets will be created until the first to, and last from, if necessary.
     pub ranges: Vec<RangeAggregationRange>,
     /// Whether to return the buckets as a hash map
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub keyed: Option<bool>,
+    pub keyed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -467,7 +466,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "fraction_f64".to_string(),
                     ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                    keyed: Some(true),
+                    keyed: true,
                 }),
                 sub_aggregation: Default::default(),
             }),
