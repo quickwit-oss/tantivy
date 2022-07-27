@@ -377,7 +377,7 @@ mod tests {
             searcher.search(&AllQuery, &collector)?
         };
 
-        // Test serialization/deserialization rountrip
+        // Test serialization/deserialization roundtrip
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         Ok(res)
     }

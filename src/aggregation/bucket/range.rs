@@ -432,16 +432,12 @@ pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
 #[cfg(test)]
 mod tests {
 
-    use serde_json::Value;
-
     use super::*;
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
     };
-    use crate::aggregation::tests::get_test_index_with_num_docs;
-    use crate::aggregation::AggregationCollector;
+    use crate::aggregation::tests::{exec_request_with_query, get_test_index_with_num_docs};
     use crate::fastfield::FastValue;
-    use crate::query::AllQuery;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
@@ -480,13 +476,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req, None);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
 
         assert_eq!(res["range"]["buckets"][0]["key"], "*-0");
         assert_eq!(res["range"]["buckets"][0]["doc_count"], 0);
@@ -518,13 +508,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req, None);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
 
         assert_eq!(
             res,
@@ -572,13 +556,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req, None);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
 
         assert_eq!(
             res,
@@ -619,13 +597,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req, None);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
 
         assert_eq!(
             res,
