@@ -35,8 +35,6 @@ use crate::{DocId, TantivyError};
 /// # Limitations/Compatibility
 /// Overlapping ranges are not yet supported.
 ///
-/// The keyed parameter (elasticsearch) is not yet supported.
-///
 /// # Request JSON Format
 /// ```json
 /// {
@@ -51,13 +49,16 @@ use crate::{DocId, TantivyError};
 ///     }
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field: String,
     /// Note that this aggregation includes the from value and excludes the to value for each
     /// range. Extra buckets will be created until the first to, and last from, if necessary.
     pub ranges: Vec<RangeAggregationRange>,
+    /// Whether to return the buckets as a hash map
+    #[serde(default)]
+    pub keyed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -406,6 +407,7 @@ mod tests {
         let req = RangeAggregation {
             field: "dummy".to_string(),
             ranges,
+            ..Default::default()
         };
 
         SegmentRangeCollector::from_req_and_validate(
@@ -427,6 +429,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "fraction_f64".to_string(),
                     ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                    ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
             }),
@@ -450,6 +453,49 @@ mod tests {
         assert_eq!(res["range"]["buckets"][2]["doc_count"], 10);
         assert_eq!(res["range"]["buckets"][3]["key"], "0.2-*");
         assert_eq!(res["range"]["buckets"][3]["doc_count"], 80);
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                    field: "fraction_f64".to_string(),
+                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                    keyed: true,
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req, None);
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "range": {
+                    "buckets": {
+                        "*-0": { "key": "*-0", "doc_count": 0, "to": 0.0},
+                        "0-0.1": {"key": "0-0.1", "doc_count": 10, "from": 0.0, "to": 0.1},
+                        "0.1-0.2": {"key": "0.1-0.2", "doc_count": 10, "from": 0.1, "to": 0.2},
+                        "0.2-*": {"key": "0.2-*", "doc_count": 80, "from": 0.2},
+                    }
+                }
+            })
+        );
 
         Ok(())
     }
