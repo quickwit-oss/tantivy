@@ -70,34 +70,6 @@ impl PhraseWeight {
         }
     }
 
-    fn phrase_scorer_as_scorer(
-        &self,
-        reader: &SegmentReader,
-        boost: Score,
-    ) -> crate::Result<Option<Box<dyn Scorer>>> {
-        match self.get_scorer_params(reader, boost)? {
-            Some((term_postings_list, similarity_weight, fieldnorm_reader)) => {
-                if self.slop == 0 {
-                    Ok(Some(Box::new(ExactPhraseScorer::new(
-                        term_postings_list,
-                        similarity_weight,
-                        fieldnorm_reader,
-                        self.scoring_enabled,
-                    ))))
-                } else {
-                    Ok(Some(Box::new(SlopPhraseScorer::new(
-                        term_postings_list,
-                        similarity_weight,
-                        fieldnorm_reader,
-                        self.scoring_enabled,
-                        self.slop,
-                    ))))
-                }
-            }
-            _ => Ok(None),
-        }
-    }
-
     fn get_scorer_params(
         &self,
         reader: &SegmentReader,
@@ -143,10 +115,26 @@ impl PhraseWeight {
 
 impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer_as_scorer(reader, boost)? {
-            Ok(Box::new(scorer))
-        } else {
-            Ok(Box::new(EmptyScorer))
+        match self.get_scorer_params(reader, boost)? {
+            Some((term_postings_list, similarity_weight, fieldnorm_reader)) => {
+                if self.slop == 0 {
+                    Ok(Box::new(ExactPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                    )))
+                } else {
+                    Ok(Box::new(SlopPhraseScorer::new(
+                        term_postings_list,
+                        similarity_weight,
+                        fieldnorm_reader,
+                        self.scoring_enabled,
+                        self.slop,
+                    )))
+                }
+            }
+            _ => Ok(Box::new(EmptyScorer)),
         }
     }
 
@@ -194,6 +182,83 @@ mod tests {
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_count_no_scoring() -> crate::Result<()> {
+        let index = create_index(&["a c", "a a b d a b c", " a b"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, false).unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .unwrap();
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
+        assert_eq!(phrase_scorer.advance(), 2);
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_count_with_slop() -> crate::Result<()> {
+        let index = create_index(&["a c b", "a a b d a b c", " a b"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let mut phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        phrase_query.set_slop(1);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .unwrap();
+        assert_eq!(phrase_scorer.doc(), 0);
+        assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert_eq!(phrase_scorer.advance(), 1);
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 2);
+        assert_eq!(phrase_scorer.advance(), 2);
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_count_with_slop_no_scoring() -> crate::Result<()> {
+        let index = create_index(&["a c b", "a a b d a b c", " a b"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let mut phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        phrase_query.set_slop(1);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, false).unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .unwrap();
+        assert_eq!(phrase_scorer.doc(), 0);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
+        assert_eq!(phrase_scorer.advance(), 1);
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
+        assert_eq!(phrase_scorer.advance(), 2);
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }

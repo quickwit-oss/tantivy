@@ -155,7 +155,7 @@ impl<TPostings: Postings> Scorer for SlopPhraseScorer<TPostings> {
 /// Condition for match is that the value stored in left is less than or equal to
 /// the value in right and that the distance to the previous token is lte to the slop.
 ///
-/// Returns the length of the intersection
+/// Returns the length of the intersection and the accumulated used slop
 fn intersection_with_slop(
     left: &mut [u32],
     right: &[u32],
@@ -277,16 +277,23 @@ fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::{intersection_count_with_slop, intersection_with_slop};
+    use super::{
+        intersection_count_with_slop, intersection_exists_with_slop, intersection_with_slop,
+    };
 
     fn test_intersection_aux(left: &[u32], right: &[u32], expected: &[u32], slop: u32) {
         let mut left_vec = Vec::from(left);
         let left_mut = &mut left_vec[..];
-        let mut right_vec = Vec::from(right);
-        let right_mut = &mut right_vec[..];
-        // TODO test count that wasn't done previously :)
-        let count = intersection_with_slop(left_mut, right_mut, slop, 0);
+        assert_eq!(
+            intersection_count_with_slop(left_mut, right, slop, 0).0,
+            expected.len()
+        );
+        let count = intersection_with_slop(left_mut, right, slop, 0);
         assert_eq!(&left_mut[..count.0], expected);
+        assert_eq!(
+            intersection_exists_with_slop(left, right, slop),
+            expected.len() != 0
+        )
     }
 
     #[test]

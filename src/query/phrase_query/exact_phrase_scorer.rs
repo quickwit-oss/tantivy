@@ -207,7 +207,7 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{intersection, intersection_count};
+    use super::{intersection, intersection_count, intersection_exists};
 
     fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
         test_intersection_aux(left, right, expected);
@@ -220,6 +220,7 @@ mod tests {
         assert_eq!(intersection_count(left_mut, right), expected.len());
         let count = intersection(left_mut, right);
         assert_eq!(&left_mut[..count], expected);
+        assert_eq!(intersection_exists(left, right), expected.len() != 0);
     }
 
     #[test]
