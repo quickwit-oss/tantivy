@@ -77,8 +77,7 @@ impl BucketAggregationWithAccessor {
         let mut inverted_index = None;
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
-                field: field_name,
-                ranges: _,
+                field: field_name, ..
             }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..

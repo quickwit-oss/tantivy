@@ -48,8 +48,6 @@ use crate::{DocId, TantivyError};
 ///
 /// # Limitations/Compatibility
 ///
-/// The keyed parameter (elasticsearch) is not yet supported.
-///
 /// # JSON Format
 /// ```json
 /// {
@@ -117,6 +115,9 @@ pub struct HistogramAggregation {
     /// Cannot be set in conjunction with min_doc_count > 0, since the empty buckets from extended
     /// bounds would not be returned.
     pub extended_bounds: Option<HistogramBounds>,
+    /// Whether to return the buckets as a hash map
+    #[serde(default)]
+    pub keyed: bool,
 }
 
 impl HistogramAggregation {
@@ -1392,6 +1393,48 @@ mod tests {
         let agg_res = exec_request(agg_req, &index);
 
         assert!(agg_res.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 50.0,
+                    keyed: true,
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": {
+                        "0": {
+                            "key": 0.0,
+                            "doc_count": 50
+                        },
+                        "50": {
+                            "key": 50.0,
+                            "doc_count": 50
+                        }
+                    }
+                }
+            })
+        );
 
         Ok(())
     }
