@@ -503,15 +503,13 @@ mod tests {
         "bucketsL1": {
             "range": {
                 "field": "score",
-                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ],
-                "keyed": false
+                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
             },
             "aggs": {
                 "bucketsL2": {
                     "range": {
                         "field": "score",
-                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ],
-                        "keyed": false
+                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
                     }
                 }
             }
@@ -520,15 +518,13 @@ mod tests {
             "histogram": {
                 "field": "score",
                 "interval":  70.0,
-                "offset": 3.0,
-                "keyed": false
+                "offset": 3.0
             },
             "aggs": {
                 "bucketsL2": {
                     "histogram": {
                         "field": "score",
-                        "interval":  70.0,
-                        "keyed": false
+                        "interval":  70.0
                     }
                 }
             }
@@ -541,8 +537,7 @@ mod tests {
                 "bucketsL2": {
                     "histogram": {
                         "field": "score",
-                        "interval":  70.0,
-                        "keyed": false
+                        "interval":  70.0
                     }
                 }
             }
