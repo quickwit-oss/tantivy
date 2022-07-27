@@ -447,8 +447,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        // assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        assert_eq!(file.len(), 10175_usize); // linear interpol size
+        assert_eq!(file.len(), 12471_usize); // Piecewise linear codec size
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();

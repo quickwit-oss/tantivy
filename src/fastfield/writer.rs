@@ -373,7 +373,7 @@ impl IntFastFieldWriter {
             let iter = doc_id_map
                 .iter_old_doc_ids()
                 .map(|doc_id| self.vals.get(doc_id as usize));
-            serializer.create_auto_detect_u64_fast_field(
+            serializer.new_u64_fast_field_with_best_codec(
                 self.field,
                 stats,
                 fastfield_accessor,
@@ -381,7 +381,7 @@ impl IntFastFieldWriter {
                 iter,
             )?;
         } else {
-            serializer.create_auto_detect_u64_fast_field(
+            serializer.new_u64_fast_field_with_best_codec(
                 self.field,
                 stats,
                 fastfield_accessor,

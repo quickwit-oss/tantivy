@@ -71,9 +71,9 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
         })
     }
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
-        (calculated_value + self.bit_unpacker.get(doc, data)) - self.footer.offset
+    fn get_u64(&self, idx: u64, data: &[u8]) -> u64 {
+        let calculated_value = get_calculated_value(self.footer.first_val, idx, self.slope);
+        (calculated_value + self.bit_unpacker.get(idx, data)) - self.footer.offset
     }
 
     #[inline]
@@ -88,6 +88,10 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
+#[deprecated(
+    note = "Linear interpolation works best only on very rare cases and piecewise linear codec \
+            already works great on them."
+)]
 pub struct LinearInterpolFastFieldSerializer {}
 
 #[inline]
@@ -105,6 +109,7 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
 
+#[allow(deprecated)]
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
     const ID: u8 = 2;
@@ -182,10 +187,16 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         }
         true
     }
-    /// estimation for linear interpolation is hard because, you don't know
+    /// Estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate_compression_ratio(
+        fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> f32 {
+        if stats.num_vals < 3 {
+            return f32::MAX;
+        }
         let first_val = fastfield_accessor.get_val(0);
         let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
@@ -229,6 +240,7 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     }
 }
 
+#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,8 +301,10 @@ mod tests {
 
     #[test]
     fn linear_interpol_fast_field_rand() {
-        for _ in 0..5000 {
-            let mut data = (0..50).map(|_| rand::random::<u64>()).collect::<Vec<_>>();
+        for _ in 0..10 {
+            let mut data = (5_000..20_000)
+                .map(|_| rand::random::<u32>() as u64)
+                .collect::<Vec<_>>();
             create_and_validate(&data, "random");
 
             data.reverse();

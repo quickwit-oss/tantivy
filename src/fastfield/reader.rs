@@ -6,11 +6,16 @@ use common::BinarySerializable;
 use fastfield_codecs::bitpacked::{
     BitpackedFastFieldReader as BitpackedReader, BitpackedFastFieldSerializer,
 };
+#[allow(deprecated)]
 use fastfield_codecs::linearinterpol::{
     LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
 };
+#[allow(deprecated)]
 use fastfield_codecs::multilinearinterpol::{
     MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+};
+use fastfield_codecs::piecewise_linear::{
+    PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
 };
 use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer};
 
@@ -71,6 +76,8 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearInterpolFastFieldReader>),
     /// Blockwise linear interpolated values + bitpacked
     MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearInterpolFastFieldReader>),
+    /// Piecewise linear interpolated values + bitpacked
+    PiecewiseLinear(FastFieldReaderCodecWrapper<Item, PiecewiseLinearFastFieldReader>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
@@ -86,12 +93,14 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     BitpackedReader,
                 >::open_from_bytes(bytes)?)
             }
+            #[allow(deprecated)]
             LinearInterpolFastFieldSerializer::ID => {
                 DynamicFastFieldReader::LinearInterpol(FastFieldReaderCodecWrapper::<
                     Item,
                     LinearInterpolFastFieldReader,
                 >::open_from_bytes(bytes)?)
             }
+            #[allow(deprecated)]
             MultiLinearInterpolFastFieldSerializer::ID => {
                 DynamicFastFieldReader::MultiLinearInterpol(FastFieldReaderCodecWrapper::<
                     Item,
@@ -99,6 +108,12 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                 >::open_from_bytes(
                     bytes
                 )?)
+            }
+            PiecewiseLinearFastFieldSerializer::ID => {
+                DynamicFastFieldReader::PiecewiseLinear(FastFieldReaderCodecWrapper::<
+                    Item,
+                    PiecewiseLinearFastFieldReader,
+                >::open_from_bytes(bytes)?)
             }
             _ => {
                 panic!(
@@ -118,6 +133,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::Bitpacked(reader) => reader.get(doc),
             Self::LinearInterpol(reader) => reader.get(doc),
             Self::MultiLinearInterpol(reader) => reader.get(doc),
+            Self::PiecewiseLinear(reader) => reader.get(doc),
         }
     }
     #[inline]
@@ -126,6 +142,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::Bitpacked(reader) => reader.get_range(start, output),
             Self::LinearInterpol(reader) => reader.get_range(start, output),
             Self::MultiLinearInterpol(reader) => reader.get_range(start, output),
+            Self::PiecewiseLinear(reader) => reader.get_range(start, output),
         }
     }
     fn min_value(&self) -> Item {
@@ -133,6 +150,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::Bitpacked(reader) => reader.min_value(),
             Self::LinearInterpol(reader) => reader.min_value(),
             Self::MultiLinearInterpol(reader) => reader.min_value(),
+            Self::PiecewiseLinear(reader) => reader.min_value(),
         }
     }
     fn max_value(&self) -> Item {
@@ -140,6 +158,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::Bitpacked(reader) => reader.max_value(),
             Self::LinearInterpol(reader) => reader.max_value(),
             Self::MultiLinearInterpol(reader) => reader.max_value(),
+            Self::PiecewiseLinear(reader) => reader.max_value(),
         }
     }
 }
@@ -176,9 +195,12 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
             _phantom: PhantomData,
         })
     }
-    #[inline]
-    pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.reader.get_u64(doc, self.bytes.as_slice()))
+
+    /// Get u64 for indice `idx`.
+    /// `idx` can be either a `DocId` or an index used for
+    /// `multivalued` fast field. See [`get_range`] for more details.
+    pub(crate) fn get_u64(&self, idx: u64) -> Item {
+        Item::from_u64(self.reader.get_u64(idx, self.bytes.as_slice()))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.

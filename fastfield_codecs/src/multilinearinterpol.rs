@@ -155,14 +155,17 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
     }
 
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let interpolation = get_interpolation_function(doc, &self.footer.interpolations);
-        let doc = doc - interpolation.start_pos;
-        let calculated_value =
-            get_calculated_value(interpolation.value_start_pos, doc, interpolation.slope);
+    fn get_u64(&self, idx: u64, data: &[u8]) -> u64 {
+        let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
+        let block_idx = idx - interpolation.start_pos;
+        let calculated_value = get_calculated_value(
+            interpolation.value_start_pos,
+            block_idx,
+            interpolation.slope,
+        );
         let diff = interpolation
             .bit_unpacker
-            .get(doc, &data[interpolation.data_start_offset as usize..]);
+            .get(block_idx, &data[interpolation.data_start_offset as usize..]);
         (calculated_value + diff) - interpolation.positive_val_offset
     }
 
@@ -187,8 +190,13 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
+#[deprecated(
+    note = "MultiLinearInterpol is replaced by PiecewiseLinear codec which fixes the slope and is \
+            a little bit more optimized."
+)]
 pub struct MultiLinearInterpolFastFieldSerializer {}
 
+#[allow(deprecated)]
 impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     const NAME: &'static str = "MultiLinearInterpol";
     const ID: u8 = 3;
@@ -311,10 +319,13 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         }
         true
     }
-    /// estimation for linear interpolation is hard because, you don't know
+    /// Estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate_compression_ratio(
+        fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> f32 {
         let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(stats.num_vals);
         let last_val_in_first_block =
@@ -366,6 +377,7 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;
