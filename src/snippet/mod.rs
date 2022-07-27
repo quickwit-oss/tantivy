@@ -11,8 +11,8 @@ use crate::{Document, Score, Searcher};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
-const DEFAULT_HIGHLIGHTEN_PREFIX: &str = "<b>";
-const DEFAULT_HIGHLIGHTEN_POSTFIX: &str = "</b>";
+const DEFAULT_HIGHLIGHTING_PREFIX: &str = "<b>";
+const DEFAULT_HIGHLIGHTING_POSTFIX: &str = "</b>";
 
 #[derive(Debug)]
 pub struct FragmentCandidate {
@@ -58,8 +58,8 @@ impl FragmentCandidate {
 pub struct Snippet {
     fragment: String,
     highlighted: Vec<Range<usize>>,
-    highlighten_prefix: String,
-    highlighten_postfix: String,
+    highlighting_prefix: String,
+    highlighting_postfix: String,
 }
 
 impl Snippet {
@@ -67,14 +67,14 @@ impl Snippet {
     fn new(
         fragment: &str,
         highlighted: Vec<Range<usize>>,
-        highlighten_prefix: &str,
-        highlighten_postfix: &str,
+        highlighting_prefix: &str,
+        highlighting_postfix: &str,
     ) -> Self {
         Self {
             fragment: fragment.to_string(),
             highlighted,
-            highlighten_prefix: highlighten_prefix.to_string(),
-            highlighten_postfix: highlighten_postfix.to_string(),
+            highlighting_prefix: highlighting_prefix.to_string(),
+            highlighting_postfix: highlighting_postfix.to_string(),
         }
     }
 
@@ -83,8 +83,8 @@ impl Snippet {
         Snippet {
             fragment: String::new(),
             highlighted: Vec::new(),
-            highlighten_prefix: String::new(),
-            highlighten_postfix: String::new(),
+            highlighting_prefix: String::new(),
+            highlighting_postfix: String::new(),
         }
     }
 
@@ -95,9 +95,9 @@ impl Snippet {
 
         for item in self.highlighted.iter() {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
-            html.push_str(&self.highlighten_prefix);
+            html.push_str(&self.highlighting_prefix);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
-            html.push_str(&self.highlighten_postfix);
+            html.push_str(&self.highlighting_postfix);
             start_from = item.end;
         }
         html.push_str(&encode_minimal(
@@ -170,8 +170,8 @@ fn search_fragments<'a>(
 fn select_best_fragment_combination(
     fragments: &[FragmentCandidate],
     text: &str,
-    highlighten_prefix: &str,
-    highlighten_postfix: &str,
+    highlighting_prefix: &str,
+    highlighting_postfix: &str,
 ) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
@@ -194,8 +194,8 @@ fn select_best_fragment_combination(
         Snippet::new(
             fragment_text,
             highlighted,
-            highlighten_prefix,
-            highlighten_postfix,
+            highlighting_prefix,
+            highlighting_postfix,
         )
     } else {
         // when there no fragments to chose from,
@@ -250,8 +250,8 @@ pub struct SnippetGenerator {
     tokenizer: TextAnalyzer,
     field: Field,
     max_num_chars: usize,
-    highlighten_prefix: String,
-    highlighten_postfix: String,
+    highlighting_prefix: String,
+    highlighting_postfix: String,
 }
 
 impl SnippetGenerator {
@@ -285,15 +285,15 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS,
-            highlighten_prefix: DEFAULT_HIGHLIGHTEN_PREFIX.to_string(),
-            highlighten_postfix: DEFAULT_HIGHLIGHTEN_POSTFIX.to_string(),
+            highlighting_prefix: DEFAULT_HIGHLIGHTING_PREFIX.to_string(),
+            highlighting_postfix: DEFAULT_HIGHLIGHTING_POSTFIX.to_string(),
         })
     }
 
-    /// Sets highlighten prefix and postfix.
-    pub fn set_highlighten_elements(&mut self, prefix: &str, postfix: &str) {
-        self.highlighten_prefix = prefix.to_string();
-        self.highlighten_postfix = postfix.to_string()
+    /// Sets highlighted prefix and postfix.
+    pub fn set_highlighted_elements(&mut self, prefix: &str, postfix: &str) {
+        self.highlighting_prefix = prefix.to_string();
+        self.highlighting_postfix = postfix.to_string()
     }
 
     /// Sets a maximum number of chars.
@@ -326,8 +326,8 @@ impl SnippetGenerator {
         select_best_fragment_combination(
             &fragment_candidates[..],
             text,
-            &self.highlighten_prefix,
-            &self.highlighten_postfix,
+            &self.highlighting_prefix,
+            &self.highlighting_postfix,
         )
     }
 }
@@ -339,8 +339,8 @@ mod tests {
     use maplit::btreemap;
 
     use super::{
-        search_fragments, select_best_fragment_combination, DEFAULT_HIGHLIGHTEN_POSTFIX,
-        DEFAULT_HIGHLIGHTEN_PREFIX,
+        search_fragments, select_best_fragment_combination, DEFAULT_HIGHLIGHTING_POSTFIX,
+        DEFAULT_HIGHLIGHTING_PREFIX,
     };
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
@@ -377,8 +377,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             TEST_TEXT,
-            "<b class=\"super-super\">",
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            "<b class=\"super\">",
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(
             snippet.fragment,
@@ -387,7 +387,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(
             snippet.to_html(),
-            "<b class=\"super-super\">Rust</b> is a systems programming <b class=\"super-super\">language</b> sponsored by\nMozilla which \
+            "<b class=\"super\">Rust</b> is a systems programming <b class=\"super-super\">language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         )
     }
@@ -408,8 +408,8 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(
                 &fragments[..],
                 TEST_TEXT,
-                DEFAULT_HIGHLIGHTEN_PREFIX,
-                DEFAULT_HIGHLIGHTEN_POSTFIX,
+                DEFAULT_HIGHLIGHTING_PREFIX,
+                DEFAULT_HIGHLIGHTING_POSTFIX,
             );
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
@@ -428,8 +428,8 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(
                 &fragments[..],
                 TEST_TEXT,
-                DEFAULT_HIGHLIGHTEN_PREFIX,
-                DEFAULT_HIGHLIGHTEN_POSTFIX,
+                DEFAULT_HIGHLIGHTING_PREFIX,
+                DEFAULT_HIGHLIGHTING_POSTFIX,
             );
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
@@ -455,8 +455,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            DEFAULT_HIGHLIGHTEN_PREFIX,
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTING_PREFIX,
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
@@ -482,8 +482,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            DEFAULT_HIGHLIGHTEN_PREFIX,
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTING_PREFIX,
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
@@ -510,8 +510,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            DEFAULT_HIGHLIGHTEN_PREFIX,
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTING_PREFIX,
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
@@ -531,8 +531,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            DEFAULT_HIGHLIGHTEN_PREFIX,
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTING_PREFIX,
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
@@ -549,8 +549,8 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(
             &fragments[..],
             text,
-            DEFAULT_HIGHLIGHTEN_PREFIX,
-            DEFAULT_HIGHLIGHTEN_POSTFIX,
+            DEFAULT_HIGHLIGHTING_PREFIX,
+            DEFAULT_HIGHLIGHTING_POSTFIX,
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
@@ -649,7 +649,7 @@ Survey in 2016, 2017, and 2018."#;
     }
 
     #[test]
-    fn test_snippet_generator_custom_highlighten_elements() -> crate::Result<()> {
+    fn test_snippet_generator_custom_highlighted_elements() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
@@ -682,7 +682,7 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             snippet_generator.set_max_num_chars(90);
-            snippet_generator.set_highlighten_elements("<q class=\"super\">", "</q>");
+            snippet_generator.set_highlighted_elements("<q class=\"super\">", "</q>");
             let snippet = snippet_generator.snippet(TEST_TEXT);
             assert_eq!(
                 snippet.to_html(),
