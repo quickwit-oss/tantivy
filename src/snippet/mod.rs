@@ -387,7 +387,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(
             snippet.to_html(),
-            "<b class=\"super\">Rust</b> is a systems programming <b class=\"super-super\">language</b> sponsored by\nMozilla which \
+            "<b class=\"super\">Rust</b> is a systems programming <b class=\"super\">language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         )
     }
