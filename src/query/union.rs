@@ -407,12 +407,13 @@ mod bench {
             tests::sample_with_seed(100_000, 0.2, 1),
         ];
         bench.iter(|| {
-            let mut v = Union::<_, DoNothingCombiner>::from(
+            let mut v = Union::build(
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
+                DoNothingCombiner::default,
             );
             while v.doc() != TERMINATED {
                 v.advance();
@@ -427,12 +428,13 @@ mod bench {
             tests::sample_with_seed(100_000, 0.001, 2),
         ];
         bench.iter(|| {
-            let mut v = Union::<_, DoNothingCombiner>::from(
+            let mut v = Union::build(
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
+                DoNothingCombiner::default,
             );
             while v.doc() != TERMINATED {
                 v.advance();
