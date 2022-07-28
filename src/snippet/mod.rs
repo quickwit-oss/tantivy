@@ -198,8 +198,8 @@ fn select_best_fragment_combination(
             highlighting_postfix,
         )
     } else {
-        // when there no fragments to chose from,
-        // for now create a empty snippet
+        // When there are no fragments to chose from,
+        // for now create an empty snippet.
         Snippet::empty()
     }
 }
