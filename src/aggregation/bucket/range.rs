@@ -18,7 +18,7 @@ use crate::{DocId, TantivyError};
 
 /// Provide user-defined buckets to aggregate on.
 /// Two special buckets will automatically be created to cover the whole range of values.
-/// The provided buckets have to be continous.
+/// The provided buckets have to be continuous.
 /// During the aggregation, the values extracted from the fast_field `field` will be checked
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
@@ -104,6 +104,12 @@ pub(crate) struct InternalRangeAggregationRange {
     key: Option<String>,
     /// u64 range value
     range: Range<u64>,
+}
+
+impl From<Range<u64>> for InternalRangeAggregationRange {
+    fn from(range: Range<u64>) -> Self {
+        InternalRangeAggregationRange { key: None, range }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -364,20 +370,12 @@ fn extend_validate_ranges(
 
     converted_buckets.sort_by_key(|bucket| bucket.range.start);
     if converted_buckets[0].range.start != u64::MIN {
-        converted_buckets.insert(
-            0,
-            InternalRangeAggregationRange {
-                key: None,
-                range: u64::MIN..converted_buckets[0].range.start,
-            },
-        );
+        converted_buckets.insert(0, (u64::MIN..converted_buckets[0].range.start).into());
     }
 
     if converted_buckets[converted_buckets.len() - 1].range.end != u64::MAX {
-        converted_buckets.push(InternalRangeAggregationRange {
-            key: None,
-            range: converted_buckets[converted_buckets.len() - 1].range.end..u64::MAX,
-        });
+        converted_buckets
+            .push((converted_buckets[converted_buckets.len() - 1].range.end..u64::MAX).into());
     }
 
     // fill up holes in the ranges
@@ -399,13 +397,7 @@ fn extend_validate_ranges(
     while let Some(hole_pos) = find_hole(&converted_buckets)? {
         let new_range =
             converted_buckets[hole_pos].range.end..converted_buckets[hole_pos + 1].range.start;
-        converted_buckets.insert(
-            hole_pos + 1,
-            InternalRangeAggregationRange {
-                key: None,
-                range: new_range,
-            },
-        );
+        converted_buckets.insert(hole_pos + 1, new_range.into());
     }
 
     Ok(converted_buckets)
