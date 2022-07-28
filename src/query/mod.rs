@@ -6,6 +6,7 @@ mod bitset;
 mod bm25;
 mod boolean_query;
 mod boost_query;
+mod disjunction_max_query;
 mod empty_query;
 mod exclude;
 mod explanation;
@@ -34,7 +35,9 @@ pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub(crate) use self::bm25::Bm25Weight;
 pub use self::boolean_query::BooleanQuery;
+pub(crate) use self::boolean_query::BooleanWeight;
 pub use self::boost_query::BoostQuery;
+pub use self::disjunction_max_query::DisjunctionMaxQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
@@ -49,6 +52,9 @@ pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
+pub use self::score_combiner::{
+    DisjunctionMaxCombiner, ScoreCombiner, SumCombiner, SumWithCoordsCombiner,
+};
 pub use self::scorer::{ConstScorer, Scorer};
 pub use self::term_query::TermQuery;
 pub use self::union::Union;
