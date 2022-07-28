@@ -513,7 +513,7 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<SegmentMeta> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<()> {
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
         let segment_updater = self.segment_updater.clone();
         segment_updater.start_merge(merge_operation)
@@ -1008,6 +1008,92 @@ mod tests {
         }
         reader.reload()?;
         reader.searcher();
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_on_empty_segments_single_segment() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()?;
+        let num_docs_containing = |s: &str| {
+            let term_a = Term::from_field_text(text_field, s);
+            reader.searcher().doc_freq(&term_a).unwrap()
+        };
+        // writing the segment
+        let mut index_writer = index.writer(12_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.commit()?;
+        //  this should create 1 segment
+
+        let segments = index.searchable_segment_ids().unwrap();
+        assert_eq!(segments.len(), 1);
+
+        reader.reload().unwrap();
+        assert_eq!(num_docs_containing("a"), 1);
+
+        index_writer.delete_term(Term::from_field_text(text_field, "a"));
+        index_writer.commit()?;
+
+        reader.reload().unwrap();
+        assert_eq!(num_docs_containing("a"), 0);
+
+        index_writer.merge(&segments);
+        index_writer.wait_merging_threads().unwrap();
+
+        let segments = index.searchable_segment_ids().unwrap();
+        assert_eq!(segments.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_on_empty_segments() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()?;
+        let num_docs_containing = |s: &str| {
+            let term_a = Term::from_field_text(text_field, s);
+            reader.searcher().doc_freq(&term_a).unwrap()
+        };
+        // writing the segment
+        let mut index_writer = index.writer(12_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.commit()?;
+        //  this should create 4 segments
+
+        let segments = index.searchable_segment_ids().unwrap();
+        assert_eq!(segments.len(), 4);
+
+        reader.reload().unwrap();
+        assert_eq!(num_docs_containing("a"), 4);
+
+        index_writer.delete_term(Term::from_field_text(text_field, "a"));
+        index_writer.commit()?;
+
+        reader.reload().unwrap();
+        assert_eq!(num_docs_containing("a"), 0);
+
+        index_writer.merge(&segments);
+        index_writer.wait_merging_threads().unwrap();
+
+        let segments = index.searchable_segment_ids().unwrap();
+        assert_eq!(segments.len(), 0);
+
         Ok(())
     }
 
