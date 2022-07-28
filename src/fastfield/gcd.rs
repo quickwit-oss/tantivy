@@ -1,14 +1,66 @@
+use std::io::{self, Write};
+
+use common::BinarySerializable;
 use fastdivide::DividerU64;
+use fastfield_codecs::FastFieldCodecReader;
 use gcd::Gcd;
 
 pub const GCD_DEFAULT: u64 = 1;
+pub const GCD_CODEC_ID: u8 = 4;
+
+/// Wrapper for accessing a fastfield.
+///
+/// Holds the data and the codec to the read the data.
+#[derive(Clone)]
+pub struct GCDFastFieldCodec<CodecReader> {
+    gcd: u64,
+    min_value: u64,
+    reader: CodecReader,
+}
+impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
+    /// Opens a fast field given the bytes.
+    fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self> {
+        let (header, mut footer) = bytes.split_at(bytes.len() - 16);
+        let gcd = u64::deserialize(&mut footer)?;
+        let min_value = u64::deserialize(&mut footer)?;
+        let reader = C::open_from_bytes(header)?;
+
+        Ok(GCDFastFieldCodec {
+            gcd,
+            min_value,
+            reader,
+        })
+    }
+
+    #[inline]
+    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
+        let mut data = self.reader.get_u64(doc, data);
+        data *= self.gcd;
+        data += self.min_value;
+        data
+    }
+
+    fn min_value(&self) -> u64 {
+        self.min_value + self.reader.min_value() * self.gcd
+    }
+
+    fn max_value(&self) -> u64 {
+        self.min_value + self.reader.max_value() * self.gcd
+    }
+}
+
+pub fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: u64) -> io::Result<()> {
+    gcd.serialize(field_write)?;
+    min_value.serialize(field_write)?;
+    Ok(())
+}
 
 // Find GCD for iterator of numbers
 pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
     let mut numbers = numbers.filter(|n| *n != 0);
-    let mut gcd = (numbers.next()?).gcd(numbers.next()?);
+    let mut gcd = numbers.next()?;
     if gcd == 1 {
-        return None;
+        return Some(1);
     }
 
     let mut gcd_divider = DividerU64::divide_by(gcd);
@@ -19,7 +71,7 @@ pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
         }
         gcd = gcd.gcd(val);
         if gcd == 1 {
-            return None;
+            return Some(1);
         }
 
         gcd_divider = DividerU64::divide_by(gcd);
@@ -35,10 +87,11 @@ mod tests {
     use common::HasLen;
 
     use crate::directory::{CompositeFile, RamDirectory, WritePtr};
-    use crate::fastfield::serializer::{FastFieldCodecEnableCheck, FastFieldCodecName, ALL_CODECS};
+    use crate::fastfield::serializer::FastFieldCodecEnableCheck;
     use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
     use crate::fastfield::{
-        CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldReader, FastFieldsWriter,
+        find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecName,
+        FastFieldReader, FastFieldsWriter, ALL_CODECS,
     };
     use crate::schema::Schema;
     use crate::Directory;
@@ -156,5 +209,16 @@ mod tests {
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
+    }
+
+    #[test]
+    fn find_gcd_test() {
+        assert_eq!(find_gcd([0].into_iter()), None);
+        assert_eq!(find_gcd([0, 10].into_iter()), Some(10));
+        assert_eq!(find_gcd([10, 0].into_iter()), Some(10));
+        assert_eq!(find_gcd([].into_iter()), None);
+        assert_eq!(find_gcd([15, 30, 5, 10].into_iter()), Some(5));
+        assert_eq!(find_gcd([15, 16, 10].into_iter()), Some(1));
+        assert_eq!(find_gcd([0, 5, 5, 5].into_iter()), Some(5));
     }
 }

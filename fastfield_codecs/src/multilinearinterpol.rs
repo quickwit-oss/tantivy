@@ -75,7 +75,6 @@ impl BinarySerializable for Function {
         self.positive_val_offset.serialize(write)?;
         self.slope.serialize(write)?;
         self.num_bits.serialize(write)?;
-
         Ok(())
     }
 

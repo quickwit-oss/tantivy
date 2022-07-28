@@ -24,6 +24,7 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
+pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_CODEC_ID, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;
@@ -37,11 +38,24 @@ mod alive_bitset;
 mod bytes;
 mod error;
 mod facet_reader;
+mod gcd;
 mod multivalued;
 mod reader;
 mod readers;
 mod serializer;
 mod writer;
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub(crate) enum FastFieldCodecName {
+    Bitpacked,
+    LinearInterpol,
+    BlockwiseLinearInterpol,
+}
+pub(crate) const ALL_CODECS: &[FastFieldCodecName; 3] = &[
+    FastFieldCodecName::Bitpacked,
+    FastFieldCodecName::LinearInterpol,
+    FastFieldCodecName::BlockwiseLinearInterpol,
+];
 
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
 /// for a doc_id
@@ -316,7 +330,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 55);
+        assert_eq!(file.len(), 37);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
@@ -347,7 +361,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 80);
+        assert_eq!(file.len(), 62);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -383,7 +397,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 53);
+        assert_eq!(file.len(), 35);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -415,7 +429,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80061);
+        assert_eq!(file.len(), 80043);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -432,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_intfastfield() -> crate::Result<()> {
+    fn test_signed_intfastfield_normal() -> crate::Result<()> {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
         let mut schema_builder = Schema::builder();
@@ -455,8 +469,7 @@ mod tests {
         }
         let file = directory.open_read(path).unwrap();
         // assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        // assert_eq!(file.len(), 10201_usize); // linear interpol size, before gcd = min_value
-        assert_eq!(file.len(), 93_usize);
+        assert_eq!(file.len(), 10175_usize); // linear interpol size
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();
@@ -886,7 +899,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 54);
+        assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -922,7 +935,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 66);
+        assert_eq!(file.len(), 48);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -956,7 +969,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 53);
+        assert_eq!(file.len(), 35);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
