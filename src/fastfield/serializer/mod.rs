@@ -143,7 +143,7 @@ impl CompositeFastFieldSerializer {
         let gcd = find_gcd(iter_gen().map(|val| val - stats.min_value)).unwrap_or(GCD_DEFAULT);
 
         if gcd == 1 {
-            Self::create_auto_detect_u64_fast_field_with_idx_gcd(
+            return Self::create_auto_detect_u64_fast_field_with_idx_gcd(
                 self.codec_enable_checker.clone(),
                 field,
                 field_write,
@@ -151,46 +151,46 @@ impl CompositeFastFieldSerializer {
                 fastfield_accessor,
                 iter_gen(),
                 iter_gen(),
-            )
-        } else {
-            Self::write_header(field_write, GCD_CODEC_ID)?;
-            struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
-                fastfield_accessor: T,
-                min_value: u64,
-                gcd: u64,
-            }
-            impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
-                fn get_val(&self, position: u64) -> u64 {
-                    (self.fastfield_accessor.get_val(position) - self.min_value) / self.gcd
-                }
-            }
-
-            let fastfield_accessor = GCDWrappedFFAccess {
-                fastfield_accessor,
-                min_value: stats.min_value,
-                gcd,
-            };
-
-            let min_value = stats.min_value;
-            let stats = FastFieldStats {
-                min_value: 0,
-                max_value: (stats.max_value - stats.min_value) / gcd,
-                num_vals: stats.num_vals,
-            };
-            let iter1 = iter_gen().map(|val| (val - min_value) / gcd);
-            let iter2 = iter_gen().map(|val| (val - min_value) / gcd);
-            Self::create_auto_detect_u64_fast_field_with_idx_gcd(
-                self.codec_enable_checker.clone(),
-                field,
-                field_write,
-                stats,
-                fastfield_accessor,
-                iter1,
-                iter2,
-            )?;
-            write_gcd_header(field_write, min_value, gcd)?;
-            Ok(())
+            );
         }
+
+        Self::write_header(field_write, GCD_CODEC_ID)?;
+        struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
+            fastfield_accessor: T,
+            min_value: u64,
+            gcd: u64,
+        }
+        impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
+            fn get_val(&self, position: u64) -> u64 {
+                (self.fastfield_accessor.get_val(position) - self.min_value) / self.gcd
+            }
+        }
+
+        let fastfield_accessor = GCDWrappedFFAccess {
+            fastfield_accessor,
+            min_value: stats.min_value,
+            gcd,
+        };
+
+        let min_value = stats.min_value;
+        let stats = FastFieldStats {
+            min_value: 0,
+            max_value: (stats.max_value - stats.min_value) / gcd,
+            num_vals: stats.num_vals,
+        };
+        let iter1 = iter_gen().map(|val| (val - min_value) / gcd);
+        let iter2 = iter_gen().map(|val| (val - min_value) / gcd);
+        Self::create_auto_detect_u64_fast_field_with_idx_gcd(
+            self.codec_enable_checker.clone(),
+            field,
+            field_write,
+            stats,
+            fastfield_accessor,
+            iter1,
+            iter2,
+        )?;
+        write_gcd_header(field_write, min_value, gcd)?;
+        Ok(())
     }
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
