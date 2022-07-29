@@ -346,6 +346,13 @@ mod tests {
             assert!(test_multivalued_no_panic(&ops[..]).is_ok());
         }
     }
+    #[test]
+    fn test_multivalued_proptest_gcd() {
+        use IndexingOp::*;
+        let ops = [AddDoc { id: 9 }, AddDoc { id: 9 }, Merge];
+
+        assert!(test_multivalued_no_panic(&ops[..]).is_ok());
+    }
 
     #[test]
     fn test_multivalued_proptest_off_by_one_bug_1151() {
