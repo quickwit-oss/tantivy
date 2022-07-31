@@ -42,7 +42,7 @@ pub trait FastFieldCodecSerializer {
     /// The iterators should be preferred over using fastfield_accessor for performance reasons.
     fn serialize(
         write: &mut impl Write,
-        fastfield_accessor: &impl FastFieldDataAccess,
+        fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,

@@ -107,7 +107,7 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     /// values.
     fn serialize(
         write: &mut impl Write,
-        _fastfield_accessor: &impl FastFieldDataAccess,
+        _fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         _data_iter1: impl Iterator<Item = u64>,
