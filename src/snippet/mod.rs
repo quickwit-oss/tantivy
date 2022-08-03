@@ -245,6 +245,8 @@ impl SnippetGenerator {
             }
             let term_str = if let Some(term_str) = term.as_str() {
                 term_str
+            } else if let Some(term_str) = term.as_json_str() {
+                term_str
             } else {
                 continue;
             };
@@ -280,7 +282,17 @@ impl SnippetGenerator {
     pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
         let text: String = doc
             .get_all(self.field)
-            .flat_map(Value::as_text)
+            .flat_map(|v| match v {
+                Value::Str(text) => Some(vec![text.as_str()]),
+                Value::JsonObject(json_object) => Some(
+                    json_object
+                        .values()
+                        .flat_map(|v| v.as_str())
+                        .collect::<Vec<&str>>(),
+                ),
+                _ => None,
+            })
+            .flatten()
             .collect::<Vec<&str>>()
             .join(" ");
         self.snippet(&text)
@@ -302,7 +314,9 @@ mod tests {
 
     use super::{search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
-    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::schema::{
+        IndexRecordOption, JsonObjectOptions, Schema, TextFieldIndexing, TextOptions, TEXT,
+    };
     use crate::tokenizer::SimpleTokenizer;
     use crate::{Index, SnippetGenerator};
 
@@ -562,6 +576,44 @@ Survey in 2016, 2017, and 2018."#;
                 snippet.to_html(),
                 "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its \
                  <b>designers</b> intend it to"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_snippet_generator_json_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_object_options = JsonObjectOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_tokenizer("en_stem")
+                .set_index_option(IndexRecordOption::WithFreqs),
+        );
+        let json_field = schema_builder.add_json_field("json", json_object_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let json_val: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{ "test": "this is the design of rust" }"#).unwrap();
+        {
+            // writing the segment
+            let mut index_writer = index.writer_for_tests()?;
+            let doc = doc!(json_field => json_val.clone());
+            index_writer.add_document(doc)?;
+            index_writer.commit()?;
+        }
+        let searcher = index.reader().unwrap().searcher();
+        let query_parser = QueryParser::for_index(&index, vec![json_field]);
+        let query = query_parser
+            .parse_query("json.test:rust json.test:design")
+            .unwrap();
+        let snippet_generator = SnippetGenerator::create(&searcher, &*query, json_field).unwrap();
+        {
+            let doc = doc!(json_field => json_val.clone());
+            let snippet = snippet_generator.snippet_from_doc(&doc);
+            assert_eq!(
+                snippet.to_html(),
+                "this is the <b>design</b> of <b>rust</b>"
             );
         }
         Ok(())

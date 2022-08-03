@@ -330,6 +330,25 @@ where B: AsRef<[u8]>
         Some(self.value_bytes())
     }
 
+    /// Returns the text associated with the json term.
+    ///
+    /// Returns None if the field is not of json type
+    /// or if the value type is not string.
+    pub fn as_json_str(&self) -> Option<&str> {
+        if self.as_slice().len() < 5 {
+            return None;
+        }
+        if self.typ() != Type::Json {
+            return None;
+        }
+        if let Some((_, typ, bytes)) = as_json_path_type_value_bytes(self.value_bytes()) {
+            if typ == Type::Str {
+                return as_str(bytes);
+            }
+        }
+        None
+    }
+
     /// Returns the serialized value of the term.
     /// (this does not include the field.)
     ///
