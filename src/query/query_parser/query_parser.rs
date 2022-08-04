@@ -400,6 +400,7 @@ impl QueryParser {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 Ok(Term::from_field_bytes(field, &bytes))
             }
+            FieldType::Ip(_) => Ok(Term::from_field_text(field, phrase)),
         }
     }
 
@@ -505,6 +506,13 @@ impl QueryParser {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 let bytes_term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![LogicalLiteral::Term(bytes_term)])
+            }
+            FieldType::Ip(ref option) => {
+                if !option.is_indexed() {
+                    return Err(QueryParserError::FieldNotIndexed(field_name.to_string()));
+                }
+                let text_term = Term::from_field_text(field, phrase);
+                Ok(vec![LogicalLiteral::Term(text_term)])
             }
         }
     }

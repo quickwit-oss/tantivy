@@ -321,6 +321,12 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
+                FieldType::Ip(options) => {
+                    if options.is_fast() {
+                        // TODO create fast field for merge
+                    }
+                }
+
                 FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
                     // We don't handle json fast field for the moment
                     // They can be implemented using what is done

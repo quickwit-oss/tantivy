@@ -6,6 +6,8 @@ use crate::schema::{
     TextOptions,
 };
 
+use super::ip_options::IpOptions;
+
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
 ///
@@ -58,6 +60,11 @@ impl FieldEntry {
     /// Creates a new date field entry.
     pub fn new_date(field_name: String, date_options: DateOptions) -> FieldEntry {
         Self::new(field_name, FieldType::Date(date_options))
+    }
+
+    /// Creates a new ip field entry.
+    pub fn new_ip(field_name: String, ip_options: IpOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Ip(ip_options))
     }
 
     /// Creates a field entry for a facet.
@@ -114,6 +121,7 @@ impl FieldEntry {
             FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
+            FieldType::Ip(ref options) => options.is_stored(),
         }
     }
 }

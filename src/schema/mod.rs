@@ -121,6 +121,7 @@ mod date_time_options;
 mod field;
 mod flags;
 mod index_record_option;
+mod ip_options;
 mod json_object_options;
 mod named_field_document;
 mod numeric_options;

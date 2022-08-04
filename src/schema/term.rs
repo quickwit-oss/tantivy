@@ -34,7 +34,8 @@ pub const JSON_END_OF_PATH: u8 = 0u8;
 /// It actually wraps a `Vec<u8>`.
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>>(B)
-where B: AsRef<[u8]>;
+where
+    B: AsRef<[u8]>;
 
 impl AsMut<Vec<u8>> for Term {
     fn as_mut(&mut self) -> &mut Vec<u8> {
@@ -174,7 +175,8 @@ impl Term {
 }
 
 impl<B> Ord for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
@@ -182,7 +184,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialOrd for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -190,7 +193,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialEq for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
@@ -200,7 +204,8 @@ where B: AsRef<[u8]>
 impl<B> Eq for Term<B> where B: AsRef<[u8]> {}
 
 impl<B> Hash for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.as_ref().hash(state)
@@ -208,7 +213,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
@@ -415,12 +421,17 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
                 debug_value_bytes(typ, bytes, f)?;
             }
         }
+        Type::Ip => {
+            let s = as_str(bytes); // TODO: change when serialization changes
+            write_opt(f, s)?;
+        }
     }
     Ok(())
 }
 
 impl<B> fmt::Debug for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let field_id = self.field().field_id();

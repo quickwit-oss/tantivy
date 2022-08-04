@@ -294,6 +294,13 @@ impl SegmentWriter {
                         ctx,
                     )?;
                 }
+                FieldType::Ip(_) => {
+                    for value in values {
+                        let ip_val = value.as_ip().ok_or_else(make_schema_error)?;
+                        term_buffer.set_text(&ip_val.to_string());
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    }
+                }
             }
         }
         Ok(())

@@ -97,6 +97,7 @@ impl FastFieldsWriter {
                         bytes_value_writers.push(fast_field_writer);
                     }
                 }
+                FieldType::Ip(opt) => if opt.is_fast() {},
                 FieldType::Str(_) | FieldType::JsonObject(_) => {}
             }
         }
