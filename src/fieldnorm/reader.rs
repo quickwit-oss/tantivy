@@ -40,6 +40,11 @@ impl FieldNormReaders {
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
         self.data.space_usage()
     }
+
+    /// Returns a handle to inner file
+    pub fn get_inner_file(&self) -> Arc<CompositeFile> {
+        self.data.clone()
+    }
 }
 
 /// Reads the fieldnorm associated to a document.
