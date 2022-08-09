@@ -13,9 +13,12 @@ common = { version = "0.3", path = "../common/", package = "tantivy-common" }
 tantivy-bitpacker = { version="0.2", path = "../bitpacker/" }
 prettytable-rs = {version="0.8.0", optional= true}
 rand = {version="0.8.3", optional= true}
+itertools = "0.10.3"
+measure_time = "0.8.2"
 
 [dev-dependencies]
 more-asserts = "0.3.0"
+proptest = "1.0.0"
 rand = "0.8.3"
 
 [features]
