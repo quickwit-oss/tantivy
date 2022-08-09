@@ -34,6 +34,8 @@ const INTERVALL_COST_IN_BITS: usize = 64;
 pub struct IntervalEncoding();
 
 pub struct IntervalCompressor {
+    min_value: u128,
+    max_value: u128,
     ranges_and_compact_start: CompactSpace,
     pub num_bits: u8,
 }
@@ -180,7 +182,7 @@ fn get_blanks_test() {
     assert_eq!(amplitude, 19);
     assert_eq!(2, ranges_and_compact_start.to_compact(2).unwrap());
 
-    assert_eq!(ranges_and_compact_start.to_compact(100).unwrap_err(), 1);
+    assert_eq!(ranges_and_compact_start.to_compact(100).unwrap_err(), 0);
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -239,6 +241,9 @@ struct CompactSpace {
     ranges_and_compact_start: Vec<(std::ops::RangeInclusive<u128>, u64)>,
 }
 impl CompactSpace {
+    fn len(&self) -> usize {
+        self.ranges_and_compact_start.len()
+    }
     fn get_range(&self, pos: usize) -> &(std::ops::RangeInclusive<u128>, u64) {
         &self.ranges_and_compact_start[pos]
     }
@@ -305,6 +310,7 @@ impl CompactSpace {
                 let (range, compact_start) = &self.ranges_and_compact_start[pos];
                 compact_start + (ip - range.start()) as u64
             })
+            .map_err(|pos| pos - 1)
     }
 
     /// Unpacks a ip from compact space to u128 space
@@ -347,7 +353,11 @@ pub fn train(ip_addrs_sorted: &[u128]) -> IntervalCompressor {
     assert!(amplitude <= u64::MAX as u128, "case unsupported.");
 
     let num_bits = tantivy_bitpacker::compute_num_bits(amplitude as u64);
+    let min_value = ip_addrs_sorted[0];
+    let max_value = ip_addrs_sorted[ip_addrs_sorted.len() - 1];
     let compressor = IntervalCompressor {
+        min_value,
+        max_value,
         ranges_and_compact_start,
         num_bits,
     };
@@ -369,6 +379,9 @@ impl IntervalCompressor {
         // header flags to for future optional dictionary encoding
         let header_flags = 0u64;
         output.extend_from_slice(&header_flags.to_le_bytes());
+
+        serialize_vint(self.min_value, output);
+        serialize_vint(self.max_value, output);
 
         self.ranges_and_compact_start.serialize(output);
         output.push(self.num_bits);
@@ -395,18 +408,24 @@ impl IntervalCompressor {
 pub struct IntervallDecompressor {
     compact_space: CompactSpace,
     bit_unpacker: BitUnpacker,
+    min_value: u128,
+    max_value: u128,
     num_vals: usize,
 }
 
 impl IntervallDecompressor {
     pub fn open(data: &[u8]) -> io::Result<(IntervallDecompressor, &[u8])> {
         let (_header_flags, data) = data.split_at(8);
+        let (min_value, data) = deserialize_vint(data)?;
+        let (max_value, data) = deserialize_vint(data)?;
         let (mut data, compact_space) = CompactSpace::deserialize(data).unwrap();
 
         let num_bits = data[0];
         data = &data[1..];
         let (num_vals, data) = deserialize_vint(data)?;
         let decompressor = IntervallDecompressor {
+            min_value,
+            max_value,
             compact_space,
             num_vals: num_vals as usize,
             bit_unpacker: BitUnpacker::new(num_bits),
@@ -420,7 +439,8 @@ impl IntervallDecompressor {
     /// 1000 => 5
     /// 2000 => 6
     ///
-    /// and we want a mapping for 1005, there is no
+    /// and we want a mapping for 1005, there is no equivalent compact space. We instead return an
+    /// error with the index of the next range.
     fn to_compact(&self, ip_addr: u128) -> Result<u64, usize> {
         self.compact_space.to_compact(ip_addr)
     }
@@ -431,7 +451,7 @@ impl IntervallDecompressor {
 
     /// Comparing on compact space: 1.2 GElements/s
     ///
-    /// Comparing on original space: .06 GElements/s
+    /// Comparing on original space: .06 GElements/s (not completely optimized)
     pub fn get_range(&self, from_ip_addr: u128, to_ip_addr: u128, data: &[u8]) -> Vec<usize> {
         assert!(to_ip_addr >= from_ip_addr);
         let compact_from = self.to_compact(from_ip_addr);
@@ -443,9 +463,19 @@ impl IntervallDecompressor {
             _ => {}
         }
 
-        let compact_from = compact_from.unwrap_or_else(|pos| self.compact_space.get_range(pos).1);
-        // If there is no compact space, we go to the upper bound of the next lower compact space
-        let compact_to = compact_to.unwrap_or_else(|pos| self.compact_space.get_range(pos).1 - 1);
+        let compact_from = compact_from.unwrap_or_else(|pos| {
+            let range_and_compact_start = self.compact_space.get_range(pos);
+            let compact_end = range_and_compact_start.1
+                + (range_and_compact_start.0.end() - range_and_compact_start.0.start()) as u64;
+            compact_end + 1
+        });
+        // If there is no compact space, we go to the closest upperbound compact space
+        let compact_to = compact_to.unwrap_or_else(|pos| {
+            let range_and_compact_start = self.compact_space.get_range(pos);
+            let compact_end = range_and_compact_start.1
+                + (range_and_compact_start.0.end() - range_and_compact_start.0.start()) as u64;
+            compact_end
+        });
 
         let range = compact_from..=compact_to;
         let mut positions = vec![];
@@ -475,6 +505,14 @@ impl IntervallDecompressor {
     pub fn get(&self, idx: usize, data: &[u8]) -> u128 {
         let base = self.bit_unpacker.get(idx as u64, data);
         self.compact_to_ip_addr(base)
+    }
+
+    pub fn min_value(&self) -> u128 {
+        self.min_value
+    }
+
+    pub fn max_value(&self) -> u128 {
+        self.max_value
     }
 }
 
@@ -545,6 +583,11 @@ mod tests {
         assert_eq!(decomp.get_range(332u128, 333u128, data), vec![8]);
         assert_eq!(decomp.get_range(332u128, 334u128, data), vec![8]);
         assert_eq!(decomp.get_range(333u128, 334u128, data), vec![8]);
+
+        assert_eq!(
+            decomp.get_range(4_000_211_221u128, 5_000_000_000u128, data),
+            vec![6, 7]
+        );
     }
 
     #[test]

@@ -19,6 +19,7 @@ use crate::DatePrecision;
 pub struct FastFieldsWriter {
     term_id_writers: Vec<MultiValuedFastFieldWriter>,
     single_value_writers: Vec<IntFastFieldWriter>,
+    u128_value_writers: Vec<IntFastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
     bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
@@ -191,7 +192,7 @@ impl FastFieldsWriter {
             .iter_mut()
             .find(|field_writer| field_writer.field() == field)
     }
-
+bytes_value_writers
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in &mut self.term_id_writers {
