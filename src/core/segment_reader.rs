@@ -128,7 +128,8 @@ impl SegmentReader {
         })
     }
 
-    pub(crate) fn fieldnorms_readers(&self) -> &FieldNormReaders {
+    #[doc(hidden)]
+    pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
         &self.fieldnorm_readers
     }
 
