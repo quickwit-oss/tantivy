@@ -10,7 +10,6 @@
 /// Compact space 0..6 requires much less bits than 100..50001
 ///
 /// The codec is created to compress ip addresses, but may be employed in other use cases.
-///
 use std::{
     cmp::Ordering,
     collections::BinaryHeap,
@@ -156,8 +155,9 @@ fn get_compact_space(ip_addrs_sorted: &[u128], cost_per_interval: usize) -> Comp
             // Continue here, since although we walk over the deltas by size,
             // we can potentially save a lot at the last bits, which are smaller deltas
             //
-            // E.g. if the first range reduces the compact space by 1000 from 2000 to 1000, which saves 11-10=1 bit
-            // and the next range reduces the compact space by 950 to 50, which saves 10-6=4 bit
+            // E.g. if the first range reduces the compact space by 1000 from 2000 to 1000, which
+            // saves 11-10=1 bit and the next range reduces the compact space by 950 to
+            // 50, which saves 10-6=4 bit
             continue;
         }
 
@@ -521,8 +521,8 @@ impl IntervallDecompressor {
         Ok(decompressor)
     }
 
-    /// Converting to compact space for the decompressor is more complex, since we may get values which are
-    /// outside the compact space. e.g. if we map
+    /// Converting to compact space for the decompressor is more complex, since we may get values
+    /// which are outside the compact space. e.g. if we map
     /// 1000 => 5
     /// 2000 => 6
     ///
@@ -587,7 +587,8 @@ impl IntervallDecompressor {
 
     #[inline]
     pub fn iter<'a>(&'a self, data: &'a [u8]) -> impl Iterator<Item = u128> + 'a {
-        // TODO: Performance. It would be better to iterate on the ranges and check existence via the bit_unpacker.
+        // TODO: Performance. It would be better to iterate on the ranges and check existence via
+        // the bit_unpacker.
         self.iter_compact(data)
             .map(|compact| self.compact_to_ip_addr(compact))
     }

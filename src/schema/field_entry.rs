@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use super::ip_options::IpOptions;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::{
     is_valid_field_name, DateOptions, FacetOptions, FieldType, JsonObjectOptions, NumericOptions,
     TextOptions,
 };
-
-use super::ip_options::IpOptions;
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`

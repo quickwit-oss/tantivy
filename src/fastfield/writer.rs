@@ -306,7 +306,6 @@ impl U128FastFieldWriter {
     ///
     /// Extract the value associated to the fast field for
     /// this document.
-    ///
     pub fn add_document(&mut self, doc: &Document) {
         match doc.get_first(self.field) {
             Some(v) => {
