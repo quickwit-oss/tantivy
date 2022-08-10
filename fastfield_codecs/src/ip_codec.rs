@@ -623,7 +623,7 @@ impl IntervalEncoding {
             return Vec::new();
         }
         let compressor = self.train(vals.to_vec());
-        compressor.compress(&vals).unwrap()
+        compressor.compress(vals).unwrap()
     }
 }
 

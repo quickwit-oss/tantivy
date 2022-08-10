@@ -341,10 +341,10 @@ impl U128FastFieldWriter {
         };
 
         if let Some(doc_id_map) = doc_id_map {
-            let iter = doc_id_map.iter_old_doc_ids().map(|doc_id| get_val(doc_id));
+            let iter = doc_id_map.iter_old_doc_ids().map(&mut get_val);
             compressor.compress_into(iter, field_write)?;
         } else {
-            let iter = (0..self.val_count).map(|doc_id| get_val(doc_id));
+            let iter = (0..self.val_count).map(&mut get_val);
             compressor.compress_into(iter, field_write)?;
         }
 
