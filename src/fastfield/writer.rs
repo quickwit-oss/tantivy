@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
-use fastfield_codecs::ip_codec::{ip_to_u128, IntervalCompressor, IntervalEncoding};
+use fastfield_codecs::ip_codec::{ip_to_u128, IntervalCompressor};
 use fnv::FnvHashMap;
 use roaring::RoaringBitmap;
 use tantivy_bitpacker::BlockedBitpacker;
@@ -21,7 +21,7 @@ use crate::DatePrecision;
 pub struct FastFieldsWriter {
     term_id_writers: Vec<MultiValuedFastFieldWriter>,
     single_value_writers: Vec<IntFastFieldWriter>,
-    u128_value_writers: Vec<IntFastFieldWriter>,
+    u128_value_writers: Vec<U128FastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
     bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
@@ -101,7 +101,12 @@ impl FastFieldsWriter {
                         bytes_value_writers.push(fast_field_writer);
                     }
                 }
-                FieldType::Ip(opt) => if opt.is_fast() {},
+                FieldType::Ip(opt) => {
+                    if opt.is_fast() {
+                        let fast_field_writer = U128FastFieldWriter::new(field);
+                        u128_value_writers.push(fast_field_writer);
+                    }
+                }
                 FieldType::Str(_) | FieldType::JsonObject(_) => {}
             }
         }
@@ -132,6 +137,11 @@ impl FastFieldsWriter {
                 .sum::<usize>()
             + self
                 .bytes_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
+            + self
+                .u128_value_writers
                 .iter()
                 .map(|w| w.mem_usage())
                 .sum::<usize>()
@@ -196,7 +206,7 @@ impl FastFieldsWriter {
             .iter_mut()
             .find(|field_writer| field_writer.field() == field)
     }
-    // Indexes all of the fastfields of a new document.
+    /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in &mut self.term_id_writers {
             field_writer.add_document(doc);
@@ -208,6 +218,9 @@ impl FastFieldsWriter {
             field_writer.add_document(doc);
         }
         for field_writer in &mut self.bytes_value_writers {
+            field_writer.add_document(doc);
+        }
+        for field_writer in &mut self.u128_value_writers {
             field_writer.add_document(doc);
         }
     }
@@ -235,6 +248,9 @@ impl FastFieldsWriter {
         for field_writer in &self.bytes_value_writers {
             field_writer.serialize(serializer, doc_id_map)?;
         }
+        for field_writer in &self.u128_value_writers {
+            field_writer.serialize(serializer, doc_id_map)?;
+        }
         Ok(())
     }
 }
@@ -258,9 +274,6 @@ pub struct U128FastFieldWriter {
     val_count: u32,
 
     null_values: RoaringBitmap,
-    //val_if_missing: u64,
-    //val_min: u128,
-    //val_max: u128,
 }
 
 impl U128FastFieldWriter {
@@ -271,19 +284,12 @@ impl U128FastFieldWriter {
             vals: vec![],
             val_count: 0,
             null_values: RoaringBitmap::new(),
-            //val_min: u64::MAX,
-            //val_max: 0,
         }
     }
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
         self.vals.len() * 16
-    }
-
-    /// Returns the field that this writer is targeting.
-    pub fn field(&self) -> Field {
-        self.field
     }
 
     /// Records a new value.
@@ -321,16 +327,29 @@ impl U128FastFieldWriter {
         serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        //let field_write = serializer.get_field_writer(self.field, 0);
-        //let compressor = IntervalCompressor::from_vals(self.vals.to_vec());
-        //let vals = (0..self.val_count).map(|idx|
-        //if self.null_values.contains(idx as u32) {
-        //self.comp
+        let field_write = serializer.get_field_writer(self.field, 0);
+        let compressor = IntervalCompressor::from_vals(self.vals.to_vec());
 
-        //}
-        //)
+        let mut val_idx = 0;
+        let mut get_val = |idx| {
+            if self.null_values.contains(idx as u32) {
+                compressor.null_value
+            } else {
+                let val = self.vals[val_idx];
+                val_idx += 1;
+                val
+            }
+        };
 
-        unimplemented!()
+        if let Some(doc_id_map) = doc_id_map {
+            let iter = doc_id_map.iter_old_doc_ids().map(|doc_id| get_val(doc_id));
+            compressor.compress_into(iter, field_write)?;
+        } else {
+            let iter = (0..self.val_count).map(|doc_id| get_val(doc_id));
+            compressor.compress_into(iter, field_write)?;
+        }
+
+        Ok(())
     }
 }
 
