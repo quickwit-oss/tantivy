@@ -61,6 +61,7 @@ serde_cbor = { version = "0.11.2", optional = true }
 async-trait = "0.1.53"
 arc-swap = "1.5.0"
 gcd = "2.1.0"
+roaring = "0.9.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
+use fastfield_codecs::ip_codec::{ip_to_u128, IntervalCompressor, IntervalEncoding};
 use fnv::FnvHashMap;
+use roaring::RoaringBitmap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
@@ -35,6 +37,7 @@ fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
+        let mut u128_value_writers = Vec::new();
         let mut single_value_writers = Vec::new();
         let mut term_id_writers = Vec::new();
         let mut multi_values_writers = Vec::new();
@@ -103,6 +106,7 @@ impl FastFieldsWriter {
             }
         }
         FastFieldsWriter {
+            u128_value_writers,
             term_id_writers,
             single_value_writers,
             multi_values_writers,
@@ -192,8 +196,7 @@ impl FastFieldsWriter {
             .iter_mut()
             .find(|field_writer| field_writer.field() == field)
     }
-bytes_value_writers
-    /// Indexes all of the fastfields of a new document.
+    // Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in &mut self.term_id_writers {
             field_writer.add_document(doc);
@@ -233,6 +236,101 @@ bytes_value_writers
             field_writer.serialize(serializer, doc_id_map)?;
         }
         Ok(())
+    }
+}
+
+/// Fast field writer for u128 values.
+/// The fast field writer just keeps the values in memory.
+///
+/// Only when the segment writer can be closed and
+/// persisted on disc, the fast field writer is
+/// sent to a `FastFieldSerializer` via the `.serialize(...)`
+/// method.
+///
+/// We cannot serialize earlier as the values are
+/// bitpacked and the number of bits required for bitpacking
+/// can only been known once we have seen all of the values.
+///
+/// Both u64, i64 and f64 use the same writer.
+pub struct U128FastFieldWriter {
+    field: Field,
+    vals: Vec<u128>,
+    val_count: u32,
+
+    null_values: RoaringBitmap,
+    //val_if_missing: u64,
+    //val_min: u128,
+    //val_max: u128,
+}
+
+impl U128FastFieldWriter {
+    /// Creates a new `IntFastFieldWriter`
+    pub fn new(field: Field) -> Self {
+        Self {
+            field,
+            vals: vec![],
+            val_count: 0,
+            null_values: RoaringBitmap::new(),
+            //val_min: u64::MAX,
+            //val_max: 0,
+        }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.len() * 16
+    }
+
+    /// Returns the field that this writer is targeting.
+    pub fn field(&self) -> Field {
+        self.field
+    }
+
+    /// Records a new value.
+    ///
+    /// The n-th value being recorded is implicitely
+    /// associated to the document with the `DocId` n.
+    /// (Well, `n-1` actually because of 0-indexing)
+    pub fn add_val(&mut self, val: u128) {
+        self.vals.push(val);
+    }
+
+    /// Extract the fast field value from the document
+    /// (or use the default value) and records it.
+    ///
+    /// Extract the value associated to the fast field for
+    /// this document.
+    ///
+    pub fn add_document(&mut self, doc: &Document) {
+        match doc.get_first(self.field) {
+            Some(v) => {
+                let ip_addr = v.as_ip().unwrap();
+                let value = ip_to_u128(ip_addr);
+                self.add_val(value);
+            }
+            None => {
+                self.null_values.insert(self.val_count as u32);
+            }
+        };
+        self.val_count += 1;
+    }
+
+    /// Push the fast fields value to the `FastFieldWriter`.
+    pub fn serialize(
+        &self,
+        serializer: &mut CompositeFastFieldSerializer,
+        doc_id_map: Option<&DocIdMapping>,
+    ) -> io::Result<()> {
+        //let field_write = serializer.get_field_writer(self.field, 0);
+        //let compressor = IntervalCompressor::from_vals(self.vals.to_vec());
+        //let vals = (0..self.val_count).map(|idx|
+        //if self.null_values.contains(idx as u32) {
+        //self.comp
+
+        //}
+        //)
+
+        unimplemented!()
     }
 }
 

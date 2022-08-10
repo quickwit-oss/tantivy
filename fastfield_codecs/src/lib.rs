@@ -4,6 +4,7 @@ extern crate more_asserts;
 
 use std::io;
 use std::io::Write;
+use std::ops::RangeInclusive;
 
 pub mod bitpacked;
 pub mod ip_codec;
@@ -20,10 +21,27 @@ pub trait FastFieldCodecReader: Sized {
     fn max_value(&self) -> u64;
 }
 
+pub trait FastFieldCodecReaderU128: Sized {
+    /// reads the metadata and returns the CodecReader
+    fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self>;
+
+    /// Get value for doc
+    fn get(&self, doc: u64, data: &[u8]) -> Option<u128>;
+
+    /// Get docs for value range
+    fn get_range(&self, range: RangeInclusive<u128>, data: &[u8]) -> Vec<usize>;
+
+    /// The computed and assigned number value for null values
+    fn null_value(&self) -> u128;
+
+    fn min_value(&self) -> u128;
+    fn max_value(&self) -> u128;
+}
+
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldCodecSerializer {
-    /// A codex needs to provide a unique name and id, which is
+    /// A codec needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const NAME: &'static str;
     const ID: u8;
