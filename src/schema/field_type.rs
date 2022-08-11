@@ -67,9 +67,11 @@ pub enum Type {
     Json = b'j',
     /// IpAddr
     Ip = b'p',
+    /// IpAddr
+    U128 = b'1',
 }
 
-const ALL_TYPES: [Type; 10] = [
+const ALL_TYPES: [Type; 11] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -80,6 +82,7 @@ const ALL_TYPES: [Type; 10] = [
     Type::Bytes,
     Type::Json,
     Type::Ip,
+    Type::U128,
 ];
 
 impl Type {
@@ -107,6 +110,7 @@ impl Type {
             Type::Bytes => "Bytes",
             Type::Json => "Json",
             Type::Ip => "Ip",
+            Type::U128 => "U128",
         }
     }
 
@@ -124,6 +128,7 @@ impl Type {
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
             b'p' => Some(Type::Ip),
+            b'1' => Some(Type::U128),
             _ => None,
         }
     }

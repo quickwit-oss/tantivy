@@ -103,28 +103,6 @@ impl BitUnpacker {
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         val_shifted & mask
     }
-
-    #[inline]
-    pub fn get_u32(&self, idx: u64, data: &[u8]) -> u32 {
-        if self.num_bits == 0 {
-            return 0u32;
-        }
-        let num_bits = self.num_bits;
-        let mask = self.mask as u32;
-        let addr_in_bits = idx * num_bits;
-        let addr = addr_in_bits >> 3;
-        let bit_shift = addr_in_bits & 7;
-        debug_assert!(
-            addr + 8 <= data.len() as u64,
-            "The fast field field should have been padded with 7 bytes."
-        );
-        let bytes: [u8; 4] = (&data[(addr as usize)..(addr as usize) + 4])
-            .try_into()
-            .unwrap();
-        let val_unshifted_unmasked: u32 = u32::from_le_bytes(bytes);
-        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
-        val_shifted & mask
-    }
 }
 
 #[cfg(test)]

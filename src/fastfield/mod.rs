@@ -24,20 +24,22 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
+pub use self::fast_value::{FastValue, FastValueU128};
 pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_CODEC_ID, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
+pub use self::reader::{DynamicFastFieldReader, FastFieldReader, FastFieldReaderCodecWrapperU128};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::schema::{Cardinality, FieldType, Type, Value};
-use crate::{DateTime, DocId};
+use crate::schema::Value;
+use crate::DocId;
 
 mod alive_bitset;
 mod bytes;
 mod error;
 mod facet_reader;
+mod fast_value;
 mod gcd;
 mod multivalued;
 mod reader;
@@ -57,182 +59,6 @@ pub(crate) const ALL_CODECS: &[FastFieldCodecName; 3] = &[
     FastFieldCodecName::BlockwiseLinearInterpol,
 ];
 
-/// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
-/// for a doc_id
-pub trait MultiValueLength {
-    /// returns the num of values associated to a doc_id
-    fn get_len(&self, doc_id: DocId) -> u64;
-    /// returns the sum of num values for all doc_ids
-    fn get_total_len(&self) -> u64;
-}
-
-/// Trait for types that are allowed for fast fields:
-/// (u64, i64 and f64, bool, DateTime).
-pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
-    /// Converts a value from u64
-    ///
-    /// Internally all fast field values are encoded as u64.
-    /// **Note: To be used for converting encoded Term, Posting values.**
-    fn from_u64(val: u64) -> Self;
-
-    /// Converts a value to u64.
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn to_u64(&self) -> u64;
-
-    /// Returns the fast field cardinality that can be extracted from the given
-    /// `FieldType`.
-    ///
-    /// If the type is not a fast field, `None` is returned.
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality>;
-
-    /// Cast value to `u64`.
-    /// The value is just reinterpreted in memory.
-    fn as_u64(&self) -> u64;
-
-    /// Build a default value. This default value is never used, so the value does not
-    /// really matter.
-    fn make_zero() -> Self {
-        Self::from_u64(0i64.to_u64())
-    }
-
-    /// Returns the `schema::Type` for this FastValue.
-    fn to_type() -> Type;
-}
-
-impl FastValue for u64 {
-    fn from_u64(val: u64) -> Self {
-        val
-    }
-
-    fn to_u64(&self) -> u64 {
-        *self
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            FieldType::Facet(_) => Some(Cardinality::MultiValues),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        *self
-    }
-
-    fn to_type() -> Type {
-        Type::U64
-    }
-}
-
-impl FastValue for i64 {
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_i64(val)
-    }
-
-    fn to_u64(&self) -> u64 {
-        common::i64_to_u64(*self)
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::I64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        *self as u64
-    }
-
-    fn to_type() -> Type {
-        Type::I64
-    }
-}
-
-impl FastValue for f64 {
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_f64(val)
-    }
-
-    fn to_u64(&self) -> u64 {
-        common::f64_to_u64(*self)
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::F64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.to_bits()
-    }
-
-    fn to_type() -> Type {
-        Type::F64
-    }
-}
-
-impl FastValue for bool {
-    fn from_u64(val: u64) -> Self {
-        val != 0u64
-    }
-
-    fn to_u64(&self) -> u64 {
-        match self {
-            false => 0,
-            true => 1,
-        }
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::Bool(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        *self as u64
-    }
-
-    fn to_type() -> Type {
-        Type::Bool
-    }
-}
-
-impl FastValue for DateTime {
-    /// Converts a timestamp microseconds into DateTime.
-    ///
-    /// **Note the timestamps is expected to be in microseconds.**
-    fn from_u64(timestamp_micros_u64: u64) -> Self {
-        let timestamp_micros = i64::from_u64(timestamp_micros_u64);
-        Self::from_timestamp_micros(timestamp_micros)
-    }
-
-    fn to_u64(&self) -> u64 {
-        common::i64_to_u64(self.into_timestamp_micros())
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::Date(ref options) => options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.into_timestamp_micros().as_u64()
-    }
-
-    fn to_type() -> Type {
-        Type::Date
-    }
-}
-
 fn value_to_u64(value: &Value) -> u64 {
     match value {
         Value::U64(val) => val.to_u64(),
@@ -242,6 +68,15 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::Date(val) => val.to_u64(),
         _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
     }
+}
+
+/// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
+/// for a doc_id
+pub trait MultiValueLength {
+    /// returns the num of values associated to a doc_id
+    fn get_len(&self, doc_id: DocId) -> u64;
+    /// returns the sum of num values for all doc_ids
+    fn get_total_len(&self) -> u64;
 }
 
 /// The fast field type
@@ -280,9 +115,9 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, Schema, FAST, STRING, TEXT};
+    use crate::schema::{Cardinality, Document, Field, Schema, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
-    use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
+    use crate::{DateOptions, DatePrecision, DateTime, Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();

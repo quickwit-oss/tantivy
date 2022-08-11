@@ -399,6 +399,10 @@ pub fn train(ip_addrs_sorted: &[u128]) -> IntervalCompressor {
 }
 
 impl IntervalCompressor {
+    /// Taking the vals as Vec may cost a lot of memory.
+    /// It is used to sort the vals.
+    ///
+    /// Less memory alternative: We could just store the index (u32), and use that as sorting.
     pub fn from_vals(mut vals: Vec<u128>) -> Self {
         vals.sort();
         train(&vals)
@@ -491,6 +495,10 @@ impl FastFieldCodecReaderU128 for IntervallDecompressor {
     /// The computed and assigned number for null values
     fn null_value(&self) -> u128 {
         self.compact_space.null_value
+    }
+
+    fn iter<'a>(&'a self, data: &'a [u8]) -> Box<dyn Iterator<Item = Option<u128>> + 'a> {
+        Box::new(self.iter(data))
     }
 }
 
@@ -586,11 +594,16 @@ impl IntervallDecompressor {
     }
 
     #[inline]
-    pub fn iter<'a>(&'a self, data: &'a [u8]) -> impl Iterator<Item = u128> + 'a {
+    fn iter<'a>(&'a self, data: &'a [u8]) -> impl Iterator<Item = Option<u128>> + 'a {
         // TODO: Performance. It would be better to iterate on the ranges and check existence via
         // the bit_unpacker.
-        self.iter_compact(data)
-            .map(|compact| self.compact_to_ip_addr(compact))
+        self.iter_compact(data).map(|compact| {
+            if compact == self.null_compact_space {
+                None
+            } else {
+                Some(self.compact_to_ip_addr(compact))
+            }
+        })
     }
 
     pub fn get(&self, idx: u64, data: &[u8]) -> Option<u128> {

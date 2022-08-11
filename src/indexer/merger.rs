@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use fastfield_codecs::ip_codec::{IntervalCompressor, IntervallDecompressor};
 use itertools::Itertools;
 use measure_time::debug_time;
 use tantivy_bitpacker::minmax;
@@ -11,7 +12,8 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
     AliveBitSet, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldDataAccess,
-    FastFieldReader, FastFieldStats, MultiValueLength, MultiValuedFastFieldReader,
+    FastFieldReader, FastFieldReaderCodecWrapperU128, FastFieldStats, MultiValueLength,
+    MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -323,7 +325,11 @@ impl IndexMerger {
                 }
                 FieldType::Ip(options) => {
                     if options.is_fast() {
-                        // TODO create fast field for merge
+                        self.write_u128_single_fast_field(
+                            field,
+                            fast_field_serializer,
+                            doc_id_mapping,
+                        )?;
                     }
                 }
 
@@ -334,6 +340,50 @@ impl IndexMerger {
                 }
             }
         }
+        Ok(())
+    }
+
+    // used to merge `u128` single fast fields.
+    fn write_u128_single_fast_field(
+        &self,
+        field: Field,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        let fast_field_readers = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let u128_reader: FastFieldReaderCodecWrapperU128<u128, IntervallDecompressor> =
+                    reader.fast_fields().u128(field).expect(
+                        "Failed to find a reader for single fast field. This is a tantivy bug and \
+                         it should never happen.",
+                    );
+                u128_reader
+            })
+            .collect::<Vec<_>>();
+
+        let compressor = {
+            let vals = fast_field_readers
+                .iter()
+                .flat_map(|reader| reader.iter())
+                .flatten()
+                .collect::<Vec<u128>>();
+
+            IntervalCompressor::from_vals(vals)
+        };
+
+        let iter = doc_id_mapping.iter().map(|(doc_id, reader_ordinal)| {
+            let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
+            fast_field_reader
+                .get((*doc_id) as u64)
+                .unwrap_or(compressor.null_value)
+        });
+
+        let field_write = fast_field_serializer.get_field_writer(field, 0);
+
+        compressor.compress_into(iter, field_write)?;
+
         Ok(())
     }
 

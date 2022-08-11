@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 use std::path::Path;
 
 use fastfield_codecs::bitpacked::{
@@ -11,9 +12,9 @@ use fastfield_codecs::linearinterpol::{
 use fastfield_codecs::multilinearinterpol::{
     MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
 };
-use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer};
+use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecReaderU128, FastFieldCodecSerializer};
 
-use super::{FastValue, GCDFastFieldCodec, GCD_CODEC_ID};
+use super::{FastValue, FastValueU128, GCDFastFieldCodec, GCD_CODEC_ID};
 use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
 use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::{Schema, FAST};
@@ -207,6 +208,47 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::LinearInterpolGCD(reader) => reader.max_value(),
             Self::MultiLinearInterpolGCD(reader) => reader.max_value(),
         }
+    }
+}
+
+/// Wrapper for accessing a fastfield.
+///
+/// Holds the data and the codec to the read the data.
+#[derive(Clone)]
+pub struct FastFieldReaderCodecWrapperU128<Item: FastValueU128, CodecReader> {
+    reader: CodecReader,
+    bytes: OwnedBytes,
+    _phantom: PhantomData<Item>,
+}
+
+impl<Item: FastValueU128, C: FastFieldCodecReaderU128> FastFieldReaderCodecWrapperU128<Item, C> {
+    /// Opens a fast field given the bytes.
+    pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
+        let reader = C::open_from_bytes(bytes.as_slice())?;
+        Ok(Self {
+            reader,
+            bytes,
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Returns the item for the docid
+    pub fn get(&self, doc: u64) -> Option<Item> {
+        self.reader
+            .get(doc, self.bytes.as_slice())
+            .map(|el| Item::from_u128(el))
+    }
+
+    /// Iterates over all elements in the fast field
+    pub fn iter(&self) -> impl Iterator<Item = Option<Item>> + '_ {
+        self.reader
+            .iter(self.bytes.as_slice())
+            .map(|el| el.map(Item::from_u128))
+    }
+
+    /// Returns all docids which are in the provided range
+    pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<usize> {
+        self.reader.get_range(range, self.bytes.as_slice())
     }
 }
 
