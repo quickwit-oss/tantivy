@@ -16,7 +16,7 @@ use std::ops::Sub;
 use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::linearinterpol::{get_calculated_value, get_slope};
+use crate::linearinterpol::get_slope;
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const CHUNK_SIZE: u64 = 512;
@@ -356,6 +356,11 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     }
 }
 
+#[inline]
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    (first_val as i64 + (pos as f32 * slope) as i64) as u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,11 +380,11 @@ mod tests {
 
     #[test]
     fn test_compression_i64() {
-        let data = (-10..=6_000_i64)
-            .map(|el| i64_to_u64(el))
+        let data = (i64::MAX - 600_000..=i64::MAX - 550_000)
+            .map(i64_to_u64)
             .collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large");
+            create_and_validate(&data, "simple monotonically large i64");
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
