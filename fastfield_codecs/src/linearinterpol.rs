@@ -91,7 +91,7 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 pub struct LinearInterpolFastFieldSerializer {}
 
 #[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     if num_vals <= 1 {
         return 0.0;
     }
@@ -101,7 +101,7 @@ fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
 }
 
 #[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+pub(crate) fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
 
