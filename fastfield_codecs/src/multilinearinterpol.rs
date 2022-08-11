@@ -183,7 +183,7 @@ fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
 
 #[inline]
 fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
+    first_val + (pos as f32 * slope) as u64
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
