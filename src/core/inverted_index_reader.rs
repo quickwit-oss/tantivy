@@ -230,4 +230,13 @@ impl InvertedIndexReader {
         }
         Ok(())
     }
+
+    /// Returns the number of documents containing the term asynchronously.
+    pub async fn doc_freq_async(&self, term: &Term) -> crate::AsyncIoResult<u32> {
+        Ok(self
+            .get_term_info_async(term)
+            .await?
+            .map(|term_info| term_info.doc_freq)
+            .unwrap_or(0u32))
+    }
 }
