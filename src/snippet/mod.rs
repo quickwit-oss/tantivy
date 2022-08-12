@@ -69,7 +69,12 @@ impl Snippet {
         }
     }
 
-    /// Returns a hignlightned html from the `Snippet`.
+    /// Returns `true` if the snippet is empty.
+    pub fn is_empty(&self) -> bool {
+        self.highlighted.len() == 0
+    }
+
+    /// Returns a highlighted html from the `Snippet`.
     pub fn to_html(&self) -> String {
         let mut html = String::new();
         let mut start_from: usize = 0;
@@ -230,6 +235,20 @@ pub struct SnippetGenerator {
 }
 
 impl SnippetGenerator {
+    /// Creates a new snippet generator
+    pub fn new(
+        terms_text: BTreeMap<String, Score>,
+        tokenizer: TextAnalyzer,
+        field: Field,
+        max_num_chars: usize,
+    ) -> Self {
+        SnippetGenerator {
+            terms_text,
+            tokenizer,
+            field,
+            max_num_chars,
+        }
+    }
     /// Creates a new snippet generator
     pub fn create(
         searcher: &Searcher,
@@ -460,6 +479,7 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
+        assert!(snippet.is_empty());
     }
 
     #[test]
@@ -473,6 +493,7 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
+        assert!(snippet.is_empty());
     }
 
     #[test]

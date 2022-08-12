@@ -210,8 +210,8 @@ impl SegmentRangeCollector {
                 let key = range
                     .key
                     .clone()
-                    .map(|key| Key::Str(key))
-                    .unwrap_or(range_to_key(&range.range, &field_type));
+                    .map(Key::Str)
+                    .unwrap_or_else(|| range_to_key(&range.range, &field_type));
                 let to = if range.range.end == u64::MAX {
                     None
                 } else {
