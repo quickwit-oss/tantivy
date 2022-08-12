@@ -98,7 +98,7 @@ pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     //  We calculate the slope with f64 high precision and use the result in lower precision f32
     //  This is done in order to handle estimations for very large values like i64::MAX
     let diff = diff(last_val, first_val);
-    (diff / (num_vals as u64 - 1) as f64) as f32
+    (diff / (num_vals - 1) as f64) as f32
 }
 
 fn diff(val1: u64, val2: u64) -> f64 {
