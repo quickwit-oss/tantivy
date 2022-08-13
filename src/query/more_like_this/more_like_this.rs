@@ -139,7 +139,7 @@ impl MoreLikeThis {
     }
 
     /// Finds terms for a more-like-this query.
-    /// field_to_field_values is a mapping from field to possible values of taht field.
+    /// field_to_field_values is a mapping from field to possible values of that field.
     fn retrieve_terms_from_doc_fields(
         &self,
         searcher: &Searcher,

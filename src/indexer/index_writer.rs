@@ -31,7 +31,7 @@ pub const MARGIN_IN_BYTES: usize = 1_000_000;
 pub const MEMORY_ARENA_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
 pub const MEMORY_ARENA_NUM_BYTES_MAX: usize = u32::MAX as usize - MARGIN_IN_BYTES;
 
-// We impose the number of index writter thread to be at most this.
+// We impose the number of index writer thread to be at most this.
 pub const MAX_NUM_THREAD: usize = 8;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
@@ -710,7 +710,7 @@ impl IndexWriter {
     }
 
     /// Runs a group of document operations ensuring that the operations are
-    /// assigned contigous u64 opstamps and that add operations of the same
+    /// assigned contiguous u64 opstamps and that add operations of the same
     /// group are flushed into the same segment.
     ///
     /// If the indexing pipeline is full, this call may block.

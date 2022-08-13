@@ -32,7 +32,7 @@ pub struct NumericOptions {
     stored: bool,
 }
 
-/// For backward compability we add an intermediary to interpret the
+/// For backward compatibility we add an intermediary to interpret the
 /// lack of fieldnorms attribute as "true" if and only if indexed.
 ///
 /// (Downstream, for the moment, this attribute is not used anyway if not indexed...)

@@ -114,7 +114,7 @@ impl ManagedDirectory {
         let mut files_to_delete = vec![];
 
         // It is crucial to get the living files after acquiring the
-        // read lock of meta informations. That way, we
+        // read lock of meta information. That way, we
         // avoid the following scenario.
         //
         // 1) we get the list of living files.

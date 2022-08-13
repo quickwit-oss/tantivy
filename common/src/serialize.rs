@@ -19,7 +19,7 @@ pub trait DeserializeFrom<T: BinarySerializable> {
 
 /// Implement deserialize from &[u8] for all types which implement BinarySerializable.
 ///
-/// TryFrom would actually be preferrable, but not possible because of the orphan
+/// TryFrom would actually be preferable, but not possible because of the orphan
 /// rules (not completely sure if this could be resolved)
 impl<T: BinarySerializable> DeserializeFrom<T> for &[u8] {
     fn deserialize(&mut self) -> io::Result<T> {

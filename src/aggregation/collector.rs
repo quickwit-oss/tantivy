@@ -39,7 +39,7 @@ impl AggregationCollector {
 ///
 /// # Purpose
 /// AggregationCollector returns `IntermediateAggregationResults` and not the final
-/// `AggregationResults`, so that results from differenct indices can be merged and then converted
+/// `AggregationResults`, so that results from different indices can be merged and then converted
 /// into the final `AggregationResults` via the `into_final_result()` method.
 pub struct DistributedAggregationCollector {
     agg: Aggregations,

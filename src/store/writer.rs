@@ -120,7 +120,7 @@ impl StoreWriter {
 
     /// Store a new document.
     ///
-    /// The document id is implicitely the current number
+    /// The document id is implicitly the current number
     /// of documents.
     pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
@@ -139,7 +139,7 @@ impl StoreWriter {
 
     /// Store bytes of a serialized document.
     ///
-    /// The document id is implicitely the current number
+    /// The document id is implicitly the current number
     /// of documents.
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
         let doc_num_bytes = serialized_document.len();

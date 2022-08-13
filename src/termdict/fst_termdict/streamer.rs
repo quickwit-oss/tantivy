@@ -87,7 +87,7 @@ where A: Automaton
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
-    /// is an unitialized state.
+    /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
         if let Some((term, term_ord)) = self.stream.next() {
             self.current_key.clear();

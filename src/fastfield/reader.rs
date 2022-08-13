@@ -49,7 +49,7 @@ pub trait FastFieldReader<Item: FastValue>: Clone {
     ///
     /// The min value does not take in account of possible
     /// deleted document, and should be considered as a lower bound
-    /// of the actual mimimum value.
+    /// of the actual minimum value.
     fn min_value(&self) -> Item;
 
     /// Returns the maximum value for this fast field.

@@ -293,7 +293,7 @@ impl IntFastFieldWriter {
 
     /// Records a new value.
     ///
-    /// The n-th value being recorded is implicitely
+    /// The n-th value being recorded is implicitly
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {

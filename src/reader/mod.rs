@@ -16,7 +16,7 @@ use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 /// Defines when a new version of the index should be reloaded.
 ///
 /// Regardless of whether you search and index in the same process, tantivy does not necessarily
-/// reflects the change that are commited to your index. `ReloadPolicy` precisely helps you define
+/// reflects the change that are committed to your index. `ReloadPolicy` precisely helps you define
 /// when you want your index to be reloaded.
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {

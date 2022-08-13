@@ -70,7 +70,7 @@ pub struct HistogramAggregation {
     /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
     pub interval: f64,
-    /// Intervals implicitely defines an absolute grid of buckets `[interval * k, interval * (k +
+    /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
     ///
     /// Offset makes it possible to shift this grid into

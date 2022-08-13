@@ -50,7 +50,7 @@ impl FragmentCandidate {
 }
 
 /// `Snippet`
-/// Contains a fragment of a document, and some highlighed parts inside it.
+/// Contains a fragment of a document, and some highlighted parts inside it.
 #[derive(Debug)]
 pub struct Snippet {
     fragment: String,
@@ -97,7 +97,7 @@ impl Snippet {
         &self.fragment
     }
 
-    /// Returns a list of higlighted positions from the `Snippet`.
+    /// Returns a list of highlighted positions from the `Snippet`.
     pub fn highlighted(&self) -> &[Range<usize>] {
         &self.highlighted
     }

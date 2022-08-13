@@ -545,7 +545,7 @@ impl IndexMerger {
 
         // copying into a temp vec is not ideal, but the fast field codec api requires random
         // access, which is used in the estimation. It's possible to 1. calculate random
-        // acccess on the fly or 2. change the codec api to make random access optional, but
+        // access on the fly or 2. change the codec api to make random access optional, but
         // they both have also major drawbacks.
 
         let mut offsets = Vec::with_capacity(doc_id_mapping.len());
@@ -606,7 +606,7 @@ impl IndexMerger {
         debug_time!("write-term-id-fast-field");
 
         // Multifastfield consists of 2 fastfields.
-        // The first serves as an index into the second one and is stricly increasing.
+        // The first serves as an index into the second one and is strictly increasing.
         // The second contains the actual values.
 
         // First we merge the idx fast field.
@@ -678,7 +678,7 @@ impl IndexMerger {
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
-        // The first serves as an index into the second one and is stricly increasing.
+        // The first serves as an index into the second one and is strictly increasing.
         // The second contains the actual values.
 
         // First we merge the idx fast field.
@@ -739,7 +739,7 @@ impl IndexMerger {
         impl<'a> FastFieldDataAccess for SortedDocIdMultiValueAccessProvider<'a> {
             fn get_val(&self, pos: u64) -> u64 {
                 // use the offsets index to find the doc_id which will contain the position.
-                // the offsets are stricly increasing so we can do a simple search on it.
+                // the offsets are strictly increasing so we can do a simple search on it.
                 let new_doc_id = self
                     .offsets
                     .iter()
@@ -2078,7 +2078,7 @@ mod tests {
             let mut term_scorer = term_query
                 .specialized_weight(&searcher, true)?
                 .specialized_scorer(segment_reader, 1.0)?;
-            // the difference compared to before is instrinsic to the bm25 formula. no worries
+            // the difference compared to before is intrinsic to the bm25 formula. no worries
             // there.
             for doc in segment_reader.doc_ids_alive() {
                 assert_eq!(term_scorer.doc(), doc);
@@ -2103,7 +2103,7 @@ mod tests {
         let mut term_scorer = term_query
             .specialized_weight(&searcher, true)?
             .specialized_scorer(segment_reader, 1.0)?;
-        // the difference compared to before is instrinsic to the bm25 formula. no worries there.
+        // the difference compared to before is intrinsic to the bm25 formula. no worries there.
         for doc in segment_reader.doc_ids_alive() {
             assert_eq!(term_scorer.doc(), doc);
             assert_nearly_equals!(term_scorer.block_max_score(), 0.003478312);

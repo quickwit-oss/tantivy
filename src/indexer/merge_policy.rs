@@ -43,7 +43,7 @@ pub mod tests {
 
     /// `MergePolicy` useful for test purposes.
     ///
-    /// Everytime there is more than one segment,
+    /// Every time there is more than one segment,
     /// it will suggest to merge them.
     #[derive(Debug, Clone)]
     pub struct MergeWheneverPossible;

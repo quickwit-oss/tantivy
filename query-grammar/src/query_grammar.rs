@@ -67,7 +67,7 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
 /// 2021-04-13T19:46:26.266051969+00:00
 ///
 /// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
-/// We delegate rejecting such invalid dates to the logical AST compuation code
+/// We delegate rejecting such invalid dates to the logical AST computation code
 /// which invokes time::OffsetDateTime::parse(..., &Rfc3339) on the value to actually parse
 /// it (instead of merely extracting the datetime value as string as done here).
 fn date_time<'a>() -> impl Parser<&'a str, Output = String> {

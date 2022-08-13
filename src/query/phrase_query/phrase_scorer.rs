@@ -428,7 +428,7 @@ mod tests {
     }
     #[test]
     fn test_slop() {
-        // The slop is not symetric. It does not allow for the phrase to be out of order.
+        // The slop is not symmetric. It does not allow for the phrase to be out of order.
         test_intersection_aux(&[1], &[2], &[2], 1);
         test_intersection_aux(&[1], &[3], &[], 1);
         test_intersection_aux(&[1], &[3], &[3], 2);
