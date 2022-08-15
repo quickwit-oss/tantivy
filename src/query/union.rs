@@ -14,7 +14,9 @@ const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 //
 // Also, it does not "yield" any elements.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-where P: FnMut(&mut T) -> bool {
+where
+    P: FnMut(&mut T) -> bool,
+{
     let mut i = 0;
     while i < v.len() {
         if predicate(&mut v[i]) {

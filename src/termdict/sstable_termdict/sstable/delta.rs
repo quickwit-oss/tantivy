@@ -11,7 +11,8 @@ const VINT_MODE: u8 = 1u8;
 const BLOCK_LEN: usize = 32_000;
 
 pub struct DeltaWriter<W, TValueWriter>
-where W: io::Write
+where
+    W: io::Write,
 {
     block: Vec<u8>,
     write: CountingWriter<BufWriter<W>>,
@@ -99,7 +100,8 @@ pub struct DeltaReader<'a, TValueReader> {
 }
 
 impl<'a, TValueReader> DeltaReader<'a, TValueReader>
-where TValueReader: value::ValueReader
+where
+    TValueReader: value::ValueReader,
 {
     pub fn new<R: io::Read + 'a>(reader: R) -> Self {
         DeltaReader {

@@ -8,7 +8,8 @@ pub(crate) struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
 }
 
 impl<TScoreTweaker, TScore> TweakedScoreTopCollector<TScoreTweaker, TScore>
-where TScore: Clone + PartialOrd
+where
+    TScore: Clone + PartialOrd,
 {
     pub fn new(
         score_tweaker: TScoreTweaker,
@@ -116,7 +117,8 @@ where
 }
 
 impl<F, TScore> ScoreSegmentTweaker<TScore> for F
-where F: 'static + FnMut(DocId, Score) -> TScore
+where
+    F: 'static + FnMut(DocId, Score) -> TScore,
 {
     fn score(&mut self, doc: DocId, score: Score) -> TScore {
         (self)(doc, score)

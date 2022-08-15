@@ -96,7 +96,8 @@ pub struct Reader<'a, TValueReader> {
 }
 
 impl<'a, TValueReader> Reader<'a, TValueReader>
-where TValueReader: ValueReader
+where
+    TValueReader: ValueReader,
 {
     pub fn advance(&mut self) -> io::Result<bool> {
         if !self.delta_reader.advance()? {
@@ -126,7 +127,8 @@ impl<'a, TValueReader> AsRef<[u8]> for Reader<'a, TValueReader> {
 }
 
 pub struct Writer<W, TValueWriter>
-where W: io::Write
+where
+    W: io::Write,
 {
     previous_key: Vec<u8>,
     index_builder: SSTableIndexBuilder,

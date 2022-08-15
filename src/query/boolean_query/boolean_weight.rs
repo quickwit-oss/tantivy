@@ -18,7 +18,9 @@ enum SpecializedScorer {
 }
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> SpecializedScorer
-where TScoreCombiner: ScoreCombiner {
+where
+    TScoreCombiner: ScoreCombiner,
+{
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand

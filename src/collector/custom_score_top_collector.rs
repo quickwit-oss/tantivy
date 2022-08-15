@@ -8,7 +8,8 @@ pub(crate) struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
 }
 
 impl<TCustomScorer, TScore> CustomScoreTopCollector<TCustomScorer, TScore>
-where TScore: Clone + PartialOrd
+where
+    TScore: Clone + PartialOrd,
 {
     pub(crate) fn new(
         custom_scorer: TCustomScorer,
@@ -113,7 +114,8 @@ where
 }
 
 impl<F, TScore> CustomSegmentScorer<TScore> for F
-where F: 'static + FnMut(DocId) -> TScore
+where
+    F: 'static + FnMut(DocId) -> TScore,
 {
     fn score(&mut self, doc: DocId) -> TScore {
         (self)(doc)
