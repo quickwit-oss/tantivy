@@ -277,7 +277,7 @@ impl Recorder for TfAndPositionRecorder {
                         break;
                     }
                     Some(position_plus_one) => {
-                        let delta_position = position_plus_one - prev_position_plus_one;
+                        let delta_position = diff(position_plus_one, prev_position_plus_one);
                         buffer_positions.push(delta_position);
                         prev_position_plus_one = position_plus_one;
                     }
@@ -301,6 +301,14 @@ impl Recorder for TfAndPositionRecorder {
 
     fn term_doc_freq(&self) -> Option<u32> {
         Some(self.term_doc_freq)
+    }
+}
+
+fn diff(val1: u32, val2: u32) -> u32 {
+    if val1 >= val2 {
+        (val1 - val2)
+    } else {
+        (val2 - val1)
     }
 }
 
