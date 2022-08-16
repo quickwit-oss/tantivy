@@ -24,6 +24,7 @@ pub struct FastFieldReaders {
 pub(crate) enum FastType {
     I64,
     U64,
+    U128,
     F64,
     Bool,
     Date,
@@ -49,6 +50,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
+        }
+        FieldType::Ip(options) if options.is_fast() => {
+            Some((FastType::U128, Cardinality::SingleValue))
         }
         _ => None,
     }
@@ -148,6 +152,7 @@ impl FastFieldReaders {
         &self,
         field: Field,
     ) -> crate::Result<FastFieldReaderCodecWrapperU128<IpAddr, IntervallDecompressor>> {
+        self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
         let fast_field_slice = self.fast_field_data(field, 0)?;
         let bytes = fast_field_slice.read_bytes()?;
         FastFieldReaderCodecWrapperU128::<IpAddr, IntervallDecompressor>::open_from_bytes(bytes)

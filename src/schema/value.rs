@@ -223,6 +223,12 @@ impl From<String> for Value {
     }
 }
 
+impl From<IpAddr> for Value {
+    fn from(v: IpAddr) -> Value {
+        Value::Ip(v)
+    }
+}
+
 impl From<u64> for Value {
     fn from(v: u64) -> Value {
         Value::U64(v)

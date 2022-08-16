@@ -326,7 +326,7 @@ impl U128FastFieldWriter {
         serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        let field_write = serializer.get_field_writer(self.field, 0);
+        let mut field_write = serializer.get_field_writer(self.field, 0);
         let compressor = IntervalCompressor::from_vals(self.vals.to_vec());
 
         let mut val_idx = 0;
@@ -341,11 +341,31 @@ impl U128FastFieldWriter {
         };
 
         if let Some(doc_id_map) = doc_id_map {
-            let iter = doc_id_map.iter_old_doc_ids().map(&mut get_val);
-            compressor.compress_into(iter, field_write)?;
+            // To get the actual value, we could materialize the vec with u128 including nulls, but
+            // that could cost a lot of memory. Instead we just compute the index for of
+            // the values
+            let mut idx_to_val_idx = vec![];
+            idx_to_val_idx.resize(self.val_count as usize, 0);
+
+            let mut val_idx = 0;
+            for idx in 0..self.val_count {
+                if !self.null_values.contains(idx as u32) {
+                    idx_to_val_idx[idx as usize] = val_idx as u32;
+                    val_idx += 1;
+                }
+            }
+
+            let iter = doc_id_map.iter_old_doc_ids().map(|idx| {
+                if self.null_values.contains(idx as u32) {
+                    compressor.null_value
+                } else {
+                    self.vals[idx_to_val_idx[idx as usize] as usize]
+                }
+            });
+            compressor.compress_into(iter, &mut field_write)?;
         } else {
             let iter = (0..self.val_count).map(&mut get_val);
-            compressor.compress_into(iter, field_write)?;
+            compressor.compress_into(iter, &mut field_write)?;
         }
 
         Ok(())

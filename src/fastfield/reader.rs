@@ -233,9 +233,9 @@ impl<Item: FastValueU128, C: FastFieldCodecReaderU128> FastFieldReaderCodecWrapp
     }
 
     /// Returns the item for the docid
-    pub fn get(&self, doc: u64) -> Option<Item> {
+    pub fn get(&self, doc: DocId) -> Option<Item> {
         self.reader
-            .get(doc, self.bytes.as_slice())
+            .get(doc as u64, self.bytes.as_slice())
             .map(|el| Item::from_u128(el))
     }
 

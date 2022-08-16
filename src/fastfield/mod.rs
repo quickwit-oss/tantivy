@@ -103,6 +103,7 @@ impl FastFieldType {
 mod tests {
 
     use std::collections::HashMap;
+    use std::net::IpAddr;
     use std::ops::Range;
     use std::path::Path;
 
@@ -115,7 +116,9 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Cardinality, Document, Field, Schema, FAST, STRING, TEXT};
+    use crate::schema::{
+        self, Cardinality, Document, Field, Schema, FAST, INDEXED, STORED, STRING, TEXT,
+    };
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, DateTime, Index, SegmentId, SegmentReader};
 
@@ -143,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_fastfield_i64_u64() {
+    pub fn test_datetime_conversion() {
         let datetime = DateTime::from_utc(OffsetDateTime::UNIX_EPOCH);
         assert_eq!(i64::from_u64(datetime.to_u64()), 0i64);
     }
@@ -450,6 +453,38 @@ mod tests {
             all.extend(out);
         }
         all
+    }
+
+    #[test]
+    fn test_ip_fastfield_minimal() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let ip_field = schema_builder.add_ip_field("ip", FAST | INDEXED | STORED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!())?;
+        index_writer.add_document(doc!(
+            ip_field => IpAddr::from((2_u128).to_le_bytes())
+        ))?;
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+        let ip_addr_fast_field = fast_fields.ip_addr(ip_field).unwrap();
+
+        assert_eq!(ip_addr_fast_field.get(0), None);
+        assert_eq!(
+            ip_addr_fast_field.get(1),
+            Some(IpAddr::from((2_u128).to_le_bytes()))
+        );
+
+        Ok(())
     }
 
     #[test]

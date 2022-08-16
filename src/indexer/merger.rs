@@ -376,7 +376,7 @@ impl IndexMerger {
         let iter = doc_id_mapping.iter().map(|(doc_id, reader_ordinal)| {
             let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
             fast_field_reader
-                .get((*doc_id) as u64)
+                .get(*doc_id)
                 .unwrap_or(compressor.null_value)
         });
 

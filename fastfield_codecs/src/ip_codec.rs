@@ -126,11 +126,12 @@ fn get_deltas(ip_addrs_sorted: &[u128]) -> BinaryHeap<DeltaAndPos> {
     deltas
 }
 
-/// Will find blanks if it will affect the number of bits used on the compact space.
-/// Returns the new amplitude and the positions of blanks
+/// Will collect blanks and add them to compact space if it will affect the number of bits used on
+/// the compact space.
 fn get_compact_space(ip_addrs_sorted: &[u128], cost_per_interval: usize) -> CompactSpace {
+    let max_val = *ip_addrs_sorted.last().unwrap_or(&0u128) + 1;
     let mut deltas = get_deltas(ip_addrs_sorted);
-    let mut amplitude_compact_space = *ip_addrs_sorted.last().unwrap() + 1;
+    let mut amplitude_compact_space = max_val;
     let mut amplitude_bits: u8 = (amplitude_compact_space as f64).log2().ceil() as u8;
     let mut staged_blanks = vec![];
 
@@ -172,13 +173,13 @@ fn get_compact_space(ip_addrs_sorted: &[u128], cost_per_interval: usize) -> Comp
             }
         }
     }
-    compact_space.add_hole(*ip_addrs_sorted.last().unwrap() + 1..=u128::MAX);
+    compact_space.add_hole(max_val..=u128::MAX);
 
     compact_space.finish()
 }
 
 #[test]
-fn get_blanks_test() {
+fn compact_space_test() {
     // small ranges are ignored here
     let ips = vec![
         2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
@@ -205,6 +206,7 @@ impl CompactSpaceBuilder {
         }
     }
 
+    // Will extend the first range and add a null value to it.
     fn assign_and_return_null(&mut self) -> u128 {
         self.covered_space[0] = *self.covered_space[0].start()..=*self.covered_space[0].end() + 1;
         *self.covered_space[0].end()
@@ -380,8 +382,8 @@ pub fn train(ip_addrs_sorted: &[u128]) -> IntervalCompressor {
     );
 
     let num_bits = tantivy_bitpacker::compute_num_bits(amplitude_compact_space as u64);
-    let min_value = ip_addrs_sorted[0];
-    let max_value = ip_addrs_sorted[ip_addrs_sorted.len() - 1];
+    let min_value = *ip_addrs_sorted.first().unwrap_or(&0);
+    let max_value = *ip_addrs_sorted.last().unwrap_or(&0);
     let compressor = IntervalCompressor {
         null_value,
         min_value,
@@ -390,7 +392,7 @@ pub fn train(ip_addrs_sorted: &[u128]) -> IntervalCompressor {
         num_bits,
     };
 
-    let max_value = *ip_addrs_sorted.last().unwrap().max(&null_value);
+    let max_value = *ip_addrs_sorted.last().unwrap_or(&0u128).max(&null_value);
     assert_eq!(
         compressor.to_compact(max_value) + 1,
         amplitude_compact_space as u64
@@ -415,7 +417,7 @@ impl IntervalCompressor {
     fn write_footer(&self, write: &mut impl Write, num_vals: u128) -> io::Result<()> {
         let mut footer = vec![];
 
-        // header flags to for future optional dictionary encoding
+        // header flags for future optional dictionary encoding
         let header_flags = 0u64;
         footer.extend_from_slice(&header_flags.to_le_bytes());
 
@@ -632,9 +634,6 @@ impl IntervalEncoding {
 
     // TODO move to test
     pub fn encode(&self, vals: &[u128]) -> Vec<u8> {
-        if vals.is_empty() {
-            return Vec::new();
-        }
         let compressor = self.train(vals.to_vec());
         compressor.compress(vals).unwrap()
     }
@@ -699,6 +698,14 @@ mod tests {
             decomp.get_range(4_000_211_221u128..=5_000_000_000u128, &data),
             vec![6, 7]
         );
+    }
+
+    #[test]
+    fn test_empty() {
+        let vals = &[];
+        let interval_encoding = IntervalEncoding::default();
+        let data = test_aux_vals(&interval_encoding, vals);
+        let _decomp = IntervallDecompressor::open(&data).unwrap();
     }
 
     #[test]

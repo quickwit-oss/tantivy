@@ -51,7 +51,7 @@ impl FastValueU128 for u128 {
 
 impl FastValueU128 for IpAddr {
     fn from_u128(val: u128) -> Self {
-        IpAddr::from(val.to_le_bytes())
+        IpAddr::from(val.to_be_bytes())
     }
 
     fn to_u128(&self) -> u128 {

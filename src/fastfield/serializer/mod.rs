@@ -327,9 +327,7 @@ impl CompositeFastFieldSerializer {
         FastBytesFieldSerializer { write: field_write }
     }
 
-    /// Closes the serializer
-    ///
-    /// After this call the data must be persistently saved on disk.
+    /// Gets the underlying writer
     pub fn get_field_writer(&mut self, field: Field, idx: usize) -> &mut impl Write {
         self.composite_write.for_field_with_idx(field, idx)
     }
