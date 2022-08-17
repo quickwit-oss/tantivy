@@ -28,9 +28,7 @@ pub enum Compressor {
 
 impl Serialize for Compressor {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
+    where S: serde::Serializer {
         match *self {
             Compressor::None => serializer.serialize_str("none"),
             Compressor::Lz4 => serializer.serialize_str("lz4"),
@@ -43,9 +41,7 @@ impl Serialize for Compressor {
 
 impl<'de> Deserialize<'de> for Compressor {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         let buf = String::deserialize(deserializer)?;
         let compressor = match buf.as_str() {
             "none" => Compressor::None,

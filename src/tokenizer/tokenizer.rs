@@ -159,8 +159,7 @@ impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
 impl<'a, T> From<T> for BoxTokenStream<'a>
-where
-    T: TokenStream + 'a,
+where T: TokenStream + 'a
 {
     fn from(token_stream: T) -> BoxTokenStream<'a> {
         BoxTokenStream(Box::new(token_stream))

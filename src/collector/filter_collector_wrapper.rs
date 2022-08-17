@@ -59,8 +59,7 @@ use crate::{Score, SegmentReader, TantivyError};
 /// # }
 /// ```
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
-where
-    TPredicate: 'static + Clone,
+where TPredicate: 'static + Clone
 {
     field: Field,
     collector: TCollector,

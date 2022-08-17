@@ -60,8 +60,7 @@ pub(crate) struct TopCollector<T> {
 }
 
 impl<T> TopCollector<T>
-where
-    T: PartialOrd + Clone,
+where T: PartialOrd + Clone
 {
     /// Creates a top collector, with a number of documents equal to "limit".
     ///
