@@ -3,19 +3,21 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
+use super::Cardinality;
 
 /// Define how an ip field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct IpOptions {
     indexed: bool,
-    fast: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fast: Option<Cardinality>,
     stored: bool,
 }
 
 impl IpOptions {
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        self.fast
+        self.fast.is_some()
     }
 
     /// Returns `true` if the json object should be stored.
@@ -26,6 +28,14 @@ impl IpOptions {
     /// Returns `true` iff the json object should be indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexed
+    }
+
+    /// Returns the cardinality of the fastfield.
+    ///
+    /// If the field has not been declared as a fastfield, then
+    /// the method returns None.
+    pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
+        self.fast
     }
 
     /// Set the field as indexed.
@@ -47,15 +57,15 @@ impl IpOptions {
         self
     }
 
-    /// Set the field as a single-valued fast field.
+    /// Set the field as a fast field.
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
     /// If more than one value is associated to a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self) -> Self {
-        self.fast = true;
+    pub fn set_fast(mut self, cardinality: Cardinality) -> Self {
+        self.fast = Some(cardinality);
         self
     }
 }
@@ -71,7 +81,7 @@ impl From<FastFlag> for IpOptions {
         IpOptions {
             indexed: false,
             stored: false,
-            fast: true,
+            fast: Some(Cardinality::SingleValue),
         }
     }
 }
@@ -81,7 +91,7 @@ impl From<StoredFlag> for IpOptions {
         IpOptions {
             indexed: false,
             stored: true,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -91,7 +101,7 @@ impl From<IndexedFlag> for IpOptions {
         IpOptions {
             indexed: true,
             stored: false,
-            fast: false,
+            fast: None,
         }
     }
 }
@@ -104,7 +114,7 @@ impl<T: Into<IpOptions>> BitOr<T> for IpOptions {
         IpOptions {
             indexed: self.indexed | other.indexed,
             stored: self.stored | other.stored,
-            fast: self.fast | other.fast,
+            fast: self.fast.or(other.fast),
         }
     }
 }

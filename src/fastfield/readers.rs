@@ -2,6 +2,7 @@ use std::net::IpAddr;
 
 use fastfield_codecs::ip_codec::IntervallDecompressor;
 
+use super::multivalued::MultiValuedU128FastFieldReader;
 use super::reader::{DynamicFastFieldReader, FastFieldReaderCodecWrapperU128};
 use crate::directory::{CompositeFile, FileSlice};
 use crate::fastfield::{
@@ -51,9 +52,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
         }
-        FieldType::Ip(options) if options.is_fast() => {
-            Some((FastType::U128, Cardinality::SingleValue))
-        }
+        FieldType::Ip(options) => options
+            .get_fastfield_cardinality()
+            .map(|cardinality| (FastType::U128, cardinality)),
         _ => None,
     }
 }
@@ -158,6 +159,26 @@ impl FastFieldReaders {
         FastFieldReaderCodecWrapperU128::<IpAddr, IntervallDecompressor>::open_from_bytes(bytes)
     }
 
+    /// Returns the `ip` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 fast field, this method returns an Error.
+    pub fn ip_addrs(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<IpAddr>> {
+        self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
+        let idx_reader: DynamicFastFieldReader<u64> = self.typed_fast_field_reader(field)?;
+
+        let fast_field_slice = self.fast_field_data(field, 1)?;
+        let bytes = fast_field_slice.read_bytes()?;
+
+        let vals_reader =
+            FastFieldReaderCodecWrapperU128::<IpAddr, IntervallDecompressor>::open_from_bytes(
+                bytes,
+            )?;
+        Ok(MultiValuedU128FastFieldReader::open(
+            idx_reader,
+            vals_reader,
+        ))
+    }
+
     /// Returns the `u128` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u128 fast field, this method returns an Error.
@@ -168,6 +189,24 @@ impl FastFieldReaders {
         let fast_field_slice = self.fast_field_data(field, 0)?;
         let bytes = fast_field_slice.read_bytes()?;
         FastFieldReaderCodecWrapperU128::<u128, IntervallDecompressor>::open_from_bytes(bytes)
+    }
+
+    /// Returns the `u128` multi-valued fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 multi-valued fast field, this method returns an Error.
+    pub fn u128s(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<u128>> {
+        self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
+        let idx_reader: DynamicFastFieldReader<u64> = self.typed_fast_field_reader(field)?;
+
+        let fast_field_slice = self.fast_field_data(field, 1)?;
+        let bytes = fast_field_slice.read_bytes()?;
+
+        let vals_reader =
+            FastFieldReaderCodecWrapperU128::<u128, IntervallDecompressor>::open_from_bytes(bytes)?;
+        Ok(MultiValuedU128FastFieldReader::open(
+            idx_reader,
+            vals_reader,
+        ))
     }
 
     /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the

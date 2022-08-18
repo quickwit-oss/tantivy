@@ -13,7 +13,7 @@ use crate::error::DataCorruption;
 use crate::fastfield::{
     AliveBitSet, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldDataAccess,
     FastFieldReader, FastFieldReaderCodecWrapperU128, FastFieldStats, MultiValueLength,
-    MultiValuedFastFieldReader,
+    MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -323,15 +323,23 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
-                FieldType::Ip(options) => {
-                    if options.is_fast() {
+                FieldType::Ip(options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
                         self.write_u128_single_fast_field(
                             field,
                             fast_field_serializer,
                             doc_id_mapping,
                         )?;
                     }
-                }
+                    Some(Cardinality::MultiValues) => {
+                        self.write_u128_multi_fast_field(
+                            field,
+                            fast_field_serializer,
+                            doc_id_mapping,
+                        )?;
+                    }
+                    None => {}
+                },
 
                 FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
                     // We don't handle json fast field for the moment
@@ -340,6 +348,70 @@ impl IndexMerger {
                 }
             }
         }
+        Ok(())
+    }
+
+    // used to merge `u128` single fast fields.
+    fn write_u128_multi_fast_field(
+        &self,
+        field: Field,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        let reader_ordinal_and_field_accessors = self
+            .readers
+            .iter()
+            .map(|segment_reader| {
+                let val_length_reader: MultiValuedU128FastFieldReader<u128> =
+                    segment_reader.fast_fields().u128s(field).expect(
+                        "Failed to find index for multivalued field. This is a bug in tantivy, \
+                         please report.",
+                    );
+                (segment_reader, val_length_reader)
+            })
+            .collect::<Vec<_>>();
+
+        Self::write_1_n_fast_field_idx_generic(
+            field,
+            fast_field_serializer,
+            doc_id_mapping,
+            &reader_ordinal_and_field_accessors,
+        )?;
+
+        let fast_field_readers = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let u128_reader: MultiValuedU128FastFieldReader<u128> =
+                    reader.fast_fields().u128s(field).expect(
+                        "Failed to find a reader for single fast field. This is a tantivy bug and \
+                         it should never happen.",
+                    );
+                u128_reader
+            })
+            .collect::<Vec<_>>();
+
+        let compressor = {
+            let vals = fast_field_readers
+                .iter()
+                .flat_map(|reader| reader.iter())
+                .flatten()
+                .collect::<Vec<u128>>();
+
+            IntervalCompressor::from_vals(vals)
+        };
+
+        let iter = doc_id_mapping.iter().flat_map(|(doc_id, reader_ordinal)| {
+            let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
+            let mut out = vec![];
+            fast_field_reader.get_vals(*doc_id, &mut out);
+            out.into_iter()
+        });
+
+        let field_write = fast_field_serializer.get_field_writer(field, 1);
+
+        compressor.compress_into(iter, field_write)?;
+
         Ok(())
     }
 
@@ -376,7 +448,7 @@ impl IndexMerger {
         let iter = doc_id_mapping.iter().map(|(doc_id, reader_ordinal)| {
             let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
             fast_field_reader
-                .get(*doc_id)
+                .get_val(*doc_id as u64)
                 .unwrap_or(compressor.null_value)
         });
 
@@ -577,16 +649,16 @@ impl IndexMerger {
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
         let mut num_docs = 0;
-        for (reader, u64s_reader) in reader_and_field_accessors.iter() {
+        for (reader, value_length_reader) in reader_and_field_accessors.iter() {
             if let Some(alive_bitset) = reader.alive_bitset() {
                 num_docs += alive_bitset.num_alive_docs() as u64;
                 for doc in reader.doc_ids_alive() {
-                    let num_vals = u64s_reader.get_len(doc) as u64;
+                    let num_vals = value_length_reader.get_len(doc) as u64;
                     total_num_vals += num_vals;
                 }
             } else {
                 num_docs += reader.max_doc() as u64;
-                total_num_vals += u64s_reader.get_total_len();
+                total_num_vals += value_length_reader.get_total_len();
             }
         }
 

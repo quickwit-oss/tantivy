@@ -1,6 +1,11 @@
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength};
+use fastfield_codecs::ip_codec::IntervallDecompressor;
+
+use crate::fastfield::{
+    DynamicFastFieldReader, FastFieldReader, FastFieldReaderCodecWrapperU128, FastValue,
+    FastValueU128, MultiValueLength,
+};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -92,6 +97,139 @@ impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
         self.total_num_vals() as u64
     }
 }
+
+/// Reader for a multivalued `u128` fast field.
+///
+/// The reader is implemented as a `u64` fast field for the index and a `u128` fast field.
+///
+/// The `vals_reader` will access the concatenated list of all
+/// values for all reader.
+/// The `idx_reader` associated, for each document, the index of its first value.
+#[derive(Clone)]
+pub struct MultiValuedU128FastFieldReader<Item: FastValueU128> {
+    idx_reader: DynamicFastFieldReader<u64>,
+    vals_reader: FastFieldReaderCodecWrapperU128<Item, IntervallDecompressor>,
+}
+
+impl<Item: FastValueU128> MultiValuedU128FastFieldReader<Item> {
+    pub(crate) fn open(
+        idx_reader: DynamicFastFieldReader<u64>,
+        vals_reader: FastFieldReaderCodecWrapperU128<Item, IntervallDecompressor>,
+    ) -> MultiValuedU128FastFieldReader<Item> {
+        Self {
+            idx_reader,
+            vals_reader,
+        }
+    }
+
+    /// Returns `[start, end)`, such that the values associated
+    /// to the given document are `start..end`.
+    #[inline]
+    fn range(&self, doc: DocId) -> Range<u64> {
+        let start = self.idx_reader.get(doc);
+        let end = self.idx_reader.get(doc + 1);
+        start..end
+    }
+
+    /// Returns the array of values associated to the given `doc`.
+    #[inline]
+    pub fn get_val(&self, doc: DocId) -> Option<Item> {
+        let range = self.range(doc);
+        if range.is_empty() {
+            return None;
+        }
+        self.vals_reader.get_val(range.start)
+    }
+
+    /// Returns the array of values associated to the given `doc`.
+    #[inline]
+    fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<Item>) {
+        let len = (range.end - range.start) as usize;
+        vals.resize(len, Item::make_zero());
+        self.vals_reader.get_range(range.start, &mut vals[..]);
+    }
+
+    /// Returns the array of values associated to the given `doc`.
+    #[inline]
+    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
+        let range = self.range(doc);
+        self.get_vals_for_range(range, vals);
+    }
+
+    /// Returns all docids which are in the provided value range
+    pub fn get_between_vals(&self, range: RangeInclusive<Item>) -> Vec<usize> {
+        let positions = self.vals_reader.get_between_vals(range);
+
+        // Now we need to convert the positions to docids
+        let mut docs = vec![];
+        let mut cursor = 0usize;
+        let mut last_doc = None;
+        for pos in positions {
+            loop {
+                let range = self.range(cursor as u32);
+                if range.contains(&(pos as u64)) {
+                    // avoid duplicates
+                    if Some(cursor) == last_doc {
+                        break;
+                    }
+                    docs.push(cursor);
+                    last_doc = Some(cursor);
+                    break;
+                }
+                cursor += 1;
+            }
+        }
+
+        docs
+    }
+
+    /// Iterates over all elements in the fast field
+    pub fn iter(&self) -> impl Iterator<Item = Option<Item>> + '_ {
+        self.vals_reader.iter()
+    }
+
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The min value does not take in account of possible
+    /// deleted document, and should be considered as a lower bound
+    /// of the actual mimimum value.
+    pub fn min_value(&self) -> Item {
+        self.vals_reader.min_value()
+    }
+
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    pub fn max_value(&self) -> Item {
+        self.vals_reader.max_value()
+    }
+
+    /// Returns the number of values associated with the document `DocId`.
+    #[inline]
+    pub fn num_vals(&self, doc: DocId) -> usize {
+        let range = self.range(doc);
+        (range.end - range.start) as usize
+    }
+
+    /// Returns the overall number of values in this field  .
+    #[inline]
+    pub fn total_num_vals(&self) -> u64 {
+        self.idx_reader.max_value()
+    }
+}
+
+impl<Item: FastValueU128> MultiValueLength for MultiValuedU128FastFieldReader<Item> {
+    fn get_len(&self, doc_id: DocId) -> u64 {
+        self.num_vals(doc_id) as u64
+    }
+
+    fn get_total_len(&self) -> u64 {
+        self.total_num_vals() as u64
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

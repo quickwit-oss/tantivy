@@ -7,7 +7,7 @@ use fnv::FnvHashMap;
 use roaring::RoaringBitmap;
 use tantivy_bitpacker::BlockedBitpacker;
 
-use super::multivalued::MultiValuedFastFieldWriter;
+use super::multivalued::{MultiValuedFastFieldWriter, U128MultiValueFastFieldWriter};
 use super::serializer::FastFieldStats;
 use super::{FastFieldDataAccess, FastFieldType, FastValue};
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
@@ -22,6 +22,7 @@ pub struct FastFieldsWriter {
     term_id_writers: Vec<MultiValuedFastFieldWriter>,
     single_value_writers: Vec<IntFastFieldWriter>,
     u128_value_writers: Vec<U128FastFieldWriter>,
+    u128_multi_value_writers: Vec<U128MultiValueFastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
     bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
@@ -38,6 +39,7 @@ impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let mut u128_value_writers = Vec::new();
+        let mut u128_multi_value_writers = Vec::new();
         let mut single_value_writers = Vec::new();
         let mut term_id_writers = Vec::new();
         let mut multi_values_writers = Vec::new();
@@ -103,8 +105,17 @@ impl FastFieldsWriter {
                 }
                 FieldType::Ip(opt) => {
                     if opt.is_fast() {
-                        let fast_field_writer = U128FastFieldWriter::new(field);
-                        u128_value_writers.push(fast_field_writer);
+                        match opt.get_fastfield_cardinality() {
+                            Some(Cardinality::SingleValue) => {
+                                let fast_field_writer = U128FastFieldWriter::new(field);
+                                u128_value_writers.push(fast_field_writer);
+                            }
+                            Some(Cardinality::MultiValues) => {
+                                let fast_field_writer = U128MultiValueFastFieldWriter::new(field);
+                                u128_multi_value_writers.push(fast_field_writer);
+                            }
+                            None => {}
+                        }
                     }
                 }
                 FieldType::Str(_) | FieldType::JsonObject(_) => {}
@@ -112,6 +123,7 @@ impl FastFieldsWriter {
         }
         FastFieldsWriter {
             u128_value_writers,
+            u128_multi_value_writers,
             term_id_writers,
             single_value_writers,
             multi_values_writers,
@@ -142,6 +154,11 @@ impl FastFieldsWriter {
                 .sum::<usize>()
             + self
                 .u128_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
+            + self
+                .u128_multi_value_writers
                 .iter()
                 .map(|w| w.mem_usage())
                 .sum::<usize>()
@@ -223,6 +240,9 @@ impl FastFieldsWriter {
         for field_writer in &mut self.u128_value_writers {
             field_writer.add_document(doc);
         }
+        for field_writer in &mut self.u128_multi_value_writers {
+            field_writer.add_document(doc);
+        }
     }
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
@@ -251,6 +271,10 @@ impl FastFieldsWriter {
         for field_writer in &self.u128_value_writers {
             field_writer.serialize(serializer, doc_id_map)?;
         }
+        for field_writer in &self.u128_multi_value_writers {
+            field_writer.serialize(serializer, doc_id_map)?;
+        }
+
         Ok(())
     }
 }
@@ -264,10 +288,9 @@ impl FastFieldsWriter {
 /// method.
 ///
 /// We cannot serialize earlier as the values are
-/// bitpacked and the number of bits required for bitpacking
-/// can only been known once we have seen all of the values.
-///
-/// Both u64, i64 and f64 use the same writer.
+/// compressed to a compact number space and the number of
+/// bits required for bitpacking can only been known once
+/// we have seen all of the values.
 pub struct U128FastFieldWriter {
     field: Field,
     vals: Vec<u128>,

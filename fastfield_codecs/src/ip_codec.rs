@@ -463,7 +463,7 @@ impl IntervalCompressor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntervallDecompressor {
     compact_space: CompactSpace,
     bit_unpacker: BitUnpacker,
@@ -482,7 +482,7 @@ impl FastFieldCodecReaderU128 for IntervallDecompressor {
         self.get(doc, data)
     }
 
-    fn get_range(&self, range: RangeInclusive<u128>, data: &[u8]) -> Vec<usize> {
+    fn get_between_vals(&self, range: RangeInclusive<u128>, data: &[u8]) -> Vec<usize> {
         self.get_range(range, data)
     }
 
@@ -579,7 +579,11 @@ impl IntervallDecompressor {
         let range = compact_from..=compact_to;
         let mut positions = vec![];
 
-        for (pos, compact_ip) in self.iter_compact(data).enumerate() {
+        for (pos, compact_ip) in self
+            .iter_compact(data)
+            .enumerate()
+            .filter(|(_pos, val)| *val != self.null_compact_space)
+        {
             if range.contains(&compact_ip) {
                 positions.push(pos);
             }
@@ -590,9 +594,7 @@ impl IntervallDecompressor {
 
     #[inline]
     pub fn iter_compact<'a>(&'a self, data: &'a [u8]) -> impl Iterator<Item = u64> + 'a {
-        (0..self.num_vals)
-            .map(move |idx| self.bit_unpacker.get(idx as u64, data) as u64)
-            .filter(|val| *val != self.null_compact_space)
+        (0..self.num_vals).map(move |idx| self.bit_unpacker.get(idx as u64, data) as u64)
     }
 
     #[inline]
@@ -627,15 +629,9 @@ impl IntervallDecompressor {
 }
 
 impl IntervalEncoding {
-    fn train(&self, mut vals: Vec<u128>) -> IntervalCompressor {
+    pub fn train(&self, mut vals: Vec<u128>) -> IntervalCompressor {
         vals.sort();
         train(&vals)
-    }
-
-    // TODO move to test
-    pub fn encode(&self, vals: &[u128]) -> Vec<u8> {
-        let compressor = self.train(vals.to_vec());
-        compressor.compress(vals).unwrap()
     }
 }
 
@@ -657,7 +653,8 @@ mod tests {
     }
 
     fn test_aux_vals(encoder: &IntervalEncoding, u128_vals: &[u128]) -> Vec<u8> {
-        let data = encoder.encode(u128_vals);
+        let compressor = encoder.train(u128_vals.to_vec());
+        let data = compressor.compress(u128_vals).unwrap();
         let decoded_val = decode_all(&data);
         assert_eq!(&decoded_val, u128_vals);
         data
@@ -728,6 +725,19 @@ mod tests {
         assert_eq!(positions, vec![0]);
         let positions = decomp.get_range(0..=105, &data);
         assert_eq!(positions, vec![0]);
+    }
+
+    #[test]
+    fn test_null() {
+        let vals = &[2u128];
+        let interval_encoding = IntervalEncoding::default().train(vals.to_vec());
+        let vals = vec![interval_encoding.null_value, 2u128];
+        let data = interval_encoding.compress(&vals).unwrap();
+        let decomp = IntervallDecompressor::open(&data).unwrap();
+        let positions = decomp.get_range(0..=1, &data);
+        assert_eq!(positions, vec![]);
+        let positions = decomp.get_range(2..=2, &data);
+        assert_eq!(positions, vec![1]);
     }
 
     #[test]

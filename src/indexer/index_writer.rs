@@ -790,7 +790,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
-        self, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
+        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IpOptions, NumericOptions,
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
@@ -1386,6 +1386,10 @@ mod tests {
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let ip_field = schema_builder.add_ip_field("ip", FAST | INDEXED | STORED);
+        let ips_field = schema_builder.add_ip_field(
+            "ips",
+            IpOptions::default().set_fast(Cardinality::MultiValues),
+        );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
         let bool_field = schema_builder.add_bool_field("bool", FAST | INDEXED | STORED);
@@ -1460,6 +1464,8 @@ mod tests {
                         index_writer.add_document(doc!(id_field=>id,
                                 bytes_field => id.to_le_bytes().as_slice(),
                                 ip_field => ip_from_id,
+                                ips_field => ip_from_id,
+                                ips_field => ip_from_id,
                                 multi_numbers=> id,
                                 multi_numbers => id,
                                 bool_field => (id % 2u64) != 0,
@@ -1558,23 +1564,45 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().ip_addr(ip_field).unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get(doc))
+                    .map(move |doc| ff_reader.get_val(doc as u64))
             })
             .collect();
 
-        assert_eq!(
-            ips,
-            expected_ids_and_num_occurrences
-                .keys()
-                .map(|id| {
-                    if id % 3 == 0 {
-                        None
-                    } else {
-                        Some(IpAddr::from((*id as u128).to_be_bytes()))
-                    }
+        let expected_ips = expected_ids_and_num_occurrences
+            .keys()
+            .map(|id| {
+                if id % 3 == 0 {
+                    None
+                } else {
+                    Some(IpAddr::from((*id as u128).to_be_bytes()))
+                }
+            })
+            .collect::<HashSet<_>>();
+        assert_eq!(ips, expected_ips);
+
+        let expected_ips = expected_ids_and_num_occurrences
+            .keys()
+            .filter_map(|id| {
+                if id % 3 == 0 {
+                    None
+                } else {
+                    Some(IpAddr::from((*id as u128).to_be_bytes()))
+                }
+            })
+            .collect::<HashSet<_>>();
+        let ips: HashSet<IpAddr> = searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let ff_reader = segment_reader.fast_fields().ip_addrs(ips_field).unwrap();
+                segment_reader.doc_ids_alive().flat_map(move |doc| {
+                    let mut vals = vec![];
+                    ff_reader.get_vals(doc, &mut vals);
+                    vals
                 })
-                .collect::<HashSet<_>>()
-        );
+            })
+            .collect();
+        assert_eq!(ips, expected_ips);
 
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {

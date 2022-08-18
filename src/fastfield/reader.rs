@@ -232,11 +232,31 @@ impl<Item: FastValueU128, C: FastFieldCodecReaderU128> FastFieldReaderCodecWrapp
         })
     }
 
-    /// Returns the item for the docid
-    pub fn get(&self, doc: DocId) -> Option<Item> {
+    /// Returns the item for the docid, if present
+    pub fn get_val(&self, doc: u64) -> Option<Item> {
         self.reader
-            .get(doc as u64, self.bytes.as_slice())
+            .get(doc, self.bytes.as_slice())
             .map(|el| Item::from_u128(el))
+    }
+
+    /// Internally `multivalued` also use SingleValue Fast fields.
+    /// It works as follows... A first column contains the list of start index
+    /// for each document, a second column contains the actual values.
+    ///
+    /// The values associated to a given doc, are then
+    ///  `second_column[first_column.get(doc)..first_column.get(doc+1)]`.
+    ///
+    /// Which means single value fast field reader can be indexed internally with
+    /// something different from a `DocId`. For this use case, we want to use `u64`
+    /// values.
+    ///
+    /// See `get_range` for an actual documentation about this method.
+    pub(crate) fn get_range(&self, start: u64, output: &mut [Item]) {
+        for (i, out) in output.iter_mut().enumerate() {
+            if let Some(val) = self.get_val(start + (i as u64)) {
+                *out = val
+            }
+        }
     }
 
     /// Iterates over all elements in the fast field
@@ -246,9 +266,20 @@ impl<Item: FastValueU128, C: FastFieldCodecReaderU128> FastFieldReaderCodecWrapp
             .map(|el| el.map(Item::from_u128))
     }
 
-    /// Returns all docids which are in the provided range
-    pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<usize> {
-        self.reader.get_range(range, self.bytes.as_slice())
+    /// Returns all docids which are in the provided value range
+    pub fn get_between_vals(&self, range: RangeInclusive<Item>) -> Vec<usize> {
+        let range = range.start().to_u128()..=range.end().to_u128();
+        self.reader.get_between_vals(range, self.bytes.as_slice())
+    }
+
+    /// Return min_value.
+    pub fn min_value(&self) -> Item {
+        Item::from_u128(self.reader.min_value())
+    }
+
+    /// Return max_value.
+    pub fn max_value(&self) -> Item {
+        Item::from_u128(self.reader.max_value())
     }
 }
 

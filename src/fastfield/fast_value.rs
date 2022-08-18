@@ -29,6 +29,12 @@ pub trait FastValueU128: Clone + Copy + Send + Sync + PartialOrd + 'static {
 
     /// Returns the `schema::Type` for this FastValue.
     fn to_type() -> Type;
+
+    /// Build a default value. This default value is never used, so the value does not
+    /// really matter.
+    fn make_zero() -> Self {
+        Self::from_u128(0u128)
+    }
 }
 
 impl FastValueU128 for u128 {

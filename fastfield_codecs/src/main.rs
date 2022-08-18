@@ -94,7 +94,10 @@ fn bench_ip() {
     let encoding = IntervalEncoding();
     let dataset = ip_dataset();
     print_set_stats(&dataset);
-    let data = encoding.encode(&dataset);
+
+    let compressor = encoding.train(dataset.to_vec());
+    let data = compressor.compress(&dataset).unwrap();
+
     let decompressor = IntervallDecompressor::open(&data).unwrap();
 
     for i in 11100..11150 {

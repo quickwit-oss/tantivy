@@ -33,8 +33,8 @@ pub trait FastFieldCodecReaderU128: Sized {
     /// Replace with opaque type after: https://github.com/rust-lang/rust/issues/63063
     fn iter<'a>(&'a self, data: &'a [u8]) -> Box<dyn Iterator<Item = Option<u128>> + 'a>;
 
-    /// Get docs for value range
-    fn get_range(&self, range: RangeInclusive<u128>, data: &[u8]) -> Vec<usize>;
+    /// Get positions (=docs in single value) for provided value range
+    fn get_between_vals(&self, range: RangeInclusive<u128>, data: &[u8]) -> Vec<usize>;
 
     /// The computed and assigned number value for null values
     fn null_value(&self) -> u128;

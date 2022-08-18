@@ -26,7 +26,9 @@ pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::fast_value::{FastValue, FastValueU128};
 pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_CODEC_ID, GCD_DEFAULT};
-pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
+pub use self::multivalued::{
+    MultiValuedFastFieldReader, MultiValuedFastFieldWriter, MultiValuedU128FastFieldReader,
+};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader, FastFieldReaderCodecWrapperU128};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
@@ -117,7 +119,7 @@ mod tests {
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        self, Cardinality, Document, Field, Schema, FAST, INDEXED, STORED, STRING, TEXT,
+        self, Cardinality, Document, Field, IpOptions, Schema, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, DateTime, Index, SegmentId, SegmentReader};
@@ -459,15 +461,27 @@ mod tests {
     fn test_ip_fastfield_minimal() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let ip_field = schema_builder.add_ip_field("ip", FAST | INDEXED | STORED);
+
+        let ips_field = schema_builder.add_ip_field(
+            "ips",
+            IpOptions::default().set_fast(Cardinality::MultiValues),
+        );
+
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
+
+        let ip1 = IpAddr::from((1_u128).to_be_bytes());
+        let ip2 = IpAddr::from((2_u128).to_be_bytes());
+        let ip3 = IpAddr::from((3_u128).to_be_bytes());
 
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!())?;
         index_writer.add_document(doc!(
-            ip_field => IpAddr::from((2_u128).to_le_bytes())
+            ip_field => ip2,
+            ips_field => ip2,
+            ips_field => ip2,
         ))?;
         index_writer.commit()?;
 
@@ -476,12 +490,47 @@ mod tests {
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
-        let ip_addr_fast_field = fast_fields.ip_addr(ip_field).unwrap();
 
-        assert_eq!(ip_addr_fast_field.get(0), None);
+        // single value
+        let ip_addr_fast_field = fast_fields.ip_addr(ip_field).unwrap();
+        assert_eq!(ip_addr_fast_field.get_val(0), None);
+        assert_eq!(ip_addr_fast_field.get_val(1), Some(ip2));
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip2..=ip2), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip1..=ip2), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip2..=ip3), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip1..=ip3), vec![1]);
         assert_eq!(
-            ip_addr_fast_field.get(1),
-            Some(IpAddr::from((2_u128).to_le_bytes()))
+            ip_addr_fast_field.get_between_vals(ip1..=ip1),
+            vec![] as Vec<usize>
+        );
+        assert_eq!(
+            ip_addr_fast_field.get_between_vals(ip3..=ip3),
+            vec![] as Vec<usize>
+        );
+
+        // multi value
+        let ip_addr_fast_field = fast_fields.ip_addrs(ips_field).unwrap();
+        assert_eq!(ip_addr_fast_field.get_val(0), None);
+        assert_eq!(ip_addr_fast_field.get_val(1), Some(ip2));
+
+        let mut out = vec![];
+        ip_addr_fast_field.get_vals(0, &mut out);
+        assert_eq!(out, vec![] as Vec<IpAddr>);
+        let mut out = vec![];
+        ip_addr_fast_field.get_vals(1, &mut out);
+        assert_eq!(out, vec![ip2, ip2]);
+
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip2..=ip2), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip1..=ip2), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip2..=ip3), vec![1]);
+        assert_eq!(ip_addr_fast_field.get_between_vals(ip1..=ip3), vec![1]);
+        assert_eq!(
+            ip_addr_fast_field.get_between_vals(ip1..=ip1),
+            vec![] as Vec<usize>
+        );
+        assert_eq!(
+            ip_addr_fast_field.get_between_vals(ip3..=ip3),
+            vec![] as Vec<usize>
         );
 
         Ok(())
