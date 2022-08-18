@@ -68,7 +68,7 @@ impl PhraseQuery {
 
     /// Slop allowed for the phrase.
     ///
-    /// The query will match if its terms are seperated by `slop` terms at most.
+    /// The query will match if its terms are separated by `slop` terms at most.
     /// By default the slop is 0 meaning query terms need to be adjacent.  
     pub fn set_slop(&mut self, value: u32) {
         self.slop = value;

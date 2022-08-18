@@ -21,7 +21,7 @@ pub(crate) enum SegmentsStatus {
 }
 
 impl SegmentRegisters {
-    /// Check if all the segments are committed or uncommited.
+    /// Check if all the segments are committed or uncommitted.
     ///
     /// If some segment is missing or segments are in a different state (this should not happen
     /// if tantivy is used correctly), returns `None`.
@@ -168,8 +168,8 @@ impl SegmentManager {
                 segment_entries.push(segment_entry);
             }
         } else {
-            let error_msg = "Merge operation sent for segments that are not all uncommited or \
-                             commited."
+            let error_msg = "Merge operation sent for segments that are not all uncommitted or \
+                             committed."
                 .to_string();
             return Err(TantivyError::InvalidArgument(error_msg));
         }
@@ -182,7 +182,7 @@ impl SegmentManager {
     }
     // Replace a list of segments for their equivalent merged segment.
     //
-    // Returns true if these segments are committed, false if the merge segments are uncommited.
+    // Returns true if these segments are committed, false if the merge segments are uncommitted.
     pub(crate) fn end_merge(
         &self,
         before_merge_segment_ids: &[SegmentId],

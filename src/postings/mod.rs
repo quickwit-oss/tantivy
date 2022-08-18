@@ -500,7 +500,7 @@ pub mod tests {
         Ok(())
     }
 
-    /// Wraps a given docset, and forward alls call but the
+    /// Wraps a given docset, and forward all call but the
     /// `.skip_next(...)`. This is useful to test that a specialized
     /// implementation of `.skip_next(...)` is consistent
     /// with the default implementation.

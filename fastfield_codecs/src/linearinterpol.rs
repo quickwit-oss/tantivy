@@ -171,7 +171,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         // On serialisation the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
-        // If this doesn't overflow the algortihm should be fine
+        // If this doesn't overflow the algorithm should be fine
         let theorethical_maximum_offset = stats.max_value - stats.min_value;
         if stats
             .max_value

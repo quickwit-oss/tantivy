@@ -55,7 +55,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     ///
     /// The min value does not take in account of possible
     /// deleted document, and should be considered as a lower bound
-    /// of the actual mimimum value.
+    /// of the actual minimum value.
     pub fn min_value(&self) -> Item {
         self.vals_reader.min_value()
     }

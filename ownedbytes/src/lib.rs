@@ -21,7 +21,7 @@ impl OwnedBytes {
         OwnedBytes::new(&[][..])
     }
 
-    /// Creates an `OwnedBytes` intance given a `StableDeref` object.
+    /// Creates an `OwnedBytes` instance given a `StableDeref` object.
     pub fn new<T: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync>(
         data_holder: T,
     ) -> OwnedBytes {

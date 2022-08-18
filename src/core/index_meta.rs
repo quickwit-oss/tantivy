@@ -311,7 +311,7 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
-    /// List of `SegmentMeta` informations associated to each finalized segment of the index.
+    /// List of `SegmentMeta` information associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
     pub schema: Schema,

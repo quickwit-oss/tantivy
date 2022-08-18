@@ -14,7 +14,7 @@ pub trait Postings: DocSet + 'static {
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
 
-    /// Returns the positions offseted with a given value.
+    /// Returns the positions offsetted with a given value.
     /// The output vector will be resized to the `term_freq`.
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>);
 

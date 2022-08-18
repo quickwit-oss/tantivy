@@ -57,8 +57,7 @@ impl AggregationResult {
         match self {
             AggregationResult::BucketResult(_bucket) => Err(TantivyError::InternalError(
                 "Tried to retrieve value from bucket aggregation. This is not supported and \
-                 should not happen during collection phase, but should be catched during \
-                 validation"
+                 should not happen during collection phase, but should be caught during validation"
                     .to_string(),
             )),
             AggregationResult::MetricResult(metric) => metric.get_value(agg_property),

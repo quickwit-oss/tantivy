@@ -171,7 +171,7 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     if indices.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
         return Err(crate::TantivyError::InvalidArgument(
-            "No indices given to marge".to_string(),
+            "No indices given to merge".to_string(),
         ));
     }
 
@@ -219,7 +219,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     if segments.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
         return Err(crate::TantivyError::InvalidArgument(
-            "No segments given to marge".to_string(),
+            "No segments given to merge".to_string(),
         ));
     }
 
@@ -282,7 +282,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
 
 pub(crate) struct InnerSegmentUpdater {
     // we keep a copy of the current active IndexMeta to
-    // avoid loading the file everytime we need it in the
+    // avoid loading the file every time we need it in the
     // `SegmentUpdater`.
     //
     // This should be up to date as all update happen through
@@ -500,7 +500,7 @@ impl SegmentUpdater {
     // It returns an error if for some reason the merge operation could not be started.
     //
     // At this point an error is not necessarily the sign of a malfunction.
-    // (e.g. A rollback could have happened, between the instant when the merge operaiton was
+    // (e.g. A rollback could have happened, between the instant when the merge operation was
     // suggested and the moment when it ended up being executed.)
     //
     // `segment_ids` is required to be non-empty.

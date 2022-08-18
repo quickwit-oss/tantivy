@@ -7,7 +7,7 @@
 //! For instance, in a dictionary containing the sorted terms "abba", "bjork", "blur" and "donovan",
 //! the `TermOrdinal` are respectively `0`, `1`, `2`, and `3`.
 //!
-//! For `u64`-terms, tantivy explicitely uses a `BigEndian` representation to ensure that the
+//! For `u64`-terms, tantivy explicitly uses a `BigEndian` representation to ensure that the
 //! lexicographical order matches the natural order of integers.
 //!
 //! `i64`-terms are transformed to `u64` using a continuous mapping `val ⟶ val - i64::MIN`

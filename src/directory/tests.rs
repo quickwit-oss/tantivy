@@ -247,7 +247,7 @@ fn test_lock_blocking(directory: &dyn Directory) {
         //< lock_a_res is sent to the thread.
         in_thread_clone.store(true, SeqCst);
         let _just_sync = receiver.recv();
-        // explicitely dropping lock_a_res. It would have been sufficient to just force it
+        // explicitly dropping lock_a_res. It would have been sufficient to just force it
         // to be part of the move, but the intent seems clearer that way.
         drop(lock_a_res);
     });

@@ -40,7 +40,7 @@ fn len_to_capacity(len: u32) -> CapacityResult {
 /// An exponential unrolled link.
 ///
 /// The use case is as follows. Tantivy's indexer conceptually acts like a
-/// `HashMap<Term, Vec<u32>>`. As we come accross a given term in document
+/// `HashMap<Term, Vec<u32>>`. As we come across a given term in document
 /// `D`, we lookup the term in the map and append the document id to its vector.
 ///
 /// The vector is then only read when it is serialized.

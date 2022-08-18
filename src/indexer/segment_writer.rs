@@ -53,7 +53,7 @@ fn remap_doc_opstamps(
 /// set of documents.
 ///
 /// They creates the postings list in anonymous memory.
-/// The segment is layed on disk when the segment gets `finalized`.
+/// The segment is laid on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
     pub(crate) max_doc: DocId,
     pub(crate) ctx: IndexingContext,

@@ -35,7 +35,7 @@ pub struct BlockAddr {
 struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,
-    /// and yet stricly smaller than the first key in the next block.
+    /// and yet strictly smaller than the first key in the next block.
     pub last_key_or_greater: Vec<u8>,
     pub block_addr: BlockAddr,
 }

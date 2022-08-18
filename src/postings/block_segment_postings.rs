@@ -199,7 +199,7 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
-    /// Returns a full block, regardless of whetehr the block is complete or incomplete (
+    /// Returns a full block, regardless of whether the block is complete or incomplete (
     /// as it happens for the last block of the posting list).
     ///
     /// In the latter case, the block is guaranteed to be padded with the sentinel value:
@@ -494,7 +494,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        // create two postings list, one containg even number,
+        // create two postings list, one containing even number,
         // the other containing odd numbers.
         for i in 0..6 {
             let doc = doc!(int_field=> (i % 2) as u64);

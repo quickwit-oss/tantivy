@@ -139,7 +139,7 @@ pub enum FieldType {
     Bool(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
     Date(DateOptions),
-    /// Hierachical Facet
+    /// Hierarchical Facet
     Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),

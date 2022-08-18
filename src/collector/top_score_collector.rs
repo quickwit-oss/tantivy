@@ -499,7 +499,7 @@ impl TopDocs {
     ///
     /// This method only makes it possible to compute the score from a given
     /// `DocId`, fastfield values for the doc and any information you could
-    /// have precomputed beforehands. It does not make it possible for instance
+    /// have precomputed beforehand. It does not make it possible for instance
     /// to compute something like TfIdf as it does not have access to the list of query
     /// terms present in the document, nor the term frequencies for the different terms.
     ///

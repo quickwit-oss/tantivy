@@ -29,7 +29,7 @@ pub struct MultiLinearInterpolFastFieldReader {
 
 #[derive(Clone, Debug, Default)]
 struct Function {
-    // The offset in the data is required, because we have diffrent bit_widths per block
+    // The offset in the data is required, because we have different bit_widths per block
     data_start_offset: u64,
     // start_pos in the block will be CHUNK_SIZE * BLOCK_NUM
     start_pos: u64,
@@ -300,7 +300,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         // On serialization the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
-        // If this doesn't overflow the algortihm should be fine
+        // If this doesn't overflow the algorithm should be fine
         let theorethical_maximum_offset = stats.max_value - stats.min_value;
         if stats
             .max_value

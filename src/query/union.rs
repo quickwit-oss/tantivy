@@ -188,7 +188,7 @@ where
             });
 
             // at this point all of the docsets
-            // are positionned on a doc >= to the target.
+            // are positioned on a doc >= to the target.
             if !self.refill() {
                 self.doc = TERMINATED;
                 return TERMINATED;

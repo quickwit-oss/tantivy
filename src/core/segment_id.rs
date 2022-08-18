@@ -16,7 +16,7 @@ use uuid::Uuid;
 /// by a UUID which is used to prefix the filenames
 /// of all of the file associated with the segment.
 ///
-/// In unit test, for reproducability, the `SegmentId` are
+/// In unit test, for reproducibility, the `SegmentId` are
 /// simply generated in an autoincrement fashion.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);
