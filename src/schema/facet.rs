@@ -156,7 +156,7 @@ impl Facet {
         let other_str = other.encoded_str();
         self_str.len() < other_str.len()
             && other_str.starts_with(self_str)
-            && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
+            && (self_str.len() == 0 || other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE)
     }
 
     /// Extract path from the `Facet`.
@@ -300,5 +300,19 @@ mod tests {
             Err(FacetParseError::FacetParseError("INVALID".to_string())),
             Facet::from_text("INVALID")
         );
+    }
+
+    #[test]
+    fn only_proper_prefixes() {
+        assert!(Facet::from("/foo").is_prefix_of(&Facet::from("/foo/bar")));
+
+        assert!(!Facet::from("/foo/bar").is_prefix_of(&Facet::from("/foo/bar")));
+    }
+
+    #[test]
+    fn root_is_a_prefix() {
+        assert!(Facet::from("/").is_prefix_of(&Facet::from("/foobar")));
+
+        assert!(!Facet::from("/").is_prefix_of(&Facet::from("/")));
     }
 }
