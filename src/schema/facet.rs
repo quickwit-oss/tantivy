@@ -152,11 +152,14 @@ impl Facet {
 
     /// Returns `true` if other is a subfacet of `self`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
+        // Root is a prefix of every other path.
+        // This is not just an optimisation. It is necessary for correctness.
+        if self.is_root() {
+            return true;
+        }
         let self_str = self.encoded_str();
         let other_str = other.encoded_str();
-        self_str.len() < other_str.len()
-            && other_str.starts_with(self_str)
-            && (self_str.len() == 0 || other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE)
+        other_str.starts_with(self_str) && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
     }
 
     /// Extract path from the `Facet`.
