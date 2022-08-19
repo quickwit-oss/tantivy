@@ -150,15 +150,25 @@ impl Facet {
         self.0.push_str(facet_str);
     }
 
-    /// Returns `true` if other is a subfacet of `self`.
+    /// Returns `true` if other is a `strict` subfacet of `self`.
+    ///
+    /// Disclaimer: By strict we mean that the relation is not reflexive.
+    /// `/happy` is not a prefix of `/happy`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
+        let self_str = self.encoded_str();
+        let other_str = other.encoded_str();
+
+        // Fast path, but also required to ensure that / is not a prefix of /.
+        if other_str.len() <= self_str.len() {
+            return false;
+        }
+
         // Root is a prefix of every other path.
         // This is not just an optimisation. It is necessary for correctness.
         if self.is_root() {
             return true;
         }
-        let self_str = self.encoded_str();
-        let other_str = other.encoded_str();
+
         other_str.starts_with(self_str) && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
     }
 
@@ -315,7 +325,6 @@ mod tests {
     #[test]
     fn root_is_a_prefix() {
         assert!(Facet::from("/").is_prefix_of(&Facet::from("/foobar")));
-
         assert!(!Facet::from("/").is_prefix_of(&Facet::from("/")));
     }
 }
