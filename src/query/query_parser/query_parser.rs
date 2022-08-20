@@ -184,7 +184,7 @@ pub struct QueryParser {
 fn all_negative(ast: &LogicalAst) -> bool {
     match ast {
         LogicalAst::Leaf(_) => false,
-        LogicalAst::Boost(ref child_ast, _) => all_negative(&*child_ast),
+        LogicalAst::Boost(ref child_ast, _) => all_negative(child_ast),
         LogicalAst::Clause(children) => children
             .iter()
             .all(|(ref occur, child)| (*occur == Occur::MustNot) || all_negative(child)),

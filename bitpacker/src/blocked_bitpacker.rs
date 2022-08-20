@@ -58,6 +58,10 @@ fn metadata_test() {
     assert_eq!(meta.num_bits(), 6);
 }
 
+fn mem_usage<T>(items: &Vec<T>) -> usize {
+    items.capacity() * std::mem::size_of::<T>()
+}
+
 impl BlockedBitpacker {
     pub fn new() -> Self {
         let mut compressed_blocks = vec![];
@@ -73,10 +77,8 @@ impl BlockedBitpacker {
     pub fn mem_usage(&self) -> usize {
         std::mem::size_of::<BlockedBitpacker>()
             + self.compressed_blocks.capacity()
-            + self.offset_and_bits.capacity()
-                * std::mem::size_of_val(&self.offset_and_bits.get(0).cloned().unwrap_or_default())
-            + self.buffer.capacity()
-                * std::mem::size_of_val(&self.buffer.get(0).cloned().unwrap_or_default())
+            + mem_usage(&self.offset_and_bits)
+            + mem_usage(&self.buffer)
     }
 
     #[inline]
