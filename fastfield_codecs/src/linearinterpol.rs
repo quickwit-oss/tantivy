@@ -101,6 +101,17 @@ pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     (diff / (num_vals - 1) as f64) as f32
 }
 
+/// Delay the cast, to improve precision for very large u64 values.
+///
+/// Since i64 is mapped monotonically to u64 space, 0i64 is after the mapping i64::MAX.
+/// So very large values are not uncommon.
+///
+/// ```rust
+///     let val1 = i64::MAX;
+///     let val2 = i64::MAX - 100;
+///     assert_eq!(val1 - val2, 100);
+///     assert_eq!(val1 as f64 - val2 as f64, 0.0);
+/// ```
 fn diff(val1: u64, val2: u64) -> f64 {
     if val1 >= val2 {
         (val1 - val2) as f64
