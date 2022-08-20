@@ -4,14 +4,13 @@ use common::{BinarySerializable, CountingWriter};
 pub use fastfield_codecs::bitpacked::{
     BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
 };
+use fastfield_codecs::gcd::{find_gcd, write_gcd_header, GCD_CODEC_ID, GCD_DEFAULT};
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
-use super::{find_gcd, FastFieldCodecName, ALL_CODECS, GCD_DEFAULT};
+use super::{FastFieldCodecName, ALL_CODECS};
 use crate::directory::{CompositeWrite, WritePtr};
-use crate::fastfield::gcd::write_gcd_header;
-use crate::fastfield::GCD_CODEC_ID;
 use crate::schema::Field;
 
 /// `CompositeFastFieldSerializer` is in charge of serializing
@@ -142,7 +141,7 @@ impl CompositeFastFieldSerializer {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         let gcd = find_gcd(iter_gen().map(|val| val - stats.min_value)).unwrap_or(GCD_DEFAULT);
 
-        if gcd == 1 {
+        if gcd <= 1 {
             return Self::create_auto_detect_u64_fast_field_with_idx_gcd(
                 self.codec_enable_checker.clone(),
                 field,

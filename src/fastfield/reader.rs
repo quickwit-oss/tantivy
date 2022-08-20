@@ -5,6 +5,7 @@ use std::path::Path;
 use fastfield_codecs::bitpacked::{
     BitpackedFastFieldReader as BitpackedReader, BitpackedFastFieldSerializer,
 };
+use fastfield_codecs::gcd::{GCDFastFieldCodec, GCD_CODEC_ID};
 use fastfield_codecs::linearinterpol::{
     LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
 };
@@ -13,7 +14,7 @@ use fastfield_codecs::multilinearinterpol::{
 };
 use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer};
 
-use super::{FastValue, GCDFastFieldCodec, GCD_CODEC_ID};
+use super::FastValue;
 use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
 use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::{Schema, FAST};

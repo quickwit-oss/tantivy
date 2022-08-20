@@ -2,9 +2,9 @@ use std::io::{self, Write};
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::FastFieldCodecReader;
-use gcd::Gcd;
 use ownedbytes::OwnedBytes;
+
+use crate::FastFieldCodecReader;
 
 pub const GCD_DEFAULT: u64 = 1;
 pub const GCD_CODEC_ID: u8 = 4;
@@ -56,6 +56,13 @@ pub fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: u64)
     Ok(())
 }
 
+fn compute_gcd(mut left: u64, mut right: u64) -> u64 {
+    while right != 0 {
+        (left, right) = (right, left % right);
+    }
+    left
+}
+
 // Find GCD for iterator of numbers
 pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
     let mut numbers = numbers.filter(|n| *n != 0);
@@ -70,7 +77,7 @@ pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
         if remainder == 0 {
             continue;
         }
-        gcd = gcd.gcd(val);
+        gcd = compute_gcd(gcd, val);
         if gcd == 1 {
             return Some(1);
         }
@@ -82,15 +89,17 @@ pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+
+    /*
+    TODO Move test
+
     use std::collections::HashMap;
     use std::path::Path;
-
-    use common::HasLen;
 
     use crate::directory::{CompositeFile, RamDirectory, WritePtr};
     use crate::fastfield::serializer::FastFieldCodecEnableCheck;
     use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
-    use crate::fastfield::{
+    use super::{
         find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecName,
         FastFieldReader, FastFieldsWriter, ALL_CODECS,
     };
@@ -211,6 +220,24 @@ mod tests {
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
     }
+    */
+
+    use crate::gcd::compute_gcd;
+    use crate::gcd::find_gcd;
+
+    #[test]
+    fn test_compute_gcd() {
+        assert_eq!(compute_gcd(0, 0), 0);
+        assert_eq!(compute_gcd(4, 0), 4);
+        assert_eq!(compute_gcd(0, 4), 4);
+        assert_eq!(compute_gcd(1, 4), 1);
+        assert_eq!(compute_gcd(4, 1), 1);
+        assert_eq!(compute_gcd(4, 2), 2);
+        assert_eq!(compute_gcd(10, 25), 5);
+        assert_eq!(compute_gcd(25, 10), 5);
+        assert_eq!(compute_gcd(25, 25), 25);
+    }
+
 
     #[test]
     fn find_gcd_test() {
@@ -221,5 +248,6 @@ mod tests {
         assert_eq!(find_gcd([15, 30, 5, 10].into_iter()), Some(5));
         assert_eq!(find_gcd([15, 16, 10].into_iter()), Some(1));
         assert_eq!(find_gcd([0, 5, 5, 5].into_iter()), Some(5));
+        assert_eq!(find_gcd([0, 0].into_iter()), Some(0));
     }
 }

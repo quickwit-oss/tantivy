@@ -24,7 +24,6 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_CODEC_ID, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;
@@ -38,7 +37,6 @@ mod alive_bitset;
 mod bytes;
 mod error;
 mod facet_reader;
-mod gcd;
 mod multivalued;
 mod reader;
 mod readers;

@@ -8,6 +8,7 @@ use std::io::Write;
 use ownedbytes::OwnedBytes;
 
 pub mod bitpacked;
+pub mod gcd;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 
