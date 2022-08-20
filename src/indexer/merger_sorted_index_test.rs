@@ -484,7 +484,7 @@ mod bench_sorted_index_merge {
     // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
     use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
     use crate::indexer::merger::IndexMerger;
-    use crate::schema::{Cardinality, Document, NumericOptions, Schema};
+    use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
@@ -503,9 +503,7 @@ mod bench_sorted_index_merge {
         {
             let mut index_writer = index.writer_for_tests().unwrap();
             let index_doc = |index_writer: &mut IndexWriter, val: u64| {
-                let mut doc = Document::default();
-                doc.add_u64(int_field, val);
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc!(int_field=>val)).unwrap();
             };
             // 3 segments with 10_000 values in the fast fields
             for _ in 0..3 {
@@ -518,6 +516,7 @@ mod bench_sorted_index_merge {
         }
         index
     }
+
     #[bench]
     fn create_sorted_index_walk_overkmerge_on_merge_fastfield(
         b: &mut Bencher,
@@ -533,19 +532,19 @@ mod bench_sorted_index_merge {
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
         let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
         b.iter(|| {
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, ordinal)| {
-                let reader = &merger.readers[*ordinal as usize];
+            let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
+                let reader = &merger.readers[doc_addr.segment_ord as usize];
                 let u64_reader: DynamicFastFieldReader<u64> =
                     reader.fast_fields().typed_fast_field_reader(field).expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
                     );
-                (doc_id, reader, u64_reader)
+                (doc_addr.doc_id, reader, u64_reader)
             });
             // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get(*doc_id);
+                val = field_reader.get(doc_id);
             }
 
             val
