@@ -2,6 +2,7 @@ use std::io::{self, Read, Write};
 use std::ops::Sub;
 
 use common::{BinarySerializable, FixedSize};
+use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
@@ -10,6 +11,7 @@ use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess,
 /// fast field is required.
 #[derive(Clone)]
 pub struct LinearInterpolFastFieldReader {
+    data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     pub footer: LinearInterpolFooter,
     pub slope: f32,
@@ -57,23 +59,24 @@ impl FixedSize for LinearInterpolFooter {
 
 impl FastFieldCodecReader for LinearInterpolFastFieldReader {
     /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        let (_data, mut footer) = bytes.split_at(bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES);
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
+        let footer_offset = bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES;
+        let (data, mut footer) = bytes.split(footer_offset);
         let footer = LinearInterpolFooter::deserialize(&mut footer)?;
         let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
-
         let num_bits = compute_num_bits(footer.relative_max_value);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(LinearInterpolFastFieldReader {
+            data,
             bit_unpacker,
             footer,
             slope,
         })
     }
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
+    fn get_u64(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
-        (calculated_value + self.bit_unpacker.get(doc, data)) - self.footer.offset
+        (calculated_value + self.bit_unpacker.get(doc, &self.data)) - self.footer.offset
     }
 
     #[inline]
