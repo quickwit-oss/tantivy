@@ -13,7 +13,7 @@ pub mod gcd;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 
-pub trait FastFieldCodecReader{
+pub trait FastFieldCodecReader {
     /// reads the metadata and returns the CodecReader
     fn get_u64(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
@@ -22,7 +22,7 @@ pub trait FastFieldCodecReader{
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodecSerializer {
+pub trait FastFieldCodec {
     /// A codex needs to provide a unique name used for debugging and de/serialization.
     const NAME: &'static str;
 
@@ -42,6 +42,7 @@ pub trait FastFieldCodecSerializer {
     /// There are multiple iterators, in case the codec needs to read the data multiple times.
     /// The iterators should be preferred over using fastfield_accessor for performance reasons.
     fn serialize(
+        &self,
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
@@ -93,7 +94,8 @@ mod tests {
         MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
     };
 
-    pub fn create_and_validate<S: FastFieldCodecSerializer>(
+    pub fn create_and_validate<S: FastFieldCodec>(
+        codec: &S,
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
@@ -102,7 +104,7 @@ mod tests {
         }
         let estimation = S::estimate(&data, crate::tests::stats_from_vec(data));
         let mut out: Vec<u8> = Vec::new();
-        S::serialize(
+        codec.serialize(
             &mut out,
             &data,
             crate::tests::stats_from_vec(data),
@@ -141,11 +143,11 @@ mod tests {
         data_and_names
     }
 
-    fn test_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader>() {
-        let codec_name = S::NAME;
+    fn test_codec<C: FastFieldCodec>(codec: &C) {
+        let codec_name = C::NAME;
         for (data, data_set_name) in get_codec_test_data_sets() {
             let (estimate, actual) =
-                crate::tests::create_and_validate::<S>(&data, data_set_name);
+                crate::tests::create_and_validate(codec, &data, data_set_name);
             let result = if estimate == f32::MAX {
                 "Disabled".to_string()
             } else {
@@ -159,15 +161,15 @@ mod tests {
     }
     #[test]
     fn test_codec_bitpacking() {
-        test_codec::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>();
+        test_codec(&BitpackedFastFieldSerializer);
     }
     #[test]
     fn test_codec_interpolation() {
-        test_codec::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>();
+        test_codec(&LinearInterpolFastFieldSerializer);
     }
     #[test]
     fn test_codec_multi_interpolation() {
-        test_codec::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>();
+        test_codec(&MultiLinearInterpolFastFieldSerializer);
     }
 
     use super::*;

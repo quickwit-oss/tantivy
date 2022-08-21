@@ -29,7 +29,7 @@ mod tests {
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn bench_get<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
+    fn bench_get<S: FastFieldCodec, R: FastFieldCodecReader>(
         b: &mut Bencher,
         data: &[u64],
     ) {
@@ -49,7 +49,7 @@ mod tests {
             }
         });
     }
-    fn bench_create<S: FastFieldCodecSerializer>(b: &mut Bencher, data: &[u64]) {
+    fn bench_create<S: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
         b.iter(|| {
             S::serialize(

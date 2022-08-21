@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use fastdivide::DividerU64;
 use ownedbytes::OwnedBytes;
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer};
+use crate::{FastFieldCodecReader, FastFieldCodec};
 
 /// Wrapper for accessing a fastfield.
 ///
@@ -16,13 +16,13 @@ pub struct GCDFastFieldCodecReader<CodecReader> {
     reader: CodecReader,
 }
 
-pub struct GCDFastFieldCodecSerializer<WrappedCodecSerializer: FastFieldCodecSerializer> {
-    _wrapped_type: PhantomData<WrappedCodecSerializer>,
+pub struct GCDFastFieldCodecSerializer<WrappedCodecSerializer: FastFieldCodec> {
+    pub gcd: NonZeroU64,
+    pub min_value: u64,
+    pub wrapped: WrappedCodecSerializer,
 }
 
-impl<WrappedCodecSerializer: FastFieldCodecSerializer> GCDFastFieldCodecSerializer<WrappedCodecSerializer> {}
-
-impl<WrappedCodecSerializer: FastFieldCodecSerializer> FastFieldCodecSerializer for GCDFastFieldCodecSerializer<WrappedCodecSerializer> {
+impl<WrappedCodecSerializer: FastFieldCodec> FastFieldCodec for GCDFastFieldCodecSerializer<WrappedCodecSerializer> {
     // TODO Fixme. We could like the underlying codec name as well.
     const NAME: &'static str = "GCD";
 
@@ -37,13 +37,16 @@ impl<WrappedCodecSerializer: FastFieldCodecSerializer> FastFieldCodecSerializer 
     }
 
     fn serialize(
+        &self,
         write: &mut impl Write,
         fastfield_accessor: &dyn crate::FastFieldDataAccess,
         stats: crate::FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
-        todo!()
+        write_gcd_header(write, self.min_value, self.gcd)?;
+        self.wrapped.serialize(write, fastfield_accessor, stats, data_iter, data_iter1)?;
+        Ok(())
     }
 
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
@@ -77,8 +80,8 @@ impl<C: FastFieldCodecReader> FastFieldCodecReader for GCDFastFieldCodecReader<C
     }
 }
 
-pub fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: u64) -> io::Result<()> {
-    gcd.serialize(field_write)?;
+fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: NonZeroU64) -> io::Result<()> {
+    gcd.get().serialize(field_write)?;
     min_value.serialize(field_write)?;
     Ok(())
 }

@@ -2,7 +2,7 @@
 extern crate prettytable;
 // use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 // use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
+use fastfield_codecs::{FastFieldCodec, FastFieldStats, bitpacked::BitpackedFastFieldSerializer};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -17,9 +17,7 @@ fn main() {
         // results.push(res);
         // let res = serialize_with_codec::<MultiLinearInterpolFastFieldSerializer>(&data);
         // results.push(res);
-        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedFastFieldSerializer>(
-            &data,
-        );
+        let res = serialize_with_codec(&BitpackedFastFieldSerializer, &data);
         results.push(res);
 
         // let best_estimation_codec = results
@@ -91,7 +89,8 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data_and_names
 }
 
-pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
+pub fn serialize_with_codec<S: FastFieldCodec>(
+    codec: &S,
     data: &[u64],
 ) -> (bool, f32, f32, &'static str) {
     let is_applicable = S::is_applicable(&data, stats_from_vec(data));
@@ -100,7 +99,7 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
     }
     let estimation = S::estimate(&data, stats_from_vec(data));
     let mut out = vec![];
-    S::serialize(
+    codec.serialize(
         &mut out,
         &data,
         stats_from_vec(data),

@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodecReader, FastFieldCodec, FastFieldDataAccess, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -83,7 +83,7 @@ impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
 
 pub struct BitpackedFastFieldSerializer;
 
-impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
+impl FastFieldCodec for BitpackedFastFieldSerializer {
     const NAME: &'static str = "Bitpacked";
 
     type Reader = BitpackedFastFieldReader;
@@ -114,6 +114,7 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     /// compute the minimum number of bits required to encode
     /// values.
     fn serialize(
+        &self,
         write: &mut impl Write,
         _fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
@@ -150,7 +151,8 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) {
-        crate::tests::create_and_validate::<BitpackedFastFieldSerializer>(
+        crate::tests::create_and_validate(
+            &BitpackedFastFieldSerializer,
             data, name,
         );
     }

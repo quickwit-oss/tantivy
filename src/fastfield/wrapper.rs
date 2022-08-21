@@ -18,6 +18,18 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::path::Path;
+
+use fastfield_codecs::FastFieldCodecReader;
+use fastfield_codecs::FastFieldCodec;
+use fastfield_codecs::dynamic::DynamicFastFieldReader;
+
+use crate::directory::CompositeFile;
+use crate::directory::RamDirectory;
+use crate::directory::WritePtr;
+use crate::fastfield::FastValue;
+use crate::schema::Schema;
+
 /// Wrapper for accessing a fastfield.
 ///
 /// Holds the data and the codec to the read the data.
@@ -78,40 +90,81 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     }
 }
 
-impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
-    fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
-        let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_u64_field("field", FAST);
-        let schema = schema_builder.build();
-        let path = Path::new("__dummy__");
-        let directory: RamDirectory = RamDirectory::create();
-        {
-            let write: WritePtr = directory
-                .open_write(path)
-                .expect("With a RamDirectory, this should never fail.");
-            let mut serializer = CompositeFastFieldSerializer::from_write(write)
-                .expect("With a RamDirectory, this should never fail.");
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-            {
-                let fast_field_writer = fast_field_writers
-                    .get_field_writer_mut(field)
-                    .expect("With a RamDirectory, this should never fail.");
-                for val in vals {
-                    fast_field_writer.add_val(val.to_u64());
-                }
-            }
-            fast_field_writers
-                .serialize(&mut serializer, &HashMap::new(), None)
-                .unwrap();
-            serializer.close().unwrap();
-        }
+impl<Item: FastValue, Codec: FastFieldCodec> FastFieldReaderCodecWrapper<Item, Codec> {
+    // /// Opens a fast field given a file.
+    // pub fn open(file: FileSlice) -> crate::Result<Self> {
+    //     let mut bytes = file.read_bytes()?;
+    //     Self::open_from_bytes(bytes)
+    // }
 
-        let file = directory.open_read(path).expect("Failed to open the file");
-        let composite_file = CompositeFile::open(&file).expect("Failed to read the composite file");
-        let field_file = composite_file
-            .open_read(field)
-            .expect("File component not found");
-        DynamicFastFieldReader::open(field_file).unwrap()
+    /// Opens a fast field given the bytes.
+    pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
+        let reader = C::open_from_bytes(bytes)?;
+        Ok(FastFieldReaderCodecWrapper {
+            reader,
+            _phantom: PhantomData,
+        })
+    }
+
+    #[inline]
+    pub(crate) fn get_u64(&self, doc: u64) -> Item {
+        let data = self.reader.get_u64(doc);
+        Item::from_u64(data)
+    }
+
+    /// Internally `multivalued` also use SingleValue Fast fields.
+    /// It works as follows... A first column contains the list of start index
+    /// for each document, a second column contains the actual values.
+    ///
+    /// The values associated to a given doc, are then
+    ///  `second_column[first_column.get(doc)..first_column.get(doc+1)]`.
+    ///
+    /// Which means single value fast field reader can be indexed internally with
+    /// something different from a `DocId`. For this use case, we want to use `u64`
+    /// values.
+    ///
+    /// See `get_range` for an actual documentation about this method.
+    pub(crate) fn get_range_u64(&self, start: u64, output: &mut [Item]) {
+        for (i, out) in output.iter_mut().enumerate() {
+            *out = self.get_u64(start + (i as u64));
+        }
     }
 }
+
+// impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
+//     fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
+//         let mut schema_builder = Schema::builder();
+//         let field = schema_builder.add_u64_field("field", FAST);
+//         let schema = schema_builder.build();
+//         let path = Path::new("__dummy__");
+//         let directory: RamDirectory = RamDirectory::create();
+//         {
+//             let write: WritePtr = directory
+//                 .open_write(path)
+//                 .expect("With a RamDirectory, this should never fail.");
+//             let mut serializer = CompositeFastFieldSerializer::from_write(write)
+//                 .expect("With a RamDirectory, this should never fail.");
+//             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+//             {
+//                 let fast_field_writer = fast_field_writers
+//                     .get_field_writer_mut(field)
+//                     .expect("With a RamDirectory, this should never fail.");
+//                 for val in vals {
+//                     fast_field_writer.add_val(val.to_u64());
+//                 }
+//             }
+//             fast_field_writers
+//                 .serialize(&mut serializer, &HashMap::new(), None)
+//                 .unwrap();
+//             serializer.close().unwrap();
+//         }
+
+//         let file = directory.open_read(path).expect("Failed to open the file");
+//         let composite_file = CompositeFile::open(&file).expect("Failed to read the composite file");
+//         let field_file = composite_file
+//             .open_read(field)
+//             .expect("File component not found");
+//         DynamicFastFieldReader::open(field_file).unwrap()
+//     }
+// }
 

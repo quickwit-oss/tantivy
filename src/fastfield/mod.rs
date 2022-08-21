@@ -25,13 +25,14 @@ pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
+pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
 use crate::{DateTime, DocId};
+pub use self::wrapper::FastFieldReaderCodecWrapper;
 
 mod alive_bitset;
 mod bytes;
@@ -41,6 +42,7 @@ mod multivalued;
 mod reader;
 mod readers;
 mod serializer;
+mod wrapper;
 mod writer;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]

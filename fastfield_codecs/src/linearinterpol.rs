@@ -5,7 +5,7 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodecReader, FastFieldCodec, FastFieldDataAccess, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -77,7 +77,7 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
-pub struct LinearInterpolFastFieldSerializer {}
+pub struct LinearInterpolFastFieldSerializer;
 
 #[inline]
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
@@ -94,7 +94,7 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
 
-impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
+impl FastFieldCodec for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
 
     type Reader = LinearInterpolFastFieldReader;
@@ -117,6 +117,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
 
     /// Creates a new fast field serializer.
     fn serialize(
+        &self,
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
@@ -242,9 +243,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<
-            LinearInterpolFastFieldSerializer,
-        >(data, name)
+        crate::tests::create_and_validate(&LinearInterpolFastFieldSerializer, data, name)
     }
 
     #[test]

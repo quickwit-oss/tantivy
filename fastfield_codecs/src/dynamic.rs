@@ -23,16 +23,16 @@ use std::sync::Arc;
 
 use ownedbytes::OwnedBytes;
 
-use crate::FastFieldCodecSerializer;
+use crate::FastFieldCodec;
 use crate::bitpacked::BitpackedFastFieldSerializer;
 use crate::linearinterpol::LinearInterpolFastFieldSerializer;
 use crate::FastFieldCodecReader;
 use crate::gcd::GCDFastFieldCodecSerializer;
 use crate::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 
-struct DynamicFastFieldSerializer;
+pub struct DynamicFastFieldSerializer;
 
-impl FastFieldCodecSerializer for DynamicFastFieldSerializer {
+impl FastFieldCodec for DynamicFastFieldSerializer {
     const NAME: &'static str = "dynamic";
 
     type Reader = DynamicFastFieldReader;
@@ -46,6 +46,7 @@ impl FastFieldCodecSerializer for DynamicFastFieldSerializer {
     }
 
     fn serialize(
+        &self,
         write: &mut impl io::Write,
         fastfield_accessor: &dyn crate::FastFieldDataAccess,
         stats: crate::FastFieldStats,

@@ -5,10 +5,10 @@ use common::{BinarySerializable, CountingWriter};
 pub use fastfield_codecs::bitpacked::{
     BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
 };
-use fastfield_codecs::gcd::{find_gcd, write_gcd_header, GCD_CODEC_ID, GCD_DEFAULT};
+use fastfield_codecs::gcd::{find_gcd, write_gcd_header};
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+pub use fastfield_codecs::{FastFieldCodec, FastFieldDataAccess, FastFieldStats};
 
 use super::{FastFieldCodecName, ALL_CODECS};
 use crate::directory::{CompositeWrite, WritePtr};
@@ -40,7 +40,7 @@ pub struct CompositeFastFieldSerializer {
 }
 
 #[derive(Debug, Clone)]
-pub struct FastFieldCodecEnableCheck {
+struct FastFieldCodecEnableCheck {
     enabled_codecs: Vec<FastFieldCodecName>,
 }
 impl FastFieldCodecEnableCheck {
@@ -54,17 +54,9 @@ impl FastFieldCodecEnableCheck {
     }
 }
 
-impl From<FastFieldCodecName> for FastFieldCodecEnableCheck {
-    fn from(codec_name: FastFieldCodecName) -> Self {
-        FastFieldCodecEnableCheck {
-            enabled_codecs: vec![codec_name],
-        }
-    }
-}
-
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
-fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
+fn codec_estimation<T: FastFieldCodec, A: FastFieldDataAccess>(
     stats: FastFieldStats,
     fastfield_accessor: &A,
     estimations: &mut Vec<(f32, &str, u8)>,
@@ -83,7 +75,7 @@ impl CompositeFastFieldSerializer {
     }
 
     /// Constructor
-    pub fn from_write_with_codec(
+    fn from_write_with_codec(
         write: WritePtr,
         codec_enable_checker: FastFieldCodecEnableCheck,
     ) -> io::Result<CompositeFastFieldSerializer> {
@@ -119,7 +111,7 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn write_header<W: Write>(field_write: &mut W, codec_id: u8) -> io::Result<()> {
+    fn write_header<W: Write>(field_write: &mut W, codec_id: u8) -> io::Result<()> {
         codec_id.serialize(field_write)?;
 
         Ok(())
@@ -140,7 +132,9 @@ impl CompositeFastFieldSerializer {
         I: Iterator<Item = u64>,
     {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
-        let gcd = find_gcd(iter_gen().map(|val| val - stats.min_value)).unwrap_or(GCD_DEFAULT);
+        let gcd: u64 = find_gcd(iter_gen().map(|val| val - stats.min_value))
+            .map(NonZeroU64::get)
+            .unwrap_or(1);
 
         if gcd == 1 {
             // No GCD opportunity here.
@@ -154,7 +148,6 @@ impl CompositeFastFieldSerializer {
                 iter_gen(),
             );
         }
-
         Self::write_header(field_write, GCD_CODEC_ID)?;
         struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
             fastfield_accessor: T,
@@ -196,7 +189,7 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn create_auto_detect_u64_fast_field_with_idx_gcd<W: Write>(
+    fn create_auto_detect_u64_fast_field_with_idx_gcd<W: Write>(
         codec_enable_checker: FastFieldCodecEnableCheck,
         field: Field,
         field_write: &mut CountingWriter<W>,
