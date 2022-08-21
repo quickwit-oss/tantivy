@@ -1,89 +1,54 @@
-use std::{io::{self, Write}, marker::PhantomData, num::NonZeroU64};
+use std::io::{self, Write};
+use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use ownedbytes::OwnedBytes;
 
-use crate::{FastFieldCodecReader, FastFieldCodec};
+use crate::FastFieldCodecReader;
 
 /// Wrapper for accessing a fastfield.
 ///
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
 pub struct GCDFastFieldCodecReader<CodecReader> {
-    gcd: u64,
-    min_value: u64,
-    reader: CodecReader,
+    pub params: GCDParams,
+    pub reader: CodecReader,
 }
-
-pub struct GCDFastFieldCodecSerializer<WrappedCodecSerializer: FastFieldCodec> {
-    pub gcd: NonZeroU64,
-    pub min_value: u64,
-    pub wrapped: WrappedCodecSerializer,
-}
-
-impl<WrappedCodecSerializer: FastFieldCodec> FastFieldCodec for GCDFastFieldCodecSerializer<WrappedCodecSerializer> {
-    // TODO Fixme. We could like the underlying codec name as well.
-    const NAME: &'static str = "GCD";
-
-    type Reader = GCDFastFieldCodecReader<WrappedCodecSerializer::Reader>;
-
-    fn is_applicable(fastfield_accessor: &impl crate::FastFieldDataAccess, stats: crate::FastFieldStats) -> bool {
-        todo!()
-    }
-
-    fn estimate(fastfield_accessor: &impl crate::FastFieldDataAccess, stats: crate::FastFieldStats) -> f32 {
-        todo!()
-    }
-
-    fn serialize(
-        &self,
-        write: &mut impl Write,
-        fastfield_accessor: &dyn crate::FastFieldDataAccess,
-        stats: crate::FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
-        write_gcd_header(write, self.min_value, self.gcd)?;
-        self.wrapped.serialize(write, fastfield_accessor, stats, data_iter, data_iter1)?;
-        Ok(())
-    }
-
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
-        let footer_offset = bytes.len() - 16;
-        let (body, mut footer) = bytes.split(footer_offset);
-        let gcd = u64::deserialize(&mut footer)?;
-        let min_value = u64::deserialize(&mut footer)?;
-        let reader = WrappedCodecSerializer::open_from_bytes(body)?;
-        Ok(GCDFastFieldCodecReader {
-            gcd,
-            min_value,
-            reader,
-        })
-    }
-
-}
-
 
 impl<C: FastFieldCodecReader> FastFieldCodecReader for GCDFastFieldCodecReader<C> {
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
-        self.min_value + self.gcd * self.reader.get_u64(doc)
+        self.params.min_value + self.params.gcd.get() * self.reader.get_u64(doc)
     }
 
     fn min_value(&self) -> u64 {
-        self.min_value + self.reader.min_value() * self.gcd
+        self.params.min_value + self.params.gcd.get() * self.reader.min_value()
     }
 
     fn max_value(&self) -> u64 {
-        self.min_value + self.reader.max_value() * self.gcd
+        self.params.min_value + self.params.gcd.get() * self.reader.max_value()
     }
 }
 
-fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: NonZeroU64) -> io::Result<()> {
-    gcd.get().serialize(field_write)?;
-    min_value.serialize(field_write)?;
-    Ok(())
+#[derive(Debug, Copy, Clone)]
+pub struct GCDParams {
+    pub min_value: u64,
+    pub gcd: NonZeroU64,
+}
+
+impl BinarySerializable for GCDParams {
+    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+        self.gcd.get().serialize(wrt)?;
+        self.min_value.serialize(wrt)?;
+        Ok(())
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let gcd = NonZeroU64::new(u64::deserialize(reader)?)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "GCD=0 is invalid."))?;
+        let min_value = u64::deserialize(reader)?;
+        Ok(GCDParams { min_value, gcd })
+    }
 }
 
 fn compute_gcd(mut left: u64, mut right: u64) -> u64 {
@@ -105,7 +70,7 @@ pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<NonZeroU64> {
 
     let mut gcd_divider = DividerU64::divide_by(gcd);
     for val in numbers {
-        let remainder = val - (gcd_divider.divide(val)) * gcd;
+        let remainder = val - gcd_divider.divide(val) * gcd;
         if remainder == 0 {
             continue;
         }
@@ -113,7 +78,6 @@ pub fn find_gcd(numbers: impl Iterator<Item = u64>) -> Option<NonZeroU64> {
         if gcd == 1 {
             return NonZeroU64::new(1);
         }
-
         gcd_divider = DividerU64::divide_by(gcd);
     }
     NonZeroU64::new(gcd)

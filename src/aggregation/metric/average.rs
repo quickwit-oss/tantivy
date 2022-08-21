@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::f64_from_fastfield_u64;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use crate::fastfield::{FastFieldReader, FastFieldReaderImpl};
 use crate::schema::Type;
 use crate::DocId;
 
@@ -43,7 +43,7 @@ pub(crate) struct SegmentAverageCollector {
 }
 
 impl Debug for SegmentAverageCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("AverageCollector")
             .field("data", &self.data)
             .finish()
@@ -57,7 +57,7 @@ impl SegmentAverageCollector {
             data: Default::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
+    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &FastFieldReaderImpl<u64>) {
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
             let val1 = field.get(docs[0]);

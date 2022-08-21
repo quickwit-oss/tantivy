@@ -14,6 +14,7 @@ pub struct BlockedBitpacker {
     buffer: Vec<u64>,
     offset_and_bits: Vec<BlockedBitpackerEntryMetaData>,
 }
+
 impl Default for BlockedBitpacker {
     fn default() -> Self {
         BlockedBitpacker::new()
@@ -60,12 +61,11 @@ fn metadata_test() {
 
 impl BlockedBitpacker {
     pub fn new() -> Self {
-        let mut compressed_blocks = vec![];
-        compressed_blocks.resize(8, 0);
+        let compressed_blocks = vec![0u8; 8];
         Self {
             compressed_blocks,
-            buffer: vec![],
-            offset_and_bits: vec![],
+            buffer: Vec::new(),
+            offset_and_bits: Vec::new(),
         }
     }
 

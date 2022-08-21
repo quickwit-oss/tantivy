@@ -9,7 +9,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::{FastFieldReader, FastFieldReaderImpl, FastValue};
 use crate::query::Weight;
 use crate::schema::Field;
 use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
@@ -129,7 +129,7 @@ impl fmt::Debug for TopDocs {
 }
 
 struct ScorerByFastFieldReader {
-    ff_reader: DynamicFastFieldReader<u64>,
+    ff_reader: FastFieldReaderImpl<u64>,
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {

@@ -19,41 +19,65 @@
 //
 
 use std::io;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
+use common::BinarySerializable;
+use fastdivide::DividerU64;
 use ownedbytes::OwnedBytes;
 
-use crate::FastFieldCodec;
-use crate::bitpacked::BitpackedFastFieldSerializer;
-use crate::linearinterpol::LinearInterpolFastFieldSerializer;
-use crate::FastFieldCodecReader;
-use crate::gcd::GCDFastFieldCodecSerializer;
-use crate::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+use crate::bitpacked::BitpackedFastFieldCodec;
+use crate::gcd::{find_gcd, GCDFastFieldCodecReader, GCDParams};
+use crate::linearinterpol::LinearInterpolCodec;
+use crate::multilinearinterpol::MultiLinearInterpolFastFieldCodec;
+use crate::{FastFieldCodec, FastFieldCodecReader, FastFieldStats};
 
-pub struct DynamicFastFieldSerializer;
+pub struct DynamicFastFieldCodec;
 
-impl FastFieldCodec for DynamicFastFieldSerializer {
+impl FastFieldCodec for DynamicFastFieldCodec {
     const NAME: &'static str = "dynamic";
 
     type Reader = DynamicFastFieldReader;
 
-    fn is_applicable(fastfield_accessor: &impl crate::FastFieldDataAccess, stats: crate::FastFieldStats) -> bool {
-        todo!()
+    fn is_applicable(_vals: &[u64], _stats: crate::FastFieldStats) -> bool {
+        true
     }
 
-    fn estimate(fastfield_accessor: &impl crate::FastFieldDataAccess, stats: crate::FastFieldStats) -> f32 {
-        todo!()
+    fn estimate(_vals: &[u64], _stats: crate::FastFieldStats) -> f32 {
+        0f32
     }
 
     fn serialize(
         &self,
-        write: &mut impl io::Write,
-        fastfield_accessor: &dyn crate::FastFieldDataAccess,
+        wrt: &mut impl io::Write,
+        vals: &[u64],
         stats: crate::FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
-        todo!()
+        let gcd: NonZeroU64 = find_gcd(vals.iter().copied().map(|val| val - stats.min_value))
+            .unwrap_or(unsafe { NonZeroU64::new_unchecked(1) });
+        if gcd.get() > 1 {
+            let gcd_divider = DividerU64::divide_by(gcd.get());
+            let scaled_vals: Vec<u64> = vals
+                .iter()
+                .copied()
+                .map(|val| gcd_divider.divide(val - stats.min_value))
+                .collect();
+            <CodecType as BinarySerializable>::serialize(&CodecType::Gcd, wrt)?;
+            let gcd_params = GCDParams {
+                min_value: stats.min_value,
+                gcd,
+            };
+            gcd_params.serialize(wrt)?;
+            let codec_type = choose_codec(stats, &scaled_vals);
+            <CodecType as BinarySerializable>::serialize(&codec_type, wrt)?;
+            let scaled_stats = FastFieldStats::compute(&scaled_vals);
+            codec_type.serialize(wrt, &scaled_vals, scaled_stats)?;
+        } else {
+            let codec_type = choose_codec(stats, vals);
+            wrt.write_all(&[codec_type.to_code()])?;
+            codec_type.serialize(wrt, vals, stats)?;
+        }
+        Ok(())
     }
 
     fn open_from_bytes(mut bytes: OwnedBytes) -> io::Result<Self::Reader> {
@@ -65,31 +89,27 @@ impl FastFieldCodec for DynamicFastFieldSerializer {
             )
         })?;
         let fast_field_reader: Arc<dyn FastFieldCodecReader> = match codec_type {
-            CodecType::Bitpacked => Arc::new(BitpackedFastFieldSerializer::open_from_bytes(bytes)?),
-            CodecType::LinearInterpol => {
-                Arc::new(LinearInterpolFastFieldSerializer::open_from_bytes(bytes)?)
-            }
+            CodecType::Bitpacked => Arc::new(BitpackedFastFieldCodec::open_from_bytes(bytes)?),
+            CodecType::LinearInterpol => Arc::new(LinearInterpolCodec::open_from_bytes(bytes)?),
             CodecType::MultiLinearInterpol => {
-                Arc::new(MultiLinearInterpolFastFieldSerializer::open_from_bytes(bytes)?)
+                Arc::new(MultiLinearInterpolFastFieldCodec::open_from_bytes(bytes)?)
             }
             CodecType::Gcd => {
-                let inner_codec_id = bytes.read_u8();
-                let inner_codec_type = CodecType::from_code(inner_codec_id).ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("Unknown codec code `{codec_code}`"),
-                    )
-                })?;
+                let gcd_params = GCDParams::deserialize(&mut bytes)?;
+                let inner_codec_type = <CodecType as BinarySerializable>::deserialize(&mut bytes)?;
                 match inner_codec_type {
-                    CodecType::Bitpacked => {
-                        Arc::new(GCDFastFieldCodecSerializer::<BitpackedFastFieldSerializer>::open_from_bytes(bytes)?)
-                    }
-                    CodecType::LinearInterpol => {
-                        Arc::new(GCDFastFieldCodecSerializer::<LinearInterpolFastFieldSerializer>::open_from_bytes(bytes)?)
-                    }
-                    CodecType::MultiLinearInterpol => {
-                        Arc::new(GCDFastFieldCodecSerializer::<MultiLinearInterpolFastFieldSerializer>::open_from_bytes(bytes)?)
-                    }
+                    CodecType::Bitpacked => Arc::new(GCDFastFieldCodecReader {
+                        params: gcd_params,
+                        reader: BitpackedFastFieldCodec::open_from_bytes(bytes)?,
+                    }),
+                    CodecType::LinearInterpol => Arc::new(GCDFastFieldCodecReader {
+                        params: gcd_params,
+                        reader: LinearInterpolCodec::open_from_bytes(bytes)?,
+                    }),
+                    CodecType::MultiLinearInterpol => Arc::new(GCDFastFieldCodecReader {
+                        params: gcd_params,
+                        reader: MultiLinearInterpolFastFieldCodec::open_from_bytes(bytes)?,
+                    }),
                     CodecType::Gcd => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -103,7 +123,6 @@ impl FastFieldCodec for DynamicFastFieldSerializer {
     }
 }
 
-
 #[derive(Clone)]
 /// DynamicFastFieldReader wraps different readers to access
 /// the various encoded fastfield data
@@ -111,11 +130,29 @@ pub struct DynamicFastFieldReader(Arc<dyn FastFieldCodecReader>);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
-enum CodecType {
+pub enum CodecType {
     Bitpacked = 0,
     LinearInterpol = 1,
     MultiLinearInterpol = 2,
     Gcd = 3,
+}
+
+impl BinarySerializable for CodecType {
+    fn serialize<W: io::Write>(&self, wrt: &mut W) -> io::Result<()> {
+        wrt.write_all(&[self.to_code()])?;
+        Ok(())
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let codec_code = u8::deserialize(reader)?;
+        let codec_type = CodecType::from_code(codec_code).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Invalid codec type code {codec_code}"),
+            )
+        })?;
+        Ok(codec_type)
+    }
 }
 
 impl CodecType {
@@ -132,6 +169,50 @@ impl CodecType {
     pub fn to_code(self) -> u8 {
         self as u8
     }
+
+    fn codec_estimation(
+        &self,
+        stats: FastFieldStats,
+        vals: &[u64],
+        estimations: &mut Vec<(f32, CodecType)>,
+    ) {
+        let estimate_opt: Option<f32> = match self {
+            CodecType::Bitpacked => codec_estimation::<BitpackedFastFieldCodec>(stats, vals),
+            CodecType::LinearInterpol => codec_estimation::<LinearInterpolCodec>(stats, vals),
+            CodecType::MultiLinearInterpol => {
+                codec_estimation::<MultiLinearInterpolFastFieldCodec>(stats, vals)
+            }
+            CodecType::Gcd => None,
+        };
+        if let Some(estimate) = estimate_opt {
+            if !estimate.is_nan() && estimate.is_finite() {
+                estimations.push((estimate, *self));
+            }
+        }
+    }
+
+    fn serialize(
+        &self,
+        wrt: &mut impl io::Write,
+        fastfield_accessor: &[u64],
+        stats: FastFieldStats,
+    ) -> io::Result<()> {
+        match self {
+            CodecType::Bitpacked => {
+                BitpackedFastFieldCodec.serialize(wrt, fastfield_accessor, stats)?;
+            }
+            CodecType::LinearInterpol => {
+                LinearInterpolCodec.serialize(wrt, fastfield_accessor, stats)?;
+            }
+            CodecType::MultiLinearInterpol => {
+                MultiLinearInterpolFastFieldCodec.serialize(wrt, fastfield_accessor, stats)?;
+            }
+            CodecType::Gcd => {
+                panic!("GCD should never be called that way.");
+            }
+        }
+        Ok(())
+    }
 }
 
 impl FastFieldCodecReader for DynamicFastFieldReader {
@@ -146,4 +227,28 @@ impl FastFieldCodecReader for DynamicFastFieldReader {
     fn max_value(&self) -> u64 {
         self.0.max_value()
     }
+}
+
+fn codec_estimation<T: FastFieldCodec>(stats: FastFieldStats, vals: &[u64]) -> Option<f32> {
+    if !T::is_applicable(vals, stats.clone()) {
+        return None;
+    }
+    let ratio = T::estimate(vals, stats);
+    Some(ratio)
+}
+
+const CODEC_TYPES: [CodecType; 3] = [
+    CodecType::Bitpacked,
+    CodecType::LinearInterpol,
+    CodecType::MultiLinearInterpol,
+];
+
+fn choose_codec(stats: FastFieldStats, vals: &[u64]) -> CodecType {
+    let mut estimations = Vec::new();
+    for codec_type in &CODEC_TYPES {
+        codec_type.codec_estimation(stats, vals, &mut estimations);
+    }
+    estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    let (_ratio, codec_type) = estimations[0];
+    codec_type
 }

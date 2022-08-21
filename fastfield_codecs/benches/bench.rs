@@ -4,12 +4,10 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use fastfield_codecs::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
-    use fastfield_codecs::linearinterpol::{
-        LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
-    };
+    use fastfield_codecs::bitpacked::{BitpackedFastFieldCodec, BitpackedFastFieldReader};
+    use fastfield_codecs::linearinterpol::{LinearInterpolCodec, LinearInterpolFastFieldReader};
     use fastfield_codecs::multilinearinterpol::{
-        MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+        MultiLinearInterpolFastFieldCodec, MultiLinearInterpolFastFieldReader,
     };
     use fastfield_codecs::*;
 
@@ -29,10 +27,7 @@ mod tests {
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn bench_get<S: FastFieldCodec, R: FastFieldCodecReader>(
-        b: &mut Bencher,
-        data: &[u64],
-    ) {
+    fn bench_get<S: FastFieldCodec, R: FastFieldCodecReader>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
         S::serialize(
             &mut bytes,
@@ -67,32 +62,32 @@ mod tests {
     #[bench]
     fn bench_fastfield_bitpack_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<BitpackedFastFieldSerializer>(b, &data);
+        bench_create::<BitpackedFastFieldCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_linearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<LinearInterpolFastFieldSerializer>(b, &data);
+        bench_create::<LinearInterpolCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<MultiLinearInterpolFastFieldSerializer>(b, &data);
+        bench_create::<MultiLinearInterpolFastFieldCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_bitpack_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(b, &data);
+        bench_get::<BitpackedFastFieldCodec, BitpackedFastFieldReader>(b, &data);
     }
     #[bench]
     fn bench_fastfield_linearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(b, &data);
+        bench_get::<LinearInterpolCodec, LinearInterpolFastFieldReader>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
+        bench_get::<MultiLinearInterpolFastFieldCodec, MultiLinearInterpolFastFieldReader>(
             b, &data,
         );
     }

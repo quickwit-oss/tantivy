@@ -12,7 +12,7 @@
 use std::marker::PhantomData;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::{FastFieldReader, FastFieldReaderImpl, FastValue};
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
@@ -158,7 +158,7 @@ where
     TPredicate: 'static,
     TPredicateValue: FastValue,
 {
-    fast_field_reader: DynamicFastFieldReader<TPredicateValue>,
+    fast_field_reader: FastFieldReaderImpl<TPredicateValue>,
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,

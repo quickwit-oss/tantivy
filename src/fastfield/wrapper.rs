@@ -18,30 +18,48 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::path::Path;
+use std::marker::PhantomData;
 
-use fastfield_codecs::FastFieldCodecReader;
-use fastfield_codecs::FastFieldCodec;
-use fastfield_codecs::dynamic::DynamicFastFieldReader;
+use fastfield_codecs::dynamic::DynamicFastFieldCodec;
+use fastfield_codecs::{FastFieldCodec, FastFieldCodecReader, FastFieldStats};
+use ownedbytes::OwnedBytes;
 
-use crate::directory::CompositeFile;
-use crate::directory::RamDirectory;
-use crate::directory::WritePtr;
-use crate::fastfield::FastValue;
-use crate::schema::Schema;
+use crate::directory::FileSlice;
+use crate::fastfield::{FastFieldReader, FastFieldReaderImpl, FastValue};
+use crate::DocId;
 
 /// Wrapper for accessing a fastfield.
 ///
 /// Holds the data and the codec to the read the data.
-#[derive(Clone)]
-pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
-    reader: CodecReader,
+pub struct FastFieldReaderWrapper<Item: FastValue, Codec: FastFieldCodec> {
+    reader: Codec::Reader,
     _phantom: PhantomData<Item>,
+    _codec: PhantomData<Codec>,
 }
 
-impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
-    for FastFieldReaderCodecWrapper<Item, C>
+impl<Item: FastValue, Codec: FastFieldCodec> FastFieldReaderWrapper<Item, Codec> {
+    fn new(reader: Codec::Reader) -> Self {
+        Self {
+            reader,
+            _phantom: PhantomData,
+            _codec: PhantomData,
+        }
+    }
+}
+
+impl<Item: FastValue, Codec: FastFieldCodec> Clone for FastFieldReaderWrapper<Item, Codec>
+where Codec::Reader: Clone
 {
+    fn clone(&self) -> Self {
+        Self {
+            reader: self.reader.clone(),
+            _phantom: PhantomData,
+            _codec: PhantomData,
+        }
+    }
+}
+
+impl<Item: FastValue, C: FastFieldCodec> FastFieldReader<Item> for FastFieldReaderWrapper<Item, C> {
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.
@@ -90,18 +108,26 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     }
 }
 
-impl<Item: FastValue, Codec: FastFieldCodec> FastFieldReaderCodecWrapper<Item, Codec> {
-    // /// Opens a fast field given a file.
-    // pub fn open(file: FileSlice) -> crate::Result<Self> {
-    //     let mut bytes = file.read_bytes()?;
-    //     Self::open_from_bytes(bytes)
-    // }
+impl<Item: FastValue, Codec: FastFieldCodec> FastFieldReaderWrapper<Item, Codec> {
+    /// Opens a fast field given a file.
+    pub fn open(file: FileSlice) -> crate::Result<Self> {
+        let mut bytes = file.read_bytes()?;
+        // TODO
+        // let codec_id = bytes.read_u8();
+        // assert_eq!(
+        //     0u8, codec_id,
+        //     "Tried to open fast field as bitpacked encoded (id=1), but got serializer with \
+        //      different id"
+        // );
+        Self::open_from_bytes(bytes)
+    }
 
     /// Opens a fast field given the bytes.
     pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
-        let reader = C::open_from_bytes(bytes)?;
-        Ok(FastFieldReaderCodecWrapper {
+        let reader = Codec::open_from_bytes(bytes)?;
+        Ok(FastFieldReaderWrapper {
             reader,
+            _codec: PhantomData,
             _phantom: PhantomData,
         })
     }
@@ -131,40 +157,28 @@ impl<Item: FastValue, Codec: FastFieldCodec> FastFieldReaderCodecWrapper<Item, C
     }
 }
 
-// impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
-//     fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
-//         let mut schema_builder = Schema::builder();
-//         let field = schema_builder.add_u64_field("field", FAST);
-//         let schema = schema_builder.build();
-//         let path = Path::new("__dummy__");
-//         let directory: RamDirectory = RamDirectory::create();
-//         {
-//             let write: WritePtr = directory
-//                 .open_write(path)
-//                 .expect("With a RamDirectory, this should never fail.");
-//             let mut serializer = CompositeFastFieldSerializer::from_write(write)
-//                 .expect("With a RamDirectory, this should never fail.");
-//             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-//             {
-//                 let fast_field_writer = fast_field_writers
-//                     .get_field_writer_mut(field)
-//                     .expect("With a RamDirectory, this should never fail.");
-//                 for val in vals {
-//                     fast_field_writer.add_val(val.to_u64());
-//                 }
-//             }
-//             fast_field_writers
-//                 .serialize(&mut serializer, &HashMap::new(), None)
-//                 .unwrap();
-//             serializer.close().unwrap();
-//         }
+use itertools::Itertools;
 
-//         let file = directory.open_read(path).expect("Failed to open the file");
-//         let composite_file = CompositeFile::open(&file).expect("Failed to read the composite file");
-//         let field_file = composite_file
-//             .open_read(field)
-//             .expect("File component not found");
-//         DynamicFastFieldReader::open(field_file).unwrap()
-//     }
-// }
-
+impl<Item: FastValue, Arr: AsRef<[Item]>> From<Arr> for FastFieldReaderImpl<Item> {
+    fn from(vals: Arr) -> FastFieldReaderImpl<Item> {
+        let mut buffer = Vec::new();
+        let vals_u64: Vec<u64> = vals.as_ref().iter().map(|val| val.to_u64()).collect();
+        let (min_value, max_value) = vals_u64
+            .iter()
+            .copied()
+            .minmax()
+            .into_option()
+            .expect("Expected non empty");
+        let stats = FastFieldStats {
+            min_value,
+            max_value,
+            num_vals: vals_u64.len() as u64,
+        };
+        DynamicFastFieldCodec
+            .serialize(&mut buffer, &vals_u64, stats)
+            .unwrap();
+        let bytes = OwnedBytes::new(buffer);
+        let fast_field_reader = DynamicFastFieldCodec::open_from_bytes(bytes).unwrap();
+        FastFieldReaderImpl::new(fast_field_reader)
+    }
+}

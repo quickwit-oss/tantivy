@@ -10,7 +10,7 @@ use super::metric::{AverageAggregation, StatsAggregation};
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
 use crate::fastfield::{
-    type_and_cardinality, DynamicFastFieldReader, FastType, MultiValuedFastFieldReader,
+    type_and_cardinality, FastFieldReaderImpl, FastType, MultiValuedFastFieldReader,
 };
 use crate::schema::{Cardinality, Type};
 use crate::{InvertedIndexReader, SegmentReader, TantivyError};
@@ -37,10 +37,10 @@ impl AggregationsWithAccessor {
 #[derive(Clone)]
 pub(crate) enum FastFieldAccessor {
     Multi(MultiValuedFastFieldReader<u64>),
-    Single(DynamicFastFieldReader<u64>),
+    Single(FastFieldReaderImpl<u64>),
 }
 impl FastFieldAccessor {
-    pub fn as_single(&self) -> Option<&DynamicFastFieldReader<u64>> {
+    pub fn as_single(&self) -> Option<&FastFieldReaderImpl<u64>> {
         match self {
             FastFieldAccessor::Multi(_) => None,
             FastFieldAccessor::Single(reader) => Some(reader),
@@ -118,7 +118,7 @@ impl BucketAggregationWithAccessor {
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: Type,
-    pub accessor: DynamicFastFieldReader<u64>,
+    pub accessor: FastFieldReaderImpl<u64>,
 }
 
 impl MetricAggregationWithAccessor {

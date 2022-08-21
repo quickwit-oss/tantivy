@@ -5,7 +5,7 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodec, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodec, FastFieldCodecReader, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -58,7 +58,6 @@ impl FixedSize for LinearInterpolFooter {
 }
 
 impl FastFieldCodecReader for LinearInterpolFastFieldReader {
-
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
@@ -77,7 +76,7 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
-pub struct LinearInterpolFastFieldSerializer;
+pub struct LinearInterpolCodec;
 
 #[inline]
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
@@ -94,7 +93,7 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
 
-impl FastFieldCodec for LinearInterpolFastFieldSerializer {
+impl FastFieldCodec for LinearInterpolCodec {
     const NAME: &'static str = "LinearInterpol";
 
     type Reader = LinearInterpolFastFieldReader;
@@ -119,20 +118,19 @@ impl FastFieldCodec for LinearInterpolFastFieldSerializer {
     fn serialize(
         &self,
         write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
+        vals: &[u64],
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
-        let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
+        let first_val = vals[0];
+        let last_val = vals[vals.len() - 1];
+
         let slope = get_slope(first_val, last_val, stats.num_vals);
         // calculate offset to ensure all values are positive
         let mut offset = 0;
         let mut rel_positive_max = 0;
-        for (pos, actual_value) in data_iter1.enumerate() {
+        for (pos, actual_value) in vals.iter().copied().enumerate() {
             let calculated_value = get_calculated_value(first_val, pos as u64, slope);
             if calculated_value > actual_value {
                 // negative value we need to apply an offset
@@ -150,7 +148,7 @@ impl FastFieldCodec for LinearInterpolFastFieldSerializer {
 
         let num_bits = compute_num_bits(relative_max_value);
         let mut bit_packer = BitPacker::new();
-        for (pos, val) in data_iter.enumerate() {
+        for (pos, val) in vals.iter().copied().enumerate() {
             let calculated_value = get_calculated_value(first_val, pos as u64, slope);
             let diff = (val + offset) - calculated_value;
             bit_packer.write(diff, num_bits, write)?;
@@ -169,10 +167,7 @@ impl FastFieldCodec for LinearInterpolFastFieldSerializer {
         footer.serialize(write)?;
         Ok(())
     }
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> bool {
+    fn is_applicable(_vals: &[u64], stats: FastFieldStats) -> bool {
         if stats.num_vals < 3 {
             return false; // disable compressor for this case
         }
@@ -193,22 +188,22 @@ impl FastFieldCodec for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
+    fn estimate(vals: &[u64], stats: FastFieldStats) -> f32 {
+        let first_val = vals[0];
+        let last_val = vals[vals.len() - 1];
         let slope = get_slope(first_val, last_val, stats.num_vals);
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
         let num_vals = stats.num_vals as f32 / 100.0;
-        let sample_positions = (0..20)
+        let sample_positions: Vec<usize> = (0..20)
             .map(|pos| (num_vals * pos as f32 * 5.0) as usize)
             .collect::<Vec<_>>();
 
         let max_distance = sample_positions
-            .iter()
+            .into_iter()
             .map(|pos| {
-                let calculated_value = get_calculated_value(first_val, *pos as u64, slope);
-                let actual_value = fastfield_accessor.get_val(*pos as u64);
+                let calculated_value = get_calculated_value(first_val, pos as u64, slope);
+                let actual_value = vals[pos];
                 distance(calculated_value, actual_value)
             })
             .max()
@@ -243,7 +238,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate(&LinearInterpolFastFieldSerializer, data, name)
+        crate::tests::create_and_validate(&LinearInterpolCodec, data, name)
     }
 
     #[test]

@@ -2,7 +2,8 @@
 extern crate prettytable;
 // use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 // use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-use fastfield_codecs::{FastFieldCodec, FastFieldStats, bitpacked::BitpackedFastFieldSerializer};
+use fastfield_codecs::bitpacked::BitpackedFastFieldCodec;
+use fastfield_codecs::{FastFieldCodec, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -17,7 +18,7 @@ fn main() {
         // results.push(res);
         // let res = serialize_with_codec::<MultiLinearInterpolFastFieldSerializer>(&data);
         // results.push(res);
-        let res = serialize_with_codec(&BitpackedFastFieldSerializer, &data);
+        let res = serialize_with_codec(&BitpackedFastFieldCodec, &data);
         results.push(res);
 
         // let best_estimation_codec = results
@@ -99,14 +100,9 @@ pub fn serialize_with_codec<S: FastFieldCodec>(
     }
     let estimation = S::estimate(&data, stats_from_vec(data));
     let mut out = vec![];
-    codec.serialize(
-        &mut out,
-        &data,
-        stats_from_vec(data),
-        data.iter().cloned(),
-        data.iter().cloned(),
-    )
-    .unwrap();
+    codec
+        .serialize(&mut out, &data, stats_from_vec(data))
+        .unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
     (true, estimation, actual_compression, S::NAME)

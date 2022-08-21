@@ -346,26 +346,32 @@ mod tests {
             assert!(test_multivalued_no_panic(&ops[..]).is_ok());
         }
     }
+
+    #[test]
+    fn test_proptest_merge_multivalued_bug() {
+        use IndexingOp::*;
+        let ops = &[AddDoc { id: 7 }, AddDoc { id: 4 }, Merge];
+        assert!(test_multivalued_no_panic(ops).is_ok());
+    }
+
     #[test]
     fn test_multivalued_proptest_gcd() {
         use IndexingOp::*;
-        let ops = [AddDoc { id: 9 }, AddDoc { id: 9 }, Merge];
-
-        assert!(test_multivalued_no_panic(&ops[..]).is_ok());
+        let ops = &[AddDoc { id: 9 }, AddDoc { id: 9 }, Merge];
+        assert!(test_multivalued_no_panic(ops).is_ok());
     }
 
     #[test]
     fn test_multivalued_proptest_off_by_one_bug_1151() {
         use IndexingOp::*;
-        let ops = [
+        let ops = &[
             AddDoc { id: 3 },
             AddDoc { id: 1 },
             AddDoc { id: 3 },
             Commit,
             Merge,
         ];
-
-        assert!(test_multivalued_no_panic(&ops[..]).is_ok());
+        assert!(test_multivalued_no_panic(ops).is_ok());
     }
 
     #[test]

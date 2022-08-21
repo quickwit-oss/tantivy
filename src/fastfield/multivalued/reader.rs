@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength};
+use crate::fastfield::{FastFieldReader, FastFieldReaderImpl, FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -12,14 +12,14 @@ use crate::DocId;
 /// The `idx_reader` associated, for each document, the index of its first value.
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
-    idx_reader: DynamicFastFieldReader<u64>,
-    vals_reader: DynamicFastFieldReader<Item>,
+    idx_reader: FastFieldReaderImpl<u64>,
+    vals_reader: FastFieldReaderImpl<Item>,
 }
 
 impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     pub(crate) fn open(
-        idx_reader: DynamicFastFieldReader<u64>,
-        vals_reader: DynamicFastFieldReader<Item>,
+        idx_reader: FastFieldReaderImpl<u64>,
+        vals_reader: FastFieldReaderImpl<Item>,
     ) -> MultiValuedFastFieldReader<Item> {
         MultiValuedFastFieldReader {
             idx_reader,

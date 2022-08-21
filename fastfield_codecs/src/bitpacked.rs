@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodec, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodec, FastFieldCodecReader, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -17,7 +17,6 @@ pub struct BitpackedFastFieldReader {
 }
 
 impl FastFieldCodecReader for BitpackedFastFieldReader {
-
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)
@@ -81,9 +80,9 @@ impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
     }
 }
 
-pub struct BitpackedFastFieldSerializer;
+pub struct BitpackedFastFieldCodec;
 
-impl FastFieldCodec for BitpackedFastFieldSerializer {
+impl FastFieldCodec for BitpackedFastFieldCodec {
     const NAME: &'static str = "Bitpacked";
 
     type Reader = BitpackedFastFieldReader;
@@ -115,29 +114,24 @@ impl FastFieldCodec for BitpackedFastFieldSerializer {
     /// values.
     fn serialize(
         &self,
-        write: &mut impl Write,
-        _fastfield_accessor: &dyn FastFieldDataAccess,
+        write: &mut impl io::Write,
+        vals: &[u64],
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        _data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         let mut serializer =
             BitpackedFastFieldSerializerLegacy::open(write, stats.min_value, stats.max_value)?;
 
-        for val in data_iter {
+        for &val in vals {
             serializer.add_val(val)?;
         }
         serializer.close_field()?;
 
         Ok(())
     }
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        _stats: FastFieldStats,
-    ) -> bool {
+    fn is_applicable(_vals: &[u64], _stats: FastFieldStats) -> bool {
         true
     }
-    fn estimate(_fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate(_vals: &[u64], stats: FastFieldStats) -> f32 {
         let amplitude = stats.max_value - stats.min_value;
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
@@ -151,10 +145,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) {
-        crate::tests::create_and_validate(
-            &BitpackedFastFieldSerializer,
-            data, name,
-        );
+        crate::tests::create_and_validate(&BitpackedFastFieldCodec, data, name);
     }
 
     #[test]
