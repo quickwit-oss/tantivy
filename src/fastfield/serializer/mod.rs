@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::num::NonZeroU64;
 
 use common::{BinarySerializable, CountingWriter};
 pub use fastfield_codecs::bitpacked::{
@@ -141,7 +142,8 @@ impl CompositeFastFieldSerializer {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         let gcd = find_gcd(iter_gen().map(|val| val - stats.min_value)).unwrap_or(GCD_DEFAULT);
 
-        if gcd <= 1 {
+        if gcd == 1 {
+            // No GCD opportunity here.
             return Self::create_auto_detect_u64_fast_field_with_idx_gcd(
                 self.codec_enable_checker.clone(),
                 field,
@@ -157,7 +159,7 @@ impl CompositeFastFieldSerializer {
         struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
             fastfield_accessor: T,
             min_value: u64,
-            gcd: u64,
+            gcd: NonZeroU64,
         }
         impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
             fn get_val(&self, position: u64) -> u64 {

@@ -8,13 +8,13 @@ use std::io::Write;
 use ownedbytes::OwnedBytes;
 
 pub mod bitpacked;
+pub mod dynamic;
 pub mod gcd;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 
-pub trait FastFieldCodecReader: Sized {
+pub trait FastFieldCodecReader{
     /// reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>;
     fn get_u64(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
@@ -23,10 +23,10 @@ pub trait FastFieldCodecReader: Sized {
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldCodecSerializer {
-    /// A codex needs to provide a unique name and id, which is
-    /// used for debugging and de/serialization.
+    /// A codex needs to provide a unique name used for debugging and de/serialization.
     const NAME: &'static str;
-    const ID: u8;
+
+    type Reader: FastFieldCodecReader;
 
     /// Check if the Codec is able to compress the data
     fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> bool;
@@ -48,6 +48,8 @@ pub trait FastFieldCodecSerializer {
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()>;
+
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
 }
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
@@ -91,7 +93,7 @@ mod tests {
         MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
     };
 
-    pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
+    pub fn create_and_validate<S: FastFieldCodecSerializer>(
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
@@ -111,7 +113,7 @@ mod tests {
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
-        let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
+        let reader = S::open_from_bytes(OwnedBytes::new(out)).unwrap();
         for (doc, orig_val) in data.iter().enumerate() {
             let val = reader.get_u64(doc as u64);
             if val != *orig_val {
@@ -143,7 +145,7 @@ mod tests {
         let codec_name = S::NAME;
         for (data, data_set_name) in get_codec_test_data_sets() {
             let (estimate, actual) =
-                crate::tests::create_and_validate::<S, R>(&data, data_set_name);
+                crate::tests::create_and_validate::<S>(&data, data_set_name);
             let result = if estimate == f32::MAX {
                 "Disabled".to_string()
             } else {

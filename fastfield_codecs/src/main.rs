@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+// use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
+// use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
@@ -12,11 +12,11 @@ fn main() {
     table.add_row(row!["", "Compression Ratio", "Compression Estimation"]);
 
     for (data, data_set_name) in get_codec_test_data_sets() {
-        let mut results = vec![];
-        let res = serialize_with_codec::<LinearInterpolFastFieldSerializer>(&data);
-        results.push(res);
-        let res = serialize_with_codec::<MultiLinearInterpolFastFieldSerializer>(&data);
-        results.push(res);
+        let mut results = Vec::new();
+        // let res = serialize_with_codec::<LinearInterpolFastFieldSerializer>(&data);
+        // results.push(res);
+        // let res = serialize_with_codec::<MultiLinearInterpolFastFieldSerializer>(&data);
+        // results.push(res);
         let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedFastFieldSerializer>(
             &data,
         );

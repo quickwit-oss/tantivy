@@ -58,21 +58,7 @@ impl FixedSize for LinearInterpolFooter {
 }
 
 impl FastFieldCodecReader for LinearInterpolFastFieldReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = LinearInterpolFooter::deserialize(&mut footer)?;
-        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
-        let num_bits = compute_num_bits(footer.relative_max_value);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(LinearInterpolFastFieldReader {
-            data,
-            bit_unpacker,
-            footer,
-            slope,
-        })
-    }
+
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
@@ -110,7 +96,25 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
-    const ID: u8 = 2;
+
+    type Reader = LinearInterpolFastFieldReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_offset = bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = LinearInterpolFooter::deserialize(&mut footer)?;
+        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
+        let num_bits = compute_num_bits(footer.relative_max_value);
+        let bit_unpacker = BitUnpacker::new(num_bits);
+        Ok(LinearInterpolFastFieldReader {
+            data,
+            bit_unpacker,
+            footer,
+            slope,
+        })
+    }
+
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -240,7 +244,6 @@ mod tests {
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
             LinearInterpolFastFieldSerializer,
-            LinearInterpolFastFieldReader,
         >(data, name)
     }
 

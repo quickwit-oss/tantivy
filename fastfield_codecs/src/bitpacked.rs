@@ -17,22 +17,7 @@ pub struct BitpackedFastFieldReader {
 }
 
 impl FastFieldCodecReader for BitpackedFastFieldReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - 16;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let min_value = u64::deserialize(&mut footer)?;
-        let amplitude = u64::deserialize(&mut footer)?;
-        let max_value = min_value + amplitude;
-        let num_bits = compute_num_bits(amplitude);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(BitpackedFastFieldReader {
-            data,
-            min_value_u64: min_value,
-            max_value_u64: max_value,
-            bit_unpacker,
-        })
-    }
+
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)
@@ -96,11 +81,30 @@ impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
     }
 }
 
-pub struct BitpackedFastFieldSerializer {}
+pub struct BitpackedFastFieldSerializer;
 
 impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     const NAME: &'static str = "Bitpacked";
-    const ID: u8 = 1;
+
+    type Reader = BitpackedFastFieldReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_offset = bytes.len() - 16;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let min_value = u64::deserialize(&mut footer)?;
+        let amplitude = u64::deserialize(&mut footer)?;
+        let max_value = min_value + amplitude;
+        let num_bits = compute_num_bits(amplitude);
+        let bit_unpacker = BitUnpacker::new(num_bits);
+        Ok(BitpackedFastFieldReader {
+            data,
+            min_value_u64: min_value,
+            max_value_u64: max_value,
+            bit_unpacker,
+        })
+    }
+
     /// Serializes data with the BitpackedFastFieldSerializer.
     ///
     /// The serializer in fact encode the values by bitpacking
@@ -146,7 +150,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) {
-        crate::tests::create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(
+        crate::tests::create_and_validate::<BitpackedFastFieldSerializer>(
             data, name,
         );
     }

@@ -5,7 +5,7 @@ use std::path::Path;
 use fastfield_codecs::bitpacked::{
     BitpackedFastFieldReader as BitpackedReader, BitpackedFastFieldSerializer,
 };
-use fastfield_codecs::gcd::{GCDFastFieldCodec, GCD_CODEC_ID};
+use fastfield_codecs::gcd::{GCDFastFieldCodecReader, GCD_CODEC_ID};
 use fastfield_codecs::linearinterpol::{
     LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
 };
@@ -73,14 +73,14 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearInterpolFastFieldReader>),
 
     /// GCD and Bitpacked compressed fastfield data.
-    BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BitpackedReader>>),
+    BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodecReader<BitpackedReader>>),
     /// GCD and Linear interpolated values + bitpacked
     LinearInterpolGCD(
-        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearInterpolFastFieldReader>>,
+        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodecReader<LinearInterpolFastFieldReader>>,
     ),
     /// GCD and Blockwise linear interpolated values + bitpacked
     MultiLinearInterpolGCD(
-        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<MultiLinearInterpolFastFieldReader>>,
+        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodecReader<MultiLinearInterpolFastFieldReader>>,
     ),
 }
 
@@ -118,7 +118,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     BitpackedFastFieldSerializer::ID => {
                         DynamicFastFieldReader::BitpackedGCD(FastFieldReaderCodecWrapper::<
                             Item,
-                            GCDFastFieldCodec<BitpackedReader>,
+                            GCDFastFieldCodecReader<BitpackedReader>,
                         >::open_from_bytes(
                             bytes
                         )?)
@@ -126,7 +126,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     LinearInterpolFastFieldSerializer::ID => {
                         DynamicFastFieldReader::LinearInterpolGCD(FastFieldReaderCodecWrapper::<
                             Item,
-                            GCDFastFieldCodec<LinearInterpolFastFieldReader>,
+                            GCDFastFieldCodecReader<LinearInterpolFastFieldReader>,
                         >::open_from_bytes(
                             bytes
                         )?)
@@ -135,7 +135,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                         DynamicFastFieldReader::MultiLinearInterpolGCD(
                             FastFieldReaderCodecWrapper::<
                                 Item,
-                                GCDFastFieldCodec<MultiLinearInterpolFastFieldReader>,
+                                GCDFastFieldCodecReader<MultiLinearInterpolFastFieldReader>,
                             >::open_from_bytes(bytes)?,
                         )
                     }

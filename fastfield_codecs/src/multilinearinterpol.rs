@@ -146,15 +146,6 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
 }
 
 impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-        let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
-        Ok(MultiLinearInterpolFastFieldReader { data, footer })
-    }
-
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         let interpolation = get_interpolation_function(doc, &self.footer.interpolations);
@@ -192,7 +183,18 @@ pub struct MultiLinearInterpolFastFieldSerializer {}
 
 impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     const NAME: &'static str = "MultiLinearInterpol";
-    const ID: u8 = 3;
+
+    type Reader = MultiLinearInterpolFastFieldReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
+        Ok(MultiLinearInterpolFastFieldReader { data, footer })
+    }
+
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -374,7 +376,6 @@ mod tests {
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
             MultiLinearInterpolFastFieldSerializer,
-            MultiLinearInterpolFastFieldReader,
         >(data, name)
     }
 
