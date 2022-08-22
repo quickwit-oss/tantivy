@@ -18,6 +18,7 @@ use std::{
     ops::RangeInclusive,
 };
 
+use common::{deserialize_vint_u128, serialize_vint_u128};
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
 use crate::FastFieldCodecReaderU128;
@@ -30,7 +31,7 @@ pub fn ip_to_u128(ip_addr: IpAddr) -> u128 {
     u128::from_be_bytes(ip_addr_v6.octets())
 }
 
-const INTERVALL_COST_IN_BITS: usize = 64;
+const INTERVAL_COST_IN_BITS: usize = 64;
 
 #[derive(Default, Debug)]
 pub struct IntervalEncoding();
@@ -41,38 +42,6 @@ pub struct IntervalCompressor {
     max_value: u128,
     compact_space: CompactSpace,
     pub num_bits: u8,
-}
-
-const STOP_BIT: u8 = 128u8;
-
-fn serialize_vint(mut val: u128, output: &mut Vec<u8>) {
-    loop {
-        let next_byte: u8 = (val % 128u128) as u8;
-        val /= 128u128;
-        if val == 0 {
-            output.push(next_byte | STOP_BIT);
-            return;
-        } else {
-            output.push(next_byte);
-        }
-    }
-}
-
-fn deserialize_vint(data: &[u8]) -> io::Result<(u128, &[u8])> {
-    let mut result = 0u128;
-    let mut shift = 0u64;
-    for i in 0..19 {
-        let b = data[i];
-        result |= u128::from(b % 128u8) << shift;
-        if b >= STOP_BIT {
-            return Ok((result, &data[i + 1..]));
-        }
-        shift += 7;
-    }
-    Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "Failed to deserialize u128 vint",
-    ))
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -269,33 +238,33 @@ impl CompactSpace {
         &self.ranges_and_compact_start[pos]
     }
     fn serialize(&self, output: &mut Vec<u8>) {
-        serialize_vint(self.null_value as u128, output);
-        serialize_vint(self.ranges_and_compact_start.len() as u128, output);
+        serialize_vint_u128(self.null_value as u128, output);
+        serialize_vint_u128(self.ranges_and_compact_start.len() as u128, output);
         let mut prev_ip = 0;
         for (ip_range, _compact) in &self.ranges_and_compact_start {
             let delta_ip = ip_range.start() - prev_ip;
-            serialize_vint(delta_ip as u128, output);
+            serialize_vint_u128(delta_ip as u128, output);
             prev_ip = *ip_range.start();
 
             let delta_ip = ip_range.end() - prev_ip;
-            serialize_vint(delta_ip as u128, output);
+            serialize_vint_u128(delta_ip as u128, output);
             prev_ip = *ip_range.end();
         }
     }
 
     fn deserialize(data: &[u8]) -> io::Result<(&[u8], Self)> {
-        let (null_value, data) = deserialize_vint(data)?;
-        let (num_ip_addrs, mut data) = deserialize_vint(data)?;
+        let (null_value, data) = deserialize_vint_u128(data)?;
+        let (num_ip_addrs, mut data) = deserialize_vint_u128(data)?;
         let mut ip_addr = 0u128;
         let mut compact = 0u64;
         let mut ranges_and_compact_start: Vec<(std::ops::RangeInclusive<u128>, u64)> = vec![];
         for _ in 0..num_ip_addrs {
-            let (ip_addr_delta, new_data) = deserialize_vint(data)?;
+            let (ip_addr_delta, new_data) = deserialize_vint_u128(data)?;
             data = new_data;
             ip_addr += ip_addr_delta;
             let ip_addr_start = ip_addr;
 
-            let (ip_addr_delta, new_data) = deserialize_vint(data)?;
+            let (ip_addr_delta, new_data) = deserialize_vint_u128(data)?;
             data = new_data;
             ip_addr += ip_addr_delta;
             let ip_addr_end = ip_addr;
@@ -372,7 +341,7 @@ fn ranges_and_compact_start_test() {
 }
 
 pub fn train(ip_addrs_sorted: &[u128]) -> IntervalCompressor {
-    let ranges_and_compact_start = get_compact_space(ip_addrs_sorted, INTERVALL_COST_IN_BITS);
+    let ranges_and_compact_start = get_compact_space(ip_addrs_sorted, INTERVAL_COST_IN_BITS);
     let null_value = ranges_and_compact_start.null_value;
     let amplitude_compact_space = ranges_and_compact_start.amplitude_compact_space();
 
@@ -425,14 +394,14 @@ impl IntervalCompressor {
             .compact_space
             .to_compact(self.null_value)
             .expect("could not convert null to compact space");
-        serialize_vint(null_value as u128, &mut footer);
-        serialize_vint(self.min_value, &mut footer);
-        serialize_vint(self.max_value, &mut footer);
+        serialize_vint_u128(null_value as u128, &mut footer);
+        serialize_vint_u128(self.min_value, &mut footer);
+        serialize_vint_u128(self.max_value, &mut footer);
 
         self.compact_space.serialize(&mut footer);
 
         footer.push(self.num_bits);
-        serialize_vint(num_vals as u128, &mut footer);
+        serialize_vint_u128(num_vals as u128, &mut footer);
 
         write.write_all(&footer)?;
         let footer_len = footer.len() as u32;
@@ -511,14 +480,14 @@ impl IntervallDecompressor {
 
         let data = &data[data.len() - footer_len as usize..];
         let (_header_flags, data) = data.split_at(8);
-        let (null_compact_space, data) = deserialize_vint(data)?;
-        let (min_value, data) = deserialize_vint(data)?;
-        let (max_value, data) = deserialize_vint(data)?;
+        let (null_compact_space, data) = deserialize_vint_u128(data)?;
+        let (min_value, data) = deserialize_vint_u128(data)?;
+        let (max_value, data) = deserialize_vint_u128(data)?;
         let (mut data, compact_space) = CompactSpace::deserialize(data).unwrap();
 
         let num_bits = data[0];
         data = &data[1..];
-        let (num_vals, _data) = deserialize_vint(data)?;
+        let (num_vals, _data) = deserialize_vint_u128(data)?;
         let decompressor = IntervallDecompressor {
             null_compact_space: null_compact_space as u64,
             min_value,

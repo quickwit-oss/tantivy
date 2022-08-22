@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv6Addr};
 
 use crate::schema::{Cardinality, FieldType, Type};
 use crate::DateTime;
+
 pub fn ip_to_u128(ip_addr: IpAddr) -> u128 {
     let ip_addr_v6: Ipv6Addr = match ip_addr {
         IpAddr::V4(v4) => v4.to_ipv6_mapped(),

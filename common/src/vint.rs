@@ -5,6 +5,40 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use super::BinarySerializable;
 
+/// Variable int serializes a u128 number
+pub fn serialize_vint_u128(mut val: u128, output: &mut Vec<u8>) {
+    loop {
+        let next_byte: u8 = (val % 128u128) as u8;
+        val /= 128u128;
+        if val == 0 {
+            output.push(next_byte | STOP_BIT);
+            return;
+        } else {
+            output.push(next_byte);
+        }
+    }
+}
+
+/// Deserializes a u128 number
+///
+/// Returns the number and the slice after the vint
+pub fn deserialize_vint_u128(data: &[u8]) -> io::Result<(u128, &[u8])> {
+    let mut result = 0u128;
+    let mut shift = 0u64;
+    for i in 0..19 {
+        let b = data[i];
+        result |= u128::from(b % 128u8) << shift;
+        if b >= STOP_BIT {
+            return Ok((result, &data[i + 1..]));
+        }
+        shift += 7;
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Failed to deserialize u128 vint",
+    ))
+}
+
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
@@ -176,6 +210,7 @@ impl BinarySerializable for VInt {
 mod tests {
 
     use super::{serialize_vint_u32, BinarySerializable, VInt};
+    use crate::vint::{deserialize_vint_u128, serialize_vint_u128};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -215,6 +250,21 @@ mod tests {
         let len_vint = VInt(val as u64).serialize_into(&mut buffer);
         let res2 = serialize_vint_u32(val, &mut buffer2);
         assert_eq!(&buffer[..len_vint], res2, "array wrong for {}", val);
+    }
+
+    fn aux_test_vint_u128(val: u128) {
+        let mut data = vec![];
+        serialize_vint_u128(val, &mut data);
+        let (deser_val, _data) = deserialize_vint_u128(&data).unwrap();
+        assert_eq!(val, deser_val);
+    }
+
+    #[test]
+    fn test_vint_u128() {
+        aux_test_vint_u128(0);
+        aux_test_vint_u128(1);
+        aux_test_vint_u128(u128::MAX / 3);
+        aux_test_vint_u128(u128::MAX);
     }
 
     #[test]

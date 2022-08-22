@@ -129,7 +129,6 @@ impl BytesFastFieldWriter {
         } else {
             value_serializer.write_all(&self.vals)?;
         }
-        value_serializer.flush()?;
         Ok(())
     }
 }
