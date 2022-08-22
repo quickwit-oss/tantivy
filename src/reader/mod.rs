@@ -223,7 +223,9 @@ impl InnerIndexReader {
     }
 
     fn reload(&self) -> crate::Result<()> {
-        let generation_id = 1 + self.searcher_generation_counter.fetch_add(1, atomic::Ordering::AcqRel);
+        let generation_id = 1 + self
+            .searcher_generation_counter
+            .fetch_add(1, atomic::Ordering::AcqRel);
         let searcher = Self::create_searcher(
             &self.index,
             self.doc_store_cache_size,
