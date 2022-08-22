@@ -14,6 +14,7 @@ use std::io::{self, Read, Write};
 use std::ops::Sub;
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom};
+use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
@@ -24,6 +25,7 @@ const CHUNK_SIZE: u64 = 512;
 /// fast field is required.
 #[derive(Clone)]
 pub struct MultiLinearInterpolFastFieldReader {
+    data: OwnedBytes,
     pub footer: MultiLinearInterpolFooter,
 }
 
@@ -145,24 +147,23 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
 
 impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
     /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-
-        let (_data, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
+        let (data, mut footer) = bytes.split(footer_offset);
         let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
-
-        Ok(MultiLinearInterpolFastFieldReader { footer })
+        Ok(MultiLinearInterpolFastFieldReader { data, footer })
     }
 
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
+    fn get_u64(&self, doc: u64) -> u64 {
         let interpolation = get_interpolation_function(doc, &self.footer.interpolations);
         let doc = doc - interpolation.start_pos;
         let calculated_value =
             get_calculated_value(interpolation.value_start_pos, doc, interpolation.slope);
         let diff = interpolation
             .bit_unpacker
-            .get(doc, &data[interpolation.data_start_offset as usize..]);
+            .get(doc, &self.data[interpolation.data_start_offset as usize..]);
         (calculated_value + diff) - interpolation.positive_val_offset
     }
 

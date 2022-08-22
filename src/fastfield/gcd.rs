@@ -4,6 +4,7 @@ use common::BinarySerializable;
 use fastdivide::DividerU64;
 use fastfield_codecs::FastFieldCodecReader;
 use gcd::Gcd;
+use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
 pub const GCD_CODEC_ID: u8 = 4;
@@ -19,12 +20,12 @@ pub struct GCDFastFieldCodec<CodecReader> {
 }
 impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
     /// Opens a fast field given the bytes.
-    fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self> {
-        let (header, mut footer) = bytes.split_at(bytes.len() - 16);
+    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self> {
+        let footer_offset = bytes.len() - 16;
+        let (body, mut footer) = bytes.split(footer_offset);
         let gcd = u64::deserialize(&mut footer)?;
         let min_value = u64::deserialize(&mut footer)?;
-        let reader = C::open_from_bytes(header)?;
-
+        let reader = C::open_from_bytes(body)?;
         Ok(GCDFastFieldCodec {
             gcd,
             min_value,
@@ -33,8 +34,8 @@ impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec
     }
 
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let mut data = self.reader.get_u64(doc, data);
+    fn get_u64(&self, doc: u64) -> u64 {
+        let mut data = self.reader.get_u64(doc);
         data *= self.gcd;
         data += self.min_value;
         data

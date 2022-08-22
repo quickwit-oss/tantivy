@@ -216,7 +216,6 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
 #[derive(Clone)]
 pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     reader: CodecReader,
-    bytes: OwnedBytes,
     _phantom: PhantomData<Item>,
 }
 
@@ -235,16 +234,16 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
     }
     /// Opens a fast field given the bytes.
     pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
-        let reader = C::open_from_bytes(bytes.as_slice())?;
+        let reader = C::open_from_bytes(bytes)?;
         Ok(FastFieldReaderCodecWrapper {
             reader,
-            bytes,
             _phantom: PhantomData,
         })
     }
+
     #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        let data = self.reader.get_u64(doc, self.bytes.as_slice());
+        let data = self.reader.get_u64(doc);
         Item::from_u64(data)
     }
 

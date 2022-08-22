@@ -5,16 +5,16 @@ extern crate more_asserts;
 use std::io;
 use std::io::Write;
 
+use ownedbytes::OwnedBytes;
+
 pub mod bitpacked;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 
 pub trait FastFieldCodecReader: Sized {
     /// reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self>;
-
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64;
-
+    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>;
+    fn get_u64(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
 }
@@ -98,7 +98,7 @@ mod tests {
             return (f32::MAX, 0.0);
         }
         let estimation = S::estimate(&data, crate::tests::stats_from_vec(data));
-        let mut out = vec![];
+        let mut out: Vec<u8> = Vec::new();
         S::serialize(
             &mut out,
             &data,
@@ -108,9 +108,11 @@ mod tests {
         )
         .unwrap();
 
-        let reader = R::open_from_bytes(&out).unwrap();
+        let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
+
+        let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
         for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64, &out);
+            let val = reader.get_u64(doc as u64);
             if val != *orig_val {
                 panic!(
                     "val {:?} does not match orig_val {:?}, in data set {}, data {:?}",
@@ -118,7 +120,6 @@ mod tests {
                 );
             }
         }
-        let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
         (estimation, actual_compression)
     }
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
