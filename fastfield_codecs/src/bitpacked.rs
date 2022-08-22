@@ -113,13 +113,11 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
         write: &mut impl Write,
         _fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        _data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         let mut serializer =
             BitpackedFastFieldSerializerLegacy::open(write, stats.min_value, stats.max_value)?;
 
-        for val in data_iter {
+        for val in _fastfield_accessor.iter() {
             serializer.add_val(val)?;
         }
         serializer.close_field()?;

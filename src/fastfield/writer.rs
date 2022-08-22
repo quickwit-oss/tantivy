@@ -369,28 +369,8 @@ impl IntFastFieldWriter {
             num_vals: self.val_count as u64,
         };
 
-        if let Some(doc_id_map) = doc_id_map {
-            let iter_gen = || {
-                doc_id_map
-                    .iter_old_doc_ids()
-                    .map(|doc_id| self.vals.get(doc_id as usize))
-            };
-            serializer.create_auto_detect_u64_fast_field(
-                self.field,
-                stats,
-                fastfield_accessor,
-                iter_gen,
-            )?;
-        } else {
-            let iter_gen = || self.vals.iter();
+        serializer.create_auto_detect_u64_fast_field(self.field, stats, fastfield_accessor)?;
 
-            serializer.create_auto_detect_u64_fast_field(
-                self.field,
-                stats,
-                fastfield_accessor,
-                iter_gen,
-            )?;
-        };
         Ok(())
     }
 }
@@ -417,6 +397,18 @@ impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'b
                                                                      // non doc_id_map
         } else {
             self.vals.get(doc as usize)
+        }
+    }
+
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a> {
+        if let Some(doc_id_map) = self.doc_id_map {
+            Box::new(
+                doc_id_map
+                    .iter_old_doc_ids()
+                    .map(|doc_id| self.vals.get(doc_id as usize)),
+            )
+        } else {
+            Box::new(self.vals.iter())
         }
     }
 }

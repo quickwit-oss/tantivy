@@ -116,8 +116,6 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
@@ -127,7 +125,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         // calculate offset to ensure all values are positive
         let mut offset = 0;
         let mut rel_positive_max = 0;
-        for (pos, actual_value) in data_iter1.enumerate() {
+        for (pos, actual_value) in fastfield_accessor.iter().enumerate() {
             let calculated_value = get_calculated_value(first_val, pos as u64, slope);
             if calculated_value > actual_value {
                 // negative value we need to apply an offset
@@ -145,7 +143,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
 
         let num_bits = compute_num_bits(relative_max_value);
         let mut bit_packer = BitPacker::new();
-        for (pos, val) in data_iter.enumerate() {
+        for (pos, val) in fastfield_accessor.iter().enumerate() {
             let calculated_value = get_calculated_value(first_val, pos as u64, slope);
             let diff = (val + offset) - calculated_value;
             bit_packer.write(diff, num_bits, write)?;

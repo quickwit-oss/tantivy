@@ -198,8 +198,6 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        _data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
@@ -218,7 +216,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         // Since we potentially apply multiple passes over the data, the data is cached.
         // Multiple iteration can be expensive (merge with index sorting can add lot of overhead per
         // iteration)
-        let data = data_iter.collect::<Vec<_>>();
+        let data = fastfield_accessor.iter().collect::<Vec<_>>();
 
         //// let's split this into chunks of CHUNK_SIZE
         for data_pos in (0..data.len() as u64).step_by(CHUNK_SIZE as usize).skip(1) {

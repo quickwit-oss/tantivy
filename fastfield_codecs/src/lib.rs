@@ -38,14 +38,13 @@ pub trait FastFieldCodecSerializer {
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
 
     /// Serializes the data using the serializer into write.
-    /// There are multiple iterators, in case the codec needs to read the data multiple times.
-    /// The iterators should be preferred over using fastfield_accessor for performance reasons.
+    ///
+    /// The fastfield_accessor iterator should be preferred over using fastfield_accessor for
+    /// performance reasons.
     fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()>;
 }
 
@@ -60,6 +59,9 @@ pub trait FastFieldDataAccess {
     ///
     /// May panic if `position` is greater than the index.
     fn get_val(&self, position: u64) -> u64;
+
+    /// Returns a iterator over the data
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a>;
 }
 
 #[derive(Debug, Clone)]
@@ -74,11 +76,18 @@ impl<'a> FastFieldDataAccess for &'a [u64] {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
     }
+
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+        Box::new((self as &[u64]).iter().cloned())
+    }
 }
 
 impl FastFieldDataAccess for Vec<u64> {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
+    }
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+        Box::new((&self as &[u64]).iter().cloned())
     }
 }
 
@@ -99,14 +108,7 @@ mod tests {
         }
         let estimation = S::estimate(&data, crate::tests::stats_from_vec(data));
         let mut out: Vec<u8> = Vec::new();
-        S::serialize(
-            &mut out,
-            &data,
-            crate::tests::stats_from_vec(data),
-            data.iter().cloned(),
-            data.iter().cloned(),
-        )
-        .unwrap();
+        S::serialize(&mut out, &data, crate::tests::stats_from_vec(data)).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
