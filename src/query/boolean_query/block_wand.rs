@@ -371,7 +371,7 @@ mod tests {
     fn compute_checkpoints_manual(term_scorers: Vec<TermScorer>, n: usize) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
-        let mut scorer: Union<TermScorer, SumCombiner> = Union::from(term_scorers);
+        let mut scorer = Union::build(term_scorers, SumCombiner::default);
 
         let mut limit = Score::MIN;
         loop {
