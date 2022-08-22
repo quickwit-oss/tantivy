@@ -173,9 +173,9 @@ impl InnerIndexReader {
             &searcher_generation_counter,
             &searcher_generation_inventory,
         );
-
         let searcher = Self::create_searcher(
             &index,
+            segment_readers,
             doc_store_cache_size,
             &warming_state,
             searcher_generation,
@@ -209,7 +209,7 @@ impl InnerIndexReader {
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {
-        let generation_id = searcher_generation_counter.fetch_add(1, atomic::Ordering::Relaxed);
+        let generation_id = searcher_generation_counter.fetch_add(1, atomic::Ordering::AcqRel);
         let searcher_generation =
             SearcherGeneration::from_segment_readers(segment_readers, generation_id);
         searcher_generation_inventory.track(searcher_generation)
@@ -217,11 +217,11 @@ impl InnerIndexReader {
 
     fn create_searcher(
         index: &Index,
+        segment_readers: Vec<SegmentReader>,
         doc_store_cache_size: usize,
         warming_state: &WarmingState,
         searcher_generation: TrackedObject<SearcherGeneration>,
     ) -> crate::Result<Arc<SearcherInner>> {
-        let segment_readers = Self::open_segment_readers(index)?;
         let schema = index.schema();
         let searcher = Arc::new(SearcherInner::new(
             schema,
@@ -244,6 +244,7 @@ impl InnerIndexReader {
         );
         let searcher = Self::create_searcher(
             &self.index,
+            segment_readers,
             self.doc_store_cache_size,
             &self.warming_state,
             searcher_generation,
