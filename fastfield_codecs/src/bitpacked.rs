@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
 use common::BinarySerializable;
+use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
@@ -9,6 +10,7 @@ use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess,
 /// fast field is required.
 #[derive(Clone)]
 pub struct BitpackedFastFieldReader {
+    data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     pub min_value_u64: u64,
     pub max_value_u64: u64,
@@ -16,22 +18,24 @@ pub struct BitpackedFastFieldReader {
 
 impl FastFieldCodecReader for BitpackedFastFieldReader {
     /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        let (_data, mut footer) = bytes.split_at(bytes.len() - 16);
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
+        let footer_offset = bytes.len() - 16;
+        let (data, mut footer) = bytes.split(footer_offset);
         let min_value = u64::deserialize(&mut footer)?;
         let amplitude = u64::deserialize(&mut footer)?;
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(BitpackedFastFieldReader {
+            data,
             min_value_u64: min_value,
             max_value_u64: max_value,
             bit_unpacker,
         })
     }
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        self.min_value_u64 + self.bit_unpacker.get(doc, data)
+    fn get_u64(&self, doc: u64) -> u64 {
+        self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)
     }
     #[inline]
     fn min_value(&self) -> u64 {
