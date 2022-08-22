@@ -303,39 +303,35 @@ impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
-        let first_val_in_first_block = fastfield_accessor.get_val(0);
-        let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());
-        let last_val_in_first_block =
-            fastfield_accessor.get_val(last_elem_in_first_chunk as u64 - 1);
+        let first_chunk: Vec<_> = (0..CHUNK_SIZE)
+            .map(|idx| fastfield_accessor.get_val(idx)) // todo replace with iterator, when
+            // available on FastFieldDataAccess
+            .collect();
+        let first_val_in_first_chunk = first_chunk[0];
         let slope = get_slope(
-            first_val_in_first_block,
-            last_val_in_first_block,
-            fastfield_accessor.num_vals(),
+            first_chunk[0],
+            *first_chunk.last().unwrap(),
+            first_chunk.len() as u64,
         );
 
-        // let's sample at 0%, 5%, 10% .. 95%, 100%, but for the first block only
-        let sample_positions = (0..20)
-            .map(|pos| (last_elem_in_first_chunk as f32 / 100.0 * pos as f32 * 5.0) as usize)
-            .collect::<Vec<_>>();
-
-        let max_distance = sample_positions
+        let max_distance = first_chunk
             .iter()
-            .map(|pos| {
+            .enumerate()
+            .map(|(pos, actual_value)| {
                 let calculated_value =
-                    get_calculated_value(first_val_in_first_block, *pos as u64, slope);
-                let actual_value = fastfield_accessor.get_val(*pos as u64);
-                distance(calculated_value, actual_value)
+                    get_calculated_value(first_val_in_first_chunk, pos as u64, slope);
+                distance(calculated_value, *actual_value)
             })
             .max()
             .unwrap();
 
         // Estimate one block and extrapolate the cost to all blocks.
-        // the theory would be that we don't have the actual max_distance, but we are close within
+        // the theory would be that we don't have the average max_distance, but we are close within
         // 50% threshold.
         // It is multiplied by 2 because in a log case scenario the line would be as much above as
         // below. So the offset would = max_distance
         //
-        let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
+        let relative_max_value = ((max_distance + 1) as f32 * 1.5) * 2.0;
 
         let num_bits = compute_num_bits(relative_max_value as u64) as u64 * fastfield_accessor.num_vals() as u64
             // function metadata per block
@@ -385,13 +381,14 @@ mod tests {
 
     #[test]
     fn test_compression() {
-        let data = (10..=6_000_u64).collect::<Vec<_>>();
+        let mut data = (10..=6_000_u64).collect::<Vec<_>>();
+        data.push(7000);
         let (estimate, actual_compression) =
             create_and_validate(&data, "simple monotonically large");
-        assert!(actual_compression < 0.2);
-        assert!(estimate < 0.20);
-        assert!(estimate > 0.15);
-        assert!(actual_compression > 0.01);
+        assert!(estimate < 0.04);
+        assert!(estimate > 0.02);
+        assert!(actual_compression < 0.04);
+        assert!(actual_compression > 0.02);
     }
 
     #[test]
