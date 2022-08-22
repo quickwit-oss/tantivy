@@ -64,7 +64,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
     pub(crate) fn build(
         docsets: Vec<TScorer>,
-        score_combiner_fn: impl Fn() -> TScoreCombiner,
+        score_combiner_fn: impl FnOnce() -> TScoreCombiner,
     ) -> Union<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
