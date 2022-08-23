@@ -121,8 +121,12 @@ fn diff(val1: u64, val2: u64) -> f64 {
 }
 
 #[inline]
-pub(crate) fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    first_val + (pos as f32 * slope) as u64
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    if slope < 0.0 {
+        first_val - (pos as f32 * -slope) as u64
+    } else {
+        first_val + (pos as f32 * slope) as u64
+    }
 }
 
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
@@ -259,6 +263,26 @@ mod tests {
             LinearInterpolFastFieldSerializer,
             LinearInterpolFastFieldReader,
         >(data, name)
+    }
+
+    #[test]
+    fn get_calculated_value_test() {
+        // pos slope
+        assert_eq!(get_calculated_value(100, 10, 5.0), 150);
+
+        // neg slope
+        assert_eq!(get_calculated_value(100, 10, -5.0), 50);
+
+        // pos slope, very high values
+        assert_eq!(
+            get_calculated_value(i64::MAX as u64, 10, 5.0),
+            i64::MAX as u64 + 50
+        );
+        // neg slope, very high values
+        assert_eq!(
+            get_calculated_value(i64::MAX as u64, 10, -5.0),
+            i64::MAX as u64 - 50
+        );
     }
 
     #[test]
