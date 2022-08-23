@@ -111,13 +111,13 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     /// values.
     fn serialize(
         write: &mut impl Write,
-        _fastfield_accessor: &dyn FastFieldDataAccess,
+        fastfield_accessor: &dyn FastFieldDataAccess,
         stats: FastFieldStats,
     ) -> io::Result<()> {
         let mut serializer =
             BitpackedFastFieldSerializerLegacy::open(write, stats.min_value, stats.max_value)?;
 
-        for val in _fastfield_accessor.iter() {
+        for val in fastfield_accessor.iter() {
             serializer.add_val(val)?;
         }
         serializer.close_field()?;
