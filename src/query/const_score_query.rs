@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::query::{ConstScorer, Explanation, Query, Scorer, Weight};
-use crate::{DocSet, Score, Searcher, SegmentReader, TantivyError, Term};
+use crate::query::{Explanation, Query, Scorer, Weight};
+use crate::{DocId, DocSet, Score, Searcher, SegmentReader, TantivyError, Term};
 
 /// `ConstScoreQuery` is a wrapper over a query to provide a constant score.
 /// It can avoid unnecessary score computation on the wrapped query.
@@ -85,6 +85,58 @@ impl Weight for ConstWeight {
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
+    }
+}
+
+/// Wraps a `DocSet` and simply returns a constant `Scorer`.
+/// The `ConstScorer` is useful if you have a `DocSet` where
+/// you needed a scorer.
+///
+/// The `ConstScorer`'s constant score can be set
+/// by calling `.set_score(...)`.
+pub struct ConstScorer<TDocSet: DocSet> {
+    docset: TDocSet,
+    score: Score,
+}
+
+impl<TDocSet: DocSet> ConstScorer<TDocSet> {
+    /// Creates a new `ConstScorer`.
+    pub fn new(docset: TDocSet, score: Score) -> ConstScorer<TDocSet> {
+        ConstScorer { docset, score }
+    }
+}
+
+impl<TDocSet: DocSet> From<TDocSet> for ConstScorer<TDocSet> {
+    fn from(docset: TDocSet) -> Self {
+        ConstScorer::new(docset, 1.0)
+    }
+}
+
+impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
+    fn advance(&mut self) -> DocId {
+        self.docset.advance()
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        self.docset.seek(target)
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
+        self.docset.fill_buffer(buffer)
+    }
+
+    fn doc(&self) -> DocId {
+        self.docset.doc()
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.docset.size_hint()
+    }
+}
+
+impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
+    fn score(&mut self) -> Score {
+        self.score
     }
 }
 

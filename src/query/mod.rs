@@ -38,6 +38,7 @@ pub(crate) use self::bm25::Bm25Weight;
 pub use self::boolean_query::BooleanQuery;
 pub(crate) use self::boolean_query::BooleanWeight;
 pub use self::boost_query::BoostQuery;
+pub use self::const_score_query::{ConstScoreQuery, ConstScorer};
 pub use self::disjunction_max_query::DisjunctionMaxQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
@@ -56,7 +57,7 @@ pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{
     DisjunctionMaxCombiner, ScoreCombiner, SumCombiner, SumWithCoordsCombiner,
 };
-pub use self::scorer::{ConstScorer, Scorer};
+pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::union::Union;
 #[cfg(test)]
