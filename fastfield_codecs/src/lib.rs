@@ -87,7 +87,7 @@ impl FastFieldDataAccess for Vec<u64> {
         self[position as usize]
     }
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new((&self as &[u64]).iter().cloned())
+        Box::new((self as &[u64]).iter().cloned())
     }
 }
 
