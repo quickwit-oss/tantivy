@@ -247,7 +247,7 @@ impl SearcherInner {
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_size: usize,
     ) -> io::Result<SearcherInner> {
-        debug_assert_eq!(
+        assert_eq!(
             &segment_readers
                 .iter()
                 .map(|reader| (reader.segment_id(), reader.delete_opstamp()))
