@@ -6,6 +6,7 @@ mod bitset;
 mod bm25;
 mod boolean_query;
 mod boost_query;
+mod const_score_query;
 mod disjunction_max_query;
 mod empty_query;
 mod exclude;
