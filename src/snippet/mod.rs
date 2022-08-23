@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use htmlescape::encode_minimal;
@@ -255,13 +255,14 @@ impl SnippetGenerator {
         query: &dyn Query,
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
-        let mut terms = BTreeMap::new();
-        query.query_terms(&mut terms);
-        let mut terms_text: BTreeMap<String, Score> = Default::default();
-        for (term, _) in terms {
-            if term.field() != field {
-                continue;
+        let mut terms = BTreeSet::new();
+        query.query_terms(&mut |term, _| {
+            if term.field() == field {
+                terms.insert(term.clone());
             }
+        });
+        let mut terms_text: BTreeMap<String, Score> = Default::default();
+        for term in terms {
             let term_str = if let Some(term_str) = term.as_str() {
                 term_str
             } else {

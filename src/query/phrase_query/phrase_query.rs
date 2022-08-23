@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use super::PhraseWeight;
 use crate::core::searcher::Searcher;
 use crate::query::bm25::Bm25Weight;
@@ -129,9 +127,9 @@ impl Query for PhraseQuery {
         Ok(Box::new(phrase_weight))
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
         for (_, term) in &self.phrase_terms {
-            terms.insert(term.clone(), true);
+            visitor(term, true);
         }
     }
 }

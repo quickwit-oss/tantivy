@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 
 use downcast_rs::impl_downcast;
@@ -67,12 +66,15 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
         Ok(result)
     }
 
-    /// Extract all of the terms associated to the query and insert them in the
-    /// term set given in arguments.
+    /// Extract all of the terms associated to the query and pass them to the
+    /// given closure.
     ///
     /// Each term is associated with a boolean indicating whether
-    /// Positions are required or not.
-    fn query_terms(&self, _term_set: &mut BTreeMap<Term, bool>) {}
+    /// positions are required or not.
+    ///
+    /// Note that there can be multiple instances of any given term
+    /// in a query and deduplication must be handled by the visitor.
+    fn query_terms(&self, _visitor: &mut dyn FnMut(&Term, bool)) {}
 }
 
 /// Implements `box_clone`.
@@ -98,8 +100,8 @@ impl Query for Box<dyn Query> {
         self.as_ref().count(searcher)
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
-        self.as_ref().query_terms(terms);
+    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+        self.as_ref().query_terms(visitor);
     }
 }
 

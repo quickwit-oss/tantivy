@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::fastfield::AliveBitSet;
@@ -49,8 +48,8 @@ impl Query for BoostQuery {
         Ok(boosted_weight)
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
-        self.query.query_terms(terms)
+    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+        self.query.query_terms(visitor)
     }
 }
 
