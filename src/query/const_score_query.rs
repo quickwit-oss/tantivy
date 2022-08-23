@@ -1,16 +1,10 @@
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
+use std::fmt;
 
-use crate::{
-    query::{ConstScorer, Explanation, Query, Scorer, Weight},
-    DocSet,
-    Score,
-    Searcher,
-    SegmentReader,
-    TantivyError,
-    Term,
-};
+use crate::query::{ConstScorer, Explanation, Query, Scorer, Weight};
+use crate::{DocSet, Score, Searcher, SegmentReader, TantivyError, Term};
 
-/// `ConstScoreQuery` is a wrapper over a query to provide a constant score. 
+/// `ConstScoreQuery` is a wrapper over a query to provide a constant score.
 /// It can avoid unnecessary score computation on the wrapped query.
 ///
 /// The document set matched by the `ConstScoreQuery` is strictly the same as the underlying query.
@@ -43,11 +37,7 @@ impl fmt::Debug for ConstScoreQuery {
 }
 
 impl Query for ConstScoreQuery {
-    fn weight(
-        &self,
-        searcher: &Searcher,
-        scoring_enabled: bool,
-    ) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
         let inner_weight = self.query.weight(searcher, scoring_enabled)?;
         Ok(if scoring_enabled {
             Box::new(ConstWeight::new(inner_weight, self.score))
@@ -97,7 +87,6 @@ impl Weight for ConstWeight {
         self.weight.count(reader)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
