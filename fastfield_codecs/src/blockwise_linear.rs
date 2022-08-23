@@ -183,6 +183,8 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
 pub struct BlockwiseLinearInterpolFastFieldSerializer {}
 
+const MIN_NUM_VALS_FOR_CODEC: u64 = 5_000;
+
 impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinearInterpol;
     /// Creates a new fast field serializer.
@@ -281,7 +283,7 @@ impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
     }
 
     fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
-        if fastfield_accessor.num_vals() < 5_000 {
+        if fastfield_accessor.num_vals() < MIN_NUM_VALS_FOR_CODEC {
             return false;
         }
         // On serialization the offset is added to the actual value.
@@ -299,13 +301,14 @@ impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
         }
         true
     }
-    /// estimation for linear interpolation is hard because, you don't know
+    /// estimation for linear interpolation is hard, because you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
-        let first_chunk: Vec<_> = (0..CHUNK_SIZE)
-            .map(|idx| fastfield_accessor.get_val(idx)) // todo replace with iterator, when
-            // available on FastFieldDataAccess
+        assert!(fastfield_accessor.num_vals() >= MIN_NUM_VALS_FOR_CODEC);
+        let first_chunk: Vec<u64> = fastfield_accessor
+            .iter()
+            .take(CHUNK_SIZE as usize)
             .collect();
         let first_val_in_first_chunk = first_chunk[0];
         let slope = get_slope(
@@ -315,12 +318,12 @@ impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
         );
 
         let max_distance = first_chunk
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(pos, actual_value)| {
                 let calculated_value =
                     get_calculated_value(first_val_in_first_chunk, pos as u64, slope);
-                distance(calculated_value, *actual_value)
+                distance(calculated_value, actual_value)
             })
             .max()
             .unwrap();
