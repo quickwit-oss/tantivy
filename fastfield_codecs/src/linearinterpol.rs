@@ -94,18 +94,42 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 pub struct LinearInterpolFastFieldSerializer {}
 
 #[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     if num_vals <= 1 {
         return 0.0;
     }
     //  We calculate the slope with f64 high precision and use the result in lower precision f32
     //  This is done in order to handle estimations for very large values like i64::MAX
-    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
+    let diff = diff(last_val, first_val);
+    (diff / (num_vals - 1) as f64) as f32
+}
+
+/// Delay the cast, to improve precision for very large u64 values.
+///
+/// Since i64 is mapped monotonically to u64 space, 0i64 is after the mapping i64::MAX.
+/// So very large values are not uncommon.
+///
+/// ```rust
+///     let val1 = i64::MAX;
+///     let val2 = i64::MAX - 100;
+///     assert_eq!(val1 - val2, 100);
+///     assert_eq!(val1 as f64 - val2 as f64, 0.0);
+/// ```
+fn diff(val1: u64, val2: u64) -> f64 {
+    if val1 >= val2 {
+        (val1 - val2) as f64
+    } else {
+        (val2 - val1) as f64 * -1.0
+    }
 }
 
 #[inline]
 fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    first_val + (pos as f32 * slope) as u64
+    if slope < 0.0 {
+        first_val - (pos as f32 * -slope) as u64
+    } else {
+        first_val + (pos as f32 * slope) as u64
+    }
 }
 
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
@@ -240,6 +264,26 @@ mod tests {
             LinearInterpolFastFieldSerializer,
             LinearInterpolFastFieldReader,
         >(data, name)
+    }
+
+    #[test]
+    fn get_calculated_value_test() {
+        // pos slope
+        assert_eq!(get_calculated_value(100, 10, 5.0), 150);
+
+        // neg slope
+        assert_eq!(get_calculated_value(100, 10, -5.0), 50);
+
+        // pos slope, very high values
+        assert_eq!(
+            get_calculated_value(i64::MAX as u64, 10, 5.0),
+            i64::MAX as u64 + 50
+        );
+        // neg slope, very high values
+        assert_eq!(
+            get_calculated_value(i64::MAX as u64, 10, -5.0),
+            i64::MAX as u64 - 50
+        );
     }
 
     #[test]

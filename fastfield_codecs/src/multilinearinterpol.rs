@@ -17,6 +17,7 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
+use crate::linearinterpol::get_slope;
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const CHUNK_SIZE: u64 = 512;
@@ -175,16 +176,6 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
     fn max_value(&self) -> u64 {
         self.footer.max_value
     }
-}
-
-#[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
-}
-
-#[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
@@ -364,6 +355,11 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     }
 }
 
+#[inline]
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    (first_val as i64 + (pos as f32 * slope) as i64) as u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -374,6 +370,24 @@ mod tests {
             MultiLinearInterpolFastFieldSerializer,
             MultiLinearInterpolFastFieldReader,
         >(data, name)
+    }
+
+    const HIGHEST_BIT: u64 = 1 << 63;
+    pub fn i64_to_u64(val: i64) -> u64 {
+        (val as u64) ^ HIGHEST_BIT
+    }
+
+    #[test]
+    fn test_compression_i64() {
+        let data = (i64::MAX - 600_000..=i64::MAX - 550_000)
+            .map(i64_to_u64)
+            .collect::<Vec<_>>();
+        let (estimate, actual_compression) =
+            create_and_validate(&data, "simple monotonically large i64");
+        assert!(actual_compression < 0.2);
+        assert!(estimate < 0.20);
+        assert!(estimate > 0.15);
+        assert!(actual_compression > 0.01);
     }
 
     #[test]
