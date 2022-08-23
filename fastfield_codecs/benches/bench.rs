@@ -35,10 +35,10 @@ mod tests {
     ) {
         let mut bytes = vec![];
         S::serialize(&mut bytes, &data, stats_from_vec(data)).unwrap();
-        let reader = R::open_from_bytes(&bytes).unwrap();
+        let reader = R::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
         b.iter(|| {
             for pos in value_iter() {
-                reader.get_u64(pos as u64, &bytes);
+                reader.get_u64(pos as u64);
             }
         });
     }
@@ -49,6 +49,7 @@ mod tests {
         });
     }
 
+    use ownedbytes::OwnedBytes;
     use test::Bencher;
     #[bench]
     fn bench_fastfield_bitpack_create(b: &mut Bencher) {
