@@ -30,14 +30,23 @@ jobs:
             override: true
             components: rustfmt, clippy
 
+    - uses: taiki-e/install-action@nextest
+    - uses: Swatinem/rust-cache@v2
+
     - name: Build
       run: cargo build --verbose --workspace
 
     - name: Run tests
-      run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints --verbose --workspace
+      run: cargo +stable nextest run --features mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints --verbose --workspace
+
+    - name: Run doctests
+      run: cargo +stable test --doc --features mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints --verbose --workspace
 
     - name: Run tests quickwit feature
-      run: cargo +stable test --features mmap,quickwit,failpoints --verbose --workspace
+      run: cargo +stable nextest run --features mmap,quickwit,failpoints --verbose --workspace
+
+    - name: Run doctests quickwit feature
+      run: cargo +stable test --doc  --features mmap,quickwit,failpoints --verbose --workspace
 
     - name: Check Formatting
       run: cargo +nightly fmt --all -- --check
