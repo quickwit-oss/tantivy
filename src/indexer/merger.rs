@@ -134,7 +134,7 @@ impl TermOrdinalMapping {
     fn max_term_ord(&self) -> TermOrdinal {
         self.per_segment_new_term_ordinals
             .iter()
-            .flat_map(|term_ordinals| term_ordinals.iter().cloned().max())
+            .flat_map(|term_ordinals| term_ordinals.iter().max())
             .max()
             .unwrap_or_default()
     }
@@ -383,22 +383,27 @@ impl IndexMerger {
                 } = self.doc_id_mapping.get_old_doc_addr(doc as u32);
                 self.fast_field_readers[segment_ord as usize].get(doc_id)
             }
+
+            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+                Box::new(
+                    self.doc_id_mapping
+                        .iter_old_doc_addrs()
+                        .map(|old_doc_addr| {
+                            let fast_field_reader =
+                                &self.fast_field_readers[old_doc_addr.segment_ord as usize];
+                            fast_field_reader.get(old_doc_addr.doc_id)
+                        }),
+                )
+            }
         }
         let fastfield_accessor = SortedDocIdFieldAccessProvider {
             doc_id_mapping,
             fast_field_readers: &fast_field_readers,
         };
-        let iter_gen = || {
-            doc_id_mapping.iter_old_doc_addrs().map(|old_doc_addr| {
-                let fast_field_reader = &fast_field_readers[old_doc_addr.segment_ord as usize];
-                fast_field_reader.get(old_doc_addr.doc_id)
-            })
-        };
         fast_field_serializer.create_auto_detect_u64_fast_field(
             field,
             stats,
             fastfield_accessor,
-            iter_gen,
         )?;
 
         Ok(())
@@ -559,13 +564,7 @@ impl IndexMerger {
         }
         offsets.push(offset);
 
-        let iter_gen = || offsets.iter().cloned();
-        fast_field_serializer.create_auto_detect_u64_fast_field(
-            field,
-            stats,
-            &offsets[..],
-            iter_gen,
-        )?;
+        fast_field_serializer.create_auto_detect_u64_fast_field(field, stats, &offsets[..])?;
         Ok(offsets)
     }
     /// Returns the fastfield index (index for the data, not the data).
@@ -746,7 +745,7 @@ impl IndexMerger {
                 let new_doc_id: DocId =
                     self.offsets
                         .iter()
-                        .position(|&offset| offset > pos)
+                        .position(|offset| offset > pos)
                         .expect("pos is out of bounds") as DocId
                         - 1u32;
 
@@ -764,27 +763,30 @@ impl IndexMerger {
 
                 vals[pos_in_values as usize]
             }
+
+            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+                Box::new(
+                    self.doc_id_mapping
+                        .iter_old_doc_addrs()
+                        .flat_map(|old_doc_addr| {
+                            let ff_reader =
+                                &self.fast_field_readers[old_doc_addr.segment_ord as usize];
+                            let mut vals = Vec::new();
+                            ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
+                            vals.into_iter()
+                        }),
+                )
+            }
         }
         let fastfield_accessor = SortedDocIdMultiValueAccessProvider {
             doc_id_mapping,
             fast_field_readers: &ff_readers,
             offsets,
         };
-        let iter_gen = || {
-            doc_id_mapping
-                .iter_old_doc_addrs()
-                .flat_map(|old_doc_addr| {
-                    let ff_reader = &ff_readers[old_doc_addr.segment_ord as usize];
-                    let mut vals = Vec::new();
-                    ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                    vals.into_iter()
-                })
-        };
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,
             stats,
             fastfield_accessor,
-            iter_gen,
             1,
         )?;
 

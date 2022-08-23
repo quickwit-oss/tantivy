@@ -34,14 +34,7 @@ mod tests {
         data: &[u64],
     ) {
         let mut bytes = vec![];
-        S::serialize(
-            &mut bytes,
-            &data,
-            stats_from_vec(data),
-            data.iter().cloned(),
-            data.iter().cloned(),
-        )
-        .unwrap();
+        S::serialize(&mut bytes, &data, stats_from_vec(data)).unwrap();
         let reader = R::open_from_bytes(&bytes).unwrap();
         b.iter(|| {
             for pos in value_iter() {
@@ -52,14 +45,7 @@ mod tests {
     fn bench_create<S: FastFieldCodecSerializer>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
         b.iter(|| {
-            S::serialize(
-                &mut bytes,
-                &data,
-                stats_from_vec(data),
-                data.iter().cloned(),
-                data.iter().cloned(),
-            )
-            .unwrap();
+            S::serialize(&mut bytes, &data, stats_from_vec(data)).unwrap();
         });
     }
 
