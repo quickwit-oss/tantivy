@@ -14,10 +14,11 @@ pub const GCD_CODEC_ID: u8 = 4;
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
 pub struct GCDFastFieldCodec<CodecReader> {
-    gcd: u64,
+    pub(crate) gcd: u64,
     min_value: u64,
     reader: CodecReader,
 }
+
 impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
     /// Opens a fast field given the bytes.
     fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self> {
@@ -99,6 +100,7 @@ mod tests {
     use std::collections::HashMap;
     use std::num::NonZeroU64;
     use std::path::Path;
+    use std::time::{Duration, SystemTime};
 
     use common::HasLen;
 
@@ -110,8 +112,8 @@ mod tests {
         find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecName,
         FastFieldReader, FastFieldsWriter, ALL_CODECS,
     };
-    use crate::schema::Schema;
-    use crate::Directory;
+    use crate::schema::{Schema, FAST};
+    use crate::{DateTime, Directory};
 
     fn get_index(
         docs: &[crate::Document],
@@ -143,20 +145,21 @@ mod tests {
         let path = Path::new("test");
         let mut docs = vec![];
         for i in 1..=num_vals {
-            let val = i as i64 * 1000i64;
+            let val = (i as i64 - 5) * 1000i64;
             docs.push(doc!(*FIELDI64=>val));
         }
         let directory = get_index(&docs, &SCHEMAI64, codec_name.clone().into())?;
         let file = directory.open_read(path).unwrap();
-        // assert_eq!(file.len(), 118);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<i64>::open(file)?;
-        assert_eq!(fast_field_reader.get(0), 1000i64);
-        assert_eq!(fast_field_reader.get(1), 2000i64);
-        assert_eq!(fast_field_reader.get(2), 3000i64);
-        assert_eq!(fast_field_reader.max_value(), num_vals as i64 * 1000);
-        assert_eq!(fast_field_reader.min_value(), 1000i64);
+
+        assert_eq!(fast_field_reader.get(0), -4000i64);
+        assert_eq!(fast_field_reader.get(1), -3000i64);
+        assert_eq!(fast_field_reader.get(2), -2000i64);
+        assert_eq!(fast_field_reader.max_value(), (num_vals as i64 - 5) * 1000);
+        assert_eq!(fast_field_reader.min_value(), -4000i64);
+        assert_eq!(fast_field_reader.gcd(), Some(1000u64));
         let file = directory.open_read(path).unwrap();
 
         // Can't apply gcd
@@ -190,7 +193,6 @@ mod tests {
         }
         let directory = get_index(&docs, &SCHEMA, codec_name.clone().into())?;
         let file = directory.open_read(path).unwrap();
-        // assert_eq!(file.len(), 118);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
@@ -199,6 +201,7 @@ mod tests {
         assert_eq!(fast_field_reader.get(2), 3000u64);
         assert_eq!(fast_field_reader.max_value(), num_vals as u64 * 1000);
         assert_eq!(fast_field_reader.min_value(), 1000u64);
+        assert_eq!(fast_field_reader.gcd(), Some(1000u64));
         let file = directory.open_read(path).unwrap();
 
         // Can't apply gcd
@@ -226,6 +229,61 @@ mod tests {
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
+        assert_eq!(test_fastfield.gcd(), Some(100u64));
+    }
+
+    #[test]
+    pub fn test_gcd_date() -> crate::Result<()> {
+        test_gcd_date_with_codec(FastFieldCodecName::Bitpacked)?;
+        test_gcd_date_with_codec(FastFieldCodecName::LinearInterpol)?;
+        Ok(())
+    }
+
+    fn test_gcd_date_with_codec(codec_name: FastFieldCodecName) -> crate::Result<()> {
+        let time1 = DateTime::from_timestamp_secs(
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        );
+        let time2 = DateTime::from_timestamp_secs(
+            SystemTime::now()
+                .checked_sub(Duration::from_millis(4000))
+                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        );
+
+        let time3 = DateTime::from_timestamp_secs(
+            SystemTime::now()
+                .checked_sub(Duration::from_millis(2000))
+                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+        );
+
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_date_field("field", FAST);
+        let schema = schema_builder.build();
+
+        let docs = vec![doc!(field=>time1), doc!(field=>time2), doc!(field=>time3)];
+
+        // let test_fastfield = DynamicFastFieldReader::<DateTime>::from(vec![time1, time2, time3]);
+
+        let directory = get_index(&docs, &schema, codec_name.clone().into())?;
+        let path = Path::new("test");
+        let file = directory.open_read(path).unwrap();
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(*FIELD).unwrap();
+        let test_fastfield = DynamicFastFieldReader::<DateTime>::open(file)?;
+
+        assert_eq!(test_fastfield.get(0), time1);
+        assert_eq!(test_fastfield.get(1), time2);
+        assert_eq!(test_fastfield.get(2), time3);
+        assert_eq!(test_fastfield.gcd(), Some(2000000u64));
+        Ok(())
     }
 
     #[test]
