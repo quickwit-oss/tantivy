@@ -30,6 +30,8 @@ jobs:
             override: true
             components: rustfmt, clippy
 
+    - uses: Swatinem/rust-cache@v2
+
     - name: Build
       run: cargo build --verbose --workspace
 
