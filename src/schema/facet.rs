@@ -7,6 +7,7 @@ use std::string::FromUtf8Error;
 use common::BinarySerializable;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 const SLASH_BYTE: u8 = b'/';
@@ -230,7 +231,9 @@ impl Serialize for Facet {
 impl<'de> Deserialize<'de> for Facet {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        <&'de str as Deserialize<'de>>::deserialize(deserializer).map(Facet::from)
+        <Cow<'de, str> as Deserialize<'de>>::deserialize(deserializer).and_then(|path| {
+            Facet::from_text(&*path).map_err(|err| D::Error::custom(err.to_string()))
+        })
     }
 }
 
@@ -326,5 +329,26 @@ mod tests {
     fn root_is_a_prefix() {
         assert!(Facet::from("/").is_prefix_of(&Facet::from("/foobar")));
         assert!(!Facet::from("/").is_prefix_of(&Facet::from("/")));
+    }
+
+    #[test]
+    fn deserialize_from_borrowed_string() {
+        let facet = serde_json::from_str::<Facet>(r#""/foo/bar""#).unwrap();
+        assert_eq!(facet, Facet::from_path(["foo", "bar"]));
+    }
+
+    #[test]
+    fn deserialize_from_owned_string() {
+        let facet = serde_json::from_str::<Facet>(r#""/foo/\u263A""#).unwrap();
+        assert_eq!(facet, Facet::from_path(["foo", "☺"]));
+    }
+
+    #[test]
+    fn deserialize_from_invalid_string() {
+        let error = serde_json::from_str::<Facet>(r#""foo/bar""#).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Failed to parse the facet string: 'foo/bar'"
+        );
     }
 }
