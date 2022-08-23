@@ -3,7 +3,7 @@ use std::ops::DerefMut;
 use downcast_rs::impl_downcast;
 
 use crate::docset::DocSet;
-use crate::{DocId, Score};
+use crate::Score;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
