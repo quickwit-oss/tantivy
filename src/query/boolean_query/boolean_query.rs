@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use super::boolean_weight::BooleanWeight;
 use crate::query::{Occur, Query, SumWithCoordsCombiner, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
@@ -160,9 +158,9 @@ impl Query for BooleanQuery {
         )))
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for (_occur, subquery) in &self.subqueries {
-            subquery.query_terms(terms);
+            subquery.query_terms(visitor);
         }
     }
 }

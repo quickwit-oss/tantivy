@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use tantivy_query_grammar::Occur;
 
 use crate::query::{BooleanWeight, DisjunctionMaxCombiner, Query, Weight};
@@ -107,9 +105,9 @@ impl Query for DisjunctionMaxQuery {
         )))
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for disjunct in &self.disjuncts {
-            disjunct.query_terms(terms);
+            disjunct.query_terms(visitor);
         }
     }
 }
