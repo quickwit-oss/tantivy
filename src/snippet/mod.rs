@@ -258,7 +258,7 @@ impl SnippetGenerator {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut |term, _| {
             if term.field() == field {
-                terms.insert(term.clone());
+                terms.insert(term);
             }
         });
         let mut terms_text: BTreeMap<String, Score> = Default::default();

@@ -120,7 +120,7 @@ impl Query for TermQuery {
             self.specialized_weight(searcher, scoring_enabled)?,
         ))
     }
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         visitor(&self.term, false);
     }
 }

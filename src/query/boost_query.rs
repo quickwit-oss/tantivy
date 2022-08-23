@@ -48,7 +48,7 @@ impl Query for BoostQuery {
         Ok(boosted_weight)
     }
 
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         self.query.query_terms(visitor)
     }
 }

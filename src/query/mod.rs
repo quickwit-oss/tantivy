@@ -78,47 +78,34 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_b = Term::from_field_text(text_field, "b");
         {
-            let mut terms: Vec<(Term, bool)> = Default::default();
-            query_parser
-                .parse_query("a")
-                .unwrap()
-                .query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
-            assert_eq!(vec![(term_a.clone(), false)], terms);
+            let query = query_parser.parse_query("a").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false)], terms);
         }
         {
-            let mut terms: Vec<(Term, bool)> = Default::default();
-            query_parser
-                .parse_query("a b")
-                .unwrap()
-                .query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
-            assert_eq!(
-                vec![(term_a.clone(), false), (term_b.clone(), false)],
-                terms
-            );
+            let query = query_parser.parse_query("a b").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
         {
-            let mut terms: Vec<(Term, bool)> = Default::default();
-            query_parser
-                .parse_query("\"a b\"")
-                .unwrap()
-                .query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
-            assert_eq!(vec![(term_a.clone(), true), (term_b.clone(), true)], terms);
+            let query = query_parser.parse_query("\"a b\"").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, true), (&term_b, true)], terms);
         }
         {
-            let mut terms: Vec<(Term, bool)> = Default::default();
-            query_parser
-                .parse_query("a a a a a")
-                .unwrap()
-                .query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
-            assert_eq!(vec![(term_a.clone(), false); 5], terms);
+            let query = query_parser.parse_query("a a a a a").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false); 5], terms);
         }
         {
-            let mut terms: Vec<(Term, bool)> = Default::default();
-            query_parser
-                .parse_query("a -b")
-                .unwrap()
-                .query_terms(&mut |term, pos| terms.push((term.clone(), pos)));
-            assert_eq!(vec![(term_a, false), (term_b, false)], terms);
+            let query = query_parser.parse_query("a -b").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
     }
 }

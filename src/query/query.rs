@@ -74,7 +74,7 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     ///
     /// Note that there can be multiple instances of any given term
     /// in a query and deduplication must be handled by the visitor.
-    fn query_terms(&self, _visitor: &mut dyn FnMut(&Term, bool)) {}
+    fn query_terms<'a>(&'a self, _visitor: &mut dyn FnMut(&'a Term, bool)) {}
 }
 
 /// Implements `box_clone`.
@@ -100,7 +100,7 @@ impl Query for Box<dyn Query> {
         self.as_ref().count(searcher)
     }
 
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         self.as_ref().query_terms(visitor);
     }
 }

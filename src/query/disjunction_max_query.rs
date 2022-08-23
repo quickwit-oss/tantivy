@@ -105,7 +105,7 @@ impl Query for DisjunctionMaxQuery {
         )))
     }
 
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for disjunct in &self.disjuncts {
             disjunct.query_terms(visitor);
         }

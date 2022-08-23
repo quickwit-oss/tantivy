@@ -127,7 +127,7 @@ impl Query for PhraseQuery {
         Ok(Box::new(phrase_weight))
     }
 
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for (_, term) in &self.phrase_terms {
             visitor(term, true);
         }

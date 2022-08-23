@@ -158,7 +158,7 @@ impl Query for BooleanQuery {
         )))
     }
 
-    fn query_terms(&self, visitor: &mut dyn FnMut(&Term, bool)) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for (_occur, subquery) in &self.subqueries {
             subquery.query_terms(visitor);
         }
