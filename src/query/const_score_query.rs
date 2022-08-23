@@ -76,8 +76,7 @@ impl Weight for ConstWeight {
                 doc
             )));
         }
-        let mut explanation =
-            Explanation::new(format!("Const {} of ...", self.score), scorer.score());
+        let mut explanation = Explanation::new("Const", self.score);
         let underlying_explanation = self.weight.explain(reader, doc)?;
         explanation.add_detail(underlying_explanation);
         Ok(explanation)
@@ -156,13 +155,13 @@ mod tests {
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let query = ConstScoreQuery::new(Box::new(AllQuery), 0f32);
+        let query = ConstScoreQuery::new(Box::new(AllQuery), 0.42);
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32)).unwrap();
         assert_eq!(
             explanation.to_pretty_json(),
             r#"{
-  "value": 0.0,
-  "description": "Const 0 of ...",
+  "value": 0.42,
+  "description": "Const",
   "details": [
     {
       "value": 1.0,
