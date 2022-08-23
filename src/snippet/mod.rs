@@ -7,7 +7,7 @@ use htmlescape::encode_minimal;
 use crate::query::Query;
 use crate::schema::{Field, Value};
 use crate::tokenizer::{TextAnalyzer, Token};
-use crate::{Document, Score, Searcher};
+use crate::{Document, Score, Searcher, Term};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -255,7 +255,7 @@ impl SnippetGenerator {
         query: &dyn Query,
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
-        let mut terms = BTreeSet::new();
+        let mut terms: BTreeSet<&Term> = BTreeSet::new();
         query.query_terms(&mut |term, _| {
             if term.field() == field {
                 terms.insert(term);
@@ -268,7 +268,7 @@ impl SnippetGenerator {
             } else {
                 continue;
             };
-            let doc_freq = searcher.doc_freq(&term)?;
+            let doc_freq = searcher.doc_freq(term)?;
             if doc_freq > 0 {
                 let score = 1.0 / (1.0 + doc_freq as Score);
                 terms_text.insert(term_str.to_string(), score);
