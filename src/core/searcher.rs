@@ -247,6 +247,14 @@ impl SearcherInner {
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_size: usize,
     ) -> io::Result<SearcherInner> {
+        debug_assert_eq!(
+            &segment_readers
+                .iter()
+                .map(|reader| (reader.segment_id(), reader.delete_opstamp()))
+                .collect::<BTreeMap<_, _>>(),
+            generation.segments(),
+            "Set of segments referenced by this Searcher and its SearcherGeneration must match"
+        );
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
             .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
