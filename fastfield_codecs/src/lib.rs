@@ -28,14 +28,14 @@ pub trait FastFieldCodecSerializer {
     const ID: u8;
 
     /// Check if the Codec is able to compress the data
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> bool;
+    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool;
 
     /// Returns an estimate of the compression ratio.
     /// The baseline is uncompressed 64bit data.
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32;
 
     /// Serializes the data using the serializer into write.
     ///
@@ -44,7 +44,6 @@ pub trait FastFieldCodecSerializer {
     fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
-        stats: FastFieldStats,
     ) -> io::Result<()>;
 }
 
@@ -62,6 +61,15 @@ pub trait FastFieldDataAccess {
 
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a>;
+
+    /// min value of the data
+    fn min_value(&self) -> u64;
+
+    /// max value of the data
+    fn max_value(&self) -> u64;
+
+    /// num vals
+    fn num_vals(&self) -> u64;
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +88,18 @@ impl<'a> FastFieldDataAccess for &'a [u64] {
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
         Box::new((self as &[u64]).iter().cloned())
     }
+
+    fn min_value(&self) -> u64 {
+        self.iter().min().unwrap_or(0)
+    }
+
+    fn max_value(&self) -> u64 {
+        self.iter().max().unwrap_or(0)
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.len() as u64
+    }
 }
 
 impl FastFieldDataAccess for Vec<u64> {
@@ -88,6 +108,17 @@ impl FastFieldDataAccess for Vec<u64> {
     }
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
         Box::new((self as &[u64]).iter().cloned())
+    }
+    fn min_value(&self) -> u64 {
+        self.iter().min().unwrap_or(0)
+    }
+
+    fn max_value(&self) -> u64 {
+        self.iter().max().unwrap_or(0)
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.len() as u64
     }
 }
 
@@ -103,12 +134,12 @@ mod tests {
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
-        if !S::is_applicable(&data, crate::tests::stats_from_vec(data)) {
+        if !S::is_applicable(&data) {
             return (f32::MAX, 0.0);
         }
-        let estimation = S::estimate(&data, crate::tests::stats_from_vec(data));
+        let estimation = S::estimate(&data);
         let mut out: Vec<u8> = Vec::new();
-        S::serialize(&mut out, &data, crate::tests::stats_from_vec(data)).unwrap();
+        S::serialize(&mut out, &data).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
@@ -184,29 +215,25 @@ mod tests {
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
 
-        let linear_interpol_estimation =
-            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.01);
 
         let multi_linear_interpol_estimation =
-            MultiLinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+            MultiLinearInterpolFastFieldSerializer::estimate(&data);
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
-        let bitpacked_estimation =
-            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
         let data = vec![200, 10, 10, 10, 10, 1000, 20];
 
-        let linear_interpol_estimation =
-            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.32);
 
-        let bitpacked_estimation =
-            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
     #[test]
@@ -216,12 +243,10 @@ mod tests {
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
-        let linear_interpol_estimation =
-            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.35);
 
-        let bitpacked_estimation =
-            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }

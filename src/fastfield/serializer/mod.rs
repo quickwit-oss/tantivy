@@ -66,14 +66,13 @@ impl From<FastFieldCodecName> for FastFieldCodecEnableCheck {
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
 fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
-    stats: FastFieldStats,
     fastfield_accessor: &A,
     estimations: &mut Vec<(f32, &str, u8)>,
 ) {
-    if !T::is_applicable(fastfield_accessor, stats.clone()) {
+    if !T::is_applicable(fastfield_accessor) {
         return;
     }
-    let (ratio, name, id) = (T::estimate(fastfield_accessor, stats), T::NAME, T::ID);
+    let (ratio, name, id) = (T::estimate(fastfield_accessor), T::NAME, T::ID);
     estimations.push((ratio, name, id));
 }
 
@@ -101,10 +100,9 @@ impl CompositeFastFieldSerializer {
     pub fn create_auto_detect_u64_fast_field(
         &mut self,
         field: Field,
-        stats: FastFieldStats,
         fastfield_accessor: impl FastFieldDataAccess,
     ) -> io::Result<()> {
-        self.create_auto_detect_u64_fast_field_with_idx(field, stats, fastfield_accessor, 0)
+        self.create_auto_detect_u64_fast_field_with_idx(field, fastfield_accessor, 0)
     }
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
@@ -120,12 +118,12 @@ impl CompositeFastFieldSerializer {
     pub fn create_auto_detect_u64_fast_field_with_idx(
         &mut self,
         field: Field,
-        stats: FastFieldStats,
         fastfield_accessor: impl FastFieldDataAccess,
         idx: usize,
     ) -> io::Result<()> {
+        let min_value = fastfield_accessor.min_value();
         let field_write = self.composite_write.for_field_with_idx(field, idx);
-        let gcd = find_gcd(fastfield_accessor.iter().map(|val| val - stats.min_value))
+        let gcd = find_gcd(fastfield_accessor.iter().map(|val| val - min_value))
             .map(NonZeroU64::get)
             .unwrap_or(GCD_DEFAULT);
 
@@ -134,7 +132,6 @@ impl CompositeFastFieldSerializer {
                 self.codec_enable_checker.clone(),
                 field,
                 field_write,
-                stats,
                 fastfield_accessor,
             );
         }
@@ -142,42 +139,54 @@ impl CompositeFastFieldSerializer {
         Self::write_header(field_write, GCD_CODEC_ID)?;
         struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
             fastfield_accessor: T,
-            min_value: u64,
+            base_value: u64,
+            max_value: u64,
+            num_vals: u64,
             gcd: u64,
         }
         impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
             fn get_val(&self, position: u64) -> u64 {
-                (self.fastfield_accessor.get_val(position) - self.min_value) / self.gcd
+                (self.fastfield_accessor.get_val(position) - self.base_value) / self.gcd
             }
             fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
                 Box::new(
                     self.fastfield_accessor
                         .iter()
-                        .map(|val| (val - self.min_value) / self.gcd),
+                        .map(|val| (val - self.base_value) / self.gcd),
                 )
+            }
+            fn min_value(&self) -> u64 {
+                0
+            }
+
+            fn max_value(&self) -> u64 {
+                self.max_value
+            }
+
+            fn num_vals(&self) -> u64 {
+                self.num_vals
             }
         }
 
+        let num_vals = fastfield_accessor.num_vals();
+        let base_value = fastfield_accessor.min_value();
+        let max_value = (fastfield_accessor.max_value() - fastfield_accessor.min_value()) / gcd;
+
         let fastfield_accessor = GCDWrappedFFAccess {
             fastfield_accessor,
-            min_value: stats.min_value,
+            base_value,
+            max_value,
+            num_vals,
             gcd,
         };
 
-        let min_value = stats.min_value;
-        let stats = FastFieldStats {
-            min_value: 0,
-            max_value: (stats.max_value - stats.min_value) / gcd,
-            num_vals: stats.num_vals,
-        };
         Self::create_auto_detect_u64_fast_field_with_idx_gcd(
             self.codec_enable_checker.clone(),
             field,
             field_write,
-            stats,
             fastfield_accessor,
         )?;
-        write_gcd_header(field_write, min_value, gcd)?;
+        write_gcd_header(field_write, base_value, gcd)?;
         Ok(())
     }
 
@@ -187,28 +196,24 @@ impl CompositeFastFieldSerializer {
         codec_enable_checker: FastFieldCodecEnableCheck,
         field: Field,
         field_write: &mut CountingWriter<W>,
-        stats: FastFieldStats,
         fastfield_accessor: impl FastFieldDataAccess,
     ) -> io::Result<()> {
         let mut estimations = vec![];
 
         if codec_enable_checker.is_enabled(FastFieldCodecName::Bitpacked) {
             codec_estimation::<BitpackedFastFieldSerializer, _>(
-                stats.clone(),
                 &fastfield_accessor,
                 &mut estimations,
             );
         }
         if codec_enable_checker.is_enabled(FastFieldCodecName::LinearInterpol) {
             codec_estimation::<LinearInterpolFastFieldSerializer, _>(
-                stats.clone(),
                 &fastfield_accessor,
                 &mut estimations,
             );
         }
         if codec_enable_checker.is_enabled(FastFieldCodecName::BlockwiseLinearInterpol) {
             codec_estimation::<MultiLinearInterpolFastFieldSerializer, _>(
-                stats.clone(),
                 &fastfield_accessor,
                 &mut estimations,
             );
@@ -233,20 +238,15 @@ impl CompositeFastFieldSerializer {
         Self::write_header(field_write, id)?;
         match name {
             BitpackedFastFieldSerializer::NAME => {
-                BitpackedFastFieldSerializer::serialize(field_write, &fastfield_accessor, stats)?;
+                BitpackedFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             LinearInterpolFastFieldSerializer::NAME => {
-                LinearInterpolFastFieldSerializer::serialize(
-                    field_write,
-                    &fastfield_accessor,
-                    stats,
-                )?;
+                LinearInterpolFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             MultiLinearInterpolFastFieldSerializer::NAME => {
                 MultiLinearInterpolFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
-                    stats,
                 )?;
             }
             _ => {

@@ -94,13 +94,13 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
 pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
     data: &[u64],
 ) -> (bool, f32, f32, &'static str) {
-    let is_applicable = S::is_applicable(&data, stats_from_vec(data));
+    let is_applicable = S::is_applicable(&data);
     if !is_applicable {
         return (false, 0.0, 0.0, S::NAME);
     }
-    let estimation = S::estimate(&data, stats_from_vec(data));
+    let estimation = S::estimate(&data);
     let mut out = vec![];
-    S::serialize(&mut out, &data, stats_from_vec(data)).unwrap();
+    S::serialize(&mut out, &data).unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
     (true, estimation, actual_compression, S::NAME)

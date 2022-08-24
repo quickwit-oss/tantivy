@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -112,10 +112,12 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
-        stats: FastFieldStats,
     ) -> io::Result<()> {
-        let mut serializer =
-            BitpackedFastFieldSerializerLegacy::open(write, stats.min_value, stats.max_value)?;
+        let mut serializer = BitpackedFastFieldSerializerLegacy::open(
+            write,
+            fastfield_accessor.min_value(),
+            fastfield_accessor.max_value(),
+        )?;
 
         for val in fastfield_accessor.iter() {
             serializer.add_val(val)?;
@@ -124,14 +126,11 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
 
         Ok(())
     }
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        _stats: FastFieldStats,
-    ) -> bool {
+    fn is_applicable(_fastfield_accessor: &impl FastFieldDataAccess) -> bool {
         true
     }
-    fn estimate(_fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        let amplitude = stats.max_value - stats.min_value;
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+        let amplitude = fastfield_accessor.max_value() - fastfield_accessor.min_value();
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
         num_bits as f32 / num_bits_uncompressed as f32

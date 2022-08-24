@@ -359,17 +359,19 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        let fastfield_accessor = WriterFastFieldAccessProvider {
-            doc_id_map,
-            vals: &self.vals,
-        };
         let stats = FastFieldStats {
             min_value: min,
             max_value: max,
             num_vals: self.val_count as u64,
         };
 
-        serializer.create_auto_detect_u64_fast_field(self.field, stats, fastfield_accessor)?;
+        let fastfield_accessor = WriterFastFieldAccessProvider {
+            doc_id_map,
+            vals: &self.vals,
+            stats,
+        };
+
+        serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
 
         Ok(())
     }
@@ -379,6 +381,7 @@ impl IntFastFieldWriter {
 struct WriterFastFieldAccessProvider<'map, 'bitp> {
     doc_id_map: Option<&'map DocIdMapping>,
     vals: &'bitp BlockedBitpacker,
+    stats: FastFieldStats,
 }
 impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// Return the value associated to the given doc.
@@ -410,5 +413,17 @@ impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'b
         } else {
             Box::new(self.vals.iter())
         }
+    }
+
+    fn min_value(&self) -> u64 {
+        self.stats.min_value
+    }
+
+    fn max_value(&self) -> u64 {
+        self.stats.max_value
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.stats.num_vals
     }
 }
