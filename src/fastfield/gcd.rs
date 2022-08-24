@@ -112,8 +112,8 @@ mod tests {
         find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecName,
         FastFieldReader, FastFieldsWriter, ALL_CODECS,
     };
-    use crate::schema::{Schema, FAST};
-    use crate::{DateTime, Directory};
+    use crate::schema::{Cardinality, Schema};
+    use crate::{DateOptions, DatePrecision, DateTime, Directory};
 
     fn get_index(
         docs: &[crate::Document],
@@ -159,7 +159,6 @@ mod tests {
         assert_eq!(fast_field_reader.get(2), -2000i64);
         assert_eq!(fast_field_reader.max_value(), (num_vals as i64 - 5) * 1000);
         assert_eq!(fast_field_reader.min_value(), -4000i64);
-        assert_eq!(fast_field_reader.gcd(), Some(1000u64));
         let file = directory.open_read(path).unwrap();
 
         // Can't apply gcd
@@ -195,13 +194,13 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
+        assert_eq!(file.len(), 100);
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
         assert_eq!(fast_field_reader.get(0), 1000u64);
         assert_eq!(fast_field_reader.get(1), 2000u64);
         assert_eq!(fast_field_reader.get(2), 3000u64);
         assert_eq!(fast_field_reader.max_value(), num_vals as u64 * 1000);
         assert_eq!(fast_field_reader.min_value(), 1000u64);
-        assert_eq!(fast_field_reader.gcd(), Some(1000u64));
         let file = directory.open_read(path).unwrap();
 
         // Can't apply gcd
@@ -229,17 +228,31 @@ mod tests {
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
-        assert_eq!(test_fastfield.gcd(), Some(100u64));
     }
 
     #[test]
     pub fn test_gcd_date() -> crate::Result<()> {
-        test_gcd_date_with_codec(FastFieldCodecName::Bitpacked)?;
-        test_gcd_date_with_codec(FastFieldCodecName::LinearInterpol)?;
+        let size_prec_sec =
+            test_gcd_date_with_codec(FastFieldCodecName::Bitpacked, DatePrecision::Seconds)?;
+        let size_prec_micro =
+            test_gcd_date_with_codec(FastFieldCodecName::Bitpacked, DatePrecision::Microseconds)?;
+        assert!(size_prec_sec < size_prec_micro);
+
+        let size_prec_sec =
+            test_gcd_date_with_codec(FastFieldCodecName::LinearInterpol, DatePrecision::Seconds)?;
+        let size_prec_micro = test_gcd_date_with_codec(
+            FastFieldCodecName::LinearInterpol,
+            DatePrecision::Microseconds,
+        )?;
+        assert!(size_prec_sec < size_prec_micro);
+
         Ok(())
     }
 
-    fn test_gcd_date_with_codec(codec_name: FastFieldCodecName) -> crate::Result<()> {
+    fn test_gcd_date_with_codec(
+        codec_name: FastFieldCodecName,
+        precision: DatePrecision,
+    ) -> crate::Result<usize> {
         let time1 = DateTime::from_timestamp_secs(
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
@@ -265,25 +278,26 @@ mod tests {
         );
 
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_date_field("field", FAST);
+        let date_options = DateOptions::default()
+            .set_fast(Cardinality::SingleValue)
+            .set_precision(precision);
+        let field = schema_builder.add_date_field("field", date_options);
         let schema = schema_builder.build();
 
         let docs = vec![doc!(field=>time1), doc!(field=>time2), doc!(field=>time3)];
-
-        // let test_fastfield = DynamicFastFieldReader::<DateTime>::from(vec![time1, time2, time3]);
 
         let directory = get_index(&docs, &schema, codec_name.clone().into())?;
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
+        let len = file.len();
         let test_fastfield = DynamicFastFieldReader::<DateTime>::open(file)?;
 
         assert_eq!(test_fastfield.get(0), time1);
         assert_eq!(test_fastfield.get(1), time2);
         assert_eq!(test_fastfield.get(2), time3);
-        assert_eq!(test_fastfield.gcd(), Some(2000000u64));
-        Ok(())
+        Ok(len)
     }
 
     #[test]

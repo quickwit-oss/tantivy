@@ -157,18 +157,6 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
         Ok(reader)
     }
 
-    /// Returns the gcd when available.
-    pub fn gcd(&self) -> Option<u64> {
-        match self {
-            DynamicFastFieldReader::Bitpacked(_) => None,
-            DynamicFastFieldReader::LinearInterpol(_) => None,
-            DynamicFastFieldReader::MultiLinearInterpol(_) => None,
-            DynamicFastFieldReader::BitpackedGCD(wrapper) => Some(wrapper.reader.gcd),
-            DynamicFastFieldReader::LinearInterpolGCD(wrapper) => Some(wrapper.reader.gcd),
-            DynamicFastFieldReader::MultiLinearInterpolGCD(wrapper) => Some(wrapper.reader.gcd),
-        }
-    }
-
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
         let mut bytes = file.read_bytes()?;
@@ -228,7 +216,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
 pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
-    pub(crate) reader: CodecReader,
+    reader: CodecReader,
     _phantom: PhantomData<Item>,
 }
 
