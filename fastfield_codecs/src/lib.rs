@@ -5,11 +5,12 @@ extern crate more_asserts;
 use std::io;
 use std::io::Write;
 
+use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 
 pub mod bitpacked;
-pub mod linearinterpol;
-pub mod multilinearinterpol;
+pub mod blockwise_linear;
+pub mod linear;
 
 pub trait FastFieldCodecReader: Sized {
     /// reads the metadata and returns the CodecReader
@@ -19,13 +20,50 @@ pub trait FastFieldCodecReader: Sized {
     fn max_value(&self) -> u64;
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum FastFieldCodecType {
+    Bitpacked = 1,
+    LinearInterpol = 2,
+    BlockwiseLinearInterpol = 3,
+    Gcd = 4,
+}
+
+impl BinarySerializable for FastFieldCodecType {
+    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+        self.to_code().serialize(wrt)
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let code = u8::deserialize(reader)?;
+        let codec_type: Self = Self::from_code(code)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
+        Ok(codec_type)
+    }
+}
+
+impl FastFieldCodecType {
+    pub fn to_code(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            1 => Some(Self::Bitpacked),
+            2 => Some(Self::LinearInterpol),
+            3 => Some(Self::BlockwiseLinearInterpol),
+            4 => Some(Self::Gcd),
+            _ => None,
+        }
+    }
+}
+
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldCodecSerializer {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
-    const NAME: &'static str;
-    const ID: u8;
+    const CODEC_TYPE: FastFieldCodecType;
 
     /// Check if the Codec is able to compress the data
     fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool;
@@ -128,10 +166,10 @@ mod tests {
     use proptest::proptest;
 
     use crate::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
-    use crate::linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer};
-    use crate::multilinearinterpol::{
-        MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+    use crate::blockwise_linear::{
+        BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader,
     };
+    use crate::linear::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer};
 
     pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
         data: &[u64],
@@ -151,8 +189,8 @@ mod tests {
             let val = reader.get_u64(doc as u64);
             if val != *orig_val {
                 panic!(
-                    "val {:?} does not match orig_val {:?}, in data set {}, data {:?}",
-                    val, orig_val, name, data
+                    "val {val:?} does not match orig_val {orig_val:?}, in data set {name}, data \
+                     {data:?}",
                 );
             }
         }
@@ -163,14 +201,14 @@ mod tests {
         #[test]
         fn test_proptest_small(data in proptest::collection::vec(any::<u64>(), 1..10)) {
             create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
-            create_and_validate::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
             create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
         }
 
         #[test]
         fn test_proptest_large(data in proptest::collection::vec(any::<u64>(), 1..6000)) {
             create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
-            create_and_validate::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
             create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
         }
 
@@ -193,19 +231,15 @@ mod tests {
     }
 
     fn test_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader>() {
-        let codec_name = S::NAME;
-        for (data, data_set_name) in get_codec_test_data_sets() {
-            let (estimate, actual) =
-                crate::tests::create_and_validate::<S, R>(&data, data_set_name);
+        let codec_name = format!("{:?}", S::CODEC_TYPE);
+        for (data, dataset_name) in get_codec_test_data_sets() {
+            let (estimate, actual) = crate::tests::create_and_validate::<S, R>(&data, dataset_name);
             let result = if estimate == f32::MAX {
                 "Disabled".to_string()
             } else {
-                format!("Estimate {:?} Actual {:?} ", estimate, actual)
+                format!("Estimate `{estimate}` Actual `{actual}`")
             };
-            println!(
-                "Codec {}, DataSet {}, {}",
-                codec_name, data_set_name, result
-            );
+            println!("Codec {codec_name}, DataSet {dataset_name}, {result}");
         }
     }
     #[test]
@@ -218,7 +252,8 @@ mod tests {
     }
     #[test]
     fn test_codec_multi_interpolation() {
-        test_codec::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>();
+        test_codec::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
+        );
     }
 
     use super::*;
@@ -231,7 +266,7 @@ mod tests {
         assert_le!(linear_interpol_estimation, 0.01);
 
         let multi_linear_interpol_estimation =
-            MultiLinearInterpolFastFieldSerializer::estimate(&data);
+            BlockwiseLinearInterpolFastFieldSerializer::estimate(&data);
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
@@ -261,5 +296,17 @@ mod tests {
         let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
+    }
+
+    #[test]
+    fn test_fast_field_codec_type_to_code() {
+        let mut count_codec = 0;
+        for code in 0..=255 {
+            if let Some(codec_type) = FastFieldCodecType::from_code(code) {
+                assert_eq!(codec_type.to_code(), code);
+                count_codec += 1;
+            }
+        }
+        assert_eq!(count_codec, 4);
     }
 }

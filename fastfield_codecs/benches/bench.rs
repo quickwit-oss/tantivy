@@ -5,11 +5,11 @@ extern crate test;
 #[cfg(test)]
 mod tests {
     use fastfield_codecs::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
-    use fastfield_codecs::linearinterpol::{
-        LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
+    use fastfield_codecs::blockwise_linear::{
+        BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader,
     };
-    use fastfield_codecs::multilinearinterpol::{
-        MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+    use fastfield_codecs::linear::{
+        LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
     };
     use fastfield_codecs::*;
 
@@ -64,7 +64,7 @@ mod tests {
     #[bench]
     fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<MultiLinearInterpolFastFieldSerializer>(b, &data);
+        bench_create::<BlockwiseLinearInterpolFastFieldSerializer>(b, &data);
     }
     #[bench]
     fn bench_fastfield_bitpack_get(b: &mut Bencher) {
@@ -79,7 +79,7 @@ mod tests {
     #[bench]
     fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
+        bench_get::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
             b, &data,
         );
     }

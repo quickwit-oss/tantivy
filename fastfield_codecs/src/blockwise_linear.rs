@@ -17,8 +17,10 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::linearinterpol::{get_calculated_value, get_slope};
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
+use crate::linear::{get_calculated_value, get_slope};
+use crate::{
+    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -179,11 +181,10 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct MultiLinearInterpolFastFieldSerializer {}
+pub struct BlockwiseLinearInterpolFastFieldSerializer {}
 
-impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
-    const NAME: &'static str = "MultiLinearInterpol";
-    const ID: u8 = 3;
+impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinearInterpol;
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -359,7 +360,7 @@ mod tests {
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
-            MultiLinearInterpolFastFieldSerializer,
+            BlockwiseLinearInterpolFastFieldSerializer,
             MultiLinearInterpolFastFieldReader,
         >(data, name)
     }
