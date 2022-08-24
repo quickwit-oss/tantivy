@@ -4,8 +4,8 @@ use std::path::Path;
 
 use common::BinarySerializable;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
-use fastfield_codecs::blockwise_linear::MultiLinearInterpolFastFieldReader;
-use fastfield_codecs::linear::LinearInterpolFastFieldReader;
+use fastfield_codecs::blockwise_linear::BlockwiseLinearFastFieldReader;
+use fastfield_codecs::linear::LinearFastFieldReader;
 use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecType};
 
 use super::{FastValue, GCDFastFieldCodec};
@@ -63,19 +63,17 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Bitpacked compressed fastfield data.
     Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
     /// Linear interpolated values + bitpacked
-    LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearInterpolFastFieldReader>),
+    Linear(FastFieldReaderCodecWrapper<Item, LinearFastFieldReader>),
     /// Blockwise linear interpolated values + bitpacked
-    MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearInterpolFastFieldReader>),
+    BlockwiseLinear(FastFieldReaderCodecWrapper<Item, BlockwiseLinearFastFieldReader>),
 
     /// GCD and Bitpacked compressed fastfield data.
     BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BitpackedReader>>),
     /// GCD and Linear interpolated values + bitpacked
-    LinearInterpolGCD(
-        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearInterpolFastFieldReader>>,
-    ),
+    LinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearFastFieldReader>>),
     /// GCD and Blockwise linear interpolated values + bitpacked
-    MultiLinearInterpolGCD(
-        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<MultiLinearInterpolFastFieldReader>>,
+    BlockwiseLinearGCD(
+        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BlockwiseLinearFastFieldReader>>,
     ),
 }
 
@@ -92,19 +90,17 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     BitpackedReader,
                 >::open_from_bytes(bytes)?)
             }
-            FastFieldCodecType::LinearInterpol => {
-                DynamicFastFieldReader::LinearInterpol(FastFieldReaderCodecWrapper::<
+            FastFieldCodecType::Linear => {
+                DynamicFastFieldReader::Linear(FastFieldReaderCodecWrapper::<
                     Item,
-                    LinearInterpolFastFieldReader,
+                    LinearFastFieldReader,
                 >::open_from_bytes(bytes)?)
             }
-            FastFieldCodecType::BlockwiseLinearInterpol => {
-                DynamicFastFieldReader::MultiLinearInterpol(FastFieldReaderCodecWrapper::<
+            FastFieldCodecType::BlockwiseLinear => {
+                DynamicFastFieldReader::BlockwiseLinear(FastFieldReaderCodecWrapper::<
                     Item,
-                    MultiLinearInterpolFastFieldReader,
-                >::open_from_bytes(
-                    bytes
-                )?)
+                    BlockwiseLinearFastFieldReader,
+                >::open_from_bytes(bytes)?)
             }
             FastFieldCodecType::Gcd => {
                 let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
@@ -117,21 +113,21 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                             bytes
                         )?)
                     }
-                    FastFieldCodecType::LinearInterpol => {
-                        DynamicFastFieldReader::LinearInterpolGCD(FastFieldReaderCodecWrapper::<
+                    FastFieldCodecType::Linear => {
+                        DynamicFastFieldReader::LinearGCD(FastFieldReaderCodecWrapper::<
                             Item,
-                            GCDFastFieldCodec<LinearInterpolFastFieldReader>,
+                            GCDFastFieldCodec<LinearFastFieldReader>,
                         >::open_from_bytes(
                             bytes
                         )?)
                     }
-                    FastFieldCodecType::BlockwiseLinearInterpol => {
-                        DynamicFastFieldReader::MultiLinearInterpolGCD(
-                            FastFieldReaderCodecWrapper::<
-                                Item,
-                                GCDFastFieldCodec<MultiLinearInterpolFastFieldReader>,
-                            >::open_from_bytes(bytes)?,
-                        )
+                    FastFieldCodecType::BlockwiseLinear => {
+                        DynamicFastFieldReader::BlockwiseLinearGCD(FastFieldReaderCodecWrapper::<
+                            Item,
+                            GCDFastFieldCodec<BlockwiseLinearFastFieldReader>,
+                        >::open_from_bytes(
+                            bytes
+                        )?)
                     }
                     FastFieldCodecType::Gcd => {
                         return Err(DataCorruption::comment_only(
@@ -159,42 +155,42 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
     fn get(&self, doc: DocId) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.get(doc),
-            Self::LinearInterpol(reader) => reader.get(doc),
-            Self::MultiLinearInterpol(reader) => reader.get(doc),
+            Self::Linear(reader) => reader.get(doc),
+            Self::BlockwiseLinear(reader) => reader.get(doc),
             Self::BitpackedGCD(reader) => reader.get(doc),
-            Self::LinearInterpolGCD(reader) => reader.get(doc),
-            Self::MultiLinearInterpolGCD(reader) => reader.get(doc),
+            Self::LinearGCD(reader) => reader.get(doc),
+            Self::BlockwiseLinearGCD(reader) => reader.get(doc),
         }
     }
     #[inline]
     fn get_range(&self, start: u64, output: &mut [Item]) {
         match self {
             Self::Bitpacked(reader) => reader.get_range(start, output),
-            Self::LinearInterpol(reader) => reader.get_range(start, output),
-            Self::MultiLinearInterpol(reader) => reader.get_range(start, output),
+            Self::Linear(reader) => reader.get_range(start, output),
+            Self::BlockwiseLinear(reader) => reader.get_range(start, output),
             Self::BitpackedGCD(reader) => reader.get_range(start, output),
-            Self::LinearInterpolGCD(reader) => reader.get_range(start, output),
-            Self::MultiLinearInterpolGCD(reader) => reader.get_range(start, output),
+            Self::LinearGCD(reader) => reader.get_range(start, output),
+            Self::BlockwiseLinearGCD(reader) => reader.get_range(start, output),
         }
     }
     fn min_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.min_value(),
-            Self::LinearInterpol(reader) => reader.min_value(),
-            Self::MultiLinearInterpol(reader) => reader.min_value(),
+            Self::Linear(reader) => reader.min_value(),
+            Self::BlockwiseLinear(reader) => reader.min_value(),
             Self::BitpackedGCD(reader) => reader.min_value(),
-            Self::LinearInterpolGCD(reader) => reader.min_value(),
-            Self::MultiLinearInterpolGCD(reader) => reader.min_value(),
+            Self::LinearGCD(reader) => reader.min_value(),
+            Self::BlockwiseLinearGCD(reader) => reader.min_value(),
         }
     }
     fn max_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.max_value(),
-            Self::LinearInterpol(reader) => reader.max_value(),
-            Self::MultiLinearInterpol(reader) => reader.max_value(),
+            Self::Linear(reader) => reader.max_value(),
+            Self::BlockwiseLinear(reader) => reader.max_value(),
             Self::BitpackedGCD(reader) => reader.max_value(),
-            Self::LinearInterpolGCD(reader) => reader.max_value(),
-            Self::MultiLinearInterpolGCD(reader) => reader.max_value(),
+            Self::LinearGCD(reader) => reader.max_value(),
+            Self::BlockwiseLinearGCD(reader) => reader.max_value(),
         }
     }
 }

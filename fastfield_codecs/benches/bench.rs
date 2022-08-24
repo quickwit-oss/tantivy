@@ -6,11 +6,9 @@ extern crate test;
 mod tests {
     use fastfield_codecs::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
     use fastfield_codecs::blockwise_linear::{
-        BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader,
+        BlockwiseLinearFastFieldReader, BlockwiseLinearFastFieldSerializer,
     };
-    use fastfield_codecs::linear::{
-        LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
-    };
+    use fastfield_codecs::linear::{LinearFastFieldReader, LinearFastFieldSerializer};
     use fastfield_codecs::*;
 
     fn get_data() -> Vec<u64> {
@@ -59,12 +57,12 @@ mod tests {
     #[bench]
     fn bench_fastfield_linearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<LinearInterpolFastFieldSerializer>(b, &data);
+        bench_create::<LinearFastFieldSerializer>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<BlockwiseLinearInterpolFastFieldSerializer>(b, &data);
+        bench_create::<BlockwiseLinearFastFieldSerializer>(b, &data);
     }
     #[bench]
     fn bench_fastfield_bitpack_get(b: &mut Bencher) {
@@ -74,14 +72,12 @@ mod tests {
     #[bench]
     fn bench_fastfield_linearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(b, &data);
+        bench_get::<LinearFastFieldSerializer, LinearFastFieldReader>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
-            b, &data,
-        );
+        bench_get::<BlockwiseLinearFastFieldSerializer, BlockwiseLinearFastFieldReader>(b, &data);
     }
     pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
         let min_value = data.iter().cloned().min().unwrap_or(0);

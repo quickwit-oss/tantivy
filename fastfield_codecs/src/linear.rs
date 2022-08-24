@@ -12,15 +12,15 @@ use crate::{
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct LinearInterpolFastFieldReader {
+pub struct LinearFastFieldReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
-    pub footer: LinearInterpolFooter,
+    pub footer: LinearFooter,
     pub slope: f32,
 }
 
 #[derive(Clone, Debug)]
-pub struct LinearInterpolFooter {
+pub struct LinearFooter {
     pub relative_max_value: u64,
     pub offset: u64,
     pub first_val: u64,
@@ -30,7 +30,7 @@ pub struct LinearInterpolFooter {
     pub max_value: u64,
 }
 
-impl BinarySerializable for LinearInterpolFooter {
+impl BinarySerializable for LinearFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         self.relative_max_value.serialize(write)?;
         self.offset.serialize(write)?;
@@ -42,8 +42,8 @@ impl BinarySerializable for LinearInterpolFooter {
         Ok(())
     }
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<LinearInterpolFooter> {
-        Ok(LinearInterpolFooter {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<LinearFooter> {
+        Ok(LinearFooter {
             relative_max_value: u64::deserialize(reader)?,
             offset: u64::deserialize(reader)?,
             first_val: u64::deserialize(reader)?,
@@ -55,20 +55,20 @@ impl BinarySerializable for LinearInterpolFooter {
     }
 }
 
-impl FixedSize for LinearInterpolFooter {
+impl FixedSize for LinearFooter {
     const SIZE_IN_BYTES: usize = 56;
 }
 
-impl FastFieldCodecReader for LinearInterpolFastFieldReader {
+impl FastFieldCodecReader for LinearFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES;
+        let footer_offset = bytes.len() - LinearFooter::SIZE_IN_BYTES;
         let (data, mut footer) = bytes.split(footer_offset);
-        let footer = LinearInterpolFooter::deserialize(&mut footer)?;
+        let footer = LinearFooter::deserialize(&mut footer)?;
         let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
         let num_bits = compute_num_bits(footer.relative_max_value);
         let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(LinearInterpolFastFieldReader {
+        Ok(LinearFastFieldReader {
             data,
             bit_unpacker,
             footer,
@@ -93,7 +93,7 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
-pub struct LinearInterpolFastFieldSerializer {}
+pub struct LinearFastFieldSerializer {}
 
 #[inline]
 pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
@@ -134,8 +134,8 @@ pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     }
 }
 
-impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
-    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::LinearInterpol;
+impl FastFieldCodecSerializer for LinearFastFieldSerializer {
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::Linear;
 
     /// Creates a new fast field serializer.
     fn serialize(
@@ -175,7 +175,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         }
         bit_packer.close(write)?;
 
-        let footer = LinearInterpolFooter {
+        let footer = LinearFooter {
             relative_max_value,
             offset,
             first_val,
@@ -239,7 +239,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
 
         let num_bits = compute_num_bits(relative_max_value as u64) as u64
             * fastfield_accessor.num_vals()
-            + LinearInterpolFooter::SIZE_IN_BYTES as u64;
+            + LinearFooter::SIZE_IN_BYTES as u64;
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
         num_bits as f32 / num_bits_uncompressed as f32
     }
@@ -260,10 +260,9 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<
-            LinearInterpolFastFieldSerializer,
-            LinearInterpolFastFieldReader,
-        >(data, name)
+        crate::tests::create_and_validate::<LinearFastFieldSerializer, LinearFastFieldReader>(
+            data, name,
+        )
     }
 
     #[test]

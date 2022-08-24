@@ -6,8 +6,8 @@ use fastdivide::DividerU64;
 pub use fastfield_codecs::bitpacked::{
     BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
 };
-use fastfield_codecs::blockwise_linear::BlockwiseLinearInterpolFastFieldSerializer;
-use fastfield_codecs::linear::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::blockwise_linear::BlockwiseLinearFastFieldSerializer;
+use fastfield_codecs::linear::LinearFastFieldSerializer;
 use fastfield_codecs::FastFieldCodecType;
 pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
@@ -211,14 +211,11 @@ impl CompositeFastFieldSerializer {
                 &mut estimations,
             );
         }
-        if codec_enable_checker.is_enabled(FastFieldCodecType::LinearInterpol) {
-            codec_estimation::<LinearInterpolFastFieldSerializer, _>(
-                &fastfield_accessor,
-                &mut estimations,
-            );
+        if codec_enable_checker.is_enabled(FastFieldCodecType::Linear) {
+            codec_estimation::<LinearFastFieldSerializer, _>(&fastfield_accessor, &mut estimations);
         }
-        if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinearInterpol) {
-            codec_estimation::<BlockwiseLinearInterpolFastFieldSerializer, _>(
+        if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinear) {
+            codec_estimation::<BlockwiseLinearFastFieldSerializer, _>(
                 &fastfield_accessor,
                 &mut estimations,
             );
@@ -242,14 +239,11 @@ impl CompositeFastFieldSerializer {
             FastFieldCodecType::Bitpacked => {
                 BitpackedFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
             }
-            FastFieldCodecType::LinearInterpol => {
-                LinearInterpolFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
+            FastFieldCodecType::Linear => {
+                LinearFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
             }
-            FastFieldCodecType::BlockwiseLinearInterpol => {
-                BlockwiseLinearInterpolFastFieldSerializer::serialize(
-                    field_write,
-                    &fastfield_accessor,
-                )?;
+            FastFieldCodecType::BlockwiseLinear => {
+                BlockwiseLinearFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::Gcd => {
                 return Err(io::Error::new(

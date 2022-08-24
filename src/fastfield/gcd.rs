@@ -237,11 +237,9 @@ mod tests {
         assert!(size_prec_sec < size_prec_micro);
 
         let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecType::LinearInterpol, DatePrecision::Seconds)?;
-        let size_prec_micro = test_gcd_date_with_codec(
-            FastFieldCodecType::LinearInterpol,
-            DatePrecision::Microseconds,
-        )?;
+            test_gcd_date_with_codec(FastFieldCodecType::Linear, DatePrecision::Seconds)?;
+        let size_prec_micro =
+            test_gcd_date_with_codec(FastFieldCodecType::Linear, DatePrecision::Microseconds)?;
         assert!(size_prec_sec < size_prec_micro);
 
         Ok(())

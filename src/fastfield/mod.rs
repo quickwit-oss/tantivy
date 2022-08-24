@@ -49,8 +49,8 @@ mod writer;
 
 pub(crate) const ALL_CODECS: &[FastFieldCodecType; 3] = &[
     FastFieldCodecType::Bitpacked,
-    FastFieldCodecType::LinearInterpol,
-    FastFieldCodecType::BlockwiseLinearInterpol,
+    FastFieldCodecType::Linear,
+    FastFieldCodecType::BlockwiseLinear,
 ];
 
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
