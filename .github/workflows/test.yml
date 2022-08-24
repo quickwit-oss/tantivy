@@ -10,25 +10,50 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install nightly
+      uses: actions-rs/toolchain@v1
+      with:
+            toolchain: nightly
+            profile: minimal
+            components: rustfmt
+    - name: Install stable
+      uses: actions-rs/toolchain@v1
+      with:
+            toolchain: stable
+            profile: minimal
+            components: clippy
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Check Formatting
+      run: cargo +nightly fmt --all -- --check
+
+    - uses: actions-rs/clippy-check@v1
+      with:
+        toolchain: stable
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --tests
+
   test:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install latest nightly to test also against unstable feature flag
-      uses: actions-rs/toolchain@v1
-      with:
-            toolchain: nightly
-            override: true
-            components: rustfmt
 
     - name: Install stable
       uses: actions-rs/toolchain@v1
       with:
             toolchain: stable
+            profile: minimal
             override: true
-            components: rustfmt, clippy
 
     - uses: taiki-e/install-action@nextest
     - uses: Swatinem/rust-cache@v2
@@ -47,13 +72,3 @@ jobs:
 
     - name: Run doctests quickwit feature
       run: cargo +stable test --doc  --features mmap,quickwit,failpoints --verbose --workspace
-
-    - name: Check Formatting
-      run: cargo +nightly fmt --all -- --check
-
-    - uses: actions-rs/clippy-check@v1
-      with:
-        toolchain: stable
-        token: ${{ secrets.GITHUB_TOKEN }}
-        args: --tests
-

@@ -19,11 +19,10 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
           toolchain: stable
+          profile: minimal
           override: true
-          components: rustfmt, clippy
 
     - name: Run indexing_unsorted
       run: cargo test indexing_unsorted -- --ignored
     - name: Run indexing_sorted
       run: cargo test indexing_sorted -- --ignored
-
