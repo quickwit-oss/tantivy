@@ -346,7 +346,7 @@ mod tests {
     use super::{search_fragments, select_best_fragment_combination, collapse_overlapped_ranges};
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
-    use crate::tokenizer::{SimpleTokenizer, NgramTokenizer, Tokenizer};
+    use crate::tokenizer::{SimpleTokenizer, NgramTokenizer};
     use crate::{Index, SnippetGenerator};
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
@@ -629,7 +629,6 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("bc"), 1.0);
 
         let fragments = search_fragments(&From::from(NgramTokenizer::all_ngrams(2, 2)), text, &terms, 3);
-        println!("{:?}", fragments);
 
         assert_eq!(fragments.len(), 1);
         {
