@@ -18,6 +18,7 @@ pub trait FastFieldCodecReader: Sized {
     fn get_u64(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
+    fn num_vals(&self) -> u64;
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -183,6 +184,7 @@ mod tests {
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
         let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
+        assert_eq!(reader.num_vals(), data.len() as u64);
         for (doc, orig_val) in data.iter().enumerate() {
             let val = reader.get_u64(doc as u64);
             if val != *orig_val {

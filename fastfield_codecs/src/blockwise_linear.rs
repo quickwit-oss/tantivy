@@ -182,6 +182,10 @@ impl FastFieldCodecReader for BlockwiseLinearReader {
     fn max_value(&self) -> u64 {
         self.footer.max_value
     }
+    #[inline]
+    fn num_vals(&self) -> u64 {
+        self.footer.num_vals
+    }
 }
 
 /// Same as LinearSerializer, but working on chunks of CHUNK_SIZE elements.

@@ -16,23 +16,26 @@ pub struct BitpackedReader {
     bit_unpacker: BitUnpacker,
     pub min_value_u64: u64,
     pub max_value_u64: u64,
+    pub num_vals: u64,
 }
 
 impl FastFieldCodecReader for BitpackedReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - 16;
+        let footer_offset = bytes.len() - 24;
         let (data, mut footer) = bytes.split(footer_offset);
         let min_value = u64::deserialize(&mut footer)?;
         let amplitude = u64::deserialize(&mut footer)?;
+        let num_vals = u64::deserialize(&mut footer)?;
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(BitpackedReader {
             data,
+            bit_unpacker,
             min_value_u64: min_value,
             max_value_u64: max_value,
-            bit_unpacker,
+            num_vals,
         })
     }
     #[inline]
@@ -47,11 +50,16 @@ impl FastFieldCodecReader for BitpackedReader {
     fn max_value(&self) -> u64 {
         self.max_value_u64
     }
+    #[inline]
+    fn num_vals(&self) -> u64 {
+        self.num_vals
+    }
 }
 pub struct BitpackedSerializerLegacy<'a, W: 'a + Write> {
     bit_packer: BitPacker,
     write: &'a mut W,
     min_value: u64,
+    num_vals: u64,
     amplitude: u64,
     num_bits: u8,
 }
@@ -78,6 +86,7 @@ impl<'a, W: Write> BitpackedSerializerLegacy<'a, W> {
             bit_packer,
             write,
             min_value,
+            num_vals: 0,
             amplitude,
             num_bits,
         })
@@ -88,12 +97,14 @@ impl<'a, W: Write> BitpackedSerializerLegacy<'a, W> {
         let val_to_write: u64 = val - self.min_value;
         self.bit_packer
             .write(val_to_write, self.num_bits, &mut self.write)?;
+        self.num_vals += 1;
         Ok(())
     }
     pub fn close_field(mut self) -> io::Result<()> {
         self.bit_packer.close(&mut self.write)?;
         self.min_value.serialize(&mut self.write)?;
         self.amplitude.serialize(&mut self.write)?;
+        self.num_vals.serialize(&mut self.write)?;
         Ok(())
     }
 }

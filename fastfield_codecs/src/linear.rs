@@ -89,6 +89,10 @@ impl FastFieldCodecReader for LinearReader {
     fn max_value(&self) -> u64 {
         self.footer.max_value
     }
+    #[inline]
+    fn num_vals(&self) -> u64 {
+        self.footer.num_vals
+    }
 }
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
