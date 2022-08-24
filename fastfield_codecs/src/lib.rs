@@ -60,7 +60,7 @@ pub trait FastFieldDataAccess {
     fn get_val(&self, position: u64) -> u64;
 
     /// Returns a iterator over the data
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a>;
+    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_>;
 
     /// min value of the data
     fn min_value(&self) -> u64;

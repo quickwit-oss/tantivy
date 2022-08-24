@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::num::NonZeroU64;
 
 use common::{BinarySerializable, CountingWriter};
+use fastdivide::DividerU64;
 pub use fastfield_codecs::bitpacked::{
     BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
 };
@@ -142,17 +143,19 @@ impl CompositeFastFieldSerializer {
             base_value: u64,
             max_value: u64,
             num_vals: u64,
-            gcd: u64,
+            gcd: DividerU64,
         }
+
         impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
             fn get_val(&self, position: u64) -> u64 {
-                (self.fastfield_accessor.get_val(position) - self.base_value) / self.gcd
+                self.gcd
+                    .divide(self.fastfield_accessor.get_val(position) - self.base_value)
             }
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
                 Box::new(
                     self.fastfield_accessor
                         .iter()
-                        .map(|val| (val - self.base_value) / self.gcd),
+                        .map(|val| self.gcd.divide(val - self.base_value)),
                 )
             }
             fn min_value(&self) -> u64 {
@@ -177,7 +180,7 @@ impl CompositeFastFieldSerializer {
             base_value,
             max_value,
             num_vals,
-            gcd,
+            gcd: DividerU64::divide_by(gcd),
         };
 
         Self::create_auto_detect_u64_fast_field_with_idx_gcd(
