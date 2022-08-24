@@ -403,7 +403,7 @@ impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'b
         }
     }
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a> {
+    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
         if let Some(doc_id_map) = self.doc_id_map {
             Box::new(
                 doc_id_map

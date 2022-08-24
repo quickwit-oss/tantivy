@@ -385,7 +385,7 @@ impl IndexMerger {
                 self.fast_field_readers[segment_ord as usize].get(doc_id)
             }
 
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
                 Box::new(
                     self.doc_id_mapping
                         .iter_old_doc_addrs()
@@ -583,7 +583,7 @@ impl IndexMerger {
                 self.offsets[doc as usize]
             }
 
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
                 Box::new(self.offsets.iter().cloned())
             }
             fn min_value(&self) -> u64 {
@@ -804,7 +804,7 @@ impl IndexMerger {
                 vals[pos_in_values as usize]
             }
 
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
                 Box::new(
                     self.doc_id_mapping
                         .iter_old_doc_addrs()
