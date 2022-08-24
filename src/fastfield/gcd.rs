@@ -194,7 +194,6 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
-        assert_eq!(file.len(), 100);
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
         assert_eq!(fast_field_reader.get(0), 1000u64);
         assert_eq!(fast_field_reader.get(1), 2000u64);
@@ -253,22 +252,22 @@ mod tests {
         codec_name: FastFieldCodecName,
         precision: DatePrecision,
     ) -> crate::Result<usize> {
-        let time1 = DateTime::from_timestamp_secs(
+        let time1 = DateTime::from_timestamp_micros(
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs() as i64,
         );
-        let time2 = DateTime::from_timestamp_secs(
+        let time2 = DateTime::from_timestamp_micros(
             SystemTime::now()
-                .checked_sub(Duration::from_millis(4000))
+                .checked_sub(Duration::from_micros(4111))
                 .unwrap()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs() as i64,
         );
 
-        let time3 = DateTime::from_timestamp_secs(
+        let time3 = DateTime::from_timestamp_micros(
             SystemTime::now()
                 .checked_sub(Duration::from_millis(2000))
                 .unwrap()
@@ -294,9 +293,9 @@ mod tests {
         let len = file.len();
         let test_fastfield = DynamicFastFieldReader::<DateTime>::open(file)?;
 
-        assert_eq!(test_fastfield.get(0), time1);
-        assert_eq!(test_fastfield.get(1), time2);
-        assert_eq!(test_fastfield.get(2), time3);
+        assert_eq!(test_fastfield.get(0), time1.truncate(precision));
+        assert_eq!(test_fastfield.get(1), time2.truncate(precision));
+        assert_eq!(test_fastfield.get(2), time3.truncate(precision));
         Ok(len)
     }
 
