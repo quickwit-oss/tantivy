@@ -24,8 +24,8 @@ pub trait FastFieldCodecReader: Sized {
 #[repr(u8)]
 pub enum FastFieldCodecType {
     Bitpacked = 1,
-    LinearInterpol = 2,
-    BlockwiseLinearInterpol = 3,
+    Linear = 2,
+    BlockwiseLinear = 3,
     Gcd = 4,
 }
 
@@ -50,8 +50,8 @@ impl FastFieldCodecType {
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             1 => Some(Self::Bitpacked),
-            2 => Some(Self::LinearInterpol),
-            3 => Some(Self::BlockwiseLinearInterpol),
+            2 => Some(Self::Linear),
+            3 => Some(Self::BlockwiseLinear),
             4 => Some(Self::Gcd),
             _ => None,
         }
@@ -167,9 +167,9 @@ mod tests {
 
     use crate::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
     use crate::blockwise_linear::{
-        BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader,
+        BlockwiseLinearFastFieldReader, BlockwiseLinearFastFieldSerializer,
     };
-    use crate::linear::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer};
+    use crate::linear::{LinearFastFieldReader, LinearFastFieldSerializer};
 
     pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
         data: &[u64],
@@ -200,15 +200,15 @@ mod tests {
     proptest! {
         #[test]
         fn test_proptest_small(data in proptest::collection::vec(any::<u64>(), 1..10)) {
-            create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<LinearFastFieldSerializer, LinearFastFieldReader>(&data, "proptest linearinterpol");
+            create_and_validate::<BlockwiseLinearFastFieldSerializer, BlockwiseLinearFastFieldReader>(&data, "proptest multilinearinterpol");
             create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
         }
 
         #[test]
         fn test_proptest_large(data in proptest::collection::vec(any::<u64>(), 1..6000)) {
-            create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<LinearFastFieldSerializer, LinearFastFieldReader>(&data, "proptest linearinterpol");
+            create_and_validate::<BlockwiseLinearFastFieldSerializer, BlockwiseLinearFastFieldReader>(&data, "proptest multilinearinterpol");
             create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
         }
 
@@ -248,12 +248,11 @@ mod tests {
     }
     #[test]
     fn test_codec_interpolation() {
-        test_codec::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>();
+        test_codec::<LinearFastFieldSerializer, LinearFastFieldReader>();
     }
     #[test]
     fn test_codec_multi_interpolation() {
-        test_codec::<BlockwiseLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
-        );
+        test_codec::<BlockwiseLinearFastFieldSerializer, BlockwiseLinearFastFieldReader>();
     }
 
     use super::*;
@@ -262,11 +261,10 @@ mod tests {
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
 
-        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.01);
 
-        let multi_linear_interpol_estimation =
-            BlockwiseLinearInterpolFastFieldSerializer::estimate(&data);
+        let multi_linear_interpol_estimation = BlockwiseLinearFastFieldSerializer::estimate(&data);
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
@@ -277,7 +275,7 @@ mod tests {
     fn estimation_test_bad_interpolation_case() {
         let data = vec![200, 10, 10, 10, 10, 1000, 20];
 
-        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.32);
 
         let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);
@@ -290,7 +288,7 @@ mod tests {
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
-        let linear_interpol_estimation = LinearInterpolFastFieldSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearFastFieldSerializer::estimate(&data);
         assert_le!(linear_interpol_estimation, 0.35);
 
         let bitpacked_estimation = BitpackedFastFieldSerializer::estimate(&data);

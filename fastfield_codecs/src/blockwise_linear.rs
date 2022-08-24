@@ -1,4 +1,4 @@
-//! MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the
+//! The BlockwiseLinear codec uses linear interpolation to guess a values and stores the
 //! offset, but in blocks of 512.
 //!
 //! With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 /
@@ -27,9 +27,9 @@ const CHUNK_SIZE: u64 = 512;
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct MultiLinearInterpolFastFieldReader {
+pub struct BlockwiseLinearFastFieldReader {
     data: OwnedBytes,
-    pub footer: MultiLinearInterpolFooter,
+    pub footer: BlockwiseLinearFooter,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -104,14 +104,14 @@ impl BinarySerializable for Function {
 }
 
 #[derive(Clone, Debug)]
-pub struct MultiLinearInterpolFooter {
+pub struct BlockwiseLinearFooter {
     pub num_vals: u64,
     pub min_value: u64,
     pub max_value: u64,
     interpolations: Vec<Function>,
 }
 
-impl BinarySerializable for MultiLinearInterpolFooter {
+impl BinarySerializable for BlockwiseLinearFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         let mut out = vec![];
         self.num_vals.serialize(&mut out)?;
@@ -123,8 +123,8 @@ impl BinarySerializable for MultiLinearInterpolFooter {
         Ok(())
     }
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<MultiLinearInterpolFooter> {
-        let mut footer = MultiLinearInterpolFooter {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<BlockwiseLinearFooter> {
+        let mut footer = BlockwiseLinearFooter {
             num_vals: u64::deserialize(reader)?,
             min_value: u64::deserialize(reader)?,
             max_value: u64::deserialize(reader)?,
@@ -148,14 +148,14 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
+impl FastFieldCodecReader for BlockwiseLinearFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
         let (data, mut footer) = bytes.split(footer_offset);
-        let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
-        Ok(MultiLinearInterpolFastFieldReader { data, footer })
+        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
+        Ok(BlockwiseLinearFastFieldReader { data, footer })
     }
 
     #[inline]
@@ -181,10 +181,10 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct BlockwiseLinearInterpolFastFieldSerializer {}
+pub struct BlockwiseLinearFastFieldSerializer {}
 
-impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
-    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinearInterpol;
+impl FastFieldCodecSerializer for BlockwiseLinearFastFieldSerializer {
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinear;
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -270,7 +270,7 @@ impl FastFieldCodecSerializer for BlockwiseLinearInterpolFastFieldSerializer {
         }
         bit_packer.close(write)?;
 
-        let footer = MultiLinearInterpolFooter {
+        let footer = BlockwiseLinearFooter {
             num_vals: fastfield_accessor.num_vals(),
             min_value: fastfield_accessor.min_value(),
             max_value: fastfield_accessor.max_value(),
@@ -360,8 +360,8 @@ mod tests {
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
-            BlockwiseLinearInterpolFastFieldSerializer,
-            MultiLinearInterpolFastFieldReader,
+            BlockwiseLinearFastFieldSerializer,
+            BlockwiseLinearFastFieldReader,
         >(data, name)
     }
 
