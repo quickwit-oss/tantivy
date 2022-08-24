@@ -124,6 +124,9 @@ impl FastFieldDataAccess for Vec<u64> {
 
 #[cfg(test)]
 mod tests {
+    use proptest::arbitrary::any;
+    use proptest::proptest;
+
     use crate::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
     use crate::linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer};
     use crate::multilinearinterpol::{
@@ -155,6 +158,24 @@ mod tests {
         }
         (estimation, actual_compression)
     }
+
+    proptest! {
+        #[test]
+        fn test_proptest_small(data in proptest::collection::vec(any::<u64>(), 1..10)) {
+            create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
+            create_and_validate::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
+        }
+
+        #[test]
+        fn test_proptest_large(data in proptest::collection::vec(any::<u64>(), 1..6000)) {
+            create_and_validate::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>(&data, "proptest linearinterpol");
+            create_and_validate::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(&data, "proptest bitpacked");
+        }
+
+    }
+
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
@@ -201,15 +222,6 @@ mod tests {
     }
 
     use super::*;
-    pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
-        let min_value = data.iter().cloned().min().unwrap_or(0);
-        let max_value = data.iter().cloned().max().unwrap_or(0);
-        FastFieldStats {
-            min_value,
-            max_value,
-            num_vals: data.len() as u64,
-        }
-    }
 
     #[test]
     fn estimation_good_interpolation_case() {
