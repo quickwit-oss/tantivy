@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
+use fastfield_codecs::blockwise_linear::BlockwiseLinearInterpolFastFieldSerializer;
+use fastfield_codecs::linear::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::{FastFieldCodecSerializer, FastFieldCodecType, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -15,7 +15,7 @@ fn main() {
         let mut results = vec![];
         let res = serialize_with_codec::<LinearInterpolFastFieldSerializer>(&data);
         results.push(res);
-        let res = serialize_with_codec::<MultiLinearInterpolFastFieldSerializer>(&data);
+        let res = serialize_with_codec::<BlockwiseLinearInterpolFastFieldSerializer>(&data);
         results.push(res);
         let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedFastFieldSerializer>(
             &data,
@@ -33,7 +33,7 @@ fn main() {
             .unwrap();
 
         table.add_row(Row::new(vec![Cell::new(data_set_name).style_spec("Bbb")]));
-        for (is_applicable, est, comp, name) in results {
+        for (is_applicable, est, comp, codec_type) in results {
             let (est_cell, ratio_cell) = if !is_applicable {
                 ("Codec Disabled".to_string(), "".to_string())
             } else {
@@ -46,7 +46,7 @@ fn main() {
             };
 
             table.add_row(Row::new(vec![
-                Cell::new(name).style_spec("bFg"),
+                Cell::new(&format!("{codec_type:?}")).style_spec("bFg"),
                 Cell::new(&ratio_cell).style_spec(style),
                 Cell::new(&est_cell).style_spec(""),
             ]));
@@ -93,17 +93,17 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
 
 pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
     data: &[u64],
-) -> (bool, f32, f32, &'static str) {
+) -> (bool, f32, f32, FastFieldCodecType) {
     let is_applicable = S::is_applicable(&data);
     if !is_applicable {
-        return (false, 0.0, 0.0, S::NAME);
+        return (false, 0.0, 0.0, S::CODEC_TYPE);
     }
     let estimation = S::estimate(&data);
     let mut out = vec![];
     S::serialize(&mut out, &data).unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-    (true, estimation, actual_compression, S::NAME)
+    (true, estimation, actual_compression, S::CODEC_TYPE)
 }
 
 pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {

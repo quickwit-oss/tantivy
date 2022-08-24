@@ -20,11 +20,13 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
+use fastfield_codecs::FastFieldCodecType;
+
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_CODEC_ID, GCD_DEFAULT};
+pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;
@@ -45,16 +47,10 @@ mod readers;
 mod serializer;
 mod writer;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub(crate) enum FastFieldCodecName {
-    Bitpacked,
-    LinearInterpol,
-    BlockwiseLinearInterpol,
-}
-pub(crate) const ALL_CODECS: &[FastFieldCodecName; 3] = &[
-    FastFieldCodecName::Bitpacked,
-    FastFieldCodecName::LinearInterpol,
-    FastFieldCodecName::BlockwiseLinearInterpol,
+pub(crate) const ALL_CODECS: &[FastFieldCodecType; 3] = &[
+    FastFieldCodecType::Bitpacked,
+    FastFieldCodecType::LinearInterpol,
+    FastFieldCodecType::BlockwiseLinearInterpol,
 ];
 
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data

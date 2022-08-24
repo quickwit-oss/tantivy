@@ -5,7 +5,9 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
+use crate::{
+    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -133,8 +135,8 @@ pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 }
 
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
-    const NAME: &'static str = "LinearInterpol";
-    const ID: u8 = 2;
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::LinearInterpol;
+
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,

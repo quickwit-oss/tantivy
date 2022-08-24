@@ -7,7 +7,6 @@ use fastfield_codecs::FastFieldCodecReader;
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
-pub const GCD_CODEC_ID: u8 = 4;
 
 /// Wrapper for accessing a fastfield.
 ///
@@ -109,7 +108,7 @@ mod tests {
     use crate::fastfield::serializer::FastFieldCodecEnableCheck;
     use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
     use crate::fastfield::{
-        find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecName,
+        find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecType,
         FastFieldReader, FastFieldsWriter, ALL_CODECS,
     };
     use crate::schema::{Cardinality, Schema};
@@ -139,7 +138,7 @@ mod tests {
     }
 
     fn test_fastfield_gcd_i64_with_codec(
-        codec_name: FastFieldCodecName,
+        code_type: FastFieldCodecType,
         num_vals: usize,
     ) -> crate::Result<()> {
         let path = Path::new("test");
@@ -148,7 +147,7 @@ mod tests {
             let val = (i as i64 - 5) * 1000i64;
             docs.push(doc!(*FIELDI64=>val));
         }
-        let directory = get_index(&docs, &SCHEMAI64, codec_name.clone().into())?;
+        let directory = get_index(&docs, &SCHEMAI64, code_type.clone().into())?;
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
@@ -165,7 +164,7 @@ mod tests {
         let path = Path::new("test");
         docs.pop();
         docs.push(doc!(*FIELDI64=>2001i64));
-        let directory = get_index(&docs, &SCHEMAI64, codec_name.into())?;
+        let directory = get_index(&docs, &SCHEMAI64, code_type.into())?;
         let file2 = directory.open_read(path).unwrap();
         assert!(file2.len() > file.len());
 
@@ -174,14 +173,14 @@ mod tests {
 
     #[test]
     fn test_fastfield_gcd_i64() -> crate::Result<()> {
-        for codec_name in ALL_CODECS {
-            test_fastfield_gcd_i64_with_codec(codec_name.clone(), 5005)?;
+        for code_type in ALL_CODECS {
+            test_fastfield_gcd_i64_with_codec(code_type.clone(), 5005)?;
         }
         Ok(())
     }
 
     fn test_fastfield_gcd_u64_with_codec(
-        codec_name: FastFieldCodecName,
+        code_type: FastFieldCodecType,
         num_vals: usize,
     ) -> crate::Result<()> {
         let path = Path::new("test");
@@ -190,7 +189,7 @@ mod tests {
             let val = i as u64 * 1000u64;
             docs.push(doc!(*FIELD=>val));
         }
-        let directory = get_index(&docs, &SCHEMA, codec_name.clone().into())?;
+        let directory = get_index(&docs, &SCHEMA, code_type.clone().into())?;
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
@@ -206,7 +205,7 @@ mod tests {
         let path = Path::new("test");
         docs.pop();
         docs.push(doc!(*FIELDI64=>2001u64));
-        let directory = get_index(&docs, &SCHEMA, codec_name.into())?;
+        let directory = get_index(&docs, &SCHEMA, code_type.into())?;
         let file2 = directory.open_read(path).unwrap();
         assert!(file2.len() > file.len());
 
@@ -215,8 +214,8 @@ mod tests {
 
     #[test]
     fn test_fastfield_gcd_u64() -> crate::Result<()> {
-        for codec_name in ALL_CODECS {
-            test_fastfield_gcd_u64_with_codec(codec_name.clone(), 5005)?;
+        for code_type in ALL_CODECS {
+            test_fastfield_gcd_u64_with_codec(code_type.clone(), 5005)?;
         }
         Ok(())
     }
@@ -232,15 +231,15 @@ mod tests {
     #[test]
     pub fn test_gcd_date() -> crate::Result<()> {
         let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecName::Bitpacked, DatePrecision::Seconds)?;
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds)?;
         let size_prec_micro =
-            test_gcd_date_with_codec(FastFieldCodecName::Bitpacked, DatePrecision::Microseconds)?;
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds)?;
         assert!(size_prec_sec < size_prec_micro);
 
         let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecName::LinearInterpol, DatePrecision::Seconds)?;
+            test_gcd_date_with_codec(FastFieldCodecType::LinearInterpol, DatePrecision::Seconds)?;
         let size_prec_micro = test_gcd_date_with_codec(
-            FastFieldCodecName::LinearInterpol,
+            FastFieldCodecType::LinearInterpol,
             DatePrecision::Microseconds,
         )?;
         assert!(size_prec_sec < size_prec_micro);
@@ -249,7 +248,7 @@ mod tests {
     }
 
     fn test_gcd_date_with_codec(
-        codec_name: FastFieldCodecName,
+        codec_type: FastFieldCodecType,
         precision: DatePrecision,
     ) -> crate::Result<usize> {
         let time1 = DateTime::from_timestamp_micros(
@@ -285,7 +284,7 @@ mod tests {
 
         let docs = vec![doc!(field=>time1), doc!(field=>time2), doc!(field=>time3)];
 
-        let directory = get_index(&docs, &schema, codec_name.into())?;
+        let directory = get_index(&docs, &schema, codec_type.into())?;
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;

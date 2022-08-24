@@ -4,7 +4,9 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
+use crate::{
+    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -99,8 +101,9 @@ impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
 pub struct BitpackedFastFieldSerializer {}
 
 impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
-    const NAME: &'static str = "Bitpacked";
-    const ID: u8 = 1;
+    /// The CODEC_TYPE is an enum value used for serialization.
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::Bitpacked;
+
     /// Serializes data with the BitpackedFastFieldSerializer.
     ///
     /// The serializer in fact encode the values by bitpacking
