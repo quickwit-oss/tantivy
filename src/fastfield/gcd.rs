@@ -14,7 +14,7 @@ pub const GCD_CODEC_ID: u8 = 4;
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
 pub struct GCDFastFieldCodec<CodecReader> {
-    pub(crate) gcd: u64,
+    gcd: u64,
     min_value: u64,
     reader: CodecReader,
 }
@@ -285,7 +285,7 @@ mod tests {
 
         let docs = vec![doc!(field=>time1), doc!(field=>time2), doc!(field=>time3)];
 
-        let directory = get_index(&docs, &schema, codec_name.clone().into())?;
+        let directory = get_index(&docs, &schema, codec_name.into())?;
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
