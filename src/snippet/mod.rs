@@ -188,14 +188,15 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 
 /// Returns ranges that are collapsed into non-overlapped ranges.
 fn collapse_overlapped_ranges(ranges: &Vec<Range<usize>>) -> Vec<Range<usize>> {
-    if ranges.is_empty() {
-        return Vec::new();
-    }
-
     let mut result = Vec::new();
-    let mut current = ranges[0].clone();
+    let mut ranges = ranges.iter();
 
-    for range in ranges.iter().skip(1) {
+    let mut current = match ranges.next() {
+        Some(range) => range.clone(),
+        None => return result,
+    };
+
+    for range in ranges {
         if current.end > range.start {
             current = current.start..range.end;
         } else {
