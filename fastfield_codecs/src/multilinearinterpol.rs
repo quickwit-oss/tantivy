@@ -18,7 +18,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linearinterpol::{get_calculated_value, get_slope};
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -188,15 +188,14 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
-        stats: FastFieldStats,
     ) -> io::Result<()> {
-        assert!(stats.min_value <= stats.max_value);
+        assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
 
         let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
+        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
 
         let mut first_function = Function {
-            end_pos: stats.num_vals,
+            end_pos: fastfield_accessor.num_vals(),
             value_start_pos: first_val,
             value_end_pos: last_val,
             ..Default::default()
@@ -271,29 +270,27 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         bit_packer.close(write)?;
 
         let footer = MultiLinearInterpolFooter {
-            num_vals: stats.num_vals,
-            min_value: stats.min_value,
-            max_value: stats.max_value,
+            num_vals: fastfield_accessor.num_vals(),
+            min_value: fastfield_accessor.min_value(),
+            max_value: fastfield_accessor.max_value(),
             interpolations,
         };
         footer.serialize(write)?;
         Ok(())
     }
 
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> bool {
-        if stats.num_vals < 5_000 {
+    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
+        if fastfield_accessor.num_vals() < 5_000 {
             return false;
         }
         // On serialization the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
         // If this doesn't overflow the algorithm should be fine
-        let theorethical_maximum_offset = stats.max_value - stats.min_value;
-        if stats
-            .max_value
+        let theorethical_maximum_offset =
+            fastfield_accessor.max_value() - fastfield_accessor.min_value();
+        if fastfield_accessor
+            .max_value()
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
@@ -304,15 +301,15 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
         let first_val_in_first_block = fastfield_accessor.get_val(0);
-        let last_elem_in_first_chunk = CHUNK_SIZE.min(stats.num_vals);
+        let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());
         let last_val_in_first_block =
             fastfield_accessor.get_val(last_elem_in_first_chunk as u64 - 1);
         let slope = get_slope(
             first_val_in_first_block,
             last_val_in_first_block,
-            stats.num_vals,
+            fastfield_accessor.num_vals(),
         );
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%, but for the first block only
@@ -339,10 +336,10 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         //
         let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
 
-        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
+        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * fastfield_accessor.num_vals() as u64
             // function metadata per block
-            + 29 * (stats.num_vals / CHUNK_SIZE);
-        let num_bits_uncompressed = 64 * stats.num_vals;
+            + 29 * (fastfield_accessor.num_vals() / CHUNK_SIZE);
+        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
         num_bits as f32 / num_bits_uncompressed as f32
     }
 }

@@ -374,6 +374,7 @@ impl IndexMerger {
         struct SortedDocIdFieldAccessProvider<'a> {
             doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
+            stats: FastFieldStats,
         }
         impl<'a> FastFieldDataAccess for SortedDocIdFieldAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
@@ -395,16 +396,24 @@ impl IndexMerger {
                         }),
                 )
             }
+            fn min_value(&self) -> u64 {
+                self.stats.min_value
+            }
+
+            fn max_value(&self) -> u64 {
+                self.stats.max_value
+            }
+
+            fn num_vals(&self) -> u64 {
+                self.stats.num_vals
+            }
         }
         let fastfield_accessor = SortedDocIdFieldAccessProvider {
             doc_id_mapping,
             fast_field_readers: &fast_field_readers,
-        };
-        fast_field_serializer.create_auto_detect_u64_fast_field(
-            field,
             stats,
-            fastfield_accessor,
-        )?;
+        };
+        fast_field_serializer.create_auto_detect_u64_fast_field(field, fastfield_accessor)?;
 
         Ok(())
     }
@@ -564,7 +573,37 @@ impl IndexMerger {
         }
         offsets.push(offset);
 
-        fast_field_serializer.create_auto_detect_u64_fast_field(field, stats, &offsets[..])?;
+        #[derive(Clone)]
+        struct FieldIndexAccessProvider<'a> {
+            offsets: &'a [u64],
+            stats: FastFieldStats,
+        }
+        impl<'a> FastFieldDataAccess for FieldIndexAccessProvider<'a> {
+            fn get_val(&self, doc: u64) -> u64 {
+                self.offsets[doc as usize]
+            }
+
+            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+                Box::new(self.offsets.iter().cloned())
+            }
+            fn min_value(&self) -> u64 {
+                self.stats.min_value
+            }
+
+            fn max_value(&self) -> u64 {
+                self.stats.max_value
+            }
+
+            fn num_vals(&self) -> u64 {
+                self.stats.num_vals
+            }
+        }
+        let fastfield_accessor = FieldIndexAccessProvider {
+            offsets: &offsets,
+            stats,
+        };
+
+        fast_field_serializer.create_auto_detect_u64_fast_field(field, fastfield_accessor)?;
         Ok(offsets)
     }
     /// Returns the fastfield index (index for the data, not the data).
@@ -737,6 +776,7 @@ impl IndexMerger {
             doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
             offsets: Vec<u64>,
+            stats: FastFieldStats,
         }
         impl<'a> FastFieldDataAccess for SortedDocIdMultiValueAccessProvider<'a> {
             fn get_val(&self, pos: u64) -> u64 {
@@ -777,15 +817,26 @@ impl IndexMerger {
                         }),
                 )
             }
+            fn min_value(&self) -> u64 {
+                self.stats.min_value
+            }
+
+            fn max_value(&self) -> u64 {
+                self.stats.max_value
+            }
+
+            fn num_vals(&self) -> u64 {
+                self.stats.num_vals
+            }
         }
         let fastfield_accessor = SortedDocIdMultiValueAccessProvider {
             doc_id_mapping,
             fast_field_readers: &ff_readers,
             offsets,
+            stats,
         };
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,
-            stats,
             fastfield_accessor,
             1,
         )?;

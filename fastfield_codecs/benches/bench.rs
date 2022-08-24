@@ -45,7 +45,7 @@ mod tests {
     fn bench_create<S: FastFieldCodecSerializer>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
         b.iter(|| {
-            S::serialize(&mut bytes, &data, stats_from_vec(data)).unwrap();
+            S::serialize(&mut bytes, &data).unwrap();
         });
     }
 

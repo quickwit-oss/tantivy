@@ -5,7 +5,7 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -139,13 +139,12 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
-        stats: FastFieldStats,
     ) -> io::Result<()> {
-        assert!(stats.min_value <= stats.max_value);
+        assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
 
         let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
-        let slope = get_slope(first_val, last_val, stats.num_vals);
+        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
+        let slope = get_slope(first_val, last_val, fastfield_accessor.num_vals());
         // calculate offset to ensure all values are positive
         let mut offset = 0;
         let mut rel_positive_max = 0;
@@ -179,27 +178,25 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
             offset,
             first_val,
             last_val,
-            num_vals: stats.num_vals,
-            min_value: stats.min_value,
-            max_value: stats.max_value,
+            num_vals: fastfield_accessor.num_vals(),
+            min_value: fastfield_accessor.min_value(),
+            max_value: fastfield_accessor.max_value(),
         };
         footer.serialize(write)?;
         Ok(())
     }
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> bool {
-        if stats.num_vals < 3 {
+    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
+        if fastfield_accessor.num_vals() < 3 {
             return false; // disable compressor for this case
         }
         // On serialisation the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
         // If this doesn't overflow the algorithm should be fine
-        let theorethical_maximum_offset = stats.max_value - stats.min_value;
-        if stats
-            .max_value
+        let theorethical_maximum_offset =
+            fastfield_accessor.max_value() - fastfield_accessor.min_value();
+        if fastfield_accessor
+            .max_value()
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
@@ -210,13 +207,13 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
         let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
-        let slope = get_slope(first_val, last_val, stats.num_vals);
+        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
+        let slope = get_slope(first_val, last_val, fastfield_accessor.num_vals());
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
-        let num_vals = stats.num_vals as f32 / 100.0;
+        let num_vals = fastfield_accessor.num_vals() as f32 / 100.0;
         let sample_positions = (0..20)
             .map(|pos| (num_vals * pos as f32 * 5.0) as usize)
             .collect::<Vec<_>>();
@@ -238,9 +235,10 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         //
         let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
 
-        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
+        let num_bits = compute_num_bits(relative_max_value as u64) as u64
+            * fastfield_accessor.num_vals()
             + LinearInterpolFooter::SIZE_IN_BYTES as u64;
-        let num_bits_uncompressed = 64 * stats.num_vals;
+        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
         num_bits as f32 / num_bits_uncompressed as f32
     }
 }
