@@ -15,6 +15,7 @@ use ownedbytes::OwnedBytes;
 
 pub mod bitpacked;
 pub mod blockwise_linear;
+pub(crate) mod line;
 pub mod linear;
 
 mod column;
