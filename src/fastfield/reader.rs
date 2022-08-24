@@ -156,6 +156,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
         };
         Ok(reader)
     }
+
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
         let mut bytes = file.read_bytes()?;
