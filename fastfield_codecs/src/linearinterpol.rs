@@ -124,7 +124,7 @@ fn diff(val1: u64, val2: u64) -> f64 {
 }
 
 #[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     if slope < 0.0 {
         first_val - (pos as f32 * -slope) as u64
     } else {

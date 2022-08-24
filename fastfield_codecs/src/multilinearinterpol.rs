@@ -17,7 +17,7 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::linearinterpol::get_slope;
+use crate::linearinterpol::{get_calculated_value, get_slope};
 use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const CHUNK_SIZE: u64 = 512;
@@ -353,11 +353,6 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     } else {
         x - y
     }
-}
-
-#[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
 }
 
 #[cfg(test)]
