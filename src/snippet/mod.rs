@@ -198,7 +198,7 @@ fn collapse_overlapped_ranges(ranges: &Vec<Range<usize>>) -> Vec<Range<usize>> {
 
     for range in ranges {
         if current.end > range.start {
-            current = current.start..range.end;
+            current = current.start..std::cmp::max(current.end, range.end);
         } else {
             result.push(current);
             current = range.clone();
@@ -618,6 +618,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(collapse_overlapped_ranges(&vec![0..1, 1..2, ]), vec![0..1, 1..2]);
         assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..2, ]), vec![0..2]);
         assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..3, ]), vec![0..3]);
+        assert_eq!(collapse_overlapped_ranges(&vec![0..3, 1..2, ]), vec![0..3]);
     }
 
     #[test]
