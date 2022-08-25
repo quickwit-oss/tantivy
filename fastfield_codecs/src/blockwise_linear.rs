@@ -19,7 +19,8 @@ use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
 use crate::{
-    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess, blockwise_linear,
+    blockwise_linear, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
+    FastFieldDataAccess,
 };
 
 const CHUNK_SIZE: u64 = 512;
@@ -162,11 +163,15 @@ impl FastFieldCodecReader for BlockwiseLinearReader {
     fn get_u64(&self, idx: u64) -> u64 {
         let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
         let in_block_idx = idx - interpolation.start_pos;
-        let calculated_value =
-            get_calculated_value(interpolation.value_start_pos, in_block_idx, interpolation.slope);
-        let diff = interpolation
-            .bit_unpacker
-            .get(in_block_idx, &self.data[interpolation.data_start_offset as usize..]);
+        let calculated_value = get_calculated_value(
+            interpolation.value_start_pos,
+            in_block_idx,
+            interpolation.slope,
+        );
+        let diff = interpolation.bit_unpacker.get(
+            in_block_idx,
+            &self.data[interpolation.data_start_offset as usize..],
+        );
         (calculated_value + diff) - interpolation.positive_val_offset
     }
 
