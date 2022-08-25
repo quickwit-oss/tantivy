@@ -79,7 +79,7 @@ impl Snippet {
         let mut html = String::new();
         let mut start_from: usize = 0;
 
-        for item in collapse_overlapped_ranges(&self.highlighted).iter() {
+        for item in collapse_overlapped_ranges(&self.highlighted) {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
             html.push_str(HIGHLIGHTEN_PREFIX);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
@@ -187,11 +187,11 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 }
 
 /// Returns ranges that are collapsed into non-overlapped ranges.
-fn collapse_overlapped_ranges(ranges: &Vec<Range<usize>>) -> Vec<Range<usize>> {
+fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
     let mut result = Vec::new();
-    let mut ranges = ranges.iter();
+    let mut ranges_it = ranges.iter();
 
-    let mut current = match ranges.next() {
+    let mut current = match ranges_it.next() {
         Some(range) => range.clone(),
         None => return result,
     };
