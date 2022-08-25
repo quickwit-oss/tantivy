@@ -82,14 +82,16 @@ impl BitUnpacker {
         }
     }
 
+    pub fn bit_width(&self) -> u8 {
+        self.num_bits as u8
+    }
+
     #[inline]
     pub fn get(&self, idx: u64, data: &[u8]) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
         }
-        let num_bits = self.num_bits;
-        let mask = self.mask;
-        let addr_in_bits = idx * num_bits;
+        let addr_in_bits = idx * self.num_bits;
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
         debug_assert!(
@@ -101,7 +103,7 @@ impl BitUnpacker {
             .unwrap();
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-        val_shifted & mask
+        val_shifted & self.mask
     }
 }
 
