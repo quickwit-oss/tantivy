@@ -187,7 +187,18 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 }
 
 /// Returns ranges that are collapsed into non-overlapped ranges.
+///
+/// ## Examples
+/// - [0..1, 2..3] -> [0..1, 2..3]  # no overlap
+/// - [0..1, 1..2] -> [0..1, 1..2]  # no overlap
+/// - [0..2, 1..2] -> [0..2]  # collapsed
+/// - [0..2, 1..3] -> [0..3]  # collapsed
+/// - [0..3, 1..2] -> [0..3]  # second range's end is also inside of the first range
+///
+/// Note: This function assumes `ranges` is sorted by `Range.start` in ascending order.
 fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
+    debug_assert!(is_sorted(ranges.iter().map(|range| range.start)));
+
     let mut result = Vec::new();
     let mut ranges_it = ranges.iter();
 
@@ -207,6 +218,19 @@ fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
 
     result.push(current);
     result
+}
+
+fn is_sorted(mut it: impl Iterator<Item=usize>) -> bool {
+    if let Some(first) = it.next() {
+        let mut prev = first;
+        for item in it {
+            if item < prev {
+                return false;
+            }
+            prev = item;
+        }
+    }
+    true
 }
 
 /// `SnippetGenerator`
