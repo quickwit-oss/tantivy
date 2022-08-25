@@ -220,7 +220,7 @@ fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
     result
 }
 
-fn is_sorted(mut it: impl Iterator<Item=usize>) -> bool {
+fn is_sorted(mut it: impl Iterator<Item = usize>) -> bool {
     if let Some(first) = it.next() {
         let mut prev = first;
         for item in it {
@@ -367,10 +367,10 @@ mod tests {
 
     use maplit::btreemap;
 
-    use super::{search_fragments, select_best_fragment_combination, collapse_overlapped_ranges};
+    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
-    use crate::tokenizer::{SimpleTokenizer, NgramTokenizer};
+    use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
     use crate::{Index, SnippetGenerator};
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
@@ -638,11 +638,17 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_collapse_overlapped_ranges() {
-        assert_eq!(collapse_overlapped_ranges(&vec![0..1, 2..3, ]), vec![0..1, 2..3]);
-        assert_eq!(collapse_overlapped_ranges(&vec![0..1, 1..2, ]), vec![0..1, 1..2]);
-        assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..2, ]), vec![0..2]);
-        assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..3, ]), vec![0..3]);
-        assert_eq!(collapse_overlapped_ranges(&vec![0..3, 1..2, ]), vec![0..3]);
+        assert_eq!(
+            collapse_overlapped_ranges(&vec![0..1, 2..3,]),
+            vec![0..1, 2..3]
+        );
+        assert_eq!(
+            collapse_overlapped_ranges(&vec![0..1, 1..2,]),
+            vec![0..1, 1..2]
+        );
+        assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..2,]), vec![0..2]);
+        assert_eq!(collapse_overlapped_ranges(&vec![0..2, 1..3,]), vec![0..3]);
+        assert_eq!(collapse_overlapped_ranges(&vec![0..3, 1..2,]), vec![0..3]);
     }
 
     #[test]
@@ -653,7 +659,12 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("ab"), 0.9);
         terms.insert(String::from("bc"), 1.0);
 
-        let fragments = search_fragments(&From::from(NgramTokenizer::all_ngrams(2, 2)), text, &terms, 3);
+        let fragments = search_fragments(
+            &From::from(NgramTokenizer::all_ngrams(2, 2)),
+            text,
+            &terms,
+            3,
+        );
 
         assert_eq!(fragments.len(), 1);
         {
