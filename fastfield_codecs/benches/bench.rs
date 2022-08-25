@@ -32,7 +32,7 @@ mod tests {
         data: &[u64],
     ) {
         let mut bytes = vec![];
-        S::serialize(&mut bytes, &data, stats_from_vec(data)).unwrap();
+        S::serialize(&mut bytes, &data).unwrap();
         let reader = R::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
         b.iter(|| {
             for pos in value_iter() {
