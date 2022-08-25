@@ -3,11 +3,9 @@ use std::num::NonZeroU64;
 
 use common::{BinarySerializable, CountingWriter};
 use fastdivide::DividerU64;
-pub use fastfield_codecs::bitpacked::{
-    BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
-};
-use fastfield_codecs::blockwise_linear::BlockwiseLinearFastFieldSerializer;
-use fastfield_codecs::linear::LinearFastFieldSerializer;
+pub use fastfield_codecs::bitpacked::{BitpackedSerializer, BitpackedSerializerLegacy};
+use fastfield_codecs::blockwise_linear::BlockwiseLinearSerializer;
+use fastfield_codecs::linear::LinearSerializer;
 use fastfield_codecs::FastFieldCodecType;
 pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
@@ -206,19 +204,13 @@ impl CompositeFastFieldSerializer {
         let mut estimations = vec![];
 
         if codec_enable_checker.is_enabled(FastFieldCodecType::Bitpacked) {
-            codec_estimation::<BitpackedFastFieldSerializer, _>(
-                &fastfield_accessor,
-                &mut estimations,
-            );
+            codec_estimation::<BitpackedSerializer, _>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::Linear) {
-            codec_estimation::<LinearFastFieldSerializer, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<LinearSerializer, _>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinear) {
-            codec_estimation::<BlockwiseLinearFastFieldSerializer, _>(
-                &fastfield_accessor,
-                &mut estimations,
-            );
+            codec_estimation::<BlockwiseLinearSerializer, _>(&fastfield_accessor, &mut estimations);
         }
         if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {
@@ -237,13 +229,13 @@ impl CompositeFastFieldSerializer {
         Self::write_header(field_write, codec_type)?;
         match codec_type {
             FastFieldCodecType::Bitpacked => {
-                BitpackedFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
+                BitpackedSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::Linear => {
-                LinearFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
+                LinearSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::BlockwiseLinear => {
-                BlockwiseLinearFastFieldSerializer::serialize(field_write, &fastfield_accessor)?;
+                BlockwiseLinearSerializer::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::Gcd => {
                 return Err(io::Error::new(
@@ -263,7 +255,7 @@ impl CompositeFastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
         self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
@@ -273,7 +265,7 @@ impl CompositeFastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
         self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
@@ -284,11 +276,11 @@ impl CompositeFastFieldSerializer {
         min_value: u64,
         max_value: u64,
         idx: usize,
-    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         // Prepend codec id to field data for compatibility with DynamicFastFieldReader.
         FastFieldCodecType::Bitpacked.serialize(field_write)?;
-        BitpackedFastFieldSerializerLegacy::open(field_write, min_value, max_value)
+        BitpackedSerializerLegacy::open(field_write, min_value, max_value)
     }
 
     /// Start serializing a new [u8] fast field

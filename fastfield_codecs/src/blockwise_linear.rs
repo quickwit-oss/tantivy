@@ -27,7 +27,7 @@ const CHUNK_SIZE: u64 = 512;
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct BlockwiseLinearFastFieldReader {
+pub struct BlockwiseLinearReader {
     data: OwnedBytes,
     pub footer: BlockwiseLinearFooter,
 }
@@ -148,14 +148,14 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecReader for BlockwiseLinearFastFieldReader {
+impl FastFieldCodecReader for BlockwiseLinearReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
         let (data, mut footer) = bytes.split(footer_offset);
         let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
-        Ok(BlockwiseLinearFastFieldReader { data, footer })
+        Ok(BlockwiseLinearReader { data, footer })
     }
 
     #[inline]
@@ -180,10 +180,10 @@ impl FastFieldCodecReader for BlockwiseLinearFastFieldReader {
     }
 }
 
-/// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct BlockwiseLinearFastFieldSerializer {}
+/// Same as LinearSerializer, but working on chunks of CHUNK_SIZE elements.
+pub struct BlockwiseLinearSerializer {}
 
-impl FastFieldCodecSerializer for BlockwiseLinearFastFieldSerializer {
+impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinear;
     /// Creates a new fast field serializer.
     fn serialize(
@@ -359,10 +359,9 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<
-            BlockwiseLinearFastFieldSerializer,
-            BlockwiseLinearFastFieldReader,
-        >(data, name)
+        crate::tests::create_and_validate::<BlockwiseLinearSerializer, BlockwiseLinearReader>(
+            data, name,
+        )
     }
 
     const HIGHEST_BIT: u64 = 1 << 63;
