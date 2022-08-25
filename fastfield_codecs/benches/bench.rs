@@ -33,9 +33,13 @@ mod tests {
         S::serialize(&mut bytes, &data).unwrap();
         let reader = R::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
         b.iter(|| {
+            let mut sum = 0u64;
             for pos in value_iter() {
-                reader.get_u64(pos as u64);
+                let val = reader.get_u64(pos as u64);
+                debug_assert_eq!(data[pos as usize], val);
+                sum = sum.wrapping_add(val);
             }
+            sum
         });
     }
     fn bench_create<S: FastFieldCodecSerializer>(b: &mut Bencher, data: &[u64]) {
