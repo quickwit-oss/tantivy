@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use std::path::Path;
 
 use common::BinarySerializable;
-use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
-use fastfield_codecs::blockwise_linear::BlockwiseLinearFastFieldReader;
-use fastfield_codecs::linear::LinearFastFieldReader;
+use fastfield_codecs::bitpacked::BitpackedReader;
+use fastfield_codecs::blockwise_linear::BlockwiseLinearReader;
+use fastfield_codecs::linear::LinearReader;
 use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecType};
 
 use super::{FastValue, GCDFastFieldCodec};
@@ -63,18 +63,16 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Bitpacked compressed fastfield data.
     Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
     /// Linear interpolated values + bitpacked
-    Linear(FastFieldReaderCodecWrapper<Item, LinearFastFieldReader>),
+    Linear(FastFieldReaderCodecWrapper<Item, LinearReader>),
     /// Blockwise linear interpolated values + bitpacked
-    BlockwiseLinear(FastFieldReaderCodecWrapper<Item, BlockwiseLinearFastFieldReader>),
+    BlockwiseLinear(FastFieldReaderCodecWrapper<Item, BlockwiseLinearReader>),
 
     /// GCD and Bitpacked compressed fastfield data.
     BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BitpackedReader>>),
     /// GCD and Linear interpolated values + bitpacked
-    LinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearFastFieldReader>>),
+    LinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearReader>>),
     /// GCD and Blockwise linear interpolated values + bitpacked
-    BlockwiseLinearGCD(
-        FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BlockwiseLinearFastFieldReader>>,
-    ),
+    BlockwiseLinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BlockwiseLinearReader>>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
@@ -90,16 +88,13 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     BitpackedReader,
                 >::open_from_bytes(bytes)?)
             }
-            FastFieldCodecType::Linear => {
-                DynamicFastFieldReader::Linear(FastFieldReaderCodecWrapper::<
-                    Item,
-                    LinearFastFieldReader,
-                >::open_from_bytes(bytes)?)
-            }
+            FastFieldCodecType::Linear => DynamicFastFieldReader::Linear(
+                FastFieldReaderCodecWrapper::<Item, LinearReader>::open_from_bytes(bytes)?,
+            ),
             FastFieldCodecType::BlockwiseLinear => {
                 DynamicFastFieldReader::BlockwiseLinear(FastFieldReaderCodecWrapper::<
                     Item,
-                    BlockwiseLinearFastFieldReader,
+                    BlockwiseLinearReader,
                 >::open_from_bytes(bytes)?)
             }
             FastFieldCodecType::Gcd => {
@@ -116,7 +111,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     FastFieldCodecType::Linear => {
                         DynamicFastFieldReader::LinearGCD(FastFieldReaderCodecWrapper::<
                             Item,
-                            GCDFastFieldCodec<LinearFastFieldReader>,
+                            GCDFastFieldCodec<LinearReader>,
                         >::open_from_bytes(
                             bytes
                         )?)
@@ -124,7 +119,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     FastFieldCodecType::BlockwiseLinear => {
                         DynamicFastFieldReader::BlockwiseLinearGCD(FastFieldReaderCodecWrapper::<
                             Item,
-                            GCDFastFieldCodec<BlockwiseLinearFastFieldReader>,
+                            GCDFastFieldCodec<BlockwiseLinearReader>,
                         >::open_from_bytes(
                             bytes
                         )?)

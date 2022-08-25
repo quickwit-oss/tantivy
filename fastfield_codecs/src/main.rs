@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::blockwise_linear::BlockwiseLinearFastFieldSerializer;
-use fastfield_codecs::linear::LinearFastFieldSerializer;
+use fastfield_codecs::blockwise_linear::BlockwiseLinearSerializer;
+use fastfield_codecs::linear::LinearSerializer;
 use fastfield_codecs::{FastFieldCodecSerializer, FastFieldCodecType, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
@@ -13,13 +13,11 @@ fn main() {
 
     for (data, data_set_name) in get_codec_test_data_sets() {
         let mut results = vec![];
-        let res = serialize_with_codec::<LinearFastFieldSerializer>(&data);
+        let res = serialize_with_codec::<LinearSerializer>(&data);
         results.push(res);
-        let res = serialize_with_codec::<BlockwiseLinearFastFieldSerializer>(&data);
+        let res = serialize_with_codec::<BlockwiseLinearSerializer>(&data);
         results.push(res);
-        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedFastFieldSerializer>(
-            &data,
-        );
+        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedSerializer>(&data);
         results.push(res);
 
         // let best_estimation_codec = results
