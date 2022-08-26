@@ -25,7 +25,10 @@ mod tests {
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn bench_get<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
+    fn bench_get<
+        S: FastFieldCodecSerializer,
+        R: FastFieldCodecDeserializer + FastFieldCodecReader,
+    >(
         b: &mut Bencher,
         data: &[u64],
     ) {

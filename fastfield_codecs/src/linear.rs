@@ -6,7 +6,8 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{
-    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+    FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
+    FastFieldDataAccess,
 };
 
 /// Depending on the field type, a different
@@ -59,7 +60,7 @@ impl FixedSize for LinearFooter {
     const SIZE_IN_BYTES: usize = 56;
 }
 
-impl FastFieldCodecReader for LinearReader {
+impl FastFieldCodecDeserializer for LinearReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_offset = bytes.len() - LinearFooter::SIZE_IN_BYTES;
@@ -75,6 +76,9 @@ impl FastFieldCodecReader for LinearReader {
             slope,
         })
     }
+}
+
+impl FastFieldCodecReader for LinearReader {
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);

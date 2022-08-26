@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::FastFieldCodecReader;
+use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecReader};
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
@@ -15,24 +15,30 @@ pub const GCD_DEFAULT: u64 = 1;
 pub struct GCDFastFieldCodec<CodecReader> {
     gcd: u64,
     min_value: u64,
+    num_vals: u64,
     reader: CodecReader,
 }
 
-impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
-    /// Opens a fast field given the bytes.
+impl<C: FastFieldCodecReader + FastFieldCodecDeserializer + Clone> FastFieldCodecDeserializer
+    for GCDFastFieldCodec<C>
+{
     fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self> {
-        let footer_offset = bytes.len() - 16;
+        let footer_offset = bytes.len() - 24;
         let (body, mut footer) = bytes.split(footer_offset);
         let gcd = u64::deserialize(&mut footer)?;
         let min_value = u64::deserialize(&mut footer)?;
+        let num_vals = u64::deserialize(&mut footer)?;
         let reader = C::open_from_bytes(body)?;
         Ok(GCDFastFieldCodec {
             gcd,
             min_value,
+            num_vals,
             reader,
         })
     }
+}
 
+impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         let mut data = self.reader.get_u64(doc);
@@ -48,11 +54,20 @@ impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec
     fn max_value(&self) -> u64 {
         self.min_value + self.reader.max_value() * self.gcd
     }
+    fn num_vals(&self) -> u64 {
+        self.num_vals
+    }
 }
 
-pub fn write_gcd_header<W: Write>(field_write: &mut W, min_value: u64, gcd: u64) -> io::Result<()> {
+pub fn write_gcd_header<W: Write>(
+    field_write: &mut W,
+    min_value: u64,
+    gcd: u64,
+    num_vals: u64,
+) -> io::Result<()> {
     gcd.serialize(field_write)?;
     min_value.serialize(field_write)?;
+    num_vals.serialize(field_write)?;
     Ok(())
 }
 

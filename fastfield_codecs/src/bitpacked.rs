@@ -5,7 +5,8 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{
-    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+    FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
+    FastFieldDataAccess,
 };
 
 /// Depending on the field type, a different
@@ -19,7 +20,7 @@ pub struct BitpackedReader {
     pub num_vals: u64,
 }
 
-impl FastFieldCodecReader for BitpackedReader {
+impl FastFieldCodecDeserializer for BitpackedReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_offset = bytes.len() - 24;
@@ -38,6 +39,8 @@ impl FastFieldCodecReader for BitpackedReader {
             num_vals,
         })
     }
+}
+impl FastFieldCodecReader for BitpackedReader {
     #[inline]
     fn get_u64(&self, doc: u64) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)

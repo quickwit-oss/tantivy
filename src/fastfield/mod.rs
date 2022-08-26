@@ -326,7 +326,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 37);
+        assert_eq!(file.len(), 45);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
@@ -357,7 +357,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 62);
+        assert_eq!(file.len(), 70);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -393,7 +393,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
+        assert_eq!(file.len(), 43);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -425,7 +425,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80043);
+        assert_eq!(file.len(), 80051);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -896,7 +896,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 36);
+        assert_eq!(file.len(), 44);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -932,7 +932,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 48);
+        assert_eq!(file.len(), 56);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
@@ -966,7 +966,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
+        assert_eq!(file.len(), 43);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;

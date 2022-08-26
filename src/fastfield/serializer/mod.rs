@@ -189,7 +189,7 @@ impl CompositeFastFieldSerializer {
             field_write,
             fastfield_accessor,
         )?;
-        write_gcd_header(field_write, base_value, gcd)?;
+        write_gcd_header(field_write, base_value, gcd, num_vals)?;
         Ok(())
     }
 

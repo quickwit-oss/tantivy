@@ -19,7 +19,8 @@ use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
 use crate::{
-    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
+    FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
+    FastFieldDataAccess,
 };
 
 const CHUNK_SIZE: u64 = 512;
@@ -148,7 +149,7 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecReader for BlockwiseLinearReader {
+impl FastFieldCodecDeserializer for BlockwiseLinearReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
@@ -157,7 +158,9 @@ impl FastFieldCodecReader for BlockwiseLinearReader {
         let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
         Ok(BlockwiseLinearReader { data, footer })
     }
+}
 
+impl FastFieldCodecReader for BlockwiseLinearReader {
     #[inline]
     fn get_u64(&self, idx: u64) -> u64 {
         let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
