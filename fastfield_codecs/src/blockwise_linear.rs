@@ -162,7 +162,7 @@ impl FastFieldCodecDeserializer for BlockwiseLinearReader {
 
 impl FastFieldCodecReader for BlockwiseLinearReader {
     #[inline]
-    fn get_u64(&self, idx: u64) -> u64 {
+    fn get_val(&self, idx: u64) -> u64 {
         let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
         let in_block_idx = idx - interpolation.start_pos;
         let calculated_value = get_calculated_value(

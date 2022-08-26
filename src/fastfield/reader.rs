@@ -228,7 +228,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + FastFieldCodecDeserializer>
 
     #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        let data = self.reader.get_u64(doc);
+        let data = self.reader.get_val(doc);
         Item::from_u64(data)
     }
 

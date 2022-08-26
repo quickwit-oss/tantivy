@@ -40,8 +40,8 @@ impl<C: FastFieldCodecReader + FastFieldCodecDeserializer + Clone> FastFieldCode
 
 impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
     #[inline]
-    fn get_u64(&self, doc: u64) -> u64 {
-        let mut data = self.reader.get_u64(doc);
+    fn get_val(&self, doc: u64) -> u64 {
+        let mut data = self.reader.get_val(doc);
         data *= self.gcd;
         data += self.min_value;
         data

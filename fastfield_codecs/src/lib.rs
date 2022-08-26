@@ -20,13 +20,13 @@ pub trait FastFieldCodecDeserializer: Sized {
 }
 
 pub trait FastFieldCodecReader: Sized {
-    fn get_u64(&self, doc: u64) -> u64;
+    fn get_val(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
     fn num_vals(&self) -> u64;
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a> {
-        Box::new((0..self.num_vals()).map(|idx| self.get_u64(idx)))
+        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
 }
 
@@ -198,7 +198,7 @@ mod tests {
         let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u64);
         for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64);
+            let val = reader.get_val(doc as u64);
             if val != *orig_val {
                 panic!(
                     "val {val:?} does not match orig_val {orig_val:?}, in data set {name}, data \

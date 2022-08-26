@@ -38,7 +38,7 @@ mod tests {
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
-                let val = reader.get_u64(pos as u64);
+                let val = reader.get_val(pos as u64);
                 debug_assert_eq!(data[pos as usize], val);
                 sum = sum.wrapping_add(val);
             }

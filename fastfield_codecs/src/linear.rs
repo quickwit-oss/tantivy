@@ -80,7 +80,7 @@ impl FastFieldCodecDeserializer for LinearReader {
 
 impl FastFieldCodecReader for LinearReader {
     #[inline]
-    fn get_u64(&self, doc: u64) -> u64 {
+    fn get_val(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
         (calculated_value + self.bit_unpacker.get(doc, &self.data)) - self.footer.offset
     }
