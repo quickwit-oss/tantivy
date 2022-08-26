@@ -15,11 +15,10 @@ pub mod linear;
 pub trait FastFieldCodecDeserializer: Sized {
     /// Reads the metadata and returns the CodecReader
     fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>
-    where
-        Self: FastFieldCodecReader;
+    where Self: FastFieldDataAccess;
 }
 
-pub trait FastFieldCodecReader: Sized {
+pub trait FastFieldDataAccess {
     fn get_val(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
@@ -95,31 +94,6 @@ pub trait FastFieldCodecSerializer {
     ) -> io::Result<()>;
 }
 
-/// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
-pub trait FastFieldDataAccess {
-    /// Return the value associated to the given position.
-    ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
-    /// reasons.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `position` is greater than the index.
-    fn get_val(&self, position: u64) -> u64;
-
-    /// Returns a iterator over the data
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_>;
-
-    /// min value of the data
-    fn min_value(&self) -> u64;
-
-    /// max value of the data
-    fn max_value(&self) -> u64;
-
-    /// num vals
-    fn num_vals(&self) -> u64;
-}
-
 #[derive(Debug, Clone)]
 /// Statistics are used in codec detection and stored in the fast field footer.
 pub struct FastFieldStats {
@@ -181,7 +155,7 @@ mod tests {
 
     pub fn create_and_validate<
         S: FastFieldCodecSerializer,
-        R: FastFieldCodecDeserializer + FastFieldCodecReader,
+        R: FastFieldCodecDeserializer + FastFieldDataAccess,
     >(
         data: &[u64],
         name: &str,
@@ -244,7 +218,7 @@ mod tests {
 
     fn test_codec<
         S: FastFieldCodecSerializer,
-        R: FastFieldCodecReader + FastFieldCodecDeserializer,
+        R: FastFieldDataAccess + FastFieldCodecDeserializer,
     >() {
         let codec_name = format!("{:?}", S::CODEC_TYPE);
         for (data, dataset_name) in get_codec_test_data_sets() {

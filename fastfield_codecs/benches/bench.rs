@@ -27,7 +27,7 @@ mod tests {
     }
     fn bench_get<
         S: FastFieldCodecSerializer,
-        R: FastFieldCodecDeserializer + FastFieldCodecReader,
+        R: FastFieldCodecDeserializer + FastFieldDataAccess,
     >(
         b: &mut Bencher,
         data: &[u64],

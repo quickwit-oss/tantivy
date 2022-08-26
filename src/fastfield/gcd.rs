@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecReader};
+use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldDataAccess};
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
@@ -19,7 +19,7 @@ pub struct GCDFastFieldCodec<CodecReader> {
     reader: CodecReader,
 }
 
-impl<C: FastFieldCodecReader + FastFieldCodecDeserializer + Clone> FastFieldCodecDeserializer
+impl<C: FastFieldDataAccess + FastFieldCodecDeserializer + Clone> FastFieldCodecDeserializer
     for GCDFastFieldCodec<C>
 {
     fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self> {
@@ -38,7 +38,7 @@ impl<C: FastFieldCodecReader + FastFieldCodecDeserializer + Clone> FastFieldCode
     }
 }
 
-impl<C: FastFieldCodecReader + Clone> FastFieldCodecReader for GCDFastFieldCodec<C> {
+impl<C: FastFieldDataAccess + Clone> FastFieldDataAccess for GCDFastFieldCodec<C> {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         let mut data = self.reader.get_val(doc);

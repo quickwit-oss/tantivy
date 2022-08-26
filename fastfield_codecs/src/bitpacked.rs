@@ -5,8 +5,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
-    FastFieldDataAccess,
+    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
 };
 
 /// Depending on the field type, a different
@@ -40,7 +39,7 @@ impl FastFieldCodecDeserializer for BitpackedReader {
         })
     }
 }
-impl FastFieldCodecReader for BitpackedReader {
+impl FastFieldDataAccess for BitpackedReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)

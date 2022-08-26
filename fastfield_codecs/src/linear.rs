@@ -6,8 +6,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
-    FastFieldDataAccess,
+    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
 };
 
 /// Depending on the field type, a different
@@ -78,7 +77,7 @@ impl FastFieldCodecDeserializer for LinearReader {
     }
 }
 
-impl FastFieldCodecReader for LinearReader {
+impl FastFieldDataAccess for LinearReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);

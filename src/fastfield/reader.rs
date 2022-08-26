@@ -6,7 +6,7 @@ use common::BinarySerializable;
 use fastfield_codecs::bitpacked::BitpackedReader;
 use fastfield_codecs::blockwise_linear::BlockwiseLinearReader;
 use fastfield_codecs::linear::LinearReader;
-use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecReader, FastFieldCodecType};
+use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecType, FastFieldDataAccess};
 
 use super::{FastValue, GCDFastFieldCodec};
 use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
@@ -199,7 +199,7 @@ pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue, C: FastFieldCodecReader + FastFieldCodecDeserializer>
+impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer>
     FastFieldReaderCodecWrapper<Item, C>
 {
     /// Opens a fast field given a file.
@@ -251,7 +251,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + FastFieldCodecDeserializer>
     }
 }
 
-impl<Item: FastValue, C: FastFieldCodecReader + FastFieldCodecDeserializer + Clone>
+impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer + Clone>
     FastFieldReader<Item> for FastFieldReaderCodecWrapper<Item, C>
 {
     /// Return the value associated to the given document.
