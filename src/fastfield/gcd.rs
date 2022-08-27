@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::{FastFieldCodec, FastFieldDataAccess};
+use fastfield_codecs::{Column, FastFieldCodec};
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
@@ -12,7 +12,7 @@ pub const GCD_DEFAULT: u64 = 1;
 ///
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
-pub struct GCDReader<CodecReader: FastFieldDataAccess> {
+pub struct GCDReader<CodecReader: Column> {
     gcd_params: GCDParams,
     reader: CodecReader,
 }
@@ -60,7 +60,7 @@ pub fn open_gcd_from_bytes<WrappedCodec: FastFieldCodec>(
     Ok(GCDReader { gcd_params, reader })
 }
 
-impl<C: FastFieldDataAccess + Clone> FastFieldDataAccess for GCDReader<C> {
+impl<C: Column + Clone> Column for GCDReader<C> {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         let val = self.reader.get_val(doc);
@@ -137,6 +137,7 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     use common::HasLen;
+    use fastfield_codecs::Column;
 
     use crate::directory::{CompositeFile, RamDirectory, WritePtr};
     use crate::fastfield::gcd::compute_gcd;
@@ -144,7 +145,7 @@ mod tests {
     use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
     use crate::fastfield::{
         find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecType,
-        FastFieldReader, FastFieldsWriter, ALL_CODECS,
+        FastFieldsWriter, ALL_CODECS,
     };
     use crate::schema::{Cardinality, Schema};
     use crate::{DateOptions, DatePrecision, DateTime, Directory};
@@ -188,9 +189,9 @@ mod tests {
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<i64>::open(file)?;
 
-        assert_eq!(fast_field_reader.get(0), -4000i64);
-        assert_eq!(fast_field_reader.get(1), -3000i64);
-        assert_eq!(fast_field_reader.get(2), -2000i64);
+        assert_eq!(fast_field_reader.get_val(0), -4000i64);
+        assert_eq!(fast_field_reader.get_val(1), -3000i64);
+        assert_eq!(fast_field_reader.get_val(2), -2000i64);
         assert_eq!(fast_field_reader.max_value(), (num_vals as i64 - 5) * 1000);
         assert_eq!(fast_field_reader.min_value(), -4000i64);
         let file = directory.open_read(path).unwrap();
@@ -229,9 +230,9 @@ mod tests {
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
-        assert_eq!(fast_field_reader.get(0), 1000u64);
-        assert_eq!(fast_field_reader.get(1), 2000u64);
-        assert_eq!(fast_field_reader.get(2), 3000u64);
+        assert_eq!(fast_field_reader.get_val(0), 1000u64);
+        assert_eq!(fast_field_reader.get_val(1), 2000u64);
+        assert_eq!(fast_field_reader.get_val(2), 3000u64);
         assert_eq!(fast_field_reader.max_value(), num_vals as u64 * 1000);
         assert_eq!(fast_field_reader.min_value(), 1000u64);
         let file = directory.open_read(path).unwrap();
@@ -258,9 +259,9 @@ mod tests {
     #[test]
     pub fn test_fastfield2() {
         let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
-        assert_eq!(test_fastfield.get(0), 100);
-        assert_eq!(test_fastfield.get(1), 200);
-        assert_eq!(test_fastfield.get(2), 300);
+        assert_eq!(test_fastfield.get_val(0), 100);
+        assert_eq!(test_fastfield.get_val(1), 200);
+        assert_eq!(test_fastfield.get_val(2), 300);
     }
 
     #[test]
@@ -325,9 +326,9 @@ mod tests {
         let len = file.len();
         let test_fastfield = DynamicFastFieldReader::<DateTime>::open(file)?;
 
-        assert_eq!(test_fastfield.get(0), time1.truncate(precision));
-        assert_eq!(test_fastfield.get(1), time2.truncate(precision));
-        assert_eq!(test_fastfield.get(2), time3.truncate(precision));
+        assert_eq!(test_fastfield.get_val(0), time1.truncate(precision));
+        assert_eq!(test_fastfield.get_val(1), time2.truncate(precision));
+        assert_eq!(test_fastfield.get_val(2), time3.truncate(precision));
         Ok(len)
     }
 

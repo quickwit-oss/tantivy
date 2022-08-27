@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
+use fastfield_codecs::Column;
 use fnv::FnvHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +13,6 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
 use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key, SerializedKey};
-use crate::fastfield::FastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -264,10 +264,10 @@ impl SegmentRangeCollector {
             .as_single()
             .expect("unexpected fast field cardinatility");
         for docs in iter.by_ref() {
-            let val1 = accessor.get(docs[0]);
-            let val2 = accessor.get(docs[1]);
-            let val3 = accessor.get(docs[2]);
-            let val4 = accessor.get(docs[3]);
+            let val1 = accessor.get_val(docs[0] as u64);
+            let val2 = accessor.get_val(docs[1] as u64);
+            let val3 = accessor.get_val(docs[2] as u64);
+            let val4 = accessor.get_val(docs[3] as u64);
             let bucket_pos1 = self.get_bucket_pos(val1);
             let bucket_pos2 = self.get_bucket_pos(val2);
             let bucket_pos3 = self.get_bucket_pos(val3);
@@ -278,10 +278,10 @@ impl SegmentRangeCollector {
             self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation)?;
             self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
         }
-        for doc in iter.remainder() {
-            let val = accessor.get(*doc);
+        for &doc in iter.remainder() {
+            let val = accessor.get_val(doc as u64);
             let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
+            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             for bucket in &mut self.buckets {

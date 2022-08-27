@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
-use fastfield_codecs::FastFieldDataAccess;
+use fastfield_codecs::Column;
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
@@ -384,7 +384,7 @@ struct WriterFastFieldAccessProvider<'map, 'bitp> {
     vals: &'bitp BlockedBitpacker,
     stats: FastFieldStats,
 }
-impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'bitp> {
+impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// Return the value associated to the given doc.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance

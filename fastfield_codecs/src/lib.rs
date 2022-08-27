@@ -12,16 +12,9 @@ pub mod bitpacked;
 pub mod blockwise_linear;
 pub mod linear;
 
-pub trait FastFieldDataAccess {
-    fn get_val(&self, doc: u64) -> u64;
-    fn min_value(&self) -> u64;
-    fn max_value(&self) -> u64;
-    fn num_vals(&self) -> u64;
-    /// Returns a iterator over the data
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a> {
-        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
-    }
-}
+mod column;
+
+pub use self::column::Column;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -68,7 +61,7 @@ pub trait FastFieldCodec {
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
 
-    type Reader: FastFieldDataAccess;
+    type Reader: Column<u64>;
 
     /// Reads the metadata and returns the CodecReader
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
@@ -77,10 +70,7 @@ pub trait FastFieldCodec {
     ///
     /// The fastfield_accessor iterator should be preferred over using fastfield_accessor for
     /// performance reasons.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
-    ) -> io::Result<()>;
+    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column<u64>) -> io::Result<()>;
 
     /// Returns an estimate of the compression ratio.
     /// If the codec is not applicable, returns `None`.
@@ -89,7 +79,7 @@ pub trait FastFieldCodec {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32>;
+    fn estimate(fastfield_accessor: &impl Column) -> Option<f32>;
 }
 
 #[derive(Debug, Clone)]
@@ -100,7 +90,7 @@ pub struct FastFieldStats {
     pub num_vals: u64,
 }
 
-impl<'a> FastFieldDataAccess for &'a [u64] {
+impl<'a> Column for &'a [u64] {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
     }
@@ -122,7 +112,7 @@ impl<'a> FastFieldDataAccess for &'a [u64] {
     }
 }
 
-impl FastFieldDataAccess for Vec<u64> {
+impl Column for Vec<u64> {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
     }

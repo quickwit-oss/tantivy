@@ -4,14 +4,13 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use measure_time::debug_time;
-use tantivy_bitpacker::minmax;
 
 use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
-    AliveBitSet, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldDataAccess,
-    FastFieldReader, FastFieldStats, MultiValueLength, MultiValuedFastFieldReader,
+    AliveBitSet, Column, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldStats,
+    MultiValueLength, MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -88,7 +87,7 @@ pub struct IndexMerger {
 }
 
 fn compute_min_max_val(
-    u64_reader: &impl FastFieldReader<u64>,
+    u64_reader: &impl Column<u64>,
     segment_reader: &SegmentReader,
 ) -> Option<(u64, u64)> {
     if segment_reader.max_doc() == 0 {
@@ -102,11 +101,11 @@ fn compute_min_max_val(
     }
     // some deleted documents,
     // we need to recompute the max / min
-    minmax(
-        segment_reader
-            .doc_ids_alive()
-            .map(|doc_id| u64_reader.get(doc_id)),
-    )
+    segment_reader
+        .doc_ids_alive()
+        .map(|doc_id| u64_reader.get_val(doc_id as u64))
+        .minmax()
+        .into_option()
 }
 
 struct TermOrdinalMapping {
@@ -376,13 +375,13 @@ impl IndexMerger {
             fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
             stats: FastFieldStats,
         }
-        impl<'a> FastFieldDataAccess for SortedDocIdFieldAccessProvider<'a> {
+        impl<'a> Column for SortedDocIdFieldAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
                 let DocAddress {
                     doc_id,
                     segment_ord,
                 } = self.doc_id_mapping.get_old_doc_addr(doc as u32);
-                self.fast_field_readers[segment_ord as usize].get(doc_id)
+                self.fast_field_readers[segment_ord as usize].get_val(doc_id as u64)
             }
 
             fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
@@ -392,7 +391,7 @@ impl IndexMerger {
                         .map(|old_doc_addr| {
                             let fast_field_reader =
                                 &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                            fast_field_reader.get(old_doc_addr.doc_id)
+                            fast_field_reader.get_val(old_doc_addr.doc_id as u64)
                         }),
                 )
             }
@@ -429,7 +428,7 @@ impl IndexMerger {
 
         let everything_is_in_order = reader_ordinal_and_field_accessors
             .into_iter()
-            .map(|reader| reader.1)
+            .map(|(_, col)| Arc::new(col))
             .tuple_windows()
             .all(|(field_accessor1, field_accessor2)| {
                 if sort_by_field.order.is_asc() {
@@ -444,7 +443,7 @@ impl IndexMerger {
     pub(crate) fn get_sort_field_accessor(
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<impl FastFieldReader<u64>> {
+    ) -> crate::Result<impl Column> {
         let field_id = expect_field_id_for_sort_field(reader.schema(), sort_by_field)?; // for now expect fastfield, but not strictly required
         let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
         Ok(value_accessor)
@@ -453,7 +452,7 @@ impl IndexMerger {
     pub(crate) fn get_reader_with_sort_field_accessor(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Vec<(SegmentOrdinal, impl FastFieldReader<u64> + Clone)>> {
+    ) -> crate::Result<Vec<(SegmentOrdinal, impl Column)>> {
         let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
@@ -506,8 +505,8 @@ impl IndexMerger {
             doc_id_reader_pair
                 .into_iter()
                 .kmerge_by(|a, b| {
-                    let val1 = a.2.get(a.0);
-                    let val2 = b.2.get(b.0);
+                    let val1 = a.2.get_val(a.0 as u64);
+                    let val2 = b.2.get_val(b.0 as u64);
                     if sort_by_field.order == Order::Asc {
                         val1 < val2
                     } else {
@@ -578,7 +577,7 @@ impl IndexMerger {
             offsets: &'a [u64],
             stats: FastFieldStats,
         }
-        impl<'a> FastFieldDataAccess for FieldIndexAccessProvider<'a> {
+        impl<'a> Column for FieldIndexAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
                 self.offsets[doc as usize]
             }
@@ -778,7 +777,7 @@ impl IndexMerger {
             offsets: Vec<u64>,
             stats: FastFieldStats,
         }
-        impl<'a> FastFieldDataAccess for SortedDocIdMultiValueAccessProvider<'a> {
+        impl<'a> Column for SortedDocIdMultiValueAccessProvider<'a> {
             fn get_val(&self, pos: u64) -> u64 {
                 // use the offsets index to find the doc_id which will contain the position.
                 // the offsets are strictly increasing so we can do a simple search on it.
@@ -1200,6 +1199,7 @@ impl IndexMerger {
 #[cfg(test)]
 mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
+    use fastfield_codecs::Column;
     use schema::FAST;
 
     use crate::collector::tests::{
@@ -1207,7 +1207,6 @@ mod tests {
     };
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
-    use crate::fastfield::FastFieldReader;
     use crate::query::{AllQuery, BooleanQuery, Scorer, TermQuery};
     use crate::schema::{
         Cardinality, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,

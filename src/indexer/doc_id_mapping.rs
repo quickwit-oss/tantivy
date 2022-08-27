@@ -143,8 +143,9 @@ pub(crate) fn get_doc_id_mapping_from_field(
 
 #[cfg(test)]
 mod tests_indexsorting {
+    use fastfield_codecs::Column;
+
     use crate::collector::TopDocs;
-    use crate::fastfield::FastFieldReader;
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::query::QueryParser;
     use crate::schema::{Schema, *};
@@ -464,9 +465,9 @@ mod tests_indexsorting {
         let my_number = index.schema().get_field("my_number").unwrap();
 
         let fast_field = fast_fields.u64(my_number).unwrap();
-        assert_eq!(fast_field.get(0u32), 10u64);
-        assert_eq!(fast_field.get(1u32), 20u64);
-        assert_eq!(fast_field.get(2u32), 30u64);
+        assert_eq!(fast_field.get_val(0), 10u64);
+        assert_eq!(fast_field.get_val(1), 20u64);
+        assert_eq!(fast_field.get_val(2), 30u64);
 
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
         let multifield = fast_fields.u64s(multi_numbers).unwrap();
