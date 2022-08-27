@@ -12,12 +12,21 @@ pub mod bitpacked;
 pub mod blockwise_linear;
 pub mod linear;
 
-pub trait FastFieldCodecReader: Sized {
-    /// reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>;
-    fn get_u64(&self, doc: u64) -> u64;
+pub trait FastFieldCodecDeserializer: Sized {
+    /// Reads the metadata and returns the CodecReader
+    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>
+    where Self: FastFieldDataAccess;
+}
+
+pub trait FastFieldDataAccess {
+    fn get_val(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
+    fn num_vals(&self) -> u64;
+    /// Returns a iterator over the data
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u64> + 'a> {
+        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -85,31 +94,6 @@ pub trait FastFieldCodecSerializer {
     ) -> io::Result<()>;
 }
 
-/// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
-pub trait FastFieldDataAccess {
-    /// Return the value associated to the given position.
-    ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
-    /// reasons.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `position` is greater than the index.
-    fn get_val(&self, position: u64) -> u64;
-
-    /// Returns a iterator over the data
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_>;
-
-    /// min value of the data
-    fn min_value(&self) -> u64;
-
-    /// max value of the data
-    fn max_value(&self) -> u64;
-
-    /// num vals
-    fn num_vals(&self) -> u64;
-}
-
 #[derive(Debug, Clone)]
 /// Statistics are used in codec detection and stored in the fast field footer.
 pub struct FastFieldStats {
@@ -169,7 +153,10 @@ mod tests {
     use crate::blockwise_linear::{BlockwiseLinearReader, BlockwiseLinearSerializer};
     use crate::linear::{LinearReader, LinearSerializer};
 
-    pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
+    pub fn create_and_validate<
+        S: FastFieldCodecSerializer,
+        R: FastFieldCodecDeserializer + FastFieldDataAccess,
+    >(
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
@@ -183,8 +170,9 @@ mod tests {
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
         let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
+        assert_eq!(reader.num_vals(), data.len() as u64);
         for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64);
+            let val = reader.get_val(doc as u64);
             if val != *orig_val {
                 panic!(
                     "val {val:?} does not match orig_val {orig_val:?}, in data set {name}, data \
@@ -228,7 +216,10 @@ mod tests {
         data_and_names
     }
 
-    fn test_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader>() {
+    fn test_codec<
+        S: FastFieldCodecSerializer,
+        R: FastFieldDataAccess + FastFieldCodecDeserializer,
+    >() {
         let codec_name = format!("{:?}", S::CODEC_TYPE);
         for (data, dataset_name) in get_codec_test_data_sets() {
             let (estimate, actual) = crate::tests::create_and_validate::<S, R>(&data, dataset_name);

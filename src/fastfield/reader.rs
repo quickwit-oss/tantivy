@@ -6,7 +6,7 @@ use common::BinarySerializable;
 use fastfield_codecs::bitpacked::BitpackedReader;
 use fastfield_codecs::blockwise_linear::BlockwiseLinearReader;
 use fastfield_codecs::linear::LinearReader;
-use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecType};
+use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecType, FastFieldDataAccess};
 
 use super::{FastValue, GCDFastFieldCodec};
 use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
@@ -199,7 +199,9 @@ pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item, C> {
+impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer>
+    FastFieldReaderCodecWrapper<Item, C>
+{
     /// Opens a fast field given a file.
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
@@ -226,7 +228,7 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
 
     #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        let data = self.reader.get_u64(doc);
+        let data = self.reader.get_val(doc);
         Item::from_u64(data)
     }
 
@@ -249,8 +251,8 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
     }
 }
 
-impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
-    for FastFieldReaderCodecWrapper<Item, C>
+impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer + Clone>
+    FastFieldReader<Item> for FastFieldReaderCodecWrapper<Item, C>
 {
     /// Return the value associated to the given document.
     ///

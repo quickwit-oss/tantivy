@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
+use fastfield_codecs::FastFieldDataAccess;
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
-use super::{FastFieldDataAccess, FastFieldType, FastValue};
+use super::{FastFieldType, FastValue};
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
