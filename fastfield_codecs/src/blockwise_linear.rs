@@ -18,7 +18,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
-use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
+use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -146,7 +146,7 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldDataAccess for BlockwiseLinearReader {
+impl Column for BlockwiseLinearReader {
     #[inline]
     fn get_val(&self, idx: u64) -> u64 {
         let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
@@ -195,10 +195,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     }
 
     /// Creates a new fast field serializer.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
-    ) -> io::Result<()> {
+    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
         assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
 
         let first_val = fastfield_accessor.get_val(0);
@@ -292,7 +289,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
+    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE {
             return None;
         }

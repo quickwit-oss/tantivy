@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 
+use fastfield_codecs::Column;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::f64_from_fastfield_u64;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
 use crate::DocId;
 
@@ -60,10 +61,10 @@ impl SegmentAverageCollector {
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val1 = field.get(docs[0]);
-            let val2 = field.get(docs[1]);
-            let val3 = field.get(docs[2]);
-            let val4 = field.get(docs[3]);
+            let val1 = field.get_val(docs[0] as u64);
+            let val2 = field.get_val(docs[1] as u64);
+            let val3 = field.get_val(docs[2] as u64);
+            let val4 = field.get_val(docs[3] as u64);
             let val1 = f64_from_fastfield_u64(val1, &self.field_type);
             let val2 = f64_from_fastfield_u64(val2, &self.field_type);
             let val3 = f64_from_fastfield_u64(val3, &self.field_type);
@@ -73,8 +74,8 @@ impl SegmentAverageCollector {
             self.data.collect(val3);
             self.data.collect(val4);
         }
-        for doc in iter.remainder() {
-            let val = field.get(*doc);
+        for &doc in iter.remainder() {
+            let val = field.get_val(doc as u64);
             let val = f64_from_fastfield_u64(val, &self.field_type);
             self.data.collect(val);
         }

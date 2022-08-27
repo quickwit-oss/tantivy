@@ -7,10 +7,11 @@
 // Of course, you can have a look at the tantivy's built-in collectors
 // such as the `CountCollector` for more examples.
 
+use fastfield_codecs::Column;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
-use tantivy::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use tantivy::fastfield::DynamicFastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, Score, SegmentReader};
@@ -103,7 +104,7 @@ impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
     fn collect(&mut self, doc: u32, _score: Score) {
-        let value = self.fast_field_reader.get(doc) as f64;
+        let value = self.fast_field_reader.get_val(doc as u64) as f64;
         self.stats.count += 1;
         self.stats.sum += value;
         self.stats.squared_sum += value * value;

@@ -2,6 +2,8 @@ use std::collections::BinaryHeap;
 use std::fmt;
 use std::marker::PhantomData;
 
+use fastfield_codecs::Column;
+
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
@@ -9,7 +11,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::{DynamicFastFieldReader, FastValue};
 use crate::query::Weight;
 use crate::schema::Field;
 use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
@@ -134,7 +136,7 @@ struct ScorerByFastFieldReader {
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
     fn score(&mut self, doc: DocId) -> u64 {
-        self.ff_reader.get(doc)
+        self.ff_reader.get_val(doc as u64)
     }
 }
 
