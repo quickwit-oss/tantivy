@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::blockwise_linear::BlockwiseLinearSerializer;
-use fastfield_codecs::linear::LinearSerializer;
-use fastfield_codecs::{FastFieldCodecSerializer, FastFieldCodecType, FastFieldStats};
+use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
+use fastfield_codecs::linear::LinearCodec;
+use fastfield_codecs::{FastFieldCodec, FastFieldCodecType, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -13,11 +13,11 @@ fn main() {
 
     for (data, data_set_name) in get_codec_test_data_sets() {
         let mut results = vec![];
-        let res = serialize_with_codec::<LinearSerializer>(&data);
+        let res = serialize_with_codec::<LinearCodec>(&data);
         results.push(res);
-        let res = serialize_with_codec::<BlockwiseLinearSerializer>(&data);
+        let res = serialize_with_codec::<BlockwiseLinearCodec>(&data);
         results.push(res);
-        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedSerializer>(&data);
+        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedCodec>(&data);
         results.push(res);
 
         // let best_estimation_codec = results
@@ -89,19 +89,19 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data_and_names
 }
 
-pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
+pub fn serialize_with_codec<C: FastFieldCodec>(
     data: &[u64],
 ) -> (bool, f32, f32, FastFieldCodecType) {
-    let is_applicable = S::is_applicable(&data);
+    let is_applicable = C::is_applicable(&data);
     if !is_applicable {
-        return (false, 0.0, 0.0, S::CODEC_TYPE);
+        return (false, 0.0, 0.0, C::CODEC_TYPE);
     }
-    let estimation = S::estimate(&data);
+    let estimation = C::estimate(&data);
     let mut out = vec![];
-    S::serialize(&mut out, &data).unwrap();
+    C::serialize(&mut out, &data).unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-    (true, estimation, actual_compression, S::CODEC_TYPE)
+    (true, estimation, actual_compression, C::CODEC_TYPE)
 }
 
 pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {

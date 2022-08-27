@@ -3,15 +3,16 @@ use std::marker::PhantomData;
 use std::path::Path;
 
 use common::BinarySerializable;
-use fastfield_codecs::bitpacked::BitpackedReader;
-use fastfield_codecs::blockwise_linear::BlockwiseLinearReader;
-use fastfield_codecs::linear::LinearReader;
-use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldCodecType, FastFieldDataAccess};
+use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedReader};
+use fastfield_codecs::blockwise_linear::{BlockwiseLinearCodec, BlockwiseLinearReader};
+use fastfield_codecs::linear::{LinearCodec, LinearReader};
+use fastfield_codecs::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
 
-use super::{FastValue, GCDFastFieldCodec};
+use super::gcd::open_gcd_from_bytes;
+use super::FastValue;
 use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
 use crate::error::DataCorruption;
-use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
+use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter, GCDReader};
 use crate::schema::{Schema, FAST};
 use crate::DocId;
 
@@ -68,11 +69,11 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     BlockwiseLinear(FastFieldReaderCodecWrapper<Item, BlockwiseLinearReader>),
 
     /// GCD and Bitpacked compressed fastfield data.
-    BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BitpackedReader>>),
+    BitpackedGCD(FastFieldReaderCodecWrapper<Item, GCDReader<BitpackedReader>>),
     /// GCD and Linear interpolated values + bitpacked
-    LinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<LinearReader>>),
+    LinearGCD(FastFieldReaderCodecWrapper<Item, GCDReader<LinearReader>>),
     /// GCD and Blockwise linear interpolated values + bitpacked
-    BlockwiseLinearGCD(FastFieldReaderCodecWrapper<Item, GCDFastFieldCodec<BlockwiseLinearReader>>),
+    BlockwiseLinearGCD(FastFieldReaderCodecWrapper<Item, GCDReader<BlockwiseLinearReader>>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
@@ -83,46 +84,27 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
     ) -> crate::Result<DynamicFastFieldReader<Item>> {
         let reader = match codec_type {
             FastFieldCodecType::Bitpacked => {
-                DynamicFastFieldReader::Bitpacked(FastFieldReaderCodecWrapper::<
-                    Item,
-                    BitpackedReader,
-                >::open_from_bytes(bytes)?)
+                DynamicFastFieldReader::Bitpacked(BitpackedCodec::open_from_bytes(bytes)?.into())
             }
-            FastFieldCodecType::Linear => DynamicFastFieldReader::Linear(
-                FastFieldReaderCodecWrapper::<Item, LinearReader>::open_from_bytes(bytes)?,
+            FastFieldCodecType::Linear => {
+                DynamicFastFieldReader::Linear(LinearCodec::open_from_bytes(bytes)?.into())
+            }
+            FastFieldCodecType::BlockwiseLinear => DynamicFastFieldReader::BlockwiseLinear(
+                BlockwiseLinearCodec::open_from_bytes(bytes)?.into(),
             ),
-            FastFieldCodecType::BlockwiseLinear => {
-                DynamicFastFieldReader::BlockwiseLinear(FastFieldReaderCodecWrapper::<
-                    Item,
-                    BlockwiseLinearReader,
-                >::open_from_bytes(bytes)?)
-            }
             FastFieldCodecType::Gcd => {
                 let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
                 match codec_type {
-                    FastFieldCodecType::Bitpacked => {
-                        DynamicFastFieldReader::BitpackedGCD(FastFieldReaderCodecWrapper::<
-                            Item,
-                            GCDFastFieldCodec<BitpackedReader>,
-                        >::open_from_bytes(
-                            bytes
-                        )?)
-                    }
-                    FastFieldCodecType::Linear => {
-                        DynamicFastFieldReader::LinearGCD(FastFieldReaderCodecWrapper::<
-                            Item,
-                            GCDFastFieldCodec<LinearReader>,
-                        >::open_from_bytes(
-                            bytes
-                        )?)
-                    }
+                    FastFieldCodecType::Bitpacked => DynamicFastFieldReader::BitpackedGCD(
+                        open_gcd_from_bytes::<BitpackedCodec>(bytes)?.into(),
+                    ),
+                    FastFieldCodecType::Linear => DynamicFastFieldReader::LinearGCD(
+                        open_gcd_from_bytes::<LinearCodec>(bytes)?.into(),
+                    ),
                     FastFieldCodecType::BlockwiseLinear => {
-                        DynamicFastFieldReader::BlockwiseLinearGCD(FastFieldReaderCodecWrapper::<
-                            Item,
-                            GCDFastFieldCodec<BlockwiseLinearReader>,
-                        >::open_from_bytes(
-                            bytes
-                        )?)
+                        DynamicFastFieldReader::BlockwiseLinearGCD(
+                            open_gcd_from_bytes::<BlockwiseLinearCodec>(bytes)?.into(),
+                        )
                     }
                     FastFieldCodecType::Gcd => {
                         return Err(DataCorruption::comment_only(
@@ -199,33 +181,18 @@ pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer>
-    FastFieldReaderCodecWrapper<Item, C>
+impl<Item: FastValue, CodecReader> From<CodecReader>
+    for FastFieldReaderCodecWrapper<Item, CodecReader>
 {
-    /// Opens a fast field given a file.
-    pub fn open(file: FileSlice) -> crate::Result<Self> {
-        let mut bytes = file.read_bytes()?;
-        let codec_code = bytes.read_u8();
-        let codec_type = FastFieldCodecType::from_code(codec_code).ok_or_else(|| {
-            DataCorruption::comment_only("Unknown codec code does not exist `{codec_code}`")
-        })?;
-        assert_eq!(
-            FastFieldCodecType::Bitpacked,
-            codec_type,
-            "Tried to open fast field as bitpacked encoded (id=1), but got serializer with \
-             different id"
-        );
-        Self::open_from_bytes(bytes)
-    }
-    /// Opens a fast field given the bytes.
-    pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
-        let reader = C::open_from_bytes(bytes)?;
-        Ok(FastFieldReaderCodecWrapper {
+    fn from(reader: CodecReader) -> Self {
+        FastFieldReaderCodecWrapper {
             reader,
             _phantom: PhantomData,
-        })
+        }
     }
+}
 
+impl<Item: FastValue, D: FastFieldDataAccess> FastFieldReaderCodecWrapper<Item, D> {
     #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
         let data = self.reader.get_val(doc);
@@ -251,8 +218,8 @@ impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer>
     }
 }
 
-impl<Item: FastValue, C: FastFieldDataAccess + FastFieldCodecDeserializer + Clone>
-    FastFieldReader<Item> for FastFieldReaderCodecWrapper<Item, C>
+impl<Item: FastValue, C: FastFieldDataAccess + Clone> FastFieldReader<Item>
+    for FastFieldReaderCodecWrapper<Item, C>
 {
     /// Return the value associated to the given document.
     ///

@@ -26,7 +26,7 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub(crate) use self::gcd::{find_gcd, GCDFastFieldCodec, GCD_DEFAULT};
+pub(crate) use self::gcd::{find_gcd, GCDReader, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;

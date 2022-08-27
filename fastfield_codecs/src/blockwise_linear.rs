@@ -18,9 +18,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
-use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
-};
+use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -148,17 +146,6 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecDeserializer for BlockwiseLinearReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-        let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
-        Ok(BlockwiseLinearReader { data, footer })
-    }
-}
-
 impl FastFieldDataAccess for BlockwiseLinearReader {
     #[inline]
     fn get_val(&self, idx: u64) -> u64 {
@@ -191,10 +178,22 @@ impl FastFieldDataAccess for BlockwiseLinearReader {
 }
 
 /// Same as LinearSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct BlockwiseLinearSerializer {}
+pub struct BlockwiseLinearCodec;
 
-impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
+impl FastFieldCodec for BlockwiseLinearCodec {
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinear;
+
+    type Reader = BlockwiseLinearReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
+        Ok(BlockwiseLinearReader { data, footer })
+    }
+
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -369,9 +368,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<BlockwiseLinearSerializer, BlockwiseLinearReader>(
-            data, name,
-        )
+        crate::tests::create_and_validate::<BlockwiseLinearCodec, BlockwiseLinearReader>(data, name)
     }
 
     const HIGHEST_BIT: u64 = 1 << 63;
