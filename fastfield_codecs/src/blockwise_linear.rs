@@ -18,9 +18,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
-use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
-};
+use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -148,17 +146,6 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecDeserializer for BlockwiseLinearReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-        let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
-        Ok(BlockwiseLinearReader { data, footer })
-    }
-}
-
 impl FastFieldDataAccess for BlockwiseLinearReader {
     #[inline]
     fn get_val(&self, idx: u64) -> u64 {
@@ -191,10 +178,22 @@ impl FastFieldDataAccess for BlockwiseLinearReader {
 }
 
 /// Same as LinearSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct BlockwiseLinearSerializer {}
+pub struct BlockwiseLinearCodec;
 
-impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
+impl FastFieldCodec for BlockwiseLinearCodec {
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinear;
+
+    type Reader = BlockwiseLinearReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
+        Ok(BlockwiseLinearReader { data, footer })
+    }
+
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -290,10 +289,14 @@ impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
         Ok(())
     }
 
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
-        if fastfield_accessor.num_vals() < 5_000 {
-            return false;
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima are for the deviation of the calculated value and
+    /// the offset is also unknown.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
+        if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE {
+            return None;
         }
+
         // On serialization the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
@@ -305,14 +308,9 @@ impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
-            return false;
+            return None;
         }
-        true
-    }
-    /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima are for the deviation of the calculated value and
-    /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+
         let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());
         let last_val_in_first_block =
@@ -351,7 +349,7 @@ impl FastFieldCodecSerializer for BlockwiseLinearSerializer {
             // function metadata per block
             + 29 * (fastfield_accessor.num_vals() / CHUNK_SIZE);
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
-        num_bits as f32 / num_bits_uncompressed as f32
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
@@ -366,12 +364,10 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
-    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<BlockwiseLinearSerializer, BlockwiseLinearReader>(
-            data, name,
-        )
+    fn create_and_validate(data: &[u64], name: &str) -> Option<(f32, f32)> {
+        crate::tests::create_and_validate::<BlockwiseLinearCodec>(data, name)
     }
 
     const HIGHEST_BIT: u64 = 1 << 63;
@@ -385,7 +381,7 @@ mod tests {
             .map(i64_to_u64)
             .collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large i64");
+            create_and_validate(&data, "simple monotonically large i64").unwrap();
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
@@ -396,7 +392,7 @@ mod tests {
     fn test_compression() {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large");
+            create_and_validate(&data, "simple monotonically large").unwrap();
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
@@ -405,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();

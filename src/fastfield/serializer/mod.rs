@@ -3,11 +3,11 @@ use std::num::NonZeroU64;
 
 use common::{BinarySerializable, CountingWriter};
 use fastdivide::DividerU64;
-pub use fastfield_codecs::bitpacked::{BitpackedSerializer, BitpackedSerializerLegacy};
-use fastfield_codecs::blockwise_linear::BlockwiseLinearSerializer;
-use fastfield_codecs::linear::LinearSerializer;
+pub use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedSerializerLegacy};
+use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
+use fastfield_codecs::linear::LinearCodec;
 use fastfield_codecs::FastFieldCodecType;
-pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+pub use fastfield_codecs::{FastFieldCodec, FastFieldDataAccess, FastFieldStats};
 
 use super::{find_gcd, ALL_CODECS, GCD_DEFAULT};
 use crate::directory::{CompositeWrite, WritePtr};
@@ -64,15 +64,13 @@ impl From<FastFieldCodecType> for FastFieldCodecEnableCheck {
 
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
-fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
-    fastfield_accessor: &A,
+fn codec_estimation<C: FastFieldCodec>(
+    fastfield_accessor: &impl FastFieldDataAccess,
     estimations: &mut Vec<(f32, FastFieldCodecType)>,
 ) {
-    if !T::is_applicable(fastfield_accessor) {
-        return;
+    if let Some(ratio) = C::estimate(fastfield_accessor) {
+        estimations.push((ratio, C::CODEC_TYPE));
     }
-    let ratio = T::estimate(fastfield_accessor);
-    estimations.push((ratio, T::CODEC_TYPE));
 }
 
 impl CompositeFastFieldSerializer {
@@ -204,13 +202,13 @@ impl CompositeFastFieldSerializer {
         let mut estimations = vec![];
 
         if codec_enable_checker.is_enabled(FastFieldCodecType::Bitpacked) {
-            codec_estimation::<BitpackedSerializer, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BitpackedCodec>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::Linear) {
-            codec_estimation::<LinearSerializer, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<LinearCodec>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinear) {
-            codec_estimation::<BlockwiseLinearSerializer, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BlockwiseLinearCodec>(&fastfield_accessor, &mut estimations);
         }
         if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {
@@ -229,13 +227,13 @@ impl CompositeFastFieldSerializer {
         Self::write_header(field_write, codec_type)?;
         match codec_type {
             FastFieldCodecType::Bitpacked => {
-                BitpackedSerializer::serialize(field_write, &fastfield_accessor)?;
+                BitpackedCodec::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::Linear => {
-                LinearSerializer::serialize(field_write, &fastfield_accessor)?;
+                LinearCodec::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::BlockwiseLinear => {
-                BlockwiseLinearSerializer::serialize(field_write, &fastfield_accessor)?;
+                BlockwiseLinearCodec::serialize(field_write, &fastfield_accessor)?;
             }
             FastFieldCodecType::Gcd => {
                 return Err(io::Error::new(

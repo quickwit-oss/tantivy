@@ -12,12 +12,6 @@ pub mod bitpacked;
 pub mod blockwise_linear;
 pub mod linear;
 
-pub trait FastFieldCodecDeserializer: Sized {
-    /// Reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self>
-    where Self: FastFieldDataAccess;
-}
-
 pub trait FastFieldDataAccess {
     fn get_val(&self, doc: u64) -> u64;
     fn min_value(&self) -> u64;
@@ -69,20 +63,15 @@ impl FastFieldCodecType {
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodecSerializer {
+pub trait FastFieldCodec {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
 
-    /// Check if the Codec is able to compress the data
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool;
+    type Reader: FastFieldDataAccess;
 
-    /// Returns an estimate of the compression ratio.
-    /// The baseline is uncompressed 64bit data.
-    ///
-    /// It could make sense to also return a value representing
-    /// computational complexity.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32;
+    /// Reads the metadata and returns the CodecReader
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
 
     /// Serializes the data using the serializer into write.
     ///
@@ -92,6 +81,15 @@ pub trait FastFieldCodecSerializer {
         write: &mut impl Write,
         fastfield_accessor: &dyn FastFieldDataAccess,
     ) -> io::Result<()>;
+
+    /// Returns an estimate of the compression ratio.
+    /// If the codec is not applicable, returns `None`.
+    ///
+    /// The baseline is uncompressed 64bit data.
+    ///
+    /// It could make sense to also return a value representing
+    /// computational complexity.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32>;
 }
 
 #[derive(Debug, Clone)]
@@ -149,61 +147,55 @@ mod tests {
     use proptest::arbitrary::any;
     use proptest::proptest;
 
-    use crate::bitpacked::{BitpackedReader, BitpackedSerializer};
-    use crate::blockwise_linear::{BlockwiseLinearReader, BlockwiseLinearSerializer};
-    use crate::linear::{LinearReader, LinearSerializer};
+    use crate::bitpacked::BitpackedCodec;
+    use crate::blockwise_linear::BlockwiseLinearCodec;
+    use crate::linear::LinearCodec;
 
-    pub fn create_and_validate<
-        S: FastFieldCodecSerializer,
-        R: FastFieldCodecDeserializer + FastFieldDataAccess,
-    >(
+    pub fn create_and_validate<Codec: FastFieldCodec>(
         data: &[u64],
         name: &str,
-    ) -> (f32, f32) {
-        if !S::is_applicable(&data) {
-            return (f32::MAX, 0.0);
-        }
-        let estimation = S::estimate(&data);
+    ) -> Option<(f32, f32)> {
+        let estimation = Codec::estimate(&data)?;
+
         let mut out: Vec<u8> = Vec::new();
-        S::serialize(&mut out, &data).unwrap();
+        Codec::serialize(&mut out, &data).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
-        let reader = R::open_from_bytes(OwnedBytes::new(out)).unwrap();
+        let reader = Codec::open_from_bytes(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u64);
-        for (doc, orig_val) in data.iter().enumerate() {
+        for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u64);
-            if val != *orig_val {
-                panic!(
-                    "val {val:?} does not match orig_val {orig_val:?}, in data set {name}, data \
-                     {data:?}",
-                );
-            }
+            assert_eq!(
+                val, orig_val,
+                "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
+                 `{data:?}`",
+            );
         }
-        (estimation, actual_compression)
+        Some((estimation, actual_compression))
     }
 
     proptest! {
         #[test]
         fn test_proptest_small(data in proptest::collection::vec(any::<u64>(), 1..10)) {
-            create_and_validate::<LinearSerializer, LinearReader>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearSerializer, BlockwiseLinearReader>(&data, "proptest multilinearinterpol");
-            create_and_validate::<BitpackedSerializer, BitpackedReader>(&data, "proptest bitpacked");
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
         }
 
         #[test]
         fn test_proptest_large(data in proptest::collection::vec(any::<u64>(), 1..6000)) {
-            create_and_validate::<LinearSerializer, LinearReader>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearSerializer, BlockwiseLinearReader>(&data, "proptest multilinearinterpol");
-            create_and_validate::<BitpackedSerializer, BitpackedReader>(&data, "proptest bitpacked");
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
         }
 
     }
 
-    pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
+    pub fn get_codec_test_datasets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
-        let data = (10..=20_u64).collect::<Vec<_>>();
+        let data = (10..=10_000_u64).collect::<Vec<_>>();
         data_and_names.push((data, "simple monotonically increasing"));
 
         data_and_names.push((
@@ -216,32 +208,30 @@ mod tests {
         data_and_names
     }
 
-    fn test_codec<
-        S: FastFieldCodecSerializer,
-        R: FastFieldDataAccess + FastFieldCodecDeserializer,
-    >() {
-        let codec_name = format!("{:?}", S::CODEC_TYPE);
-        for (data, dataset_name) in get_codec_test_data_sets() {
-            let (estimate, actual) = crate::tests::create_and_validate::<S, R>(&data, dataset_name);
-            let result = if estimate == f32::MAX {
-                "Disabled".to_string()
-            } else {
+    fn test_codec<C: FastFieldCodec>() {
+        let codec_name = format!("{:?}", C::CODEC_TYPE);
+        for (data, dataset_name) in get_codec_test_datasets() {
+            let estimate_actual_opt: Option<(f32, f32)> =
+                crate::tests::create_and_validate::<C>(&data, dataset_name);
+            let result = if let Some((estimate, actual)) = estimate_actual_opt {
                 format!("Estimate `{estimate}` Actual `{actual}`")
+            } else {
+                "Disabled".to_string()
             };
             println!("Codec {codec_name}, DataSet {dataset_name}, {result}");
         }
     }
     #[test]
     fn test_codec_bitpacking() {
-        test_codec::<BitpackedSerializer, BitpackedReader>();
+        test_codec::<BitpackedCodec>();
     }
     #[test]
     fn test_codec_interpolation() {
-        test_codec::<LinearSerializer, LinearReader>();
+        test_codec::<LinearCodec>();
     }
     #[test]
     fn test_codec_multi_interpolation() {
-        test_codec::<BlockwiseLinearSerializer, BlockwiseLinearReader>();
+        test_codec::<BlockwiseLinearCodec>();
     }
 
     use super::*;
@@ -250,37 +240,37 @@ mod tests {
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
 
-        let linear_interpol_estimation = LinearSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
 
-        let multi_linear_interpol_estimation = BlockwiseLinearSerializer::estimate(&data);
+        let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
-        let bitpacked_estimation = BitpackedSerializer::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
         let data = vec![200, 10, 10, 10, 10, 1000, 20];
 
-        let linear_interpol_estimation = LinearSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.32);
 
-        let bitpacked_estimation = BitpackedSerializer::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
-        let mut data = (200..=20000_u64).collect::<Vec<_>>();
+        let mut data: Vec<u64> = (200..=20000_u64).collect();
         data.push(1_000_000);
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
-        let linear_interpol_estimation = LinearSerializer::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.35);
 
-        let bitpacked_estimation = BitpackedSerializer::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }

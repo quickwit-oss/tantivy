@@ -1,8 +1,9 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::blockwise_linear::BlockwiseLinearSerializer;
-use fastfield_codecs::linear::LinearSerializer;
-use fastfield_codecs::{FastFieldCodecSerializer, FastFieldCodecType, FastFieldStats};
+use fastfield_codecs::bitpacked::BitpackedCodec;
+use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
+use fastfield_codecs::linear::LinearCodec;
+use fastfield_codecs::{FastFieldCodec, FastFieldCodecType, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -12,37 +13,30 @@ fn main() {
     table.add_row(row!["", "Compression Ratio", "Compression Estimation"]);
 
     for (data, data_set_name) in get_codec_test_data_sets() {
-        let mut results = vec![];
-        let res = serialize_with_codec::<LinearSerializer>(&data);
-        results.push(res);
-        let res = serialize_with_codec::<BlockwiseLinearSerializer>(&data);
-        results.push(res);
-        let res = serialize_with_codec::<fastfield_codecs::bitpacked::BitpackedSerializer>(&data);
-        results.push(res);
-
-        // let best_estimation_codec = results
-        //.iter()
-        //.min_by(|res1, res2| res1.partial_cmp(&res2).unwrap())
-        //.unwrap();
+        let results: Vec<(f32, f32, FastFieldCodecType)> = [
+            serialize_with_codec::<LinearCodec>(&data),
+            serialize_with_codec::<BlockwiseLinearCodec>(&data),
+            serialize_with_codec::<BlockwiseLinearCodec>(&data),
+            serialize_with_codec::<BitpackedCodec>(&data),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         let best_compression_ratio_codec = results
             .iter()
-            .min_by(|res1, res2| res1.partial_cmp(res2).unwrap())
+            .min_by(|&res1, &res2| res1.partial_cmp(res2).unwrap())
             .cloned()
             .unwrap();
 
         table.add_row(Row::new(vec![Cell::new(data_set_name).style_spec("Bbb")]));
-        for (is_applicable, est, comp, codec_type) in results {
-            let (est_cell, ratio_cell) = if !is_applicable {
-                ("Codec Disabled".to_string(), "".to_string())
-            } else {
-                (est.to_string(), comp.to_string())
-            };
+        for (est, comp, codec_type) in results {
+            let est_cell = est.to_string();
+            let ratio_cell = comp.to_string();
             let style = if comp == best_compression_ratio_codec.1 {
                 "Fb"
             } else {
                 ""
             };
-
             table.add_row(Row::new(vec![
                 Cell::new(&format!("{codec_type:?}")).style_spec("bFg"),
                 Cell::new(&ratio_cell).style_spec(style),
@@ -89,19 +83,14 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data_and_names
 }
 
-pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
+pub fn serialize_with_codec<C: FastFieldCodec>(
     data: &[u64],
-) -> (bool, f32, f32, FastFieldCodecType) {
-    let is_applicable = S::is_applicable(&data);
-    if !is_applicable {
-        return (false, 0.0, 0.0, S::CODEC_TYPE);
-    }
-    let estimation = S::estimate(&data);
-    let mut out = vec![];
-    S::serialize(&mut out, &data).unwrap();
-
+) -> Option<(f32, f32, FastFieldCodecType)> {
+    let estimation = C::estimate(&data)?;
+    let mut out = Vec::new();
+    C::serialize(&mut out, &data).unwrap();
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-    (true, estimation, actual_compression, S::CODEC_TYPE)
+    Some((estimation, actual_compression, C::CODEC_TYPE))
 }
 
 pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {

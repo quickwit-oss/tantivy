@@ -4,9 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
-};
+use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -14,31 +12,11 @@ use crate::{
 pub struct BitpackedReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
-    pub min_value_u64: u64,
-    pub max_value_u64: u64,
-    pub num_vals: u64,
+    min_value_u64: u64,
+    max_value_u64: u64,
+    num_vals: u64,
 }
 
-impl FastFieldCodecDeserializer for BitpackedReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - 24;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let min_value = u64::deserialize(&mut footer)?;
-        let amplitude = u64::deserialize(&mut footer)?;
-        let num_vals = u64::deserialize(&mut footer)?;
-        let max_value = min_value + amplitude;
-        let num_bits = compute_num_bits(amplitude);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(BitpackedReader {
-            data,
-            bit_unpacker,
-            min_value_u64: min_value,
-            max_value_u64: max_value,
-            num_vals,
-        })
-    }
-}
 impl FastFieldDataAccess for BitpackedReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
@@ -111,11 +89,32 @@ impl<'a, W: Write> BitpackedSerializerLegacy<'a, W> {
     }
 }
 
-pub struct BitpackedSerializer {}
+pub struct BitpackedCodec;
 
-impl FastFieldCodecSerializer for BitpackedSerializer {
+impl FastFieldCodec for BitpackedCodec {
     /// The CODEC_TYPE is an enum value used for serialization.
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::Bitpacked;
+
+    type Reader = BitpackedReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_offset = bytes.len() - 24;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let min_value = u64::deserialize(&mut footer)?;
+        let amplitude = u64::deserialize(&mut footer)?;
+        let num_vals = u64::deserialize(&mut footer)?;
+        let max_value = min_value + amplitude;
+        let num_bits = compute_num_bits(amplitude);
+        let bit_unpacker = BitUnpacker::new(num_bits);
+        Ok(BitpackedReader {
+            data,
+            bit_unpacker,
+            min_value_u64: min_value,
+            max_value_u64: max_value,
+            num_vals,
+        })
+    }
 
     /// Serializes data with the BitpackedFastFieldSerializer.
     ///
@@ -142,29 +141,27 @@ impl FastFieldCodecSerializer for BitpackedSerializer {
 
         Ok(())
     }
-    fn is_applicable(_fastfield_accessor: &impl FastFieldDataAccess) -> bool {
-        true
-    }
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
         let amplitude = fastfield_accessor.max_value() - fastfield_accessor.min_value();
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
-        num_bits as f32 / num_bits_uncompressed as f32
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
     fn create_and_validate(data: &[u64], name: &str) {
-        crate::tests::create_and_validate::<BitpackedSerializer, BitpackedReader>(data, name);
+        crate::tests::create_and_validate::<BitpackedCodec>(data, name);
     }
 
     #[test]
     fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();
