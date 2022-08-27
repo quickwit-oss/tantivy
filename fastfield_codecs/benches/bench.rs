@@ -4,9 +4,9 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use fastfield_codecs::bitpacked::{BitpackedReader, BitpackedSerializer};
-    use fastfield_codecs::blockwise_linear::{BlockwiseLinearReader, BlockwiseLinearSerializer};
-    use fastfield_codecs::linear::{LinearReader, LinearSerializer};
+    use fastfield_codecs::bitpacked::BitpackedCodec;
+    use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
+    use fastfield_codecs::linear::LinearCodec;
     use fastfield_codecs::*;
 
     fn get_data() -> Vec<u64> {
@@ -25,16 +25,10 @@ mod tests {
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn bench_get<
-        S: FastFieldCodecSerializer,
-        R: FastFieldCodecDeserializer + FastFieldDataAccess,
-    >(
-        b: &mut Bencher,
-        data: &[u64],
-    ) {
+    fn bench_get<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
-        S::serialize(&mut bytes, &data).unwrap();
-        let reader = R::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
+        Codec::serialize(&mut bytes, &data).unwrap();
+        let reader = Codec::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
@@ -45,7 +39,7 @@ mod tests {
             sum
         });
     }
-    fn bench_create<S: FastFieldCodecSerializer>(b: &mut Bencher, data: &[u64]) {
+    fn bench_create<S: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
         b.iter(|| {
             S::serialize(&mut bytes, &data).unwrap();
@@ -57,32 +51,32 @@ mod tests {
     #[bench]
     fn bench_fastfield_bitpack_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<BitpackedSerializer>(b, &data);
+        bench_create::<BitpackedCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_linearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<LinearSerializer>(b, &data);
+        bench_create::<LinearCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_create::<BlockwiseLinearSerializer>(b, &data);
+        bench_create::<BlockwiseLinearCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_bitpack_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<BitpackedSerializer, BitpackedReader>(b, &data);
+        bench_get::<BitpackedCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_linearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<LinearSerializer, LinearReader>(b, &data);
+        bench_get::<LinearCodec>(b, &data);
     }
     #[bench]
     fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<BlockwiseLinearSerializer, BlockwiseLinearReader>(b, &data);
+        bench_get::<BlockwiseLinearCodec>(b, &data);
     }
     pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
         let min_value = data.iter().cloned().min().unwrap_or(0);
