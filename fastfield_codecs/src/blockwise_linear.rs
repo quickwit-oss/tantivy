@@ -19,8 +19,7 @@ use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::linear::{get_calculated_value, get_slope};
 use crate::{
-    blockwise_linear, FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType,
-    FastFieldDataAccess,
+    FastFieldCodecReader, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
 };
 
 const CHUNK_SIZE: u64 = 512;

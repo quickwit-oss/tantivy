@@ -147,7 +147,7 @@ mod tests {
             let val = (i as i64 - 5) * 1000i64;
             docs.push(doc!(*FIELDI64=>val));
         }
-        let directory = get_index(&docs, &SCHEMAI64, code_type.clone().into())?;
+        let directory = get_index(&docs, &SCHEMAI64, code_type.into())?;
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
@@ -173,8 +173,8 @@ mod tests {
 
     #[test]
     fn test_fastfield_gcd_i64() -> crate::Result<()> {
-        for code_type in ALL_CODECS {
-            test_fastfield_gcd_i64_with_codec(code_type.clone(), 5005)?;
+        for &code_type in ALL_CODECS {
+            test_fastfield_gcd_i64_with_codec(code_type, 5005)?;
         }
         Ok(())
     }
@@ -189,7 +189,7 @@ mod tests {
             let val = i as u64 * 1000u64;
             docs.push(doc!(*FIELD=>val));
         }
-        let directory = get_index(&docs, &SCHEMA, code_type.clone().into())?;
+        let directory = get_index(&docs, &SCHEMA, code_type.into())?;
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
@@ -214,8 +214,8 @@ mod tests {
 
     #[test]
     fn test_fastfield_gcd_u64() -> crate::Result<()> {
-        for code_type in ALL_CODECS {
-            test_fastfield_gcd_u64_with_codec(code_type.clone(), 5005)?;
+        for &code_type in ALL_CODECS {
+            test_fastfield_gcd_u64_with_codec(code_type, 5005)?;
         }
         Ok(())
     }
