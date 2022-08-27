@@ -141,21 +141,19 @@ impl FastFieldCodec for BitpackedCodec {
 
         Ok(())
     }
-    fn is_applicable(_fastfield_accessor: &impl FastFieldDataAccess) -> bool {
-        true
-    }
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
         let amplitude = fastfield_accessor.max_value() - fastfield_accessor.min_value();
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
-        num_bits as f32 / num_bits_uncompressed as f32
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
     fn create_and_validate(data: &[u64], name: &str) {
         crate::tests::create_and_validate::<BitpackedCodec>(data, name);
@@ -163,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();

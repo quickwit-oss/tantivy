@@ -192,10 +192,15 @@ impl FastFieldCodec for LinearCodec {
         footer.serialize(write)?;
         Ok(())
     }
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
+
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima for the deviation of the calculated value are and
+    /// the offset to shift all values to >=0 is also unknown.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
         if fastfield_accessor.num_vals() < 3 {
-            return false; // disable compressor for this case
+            return None; // disable compressor for this case
         }
+
         // On serialisation the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
@@ -207,14 +212,9 @@ impl FastFieldCodec for LinearCodec {
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
-            return false;
+            return None;
         }
-        true
-    }
-    /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima for the deviation of the calculated value are and
-    /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+
         let first_val = fastfield_accessor.get_val(0);
         let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
         let slope = get_slope(first_val, last_val, fastfield_accessor.num_vals());
@@ -246,7 +246,7 @@ impl FastFieldCodec for LinearCodec {
             * fastfield_accessor.num_vals()
             + LinearFooter::SIZE_IN_BYTES as u64;
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
-        num_bits as f32 / num_bits_uncompressed as f32
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
@@ -262,10 +262,10 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
-    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<LinearCodec, LinearReader>(data, name)
+    fn create_and_validate(data: &[u64], name: &str) -> Option<(f32, f32)> {
+        crate::tests::create_and_validate::<LinearCodec>(data, name)
     }
 
     #[test]
@@ -292,15 +292,15 @@ mod tests {
     fn test_compression() {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large");
+            create_and_validate(&data, "simple monotonically large").unwrap();
 
         assert!(actual_compression < 0.01);
         assert!(estimate < 0.01);
     }
 
     #[test]
-    fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+    fn test_with_codec_datasets() {
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();
@@ -337,9 +337,10 @@ mod tests {
     #[test]
     fn linear_interpol_fast_field_rand() {
         for _ in 0..5000 {
-            let mut data = (0..50).map(|_| rand::random::<u64>()).collect::<Vec<_>>();
+            let mut data = (0..10_000)
+                .map(|_| rand::random::<u64>())
+                .collect::<Vec<_>>();
             create_and_validate(&data, "random");
-
             data.reverse();
             create_and_validate(&data, "random");
         }

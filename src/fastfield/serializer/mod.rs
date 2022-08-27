@@ -68,11 +68,9 @@ fn codec_estimation<C: FastFieldCodec>(
     fastfield_accessor: &impl FastFieldDataAccess,
     estimations: &mut Vec<(f32, FastFieldCodecType)>,
 ) {
-    if !C::is_applicable(fastfield_accessor) {
-        return;
+    if let Some(ratio) = C::estimate(fastfield_accessor) {
+        estimations.push((ratio, C::CODEC_TYPE));
     }
-    let ratio = C::estimate(fastfield_accessor);
-    estimations.push((ratio, C::CODEC_TYPE));
 }
 
 impl CompositeFastFieldSerializer {

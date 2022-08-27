@@ -289,10 +289,14 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         Ok(())
     }
 
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool {
-        if fastfield_accessor.num_vals() < 5_000 {
-            return false;
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima are for the deviation of the calculated value and
+    /// the offset is also unknown.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
+        if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE {
+            return None;
         }
+
         // On serialization the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
         // For this we take the maximum theroretical offset and add this to the max value.
@@ -304,14 +308,9 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
-            return false;
+            return None;
         }
-        true
-    }
-    /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima are for the deviation of the calculated value and
-    /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32 {
+
         let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());
         let last_val_in_first_block =
@@ -350,7 +349,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             // function metadata per block
             + 29 * (fastfield_accessor.num_vals() / CHUNK_SIZE);
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
-        num_bits as f32 / num_bits_uncompressed as f32
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
@@ -365,10 +364,10 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
-    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<BlockwiseLinearCodec, BlockwiseLinearReader>(data, name)
+    fn create_and_validate(data: &[u64], name: &str) -> Option<(f32, f32)> {
+        crate::tests::create_and_validate::<BlockwiseLinearCodec>(data, name)
     }
 
     const HIGHEST_BIT: u64 = 1 << 63;
@@ -382,7 +381,7 @@ mod tests {
             .map(i64_to_u64)
             .collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large i64");
+            create_and_validate(&data, "simple monotonically large i64").unwrap();
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
@@ -393,7 +392,7 @@ mod tests {
     fn test_compression() {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large");
+            create_and_validate(&data, "simple monotonically large").unwrap();
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
@@ -402,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();

@@ -82,15 +82,14 @@ pub trait FastFieldCodec {
         fastfield_accessor: &dyn FastFieldDataAccess,
     ) -> io::Result<()>;
 
-    /// Check if the Codec is able to compress the data
-    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess) -> bool;
-
     /// Returns an estimate of the compression ratio.
+    /// If the codec is not applicable, returns `None`.
+    ///
     /// The baseline is uncompressed 64bit data.
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> f32;
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32>;
 }
 
 #[derive(Debug, Clone)]
@@ -152,11 +151,12 @@ mod tests {
     use crate::blockwise_linear::BlockwiseLinearCodec;
     use crate::linear::LinearCodec;
 
-    pub fn create_and_validate<Codec: FastFieldCodec>(data: &[u64], name: &str) -> (f32, f32) {
-        if !Codec::is_applicable(&data) {
-            return (f32::MAX, 0.0);
-        }
-        let estimation = Codec::estimate(&data);
+    pub fn create_and_validate<Codec: FastFieldCodec>(
+        data: &[u64],
+        name: &str,
+    ) -> Option<(f32, f32)> {
+        let estimation = Codec::estimate(&data)?;
+
         let mut out: Vec<u8> = Vec::new();
         Codec::serialize(&mut out, &data).unwrap();
 
@@ -164,16 +164,15 @@ mod tests {
 
         let reader = Codec::open_from_bytes(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u64);
-        for (doc, orig_val) in data.iter().enumerate() {
+        for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u64);
-            if val != *orig_val {
-                panic!(
-                    "val {val:?} does not match orig_val {orig_val:?}, in data set {name}, data \
-                     {data:?}",
-                );
-            }
+            assert_eq!(
+                val, orig_val,
+                "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
+                 `{data:?}`",
+            );
         }
-        (estimation, actual_compression)
+        Some((estimation, actual_compression))
     }
 
     proptest! {
@@ -193,10 +192,10 @@ mod tests {
 
     }
 
-    pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
+    pub fn get_codec_test_datasets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
-        let data = (10..=20_u64).collect::<Vec<_>>();
+        let data = (10..=10_000_u64).collect::<Vec<_>>();
         data_and_names.push((data, "simple monotonically increasing"));
 
         data_and_names.push((
@@ -211,12 +210,13 @@ mod tests {
 
     fn test_codec<C: FastFieldCodec>() {
         let codec_name = format!("{:?}", C::CODEC_TYPE);
-        for (data, dataset_name) in get_codec_test_data_sets() {
-            let (estimate, actual) = crate::tests::create_and_validate::<C>(&data, dataset_name);
-            let result = if estimate == f32::MAX {
-                "Disabled".to_string()
-            } else {
+        for (data, dataset_name) in get_codec_test_datasets() {
+            let estimate_actual_opt: Option<(f32, f32)> =
+                crate::tests::create_and_validate::<C>(&data, dataset_name);
+            let result = if let Some((estimate, actual)) = estimate_actual_opt {
                 format!("Estimate `{estimate}` Actual `{actual}`")
+            } else {
+                "Disabled".to_string()
             };
             println!("Codec {codec_name}, DataSet {dataset_name}, {result}");
         }
@@ -240,37 +240,37 @@ mod tests {
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
 
-        let linear_interpol_estimation = LinearCodec::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
 
-        let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data);
+        let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
         let data = vec![200, 10, 10, 10, 10, 1000, 20];
 
-        let linear_interpol_estimation = LinearCodec::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.32);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
-        let mut data = (200..=20000_u64).collect::<Vec<_>>();
+        let mut data: Vec<u64> = (200..=20000_u64).collect();
         data.push(1_000_000);
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
-        let linear_interpol_estimation = LinearCodec::estimate(&data);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.35);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data);
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
