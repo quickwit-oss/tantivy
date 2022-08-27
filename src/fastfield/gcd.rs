@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_fastfield_gcd_i64() -> crate::Result<()> {
         for &code_type in ALL_CODECS {
-            test_fastfield_gcd_i64_with_codec(code_type, 5005)?;
+            test_fastfield_gcd_i64_with_codec(code_type, 5500)?;
         }
         Ok(())
     }
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_fastfield_gcd_u64() -> crate::Result<()> {
         for &code_type in ALL_CODECS {
-            test_fastfield_gcd_u64_with_codec(code_type, 5005)?;
+            test_fastfield_gcd_u64_with_codec(code_type, 5500)?;
         }
         Ok(())
     }
