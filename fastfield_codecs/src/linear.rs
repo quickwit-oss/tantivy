@@ -5,9 +5,7 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{
-    FastFieldCodecDeserializer, FastFieldCodecSerializer, FastFieldCodecType, FastFieldDataAccess,
-};
+use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -59,24 +57,6 @@ impl FixedSize for LinearFooter {
     const SIZE_IN_BYTES: usize = 56;
 }
 
-impl FastFieldCodecDeserializer for LinearReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self> {
-        let footer_offset = bytes.len() - LinearFooter::SIZE_IN_BYTES;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = LinearFooter::deserialize(&mut footer)?;
-        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
-        let num_bits = compute_num_bits(footer.relative_max_value);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(LinearReader {
-            data,
-            bit_unpacker,
-            footer,
-            slope,
-        })
-    }
-}
-
 impl FastFieldDataAccess for LinearReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
@@ -100,7 +80,7 @@ impl FastFieldDataAccess for LinearReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
-pub struct LinearSerializer {}
+pub struct LinearCodec;
 
 #[inline]
 pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
@@ -141,8 +121,26 @@ pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     }
 }
 
-impl FastFieldCodecSerializer for LinearSerializer {
+impl FastFieldCodec for LinearCodec {
     const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::Linear;
+
+    type Reader = LinearReader;
+
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_offset = bytes.len() - LinearFooter::SIZE_IN_BYTES;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = LinearFooter::deserialize(&mut footer)?;
+        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
+        let num_bits = compute_num_bits(footer.relative_max_value);
+        let bit_unpacker = BitUnpacker::new(num_bits);
+        Ok(LinearReader {
+            data,
+            bit_unpacker,
+            footer,
+            slope,
+        })
+    }
 
     /// Creates a new fast field serializer.
     fn serialize(
@@ -267,7 +265,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<LinearSerializer, LinearReader>(data, name)
+        crate::tests::create_and_validate::<LinearCodec, LinearReader>(data, name)
     }
 
     #[test]

@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::{FastFieldCodecDeserializer, FastFieldDataAccess};
+use fastfield_codecs::{FastFieldCodec, FastFieldDataAccess};
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
@@ -12,50 +12,70 @@ pub const GCD_DEFAULT: u64 = 1;
 ///
 /// Holds the data and the codec to the read the data.
 #[derive(Clone)]
-pub struct GCDFastFieldCodec<CodecReader> {
-    gcd: u64,
-    min_value: u64,
-    num_vals: u64,
+pub struct GCDReader<CodecReader: FastFieldDataAccess> {
+    gcd_params: GCDParams,
     reader: CodecReader,
 }
 
-impl<C: FastFieldDataAccess + FastFieldCodecDeserializer + Clone> FastFieldCodecDeserializer
-    for GCDFastFieldCodec<C>
-{
-    fn open_from_bytes(bytes: OwnedBytes) -> std::io::Result<Self> {
-        let footer_offset = bytes.len() - 24;
-        let (body, mut footer) = bytes.split(footer_offset);
-        let gcd = u64::deserialize(&mut footer)?;
-        let min_value = u64::deserialize(&mut footer)?;
-        let num_vals = u64::deserialize(&mut footer)?;
-        let reader = C::open_from_bytes(body)?;
-        Ok(GCDFastFieldCodec {
+#[derive(Debug, Clone, Copy)]
+struct GCDParams {
+    gcd: u64,
+    min_value: u64,
+    num_vals: u64,
+}
+
+impl GCDParams {
+    pub fn eval(&self, val: u64) -> u64 {
+        self.min_value + self.gcd * val
+    }
+}
+
+impl BinarySerializable for GCDParams {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.gcd.serialize(writer)?;
+        self.min_value.serialize(writer)?;
+        self.num_vals.serialize(writer)?;
+        Ok(())
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let gcd: u64 = u64::deserialize(reader)?;
+        let min_value: u64 = u64::deserialize(reader)?;
+        let num_vals: u64 = u64::deserialize(reader)?;
+        Ok(Self {
             gcd,
             min_value,
             num_vals,
-            reader,
         })
     }
 }
 
-impl<C: FastFieldDataAccess + Clone> FastFieldDataAccess for GCDFastFieldCodec<C> {
+pub fn open_gcd_from_bytes<WrappedCodec: FastFieldCodec>(
+    bytes: OwnedBytes,
+) -> io::Result<GCDReader<WrappedCodec::Reader>> {
+    let footer_offset = bytes.len() - 24;
+    let (body, mut footer) = bytes.split(footer_offset);
+    let gcd_params = GCDParams::deserialize(&mut footer)?;
+    let reader: WrappedCodec::Reader = WrappedCodec::open_from_bytes(body)?;
+    Ok(GCDReader { gcd_params, reader })
+}
+
+impl<C: FastFieldDataAccess + Clone> FastFieldDataAccess for GCDReader<C> {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
-        let mut data = self.reader.get_val(doc);
-        data *= self.gcd;
-        data += self.min_value;
-        data
+        let val = self.reader.get_val(doc);
+        self.gcd_params.eval(val)
     }
 
     fn min_value(&self) -> u64 {
-        self.min_value + self.reader.min_value() * self.gcd
+        self.gcd_params.eval(self.reader.min_value())
     }
 
     fn max_value(&self) -> u64 {
-        self.min_value + self.reader.max_value() * self.gcd
+        self.gcd_params.eval(self.reader.max_value())
     }
     fn num_vals(&self) -> u64 {
-        self.num_vals
+        self.gcd_params.num_vals
     }
 }
 
