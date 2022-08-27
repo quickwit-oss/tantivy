@@ -64,8 +64,8 @@ impl From<FastFieldCodecType> for FastFieldCodecEnableCheck {
 
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
-fn codec_estimation<C: FastFieldCodec, D: Column>(
-    fastfield_accessor: &D,
+fn codec_estimation<C: FastFieldCodec>(
+    fastfield_accessor: &impl Column,
     estimations: &mut Vec<(f32, FastFieldCodecType)>,
 ) {
     if let Some(ratio) = C::estimate(fastfield_accessor) {
@@ -202,13 +202,13 @@ impl CompositeFastFieldSerializer {
         let mut estimations = vec![];
 
         if codec_enable_checker.is_enabled(FastFieldCodecType::Bitpacked) {
-            codec_estimation::<BitpackedCodec, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BitpackedCodec>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::Linear) {
-            codec_estimation::<LinearCodec, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<LinearCodec>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinear) {
-            codec_estimation::<BlockwiseLinearCodec, _>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BlockwiseLinearCodec>(&fastfield_accessor, &mut estimations);
         }
         if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {

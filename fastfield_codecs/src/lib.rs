@@ -92,6 +92,7 @@ pub struct FastFieldStats {
 
 struct VecColum<'a>(&'a [u64]);
 impl<'a> Column for VecColum<'a> {
+
     fn get_val(&self, position: u64) -> u64 {
         self.0[position as usize]
     }
