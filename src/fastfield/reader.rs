@@ -6,7 +6,7 @@ use common::BinarySerializable;
 use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedReader};
 use fastfield_codecs::blockwise_linear::{BlockwiseLinearCodec, BlockwiseLinearReader};
 use fastfield_codecs::linear::{LinearCodec, LinearReader};
-use fastfield_codecs::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
+use fastfield_codecs::{Column, FastFieldCodec, FastFieldCodecType};
 
 use super::gcd::open_gcd_from_bytes;
 use super::FastValue;
@@ -14,48 +14,6 @@ use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirec
 use crate::error::DataCorruption;
 use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter, GCDReader};
 use crate::schema::{Schema, FAST};
-use crate::DocId;
-
-/// FastFieldReader is the trait to access fast field data.
-pub trait FastFieldReader<Item: FastValue>: Clone {
-    /// Return the value associated to the given document.
-    ///
-    /// This accessor should return as fast as possible.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `doc` is greater than the segment
-    fn get(&self, doc: DocId) -> Item;
-
-    /// Fills an output buffer with the fast field values
-    /// associated with the `DocId` going from
-    /// `start` to `start + output.len()`.
-    ///
-    /// Regardless of the type of `Item`, this method works
-    /// - transmuting the output array
-    /// - extracting the `Item`s as if they were `u64`
-    /// - possibly converting the `u64` value to the right type.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `start + output.len()` is greater than
-    /// the segment's `maxdoc`.
-    fn get_range(&self, start: u64, output: &mut [Item]);
-
-    /// Returns the minimum value for this fast field.
-    ///
-    /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound
-    /// of the actual minimum value.
-    fn min_value(&self) -> Item;
-
-    /// Returns the maximum value for this fast field.
-    ///
-    /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound
-    /// of the actual maximum value.
-    fn max_value(&self) -> Item;
-}
 
 #[derive(Clone)]
 /// DynamicFastFieldReader wraps different readers to access
@@ -127,16 +85,16 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
     }
 }
 
-impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
+impl<Item: FastValue> Column<Item> for DynamicFastFieldReader<Item> {
     #[inline]
-    fn get(&self, doc: DocId) -> Item {
+    fn get_val(&self, idx: u64) -> Item {
         match self {
-            Self::Bitpacked(reader) => reader.get(doc),
-            Self::Linear(reader) => reader.get(doc),
-            Self::BlockwiseLinear(reader) => reader.get(doc),
-            Self::BitpackedGCD(reader) => reader.get(doc),
-            Self::LinearGCD(reader) => reader.get(doc),
-            Self::BlockwiseLinearGCD(reader) => reader.get(doc),
+            Self::Bitpacked(reader) => reader.get_val(idx),
+            Self::Linear(reader) => reader.get_val(idx),
+            Self::BlockwiseLinear(reader) => reader.get_val(idx),
+            Self::BitpackedGCD(reader) => reader.get_val(idx),
+            Self::LinearGCD(reader) => reader.get_val(idx),
+            Self::BlockwiseLinearGCD(reader) => reader.get_val(idx),
         }
     }
     #[inline]
@@ -170,6 +128,17 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::BlockwiseLinearGCD(reader) => reader.max_value(),
         }
     }
+
+    fn num_vals(&self) -> u64 {
+        match self {
+            Self::Bitpacked(reader) => reader.num_vals(),
+            Self::Linear(reader) => reader.num_vals(),
+            Self::BlockwiseLinear(reader) => reader.num_vals(),
+            Self::BitpackedGCD(reader) => reader.num_vals(),
+            Self::LinearGCD(reader) => reader.num_vals(),
+            Self::BlockwiseLinearGCD(reader) => reader.num_vals(),
+        }
+    }
 }
 
 /// Wrapper for accessing a fastfield.
@@ -192,10 +161,10 @@ impl<Item: FastValue, CodecReader> From<CodecReader>
     }
 }
 
-impl<Item: FastValue, D: FastFieldDataAccess> FastFieldReaderCodecWrapper<Item, D> {
+impl<Item: FastValue, D: Column> FastFieldReaderCodecWrapper<Item, D> {
     #[inline]
-    pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        let data = self.reader.get_val(doc);
+    pub(crate) fn get_u64(&self, idx: u64) -> Item {
+        let data = self.reader.get_val(idx);
         Item::from_u64(data)
     }
 
@@ -218,9 +187,7 @@ impl<Item: FastValue, D: FastFieldDataAccess> FastFieldReaderCodecWrapper<Item, 
     }
 }
 
-impl<Item: FastValue, C: FastFieldDataAccess + Clone> FastFieldReader<Item>
-    for FastFieldReaderCodecWrapper<Item, C>
-{
+impl<Item: FastValue, C: Column + Clone> Column<Item> for FastFieldReaderCodecWrapper<Item, C> {
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.
@@ -229,8 +196,8 @@ impl<Item: FastValue, C: FastFieldDataAccess + Clone> FastFieldReader<Item>
     ///
     /// May panic if `doc` is greater than the segment
     // `maxdoc`.
-    fn get(&self, doc: DocId) -> Item {
-        self.get_u64(u64::from(doc))
+    fn get_val(&self, idx: u64) -> Item {
+        self.get_u64(idx)
     }
 
     /// Fills an output buffer with the fast field values
@@ -266,6 +233,10 @@ impl<Item: FastValue, C: FastFieldDataAccess + Clone> FastFieldReader<Item>
     /// of the actual maximum value.
     fn max_value(&self) -> Item {
         Item::from_u64(self.reader.max_value())
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.reader.num_vals()
     }
 }
 

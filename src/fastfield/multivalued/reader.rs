@@ -1,6 +1,8 @@
 use std::ops::Range;
 
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength};
+use fastfield_codecs::Column;
+
+use crate::fastfield::{DynamicFastFieldReader, FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -31,8 +33,9 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     /// to the given document are `start..end`.
     #[inline]
     fn range(&self, doc: DocId) -> Range<u64> {
-        let start = self.idx_reader.get(doc);
-        let end = self.idx_reader.get(doc + 1);
+        let idx = doc as u64;
+        let start = self.idx_reader.get_val(idx);
+        let end = self.idx_reader.get_val(idx + 1);
         start..end
     }
 

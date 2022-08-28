@@ -421,6 +421,7 @@ pub struct DocAddress {
 #[cfg(test)]
 pub mod tests {
     use common::{BinarySerializable, FixedSize};
+    use fastfield_codecs::Column;
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
@@ -429,7 +430,6 @@ pub mod tests {
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::FastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::*;
@@ -1036,21 +1036,21 @@ pub mod tests {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
             assert!(fast_field_reader_opt.is_ok());
             let fast_field_reader = fast_field_reader_opt.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4u64)
+            assert_eq!(fast_field_reader.get_val(0), 4u64)
         }
 
         {
             let fast_field_reader_res = segment_reader.fast_fields().i64(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4i64)
+            assert_eq!(fast_field_reader.get_val(0), 4i64)
         }
 
         {
             let fast_field_reader_res = segment_reader.fast_fields().f64(fast_field_float);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4f64)
+            assert_eq!(fast_field_reader.get_val(0), 4f64)
         }
         Ok(())
     }

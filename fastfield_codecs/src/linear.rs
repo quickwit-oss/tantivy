@@ -5,7 +5,7 @@ use common::{BinarySerializable, FixedSize};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
+use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -57,7 +57,7 @@ impl FixedSize for LinearFooter {
     const SIZE_IN_BYTES: usize = 56;
 }
 
-impl FastFieldDataAccess for LinearReader {
+impl Column for LinearReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
@@ -143,10 +143,7 @@ impl FastFieldCodec for LinearCodec {
     }
 
     /// Creates a new fast field serializer.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
-    ) -> io::Result<()> {
+    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
         assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
 
         let first_val = fastfield_accessor.get_val(0);
@@ -196,7 +193,7 @@ impl FastFieldCodec for LinearCodec {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
+    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 3 {
             return None; // disable compressor for this case
         }

@@ -777,6 +777,7 @@ impl Drop for IndexWriter {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
+    use fastfield_codecs::Column;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -785,7 +786,6 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
-    use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
@@ -1327,7 +1327,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64(id_field)?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get(doc))
+            .map(|doc| fast_field_reader.get_val(doc as u64))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
@@ -1493,7 +1493,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get(doc))
+                    .map(move |doc| ff_reader.get_val(doc as u64))
             })
             .collect();
 
@@ -1504,7 +1504,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get(doc))
+                    .map(move |doc| ff_reader.get_val(doc as u64))
             })
             .collect();
 
@@ -1622,7 +1622,7 @@ mod tests {
                 facet_reader
                     .facet_from_ord(facet_ords[0], &mut facet)
                     .unwrap();
-                let id = ff_reader.get(doc_id);
+                let id = ff_reader.get_val(doc_id as u64);
                 let facet_expected = Facet::from(&("/cola/".to_string() + &id.to_string()));
 
                 assert_eq!(facet, facet_expected);

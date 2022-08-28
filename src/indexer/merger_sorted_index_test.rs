@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use fastfield_codecs::Column;
+
     use crate::collector::TopDocs;
     use crate::core::Index;
-    use crate::fastfield::{AliveBitSet, FastFieldReader, MultiValuedFastFieldReader};
+    use crate::fastfield::{AliveBitSet, MultiValuedFastFieldReader};
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
@@ -186,17 +188,17 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get(5u32), 1u64);
-        assert_eq!(fast_field.get(4u32), 2u64);
-        assert_eq!(fast_field.get(3u32), 3u64);
+        assert_eq!(fast_field.get_val(5), 1u64);
+        assert_eq!(fast_field.get_val(4), 2u64);
+        assert_eq!(fast_field.get_val(3), 3u64);
         if force_disjunct_segment_sort_values {
-            assert_eq!(fast_field.get(2u32), 20u64);
-            assert_eq!(fast_field.get(1u32), 100u64);
+            assert_eq!(fast_field.get_val(2u64), 20u64);
+            assert_eq!(fast_field.get_val(1u64), 100u64);
         } else {
-            assert_eq!(fast_field.get(2u32), 10u64);
-            assert_eq!(fast_field.get(1u32), 20u64);
+            assert_eq!(fast_field.get_val(2u64), 10u64);
+            assert_eq!(fast_field.get_val(1u64), 20u64);
         }
-        assert_eq!(fast_field.get(0u32), 1_000u64);
+        assert_eq!(fast_field.get_val(0u64), 1_000u64);
 
         // test new field norm mapping
         {
@@ -373,12 +375,12 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get(0u32), 1u64);
-        assert_eq!(fast_field.get(1u32), 2u64);
-        assert_eq!(fast_field.get(2u32), 3u64);
-        assert_eq!(fast_field.get(3u32), 10u64);
-        assert_eq!(fast_field.get(4u32), 20u64);
-        assert_eq!(fast_field.get(5u32), 1_000u64);
+        assert_eq!(fast_field.get_val(0), 1u64);
+        assert_eq!(fast_field.get_val(1), 2u64);
+        assert_eq!(fast_field.get_val(2), 3u64);
+        assert_eq!(fast_field.get_val(3), 10u64);
+        assert_eq!(fast_field.get_val(4), 20u64);
+        assert_eq!(fast_field.get_val(5), 1_000u64);
 
         let get_vals = |fast_field: &MultiValuedFastFieldReader<u64>, doc_id: u32| -> Vec<u64> {
             let mut vals = vec![];
@@ -478,11 +480,11 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
+    use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use crate::core::Index;
-    // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
-    use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+    use crate::fastfield::DynamicFastFieldReader;
     use crate::indexer::merger::IndexMerger;
     use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
@@ -544,7 +546,7 @@ mod bench_sorted_index_merge {
             // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get(doc_id);
+                val = field_reader.get_val(doc_id as u64);
             }
 
             val

@@ -7,7 +7,7 @@ pub use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedSerializerLegacy}
 use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
 use fastfield_codecs::linear::LinearCodec;
 use fastfield_codecs::FastFieldCodecType;
-pub use fastfield_codecs::{FastFieldCodec, FastFieldDataAccess, FastFieldStats};
+pub use fastfield_codecs::{Column, FastFieldCodec, FastFieldStats};
 
 use super::{find_gcd, ALL_CODECS, GCD_DEFAULT};
 use crate::directory::{CompositeWrite, WritePtr};
@@ -64,8 +64,8 @@ impl From<FastFieldCodecType> for FastFieldCodecEnableCheck {
 
 // use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
 // https://github.com/rust-lang/rust/pull/86176
-fn codec_estimation<C: FastFieldCodec>(
-    fastfield_accessor: &impl FastFieldDataAccess,
+fn codec_estimation<C: FastFieldCodec, D: Column>(
+    fastfield_accessor: &D,
     estimations: &mut Vec<(f32, FastFieldCodecType)>,
 ) {
     if let Some(ratio) = C::estimate(fastfield_accessor) {
@@ -97,7 +97,7 @@ impl CompositeFastFieldSerializer {
     pub fn create_auto_detect_u64_fast_field(
         &mut self,
         field: Field,
-        fastfield_accessor: impl FastFieldDataAccess,
+        fastfield_accessor: impl Column,
     ) -> io::Result<()> {
         self.create_auto_detect_u64_fast_field_with_idx(field, fastfield_accessor, 0)
     }
@@ -117,7 +117,7 @@ impl CompositeFastFieldSerializer {
     pub fn create_auto_detect_u64_fast_field_with_idx(
         &mut self,
         field: Field,
-        fastfield_accessor: impl FastFieldDataAccess,
+        fastfield_accessor: impl Column,
         idx: usize,
     ) -> io::Result<()> {
         let min_value = fastfield_accessor.min_value();
@@ -136,7 +136,7 @@ impl CompositeFastFieldSerializer {
         }
 
         Self::write_header(field_write, FastFieldCodecType::Gcd)?;
-        struct GCDWrappedFFAccess<T: FastFieldDataAccess> {
+        struct GCDWrappedFFAccess<T: Column> {
             fastfield_accessor: T,
             base_value: u64,
             max_value: u64,
@@ -144,7 +144,7 @@ impl CompositeFastFieldSerializer {
             gcd: DividerU64,
         }
 
-        impl<T: FastFieldDataAccess> FastFieldDataAccess for GCDWrappedFFAccess<T> {
+        impl<T: Column> Column for GCDWrappedFFAccess<T> {
             fn get_val(&self, position: u64) -> u64 {
                 self.gcd
                     .divide(self.fastfield_accessor.get_val(position) - self.base_value)
@@ -197,18 +197,18 @@ impl CompositeFastFieldSerializer {
         codec_enable_checker: FastFieldCodecEnableCheck,
         field: Field,
         field_write: &mut CountingWriter<W>,
-        fastfield_accessor: impl FastFieldDataAccess,
+        fastfield_accessor: impl Column,
     ) -> io::Result<()> {
         let mut estimations = vec![];
 
         if codec_enable_checker.is_enabled(FastFieldCodecType::Bitpacked) {
-            codec_estimation::<BitpackedCodec>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BitpackedCodec, _>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::Linear) {
-            codec_estimation::<LinearCodec>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<LinearCodec, _>(&fastfield_accessor, &mut estimations);
         }
         if codec_enable_checker.is_enabled(FastFieldCodecType::BlockwiseLinear) {
-            codec_estimation::<BlockwiseLinearCodec>(&fastfield_accessor, &mut estimations);
+            codec_estimation::<BlockwiseLinearCodec, _>(&fastfield_accessor, &mut estimations);
         }
         if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {

@@ -2,8 +2,8 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock, Weak};
 
+use fastfield_codecs::Column;
 use tantivy::collector::TopDocs;
-use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, FAST, TEXT};
 use tantivy::{
@@ -52,7 +52,7 @@ impl Warmer for DynamicPriceColumn {
             let product_id_reader = segment.fast_fields().u64(self.field)?;
             let product_ids: Vec<ProductId> = segment
                 .doc_ids_alive()
-                .map(|doc| product_id_reader.get(doc))
+                .map(|doc| product_id_reader.get_val(doc as u64))
                 .collect();
             let mut prices_it = self.price_fetcher.fetch_prices(&product_ids).into_iter();
             let mut price_vals: Vec<Price> = Vec::new();

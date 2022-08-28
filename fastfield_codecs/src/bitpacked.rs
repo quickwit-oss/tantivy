@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodec, FastFieldCodecType, FastFieldDataAccess};
+use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -17,7 +17,7 @@ pub struct BitpackedReader {
     num_vals: u64,
 }
 
-impl FastFieldDataAccess for BitpackedReader {
+impl Column for BitpackedReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &self.data)
@@ -124,10 +124,7 @@ impl FastFieldCodec for BitpackedCodec {
     /// It requires a `min_value` and a `max_value` to compute
     /// compute the minimum number of bits required to encode
     /// values.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
-    ) -> io::Result<()> {
+    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
         let mut serializer = BitpackedSerializerLegacy::open(
             write,
             fastfield_accessor.min_value(),
@@ -142,7 +139,7 @@ impl FastFieldCodec for BitpackedCodec {
         Ok(())
     }
 
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess) -> Option<f32> {
+    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         let amplitude = fastfield_accessor.max_value() - fastfield_accessor.min_value();
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;

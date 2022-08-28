@@ -1,7 +1,9 @@
+use fastfield_codecs::Column;
+
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
+use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader};
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
@@ -197,7 +199,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let val = self.reader.get(doc);
+        let val = self.reader.get_val(doc as u64);
         self.vals.push(val);
     }
 
