@@ -409,7 +409,7 @@ impl TopDocs {
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
-    /// use tantivy::fastfield::FastFieldReader;
+    /// use tantivy::fastfield::Column;
     /// use tantivy::schema::Field;
     ///
     /// fn create_schema() -> Schema {
@@ -458,7 +458,7 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
-    ///                 let popularity: u64 = popularity_reader.get(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
     ///                 let popularity_boost_score = ((2u64 + popularity) as Score).log2();
@@ -517,7 +517,7 @@ impl TopDocs {
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::Field;
-    /// use tantivy::fastfield::FastFieldReader;
+    /// use fastfield_codecs::Column;
     ///
     /// # fn create_schema() -> Schema {
     /// #    let mut schema_builder = Schema::builder();
@@ -569,8 +569,8 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {
-    ///                 let popularity: u64 = popularity_reader.get(doc);
-    ///                 let boosted: u64 = boosted_reader.get(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
+    ///                 let boosted: u64 = boosted_reader.get_val(doc as u64);
     ///                 // Score do not have to be `f64` in tantivy.
     ///                 // Here we return a couple to get lexicographical order
     ///                 // for free.
