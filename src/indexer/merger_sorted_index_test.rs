@@ -480,11 +480,11 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
+    use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use crate::core::Index;
-    // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
-    use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+    use crate::fastfield::DynamicFastFieldReader;
     use crate::indexer::merger::IndexMerger;
     use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
@@ -546,7 +546,7 @@ mod bench_sorted_index_merge {
             // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get(doc_id);
+                val = field_reader.get_val(doc_id as u64);
             }
 
             val

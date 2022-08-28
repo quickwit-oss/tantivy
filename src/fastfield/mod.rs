@@ -981,13 +981,13 @@ mod bench {
     use std::collections::HashMap;
     use std::path::Path;
 
+    use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use super::tests::{generate_permutation, FIELD, SCHEMA};
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::fastfield::tests::generate_permutation_gcd;
-    use crate::fastfield::FastFieldReader;
 
     #[bench]
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
@@ -1042,7 +1042,7 @@ mod bench {
                 let n = test::black_box(7000u32);
                 let mut a = 0u64;
                 for i in (0u32..n / 7).map(|val| val * 7) {
-                    a ^= fast_field_reader.get(i);
+                    a ^= fast_field_reader.get_val(i as u64);
                 }
                 a
             });
@@ -1074,8 +1074,8 @@ mod bench {
 
             b.iter(|| {
                 let mut a = 0u32;
-                for i in 0u32..permutation.len() as u32 {
-                    a = fast_field_reader.get(i) as u32;
+                for i in 0u64..permutation.len() as u64 {
+                    a = fast_field_reader.get_val(i) as u32;
                 }
                 a
             });
@@ -1108,7 +1108,7 @@ mod bench {
             b.iter(|| {
                 let mut a = 0u32;
                 for i in 0u32..permutation.len() as u32 {
-                    a = fast_field_reader.get(i) as u32;
+                    a = fast_field_reader.get_val(i as u64) as u32;
                 }
                 a
             });
