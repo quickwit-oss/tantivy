@@ -195,6 +195,11 @@ mod tests {
         data_and_names.push((vec![5, 50, 3, 13, 1, 1000, 35], "rand small"));
         data_and_names.push((vec![10], "single value"));
 
+        data_and_names.push((
+            vec![1572656989877777, 1170935903116329, 720575940379279, 0],
+            "overflow error",
+        ));
+
         data_and_names
     }
 

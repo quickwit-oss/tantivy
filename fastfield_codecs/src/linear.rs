@@ -115,9 +115,9 @@ fn diff(val1: u64, val2: u64) -> f64 {
 #[inline]
 pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     if slope < 0.0 {
-        first_val - (pos as f32 * -slope) as u64
+        first_val.saturating_sub((pos as f32 * -slope) as u64)
     } else {
-        first_val + (pos as f32 * slope) as u64
+        first_val.saturating_add((pos as f32 * slope) as u64)
     }
 }
 
@@ -314,6 +314,13 @@ mod tests {
 
         create_and_validate(&data, "large amplitude");
     }
+
+    #[test]
+    fn overflow_error_test() {
+        let data = vec![1572656989877777, 1170935903116329, 720575940379279, 0];
+        create_and_validate(&data, "overflow test");
+    }
+
     #[test]
     fn linear_interpol_fast_concave_data() {
         let data = vec![0, 1, 2, 5, 8, 10, 20, 50];
