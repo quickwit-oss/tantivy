@@ -668,15 +668,13 @@ impl IndexMerger {
         {
             let mut serialize_vals =
                 fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
-            let mut vals = Vec::with_capacity(100);
 
             for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
                 let term_ordinal_mapping: &[TermOrdinal] =
                     term_ordinal_mappings.get_segment(old_doc_addr.segment_ord as usize);
 
                 let ff_reader = &fast_field_reader[old_doc_addr.segment_ord as usize];
-                ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                for &prev_term_ord in &vals {
+                for prev_term_ord in ff_reader.get_vals(old_doc_addr.doc_id) {
                     let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
                     serialize_vals.add_val(new_term_ord)?;
                 }
@@ -729,8 +727,6 @@ impl IndexMerger {
         let mut max_value = u64::MIN;
         let mut num_vals = 0;
 
-        let mut vals = Vec::with_capacity(100);
-
         let mut ff_readers = Vec::new();
 
         // Our values are bitpacked and we need to know what should be
@@ -748,12 +744,11 @@ impl IndexMerger {
                      Please report.",
                 );
             for doc in reader.doc_ids_alive() {
-                ff_reader.get_vals(doc, &mut vals);
-                for &val in &vals {
+                for val in ff_reader.get_vals(doc) {
                     min_value = cmp::min(val, min_value);
                     max_value = cmp::max(val, max_value);
+                    num_vals += 1;
                 }
-                num_vals += vals.len();
             }
             ff_readers.push(ff_reader);
             // TODO optimize when no deletes
@@ -796,11 +791,10 @@ impl IndexMerger {
                 let num_vals = self.fast_field_readers[old_doc_addr.segment_ord as usize]
                     .get_len(old_doc_addr.doc_id);
                 assert!(num_vals >= pos_in_values);
-                let mut vals = Vec::new();
                 self.fast_field_readers[old_doc_addr.segment_ord as usize]
-                    .get_vals(old_doc_addr.doc_id, &mut vals);
-
-                vals[pos_in_values as usize]
+                    .get_vals(old_doc_addr.doc_id)
+                    .nth(pos_in_values as usize)
+                    .expect("computation error in SortedDocIdMultiValueAccessProvider")
             }
 
             fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
@@ -810,9 +804,7 @@ impl IndexMerger {
                         .flat_map(|old_doc_addr| {
                             let ff_reader =
                                 &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                            let mut vals = Vec::new();
-                            ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                            vals.into_iter()
+                            ff_reader.get_vals(old_doc_addr.doc_id)
                         }),
                 )
             }
@@ -1975,49 +1967,32 @@ mod tests {
         }
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut vals: Vec<u64> = Vec::new();
 
         {
             let segment = searcher.segment_reader(0u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
 
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1, 2, 3]);
-
-            ff_reader.get_vals(2, &mut vals);
-            assert_eq!(&vals, &[4, 5]);
-
-            ff_reader.get_vals(3, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(4, &mut vals);
-            assert_eq!(&vals, &[1, 5]);
-
-            ff_reader.get_vals(5, &mut vals);
-            assert_eq!(&vals, &[3]);
-
-            ff_reader.get_vals(6, &mut vals);
-            assert_eq!(&vals, &[17]);
+            assert_eq!(&ff_reader.get_vals(0).collect::<Vec<_>>(), &[1, 2]);
+            assert_eq!(&ff_reader.get_vals(1).collect::<Vec<_>>(), &[1, 2, 3]);
+            assert_eq!(&ff_reader.get_vals(2).collect::<Vec<_>>(), &[4, 5]);
+            assert_eq!(&ff_reader.get_vals(3).collect::<Vec<_>>(), &[1, 2]);
+            assert_eq!(&ff_reader.get_vals(4).collect::<Vec<_>>(), &[1, 5]);
+            assert_eq!(&ff_reader.get_vals(5).collect::<Vec<_>>(), &[3]);
+            assert_eq!(&ff_reader.get_vals(6).collect::<Vec<_>>(), &[17]);
         }
 
         {
             let segment = searcher.segment_reader(1u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[28, 27]);
+            assert_eq!(&ff_reader.get_vals(0).collect::<Vec<_>>(), &[28, 27]);
 
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1_000]);
+            assert_eq!(&ff_reader.get_vals(1).collect::<Vec<_>>(), &[1000]);
         }
 
         {
             let segment = searcher.segment_reader(2u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[20]);
+            assert_eq!(&ff_reader.get_vals(0).collect::<Vec<_>>(), &[20]);
         }
 
         // Merging the segments
@@ -2034,35 +2009,16 @@ mod tests {
             let segment = searcher.segment_reader(0u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
 
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1, 2, 3]);
-
-            ff_reader.get_vals(2, &mut vals);
-            assert_eq!(&vals, &[4, 5]);
-
-            ff_reader.get_vals(3, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(4, &mut vals);
-            assert_eq!(&vals, &[1, 5]);
-
-            ff_reader.get_vals(5, &mut vals);
-            assert_eq!(&vals, &[3]);
-
-            ff_reader.get_vals(6, &mut vals);
-            assert_eq!(&vals, &[17]);
-
-            ff_reader.get_vals(7, &mut vals);
-            assert_eq!(&vals, &[28, 27]);
-
-            ff_reader.get_vals(8, &mut vals);
-            assert_eq!(&vals, &[1_000]);
-
-            ff_reader.get_vals(9, &mut vals);
-            assert_eq!(&vals, &[20]);
+            assert_eq!(&ff_reader.get_vals(0).collect::<Vec<_>>(), &[1, 2]);
+            assert_eq!(&ff_reader.get_vals(1).collect::<Vec<_>>(), &[1, 2, 3]);
+            assert_eq!(&ff_reader.get_vals(2).collect::<Vec<_>>(), &[4, 5]);
+            assert_eq!(&ff_reader.get_vals(3).collect::<Vec<_>>(), &[1, 2]);
+            assert_eq!(&ff_reader.get_vals(4).collect::<Vec<_>>(), &[1, 5]);
+            assert_eq!(&ff_reader.get_vals(5).collect::<Vec<_>>(), &[3]);
+            assert_eq!(&ff_reader.get_vals(6).collect::<Vec<_>>(), &[17]);
+            assert_eq!(&ff_reader.get_vals(7).collect::<Vec<_>>(), &[28, 27]);
+            assert_eq!(&ff_reader.get_vals(8).collect::<Vec<_>>(), &[1_000]);
+            assert_eq!(&ff_reader.get_vals(9).collect::<Vec<_>>(), &[20]);
         }
         Ok(())
     }

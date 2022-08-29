@@ -471,15 +471,13 @@ mod tests_indexsorting {
 
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
         let multifield = fast_fields.u64s(multi_numbers).unwrap();
-        let mut vals = vec![];
-        multifield.get_vals(0u32, &mut vals);
+        let vals = multifield.get_vals(0u32).collect::<Vec<_>>();
         assert_eq!(vals, &[] as &[u64]);
-        let mut vals = vec![];
-        multifield.get_vals(1u32, &mut vals);
+
+        let vals = multifield.get_vals(1u32).collect::<Vec<_>>();
         assert_eq!(vals, &[5, 6]);
 
-        let mut vals = vec![];
-        multifield.get_vals(2u32, &mut vals);
+        let vals = multifield.get_vals(2u32).collect::<Vec<_>>();
         assert_eq!(vals, &[3]);
         Ok(())
     }

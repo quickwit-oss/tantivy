@@ -383,9 +383,7 @@ mod tests {
         assert_eq!(fast_field.get_val(5), 1_000u64);
 
         let get_vals = |fast_field: &MultiValuedFastFieldReader<u64>, doc_id: u32| -> Vec<u64> {
-            let mut vals = vec![];
-            fast_field.get_vals(doc_id, &mut vals);
-            vals
+            fast_field.get_vals(doc_id).collect()
         };
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64s(multi_numbers).unwrap();

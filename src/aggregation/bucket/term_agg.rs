@@ -242,13 +242,13 @@ impl TermBuckets {
 
     fn increment_bucket(
         &mut self,
-        term_ids: &[u64],
+        term_ids: impl Iterator<Item = u64>,
         doc: DocId,
         sub_aggregation: &AggregationsWithAccessor,
         bucket_count: &BucketCount,
         blueprint: &Option<SegmentAggregationResultsCollector>,
     ) -> crate::Result<()> {
-        for &term_id in term_ids {
+        for term_id in term_ids {
             let entry = self.entries.entry(term_id as u32).or_insert_with(|| {
                 bucket_count.add_count(1);
 
@@ -432,39 +432,30 @@ impl SegmentTermCollector {
             .as_multi()
             .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
-        let mut vals1 = vec![];
-        let mut vals2 = vec![];
-        let mut vals3 = vec![];
-        let mut vals4 = vec![];
         for docs in iter.by_ref() {
-            accessor.get_vals(docs[0], &mut vals1);
-            accessor.get_vals(docs[1], &mut vals2);
-            accessor.get_vals(docs[2], &mut vals3);
-            accessor.get_vals(docs[3], &mut vals4);
-
             self.term_buckets.increment_bucket(
-                &vals1,
+                accessor.get_vals(docs[0]),
                 docs[0],
                 &bucket_with_accessor.sub_aggregation,
                 &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
-                &vals2,
+                accessor.get_vals(docs[1]),
                 docs[1],
                 &bucket_with_accessor.sub_aggregation,
                 &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
-                &vals3,
+                accessor.get_vals(docs[2]),
                 docs[2],
                 &bucket_with_accessor.sub_aggregation,
                 &bucket_with_accessor.bucket_count,
                 &self.blueprint,
             )?;
             self.term_buckets.increment_bucket(
-                &vals4,
+                accessor.get_vals(docs[3]),
                 docs[3],
                 &bucket_with_accessor.sub_aggregation,
                 &bucket_with_accessor.bucket_count,
@@ -472,10 +463,8 @@ impl SegmentTermCollector {
             )?;
         }
         for &doc in iter.remainder() {
-            accessor.get_vals(doc, &mut vals1);
-
             self.term_buckets.increment_bucket(
-                &vals1,
+                accessor.get_vals(doc),
                 doc,
                 &bucket_with_accessor.sub_aggregation,
                 &bucket_with_accessor.bucket_count,
@@ -1334,11 +1323,15 @@ mod bench {
             max_bucket_count: 1_000_001u32,
         };
         b.iter(|| {
-            for &val in &vals {
-                collector
-                    .increment_bucket(&[val], 0, &aggregations_with_accessor, &bucket_count, &None)
-                    .unwrap();
-            }
+            collector
+                .increment_bucket(
+                    vals.iter().cloned(),
+                    0,
+                    &aggregations_with_accessor,
+                    &bucket_count,
+                    &None,
+                )
+                .unwrap();
         })
     }
 

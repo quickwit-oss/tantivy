@@ -300,13 +300,9 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         // If this doesn't overflow the algorithm should be fine
         let theorethical_maximum_offset =
             fastfield_accessor.max_value() - fastfield_accessor.min_value();
-        if fastfield_accessor
+        fastfield_accessor
             .max_value()
-            .checked_add(theorethical_maximum_offset)
-            .is_none()
-        {
-            return None;
-        }
+            .checked_add(theorethical_maximum_offset)?;
 
         let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());

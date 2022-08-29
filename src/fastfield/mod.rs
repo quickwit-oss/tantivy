@@ -477,8 +477,7 @@ mod tests {
             for (doc, i) in (-100i64..10_000i64).enumerate() {
                 assert_eq!(fast_field_reader.get_val(doc as u64), i);
             }
-            let mut buffer = vec![0i64; 100];
-            fast_field_reader.get_range(53, &mut buffer[..]);
+            let buffer: Vec<i64> = fast_field_reader.get_range(53..154).collect();
             for i in 0..100 {
                 assert_eq!(buffer[i], -100i64 + 53i64 + i as i64);
             }
@@ -607,9 +606,7 @@ mod tests {
         let mut all = vec![];
 
         for doc in docs {
-            let mut out = vec![];
-            ff.get_vals(doc, &mut out);
-            all.extend(out);
+            all.extend(ff.get_vals(doc));
         }
         all
     }
@@ -654,8 +651,7 @@ mod tests {
                 vec![1, 0, 0, 0, 1, 2]
             );
 
-            let mut out = vec![];
-            text_fast_field.get_vals(3, &mut out);
+            let out = text_fast_field.get_vals(3u32).collect::<Vec<_>>();
             assert_eq!(out, vec![0, 1]);
 
             let inverted_index = segment_reader.inverted_index(text_field)?;
@@ -840,22 +836,20 @@ mod tests {
         let fast_fields = segment_reader.fast_fields();
         let date_fast_field = fast_fields.date(date_field).unwrap();
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
-        let mut dates = vec![];
         {
             assert_eq!(date_fast_field.get_val(0).into_timestamp_micros(), 1i64);
-            dates_fast_field.get_vals(0u32, &mut dates);
+            let dates = dates_fast_field.get_vals(0u32).collect::<Vec<_>>();
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_micros(), 2i64);
             assert_eq!(dates[1].into_timestamp_micros(), 3i64);
         }
         {
             assert_eq!(date_fast_field.get_val(1).into_timestamp_micros(), 4i64);
-            dates_fast_field.get_vals(1u32, &mut dates);
-            assert!(dates.is_empty());
+            assert!(dates_fast_field.get_vals(1u32).next().is_none());
         }
         {
             assert_eq!(date_fast_field.get_val(2).into_timestamp_micros(), 0i64);
-            dates_fast_field.get_vals(2u32, &mut dates);
+            let dates = dates_fast_field.get_vals(2u32).collect::<Vec<_>>();
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_micros(), 5i64);
             assert_eq!(dates[1].into_timestamp_micros(), 6i64);

@@ -1535,13 +1535,11 @@ mod tests {
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
             let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
             for doc in segment_reader.doc_ids_alive() {
-                let mut vals = vec![];
-                ff_reader.get_vals(doc, &mut vals);
+                let vals = ff_reader.get_vals(doc).collect::<Vec<_>>();
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
 
-                let mut bool_vals = vec![];
-                bool_ff_reader.get_vals(doc, &mut bool_vals);
+                let bool_vals = bool_ff_reader.get_vals(doc).collect::<Vec<_>>();
                 assert_eq!(bool_vals.len(), 2);
                 assert_ne!(bool_vals[0], bool_vals[1]);
 

@@ -76,7 +76,8 @@ impl FacetReader {
 
     /// Return the list of facet ordinals associated to a document.
     pub fn facet_ords(&self, doc: DocId, output: &mut Vec<u64>) {
-        self.term_ords.get_vals(doc, output);
+        output.clear();
+        output.extend(self.term_ords.get_vals(doc))
     }
 }
 

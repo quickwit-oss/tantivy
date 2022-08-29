@@ -36,19 +36,17 @@ mod tests {
 
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let mut vals = Vec::new();
         let multi_value_reader = segment_reader.fast_fields().u64s(field)?;
         {
-            multi_value_reader.get_vals(2, &mut vals);
+            let vals = multi_value_reader.get_vals(2u32).collect::<Vec<_>>();
             assert_eq!(&vals, &[4u64]);
         }
         {
-            multi_value_reader.get_vals(0, &mut vals);
+            let vals = multi_value_reader.get_vals(0u32).collect::<Vec<_>>();
             assert_eq!(&vals, &[1u64, 3u64]);
         }
         {
-            multi_value_reader.get_vals(1, &mut vals);
-            assert!(vals.is_empty());
+            assert!(multi_value_reader.get_vals(1u32).next().is_none());
         }
         Ok(())
     }
@@ -213,15 +211,13 @@ mod tests {
 
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let mut vals = Vec::new();
         let multi_value_reader = segment_reader.fast_fields().i64s(field).unwrap();
-        multi_value_reader.get_vals(2, &mut vals);
+        let vals = multi_value_reader.get_vals(2u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[-4i64]);
-        multi_value_reader.get_vals(0, &mut vals);
+        let vals = multi_value_reader.get_vals(0u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[1i64, 3i64]);
-        multi_value_reader.get_vals(1, &mut vals);
-        assert!(vals.is_empty());
-        multi_value_reader.get_vals(3, &mut vals);
+        assert!(multi_value_reader.get_vals(1u32).next().is_none());
+        let vals = multi_value_reader.get_vals(3u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
         Ok(())
     }
@@ -245,15 +241,13 @@ mod tests {
 
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let mut vals = Vec::new();
         let multi_value_reader = segment_reader.fast_fields().bools(bool_field).unwrap();
-        multi_value_reader.get_vals(2, &mut vals);
+        let vals = multi_value_reader.get_vals(2u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[false]);
-        multi_value_reader.get_vals(0, &mut vals);
+        let vals = multi_value_reader.get_vals(0u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[true, false]);
-        multi_value_reader.get_vals(1, &mut vals);
-        assert!(vals.is_empty());
-        multi_value_reader.get_vals(3, &mut vals);
+        assert!(multi_value_reader.get_vals(1u32).next().is_none());
+        let vals = multi_value_reader.get_vals(3u32).collect::<Vec<_>>();
         assert_eq!(&vals, &[true, true, false]);
         Ok(())
     }

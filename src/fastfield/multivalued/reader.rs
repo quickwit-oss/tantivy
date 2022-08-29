@@ -41,17 +41,9 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 
     /// Returns the array of values associated to the given `doc`.
     #[inline]
-    fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<Item>) {
-        let len = (range.end - range.start) as usize;
-        vals.resize(len, Item::make_zero());
-        self.vals_reader.get_range(range.start, &mut vals[..]);
-    }
-
-    /// Returns the array of values associated to the given `doc`.
-    #[inline]
-    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
+    pub fn get_vals(&self, doc: DocId) -> Box<dyn Iterator<Item = Item> + '_> {
         let range = self.range(doc);
-        self.get_vals_for_range(range, vals);
+        self.vals_reader.get_range(range)
     }
 
     /// Returns the minimum value for this fast field.
