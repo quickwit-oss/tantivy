@@ -90,26 +90,32 @@ pub struct FastFieldStats {
     pub num_vals: u64,
 }
 
-#[cfg(test)]
-impl<'a> Column for &'a [u64] {
+struct VecColum<'a>(&'a [u64]);
+impl<'a> Column for VecColum<'a> {
     fn get_val(&self, position: u64) -> u64 {
-        self[position as usize]
+        self.0[position as usize]
     }
 
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new((self as &[u64]).iter().cloned())
+        Box::new(self.0.iter().cloned())
     }
 
     fn min_value(&self) -> u64 {
-        self.iter().min().unwrap_or(0)
+        self.0.iter().min().cloned().unwrap_or(0)
     }
 
     fn max_value(&self) -> u64 {
-        self.iter().max().unwrap_or(0)
+        self.0.iter().max().cloned().unwrap_or(0)
     }
 
     fn num_vals(&self) -> u64 {
-        self.len() as u64
+        self.0.len() as u64
+    }
+}
+
+impl<'a> From<&'a [u64]> for VecColum<'a> {
+    fn from(data: &'a [u64]) -> Self {
+        Self(data)
     }
 }
 
@@ -126,10 +132,10 @@ mod tests {
         data: &[u64],
         name: &str,
     ) -> Option<(f32, f32)> {
-        let estimation = Codec::estimate(&data)?;
+        let estimation = Codec::estimate(&VecColum::from(data))?;
 
         let mut out: Vec<u8> = Vec::new();
-        Codec::serialize(&mut out, &data).unwrap();
+        Codec::serialize(&mut out, &VecColum::from(data)).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
@@ -215,8 +221,8 @@ mod tests {
     #[test]
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
+        let data: VecColum = data.as_slice().into();
 
-        let data = data.as_slice();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
 
@@ -231,6 +237,7 @@ mod tests {
     fn estimation_test_bad_interpolation_case() {
         let data: &[u64] = &[200, 10, 10, 10, 10, 1000, 20];
 
+        let data: VecColum = data.into();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.32);
 
@@ -241,7 +248,7 @@ mod tests {
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
         let mut data: Vec<u64> = (200..=20000_u64).collect();
         data.push(1_000_000);
-        let data = data.as_slice();
+        let data: VecColum = data.as_slice().into();
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
