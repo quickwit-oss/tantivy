@@ -133,7 +133,7 @@ impl TermOrdinalMapping {
     fn max_term_ord(&self) -> TermOrdinal {
         self.per_segment_new_term_ordinals
             .iter()
-            .flat_map(|term_ordinals| term_ordinals.iter().max())
+            .flat_map(|term_ordinals| term_ordinals.iter().max().cloned())
             .max()
             .unwrap_or_default()
     }
@@ -784,7 +784,7 @@ impl IndexMerger {
                 let new_doc_id: DocId =
                     self.offsets
                         .iter()
-                        .position(|offset| offset > pos)
+                        .position(|&offset| offset > pos)
                         .expect("pos is out of bounds") as DocId
                         - 1u32;
 

@@ -90,6 +90,7 @@ pub struct FastFieldStats {
     pub num_vals: u64,
 }
 
+#[cfg(test)]
 impl<'a> Column for &'a [u64] {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
@@ -99,26 +100,6 @@ impl<'a> Column for &'a [u64] {
         Box::new((self as &[u64]).iter().cloned())
     }
 
-    fn min_value(&self) -> u64 {
-        self.iter().min().unwrap_or(0)
-    }
-
-    fn max_value(&self) -> u64 {
-        self.iter().max().unwrap_or(0)
-    }
-
-    fn num_vals(&self) -> u64 {
-        self.len() as u64
-    }
-}
-
-impl Column for Vec<u64> {
-    fn get_val(&self, position: u64) -> u64 {
-        self[position as usize]
-    }
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new((self as &[u64]).iter().cloned())
-    }
     fn min_value(&self) -> u64 {
         self.iter().min().unwrap_or(0)
     }
@@ -235,6 +216,7 @@ mod tests {
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
 
+        let data = data.as_slice();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
 
@@ -247,7 +229,7 @@ mod tests {
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
-        let data = vec![200, 10, 10, 10, 10, 1000, 20];
+        let data: &[u64] = &[200, 10, 10, 10, 10, 1000, 20];
 
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.32);
@@ -259,6 +241,7 @@ mod tests {
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
         let mut data: Vec<u64> = (200..=20000_u64).collect();
         data.push(1_000_000);
+        let data = data.as_slice();
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior

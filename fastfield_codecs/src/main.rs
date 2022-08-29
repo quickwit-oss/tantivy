@@ -3,8 +3,32 @@ extern crate prettytable;
 use fastfield_codecs::bitpacked::BitpackedCodec;
 use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
 use fastfield_codecs::linear::LinearCodec;
-use fastfield_codecs::{FastFieldCodec, FastFieldCodecType, FastFieldStats};
+use fastfield_codecs::{Column, FastFieldCodec, FastFieldCodecType, FastFieldStats};
 use prettytable::{Cell, Row, Table};
+
+struct Data<'a>(&'a [u64]);
+
+impl<'a> Column for Data<'a> {
+    fn get_val(&self, position: u64) -> u64 {
+        self.0[position as usize]
+    }
+
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+        Box::new(self.0.iter().cloned())
+    }
+
+    fn min_value(&self) -> u64 {
+        *self.0.iter().min().unwrap_or(&0)
+    }
+
+    fn max_value(&self) -> u64 {
+        *self.0.iter().max().unwrap_or(&0)
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.0.len() as u64
+    }
+}
 
 fn main() {
     let mut table = Table::new();
@@ -86,10 +110,11 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
 pub fn serialize_with_codec<C: FastFieldCodec>(
     data: &[u64],
 ) -> Option<(f32, f32, FastFieldCodecType)> {
+    let data = Data(data);
     let estimation = C::estimate(&data)?;
     let mut out = Vec::new();
     C::serialize(&mut out, &data).unwrap();
-    let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
+    let actual_compression = out.len() as f32 / (data.num_vals() * 8) as f32;
     Some((estimation, actual_compression, C::CODEC_TYPE))
 }
 
