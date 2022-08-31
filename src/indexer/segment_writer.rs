@@ -80,8 +80,8 @@ impl SegmentWriter {
     pub fn for_segment(
         memory_budget_in_bytes: usize,
         segment: Segment,
-        schema: Schema,
     ) -> crate::Result<SegmentWriter> {
+        let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;

@@ -25,38 +25,9 @@ use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
     SegmentSerializer,
 };
-use crate::schema::Schema;
 use crate::{FutureResult, Opstamp};
 
 const NUM_MERGE_THREADS: usize = 4;
-
-/// Save the index meta file.
-/// This operation is atomic :
-/// Either
-///  - it fails, in which case an error is returned,
-/// and the `meta.json` remains untouched,
-/// - it succeeds, and `meta.json` is written
-/// and flushed.
-///
-/// This method is not part of tantivy's public API
-pub fn save_new_metas(
-    schema: Schema,
-    index_settings: IndexSettings,
-    directory: &dyn Directory,
-) -> crate::Result<()> {
-    save_metas(
-        &IndexMeta {
-            index_settings,
-            segments: Vec::new(),
-            schema,
-            opstamp: 0u64,
-            payload: None,
-        },
-        directory,
-    )?;
-    directory.sync_directory()?;
-    Ok(())
-}
 
 /// Save the index meta file.
 /// This operation is atomic:
@@ -67,7 +38,7 @@ pub fn save_new_metas(
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
+pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
     info!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
