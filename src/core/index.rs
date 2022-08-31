@@ -16,7 +16,7 @@ use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
-use crate::indexer::segment_updater::save_new_metas;
+use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
@@ -45,6 +45,34 @@ fn load_metas(
             )
         })
         .map_err(From::from)
+}
+
+/// Save the index meta file.
+/// This operation is atomic :
+/// Either
+///  - it fails, in which case an error is returned,
+/// and the `meta.json` remains untouched,
+/// - it succeeds, and `meta.json` is written
+/// and flushed.
+///
+/// This method is not part of tantivy's public API
+fn save_new_metas(
+    schema: Schema,
+    index_settings: IndexSettings,
+    directory: &dyn Directory,
+) -> crate::Result<()> {
+    save_metas(
+        &IndexMeta {
+            index_settings,
+            segments: Vec::new(),
+            schema,
+            opstamp: 0u64,
+            payload: None,
+        },
+        directory,
+    )?;
+    directory.sync_directory()?;
+    Ok(())
 }
 
 /// IndexBuilder can be used to create an index.

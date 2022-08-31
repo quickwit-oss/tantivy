@@ -174,9 +174,7 @@ fn index_documents(
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
-    let schema = segment.schema();
-
-    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone())?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc)?;
