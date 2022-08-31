@@ -18,7 +18,9 @@ pub struct MultiValuedFastFieldReader<Item: FastValue> {
     vals_reader: DynamicFastFieldReader<Item>,
 }
 
-impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
+impl<Item: FastValue> MultiValuedFastFieldReader<Item>
+where DynamicFastFieldReader<Item>: Column<Item>
+{
     pub(crate) fn open(
         idx_reader: DynamicFastFieldReader<u64>,
         vals_reader: DynamicFastFieldReader<Item>,
@@ -41,7 +43,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 
     /// Returns the array of values associated to the given `doc`.
     #[inline]
-    pub fn get_vals(&self, doc: DocId) -> Box<dyn Iterator<Item = Item> + '_> {
+    pub fn get_vals(&self, doc: DocId) -> impl Iterator<Item = Item> + '_ {
         let range = self.range(doc);
         self.vals_reader.get_range(range)
     }

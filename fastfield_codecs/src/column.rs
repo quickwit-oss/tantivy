@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use crate::ColumnIter;
+
 pub trait Column<T = u64> {
     /// Return the value associated to the given idx.
     ///
@@ -16,8 +18,12 @@ pub trait Column<T = u64> {
     ///
     /// May panic if `range.end()` is greater than
     /// the segment's `maxdoc`.
-    fn get_range(&self, range: Range<u64>) -> Box<dyn Iterator<Item = T> + '_> {
-        Box::new(range.map(|idx| self.get_val(idx)))
+    #[inline]
+    fn get_range(&self, range: Range<u64>) -> ColumnIter<'_, Self, T>
+    where
+        Self: Sized,
+    {
+        ColumnIter::new(self, range)
     }
 
     /// Returns the minimum value for this fast field.

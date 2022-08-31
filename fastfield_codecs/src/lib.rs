@@ -4,6 +4,8 @@ extern crate more_asserts;
 
 use std::io;
 use std::io::Write;
+use std::marker::PhantomData;
+use std::ops::Range;
 
 use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
@@ -109,6 +111,41 @@ impl<'a> Column for &'a [u64] {
 
     fn num_vals(&self) -> u64 {
         self.len() as u64
+    }
+}
+
+pub struct ColumnIter<'a, C: Column<I>, I> {
+    column: &'a C,
+    end_pos: u64,
+    current_pos: u64,
+    _phantom: PhantomData<I>,
+}
+
+impl<'a, C: Column<I>, I> ColumnIter<'a, C, I> {
+    #[inline]
+    pub fn new(col: &'a C, range: Range<u64>) -> Self {
+        let current_pos = range.start;
+        Self {
+            column: col,
+            end_pos: range.end,
+            current_pos,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, C: Column<I>, I> Iterator for ColumnIter<'a, C, I> {
+    type Item = I;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_pos < self.end_pos {
+            let val = self.column.get_val(self.current_pos);
+            self.current_pos += 1;
+            Some(val)
+        } else {
+            None
+        }
     }
 }
 

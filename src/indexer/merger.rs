@@ -578,6 +578,7 @@ impl IndexMerger {
             stats: FastFieldStats,
         }
         impl<'a> Column for FieldIndexAccessProvider<'a> {
+            #[inline]
             fn get_val(&self, doc: u64) -> u64 {
                 self.offsets[doc as usize]
             }

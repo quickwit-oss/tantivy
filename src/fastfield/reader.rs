@@ -40,40 +40,39 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
         mut bytes: OwnedBytes,
         codec_type: FastFieldCodecType,
     ) -> crate::Result<DynamicFastFieldReader<Item>> {
-        let reader = match codec_type {
-            FastFieldCodecType::Bitpacked => {
-                DynamicFastFieldReader::Bitpacked(BitpackedCodec::open_from_bytes(bytes)?.into())
-            }
-            FastFieldCodecType::Linear => {
-                DynamicFastFieldReader::Linear(LinearCodec::open_from_bytes(bytes)?.into())
-            }
-            FastFieldCodecType::BlockwiseLinear => DynamicFastFieldReader::BlockwiseLinear(
-                BlockwiseLinearCodec::open_from_bytes(bytes)?.into(),
-            ),
-            FastFieldCodecType::Gcd => {
-                let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
-                match codec_type {
-                    FastFieldCodecType::Bitpacked => DynamicFastFieldReader::BitpackedGCD(
-                        open_gcd_from_bytes::<BitpackedCodec>(bytes)?.into(),
-                    ),
-                    FastFieldCodecType::Linear => DynamicFastFieldReader::LinearGCD(
-                        open_gcd_from_bytes::<LinearCodec>(bytes)?.into(),
-                    ),
-                    FastFieldCodecType::BlockwiseLinear => {
-                        DynamicFastFieldReader::BlockwiseLinearGCD(
-                            open_gcd_from_bytes::<BlockwiseLinearCodec>(bytes)?.into(),
-                        )
-                    }
-                    FastFieldCodecType::Gcd => {
-                        return Err(DataCorruption::comment_only(
+        let reader =
+            match codec_type {
+                FastFieldCodecType::Bitpacked => DynamicFastFieldReader::Bitpacked(
+                    BitpackedCodec::open_from_bytes(bytes)?.into(),
+                ),
+                FastFieldCodecType::Linear => {
+                    DynamicFastFieldReader::Linear(LinearCodec::open_from_bytes(bytes)?.into())
+                }
+                FastFieldCodecType::BlockwiseLinear => DynamicFastFieldReader::BlockwiseLinear(
+                    BlockwiseLinearCodec::open_from_bytes(bytes)?.into(),
+                ),
+                FastFieldCodecType::Gcd => {
+                    let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
+                    match codec_type {
+                        FastFieldCodecType::Bitpacked => DynamicFastFieldReader::BitpackedGCD(
+                            open_gcd_from_bytes::<BitpackedCodec>(bytes)?.into(),
+                        ),
+                        FastFieldCodecType::Linear => DynamicFastFieldReader::LinearGCD(
+                            open_gcd_from_bytes::<LinearCodec>(bytes)?.into(),
+                        ),
+                        FastFieldCodecType::BlockwiseLinear => {
+                            DynamicFastFieldReader::BlockwiseLinearGCD(
+                                open_gcd_from_bytes::<BlockwiseLinearCodec>(bytes)?.into(),
+                            )
+                        }
+                        FastFieldCodecType::Gcd => return Err(DataCorruption::comment_only(
                             "Gcd codec wrapped into another gcd codec. This combination is not \
                              allowed.",
                         )
-                        .into())
+                        .into()),
                     }
                 }
-            }
-        };
+            };
         Ok(reader)
     }
 
