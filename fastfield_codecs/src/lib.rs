@@ -121,8 +121,9 @@ impl<'a> From<&'a [u64]> for VecColum<'a> {
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
+    use proptest::prelude::*;
+    use proptest::strategy::Strategy;
+    use proptest::{prop_oneof, proptest};
 
     use crate::bitpacked::BitpackedCodec;
     use crate::blockwise_linear::BlockwiseLinearCodec;
@@ -153,20 +154,31 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
         #[test]
-        fn test_proptest_small(data in proptest::collection::vec(any::<u64>(), 1..10)) {
+        fn test_proptest_small(data in proptest::collection::vec(num_strategy(), 1..10)) {
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+            create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn test_proptest_large(data in proptest::collection::vec(num_strategy(), 1..6000)) {
             create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
             create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
             create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
         }
 
-        #[test]
-        fn test_proptest_large(data in proptest::collection::vec(any::<u64>(), 1..6000)) {
-            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
-            create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
-        }
-
+    }
+    fn num_strategy() -> impl Strategy<Value = u64> {
+        prop_oneof![
+            1 => prop::num::u64::ANY.prop_map(|num| u64::MAX - (num % 10) ),
+            1 => prop::num::u64::ANY.prop_map(|num| num % 10 ),
+            20 => prop::num::u64::ANY,
+        ]
     }
 
     pub fn get_codec_test_datasets() -> Vec<(Vec<u64>, &'static str)> {
