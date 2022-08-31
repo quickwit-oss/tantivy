@@ -56,7 +56,7 @@ impl<'a> Iterator for VInt32Reader<'a> {
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub(crate) trait Recorder: Copy + Default + 'static {
+pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
