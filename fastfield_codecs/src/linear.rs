@@ -193,6 +193,7 @@ impl FastFieldCodec for LinearCodec {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
+    #[allow(clippy::question_mark)]
     fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 3 {
             return None; // disable compressor for this case
