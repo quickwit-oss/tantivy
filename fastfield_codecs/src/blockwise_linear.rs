@@ -289,6 +289,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
+    #[allow(clippy::question_mark)]
     fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE {
             return None;

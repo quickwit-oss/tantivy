@@ -193,6 +193,7 @@ impl FastFieldCodec for LinearCodec {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
+    #[allow(clippy::question_mark)]
     fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 3 {
             return None; // disable compressor for this case
@@ -258,6 +259,8 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 
 #[cfg(test)]
 mod tests {
+    use rand::RngCore;
+
     use super::*;
     use crate::tests::get_codec_test_datasets;
 
@@ -340,10 +343,9 @@ mod tests {
 
     #[test]
     fn linear_interpol_fast_field_rand() {
-        for _ in 0..5000 {
-            let mut data = (0..10_000)
-                .map(|_| rand::random::<u64>())
-                .collect::<Vec<_>>();
+        let mut rng = rand::thread_rng();
+        for _ in 0..50 {
+            let mut data = (0..10_000).map(|_| rng.next_u64()).collect::<Vec<_>>();
             create_and_validate(&data, "random");
             data.reverse();
             create_and_validate(&data, "random");
