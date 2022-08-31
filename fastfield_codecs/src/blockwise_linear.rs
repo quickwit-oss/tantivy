@@ -10,7 +10,7 @@ use crate::{Column, FastFieldCodec, FastFieldCodecType, VecColumn};
 
 const CHUNK_SIZE: usize = 512;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Block {
     line: Line,
     bit_unpacker: BitUnpacker,
@@ -100,8 +100,36 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         })
     }
 
-    fn estimate(_fastfield_accessor: &impl crate::Column) -> Option<f32> {
-        Some(0.1f32)
+    fn estimate(fastfield_accessor: &impl crate::Column) -> Option<f32> {
+        if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE as u64 {
+            return None;
+        }
+        let mut first_chunk: Vec<u64> = fastfield_accessor
+            .iter()
+            .take(CHUNK_SIZE as usize)
+            .collect();
+        let line = Line::train(&VecColumn(&first_chunk));
+        for (i, buffer_val) in first_chunk.iter_mut().enumerate() {
+            let interpolated_val = line.eval(i as u64);
+            *buffer_val = buffer_val.wrapping_sub(interpolated_val);
+        }
+        let estimated_bit_width = first_chunk
+            .iter()
+            .map(|el| (((el + 1) as f32 * 1.5) * 2.0) as u64)
+            .map(compute_num_bits)
+            .max()
+            .unwrap();
+
+        let metadata_per_block = {
+            let mut out = vec![];
+            Block::default().serialize(&mut out).unwrap();
+            out.len()
+        };
+        let num_bits = estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64
+            // function metadata per block
+            + metadata_per_block as u64 * (fastfield_accessor.num_vals() / CHUNK_SIZE as u64);
+        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 
     fn serialize(

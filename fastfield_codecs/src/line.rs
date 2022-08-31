@@ -128,6 +128,8 @@ impl BinarySerializable for Line {
 
 #[cfg(test)]
 mod tests {
+    use crate::VecColumn;
+
     use super::*;
 
     /// Test training a line and ensuring that the maximum difference between
@@ -149,7 +151,7 @@ mod tests {
     }
 
     fn test_eval_max_err(ys: &[u64]) -> Option<u64> {
-        let line = Line::train(&&ys[..]);
+        let line = Line::train(&VecColumn(ys));
         ys.iter()
             .enumerate()
             .map(|(x, y)| y.wrapping_sub(line.eval(x as u64)))
