@@ -14,7 +14,7 @@ pub mod linear;
 
 mod column;
 
-pub use self::column::Column;
+pub use self::column::{monotonic_map_column, Column};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -56,12 +56,12 @@ impl FastFieldCodecType {
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodec {
+pub trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
 
-    type Reader: Column<u64>;
+    type Reader: Column<u64> + 'static;
 
     /// Reads the metadata and returns the CodecReader
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
@@ -88,35 +88,6 @@ pub struct FastFieldStats {
     pub min_value: u64,
     pub max_value: u64,
     pub num_vals: u64,
-}
-
-struct VecColum<'a>(&'a [u64]);
-impl<'a> Column for VecColum<'a> {
-    fn get_val(&self, position: u64) -> u64 {
-        self.0[position as usize]
-    }
-
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new(self.0.iter().cloned())
-    }
-
-    fn min_value(&self) -> u64 {
-        self.0.iter().min().cloned().unwrap_or(0)
-    }
-
-    fn max_value(&self) -> u64 {
-        self.0.iter().max().cloned().unwrap_or(0)
-    }
-
-    fn num_vals(&self) -> u64 {
-        self.0.len() as u64
-    }
-}
-
-impl<'a> From<&'a [u64]> for VecColum<'a> {
-    fn from(data: &'a [u64]) -> Self {
-        Self(data)
-    }
 }
 
 #[cfg(test)]

@@ -50,7 +50,7 @@ pub struct SSTableIndexBuilder {
 /// matches `left <= left' < right`.
 fn find_shorter_str_in_between(left: &mut Vec<u8>, right: &[u8]) {
     assert!(&left[..] < right);
-    let common_len = common_prefix_len(&left, right);
+    let common_len = common_prefix_len(left, right);
     if left.len() == common_len {
         return;
     }

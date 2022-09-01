@@ -10,11 +10,12 @@
 // ---
 // Importing tantivy...
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{DynamicFastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
@@ -160,7 +161,7 @@ where
     TPredicate: 'static,
     TPredicateValue: FastValue,
 {
-    fast_field_reader: DynamicFastFieldReader<TPredicateValue>,
+    fast_field_reader: Arc<dyn Column<TPredicateValue>>,
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,

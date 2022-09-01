@@ -3,31 +3,16 @@ use std::num::NonZeroU64;
 
 use common::BinarySerializable;
 use fastdivide::DividerU64;
-use fastfield_codecs::{Column, FastFieldCodec};
+use fastfield_codecs::{monotonic_map_column, Column, FastFieldCodec};
 use ownedbytes::OwnedBytes;
 
 pub const GCD_DEFAULT: u64 = 1;
-
-/// Wrapper for accessing a fastfield.
-///
-/// Holds the data and the codec to the read the data.
-#[derive(Clone)]
-pub struct GCDReader<CodecReader: Column> {
-    gcd_params: GCDParams,
-    reader: CodecReader,
-}
 
 #[derive(Debug, Clone, Copy)]
 struct GCDParams {
     gcd: u64,
     min_value: u64,
     num_vals: u64,
-}
-
-impl GCDParams {
-    pub fn eval(&self, val: u64) -> u64 {
-        self.min_value + self.gcd * val
-    }
 }
 
 impl BinarySerializable for GCDParams {
@@ -52,31 +37,13 @@ impl BinarySerializable for GCDParams {
 
 pub fn open_gcd_from_bytes<WrappedCodec: FastFieldCodec>(
     bytes: OwnedBytes,
-) -> io::Result<GCDReader<WrappedCodec::Reader>> {
+) -> io::Result<impl Column> {
     let footer_offset = bytes.len() - 24;
     let (body, mut footer) = bytes.split(footer_offset);
     let gcd_params = GCDParams::deserialize(&mut footer)?;
+    let gcd_remap = move |val: u64| gcd_params.min_value + gcd_params.gcd * val;
     let reader: WrappedCodec::Reader = WrappedCodec::open_from_bytes(body)?;
-    Ok(GCDReader { gcd_params, reader })
-}
-
-impl<C: Column + Clone> Column for GCDReader<C> {
-    #[inline]
-    fn get_val(&self, doc: u64) -> u64 {
-        let val = self.reader.get_val(doc);
-        self.gcd_params.eval(val)
-    }
-
-    fn min_value(&self) -> u64 {
-        self.gcd_params.eval(self.reader.min_value())
-    }
-
-    fn max_value(&self) -> u64 {
-        self.gcd_params.eval(self.reader.max_value())
-    }
-    fn num_vals(&self) -> u64 {
-        self.gcd_params.num_vals
-    }
+    Ok(monotonic_map_column(reader, gcd_remap))
 }
 
 pub fn write_gcd_header<W: Write>(
@@ -134,6 +101,7 @@ mod tests {
     use std::collections::HashMap;
     use std::num::NonZeroU64;
     use std::path::Path;
+    use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
     use common::HasLen;
@@ -141,11 +109,11 @@ mod tests {
 
     use crate::directory::{CompositeFile, RamDirectory, WritePtr};
     use crate::fastfield::gcd::compute_gcd;
+    use crate::fastfield::reader::open_fast_field;
     use crate::fastfield::serializer::FastFieldCodecEnableCheck;
-    use crate::fastfield::tests::{FIELD, FIELDI64, SCHEMA, SCHEMAI64};
+    use crate::fastfield::tests::{encode_decode_fast_field, FIELD, FIELDI64, SCHEMA, SCHEMAI64};
     use crate::fastfield::{
-        find_gcd, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldCodecType,
-        FastFieldsWriter, ALL_CODECS,
+        find_gcd, CompositeFastFieldSerializer, FastFieldCodecType, FastFieldsWriter, ALL_CODECS,
     };
     use crate::schema::{Cardinality, Schema};
     use crate::{DateOptions, DatePrecision, DateTime, Directory};
@@ -187,8 +155,7 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<i64>::open(file)?;
-
+        let fast_field_reader: Arc<dyn Column<i64>> = open_fast_field(file.read_bytes()?)?;
         assert_eq!(fast_field_reader.get_val(0), -4000i64);
         assert_eq!(fast_field_reader.get_val(1), -3000i64);
         assert_eq!(fast_field_reader.get_val(2), -2000i64);
@@ -229,7 +196,7 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
+        let fast_field_reader = open_fast_field::<u64>(file.read_bytes()?)?;
         assert_eq!(fast_field_reader.get_val(0), 1000u64);
         assert_eq!(fast_field_reader.get_val(1), 2000u64);
         assert_eq!(fast_field_reader.get_val(2), 3000u64);
@@ -258,7 +225,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield2() {
-        let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
+        let test_fastfield = encode_decode_fast_field(&[100u64, 200u64, 300u64]);
         assert_eq!(test_fastfield.get_val(0), 100);
         assert_eq!(test_fastfield.get_val(1), 200);
         assert_eq!(test_fastfield.get_val(2), 300);
@@ -324,7 +291,7 @@ mod tests {
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let len = file.len();
-        let test_fastfield = DynamicFastFieldReader::<DateTime>::open(file)?;
+        let test_fastfield = open_fast_field::<DateTime>(file.read_bytes()?)?;
 
         assert_eq!(test_fastfield.get_val(0), time1.truncate(precision));
         assert_eq!(test_fastfield.get_val(1), time2.truncate(precision));

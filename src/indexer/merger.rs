@@ -9,8 +9,8 @@ use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
-    AliveBitSet, Column, CompositeFastFieldSerializer, DynamicFastFieldReader, FastFieldStats,
-    MultiValueLength, MultiValuedFastFieldReader,
+    AliveBitSet, Column, CompositeFastFieldSerializer, FastFieldStats, MultiValueLength,
+    MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -87,7 +87,7 @@ pub struct IndexMerger {
 }
 
 fn compute_min_max_val(
-    u64_reader: &impl Column<u64>,
+    u64_reader: &dyn Column<u64>,
     segment_reader: &SegmentReader,
 ) -> Option<(u64, u64)> {
     if segment_reader.max_doc() == 0 {
@@ -341,12 +341,12 @@ impl IndexMerger {
             .readers
             .iter()
             .filter_map(|reader| {
-                let u64_reader: DynamicFastFieldReader<u64> =
+                let u64_reader: Arc<dyn Column<u64>> =
                     reader.fast_fields().typed_fast_field_reader(field).expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
                     );
-                compute_min_max_val(&u64_reader, reader)
+                compute_min_max_val(&*u64_reader, reader)
             })
             .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
             .expect("Unexpected error, empty readers in IndexMerger");
@@ -355,7 +355,7 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-                let u64_reader: DynamicFastFieldReader<u64> =
+                let u64_reader: Arc<dyn Column<u64>> =
                     reader.fast_fields().typed_fast_field_reader(field).expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
@@ -372,7 +372,7 @@ impl IndexMerger {
         #[derive(Clone)]
         struct SortedDocIdFieldAccessProvider<'a> {
             doc_id_mapping: &'a SegmentDocIdMapping,
-            fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
+            fast_field_readers: &'a Vec<Arc<dyn Column<u64>>>,
             stats: FastFieldStats,
         }
         impl<'a> Column for SortedDocIdFieldAccessProvider<'a> {
@@ -443,7 +443,7 @@ impl IndexMerger {
     pub(crate) fn get_sort_field_accessor(
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<impl Column> {
+    ) -> crate::Result<Arc<dyn Column>> {
         let field_id = expect_field_id_for_sort_field(reader.schema(), sort_by_field)?; // for now expect fastfield, but not strictly required
         let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
         Ok(value_accessor)
@@ -452,7 +452,7 @@ impl IndexMerger {
     pub(crate) fn get_reader_with_sort_field_accessor(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Vec<(SegmentOrdinal, impl Column)>> {
+    ) -> crate::Result<Vec<(SegmentOrdinal, Arc<dyn Column>)>> {
         let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
@@ -618,7 +618,7 @@ impl IndexMerger {
             .map(|reader| {
                 let u64s_reader: MultiValuedFastFieldReader<u64> = reader
                     .fast_fields()
-                    .typed_fast_field_multi_reader(field)
+                    .typed_fast_field_multi_reader::<u64>(field)
                     .expect(
                         "Failed to find index for multivalued field. This is a bug in tantivy, \
                          please report.",
@@ -668,7 +668,7 @@ impl IndexMerger {
         {
             let mut serialize_vals =
                 fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
-            let mut vals = Vec::with_capacity(100);
+            let mut vals: Vec<u64> = Vec::with_capacity(100);
 
             for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
                 let term_ordinal_mapping: &[TermOrdinal] =
@@ -742,7 +742,7 @@ impl IndexMerger {
         for reader in &self.readers {
             let ff_reader: MultiValuedFastFieldReader<u64> = reader
                 .fast_fields()
-                .typed_fast_field_multi_reader(field)
+                .typed_fast_field_multi_reader::<u64>(field)
                 .expect(
                     "Failed to find multivalued fast field reader. This is a bug in tantivy. \
                      Please report.",
@@ -1199,7 +1199,6 @@ impl IndexMerger {
 #[cfg(test)]
 mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
-    use fastfield_codecs::Column;
     use schema::FAST;
 
     use crate::collector::tests::{

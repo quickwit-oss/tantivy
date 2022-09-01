@@ -421,7 +421,6 @@ pub struct DocAddress {
 #[cfg(test)]
 pub mod tests {
     use common::{BinarySerializable, FixedSize};
-    use fastfield_codecs::Column;
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
