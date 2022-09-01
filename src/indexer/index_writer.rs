@@ -775,7 +775,6 @@ impl Drop for IndexWriter {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use fastfield_codecs::Column;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;

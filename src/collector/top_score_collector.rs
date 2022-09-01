@@ -1,6 +1,7 @@
 use std::collections::BinaryHeap;
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use fastfield_codecs::Column;
 
@@ -11,7 +12,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{DynamicFastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::query::Weight;
 use crate::schema::Field;
 use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
@@ -131,7 +132,7 @@ impl fmt::Debug for TopDocs {
 }
 
 struct ScorerByFastFieldReader {
-    ff_reader: DynamicFastFieldReader<u64>,
+    ff_reader: Arc<dyn Column<u64>>,
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
@@ -409,7 +410,6 @@ impl TopDocs {
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
-    /// use tantivy::fastfield::Column;
     /// use tantivy::schema::Field;
     ///
     /// fn create_schema() -> Schema {
@@ -517,7 +517,6 @@ impl TopDocs {
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::Field;
-    /// use fastfield_codecs::Column;
     ///
     /// # fn create_schema() -> Schema {
     /// #    let mut schema_builder = Schema::builder();

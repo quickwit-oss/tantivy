@@ -14,7 +14,7 @@ pub mod linear;
 
 mod column;
 
-pub use self::column::Column;
+pub use self::column::{monotonic_map_column, Column, VecColumn};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -56,12 +56,12 @@ impl FastFieldCodecType {
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodec {
+pub trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
 
-    type Reader: Column<u64>;
+    type Reader: Column<u64> + 'static;
 
     /// Reads the metadata and returns the CodecReader
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
@@ -90,35 +90,6 @@ pub struct FastFieldStats {
     pub num_vals: u64,
 }
 
-struct VecColum<'a>(&'a [u64]);
-impl<'a> Column for VecColum<'a> {
-    fn get_val(&self, position: u64) -> u64 {
-        self.0[position as usize]
-    }
-
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new(self.0.iter().cloned())
-    }
-
-    fn min_value(&self) -> u64 {
-        self.0.iter().min().cloned().unwrap_or(0)
-    }
-
-    fn max_value(&self) -> u64 {
-        self.0.iter().max().cloned().unwrap_or(0)
-    }
-
-    fn num_vals(&self) -> u64 {
-        self.0.len() as u64
-    }
-}
-
-impl<'a> From<&'a [u64]> for VecColum<'a> {
-    fn from(data: &'a [u64]) -> Self {
-        Self(data)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
@@ -133,10 +104,10 @@ mod tests {
         data: &[u64],
         name: &str,
     ) -> Option<(f32, f32)> {
-        let estimation = Codec::estimate(&VecColum::from(data))?;
+        let estimation = Codec::estimate(&VecColumn::from(data))?;
 
         let mut out: Vec<u8> = Vec::new();
-        Codec::serialize(&mut out, &VecColum::from(data)).unwrap();
+        Codec::serialize(&mut out, &VecColumn::from(data)).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
@@ -233,7 +204,7 @@ mod tests {
     #[test]
     fn estimation_good_interpolation_case() {
         let data = (10..=20000_u64).collect::<Vec<_>>();
-        let data: VecColum = data.as_slice().into();
+        let data: VecColumn = data.as_slice().into();
 
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
@@ -249,7 +220,7 @@ mod tests {
     fn estimation_test_bad_interpolation_case() {
         let data: &[u64] = &[200, 10, 10, 10, 10, 1000, 20];
 
-        let data: VecColum = data.into();
+        let data: VecColumn = data.into();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
         assert_le!(linear_interpol_estimation, 0.32);
 
@@ -259,8 +230,8 @@ mod tests {
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
         let mut data: Vec<u64> = (200..=20000_u64).collect();
+        let data: VecColumn = data.as_slice().into();
         data.push(1_000_000);
-        let data: VecColum = data.as_slice().into();
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior

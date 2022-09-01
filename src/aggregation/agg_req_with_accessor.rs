@@ -4,14 +4,14 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
+use fastfield_codecs::Column;
+
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::fastfield::{
-    type_and_cardinality, DynamicFastFieldReader, FastType, MultiValuedFastFieldReader,
-};
+use crate::fastfield::{type_and_cardinality, FastType, MultiValuedFastFieldReader};
 use crate::schema::{Cardinality, Type};
 use crate::{InvertedIndexReader, SegmentReader, TantivyError};
 
@@ -37,10 +37,16 @@ impl AggregationsWithAccessor {
 #[derive(Clone)]
 pub(crate) enum FastFieldAccessor {
     Multi(MultiValuedFastFieldReader<u64>),
-    Single(DynamicFastFieldReader<u64>),
+    Single(Arc<dyn Column<u64>>),
 }
 impl FastFieldAccessor {
-    pub fn as_single(&self) -> Option<&DynamicFastFieldReader<u64>> {
+    pub fn as_single(&self) -> Option<&dyn Column<u64>> {
+        match self {
+            FastFieldAccessor::Multi(_) => None,
+            FastFieldAccessor::Single(reader) => Some(&**reader),
+        }
+    }
+    pub fn into_single(self) -> Option<Arc<dyn Column<u64>>> {
         match self {
             FastFieldAccessor::Multi(_) => None,
             FastFieldAccessor::Single(reader) => Some(reader),
@@ -118,7 +124,7 @@ impl BucketAggregationWithAccessor {
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: Type,
-    pub accessor: DynamicFastFieldReader<u64>,
+    pub accessor: Arc<dyn Column>,
 }
 
 impl MetricAggregationWithAccessor {
@@ -134,9 +140,8 @@ impl MetricAggregationWithAccessor {
 
                 Ok(MetricAggregationWithAccessor {
                     accessor: accessor
-                        .as_single()
-                        .expect("unexpected fast field cardinality")
-                        .clone(),
+                        .into_single()
+                        .expect("unexpected fast field cardinality"),
                     field_type,
                     metric: metric.clone(),
                 })

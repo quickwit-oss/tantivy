@@ -172,8 +172,7 @@ where TValueReader: value::ValueReader
     }
 
     pub fn suffix(&self) -> &[u8] {
-        &self
-            .block_reader
+        self.block_reader
             .buffer_from_to(self.suffix_start, self.suffix_end)
     }
 

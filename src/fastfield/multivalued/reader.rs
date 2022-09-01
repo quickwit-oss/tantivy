@@ -1,8 +1,9 @@
 use std::ops::Range;
+use std::sync::Arc;
 
 use fastfield_codecs::Column;
 
-use crate::fastfield::{DynamicFastFieldReader, FastValue, MultiValueLength};
+use crate::fastfield::{FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -14,14 +15,14 @@ use crate::DocId;
 /// The `idx_reader` associated, for each document, the index of its first value.
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
-    idx_reader: DynamicFastFieldReader<u64>,
-    vals_reader: DynamicFastFieldReader<Item>,
+    idx_reader: Arc<dyn Column<u64>>,
+    vals_reader: Arc<dyn Column<Item>>,
 }
 
 impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     pub(crate) fn open(
-        idx_reader: DynamicFastFieldReader<u64>,
-        vals_reader: DynamicFastFieldReader<Item>,
+        idx_reader: Arc<dyn Column<u64>>,
+        vals_reader: Arc<dyn Column<Item>>,
     ) -> MultiValuedFastFieldReader<Item> {
         MultiValuedFastFieldReader {
             idx_reader,

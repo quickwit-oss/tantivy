@@ -6,7 +6,7 @@ use fastdivide::DividerU64;
 pub use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedSerializerLegacy};
 use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
 use fastfield_codecs::linear::LinearCodec;
-use fastfield_codecs::FastFieldCodecType;
+use fastfield_codecs::{monotonic_map_column, FastFieldCodecType};
 pub use fastfield_codecs::{Column, FastFieldCodec, FastFieldStats};
 
 use super::{find_gcd, ALL_CODECS, GCD_DEFAULT};
@@ -136,56 +136,22 @@ impl CompositeFastFieldSerializer {
         }
 
         Self::write_header(field_write, FastFieldCodecType::Gcd)?;
-        struct GCDWrappedFFAccess<T: Column> {
-            fastfield_accessor: T,
-            base_value: u64,
-            max_value: u64,
-            num_vals: u64,
-            gcd: DividerU64,
-        }
 
-        impl<T: Column> Column for GCDWrappedFFAccess<T> {
-            fn get_val(&self, position: u64) -> u64 {
-                self.gcd
-                    .divide(self.fastfield_accessor.get_val(position) - self.base_value)
-            }
-            fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-                Box::new(
-                    self.fastfield_accessor
-                        .iter()
-                        .map(|val| self.gcd.divide(val - self.base_value)),
-                )
-            }
-            fn min_value(&self) -> u64 {
-                0
-            }
-
-            fn max_value(&self) -> u64 {
-                self.max_value
-            }
-
-            fn num_vals(&self) -> u64 {
-                self.num_vals
-            }
-        }
-
-        let num_vals = fastfield_accessor.num_vals();
         let base_value = fastfield_accessor.min_value();
-        let max_value = (fastfield_accessor.max_value() - fastfield_accessor.min_value()) / gcd;
 
-        let fastfield_accessor = GCDWrappedFFAccess {
-            fastfield_accessor,
-            base_value,
-            max_value,
-            num_vals,
-            gcd: DividerU64::divide_by(gcd),
-        };
+        let gcd_divider = DividerU64::divide_by(gcd);
+
+        let divided_fastfield_accessor = monotonic_map_column(fastfield_accessor, |val: u64| {
+            gcd_divider.divide(val - base_value)
+        });
+
+        let num_vals = divided_fastfield_accessor.num_vals();
 
         Self::create_auto_detect_u64_fast_field_with_idx_gcd(
             self.codec_enable_checker.clone(),
             field,
             field_write,
-            fastfield_accessor,
+            divided_fastfield_accessor,
         )?;
         write_gcd_header(field_write, base_value, gcd, num_vals)?;
         Ok(())
