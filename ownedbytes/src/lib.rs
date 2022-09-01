@@ -6,7 +6,7 @@ use std::{fmt, io, mem};
 use stable_deref_trait::StableDeref;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
-/// this data as a static slice.
+/// this data as a slice.
 ///
 /// The backing object is required to be `StableDeref`.
 #[derive(Clone)]
