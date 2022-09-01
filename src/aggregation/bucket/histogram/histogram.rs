@@ -15,7 +15,6 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -264,7 +263,7 @@ impl SegmentHistogramCollector {
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
-        accessor: &DynamicFastFieldReader<u64>,
+        accessor: &dyn Column<u64>,
     ) -> crate::Result<Self> {
         req.validate()?;
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);

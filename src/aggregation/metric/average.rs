@@ -4,7 +4,6 @@ use fastfield_codecs::Column;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::f64_from_fastfield_u64;
-use crate::fastfield::DynamicFastFieldReader;
 use crate::schema::Type;
 use crate::DocId;
 
@@ -58,7 +57,7 @@ impl SegmentAverageCollector {
             data: Default::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
+    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
             let val1 = field.get_val(docs[0] as u64);

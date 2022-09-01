@@ -26,9 +26,8 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub(crate) use self::gcd::{find_gcd, GCDReader, GCD_DEFAULT};
+pub(crate) use self::gcd::{find_gcd, GCD_DEFAULT};
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::DynamicFastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{Column, CompositeFastFieldSerializer, FastFieldStats};
@@ -266,6 +265,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ops::Range;
     use std::path::Path;
+    use std::sync::Arc;
 
     use common::HasLen;
     use once_cell::sync::Lazy;
@@ -275,6 +275,7 @@ mod tests {
 
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::fastfield::reader::open_fast_field;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{Document, Field, Schema, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
@@ -295,9 +296,51 @@ mod tests {
     pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
     pub static FIELDI64: Lazy<Field> = Lazy::new(|| SCHEMAI64.get_field("field").unwrap());
 
+    /// Encode values using the most appropriate codec and and then loads it
+    /// right away.
+    ///
+    /// This is useful in tests and bench.
+    pub(crate) fn encode_decode_fast_field<Item: FastValue>(
+        vals: &[Item],
+    ) -> Arc<dyn Column<Item>> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_u64_field("field", FAST);
+        let schema = schema_builder.build();
+        let path = Path::new("__dummy__");
+        let directory: RamDirectory = RamDirectory::create();
+        {
+            let write: WritePtr = directory
+                .open_write(path)
+                .expect("With a RamDirectory, this should never fail.");
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)
+                .expect("With a RamDirectory, this should never fail.");
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            {
+                let fast_field_writer = fast_field_writers
+                    .get_field_writer_mut(field)
+                    .expect("With a RamDirectory, this should never fail.");
+                for val in vals {
+                    fast_field_writer.add_val(val.to_u64());
+                }
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(path).expect("Failed to open the file");
+        let composite_file = CompositeFile::open(&file).expect("Failed to read the composite file");
+        let field_bytes = composite_file
+            .open_read(field)
+            .expect("File component not found")
+            .read_bytes()
+            .unwrap();
+        open_fast_field(field_bytes).unwrap()
+    }
+
     #[test]
     pub fn test_fastfield() {
-        let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
+        let test_fastfield = encode_decode_fast_field(&[100u64, 200u64, 300u64]);
         assert_eq!(test_fastfield.get_val(0u64), 100);
         assert_eq!(test_fastfield.get_val(1u64), 200);
         assert_eq!(test_fastfield.get_val(2u64), 300);
@@ -328,8 +371,8 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 45);
         let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(*FIELD).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
+        let fast_field_bytes = composite_file.open_read(*FIELD).unwrap().read_bytes()?;
+        let fast_field_reader = open_fast_field::<u64>(fast_field_bytes)?;
         assert_eq!(fast_field_reader.get_val(0), 13u64);
         assert_eq!(fast_field_reader.get_val(1), 14u64);
         assert_eq!(fast_field_reader.get_val(2), 2u64);
@@ -360,8 +403,11 @@ mod tests {
         assert_eq!(file.len(), 70);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<u64>(data)?;
             assert_eq!(fast_field_reader.get_val(0), 4u64);
             assert_eq!(fast_field_reader.get_val(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get_val(2), 3_052u64);
@@ -396,8 +442,11 @@ mod tests {
         assert_eq!(file.len(), 43);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<u64>(data)?;
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
             }
@@ -428,8 +477,11 @@ mod tests {
         assert_eq!(file.len(), 80051);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<u64>(data)?;
             assert_eq!(fast_field_reader.get_val(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(
@@ -469,8 +521,11 @@ mod tests {
         assert_eq!(file.len(), 75_usize); // linear interpol size after calc improvement
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(i64_field)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<i64>(data)?;
 
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
@@ -509,8 +564,11 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(i64_field)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<i64>(data)?;
             assert_eq!(fast_field_reader.get_val(0), 0i64);
         }
         Ok(())
@@ -547,8 +605,11 @@ mod tests {
         let file = directory.open_read(path)?;
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open_fast_field::<u64>(data)?;
 
             for a in 0..n {
                 assert_eq!(fast_field_reader.get_val(a as u64), permutation[a as usize]);
@@ -607,7 +668,7 @@ mod tests {
         let mut all = vec![];
 
         for doc in docs {
-            let mut out = vec![];
+            let mut out: Vec<u64> = vec![];
             ff.get_vals(doc, &mut out);
             all.extend(out);
         }
@@ -865,7 +926,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield_bool() {
-        let test_fastfield = DynamicFastFieldReader::<bool>::from(vec![true, false, true, false]);
+        let test_fastfield = encode_decode_fast_field::<bool>(&[true, false, true, false]);
         assert_eq!(test_fastfield.get_val(0), true);
         assert_eq!(test_fastfield.get_val(1), false);
         assert_eq!(test_fastfield.get_val(2), true);
@@ -898,8 +959,8 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 44);
         let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(field).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open_fast_field::<bool>(data)?;
         assert_eq!(fast_field_reader.get_val(0), true);
         assert_eq!(fast_field_reader.get_val(1), false);
         assert_eq!(fast_field_reader.get_val(2), true);
@@ -934,8 +995,8 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 56);
         let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(field).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open_fast_field::<bool>(data)?;
         for i in 0..25 {
             assert_eq!(fast_field_reader.get_val(i * 2), true);
             assert_eq!(fast_field_reader.get_val(i * 2 + 1), false);
@@ -968,8 +1029,8 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 43);
         let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(field).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<bool>::open(file)?;
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open_fast_field::<bool>(data)?;
         assert_eq!(fast_field_reader.get_val(0), false);
 
         Ok(())
@@ -978,12 +1039,14 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use std::sync::Arc;
+
     use fastfield_codecs::Column;
     use test::{self, Bencher};
 
-    use super::tests::generate_permutation;
-    use super::*;
-    use crate::fastfield::tests::generate_permutation_gcd;
+    use crate::fastfield::tests::{
+        encode_decode_fast_field, generate_permutation, generate_permutation_gcd,
+    };
 
     #[bench]
     fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
@@ -1002,7 +1065,7 @@ mod bench {
     fn bench_intfastfield_jumpy_fflookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         let n = permutation.len();
-        let column = DynamicFastFieldReader::from(permutation);
+        let column: Arc<dyn Column<u64>> = encode_decode_fast_field(&permutation);
         b.iter(|| {
             let mut a = 0u64;
             for _ in 0..n {
@@ -1029,7 +1092,7 @@ mod bench {
     fn bench_intfastfield_stride7_fflookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         let n = permutation.len();
-        let column = DynamicFastFieldReader::from(permutation);
+        let column: Arc<dyn Column<u64>> = encode_decode_fast_field(&permutation);
         b.iter(|| {
             let mut a = 0u64;
             for i in (0..n / 7).map(|val| val * 7) {
@@ -1043,7 +1106,7 @@ mod bench {
     fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         let n = permutation.len();
-        let column = DynamicFastFieldReader::from(permutation);
+        let column: Arc<dyn Column<u64>> = encode_decode_fast_field(&permutation);
         b.iter(|| {
             let mut a = 0u64;
             for i in 0u64..n as u64 {
@@ -1057,7 +1120,7 @@ mod bench {
     fn bench_intfastfield_scan_all_fflookup_gcd(b: &mut Bencher) {
         let permutation = generate_permutation_gcd();
         let n = permutation.len();
-        let column = DynamicFastFieldReader::from(permutation);
+        let column: Arc<dyn Column<u64>> = encode_decode_fast_field(&permutation);
         b.iter(|| {
             let mut a = 0u64;
             for i in 0..n as u64 {

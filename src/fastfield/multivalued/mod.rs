@@ -346,6 +346,7 @@ mod tests {
             assert!(test_multivalued_no_panic(&ops[..]).is_ok());
         }
     }
+
     #[test]
     fn test_multivalued_proptest_gcd() {
         use IndexingOp::*;
