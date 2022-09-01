@@ -116,7 +116,7 @@ pub(crate) struct IndexingPosition {
 /// and building a `Segment` in anonymous memory.
 ///
 /// `PostingsWriter` writes in a `MemoryArena`.
-pub(crate) trait PostingsWriter {
+pub(crate) trait PostingsWriter: Send + Sync {
     /// Record that a document contains a term at a given position.
     ///
     /// * doc  - the document id

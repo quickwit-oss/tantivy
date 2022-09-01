@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use super::segment::Segment;
 use super::IndexSettings;
+use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
 use crate::core::{
     Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
 };
@@ -161,6 +162,25 @@ impl IndexBuilder {
             return Err(TantivyError::IndexAlreadyExists);
         }
         self.create(mmap_directory)
+    }
+
+    /// Dragons ahead!!!
+    ///
+    /// The point of this API is to let users create a simple index with a single segment
+    /// and without starting any thread.
+    ///
+    /// Do not use this method if you are not sure what you are doing.
+    ///
+    /// It expects an originally empty directory, and will not run any GC operation.
+    #[doc(hidden)]
+    pub fn single_segment_index_writer(
+        self,
+        dir: impl Into<Box<dyn Directory>>,
+        mem_budget: usize,
+    ) -> crate::Result<SingleSegmentIndexWriter> {
+        let index = self.create(dir)?;
+        let index_simple_writer = SingleSegmentIndexWriter::new(index, mem_budget)?;
+        Ok(index_simple_writer)
     }
 
     /// Creates a new index in a temp directory.
@@ -608,10 +628,12 @@ impl fmt::Debug for Index {
 
 #[cfg(test)]
 mod tests {
+    use crate::collector::Count;
     use crate::directory::{RamDirectory, WatchCallback};
-    use crate::schema::{Field, Schema, INDEXED, TEXT};
+    use crate::query::TermQuery;
+    use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, TEXT};
     use crate::tokenizer::TokenizerManager;
-    use crate::{Directory, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy};
+    use crate::{Directory, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy, Term};
 
     #[test]
     fn test_indexer_for_field() {
@@ -875,6 +897,30 @@ mod tests {
             mem_right_after_merge_finished,
             mem_right_after_commit
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_single_segment_index_writer() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let directory = RamDirectory::default();
+        let mut single_segment_index_writer = Index::builder()
+            .schema(schema)
+            .single_segment_index_writer(directory, 10_000_000)?;
+        for _ in 0..10 {
+            let doc = doc!(text_field=>"hello");
+            single_segment_index_writer.add_document(doc)?;
+        }
+        let index = single_segment_index_writer.finalize()?;
+        let searcher = index.reader()?.searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "hello"),
+            IndexRecordOption::Basic,
+        );
+        let count = searcher.search(&term_query, &Count)?;
+        assert_eq!(count, 10);
         Ok(())
     }
 }
