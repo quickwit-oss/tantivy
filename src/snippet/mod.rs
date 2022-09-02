@@ -639,13 +639,10 @@ Survey in 2016, 2017, and 2018."#;
     #[test]
     fn test_collapse_overlapped_ranges() {
         assert_eq!(&collapse_overlapped_ranges(&[0..1, 2..3,]), &[0..1, 2..3]);
-        assert_eq!(
-            collapse_overlapped_ranges(&vec![0..1, 1..2,]),
-            vec![0..1, 1..2]
-        );
-        assert_eq!(collapse_overlapped_ranges(&[0..2, 1..2,]), vec![0..2]);
-        assert_eq!(collapse_overlapped_ranges(&[0..2, 1..3,]), vec![0..3]);
-        assert_eq!(collapse_overlapped_ranges(&[0..3, 1..2,]), vec![0..3]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..1, 1..2,]), &[0..1, 1..2]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..2, 1..2,]), &[0..2]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..2, 1..3,]), &[0..3]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..3, 1..2,]), &[0..3]);
     }
 
     #[test]

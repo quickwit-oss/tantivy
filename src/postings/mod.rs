@@ -222,7 +222,7 @@ pub mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let segment = index.new_segment();
 
         {
