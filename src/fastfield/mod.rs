@@ -978,37 +978,20 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use std::collections::HashMap;
-    use std::path::Path;
-
     use fastfield_codecs::Column;
     use test::{self, Bencher};
 
-    use super::tests::{generate_permutation, FIELD, SCHEMA};
+    use super::tests::generate_permutation;
     use super::*;
-    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::fastfield::tests::generate_permutation_gcd;
 
     #[bench]
-    fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
+    fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
+        let n = permutation.len();
         b.iter(|| {
-            let n = test::black_box(7000u32);
             let mut a = 0u64;
-            for i in (0u32..n / 7).map(|v| v * 7) {
-                a ^= permutation[i as usize];
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_veclookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        b.iter(|| {
-            let n = test::black_box(1000u32);
-            let mut a = 0u64;
-            for _ in 0u32..n {
+            for _ in 0..n {
                 a = permutation[a as usize];
             }
             a
@@ -1016,102 +999,83 @@ mod bench {
     }
 
     #[bench]
-    fn bench_intfastfield_linear_fflookup(b: &mut Bencher) {
-        let path = Path::new("test");
+    fn bench_intfastfield_jumpy_fflookup(b: &mut Bencher) {
         let permutation = generate_permutation();
-        let directory: RamDirectory = RamDirectory::create();
-        {
-            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+        let n = permutation.len();
+        let column = DynamicFastFieldReader::from(permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for _ in 0..n {
+                a = column.get_val(a as u64);
             }
-            fast_field_writers
-                .serialize(&mut serializer, &HashMap::new(), None)
-                .unwrap();
-            serializer.close().unwrap();
-        }
-        let file = directory.open_read(&path).unwrap();
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
-
-            b.iter(|| {
-                let n = test::black_box(7000u32);
-                let mut a = 0u64;
-                for i in (0u32..n / 7).map(|val| val * 7) {
-                    a ^= fast_field_reader.get_val(i as u64);
-                }
-                a
-            });
-        }
+            a
+        });
     }
 
     #[bench]
-    fn bench_intfastfield_fflookup(b: &mut Bencher) {
-        let path = Path::new("test");
+    fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
         let permutation = generate_permutation();
-        let directory: RamDirectory = RamDirectory::create();
-        {
-            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+        let n = permutation.len();
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += permutation[i as usize];
             }
-            fast_field_writers
-                .serialize(&mut serializer, &HashMap::new(), None)
-                .unwrap();
-            serializer.close().unwrap();
-        }
-        let file = directory.open_read(&path).unwrap();
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
-
-            b.iter(|| {
-                let mut a = 0u32;
-                for i in 0u64..permutation.len() as u64 {
-                    a = fast_field_reader.get_val(i) as u32;
-                }
-                a
-            });
-        }
+            a
+        });
     }
 
     #[bench]
-    fn bench_intfastfield_fflookup_gcd(b: &mut Bencher) {
-        let path = Path::new("test");
+    fn bench_intfastfield_stride7_fflookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column = DynamicFastFieldReader::from(permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column = DynamicFastFieldReader::from(permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0u64..n as u64 {
+                a += column.get_val(i);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_scan_all_fflookup_gcd(b: &mut Bencher) {
         let permutation = generate_permutation_gcd();
-        let directory: RamDirectory = RamDirectory::create();
-        {
-            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+        let n = permutation.len();
+        let column = DynamicFastFieldReader::from(permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0..n as u64 {
+                a += column.get_val(i);
             }
-            fast_field_writers
-                .serialize(&mut serializer, &HashMap::new(), None)
-                .unwrap();
-            serializer.close().unwrap();
-        }
-        let file = directory.open_read(&path).unwrap();
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
+            a
+        });
+    }
 
-            b.iter(|| {
-                let mut a = 0u32;
-                for i in 0u32..permutation.len() as u32 {
-                    a = fast_field_reader.get_val(i as u64) as u32;
-                }
-                a
-            });
-        }
+    #[bench]
+    fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0..permutation.len() {
+                a += permutation[i as usize] as u64;
+            }
+            a
+        });
     }
 }
