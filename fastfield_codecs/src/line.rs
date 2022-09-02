@@ -21,14 +21,26 @@ pub struct Line {
 }
 
 /// Compute the line slope.
+///
+/// This function has the nice property of being
+/// invariant by translation.
+/// `
+///   compute_slope(y0, y1)
+/// = compute_slope(y0 + X % 2^64, y1 + X % 2^64)
+/// `
 fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU64) -> u64 {
     let dy = y1.wrapping_sub(y0);
-    let sign = dy < (1 << 32);
+    let sign = dy <= (1 << 63);
     let abs_dy = if sign {
         y1.wrapping_sub(y0)
     } else {
         y0.wrapping_sub(y1)
     };
+    if abs_dy >= 1 << 32 {
+        // This is outside of realm we handle.
+        // Let's just bail.
+        return 0u64;
+    }
 
     let abs_slope = (abs_dy << 32) / num_vals.get();
     if sign {
@@ -61,6 +73,9 @@ impl Line {
     /// Or more rigorously, formally `f(i).wrapping_sub(ys[i])` is small
     /// for any i in [0..ys.len()).
     /// - It computes without panicking for any value of it.
+    ///
+    /// This function is only invariable by translation if all of the
+    /// `ys` are packaged into half of the space. (See heuristic below)
     pub fn train(ys: &dyn Column) -> Self {
         let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals()) {
             num_vals
@@ -136,6 +151,7 @@ mod tests {
     /// the data points and the line is `expected`.
     ///
     /// This function operates translation over the data for better coverage.
+    #[track_caller]
     fn test_line_interpol_with_translation(ys: &[u64], expected: Option<u64>) {
         let mut translations = vec![0, 100, u64::MAX, u64::MAX - 1];
         translations.extend_from_slice(ys);
@@ -165,5 +181,6 @@ mod tests {
         test_line_interpol_with_translation(&[13, 13, 12, 11, 11, 11], Some(1));
         test_line_interpol_with_translation(&[13, 13, 12, 11, 11, 11], Some(1));
         test_line_interpol_with_translation(&[u64::MAX - 1, 0, 0, 1], Some(2));
+        test_line_interpol_with_translation(&[0, 1, 2, 3, 5], Some(1));
     }
 }
