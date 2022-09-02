@@ -1,7 +1,9 @@
+use fastfield_codecs::MonotonicallyMappableToU64;
+
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::core::Segment;
-use crate::fastfield::{FastFieldsWriter, FastValue as _};
+use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;

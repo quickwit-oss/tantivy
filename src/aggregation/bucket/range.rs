@@ -423,12 +423,13 @@ pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
 #[cfg(test)]
 mod tests {
 
+    use fastfield_codecs::MonotonicallyMappableToU64;
+
     use super::*;
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
     };
     use crate::aggregation::tests::{exec_request_with_query, get_test_index_with_num_docs};
-    use crate::fastfield::FastValue;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,

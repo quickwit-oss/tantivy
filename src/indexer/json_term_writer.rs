@@ -1,3 +1,4 @@
+use fastfield_codecs::MonotonicallyMappableToU64;
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
 

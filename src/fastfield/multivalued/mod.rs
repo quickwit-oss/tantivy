@@ -341,6 +341,7 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(5))]
         #[test]
         fn test_multivalued_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
             assert!(test_multivalued_no_panic(&ops[..]).is_ok());

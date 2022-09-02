@@ -1,10 +1,11 @@
 use std::io;
 
+use fastfield_codecs::MonotonicallyMappableToU64;
 use fnv::FnvHashMap;
 use tantivy_bitpacker::minmax;
 
 use crate::fastfield::serializer::BitpackedSerializerLegacy;
-use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType, FastValue};
+use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field, Value};

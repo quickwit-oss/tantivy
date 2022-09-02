@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::{open, Column};
 
 use crate::directory::{CompositeFile, FileSlice};
-use crate::fastfield::reader::open_fast_field;
 use crate::fastfield::{
     BytesFastFieldReader, FastFieldNotAvailableError, FastValue, MultiValuedFastFieldReader,
 };
@@ -116,7 +115,8 @@ impl FastFieldReaders {
     ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
         let fast_field_slice = self.fast_field_data(field, index)?;
         let bytes = fast_field_slice.read_bytes()?;
-        open_fast_field(bytes)
+        let column = fastfield_codecs::open(bytes)?;
+        Ok(column)
     }
 
     pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
@@ -248,7 +248,7 @@ impl FastFieldReaders {
             }
             let fast_field_idx_file = self.fast_field_data(field, 0)?;
             let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
-            let idx_reader = open_fast_field(fast_field_idx_bytes)?;
+            let idx_reader = open(fast_field_idx_bytes)?;
             let data = self.fast_field_data(field, 1)?;
             BytesFastFieldReader::open(idx_reader, data)
         } else {
