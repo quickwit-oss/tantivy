@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use fastfield_codecs::Column;
 use fnv::FnvHashMap;
 use serde::{Deserialize, Serialize};
 

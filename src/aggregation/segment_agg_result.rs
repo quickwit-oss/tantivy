@@ -185,10 +185,10 @@ impl SegmentMetricResultCollector {
     pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Average(avg_collector) => {
-                avg_collector.collect_block(doc, &metric.accessor);
+                avg_collector.collect_block(doc, &*metric.accessor);
             }
             SegmentMetricResultCollector::Stats(stats_collector) => {
-                stats_collector.collect_block(doc, &metric.accessor);
+                stats_collector.collect_block(doc, &*metric.accessor);
             }
         }
     }

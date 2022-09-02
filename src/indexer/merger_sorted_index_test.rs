@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use fastfield_codecs::Column;
-
     use crate::collector::TopDocs;
     use crate::core::Index;
     use crate::fastfield::{AliveBitSet, MultiValuedFastFieldReader};
@@ -480,11 +478,12 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
+    use std::sync::Arc;
+
     use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use crate::core::Index;
-    use crate::fastfield::DynamicFastFieldReader;
     use crate::indexer::merger::IndexMerger;
     use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
@@ -536,7 +535,7 @@ mod bench_sorted_index_merge {
         b.iter(|| {
             let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let reader = &merger.readers[doc_addr.segment_ord as usize];
-                let u64_reader: DynamicFastFieldReader<u64> =
+                let u64_reader: Arc<dyn Column<u64>> =
                     reader.fast_fields().typed_fast_field_reader(field).expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",

@@ -339,7 +339,7 @@ impl StoreReader {
     async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
         let cache_key = checkpoint.byte_range.start;
         if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
-            return Ok(block.clone());
+            return Ok(block);
         }
 
         let compressed_block = self

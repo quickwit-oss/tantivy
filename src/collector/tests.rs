@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use fastfield_codecs::Column;
 
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader};
+use crate::fastfield::BytesFastFieldReader;
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
@@ -158,7 +160,7 @@ pub struct FastFieldTestCollector {
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: DynamicFastFieldReader<u64>,
+    reader: Arc<dyn Column<u64>>,
 }
 
 impl FastFieldTestCollector {

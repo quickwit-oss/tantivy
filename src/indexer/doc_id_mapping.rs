@@ -143,8 +143,6 @@ pub(crate) fn get_doc_id_mapping_from_field(
 
 #[cfg(test)]
 mod tests_indexsorting {
-    use fastfield_codecs::Column;
-
     use crate::collector::TopDocs;
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::query::QueryParser;
