@@ -1,6 +1,11 @@
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
+
 #[cfg(test)]
 #[macro_use]
 extern crate more_asserts;
+
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
 
 use std::io;
 use std::io::Write;
@@ -13,8 +18,11 @@ pub mod blockwise_linear;
 pub mod linear;
 
 mod column;
+mod gcd;
+mod serialize;
 
 pub use self::column::{monotonic_map_column, Column, VecColumn};
+pub use self::serialize::{open, serialize, serialize_and_load};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -54,6 +62,67 @@ impl FastFieldCodecType {
     }
 }
 
+pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy {
+    /// Converts a value to u64.
+    ///
+    /// Internally all fast field values are encoded as u64.
+    fn to_u64(self) -> u64;
+
+    /// Converts a value from u64
+    ///
+    /// Internally all fast field values are encoded as u64.
+    /// **Note: To be used for converting encoded Term, Posting values.**
+    fn from_u64(val: u64) -> Self;
+}
+
+impl MonotonicallyMappableToU64 for u64 {
+    fn to_u64(self) -> u64 {
+        self
+    }
+
+    fn from_u64(val: u64) -> Self {
+        val
+    }
+}
+
+impl MonotonicallyMappableToU64 for i64 {
+    #[inline(always)]
+    fn to_u64(self) -> u64 {
+        common::i64_to_u64(self)
+    }
+
+    #[inline(always)]
+    fn from_u64(val: u64) -> Self {
+        common::u64_to_i64(val)
+    }
+}
+
+impl MonotonicallyMappableToU64 for bool {
+    #[inline(always)]
+    fn to_u64(self) -> u64 {
+        if self {
+            1
+        } else {
+            0
+        }
+    }
+
+    #[inline(always)]
+    fn from_u64(val: u64) -> Self {
+        val > 0
+    }
+}
+
+impl MonotonicallyMappableToU64 for f64 {
+    fn to_u64(self) -> u64 {
+        common::f64_to_u64(self)
+    }
+
+    fn from_u64(val: u64) -> Self {
+        common::u64_to_f64(val)
+    }
+}
+
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldCodec: 'static {
@@ -81,6 +150,13 @@ pub trait FastFieldCodec: 'static {
     /// computational complexity.
     fn estimate(fastfield_accessor: &impl Column) -> Option<f32>;
 }
+
+pub const ALL_CODEC_TYPES: [FastFieldCodecType; 4] = [
+    FastFieldCodecType::Bitpacked,
+    FastFieldCodecType::BlockwiseLinear,
+    FastFieldCodecType::Gcd,
+    FastFieldCodecType::Linear,
+];
 
 #[derive(Debug, Clone)]
 /// Statistics are used in codec detection and stored in the fast field footer.
@@ -253,5 +329,123 @@ mod tests {
             }
         }
         assert_eq!(count_codec, 4);
+    }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use std::sync::Arc;
+
+    use rand::prelude::*;
+    use test::{self, Bencher};
+
+    use crate::Column;
+
+    // Warning: this generates the same permutation at each call
+    fn generate_permutation() -> Vec<u64> {
+        let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        permutation
+    }
+
+    // Warning: this generates the same permutation at each call
+    fn generate_permutation_gcd() -> Vec<u64> {
+        let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        permutation
+    }
+
+    #[bench]
+    fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        b.iter(|| {
+            let mut a = 0u64;
+            for _ in 0..n {
+                a = permutation[a as usize];
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_jumpy_fflookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for _ in 0..n {
+                a = column.get_val(a as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += permutation[i as usize];
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_stride7_fflookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0u64..n as u64 {
+                a += column.get_val(i);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_scan_all_fflookup_gcd(b: &mut Bencher) {
+        let permutation = generate_permutation_gcd();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0..n as u64 {
+                a += column.get_val(i);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in 0..permutation.len() {
+                a += permutation[i as usize] as u64;
+            }
+            a
+        });
     }
 }

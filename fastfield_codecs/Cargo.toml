@@ -14,6 +14,8 @@ tantivy-bitpacker = { version="0.2", path = "../bitpacker/" }
 ownedbytes = { version = "0.3.0", path = "../ownedbytes" }
 prettytable-rs = {version="0.9.0", optional= true}
 rand = {version="0.8.3", optional= true}
+fastdivide = "0.4"
+log = "0.4"
 
 [dev-dependencies]
 more-asserts = "0.3.0"
@@ -23,4 +25,5 @@ rand = "0.8.3"
 [features]
 bin = ["prettytable-rs", "rand"]
 default = ["bin"]
+unstable = []
 

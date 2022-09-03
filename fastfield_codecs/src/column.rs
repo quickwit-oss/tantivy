@@ -81,8 +81,11 @@ impl<'a, T: Copy + PartialOrd> Column<T> for VecColumn<'a, T> {
     }
 }
 
-impl<'a, T: Copy + Ord + Default> From<&'a [T]> for VecColumn<'a, T> {
-    fn from(values: &'a [T]) -> Self {
+impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
+where V: AsRef<[T]> + ?Sized
+{
+    fn from(values: &'a V) -> Self {
+        let values = values.as_ref();
         let (min_value, max_value) = minmax(values.iter().copied()).unwrap_or_default();
         Self {
             values,

@@ -27,7 +27,7 @@ mod tests {
     }
     fn bench_get<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
         let mut bytes = vec![];
-        Codec::serialize(&mut bytes, &data).unwrap();
+        Codec::serialize(&mut bytes, &VecColumn::from(data)).unwrap();
         let reader = Codec::open_from_bytes(OwnedBytes::new(bytes)).unwrap();
         b.iter(|| {
             let mut sum = 0u64;
@@ -43,7 +43,7 @@ mod tests {
         let mut bytes = Vec::new();
         b.iter(|| {
             bytes.clear();
-            Codec::serialize(&mut bytes, &data).unwrap();
+            Codec::serialize(&mut bytes, &VecColumn::from(data)).unwrap();
         });
     }
 
