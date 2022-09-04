@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 
 use super::term_weight::TermWeight;
@@ -121,7 +120,7 @@ impl Query for TermQuery {
             self.specialized_weight(searcher, scoring_enabled)?,
         ))
     }
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
-        terms.insert(self.term.clone(), false);
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        visitor(&self.term, false);
     }
 }

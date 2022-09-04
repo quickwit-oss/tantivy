@@ -184,7 +184,7 @@ pub struct QueryParser {
 fn all_negative(ast: &LogicalAst) -> bool {
     match ast {
         LogicalAst::Leaf(_) => false,
-        LogicalAst::Boost(ref child_ast, _) => all_negative(&*child_ast),
+        LogicalAst::Boost(ref child_ast, _) => all_negative(child_ast),
         LogicalAst::Clause(children) => children
             .iter()
             .all(|(ref occur, child)| (*occur == Occur::MustNot) || all_negative(child)),
@@ -577,7 +577,7 @@ impl QueryParser {
     /// object by naturally extending the json field name with a "." separated field_path
     /// - field_phrase: the phrase that is being searched.
     ///
-    /// The literal identifies the targetted field by a so-called *full field path*,
+    /// The literal identifies the targeted field by a so-called *full field path*,
     /// specified before the ":". (e.g. identity.username:fulmicoton).
     ///
     /// The way we split the full field path into (field_name, field_path) can be ambiguous,

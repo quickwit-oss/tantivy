@@ -50,7 +50,7 @@ fn main() -> tantivy::Result<()> {
     // for your unit tests... Or this example.
     let index = Index::create_in_ram(schema.clone());
 
-    // here we are registering our custome tokenizer
+    // here we are registering our custom tokenizer
     // this will store tokens of 3 characters each
     index
         .tokenizers()

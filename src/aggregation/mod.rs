@@ -161,7 +161,6 @@ mod collector;
 pub mod intermediate_agg_result;
 pub mod metric;
 mod segment_agg_result;
-
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -169,10 +168,10 @@ pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
     MAX_BUCKET_COUNT,
 };
+use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::fastfield::FastValue;
 use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
@@ -377,7 +376,7 @@ mod tests {
             searcher.search(&AllQuery, &collector)?
         };
 
-        // Test serialization/deserialization rountrip
+        // Test serialization/deserialization roundtrip
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         Ok(res)
     }

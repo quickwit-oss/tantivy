@@ -2,56 +2,48 @@
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
 
 use std::cmp::Reverse;
-use std::ops::Index;
 
 use super::SegmentWriter;
 use crate::schema::{Field, Schema};
-use crate::{DocId, IndexSortByField, Order, SegmentOrdinal, TantivyError};
+use crate::{DocAddress, DocId, IndexSortByField, Order, TantivyError};
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
 pub(crate) struct SegmentDocIdMapping {
-    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
+    new_doc_id_to_old_doc_addr: Vec<DocAddress>,
     is_trivial: bool,
 }
 
 impl SegmentDocIdMapping {
-    pub(crate) fn new(
-        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
-        is_trivial: bool,
-    ) -> Self {
+    pub(crate) fn new(new_doc_id_to_old_and_segment: Vec<DocAddress>, is_trivial: bool) -> Self {
         Self {
-            new_doc_id_to_old_and_segment,
+            new_doc_id_to_old_doc_addr: new_doc_id_to_old_and_segment,
             is_trivial,
         }
     }
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentOrdinal)> {
-        self.new_doc_id_to_old_and_segment.iter()
+
+    /// Returns an iterator over the old document addresses, ordered by the new document ids.
+    ///
+    /// In the returned `DocAddress`, the `segment_ord` is the ordinal of targetted segment
+    /// in the list of merged segments.
+    pub(crate) fn iter_old_doc_addrs(&self) -> impl Iterator<Item = DocAddress> + '_ {
+        self.new_doc_id_to_old_doc_addr.iter().copied()
     }
+
     pub(crate) fn len(&self) -> usize {
-        self.new_doc_id_to_old_and_segment.len()
+        self.new_doc_id_to_old_doc_addr.len()
     }
+
+    pub(crate) fn get_old_doc_addr(&self, new_doc_id: DocId) -> DocAddress {
+        self.new_doc_id_to_old_doc_addr[new_doc_id as usize]
+    }
+
     /// This flags means the segments are simply stacked in the order of their ordinal.
     /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
     ///
     /// This allows for some optimization.
     pub(crate) fn is_trivial(&self) -> bool {
         self.is_trivial
-    }
-}
-impl Index<usize> for SegmentDocIdMapping {
-    type Output = (DocId, SegmentOrdinal);
-
-    fn index(&self, idx: usize) -> &Self::Output {
-        &self.new_doc_id_to_old_and_segment[idx]
-    }
-}
-impl IntoIterator for SegmentDocIdMapping {
-    type Item = (DocId, SegmentOrdinal);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.new_doc_id_to_old_and_segment.into_iter()
     }
 }
 
@@ -152,7 +144,6 @@ pub(crate) fn get_doc_id_mapping_from_field(
 #[cfg(test)]
 mod tests_indexsorting {
     use crate::collector::TopDocs;
-    use crate::fastfield::FastFieldReader;
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::query::QueryParser;
     use crate::schema::{Schema, *};
@@ -472,9 +463,9 @@ mod tests_indexsorting {
         let my_number = index.schema().get_field("my_number").unwrap();
 
         let fast_field = fast_fields.u64(my_number).unwrap();
-        assert_eq!(fast_field.get(0u32), 10u64);
-        assert_eq!(fast_field.get(1u32), 20u64);
-        assert_eq!(fast_field.get(2u32), 30u64);
+        assert_eq!(fast_field.get_val(0), 10u64);
+        assert_eq!(fast_field.get_val(1), 20u64);
+        assert_eq!(fast_field.get_val(2), 30u64);
 
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
         let multifield = fast_fields.u64s(multi_numbers).unwrap();

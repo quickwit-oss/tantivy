@@ -43,7 +43,7 @@ impl IntermediateAggregationResults {
     /// Convert intermediate result and its aggregation request to the final result.
     ///
     /// Internal function, AggregationsInternal is used instead Aggregations, which is optimized
-    /// for internal processing, by splitting metric and buckets into seperate groups.
+    /// for internal processing, by splitting metric and buckets into separate groups.
     pub(crate) fn into_final_bucket_result_internal(
         self,
         req: &AggregationsInternal,

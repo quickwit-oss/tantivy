@@ -1,4 +1,4 @@
-//! MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the
+//! The BlockwiseLinear codec uses linear interpolation to guess a values and stores the
 //! offset, but in blocks of 512.
 //!
 //! With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 /
@@ -14,22 +14,25 @@ use std::io::{self, Read, Write};
 use std::ops::Sub;
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom};
+use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+use crate::linear::{get_calculated_value, get_slope};
+use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 const CHUNK_SIZE: u64 = 512;
 
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct MultiLinearInterpolFastFieldReader {
-    pub footer: MultiLinearInterpolFooter,
+pub struct BlockwiseLinearReader {
+    data: OwnedBytes,
+    pub footer: BlockwiseLinearFooter,
 }
 
 #[derive(Clone, Debug, Default)]
 struct Function {
-    // The offset in the data is required, because we have diffrent bit_widths per block
+    // The offset in the data is required, because we have different bit_widths per block
     data_start_offset: u64,
     // start_pos in the block will be CHUNK_SIZE * BLOCK_NUM
     start_pos: u64,
@@ -99,14 +102,14 @@ impl BinarySerializable for Function {
 }
 
 #[derive(Clone, Debug)]
-pub struct MultiLinearInterpolFooter {
+pub struct BlockwiseLinearFooter {
     pub num_vals: u64,
     pub min_value: u64,
     pub max_value: u64,
     interpolations: Vec<Function>,
 }
 
-impl BinarySerializable for MultiLinearInterpolFooter {
+impl BinarySerializable for BlockwiseLinearFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         let mut out = vec![];
         self.num_vals.serialize(&mut out)?;
@@ -118,8 +121,8 @@ impl BinarySerializable for MultiLinearInterpolFooter {
         Ok(())
     }
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<MultiLinearInterpolFooter> {
-        let mut footer = MultiLinearInterpolFooter {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<BlockwiseLinearFooter> {
+        let mut footer = BlockwiseLinearFooter {
             num_vals: u64::deserialize(reader)?,
             min_value: u64::deserialize(reader)?,
             max_value: u64::deserialize(reader)?,
@@ -143,26 +146,20 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
-    /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-
-        let (_data, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
-        let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
-
-        Ok(MultiLinearInterpolFastFieldReader { footer })
-    }
-
+impl Column for BlockwiseLinearReader {
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let interpolation = get_interpolation_function(doc, &self.footer.interpolations);
-        let doc = doc - interpolation.start_pos;
-        let calculated_value =
-            get_calculated_value(interpolation.value_start_pos, doc, interpolation.slope);
-        let diff = interpolation
-            .bit_unpacker
-            .get(doc, &data[interpolation.data_start_offset as usize..]);
+    fn get_val(&self, idx: u64) -> u64 {
+        let interpolation = get_interpolation_function(idx, &self.footer.interpolations);
+        let in_block_idx = idx - interpolation.start_pos;
+        let calculated_value = get_calculated_value(
+            interpolation.value_start_pos,
+            in_block_idx,
+            interpolation.slope,
+        );
+        let diff = interpolation.bit_unpacker.get(
+            in_block_idx,
+            &self.data[interpolation.data_start_offset as usize..],
+        );
         (calculated_value + diff) - interpolation.positive_val_offset
     }
 
@@ -174,39 +171,38 @@ impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
     fn max_value(&self) -> u64 {
         self.footer.max_value
     }
+    #[inline]
+    fn num_vals(&self) -> u64 {
+        self.footer.num_vals
+    }
 }
 
-#[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
-}
+/// Same as LinearSerializer, but working on chunks of CHUNK_SIZE elements.
+pub struct BlockwiseLinearCodec;
 
-#[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
-}
+impl FastFieldCodec for BlockwiseLinearCodec {
+    const CODEC_TYPE: FastFieldCodecType = FastFieldCodecType::BlockwiseLinear;
 
-/// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct MultiLinearInterpolFastFieldSerializer {}
+    type Reader = BlockwiseLinearReader;
 
-impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
-    const NAME: &'static str = "MultiLinearInterpol";
-    const ID: u8 = 3;
+    /// Opens a fast field given a file.
+    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
+        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
+        let (data, mut footer) = bytes.split(footer_offset);
+        let footer = BlockwiseLinearFooter::deserialize(&mut footer)?;
+        Ok(BlockwiseLinearReader { data, footer })
+    }
+
     /// Creates a new fast field serializer.
-    fn serialize(
-        write: &mut impl Write,
-        fastfield_accessor: &dyn FastFieldDataAccess,
-        stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-        _data_iter1: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
-        assert!(stats.min_value <= stats.max_value);
+    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
+        assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
 
         let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
+        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
 
         let mut first_function = Function {
-            end_pos: stats.num_vals,
+            end_pos: fastfield_accessor.num_vals(),
             value_start_pos: first_val,
             value_end_pos: last_val,
             ..Default::default()
@@ -217,7 +213,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         // Since we potentially apply multiple passes over the data, the data is cached.
         // Multiple iteration can be expensive (merge with index sorting can add lot of overhead per
         // iteration)
-        let data = data_iter.collect::<Vec<_>>();
+        let data = fastfield_accessor.iter().collect::<Vec<_>>();
 
         //// let's split this into chunks of CHUNK_SIZE
         for data_pos in (0..data.len() as u64).step_by(CHUNK_SIZE as usize).skip(1) {
@@ -280,49 +276,47 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         }
         bit_packer.close(write)?;
 
-        let footer = MultiLinearInterpolFooter {
-            num_vals: stats.num_vals,
-            min_value: stats.min_value,
-            max_value: stats.max_value,
+        let footer = BlockwiseLinearFooter {
+            num_vals: fastfield_accessor.num_vals(),
+            min_value: fastfield_accessor.min_value(),
+            max_value: fastfield_accessor.max_value(),
             interpolations,
         };
         footer.serialize(write)?;
         Ok(())
     }
 
-    fn is_applicable(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> bool {
-        if stats.num_vals < 5_000 {
-            return false;
-        }
-        // On serialization the offset is added to the actual value.
-        // We need to make sure this won't run into overflow calculation issues.
-        // For this we take the maximum theroretical offset and add this to the max value.
-        // If this doesn't overflow the algortihm should be fine
-        let theorethical_maximum_offset = stats.max_value - stats.min_value;
-        if stats
-            .max_value
-            .checked_add(theorethical_maximum_offset)
-            .is_none()
-        {
-            return false;
-        }
-        true
-    }
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    #[allow(clippy::question_mark)]
+    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
+        if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE {
+            return None;
+        }
+
+        // On serialization the offset is added to the actual value.
+        // We need to make sure this won't run into overflow calculation issues.
+        // For this we take the maximum theroretical offset and add this to the max value.
+        // If this doesn't overflow the algorithm should be fine
+        let theorethical_maximum_offset =
+            fastfield_accessor.max_value() - fastfield_accessor.min_value();
+        if fastfield_accessor
+            .max_value()
+            .checked_add(theorethical_maximum_offset)
+            .is_none()
+        {
+            return None;
+        }
+
         let first_val_in_first_block = fastfield_accessor.get_val(0);
-        let last_elem_in_first_chunk = CHUNK_SIZE.min(stats.num_vals);
+        let last_elem_in_first_chunk = CHUNK_SIZE.min(fastfield_accessor.num_vals());
         let last_val_in_first_block =
             fastfield_accessor.get_val(last_elem_in_first_chunk as u64 - 1);
         let slope = get_slope(
             first_val_in_first_block,
             last_val_in_first_block,
-            stats.num_vals,
+            fastfield_accessor.num_vals(),
         );
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%, but for the first block only
@@ -349,11 +343,11 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         //
         let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
 
-        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
+        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * fastfield_accessor.num_vals() as u64
             // function metadata per block
-            + 29 * (stats.num_vals / CHUNK_SIZE);
-        let num_bits_uncompressed = 64 * stats.num_vals;
-        num_bits as f32 / num_bits_uncompressed as f32
+            + 29 * (fastfield_accessor.num_vals() / CHUNK_SIZE);
+        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
+        Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
 
@@ -368,20 +362,35 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::get_codec_test_data_sets;
+    use crate::tests::get_codec_test_datasets;
 
-    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<
-            MultiLinearInterpolFastFieldSerializer,
-            MultiLinearInterpolFastFieldReader,
-        >(data, name)
+    fn create_and_validate(data: &[u64], name: &str) -> Option<(f32, f32)> {
+        crate::tests::create_and_validate::<BlockwiseLinearCodec>(data, name)
+    }
+
+    const HIGHEST_BIT: u64 = 1 << 63;
+    pub fn i64_to_u64(val: i64) -> u64 {
+        (val as u64) ^ HIGHEST_BIT
+    }
+
+    #[test]
+    fn test_compression_i64() {
+        let data = (i64::MAX - 600_000..=i64::MAX - 550_000)
+            .map(i64_to_u64)
+            .collect::<Vec<_>>();
+        let (estimate, actual_compression) =
+            create_and_validate(&data, "simple monotonically large i64").unwrap();
+        assert!(actual_compression < 0.2);
+        assert!(estimate < 0.20);
+        assert!(estimate > 0.15);
+        assert!(actual_compression > 0.01);
     }
 
     #[test]
     fn test_compression() {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
-            create_and_validate(&data, "simple monotonically large");
+            create_and_validate(&data, "simple monotonically large").unwrap();
         assert!(actual_compression < 0.2);
         assert!(estimate < 0.20);
         assert!(estimate > 0.15);
@@ -390,7 +399,7 @@ mod tests {
 
     #[test]
     fn test_with_codec_data_sets() {
-        let data_sets = get_codec_test_data_sets();
+        let data_sets = get_codec_test_datasets();
         for (mut data, name) in data_sets {
             create_and_validate(&data, name);
             data.reverse();

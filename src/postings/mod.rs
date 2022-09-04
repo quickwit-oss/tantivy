@@ -222,12 +222,12 @@ pub mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let segment = index.new_segment();
 
         {
             let mut segment_writer =
-                SegmentWriter::for_segment(3_000_000, segment.clone(), schema).unwrap();
+                SegmentWriter::for_segment(3_000_000, segment.clone()).unwrap();
             {
                 // checking that position works if the field has two values
                 let op = AddOperation {
@@ -500,7 +500,7 @@ pub mod tests {
         Ok(())
     }
 
-    /// Wraps a given docset, and forward alls call but the
+    /// Wraps a given docset, and forward all call but the
     /// `.skip_next(...)`. This is useful to test that a specialized
     /// implementation of `.skip_next(...)` is consistent
     /// with the default implementation.

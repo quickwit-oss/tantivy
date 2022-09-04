@@ -16,7 +16,7 @@ use crate::{DatePrecision, DateTime};
 /// If this is a JSON term, the type is the type of the leaf of the json.
 ///
 /// - <value> is,  if this is not the json term, a binary representation specific to the type.
-/// If it is a JSON Term, then it is preprended with the path that leads to this leaf value.
+/// If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
 const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
 
 /// Separates the different segments of
@@ -253,7 +253,7 @@ where B: AsRef<[u8]>
         }
         value_bytes.copy_from_slice(self.value_bytes());
         let value_u64 = u64::from_be_bytes(value_bytes);
-        Some(FastValue::from_u64(value_u64))
+        Some(T::from_u64(value_u64))
     }
 
     /// Returns the `i64` value stored in a term.
@@ -362,7 +362,7 @@ fn as_str(value_bytes: &[u8]) -> Option<&str> {
 
 fn get_fast_type<T: FastValue>(bytes: &[u8]) -> Option<T> {
     let value_u64 = u64::from_be_bytes(bytes.try_into().ok()?);
-    Some(FastValue::from_u64(value_u64))
+    Some(T::from_u64(value_u64))
 }
 
 /// Returns the json path (without non-human friendly separators, the type of the value, and the

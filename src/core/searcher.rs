@@ -134,6 +134,19 @@ impl Searcher {
         Ok(total_doc_freq)
     }
 
+    /// Return the overall number of documents containing
+    /// the given term in an asynchronous manner.
+    #[cfg(feature = "quickwit")]
+    pub async fn doc_freq_async(&self, term: &Term) -> crate::Result<u64> {
+        let mut total_doc_freq = 0;
+        for segment_reader in &self.inner.segment_readers {
+            let inverted_index = segment_reader.inverted_index(term.field())?;
+            let doc_freq = inverted_index.doc_freq_async(term).await?;
+            total_doc_freq += u64::from(doc_freq);
+        }
+        Ok(total_doc_freq)
+    }
+
     /// Return the list of segment readers
     pub fn segment_readers(&self) -> &[SegmentReader] {
         &self.inner.segment_readers
@@ -234,6 +247,14 @@ impl SearcherInner {
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_size: usize,
     ) -> io::Result<SearcherInner> {
+        assert_eq!(
+            &segment_readers
+                .iter()
+                .map(|reader| (reader.segment_id(), reader.delete_opstamp()))
+                .collect::<BTreeMap<_, _>>(),
+            generation.segments(),
+            "Set of segments referenced by this Searcher and its SearcherGeneration must match"
+        );
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
             .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))

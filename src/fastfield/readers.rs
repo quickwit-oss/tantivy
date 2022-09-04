@@ -1,4 +1,7 @@
-use super::reader::DynamicFastFieldReader;
+use std::sync::Arc;
+
+use fastfield_codecs::{open, Column};
+
 use crate::directory::{CompositeFile, FileSlice};
 use crate::fastfield::{
     BytesFastFieldReader, FastFieldNotAvailableError, FastValue, MultiValuedFastFieldReader,
@@ -109,14 +112,17 @@ impl FastFieldReaders {
         &self,
         field: Field,
         index: usize,
-    ) -> crate::Result<DynamicFastFieldReader<TFastValue>> {
+    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
         let fast_field_slice = self.fast_field_data(field, index)?;
-        DynamicFastFieldReader::open(fast_field_slice)
+        let bytes = fast_field_slice.read_bytes()?;
+        let column = fastfield_codecs::open(bytes)?;
+        Ok(column)
     }
+
     pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
         &self,
         field: Field,
-    ) -> crate::Result<DynamicFastFieldReader<TFastValue>> {
+    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
         self.typed_fast_field_reader_with_idx(field, 0)
     }
 
@@ -132,7 +138,7 @@ impl FastFieldReaders {
     /// Returns the `u64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns an Error.
-    pub fn u64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<u64>> {
+    pub fn u64(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
         self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -142,14 +148,14 @@ impl FastFieldReaders {
     ///
     /// If not, the fastfield reader will returns the u64-value associated to the original
     /// FastValue.
-    pub fn u64_lenient(&self, field: Field) -> crate::Result<DynamicFastFieldReader<u64>> {
+    pub fn u64_lenient(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
         self.typed_fast_field_reader(field)
     }
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn i64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<i64>> {
+    pub fn i64(&self, field: Field) -> crate::Result<Arc<dyn Column<i64>>> {
         self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -157,7 +163,7 @@ impl FastFieldReaders {
     /// Returns the `date` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn date(&self, field: Field) -> crate::Result<DynamicFastFieldReader<DateTime>> {
+    pub fn date(&self, field: Field) -> crate::Result<Arc<dyn Column<DateTime>>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -165,7 +171,7 @@ impl FastFieldReaders {
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
-    pub fn f64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<f64>> {
+    pub fn f64(&self, field: Field) -> crate::Result<Arc<dyn Column<f64>>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -173,7 +179,7 @@ impl FastFieldReaders {
     /// Returns the `bool` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a bool fast field, this method returns an Error.
-    pub fn bool(&self, field: Field) -> crate::Result<DynamicFastFieldReader<bool>> {
+    pub fn bool(&self, field: Field) -> crate::Result<Arc<dyn Column<bool>>> {
         self.check_type(field, FastType::Bool, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -241,7 +247,8 @@ impl FastFieldReaders {
                 )));
             }
             let fast_field_idx_file = self.fast_field_data(field, 0)?;
-            let idx_reader = DynamicFastFieldReader::open(fast_field_idx_file)?;
+            let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
+            let idx_reader = open(fast_field_idx_bytes)?;
             let data = self.fast_field_data(field, 1)?;
             BytesFastFieldReader::open(idx_reader, data)
         } else {

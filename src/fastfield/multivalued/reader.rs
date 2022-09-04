@@ -1,6 +1,9 @@
 use std::ops::Range;
+use std::sync::Arc;
 
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength};
+use fastfield_codecs::Column;
+
+use crate::fastfield::{FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -12,14 +15,14 @@ use crate::DocId;
 /// The `idx_reader` associated, for each document, the index of its first value.
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
-    idx_reader: DynamicFastFieldReader<u64>,
-    vals_reader: DynamicFastFieldReader<Item>,
+    idx_reader: Arc<dyn Column<u64>>,
+    vals_reader: Arc<dyn Column<Item>>,
 }
 
 impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     pub(crate) fn open(
-        idx_reader: DynamicFastFieldReader<u64>,
-        vals_reader: DynamicFastFieldReader<Item>,
+        idx_reader: Arc<dyn Column<u64>>,
+        vals_reader: Arc<dyn Column<Item>>,
     ) -> MultiValuedFastFieldReader<Item> {
         MultiValuedFastFieldReader {
             idx_reader,
@@ -31,8 +34,9 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     /// to the given document are `start..end`.
     #[inline]
     fn range(&self, doc: DocId) -> Range<u64> {
-        let start = self.idx_reader.get(doc);
-        let end = self.idx_reader.get(doc + 1);
+        let idx = doc as u64;
+        let start = self.idx_reader.get_val(idx);
+        let end = self.idx_reader.get_val(idx + 1);
         start..end
     }
 
@@ -55,7 +59,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     ///
     /// The min value does not take in account of possible
     /// deleted document, and should be considered as a lower bound
-    /// of the actual mimimum value.
+    /// of the actual minimum value.
     pub fn min_value(&self) -> Item {
         self.vals_reader.min_value()
     }

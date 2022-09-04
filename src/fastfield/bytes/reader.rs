@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
+use fastfield_codecs::Column;
+
 use crate::directory::{FileSlice, OwnedBytes};
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, MultiValueLength};
+use crate::fastfield::MultiValueLength;
 use crate::DocId;
 
 /// Reader for byte array fast fields
@@ -14,13 +18,13 @@ use crate::DocId;
 /// and the start index for the next document, and keeping the bytes in between.
 #[derive(Clone)]
 pub struct BytesFastFieldReader {
-    idx_reader: DynamicFastFieldReader<u64>,
+    idx_reader: Arc<dyn Column<u64>>,
     values: OwnedBytes,
 }
 
 impl BytesFastFieldReader {
     pub(crate) fn open(
-        idx_reader: DynamicFastFieldReader<u64>,
+        idx_reader: Arc<dyn Column<u64>>,
         values_file: FileSlice,
     ) -> crate::Result<BytesFastFieldReader> {
         let values = values_file.read_bytes()?;
@@ -28,8 +32,9 @@ impl BytesFastFieldReader {
     }
 
     fn range(&self, doc: DocId) -> (usize, usize) {
-        let start = self.idx_reader.get(doc) as usize;
-        let stop = self.idx_reader.get(doc + 1) as usize;
+        let idx = doc as u64;
+        let start = self.idx_reader.get_val(idx) as usize;
+        let stop = self.idx_reader.get_val(idx + 1) as usize;
         (start, stop)
     }
 

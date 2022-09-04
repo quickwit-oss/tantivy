@@ -418,7 +418,7 @@ mod binary_serialize {
                         _ => Err(io::Error::new(
                             io::ErrorKind::InvalidData,
                             format!(
-                                "No extened field type is associated with code {:?}",
+                                "No extended field type is associated with code {:?}",
                                 ext_type_code
                             ),
                         )),

@@ -112,7 +112,7 @@ impl FileSlice {
 
     /// Returns a `OwnedBytes` with all of the data in the `FileSlice`.
     ///
-    /// The behavior is strongly dependant on the implementation of the underlying
+    /// The behavior is strongly dependent on the implementation of the underlying
     /// `Directory` and the `FileSliceTrait` it creates.
     /// In particular, it is  up to the `Directory` implementation
     /// to handle caching if needed.

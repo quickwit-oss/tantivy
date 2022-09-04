@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
+use fastfield_codecs::{Column, MonotonicallyMappableToU64};
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
-use super::{FastFieldDataAccess, FastFieldType, FastValue};
+use super::FastFieldType;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -293,7 +294,7 @@ impl IntFastFieldWriter {
 
     /// Records a new value.
     ///
-    /// The n-th value being recorded is implicitely
+    /// The n-th value being recorded is implicitly
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
@@ -359,38 +360,20 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        let fastfield_accessor = WriterFastFieldAccessProvider {
-            doc_id_map,
-            vals: &self.vals,
-        };
         let stats = FastFieldStats {
             min_value: min,
             max_value: max,
             num_vals: self.val_count as u64,
         };
 
-        if let Some(doc_id_map) = doc_id_map {
-            let iter_gen = || {
-                doc_id_map
-                    .iter_old_doc_ids()
-                    .map(|doc_id| self.vals.get(doc_id as usize))
-            };
-            serializer.create_auto_detect_u64_fast_field(
-                self.field,
-                stats,
-                fastfield_accessor,
-                iter_gen,
-            )?;
-        } else {
-            let iter_gen = || self.vals.iter();
-
-            serializer.create_auto_detect_u64_fast_field(
-                self.field,
-                stats,
-                fastfield_accessor,
-                iter_gen,
-            )?;
+        let fastfield_accessor = WriterFastFieldAccessProvider {
+            doc_id_map,
+            vals: &self.vals,
+            stats,
         };
+
+        serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
+
         Ok(())
     }
 }
@@ -399,8 +382,9 @@ impl IntFastFieldWriter {
 struct WriterFastFieldAccessProvider<'map, 'bitp> {
     doc_id_map: Option<&'map DocIdMapping>,
     vals: &'bitp BlockedBitpacker,
+    stats: FastFieldStats,
 }
-impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'bitp> {
+impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// Return the value associated to the given doc.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
@@ -418,5 +402,29 @@ impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'b
         } else {
             self.vals.get(doc as usize)
         }
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+        if let Some(doc_id_map) = self.doc_id_map {
+            Box::new(
+                doc_id_map
+                    .iter_old_doc_ids()
+                    .map(|doc_id| self.vals.get(doc_id as usize)),
+            )
+        } else {
+            Box::new(self.vals.iter())
+        }
+    }
+
+    fn min_value(&self) -> u64 {
+        self.stats.min_value
+    }
+
+    fn max_value(&self) -> u64 {
+        self.stats.max_value
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.stats.num_vals
     }
 }

@@ -6,6 +6,8 @@ mod bitset;
 mod bm25;
 mod boolean_query;
 mod boost_query;
+mod const_score_query;
+mod disjunction_max_query;
 mod empty_query;
 mod exclude;
 mod explanation;
@@ -34,7 +36,10 @@ pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub(crate) use self::bm25::Bm25Weight;
 pub use self::boolean_query::BooleanQuery;
+pub(crate) use self::boolean_query::BooleanWeight;
 pub use self::boost_query::BoostQuery;
+pub use self::const_score_query::{ConstScoreQuery, ConstScorer};
+pub use self::disjunction_max_query::DisjunctionMaxQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
@@ -49,7 +54,10 @@ pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
-pub use self::scorer::{ConstScorer, Scorer};
+pub use self::score_combiner::{
+    DisjunctionMaxCombiner, ScoreCombiner, SumCombiner, SumWithCoordsCombiner,
+};
+pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::union::Union;
 #[cfg(test)]
@@ -58,8 +66,6 @@ pub use self::weight::Weight;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use crate::query::QueryParser;
     use crate::schema::{Schema, TEXT};
     use crate::{Index, Term};
@@ -74,49 +80,34 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_b = Term::from_field_text(text_field, "b");
         {
-            let mut terms: BTreeMap<Term, bool> = Default::default();
-            query_parser
-                .parse_query("a")
-                .unwrap()
-                .query_terms(&mut terms);
-            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
-            assert_eq!(vec![(&term_a, &false)], terms);
+            let query = query_parser.parse_query("a").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false)], terms);
         }
         {
-            let mut terms: BTreeMap<Term, bool> = Default::default();
-            query_parser
-                .parse_query("a b")
-                .unwrap()
-                .query_terms(&mut terms);
-            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
-            assert_eq!(vec![(&term_a, &false), (&term_b, &false)], terms);
+            let query = query_parser.parse_query("a b").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
         {
-            let mut terms: BTreeMap<Term, bool> = Default::default();
-            query_parser
-                .parse_query("\"a b\"")
-                .unwrap()
-                .query_terms(&mut terms);
-            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
-            assert_eq!(vec![(&term_a, &true), (&term_b, &true)], terms);
+            let query = query_parser.parse_query("\"a b\"").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, true), (&term_b, true)], terms);
         }
         {
-            let mut terms: BTreeMap<Term, bool> = Default::default();
-            query_parser
-                .parse_query("a a a a a")
-                .unwrap()
-                .query_terms(&mut terms);
-            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
-            assert_eq!(vec![(&term_a, &false)], terms);
+            let query = query_parser.parse_query("a a a a a").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false); 5], terms);
         }
         {
-            let mut terms: BTreeMap<Term, bool> = Default::default();
-            query_parser
-                .parse_query("a -b")
-                .unwrap()
-                .query_terms(&mut terms);
-            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
-            assert_eq!(vec![(&term_a, &false), (&term_b, &false)], terms);
+            let query = query_parser.parse_query("a -b").unwrap();
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, pos| terms.push((term, pos)));
+            assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
     }
 }

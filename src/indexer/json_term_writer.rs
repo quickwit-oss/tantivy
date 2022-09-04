@@ -1,3 +1,4 @@
+use fastfield_codecs::MonotonicallyMappableToU64;
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
 
@@ -38,10 +39,10 @@ use crate::{DatePrecision, DateTime, DocId, Term};
 /// of values, with a position gap. Here we would like `The` and `Who` to get indexed at
 /// position 2 and 3 respectively.
 ///
-/// With regular fields, we sort the fields beforehands, so that all terms with the same
+/// With regular fields, we sort the fields beforehand, so that all terms with the same
 /// path are indexed consecutively.
 ///
-/// In JSON object, we do not have this confort, so we need to record these position offsets in
+/// In JSON object, we do not have this comfort, so we need to record these position offsets in
 /// a map.
 ///
 /// Note that using a single position for the entire object would not hurt correctness.

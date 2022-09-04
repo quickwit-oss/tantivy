@@ -35,7 +35,7 @@ pub struct BlockAddr {
 struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,
-    /// and yet stricly smaller than the first key in the next block.
+    /// and yet strictly smaller than the first key in the next block.
     pub last_key_or_greater: Vec<u8>,
     pub block_addr: BlockAddr,
 }
@@ -50,7 +50,7 @@ pub struct SSTableIndexBuilder {
 /// matches `left <= left' < right`.
 fn find_shorter_str_in_between(left: &mut Vec<u8>, right: &[u8]) {
     assert!(&left[..] < right);
-    let common_len = common_prefix_len(&left, right);
+    let common_len = common_prefix_len(left, right);
     if left.len() == common_len {
         return;
     }

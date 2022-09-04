@@ -1,7 +1,9 @@
+use fastfield_codecs::MonotonicallyMappableToU64;
+
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::core::Segment;
-use crate::fastfield::{FastFieldsWriter, FastValue as _};
+use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -53,7 +55,7 @@ fn remap_doc_opstamps(
 /// set of documents.
 ///
 /// They creates the postings list in anonymous memory.
-/// The segment is layed on disk when the segment gets `finalized`.
+/// The segment is laid on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
     pub(crate) max_doc: DocId,
     pub(crate) ctx: IndexingContext,
@@ -80,8 +82,8 @@ impl SegmentWriter {
     pub fn for_segment(
         memory_budget_in_bytes: usize,
         segment: Segment,
-        schema: Schema,
     ) -> crate::Result<SegmentWriter> {
+        let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;

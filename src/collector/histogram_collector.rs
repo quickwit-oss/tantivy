@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use fastdivide::DividerU64;
+use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::schema::{Field, Type};
 use crate::{DocId, Score};
 
@@ -84,14 +87,14 @@ impl HistogramComputer {
 }
 pub struct SegmentHistogramCollector {
     histogram_computer: HistogramComputer,
-    ff_reader: DynamicFastFieldReader<u64>,
+    ff_reader: Arc<dyn Column<u64>>,
 }
 
 impl SegmentCollector for SegmentHistogramCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let value = self.ff_reader.get(doc);
+        let value = self.ff_reader.get_val(doc as u64);
         self.histogram_computer.add_value(value);
     }
 

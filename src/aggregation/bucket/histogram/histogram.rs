@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
+use fastfield_codecs::Column;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +15,6 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -70,7 +70,7 @@ pub struct HistogramAggregation {
     /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
     pub interval: f64,
-    /// Intervals implicitely defines an absolute grid of buckets `[interval * k, interval * (k +
+    /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
     ///
     /// Offset makes it possible to shift this grid into
@@ -263,7 +263,7 @@ impl SegmentHistogramCollector {
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
-        accessor: &DynamicFastFieldReader<u64>,
+        accessor: &dyn Column<u64>,
     ) -> crate::Result<Self> {
         req.validate()?;
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
@@ -331,10 +331,10 @@ impl SegmentHistogramCollector {
             .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(accessor.get(docs[0]));
-            let val1 = self.f64_from_fastfield_u64(accessor.get(docs[1]));
-            let val2 = self.f64_from_fastfield_u64(accessor.get(docs[2]));
-            let val3 = self.f64_from_fastfield_u64(accessor.get(docs[3]));
+            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0] as u64));
+            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1] as u64));
+            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2] as u64));
+            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3] as u64));
 
             let bucket_pos0 = get_bucket_num(val0);
             let bucket_pos1 = get_bucket_num(val1);
@@ -370,8 +370,8 @@ impl SegmentHistogramCollector {
                 &bucket_with_accessor.sub_aggregation,
             )?;
         }
-        for doc in iter.remainder() {
-            let val = f64_from_fastfield_u64(accessor.get(*doc), &self.field_type);
+        for &doc in iter.remainder() {
+            let val = f64_from_fastfield_u64(accessor.get_val(doc as u64), &self.field_type);
             if !bounds.contains(val) {
                 continue;
             }
@@ -382,7 +382,7 @@ impl SegmentHistogramCollector {
                 self.buckets[bucket_pos].key,
                 get_bucket_val(val, self.interval, self.offset) as f64
             );
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
+            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {

@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use htmlescape::encode_minimal;
@@ -7,7 +7,7 @@ use htmlescape::encode_minimal;
 use crate::query::Query;
 use crate::schema::{Field, Value};
 use crate::tokenizer::{TextAnalyzer, Token};
-use crate::{Document, Score, Searcher};
+use crate::{Document, Score, Searcher, Term};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -88,12 +88,17 @@ impl Snippet {
         }
     }
 
+    /// Returns `true` if the snippet is empty.
+    pub fn is_empty(&self) -> bool {
+        self.highlighted.len() == 0
+    }
+
     /// Returns a highlighted html from the `Snippet`.
     pub fn to_html(&self) -> String {
         let mut html = String::new();
         let mut start_from: usize = 0;
 
-        for item in self.highlighted.iter() {
+        for item in collapse_overlapped_ranges(&self.highlighted) {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
             html.push_str(&self.highlighting_prefix);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
@@ -204,6 +209,53 @@ fn select_best_fragment_combination(
     }
 }
 
+/// Returns ranges that are collapsed into non-overlapped ranges.
+///
+/// ## Examples
+/// - [0..1, 2..3] -> [0..1, 2..3]  # no overlap
+/// - [0..1, 1..2] -> [0..1, 1..2]  # no overlap
+/// - [0..2, 1..2] -> [0..2]  # collapsed
+/// - [0..2, 1..3] -> [0..3]  # collapsed
+/// - [0..3, 1..2] -> [0..3]  # second range's end is also inside of the first range
+///
+/// Note: This function assumes `ranges` is sorted by `Range.start` in ascending order.
+fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
+    debug_assert!(is_sorted(ranges.iter().map(|range| range.start)));
+
+    let mut result = Vec::new();
+    let mut ranges_it = ranges.iter();
+
+    let mut current = match ranges_it.next() {
+        Some(range) => range.clone(),
+        None => return result,
+    };
+
+    for range in ranges {
+        if current.end > range.start {
+            current = current.start..std::cmp::max(current.end, range.end);
+        } else {
+            result.push(current);
+            current = range.clone();
+        }
+    }
+
+    result.push(current);
+    result
+}
+
+fn is_sorted(mut it: impl Iterator<Item = usize>) -> bool {
+    if let Some(first) = it.next() {
+        let mut prev = first;
+        for item in it {
+            if item < prev {
+                return false;
+            }
+            prev = item;
+        }
+    }
+    true
+}
+
 /// `SnippetGenerator`
 ///
 /// # Example
@@ -256,24 +308,39 @@ pub struct SnippetGenerator {
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
+    pub fn new(
+        terms_text: BTreeMap<String, Score>,
+        tokenizer: TextAnalyzer,
+        field: Field,
+        max_num_chars: usize,
+    ) -> Self {
+        SnippetGenerator {
+            terms_text,
+            tokenizer,
+            field,
+            max_num_chars,
+        }
+    }
+    /// Creates a new snippet generator
     pub fn create(
         searcher: &Searcher,
         query: &dyn Query,
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
-        let mut terms = BTreeMap::new();
-        query.query_terms(&mut terms);
-        let mut terms_text: BTreeMap<String, Score> = Default::default();
-        for (term, _) in terms {
-            if term.field() != field {
-                continue;
+        let mut terms: BTreeSet<&Term> = BTreeSet::new();
+        query.query_terms(&mut |term, _| {
+            if term.field() == field {
+                terms.insert(term);
             }
+        });
+        let mut terms_text: BTreeMap<String, Score> = Default::default();
+        for term in terms {
             let term_str = if let Some(term_str) = term.as_str() {
                 term_str
             } else {
                 continue;
             };
-            let doc_freq = searcher.doc_freq(&term)?;
+            let doc_freq = searcher.doc_freq(term)?;
             if doc_freq > 0 {
                 let score = 1.0 / (1.0 + doc_freq as Score);
                 terms_text.insert(term_str.to_string(), score);
@@ -338,14 +405,14 @@ mod tests {
 
     use maplit::btreemap;
 
-    use super::{
-        search_fragments, select_best_fragment_combination, DEFAULT_HIGHLIGHTING_POSTFIX,
-        DEFAULT_HIGHLIGHTING_PREFIX,
-    };
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
-    use crate::tokenizer::SimpleTokenizer;
+    use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
     use crate::{Index, SnippetGenerator};
+
+    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination,DEFAULT_HIGHLIGHTING_POSTFIX,
+                DEFAULT_HIGHLIGHTING_PREFIX,
+    };
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
@@ -536,6 +603,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
+        assert!(snippet.is_empty());
     }
 
     #[test]
@@ -554,6 +622,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
+        assert!(snippet.is_empty());
     }
 
     #[test]
@@ -646,6 +715,43 @@ Survey in 2016, 2017, and 2018."#;
             );
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_collapse_overlapped_ranges() {
+        assert_eq!(&collapse_overlapped_ranges(&[0..1, 2..3,]), &[0..1, 2..3]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..1, 1..2,]), &[0..1, 1..2]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..2, 1..2,]), &[0..2]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..2, 1..3,]), &[0..3]);
+        assert_eq!(&collapse_overlapped_ranges(&[0..3, 1..2,]), &[0..3]);
+    }
+
+    #[test]
+    fn test_snippet_with_overlapped_highlighted_ranges() {
+        let text = "abc";
+
+        let mut terms = BTreeMap::new();
+        terms.insert(String::from("ab"), 0.9);
+        terms.insert(String::from("bc"), 1.0);
+
+        let fragments = search_fragments(
+            &From::from(NgramTokenizer::all_ngrams(2, 2)),
+            text,
+            &terms,
+            3,
+        );
+
+        assert_eq!(fragments.len(), 1);
+        {
+            let first = &fragments[0];
+            assert_eq!(first.score, 1.9);
+            assert_eq!(first.start_offset, 0);
+            assert_eq!(first.stop_offset, 3);
+        }
+
+        let snippet = select_best_fragment_combination(&fragments[..], text);
+        assert_eq!(snippet.fragment, "abc");
+        assert_eq!(snippet.to_html(), "<b>abc</b>");
     }
 
     #[test]

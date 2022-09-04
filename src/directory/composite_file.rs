@@ -38,7 +38,7 @@ impl BinarySerializable for FileAddr {
 /// A `CompositeWrite` is used to write a `CompositeFile`.
 pub struct CompositeWrite<W = WritePtr> {
     write: CountingWriter<W>,
-    offsets: HashMap<FileAddr, u64>,
+    offsets: Vec<(FileAddr, u64)>,
 }
 
 impl<W: TerminatingWrite + Write> CompositeWrite<W> {
@@ -47,7 +47,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     pub fn wrap(w: W) -> CompositeWrite<W> {
         CompositeWrite {
             write: CountingWriter::wrap(w),
-            offsets: HashMap::new(),
+            offsets: Vec::new(),
         }
     }
 
@@ -60,8 +60,8 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     pub fn for_field_with_idx(&mut self, field: Field, idx: usize) -> &mut CountingWriter<W> {
         let offset = self.write.written_bytes();
         let file_addr = FileAddr::new(field, idx);
-        assert!(!self.offsets.contains_key(&file_addr));
-        self.offsets.insert(file_addr, offset);
+        assert!(!self.offsets.iter().any(|el| el.0 == file_addr));
+        self.offsets.push((file_addr, offset));
         &mut self.write
     }
 
@@ -73,16 +73,8 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
 
-        let mut offset_fields: Vec<_> = self
-            .offsets
-            .iter()
-            .map(|(file_addr, offset)| (*offset, *file_addr))
-            .collect();
-
-        offset_fields.sort();
-
         let mut prev_offset = 0;
-        for (offset, file_addr) in offset_fields {
+        for (file_addr, offset) in self.offsets {
             VInt((offset - prev_offset) as u64).serialize(&mut self.write)?;
             file_addr.serialize(&mut self.write)?;
             prev_offset = offset;
@@ -104,6 +96,14 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 pub struct CompositeFile {
     data: FileSlice,
     offsets_index: HashMap<FileAddr, Range<usize>>,
+}
+
+impl std::fmt::Debug for CompositeFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompositeFile")
+            .field("offsets_index", &self.offsets_index)
+            .finish()
+    }
 }
 
 impl CompositeFile {
@@ -229,6 +229,58 @@ mod test {
                 let payload_4 = VInt::deserialize(&mut file4_buf)?.0;
                 assert_eq!(file4_buf.len(), 0);
                 assert_eq!(payload_4, 2u64);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_composite_file_bug() -> crate::Result<()> {
+        let path = Path::new("test_path");
+        let directory = RamDirectory::create();
+        {
+            let w = directory.open_write(path).unwrap();
+            let mut composite_write = CompositeWrite::wrap(w);
+            let mut write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 0);
+            VInt(32431123u64).serialize(&mut write)?;
+            write.flush()?;
+            let write = composite_write.for_field_with_idx(Field::from_field_id(1u32), 1);
+            write.flush()?;
+
+            let mut write = composite_write.for_field_with_idx(Field::from_field_id(0u32), 0);
+            VInt(1_000_000).serialize(&mut write)?;
+            write.flush()?;
+
+            composite_write.close()?;
+        }
+        {
+            let r = directory.open_read(path)?;
+            let composite_file = CompositeFile::open(&r)?;
+            {
+                let file = composite_file
+                    .open_read_with_idx(Field::from_field_id(1u32), 0)
+                    .unwrap()
+                    .read_bytes()?;
+                let mut file0_buf = file.as_slice();
+                let payload_0 = VInt::deserialize(&mut file0_buf)?.0;
+                assert_eq!(file0_buf.len(), 0);
+                assert_eq!(payload_0, 32431123u64);
+            }
+            {
+                let file = composite_file
+                    .open_read_with_idx(Field::from_field_id(1u32), 1)
+                    .unwrap()
+                    .read_bytes()?;
+                let file = file.as_slice();
+                assert_eq!(file.len(), 0);
+            }
+            {
+                let file = composite_file
+                    .open_read_with_idx(Field::from_field_id(0u32), 0)
+                    .unwrap()
+                    .read_bytes()?;
+                let file = file.as_slice();
+                assert_eq!(file.len(), 3);
             }
         }
         Ok(())

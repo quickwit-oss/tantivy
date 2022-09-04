@@ -5,7 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
-
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
 
 **Tantivy** is a **full-text search engine library** written in Rust.
@@ -16,7 +15,7 @@ to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
-If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on top of Tantivy. 
+If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on top of Tantivy.
 
 # Benchmark
 
@@ -56,7 +55,6 @@ Your mileage WILL vary depending on the nature of queries and their load.
 ## Non-features
 
 Distributed search is out of the scope of Tantivy, but if you are looking for this feature, check out [Quickwit](https://github.com/quickwit-oss/quickwit/).
-
 
 # Getting started
 
@@ -125,20 +123,23 @@ By default, `rustc` compiles everything in the `examples/` directory in debug mo
 rust-gdb target/debug/examples/$EXAMPLE_NAME
 $ gdb run
 ```
-# Companies Using Tantivy 
+
+# Companies Using Tantivy
 
 <p align="left">
+<img align="center" src="doc/assets/images/Etsy.png" alt="Nuclia" height="25" width="auto" />&nbsp;
 <img align="center" src="doc/assets/images/Nuclia.png#gh-light-mode-only" alt="Nuclia" height="25" width="auto" /> &nbsp;
 <img align="center" src="doc/assets/images/humanfirst.png#gh-light-mode-only" alt="Humanfirst.ai" height="30" width="auto" />
 <img align="center" src="doc/assets/images/element.io.svg#gh-light-mode-only" alt="Element.io" height="25" width="auto" />
 <img align="center" src="doc/assets/images/nuclia-dark-theme.png#gh-dark-mode-only" alt="Nuclia" height="35" width="auto" /> &nbsp;
 <img align="center" src="doc/assets/images/humanfirst.ai-dark-theme.png#gh-dark-mode-only" alt="Humanfirst.ai" height="25" width="auto" />&nbsp; &nbsp;
 <img align="center" src="doc/assets/images/element-dark-theme.png#gh-dark-mode-only" alt="Element.io" height="25" width="auto" />
-</p> 
-
+</p>
 
 # FAQ
+
 ### Can I use Tantivy in other languages?
+
 - Python → [tantivy-py](https://github.com/quickwit-oss/tantivy-py)
 - Ruby → [tantiny](https://github.com/baygeldin/tantiny)
 
@@ -152,13 +153,17 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 - and [more](https://github.com/search?q=tantivy)!
 
 ### On average, how much faster is Tantivy compared to Lucene?
+
 - According to our [search latency benchmark](https://tantivy-search.github.io/bench/), Tantivy is approximately 2x faster than Lucene.
 
 ### Does tantivy support incremental indexing?
+
 - Yes.
 
 ### How can I edit documents?
+
 - Data in tantivy is immutable. To edit a document, the document needs to be deleted and reindexed.
 
 ### When will my documents be searchable during indexing?
+
 - Documents will be searchable after a `commit` is called on an `IndexWriter`. Existing `IndexReader`s will also need to be reloaded in order to reflect the changes. Finally, changes are only visible to newly acquired `Searcher`.

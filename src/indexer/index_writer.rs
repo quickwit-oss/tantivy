@@ -31,7 +31,7 @@ pub const MARGIN_IN_BYTES: usize = 1_000_000;
 pub const MEMORY_ARENA_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
 pub const MEMORY_ARENA_NUM_BYTES_MAX: usize = u32::MAX as usize - MARGIN_IN_BYTES;
 
-// We impose the number of index writter thread to be at most this.
+// We impose the number of index writer thread to be at most this.
 pub const MAX_NUM_THREAD: usize = 8;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
@@ -174,9 +174,7 @@ fn index_documents(
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
-    let schema = segment.schema();
-
-    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone())?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc)?;
@@ -710,7 +708,7 @@ impl IndexWriter {
     }
 
     /// Runs a group of document operations ensuring that the operations are
-    /// assigned contigous u64 opstamps and that add operations of the same
+    /// assigned contiguous u64 opstamps and that add operations of the same
     /// group are flushed into the same segment.
     ///
     /// If the indexing pipeline is full, this call may block.
@@ -785,7 +783,6 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
-    use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
@@ -1327,7 +1324,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64(id_field)?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get(doc))
+            .map(|doc| fast_field_reader.get_val(doc as u64))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
@@ -1493,7 +1490,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get(doc))
+                    .map(move |doc| ff_reader.get_val(doc as u64))
             })
             .collect();
 
@@ -1504,7 +1501,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get(doc))
+                    .map(move |doc| ff_reader.get_val(doc as u64))
             })
             .collect();
 
@@ -1622,7 +1619,7 @@ mod tests {
                 facet_reader
                     .facet_from_ord(facet_ords[0], &mut facet)
                     .unwrap();
-                let id = ff_reader.get(doc_id);
+                let id = ff_reader.get_val(doc_id as u64);
                 let facet_expected = Facet::from(&("/cola/".to_string() + &id.to_string()));
 
                 assert_eq!(facet, facet_expected);
