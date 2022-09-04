@@ -282,7 +282,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 82);
+        assert_eq!(file.len(), 70);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite
@@ -356,7 +356,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 5_627);
+        assert_eq!(file.len(), 80051);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite

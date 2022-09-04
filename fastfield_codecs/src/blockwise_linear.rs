@@ -14,7 +14,7 @@ const CHUNK_SIZE: usize = 512;
 struct Block {
     line: Line,
     bit_unpacker: BitUnpacker,
-    start_offset: usize,
+    data_start_offset: usize,
 }
 
 impl BinarySerializable for Block {
@@ -30,7 +30,7 @@ impl BinarySerializable for Block {
         Ok(Block {
             line,
             bit_unpacker: BitUnpacker::new(bit_width),
-            start_offset: 0,
+            data_start_offset: 0,
         })
     }
 }
@@ -91,7 +91,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         let mut params = BlockwiseLinearParams::deserialize(&mut footer)?;
         let mut start_offset = 0;
         for block in params.blocks.iter_mut() {
-            block.start_offset = start_offset;
+            block.data_start_offset = start_offset;
             start_offset += (block.bit_unpacker.bit_width() as usize) * CHUNK_SIZE / 8;
         }
         Ok(BlockwiseLinearReader {
@@ -100,6 +100,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         })
     }
 
+    // Estimate first_chunk and extrapolate
     fn estimate(fastfield_accessor: &impl crate::Column) -> Option<f32> {
         if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE as u64 {
             return None;
@@ -166,7 +167,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             blocks.push(Block {
                 line,
                 bit_unpacker: BitUnpacker::new(bit_width),
-                start_offset: 0,
+                data_start_offset: 0,
             });
         }
 
@@ -203,7 +204,7 @@ impl Column for BlockwiseLinearReader {
         let idx_within_block = idx % (CHUNK_SIZE as u64);
         let block = &self.params.blocks[block_id];
         let interpoled_val: u64 = block.line.eval(idx_within_block);
-        let block_bytes = &self.data[block.start_offset..];
+        let block_bytes = &self.data[block.data_start_offset..];
         let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
         interpoled_val.wrapping_add(bitpacked_diff)
     }

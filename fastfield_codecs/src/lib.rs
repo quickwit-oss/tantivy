@@ -284,7 +284,7 @@ mod tests {
         let data: VecColumn = data.as_slice().into();
 
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
-        assert_le!(linear_interpol_estimation, 0.01);
+        assert_le!(linear_interpol_estimation, 0.04);
 
         let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
