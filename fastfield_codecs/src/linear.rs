@@ -100,8 +100,7 @@ impl FastFieldCodec for LinearCodec {
             .enumerate()
             .map(|(pos, actual_value)| {
                 let calculated_value = line.eval(pos as u64);
-                let offset = actual_value.wrapping_sub(calculated_value);
-                offset
+                actual_value.wrapping_sub(calculated_value)
             })
             .max()
             .unwrap();
@@ -153,8 +152,7 @@ impl FastFieldCodec for LinearCodec {
             .map(|pos| {
                 let actual_value = fastfield_accessor.get_val(pos);
                 let interpolated_val = line.eval(pos as u64);
-                let diff = actual_value.wrapping_sub(interpolated_val);
-                diff
+                actual_value.wrapping_sub(interpolated_val)
             })
             .map(|diff| ((diff as f32 * 1.5) * 2.0) as u64)
             .map(compute_num_bits)
