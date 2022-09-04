@@ -1,6 +1,9 @@
 use std::io;
 
+use fastfield_codecs::VecColumn;
+
 use crate::fastfield::serializer::CompositeFastFieldSerializer;
+use crate::fastfield::MultivalueStartIndex;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::{Document, Field, Value};
 use crate::DocId;
@@ -104,20 +107,26 @@ impl BytesFastFieldWriter {
 
     /// Serializes the fast field values by pushing them to the `FastFieldSerializer`.
     pub fn serialize(
-        &self,
+        mut self,
         serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         // writing the offset index
-        let mut doc_index_serializer =
-            serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
-        let mut offset = 0;
-        for vals in self.get_ordered_values(doc_id_map) {
-            doc_index_serializer.add_val(offset)?;
-            offset += vals.len() as u64;
+        // TODO FIXME No need to double the memory.
+        {
+            self.doc_index.push(self.vals.len() as u64);
+            let col = VecColumn::from(&self.doc_index[..]);
+            if let Some(doc_id_map) = doc_id_map {
+                let multi_value_start_index = MultivalueStartIndex::new(&col, doc_id_map);
+                serializer.create_auto_detect_u64_fast_field_with_idx(
+                    self.field,
+                    multi_value_start_index,
+                    0,
+                )?;
+            } else {
+                serializer.create_auto_detect_u64_fast_field_with_idx(self.field, col, 0)?;
+            }
         }
-        doc_index_serializer.add_val(self.vals.len() as u64)?;
-        doc_index_serializer.close_field()?;
         // writing the values themselves
         let mut value_serializer = serializer.new_bytes_fast_field_with_idx(self.field, 1);
         // the else could be removed, but this is faster (difference not benchmarked)

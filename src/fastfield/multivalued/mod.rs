@@ -3,6 +3,7 @@ mod writer;
 
 pub use self::reader::MultiValuedFastFieldReader;
 pub use self::writer::MultiValuedFastFieldWriter;
+pub(crate) use self::writer::MultivalueStartIndex;
 
 #[cfg(test)]
 mod tests {

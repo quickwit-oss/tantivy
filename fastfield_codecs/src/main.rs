@@ -113,7 +113,7 @@ pub fn serialize_with_codec<C: FastFieldCodec>(
     let data = Data(data);
     let estimation = C::estimate(&data)?;
     let mut out = Vec::new();
-    C::serialize(&mut out, &data).unwrap();
+    C::serialize(&data, &mut out).unwrap();
     let actual_compression = out.len() as f32 / (data.num_vals() * 8) as f32;
     Some((estimation, actual_compression, C::CODEC_TYPE))
 }

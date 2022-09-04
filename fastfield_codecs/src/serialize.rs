@@ -21,14 +21,13 @@ use std::io;
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
-use common::BinarySerializable;
+use common::{BinarySerializable, VInt};
 use fastdivide::DividerU64;
 use log::warn;
 use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
-use crate::gcd::{find_gcd, GCDParams};
 use crate::linear::LinearCodec;
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
@@ -46,82 +45,118 @@ fn codec_estimation<C: FastFieldCodec, D: Column>(
     }
 }
 
-fn write_header<W: io::Write>(codec_type: FastFieldCodecType, output: &mut W) -> io::Result<()> {
-    codec_type.to_code().serialize(output)?;
-    Ok(())
+#[derive(Debug, Copy, Clone)]
+pub struct NormalizedHeader {
+    pub num_vals: u64,
+    pub max_value: u64,
 }
 
-fn gcd_params(column: &impl Column<u64>) -> Option<GCDParams> {
-    let min_value = column.min_value();
-    let gcd = find_gcd(column.iter().map(|val| val - min_value)).map(NonZeroU64::get)?;
-    if gcd == 1 {
-        return None;
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct Header {
+    num_vals: u64,
+    min_value: u64,
+    max_value: u64,
+    gcd: Option<NonZeroU64>,
+    codec_type: FastFieldCodecType,
+}
+
+impl Header {
+    pub fn normalized(self) -> NormalizedHeader {
+        let max_value =
+            (self.max_value - self.min_value) / self.gcd.map(|gcd| gcd.get()).unwrap_or(1);
+        NormalizedHeader {
+            num_vals: self.num_vals,
+            max_value,
+        }
     }
-    Some(GCDParams {
-        gcd,
-        min_value,
-        num_vals: column.num_vals(),
-    })
+
+    pub fn normalize_column<C: Column>(&self, from_column: C) -> impl Column {
+        let min_value = self.min_value;
+        let gcd = self.gcd.map(|gcd| gcd.get()).unwrap_or(1);
+        let divider = DividerU64::divide_by(gcd);
+        monotonic_map_column(from_column, move |val| divider.divide(val - min_value))
+    }
+
+    pub fn compute_header(
+        column: impl Column<u64>,
+        codecs: &[FastFieldCodecType],
+    ) -> Option<Header> {
+        let num_vals = column.num_vals();
+        let min_value = column.min_value();
+        let max_value = column.max_value();
+        let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
+            .filter(|gcd| gcd.get() > 1u64);
+        let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
+        let shifted_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
+        let codec_type = detect_codec(shifted_column, codecs)?;
+        Some(Header {
+            num_vals,
+            min_value,
+            max_value,
+            gcd,
+            codec_type,
+        })
+    }
+}
+
+impl BinarySerializable for Header {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        VInt(self.num_vals).serialize(writer)?;
+        VInt(self.min_value).serialize(writer)?;
+        VInt(self.max_value - self.min_value).serialize(writer)?;
+        if let Some(gcd) = self.gcd {
+            VInt(gcd.get()).serialize(writer)?;
+        } else {
+            VInt(0u64).serialize(writer)?;
+        }
+        self.codec_type.serialize(writer)?;
+        Ok(())
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let num_vals = VInt::deserialize(reader)?.0;
+        let min_value = VInt::deserialize(reader)?.0;
+        let amplitude = VInt::deserialize(reader)?.0;
+        let max_value = min_value + amplitude;
+        let gcd_u64 = VInt::deserialize(reader)?.0;
+        let codec_type = FastFieldCodecType::deserialize(reader)?;
+        Ok(Header {
+            num_vals,
+            min_value,
+            max_value,
+            gcd: NonZeroU64::new(gcd_u64),
+            codec_type,
+        })
+    }
 }
 
 /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
 pub fn open<T: MonotonicallyMappableToU64>(
     mut bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<T>>> {
-    let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
-    open_from_id(bytes, codec_type)
-}
-
-fn open_codec_from_bytes<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<Item>>> {
-    let reader = C::open_from_bytes(bytes)?;
-    Ok(Arc::new(monotonic_map_column(reader, Item::from_u64)))
-}
-
-pub fn open_gcd_from_bytes<WrappedCodec: FastFieldCodec>(
-    bytes: OwnedBytes,
-) -> io::Result<impl Column> {
-    let footer_offset = bytes.len() - 24;
-    let (body, mut footer) = bytes.split(footer_offset);
-    let gcd_params = GCDParams::deserialize(&mut footer)?;
-    let gcd_remap = move |val: u64| gcd_params.min_value + gcd_params.gcd * val;
-    let reader: WrappedCodec::Reader = WrappedCodec::open_from_bytes(body)?;
-    Ok(monotonic_map_column(reader, gcd_remap))
-}
-
-fn open_codec_with_gcd<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<Item>>> {
-    let reader = open_gcd_from_bytes::<C>(bytes)?;
-    Ok(Arc::new(monotonic_map_column(reader, Item::from_u64)))
-}
-
-/// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
-fn open_from_id<T: MonotonicallyMappableToU64>(
-    mut bytes: OwnedBytes,
-    codec_type: FastFieldCodecType,
-) -> io::Result<Arc<dyn Column<T>>> {
-    match codec_type {
-        FastFieldCodecType::Bitpacked => open_codec_from_bytes::<BitpackedCodec, _>(bytes),
-        FastFieldCodecType::Linear => open_codec_from_bytes::<LinearCodec, _>(bytes),
+    let header = Header::deserialize(&mut bytes)?;
+    match header.codec_type {
+        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
+        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
         FastFieldCodecType::BlockwiseLinear => {
-            open_codec_from_bytes::<BlockwiseLinearCodec, _>(bytes)
+            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
         }
-        FastFieldCodecType::Gcd => {
-            let codec_type = FastFieldCodecType::deserialize(&mut bytes)?;
-            match codec_type {
-                FastFieldCodecType::Bitpacked => open_codec_with_gcd::<BitpackedCodec, _>(bytes),
-                FastFieldCodecType::Linear => open_codec_with_gcd::<LinearCodec, _>(bytes),
-                FastFieldCodecType::BlockwiseLinear => {
-                    open_codec_with_gcd::<BlockwiseLinearCodec, _>(bytes)
-                }
-                FastFieldCodecType::Gcd => Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Gcd codec wrapped into another gcd codec. This combination is not allowed.",
-                )),
-            }
-        }
+    }
+}
+
+fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+    bytes: OwnedBytes,
+    header: &Header,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let normalized_header = header.normalized();
+    let reader = C::open_from_bytes(bytes, normalized_header)?;
+    let min_value = header.min_value;
+    if let Some(gcd) = header.gcd {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+    } else {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
     }
 }
 
@@ -131,40 +166,28 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     codecs: &[FastFieldCodecType],
 ) -> io::Result<()> {
     let column = monotonic_map_column(typed_column, T::to_u64);
-    let gcd_params_opt = if codecs.contains(&FastFieldCodecType::Gcd) {
-        gcd_params(&column)
-    } else {
-        None
-    };
-
-    let gcd_params = if let Some(gcd_params) = gcd_params_opt {
-        gcd_params
-    } else {
-        return serialize_without_gcd(column, output, codecs);
-    };
-
-    write_header(FastFieldCodecType::Gcd, output)?;
-    let base_value = column.min_value();
-    let gcd_divider = DividerU64::divide_by(gcd_params.gcd);
-    let divided_fastfield_accessor =
-        monotonic_map_column(column, |val: u64| gcd_divider.divide(val - base_value));
-
-    serialize_without_gcd(divided_fastfield_accessor, output, codecs)?;
-
-    gcd_params.serialize(output)?;
+    let header = Header::compute_header(&column, codecs).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "Data cannot be serialized with this list of codec. {:?}",
+                codecs
+            ),
+        )
+    })?;
+    header.serialize(output)?;
+    let normalized_column = header.normalize_column(column);
+    assert_eq!(normalized_column.min_value(), 0u64);
+    serialize_given_codec(normalized_column, header.codec_type, output)?;
     Ok(())
 }
 
-fn serialize_without_gcd(
+fn detect_codec(
     column: impl Column<u64>,
-    output: &mut impl io::Write,
     codecs: &[FastFieldCodecType],
-) -> io::Result<()> {
+) -> Option<FastFieldCodecType> {
     let mut estimations = Vec::new();
     for &codec in codecs {
-        if codec == FastFieldCodecType::Gcd {
-            continue;
-        }
         match codec {
             FastFieldCodecType::Bitpacked => {
                 codec_estimation::<BitpackedCodec, _>(&column, &mut estimations);
@@ -175,7 +198,6 @@ fn serialize_without_gcd(
             FastFieldCodecType::BlockwiseLinear => {
                 codec_estimation::<BlockwiseLinearCodec, _>(&column, &mut estimations);
             }
-            FastFieldCodecType::Gcd => {}
         }
     }
     if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan()) {
@@ -187,25 +209,25 @@ fn serialize_without_gcd(
     // removing nan values for codecs with broken calculations, and max values which disables
     // codecs
     estimations.retain(|estimation| !estimation.0.is_nan() && estimation.0 != f32::MAX);
-    estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    let (_ratio, codec_type) = estimations[0];
+    estimations
+        .sort_by(|(score_left, _), (score_right, _)| score_left.partial_cmp(&score_right).unwrap());
+    Some(estimations.first()?.1)
+}
 
-    write_header(codec_type, output)?;
+fn serialize_given_codec(
+    column: impl Column<u64>,
+    codec_type: FastFieldCodecType,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
     match codec_type {
         FastFieldCodecType::Bitpacked => {
-            BitpackedCodec::serialize(output, &column)?;
+            BitpackedCodec::serialize(&column, output)?;
         }
         FastFieldCodecType::Linear => {
-            LinearCodec::serialize(output, &column)?;
+            LinearCodec::serialize(&column, output)?;
         }
         FastFieldCodecType::BlockwiseLinear => {
-            BlockwiseLinearCodec::serialize(output, &column)?;
-        }
-        FastFieldCodecType::Gcd => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "GCD codec not supported.",
-            ));
+            BlockwiseLinearCodec::serialize(&column, output)?;
         }
     }
     output.flush()?;
@@ -229,5 +251,33 @@ mod tests {
         let original = [1u64, 5u64, 10u64];
         let restored: Vec<u64> = serialize_and_load(&original[..]).iter().collect();
         assert_eq!(&restored, &original[..]);
+    }
+
+    #[test]
+    fn test_fastfield_bool_size_bitwidth_1() {
+        let mut buffer = Vec::new();
+        let col = VecColumn::from(&[false, true][..]);
+        serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
+        // 5 bytes of header, 1 byte of value, 7 bytes of padding.
+        assert_eq!(buffer.len(), 5 + 8);
+    }
+
+    #[test]
+    fn test_fastfield_bool_bit_size_bitwidth_0() {
+        let mut buffer = Vec::new();
+        let col = VecColumn::from(&[true][..]);
+        serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
+        // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
+        assert_eq!(buffer.len(), 5 + 7);
+    }
+
+    #[test]
+    fn test_fastfield_gcd() {
+        let mut buffer = Vec::new();
+        let vals: Vec<u64> = (0..80).map(|val| (val % 7) * 1_000u64).collect();
+        let col = VecColumn::from(&vals[..]);
+        serialize(col, &mut buffer, &[FastFieldCodecType::Bitpacked]).unwrap();
+        // Values are stored over 3 bits.
+        assert_eq!(buffer.len(), 7 + (3 * 80 / 8) + 7);
     }
 }

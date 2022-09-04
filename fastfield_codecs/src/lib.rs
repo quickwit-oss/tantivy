@@ -23,7 +23,7 @@ mod gcd;
 mod serialize;
 
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::serialize::{open, serialize, serialize_and_load};
+pub use self::serialize::{open, serialize, serialize_and_load, NormalizedHeader};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -31,7 +31,6 @@ pub enum FastFieldCodecType {
     Bitpacked = 1,
     Linear = 2,
     BlockwiseLinear = 3,
-    Gcd = 4,
 }
 
 impl BinarySerializable for FastFieldCodecType {
@@ -57,7 +56,6 @@ impl FastFieldCodecType {
             1 => Some(Self::Bitpacked),
             2 => Some(Self::Linear),
             3 => Some(Self::BlockwiseLinear),
-            4 => Some(Self::Gcd),
             _ => None,
         }
     }
@@ -134,13 +132,13 @@ pub trait FastFieldCodec: 'static {
     type Reader: Column<u64> + 'static;
 
     /// Reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
+    fn open_from_bytes(bytes: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader>;
 
     /// Serializes the data using the serializer into write.
     ///
-    /// The fastfield_accessor iterator should be preferred over using fastfield_accessor for
+    /// The column iterator should be preferred over using column `get_val` method for
     /// performance reasons.
-    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column<u64>) -> io::Result<()>;
+    fn serialize(column: &dyn Column<u64>, write: &mut impl Write) -> io::Result<()>;
 
     /// Returns an estimate of the compression ratio.
     /// If the codec is not applicable, returns `None`.
@@ -149,13 +147,12 @@ pub trait FastFieldCodec: 'static {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(fastfield_accessor: &impl Column) -> Option<f32>;
+    fn estimate(column: &impl Column) -> Option<f32>;
 }
 
-pub const ALL_CODEC_TYPES: [FastFieldCodecType; 4] = [
+pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
     FastFieldCodecType::Bitpacked,
     FastFieldCodecType::BlockwiseLinear,
-    FastFieldCodecType::Gcd,
     FastFieldCodecType::Linear,
 ];
 
@@ -176,19 +173,24 @@ mod tests {
     use crate::bitpacked::BitpackedCodec;
     use crate::blockwise_linear::BlockwiseLinearCodec;
     use crate::linear::LinearCodec;
+    use crate::serialize::Header;
 
-    pub fn create_and_validate<Codec: FastFieldCodec>(
+    pub(crate) fn create_and_validate<Codec: FastFieldCodec>(
         data: &[u64],
         name: &str,
     ) -> Option<(f32, f32)> {
-        let estimation = Codec::estimate(&VecColumn::from(data))?;
+        let col = &VecColumn::from(data);
+        let header = Header::compute_header(&col, &[Codec::CODEC_TYPE])?;
+        let normalized_col = header.normalize_column(col);
+        let estimation = Codec::estimate(&normalized_col)?;
 
-        let mut out: Vec<u8> = Vec::new();
-        Codec::serialize(&mut out, &VecColumn::from(data)).unwrap();
+        let mut out = Vec::new();
+        let col = VecColumn::from(data);
+        serialize(col, &mut out, &[Codec::CODEC_TYPE]).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
-        let reader = Codec::open_from_bytes(OwnedBytes::new(out)).unwrap();
+        let reader = crate::open::<u64>(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u64);
         for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u64);
@@ -203,24 +205,42 @@ mod tests {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
-        fn test_proptest_small(data in proptest::collection::vec(num_strategy(), 1..10)) {
-            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        fn test_proptest_small_bitpacked(data in proptest::collection::vec(num_strategy(), 1..10)) {
             create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
+        }
+
+        #[test]
+        fn test_proptest_small_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+        }
+
+        #[test]
+        fn test_proptest_small_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
         }
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
+
         #[test]
-        fn test_proptest_large(data in proptest::collection::vec(num_strategy(), 1..6000)) {
-            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        fn test_proptest_large_bitpacked(data in proptest::collection::vec(num_strategy(), 1..6000)) {
             create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
         }
 
+        #[test]
+        fn test_proptest_large_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+        }
+
+        #[test]
+        fn test_proptest_large_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        }
     }
+
     fn num_strategy() -> impl Strategy<Value = u64> {
         prop_oneof![
             1 => prop::num::u64::ANY.prop_map(|num| u64::MAX - (num % 10) ),
@@ -307,11 +327,8 @@ mod tests {
 
     #[test]
     fn estimation_prefer_bitpacked() {
-        let data: &[u64] = &[10, 10, 10, 10];
-
-        let data: VecColumn = data.into();
+        let data = VecColumn::from(&[10, 10, 10, 10]);
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
-
         let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
         assert_lt!(bitpacked_estimation, linear_interpol_estimation);
     }
@@ -341,7 +358,7 @@ mod tests {
                 count_codec += 1;
             }
         }
-        assert_eq!(count_codec, 4);
+        assert_eq!(count_codec, 3);
     }
 }
 
