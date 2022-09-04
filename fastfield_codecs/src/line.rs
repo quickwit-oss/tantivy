@@ -68,6 +68,11 @@ impl Line {
 
     // Same as train, but the intercept is only estimated from provided sample positions
     pub fn estimate(ys: &dyn Column, sample_positions: &[u64]) -> Self {
+        Self::train_from(ys, sample_positions.iter().cloned())
+    }
+
+    // Same as train, but the intercept is only estimated from provided sample positions
+    fn train_from(ys: &dyn Column, positions: impl Iterator<Item = u64>) -> Self {
         let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals()) {
             num_vals
         } else {
@@ -108,9 +113,7 @@ impl Line {
             intercept: 0,
         };
         let heuristic_shift = y0.wrapping_sub(MID_POINT);
-        line.intercept = sample_positions
-            .iter()
-            .cloned()
+        line.intercept = positions
             .map(|pos| {
                 let y = ys.get_val(pos);
                 y.wrapping_sub(line.eval(pos))
@@ -131,53 +134,7 @@ impl Line {
     /// This function is only invariable by translation if all of the
     /// `ys` are packaged into half of the space. (See heuristic below)
     pub fn train(ys: &dyn Column) -> Self {
-        let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals()) {
-            num_vals
-        } else {
-            return Line::default();
-        };
-
-        let y0 = ys.get_val(0);
-        let y1 = ys.get_val(num_vals.get() - 1);
-
-        // We first independently pick our slope.
-        let slope = compute_slope(y0, y1, num_vals);
-
-        // We picked our slope. Note that it does not have to be perfect.
-        // Now we need to compute the best intercept.
-        //
-        // Intuitively, the best intercept is such that line passes through one of the
-        // `(i, ys[])`.
-        //
-        // The best intercept therefore has the form
-        // `y[i] - line.eval(i)` (using wrapping arithmetics).
-        // In other words, the best intercept is one of the `y - Line::eval(ys[i])`
-        // and our task is just to pick the one that minimizes our error.
-        //
-        // Without sorting our values, this is a difficult problem.
-        // We however rely on the following trick...
-        //
-        // We only focus on the case where the interpolation is half decent.
-        // If the line interpolation is doing its job on a dataset suited for it,
-        // we can hope that the maximum error won't be larger than `u64::MAX / 2`.
-        //
-        // In other words, even without the intercept the values `y - Line::eval(ys[i])` will all be within
-        // an interval that takes less than half of the modulo space of `u64`.
-        //
-        // Our task is therefore to identify this interval.
-        // Here we simply translate all of our values by `y0 - 2^63` and pick the min.
-        let mut line = Line {
-            slope,
-            intercept: 0,
-        };
-        let heuristic_shift = y0.wrapping_sub(MID_POINT);
-        line.intercept = ys
-            .iter()
-            .enumerate()
-            .map(|(i, y)| y.wrapping_sub(line.eval(i as u64)))
-            .min_by_key(|&val| val.wrapping_sub(heuristic_shift))
-            .unwrap_or(0u64); //< Never happens.
-        line
+        Self::train_from(ys, 0..ys.num_vals())
     }
 }
 
