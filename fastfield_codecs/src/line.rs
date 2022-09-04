@@ -221,7 +221,7 @@ mod tests {
     }
 
     fn test_eval_max_err(ys: &[u64]) -> Option<u64> {
-        let line = Line::train(&VecColumn(ys));
+        let line = Line::train(&VecColumn::from(&ys));
         ys.iter()
             .enumerate()
             .map(|(x, y)| y.wrapping_sub(line.eval(x as u64)))

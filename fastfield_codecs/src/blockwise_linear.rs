@@ -109,7 +109,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             .iter()
             .take(CHUNK_SIZE as usize)
             .collect();
-        let line = Line::train(&VecColumn(&first_chunk));
+        let line = Line::train(&VecColumn::from(&first_chunk));
         for (i, buffer_val) in first_chunk.iter_mut().enumerate() {
             let interpolated_val = line.eval(i as u64);
             *buffer_val = buffer_val.wrapping_sub(interpolated_val);
@@ -150,7 +150,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         for _ in 0..num_blocks {
             buffer.clear();
             buffer.extend((&mut vals).take(CHUNK_SIZE));
-            let line = Line::train(&VecColumn(&buffer));
+            let line = Line::train(&VecColumn::from(&buffer));
 
             assert!(!buffer.is_empty());
 
