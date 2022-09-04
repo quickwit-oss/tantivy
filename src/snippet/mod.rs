@@ -689,47 +689,20 @@ Survey in 2016, 2017, and 2018."#;
     }
 
     #[test]
-    fn test_snippet_generator_custom_highlighted_elements() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let text_options = TextOptions::default().set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer("en_stem")
-                .set_index_option(IndexRecordOption::Basic),
+    fn test_snippet_generator_custom_highlighted_elements() {
+        let terms = btreemap! { String::from("rust") => 1.0, String::from("language") => 0.9 };
+        let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 100);
+        let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        assert_eq!(
+            snippet.to_html(),
+            "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
+             describes it as a &quot;safe"
         );
-        let text_field = schema_builder.add_text_field("text", text_options);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        {
-            // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
-            let doc = doc!(text_field => TEST_TEXT);
-            index_writer.add_document(doc)?;
-            index_writer.commit()?;
-        }
-        let searcher = index.reader().unwrap().searcher();
-        let query_parser = QueryParser::for_index(&index, vec![text_field]);
-        let query = query_parser.parse_query("rust design").unwrap();
-        let mut snippet_generator =
-            SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
-        {
-            let snippet = snippet_generator.snippet(TEST_TEXT);
-            assert_eq!(
-                snippet.to_html(),
-                "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to \
-                 C++[according to whom?],\nbut its <b>designers</b> intend it to provide better \
-                 memory safety"
-            );
-        }
-        {
-            snippet_generator.set_max_num_chars(90);
-            let mut snippet = snippet_generator.snippet(TEST_TEXT);
-            snippet.set_highlighted_elements("<q class=\"super\">", "</q>");
-            assert_eq!(
-                snippet.to_html(),
-                "<q class=\"super\">Rust</q> is syntactically similar to C++[according to whom?],\nbut its \
-                <q class=\"super\">designers</q> intend it to"
-            );
-        }
-        Ok(())
+        snippet.set_highlighted_elements("<q class=\"super\">", "</q>");
+        assert_eq!(
+            snippet.to_html(),
+            "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
+            sponsored by\nMozilla which describes it as a &quot;safe"
+        );
     }
 }
