@@ -64,17 +64,12 @@ pub struct Snippet {
 
 impl Snippet {
     /// Create a new `Snippet`.
-    fn new(
-        fragment: &str,
-        highlighted: Vec<Range<usize>>,
-        highlighting_prefix: &str,
-        highlighting_postfix: &str,
-    ) -> Self {
+    fn new(fragment: &str, highlighted: Vec<Range<usize>>) -> Self {
         Self {
             fragment: fragment.to_string(),
             highlighted,
-            highlighting_prefix: highlighting_prefix.to_string(),
-            highlighting_postfix: highlighting_postfix.to_string(),
+            highlighting_prefix: DEFAULT_HIGHLIGHTING_PREFIX.to_string(),
+            highlighting_postfix: DEFAULT_HIGHLIGHTING_POSTFIX.to_string(),
         }
     }
 
@@ -119,6 +114,12 @@ impl Snippet {
     /// Returns a list of highlighted positions from the `Snippet`.
     pub fn highlighted(&self) -> &[Range<usize>] {
         &self.highlighted
+    }
+
+    /// Sets highlighted prefix and postfix.
+    pub fn set_highlighted_elements(&mut self, prefix: &str, postfix: &str) {
+        self.highlighting_prefix = prefix.to_string();
+        self.highlighting_postfix = postfix.to_string()
     }
 }
 
@@ -172,12 +173,7 @@ fn search_fragments<'a>(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination(
-    fragments: &[FragmentCandidate],
-    text: &str,
-    highlighting_prefix: &str,
-    highlighting_postfix: &str,
-) -> Snippet {
+fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
             .score
@@ -196,12 +192,7 @@ fn select_best_fragment_combination(
             .iter()
             .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
-        Snippet::new(
-            fragment_text,
-            highlighted,
-            highlighting_prefix,
-            highlighting_postfix,
-        )
+        Snippet::new(fragment_text, highlighted)
     } else {
         // When there are no fragments to chose from,
         // for now create an empty snippet.
@@ -302,8 +293,6 @@ pub struct SnippetGenerator {
     tokenizer: TextAnalyzer,
     field: Field,
     max_num_chars: usize,
-    highlighting_prefix: String,
-    highlighting_postfix: String,
 }
 
 impl SnippetGenerator {
@@ -352,15 +341,7 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS,
-            highlighting_prefix: DEFAULT_HIGHLIGHTING_PREFIX.to_string(),
-            highlighting_postfix: DEFAULT_HIGHLIGHTING_POSTFIX.to_string(),
         })
-    }
-
-    /// Sets highlighted prefix and postfix.
-    pub fn set_highlighted_elements(&mut self, prefix: &str, postfix: &str) {
-        self.highlighting_prefix = prefix.to_string();
-        self.highlighting_postfix = postfix.to_string()
     }
 
     /// Sets a maximum number of chars.
@@ -390,12 +371,7 @@ impl SnippetGenerator {
     pub fn snippet(&self, text: &str) -> Snippet {
         let fragment_candidates =
             search_fragments(&self.tokenizer, text, &self.terms_text, self.max_num_chars);
-        select_best_fragment_combination(
-            &fragment_candidates[..],
-            text,
-            &self.highlighting_prefix,
-            &self.highlighting_postfix,
-        )
+        select_best_fragment_combination(&fragment_candidates[..], text)
     }
 }
 
@@ -410,9 +386,7 @@ mod tests {
     use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
     use crate::{Index, SnippetGenerator};
 
-    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination,DEFAULT_HIGHLIGHTING_POSTFIX,
-                DEFAULT_HIGHLIGHTING_PREFIX,
-    };
+    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
@@ -441,12 +415,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            TEST_TEXT,
-            "<b class=\"super\">",
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
             snippet.fragment,
             "Rust is a systems programming language sponsored by\nMozilla which describes it as a \
@@ -454,7 +423,7 @@ Survey in 2016, 2017, and 2018."#;
         );
         assert_eq!(
             snippet.to_html(),
-            "<b class=\"super\">Rust</b> is a systems programming <b class=\"super\">language</b> sponsored by\nMozilla which \
+            "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         )
     }
@@ -472,12 +441,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(
-                &fragments[..],
-                TEST_TEXT,
-                DEFAULT_HIGHLIGHTING_PREFIX,
-                DEFAULT_HIGHLIGHTING_POSTFIX,
-            );
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
         {
@@ -492,12 +456,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(
-                &fragments[..],
-                TEST_TEXT,
-                DEFAULT_HIGHLIGHTING_PREFIX,
-                DEFAULT_HIGHLIGHTING_POSTFIX,
-            );
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
     }
@@ -519,12 +478,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 7);
         }
 
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            text,
-            DEFAULT_HIGHLIGHTING_PREFIX,
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
@@ -546,12 +500,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 8);
         }
 
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            text,
-            DEFAULT_HIGHLIGHTING_PREFIX,
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
@@ -574,12 +523,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 0);
         }
 
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            text,
-            DEFAULT_HIGHLIGHTING_PREFIX,
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
@@ -595,12 +539,7 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            text,
-            DEFAULT_HIGHLIGHTING_PREFIX,
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
         assert!(snippet.is_empty());
@@ -614,12 +553,7 @@ Survey in 2016, 2017, and 2018."#;
         let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(
-            &fragments[..],
-            text,
-            DEFAULT_HIGHLIGHTING_PREFIX,
-            DEFAULT_HIGHLIGHTING_POSTFIX,
-        );
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
         assert!(snippet.is_empty());
@@ -788,8 +722,8 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             snippet_generator.set_max_num_chars(90);
-            snippet_generator.set_highlighted_elements("<q class=\"super\">", "</q>");
-            let snippet = snippet_generator.snippet(TEST_TEXT);
+            let mut snippet = snippet_generator.snippet(TEST_TEXT);
+            snippet.set_highlighted_elements("<q class=\"super\">", "</q>");
             assert_eq!(
                 snippet.to_html(),
                 "<q class=\"super\">Rust</q> is syntactically similar to C++[according to whom?],\nbut its \
