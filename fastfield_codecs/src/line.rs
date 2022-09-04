@@ -1,4 +1,5 @@
-use std::{io, num::NonZeroU64};
+use std::io;
+use std::num::NonZeroU64;
 
 use common::{BinarySerializable, VInt};
 
@@ -103,8 +104,8 @@ impl Line {
         // If the line interpolation is doing its job on a dataset suited for it,
         // we can hope that the maximum error won't be larger than `u64::MAX / 2`.
         //
-        // In other words, even without the intercept the values `y - Line::eval(ys[i])` will all be within
-        // an interval that takes less than half of the modulo space of `u64`.
+        // In other words, even without the intercept the values `y - Line::eval(ys[i])` will all be
+        // within an interval that takes less than half of the modulo space of `u64`.
         //
         // Our task is therefore to identify this interval.
         // Here we simply translate all of our values by `y0 - 2^63` and pick the min.
@@ -154,9 +155,8 @@ impl BinarySerializable for Line {
 
 #[cfg(test)]
 mod tests {
-    use crate::VecColumn;
-
     use super::*;
+    use crate::VecColumn;
 
     /// Test training a line and ensuring that the maximum difference between
     /// the data points and the line is `expected`.
