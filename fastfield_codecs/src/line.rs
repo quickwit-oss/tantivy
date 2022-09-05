@@ -74,14 +74,14 @@ impl Line {
 
     // Same as train, but the intercept is only estimated from provided sample positions
     fn train_from(ys: &dyn Column, positions: impl Iterator<Item = u64>) -> Self {
-        let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals()) {
+        let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
             num_vals
         } else {
             return Line::default();
         };
 
         let y0 = ys.get_val(0);
-        let y1 = ys.get_val(num_vals.get() - 1);
+        let y1 = ys.get_val(num_vals.get());
 
         // We first independently pick our slope.
         let slope = compute_slope(y0, y1, num_vals);
@@ -188,10 +188,17 @@ mod tests {
     #[test]
     fn test_train() {
         test_line_interpol_with_translation(&[11, 11, 11, 12, 12, 13], Some(1));
-        test_line_interpol_with_translation(&[13, 12, 12, 11, 11, 11], Some(0));
+        test_line_interpol_with_translation(&[13, 12, 12, 11, 11, 11], Some(1));
         test_line_interpol_with_translation(&[13, 13, 12, 11, 11, 11], Some(1));
         test_line_interpol_with_translation(&[13, 13, 12, 11, 11, 11], Some(1));
-        test_line_interpol_with_translation(&[u64::MAX - 1, 0, 0, 1], Some(2));
-        test_line_interpol_with_translation(&[0, 1, 2, 3, 5], Some(1));
+        test_line_interpol_with_translation(&[u64::MAX - 1, 0, 0, 1], Some(1));
+        test_line_interpol_with_translation(&[u64::MAX - 1, u64::MAX, 0, 1], Some(0));
+        test_line_interpol_with_translation(&[0, 1, 2, 3, 5], Some(0));
+        test_line_interpol_with_translation(&[1, 2, 3, 4], Some(0));
+
+        let data: Vec<u64> = (0..255).collect();
+        test_line_interpol_with_translation(&data, Some(0));
+        let data: Vec<u64> = (0..255).map(|el| el * 2).collect();
+        test_line_interpol_with_translation(&data, Some(0));
     }
 }
