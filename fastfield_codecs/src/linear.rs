@@ -1,10 +1,10 @@
-use std::io::{self, Read, Write};
-use std::ops::Sub;
+use std::io::{self, Write};
 
-use common::{BinarySerializable, FixedSize};
+use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
+use crate::line::Line;
 use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 /// Depending on the field type, a different
@@ -12,56 +12,15 @@ use crate::{Column, FastFieldCodec, FastFieldCodecType};
 #[derive(Clone)]
 pub struct LinearReader {
     data: OwnedBytes,
-    bit_unpacker: BitUnpacker,
-    pub footer: LinearFooter,
-    pub slope: f32,
-}
-
-#[derive(Clone, Debug)]
-pub struct LinearFooter {
-    pub relative_max_value: u64,
-    pub offset: u64,
-    pub first_val: u64,
-    pub last_val: u64,
-    pub num_vals: u64,
-    pub min_value: u64,
-    pub max_value: u64,
-}
-
-impl BinarySerializable for LinearFooter {
-    fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
-        self.relative_max_value.serialize(write)?;
-        self.offset.serialize(write)?;
-        self.first_val.serialize(write)?;
-        self.last_val.serialize(write)?;
-        self.num_vals.serialize(write)?;
-        self.min_value.serialize(write)?;
-        self.max_value.serialize(write)?;
-        Ok(())
-    }
-
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<LinearFooter> {
-        Ok(LinearFooter {
-            relative_max_value: u64::deserialize(reader)?,
-            offset: u64::deserialize(reader)?,
-            first_val: u64::deserialize(reader)?,
-            last_val: u64::deserialize(reader)?,
-            num_vals: u64::deserialize(reader)?,
-            min_value: u64::deserialize(reader)?,
-            max_value: u64::deserialize(reader)?,
-        })
-    }
-}
-
-impl FixedSize for LinearFooter {
-    const SIZE_IN_BYTES: usize = 56;
+    footer: LinearParams,
 }
 
 impl Column for LinearReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
-        let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
-        (calculated_value + self.bit_unpacker.get(doc, &self.data)) - self.footer.offset
+        let interpoled_val: u64 = self.footer.line.eval(doc);
+        let bitpacked_diff = self.footer.bit_unpacker.get(doc, &self.data);
+        interpoled_val.wrapping_add(bitpacked_diff)
     }
 
     #[inline]
@@ -82,42 +41,38 @@ impl Column for LinearReader {
 /// and stores the difference bitpacked.
 pub struct LinearCodec;
 
-#[inline]
-pub(crate) fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    if num_vals <= 1 {
-        return 0.0;
-    }
-    //  We calculate the slope with f64 high precision and use the result in lower precision f32
-    //  This is done in order to handle estimations for very large values like i64::MAX
-    let diff = diff(last_val, first_val);
-    (diff / (num_vals - 1) as f64) as f32
+#[derive(Debug, Clone)]
+struct LinearParams {
+    num_vals: u64,
+    min_value: u64,
+    max_value: u64,
+    line: Line,
+    bit_unpacker: BitUnpacker,
 }
 
-/// Delay the cast, to improve precision for very large u64 values.
-///
-/// Since i64 is mapped monotonically to u64 space, 0i64 is after the mapping i64::MAX.
-/// So very large values are not uncommon.
-///
-/// ```rust
-///     let val1 = i64::MAX;
-///     let val2 = i64::MAX - 100;
-///     assert_eq!(val1 - val2, 100);
-///     assert_eq!(val1 as f64 - val2 as f64, 0.0);
-/// ```
-fn diff(val1: u64, val2: u64) -> f64 {
-    if val1 >= val2 {
-        (val1 - val2) as f64
-    } else {
-        (val2 - val1) as f64 * -1.0
+impl BinarySerializable for LinearParams {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.num_vals.serialize(writer)?;
+        self.min_value.serialize(writer)?;
+        self.max_value.serialize(writer)?;
+        self.line.serialize(writer)?;
+        self.bit_unpacker.bit_width().serialize(writer)?;
+        Ok(())
     }
-}
 
-#[inline]
-pub fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    if slope < 0.0 {
-        first_val.saturating_sub((pos as f32 * -slope) as u64)
-    } else {
-        first_val.saturating_add((pos as f32 * slope) as u64)
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let num_vals = u64::deserialize(reader)?;
+        let min_value = u64::deserialize(reader)?;
+        let max_value = u64::deserialize(reader)?;
+        let line = Line::deserialize(reader)?;
+        let bit_width = u8::deserialize(reader)?;
+        Ok(Self {
+            num_vals,
+            min_value,
+            max_value,
+            line,
+            bit_unpacker: BitUnpacker::new(bit_width),
+        })
     }
 }
 
@@ -128,65 +83,50 @@ impl FastFieldCodec for LinearCodec {
 
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
-        let footer_offset = bytes.len() - LinearFooter::SIZE_IN_BYTES;
+        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
+        let footer_offset = bytes.len() - 4 - footer_len as usize;
         let (data, mut footer) = bytes.split(footer_offset);
-        let footer = LinearFooter::deserialize(&mut footer)?;
-        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
-        let num_bits = compute_num_bits(footer.relative_max_value);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(LinearReader {
-            data,
-            bit_unpacker,
-            footer,
-            slope,
-        })
+        let footer = LinearParams::deserialize(&mut footer)?;
+        Ok(LinearReader { data, footer })
     }
 
     /// Creates a new fast field serializer.
     fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
         assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
+        let line = Line::train(fastfield_accessor);
 
-        let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
-        let slope = get_slope(first_val, last_val, fastfield_accessor.num_vals());
-        // calculate offset to ensure all values are positive
-        let mut offset = 0;
-        let mut rel_positive_max = 0;
-        for (pos, actual_value) in fastfield_accessor.iter().enumerate() {
-            let calculated_value = get_calculated_value(first_val, pos as u64, slope);
-            if calculated_value > actual_value {
-                // negative value we need to apply an offset
-                // we ignore negative values in the max value calculation, because negative values
-                // will be offset to 0
-                offset = offset.max(calculated_value - actual_value);
-            } else {
-                // positive value no offset reuqired
-                rel_positive_max = rel_positive_max.max(actual_value - calculated_value);
-            }
-        }
+        let max_offset_from_line = fastfield_accessor
+            .iter()
+            .enumerate()
+            .map(|(pos, actual_value)| {
+                let calculated_value = line.eval(pos as u64);
+                actual_value.wrapping_sub(calculated_value)
+            })
+            .max()
+            .unwrap();
 
-        // rel_positive_max will be adjusted by offset
-        let relative_max_value = rel_positive_max + offset;
-
-        let num_bits = compute_num_bits(relative_max_value);
+        let num_bits = compute_num_bits(max_offset_from_line);
         let mut bit_packer = BitPacker::new();
-        for (pos, val) in fastfield_accessor.iter().enumerate() {
-            let calculated_value = get_calculated_value(first_val, pos as u64, slope);
-            let diff = (val + offset) - calculated_value;
-            bit_packer.write(diff, num_bits, write)?;
+        for (pos, actual_value) in fastfield_accessor.iter().enumerate() {
+            let calculated_value = line.eval(pos as u64);
+            let offset = actual_value.wrapping_sub(calculated_value);
+            bit_packer.write(offset, num_bits, write)?;
         }
         bit_packer.close(write)?;
 
-        let footer = LinearFooter {
-            relative_max_value,
-            offset,
-            first_val,
-            last_val,
+        let footer = LinearParams {
             num_vals: fastfield_accessor.num_vals(),
             min_value: fastfield_accessor.min_value(),
             max_value: fastfield_accessor.max_value(),
+            line,
+            bit_unpacker: BitUnpacker::new(num_bits),
         };
-        footer.serialize(write)?;
+
+        let mut counting_wrt = CountingWriter::wrap(write);
+        footer.serialize(&mut counting_wrt)?;
+        let footer_len = counting_wrt.written_bytes();
+        (footer_len as u32).serialize(&mut counting_wrt)?;
+
         Ok(())
     }
 
@@ -199,61 +139,29 @@ impl FastFieldCodec for LinearCodec {
             return None; // disable compressor for this case
         }
 
-        // On serialisation the offset is added to the actual value.
-        // We need to make sure this won't run into overflow calculation issues.
-        // For this we take the maximum theroretical offset and add this to the max value.
-        // If this doesn't overflow the algorithm should be fine
-        let theorethical_maximum_offset =
-            fastfield_accessor.max_value() - fastfield_accessor.min_value();
-        if fastfield_accessor
-            .max_value()
-            .checked_add(theorethical_maximum_offset)
-            .is_none()
-        {
-            return None;
-        }
-
-        let first_val = fastfield_accessor.get_val(0);
-        let last_val = fastfield_accessor.get_val(fastfield_accessor.num_vals() as u64 - 1);
-        let slope = get_slope(first_val, last_val, fastfield_accessor.num_vals());
-
         // let's sample at 0%, 5%, 10% .. 95%, 100%
         let num_vals = fastfield_accessor.num_vals() as f32 / 100.0;
         let sample_positions = (0..20)
-            .map(|pos| (num_vals * pos as f32 * 5.0) as usize)
+            .map(|pos| (num_vals * pos as f32 * 5.0) as u64)
             .collect::<Vec<_>>();
 
-        let max_distance = sample_positions
-            .iter()
+        let line = Line::estimate(fastfield_accessor, &sample_positions);
+
+        let estimated_bit_width = sample_positions
+            .into_iter()
             .map(|pos| {
-                let calculated_value = get_calculated_value(first_val, *pos as u64, slope);
-                let actual_value = fastfield_accessor.get_val(*pos as u64);
-                distance(calculated_value, actual_value)
+                let actual_value = fastfield_accessor.get_val(pos);
+                let interpolated_val = line.eval(pos as u64);
+                actual_value.wrapping_sub(interpolated_val)
             })
+            .map(|diff| ((diff as f32 * 1.5) * 2.0) as u64)
+            .map(compute_num_bits)
             .max()
             .unwrap_or(0);
 
-        // the theory would be that we don't have the actual max_distance, but we are close within
-        // 50% threshold.
-        // It is multiplied by 2 because in a log case scenario the line would be as much above as
-        // below. So the offset would = max_distance
-        //
-        let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
-
-        let num_bits = compute_num_bits(relative_max_value as u64) as u64
-            * fastfield_accessor.num_vals()
-            + LinearFooter::SIZE_IN_BYTES as u64;
+        let num_bits = (estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64) + 64;
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
-    }
-}
-
-#[inline]
-fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
-    if x < y {
-        y - x
-    } else {
-        x - y
     }
 }
 
@@ -269,33 +177,13 @@ mod tests {
     }
 
     #[test]
-    fn get_calculated_value_test() {
-        // pos slope
-        assert_eq!(get_calculated_value(100, 10, 5.0), 150);
-
-        // neg slope
-        assert_eq!(get_calculated_value(100, 10, -5.0), 50);
-
-        // pos slope, very high values
-        assert_eq!(
-            get_calculated_value(i64::MAX as u64, 10, 5.0),
-            i64::MAX as u64 + 50
-        );
-        // neg slope, very high values
-        assert_eq!(
-            get_calculated_value(i64::MAX as u64, 10, -5.0),
-            i64::MAX as u64 - 50
-        );
-    }
-
-    #[test]
     fn test_compression() {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
             create_and_validate(&data, "simple monotonically large").unwrap();
 
-        assert!(actual_compression < 0.01);
-        assert!(estimate < 0.01);
+        assert_le!(actual_compression, 0.001);
+        assert_le!(estimate, 0.02);
     }
 
     #[test]

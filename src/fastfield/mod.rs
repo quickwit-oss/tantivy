@@ -400,7 +400,11 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         // assert_eq!(file.len(), 17710 as usize); //bitpacked size
         // assert_eq!(file.len(), 10175_usize); // linear interpol size
-        assert_eq!(file.len(), 75_usize); // linear interpol size after calc improvement
+        // assert_eq!(file.len(), 75_usize); // linear interpol size after calc improvement
+        // assert_eq!(file.len(), 1325_usize); // linear interpol size after switching to int based
+        assert_eq!(file.len(), 62_usize); // linear interpol size after switching to int based, off
+                                          // by one fix
+
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite

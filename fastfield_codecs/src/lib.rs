@@ -15,6 +15,7 @@ use ownedbytes::OwnedBytes;
 
 pub mod bitpacked;
 pub mod blockwise_linear;
+pub(crate) mod line;
 pub mod linear;
 
 mod column;
@@ -287,10 +288,10 @@ mod tests {
 
         let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
-        assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
+        assert_lt!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
         let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
-        assert_le!(linear_interpol_estimation, bitpacked_estimation);
+        assert_lt!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
@@ -298,11 +299,23 @@ mod tests {
 
         let data: VecColumn = data.into();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
-        assert_le!(linear_interpol_estimation, 0.32);
+        assert_le!(linear_interpol_estimation, 0.34);
 
         let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
-        assert_le!(bitpacked_estimation, linear_interpol_estimation);
+        assert_lt!(bitpacked_estimation, linear_interpol_estimation);
     }
+
+    #[test]
+    fn estimation_prefer_bitpacked() {
+        let data: &[u64] = &[10, 10, 10, 10];
+
+        let data: VecColumn = data.into();
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
+
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        assert_lt!(bitpacked_estimation, linear_interpol_estimation);
+    }
+
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
         let mut data: Vec<u64> = (200..=20000_u64).collect();
