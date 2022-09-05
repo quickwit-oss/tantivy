@@ -332,13 +332,11 @@ mod tests {
 
     #[test]
     fn test_multivalue_get_vals() {
-        let doc_id_mapping = DocIdMapping::from_new_id_to_old_id(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let doc_id_mapping =
+            DocIdMapping::from_new_id_to_old_id(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         assert_eq!(doc_id_mapping.num_old_doc_ids(), 10);
-        let col = VecColumn::from(&[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55,][..]);
-        let multivalue_start_index = MultivalueStartIndex::new(
-            &col,
-            &doc_id_mapping,
-        );
+        let col = VecColumn::from(&[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55][..]);
+        let multivalue_start_index = MultivalueStartIndex::new(&col, &doc_id_mapping);
         assert_eq!(
             multivalue_start_index.iter().collect::<Vec<u64>>(),
             vec![0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
@@ -351,5 +349,4 @@ mod tests {
         assert_eq!(multivalue_start_index.get_val(0), 0);
         assert_eq!(multivalue_start_index.get_val(10), 55);
     }
-
 }

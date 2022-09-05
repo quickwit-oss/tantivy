@@ -71,14 +71,11 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     }
 
     // Estimate first_chunk and extrapolate
-    fn estimate(fastfield_accessor: &impl crate::Column) -> Option<f32> {
-        if fastfield_accessor.num_vals() < 10 * CHUNK_SIZE as u64 {
+    fn estimate(column: &impl crate::Column) -> Option<f32> {
+        if column.num_vals() < 10 * CHUNK_SIZE as u64 {
             return None;
         }
-        let mut first_chunk: Vec<u64> = fastfield_accessor
-            .iter()
-            .take(CHUNK_SIZE as usize)
-            .collect();
+        let mut first_chunk: Vec<u64> = column.iter().take(CHUNK_SIZE as usize).collect();
         let line = Line::train(&VecColumn::from(&first_chunk));
         for (i, buffer_val) in first_chunk.iter_mut().enumerate() {
             let interpolated_val = line.eval(i as u64);
@@ -96,24 +93,23 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             Block::default().serialize(&mut out).unwrap();
             out.len()
         };
-        let num_bits = estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64
+        let num_bits = estimated_bit_width as u64 * column.num_vals() as u64
             // function metadata per block
-            + metadata_per_block as u64 * (fastfield_accessor.num_vals() / CHUNK_SIZE as u64);
-        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
+            + metadata_per_block as u64 * (column.num_vals() / CHUNK_SIZE as u64);
+        let num_bits_uncompressed = 64 * column.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 
-    fn serialize(
-        fastfield_accessor: &dyn crate::Column,
-        wrt: &mut impl io::Write,
-    ) -> io::Result<()> {
+    fn serialize(column: &dyn crate::Column, wrt: &mut impl io::Write) -> io::Result<()> {
+        // The BitpackedReader assumes a normalized vector.
+        assert_eq!(column.min_value(), 0);
         let mut buffer = Vec::with_capacity(CHUNK_SIZE);
-        let num_vals = fastfield_accessor.num_vals();
+        let num_vals = column.num_vals();
 
         let num_blocks = compute_num_blocks(num_vals);
         let mut blocks = Vec::with_capacity(num_blocks);
 
-        let mut vals = fastfield_accessor.iter();
+        let mut vals = column.iter();
 
         let mut bit_packer = BitPacker::new();
 
@@ -176,6 +172,7 @@ impl Column for BlockwiseLinearReader {
     }
 
     fn min_value(&self) -> u64 {
+        // The BlockwiseLinearReader assumes a normalized vector.
         0u64
     }
 

@@ -34,16 +34,18 @@ pub trait Column<T = u64> {
 
     /// Returns the minimum value for this fast field.
     ///
-    /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound
-    /// of the actual minimum value.
+    /// This min_value may not be exact.
+    /// For instance, the min value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.min_value()`.
     fn min_value(&self) -> T;
 
     /// Returns the maximum value for this fast field.
     ///
-    /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound
-    /// of the actual maximum value
+    /// This max_value may not be exact.
+    /// For instance, the max value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.max_value()`.
     fn max_value(&self) -> T;
 
     fn num_vals(&self) -> u64;

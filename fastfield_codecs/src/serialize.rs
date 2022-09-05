@@ -34,17 +34,11 @@ use crate::{
     VecColumn, ALL_CODEC_TYPES,
 };
 
-// use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
-// https://github.com/rust-lang/rust/pull/86176
-fn codec_estimation<C: FastFieldCodec, D: Column>(
-    fastfield_accessor: &D,
-    estimations: &mut Vec<(f32, FastFieldCodecType)>,
-) {
-    if let Some(ratio) = C::estimate(fastfield_accessor) {
-        estimations.push((ratio, C::CODEC_TYPE));
-    }
-}
-
+/// The normalized header gives some parameters after applying the following
+/// normalization of the vector:
+/// val -> (val - min_value) / gcd
+///
+/// By design, after normalization, `min_value = 0` and `gcd = 1`.
 #[derive(Debug, Copy, Clone)]
 pub struct NormalizedHeader {
     pub num_vals: u64,
@@ -160,6 +154,23 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     }
 }
 
+pub fn estimate<T: MonotonicallyMappableToU64>(
+    typed_column: impl Column<T>,
+    codec_type: FastFieldCodecType,
+) -> Option<f32> {
+    let column = monotonic_map_column(typed_column, T::to_u64);
+    let min_value = column.min_value();
+    let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
+        .filter(|gcd| gcd.get() > 1u64);
+    let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
+    let normalized_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
+    match codec_type {
+        FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&normalized_column),
+        FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
+        FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&normalized_column),
+    }
+}
+
 pub fn serialize<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
@@ -188,16 +199,13 @@ fn detect_codec(
 ) -> Option<FastFieldCodecType> {
     let mut estimations = Vec::new();
     for &codec in codecs {
-        match codec {
-            FastFieldCodecType::Bitpacked => {
-                codec_estimation::<BitpackedCodec, _>(&column, &mut estimations);
-            }
-            FastFieldCodecType::Linear => {
-                codec_estimation::<LinearCodec, _>(&column, &mut estimations);
-            }
-            FastFieldCodecType::BlockwiseLinear => {
-                codec_estimation::<BlockwiseLinearCodec, _>(&column, &mut estimations);
-            }
+        let estimation_opt = match codec {
+            FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&column),
+            FastFieldCodecType::Linear => LinearCodec::estimate(&column),
+            FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&column),
+        };
+        if let Some(estimation) = estimation_opt {
+            estimations.push((estimation, codec));
         }
     }
     if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan()) {

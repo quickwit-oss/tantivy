@@ -13,17 +13,17 @@ use std::io::Write;
 use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 
-pub mod bitpacked;
-pub mod blockwise_linear;
+mod bitpacked;
+mod blockwise_linear;
 pub(crate) mod line;
-pub mod linear;
+mod linear;
 
 mod column;
 mod gcd;
 mod serialize;
 
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::serialize::{open, serialize, serialize_and_load, NormalizedHeader};
+pub use self::serialize::{estimate, open, serialize, serialize_and_load, NormalizedHeader};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -124,7 +124,7 @@ impl MonotonicallyMappableToU64 for f64 {
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodec: 'static {
+trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;

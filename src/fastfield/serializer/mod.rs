@@ -1,8 +1,7 @@
 use std::io::{self, Write};
 
 use common::{BinarySerializable, CountingWriter};
-pub use fastfield_codecs::bitpacked::BitpackedCodec;
-pub use fastfield_codecs::{Column, FastFieldCodec, FastFieldStats};
+pub use fastfield_codecs::{Column, FastFieldStats};
 use fastfield_codecs::{FastFieldCodecType, MonotonicallyMappableToU64, ALL_CODEC_TYPES};
 
 use crate::directory::{CompositeWrite, WritePtr};

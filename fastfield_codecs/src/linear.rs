@@ -27,6 +27,7 @@ impl Column for LinearReader {
 
     #[inline]
     fn min_value(&self) -> u64 {
+        // The LinearReader assumes a normalized vector.
         0u64
     }
 
@@ -84,11 +85,11 @@ impl FastFieldCodec for LinearCodec {
     }
 
     /// Creates a new fast field serializer.
-    fn serialize(fastfield_accessor: &dyn Column, write: &mut impl Write) -> io::Result<()> {
-        assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
-        let line = Line::train(fastfield_accessor);
+    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()> {
+        assert_eq!(column.min_value(), 0);
+        let line = Line::train(column);
 
-        let max_offset_from_line = fastfield_accessor
+        let max_offset_from_line = column
             .iter()
             .enumerate()
             .map(|(pos, actual_value)| {
@@ -106,7 +107,7 @@ impl FastFieldCodec for LinearCodec {
         linear_params.serialize(write)?;
 
         let mut bit_packer = BitPacker::new();
-        for (pos, actual_value) in fastfield_accessor.iter().enumerate() {
+        for (pos, actual_value) in column.iter().enumerate() {
             let calculated_value = line.eval(pos as u64);
             let offset = actual_value.wrapping_sub(calculated_value);
             bit_packer.write(offset, num_bits, write)?;
@@ -120,23 +121,23 @@ impl FastFieldCodec for LinearCodec {
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
     #[allow(clippy::question_mark)]
-    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
-        if fastfield_accessor.num_vals() < 3 {
+    fn estimate(column: &impl Column) -> Option<f32> {
+        if column.num_vals() < 3 {
             return None; // disable compressor for this case
         }
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
-        let num_vals = fastfield_accessor.num_vals() as f32 / 100.0;
+        let num_vals = column.num_vals() as f32 / 100.0;
         let sample_positions = (0..20)
             .map(|pos| (num_vals * pos as f32 * 5.0) as u64)
             .collect::<Vec<_>>();
 
-        let line = Line::estimate(fastfield_accessor, &sample_positions);
+        let line = Line::estimate(column, &sample_positions);
 
         let estimated_bit_width = sample_positions
             .into_iter()
             .map(|pos| {
-                let actual_value = fastfield_accessor.get_val(pos);
+                let actual_value = column.get_val(pos);
                 let interpolated_val = line.eval(pos as u64);
                 actual_value.wrapping_sub(interpolated_val)
             })
@@ -145,8 +146,8 @@ impl FastFieldCodec for LinearCodec {
             .max()
             .unwrap_or(0);
 
-        let num_bits = (estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64) + 64;
-        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
+        let num_bits = (estimated_bit_width as u64 * column.num_vals() as u64) + 64;
+        let num_bits_uncompressed = 64 * column.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }

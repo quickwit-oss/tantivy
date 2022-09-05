@@ -22,6 +22,7 @@ impl Column for BitpackedReader {
     }
     #[inline]
     fn min_value(&self) -> u64 {
+        // The BitpackedReader assumes a normalized vector.
         0
     }
     #[inline]
@@ -58,19 +59,24 @@ impl FastFieldCodec for BitpackedCodec {
 
     /// Serializes data with the BitpackedFastFieldSerializer.
     ///
+    /// The bitpacker assumes that the column has been normalized.
+    /// i.e. It has already been shifted by its minimum value, so that its
+    /// current minimum value is 0.
+    ///
     /// Ideally, we made a shift upstream on the column so that `col.min_value() == 0`.
-    fn serialize(col: &dyn Column, write: &mut impl Write) -> io::Result<()> {
-        let num_bits = compute_num_bits(col.max_value());
+    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()> {
+        assert_eq!(column.min_value(), 0u64);
+        let num_bits = compute_num_bits(column.max_value());
         let mut bit_packer = BitPacker::new();
-        for val in col.iter() {
+        for val in column.iter() {
             bit_packer.write(val, num_bits, write)?;
         }
         bit_packer.close(write)?;
         Ok(())
     }
 
-    fn estimate(col: &impl Column) -> Option<f32> {
-        let num_bits = compute_num_bits(col.max_value());
+    fn estimate(column: &impl Column) -> Option<f32> {
+        let num_bits = compute_num_bits(column.max_value());
         let num_bits_uncompressed = 64;
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
