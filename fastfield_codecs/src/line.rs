@@ -72,7 +72,7 @@ impl Line {
         Self::train_from(ys, sample_positions.iter().cloned())
     }
 
-    // Same as train, but the intercept is only estimated from provided sample positions
+    // Intercept is only computed from provided positions
     fn train_from(ys: &dyn Column, positions: impl Iterator<Item = u64>) -> Self {
         let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
             num_vals
@@ -164,7 +164,7 @@ mod tests {
     /// This function operates translation over the data for better coverage.
     #[track_caller]
     fn test_line_interpol_with_translation(ys: &[u64], expected: Option<u64>) {
-        let mut translations = vec![0, 100, u64::MAX, u64::MAX - 1];
+        let mut translations = vec![0, 100, u64::MAX / 2, u64::MAX, u64::MAX - 1];
         translations.extend_from_slice(ys);
         for translation in translations {
             let translated_ys: Vec<u64> = ys

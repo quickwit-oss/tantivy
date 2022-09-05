@@ -159,7 +159,7 @@ impl FastFieldCodec for LinearCodec {
             .max()
             .unwrap_or(0);
 
-        let num_bits = estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64;
+        let num_bits = (estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64) + 64;
         let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
@@ -182,8 +182,8 @@ mod tests {
         let (estimate, actual_compression) =
             create_and_validate(&data, "simple monotonically large").unwrap();
 
-        assert!(actual_compression < 0.03);
-        assert!(estimate < 0.04);
+        assert_le!(actual_compression, 0.001);
+        assert_le!(estimate, 0.02);
     }
 
     #[test]

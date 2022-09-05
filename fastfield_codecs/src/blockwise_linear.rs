@@ -116,7 +116,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         }
         let estimated_bit_width = first_chunk
             .iter()
-            .map(|el| (((el + 1) as f32 * 1.5) * 2.0) as u64)
+            .map(|el| ((el + 1) as f32 * 3.0) as u64)
             .map(compute_num_bits)
             .max()
             .unwrap();
