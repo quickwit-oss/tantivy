@@ -510,10 +510,12 @@ impl IndexWriter {
         Ok(self.committed_opstamp)
     }
 
-    /// Merges a given list of segments
+    /// Merges a given list of segments.
+    ///
+    /// If all segments are empty no new segment will be created.
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<()> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<Option<SegmentMeta>> {
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
         let segment_updater = self.segment_updater.clone();
         segment_updater.start_merge(merge_operation)

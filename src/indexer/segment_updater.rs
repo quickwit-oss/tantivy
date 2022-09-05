@@ -483,7 +483,10 @@ impl SegmentUpdater {
     // suggested and the moment when it ended up being executed.)
     //
     // `segment_ids` is required to be non-empty.
-    pub fn start_merge(&self, merge_operation: MergeOperation) -> FutureResult<()> {
+    pub fn start_merge(
+        &self,
+        merge_operation: MergeOperation,
+    ) -> FutureResult<Option<SegmentMeta>> {
         assert!(
             !merge_operation.segment_ids().is_empty(),
             "Segment_ids cannot be empty."
@@ -583,8 +586,11 @@ impl SegmentUpdater {
         &self,
         merge_operation: MergeOperation,
         mut after_merge_segment_entry: Option<SegmentEntry>,
-    ) -> crate::Result<()> {
+    ) -> crate::Result<Option<SegmentMeta>> {
         let segment_updater = self.clone();
+        let after_merge_segment_meta = after_merge_segment_entry
+            .as_ref()
+            .map(|after_merge_segment_entry| after_merge_segment_entry.meta().clone());
         self.schedule_task(move || {
             info!(
                 "End merge {:?}",
@@ -600,7 +606,7 @@ impl SegmentUpdater {
                             let segment = index.segment(after_merge_segment_entry.meta().clone());
                             if let Err(advance_deletes_err) = advance_deletes(
                                 segment,
-                                &mut after_merge_segment_entry,
+                                after_merge_segment_entry,
                                 committed_opstamp,
                             ) {
                                 error!(
@@ -635,7 +641,7 @@ impl SegmentUpdater {
             Ok(())
         })
         .wait()?;
-        Ok(())
+        Ok(after_merge_segment_meta)
     }
 
     /// Wait for current merging threads.
