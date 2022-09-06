@@ -597,7 +597,7 @@ impl SegmentUpdater {
                 after_merge_segment_entry.as_ref().map(|entry| entry.meta())
             );
             {
-                if let Some(mut after_merge_segment_entry) = after_merge_segment_entry.as_mut() {
+                if let Some(after_merge_segment_entry) = after_merge_segment_entry.as_mut() {
                     let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                     if let Some(delete_operation) = delete_cursor.get() {
                         let committed_opstamp = segment_updater.load_meta().opstamp;
