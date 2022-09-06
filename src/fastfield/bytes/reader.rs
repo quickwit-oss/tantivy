@@ -52,6 +52,11 @@ impl BytesFastFieldReader {
 }
 
 impl MultiValueLength for BytesFastFieldReader {
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64> {
+        let (start, stop) = self.range(doc_id);
+        start as u64..stop as u64
+    }
+
     fn get_len(&self, doc_id: DocId) -> u64 {
         self.num_bytes(doc_id) as u64
     }

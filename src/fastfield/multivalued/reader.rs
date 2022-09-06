@@ -89,10 +89,12 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 }
 
 impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64> {
+        self.range(doc_id)
+    }
     fn get_len(&self, doc_id: DocId) -> u64 {
         self.num_vals(doc_id) as u64
     }
-
     fn get_total_len(&self) -> u64 {
         self.total_num_vals() as u64
     }
@@ -133,7 +135,7 @@ impl<Item: FastValueU128> MultiValuedU128FastFieldReader<Item> {
 
     /// Returns the array of values associated to the given `doc`.
     #[inline]
-    pub fn get_val(&self, doc: DocId) -> Option<Item> {
+    pub fn get_first_val(&self, doc: DocId) -> Option<Item> {
         let range = self.range(doc);
         if range.is_empty() {
             return None;
@@ -157,30 +159,10 @@ impl<Item: FastValueU128> MultiValuedU128FastFieldReader<Item> {
     }
 
     /// Returns all docids which are in the provided value range
-    pub fn get_between_vals(&self, range: RangeInclusive<Item>) -> Vec<usize> {
+    pub fn get_between_vals(&self, range: RangeInclusive<Item>) -> Vec<DocId> {
         let positions = self.vals_reader.get_between_vals(range);
 
-        // Now we need to convert the positions to docids
-        let mut docs = vec![];
-        let mut cursor = 0usize;
-        let mut last_doc = None;
-        for pos in positions {
-            loop {
-                let range = self.range(cursor as u32);
-                if range.contains(&(pos as u64)) {
-                    // avoid duplicates
-                    if Some(cursor) == last_doc {
-                        break;
-                    }
-                    docs.push(cursor);
-                    last_doc = Some(cursor);
-                    break;
-                }
-                cursor += 1;
-            }
-        }
-
-        docs
+        positions_to_docids(&positions, self)
     }
 
     /// Iterates over all elements in the fast field
@@ -220,7 +202,42 @@ impl<Item: FastValueU128> MultiValuedU128FastFieldReader<Item> {
     }
 }
 
+/// Converts a list of positions of values in a 1:n index to the corresponding list of DocIds.
+///
+/// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the index.
+///
+/// Correctness: positions needs to be sorted.
+///
+/// TODO: Instead of a linear scan we can employ a binary search to match a docid to its value
+/// position.
+fn positions_to_docids<T: MultiValueLength>(positions: &[usize], multival_idx: &T) -> Vec<DocId> {
+    let mut docs = vec![];
+    let mut cur_doc = 0u32;
+    let mut last_doc = None;
+
+    for pos in positions {
+        loop {
+            let range = multival_idx.get_range(cur_doc);
+            if range.contains(&(*pos as u64)) {
+                // avoid duplicates
+                if Some(cur_doc) == last_doc {
+                    break;
+                }
+                docs.push(cur_doc);
+                last_doc = Some(cur_doc);
+                break;
+            }
+            cur_doc += 1;
+        }
+    }
+
+    docs
+}
+
 impl<Item: FastValueU128> MultiValueLength for MultiValuedU128FastFieldReader<Item> {
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64> {
+        self.range(doc_id)
+    }
     fn get_len(&self, doc_id: DocId) -> u64 {
         self.num_vals(doc_id) as u64
     }

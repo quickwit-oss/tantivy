@@ -16,7 +16,6 @@ pub trait FastValueU128: Clone + Copy + Send + Sync + PartialOrd + 'static {
     /// Converts a value from u128
     ///
     /// Internally all fast field values are encoded as u128.
-    /// **Note: To be used for converting encoded Term, Posting values.**
     fn from_u128(val: u128) -> Self;
 
     /// Converts a value to u128.

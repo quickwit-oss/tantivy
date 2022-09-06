@@ -20,6 +20,8 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
+use std::collections::btree_map::Range;
+
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -75,6 +77,8 @@ fn value_to_u64(value: &Value) -> u64 {
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
 /// for a doc_id
 pub trait MultiValueLength {
+    /// returns the positions of values associated to a doc_id
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64>;
     /// returns the num of values associated to a doc_id
     fn get_len(&self, doc_id: DocId) -> u64;
     /// returns the sum of num values for all doc_ids
@@ -510,8 +514,8 @@ mod tests {
 
         // multi value
         let ip_addr_fast_field = fast_fields.ip_addrs(ips_field).unwrap();
-        assert_eq!(ip_addr_fast_field.get_val(0), None);
-        assert_eq!(ip_addr_fast_field.get_val(1), Some(ip2));
+        assert_eq!(ip_addr_fast_field.get_first_val(0), None);
+        assert_eq!(ip_addr_fast_field.get_first_val(1), Some(ip2));
 
         let mut out = vec![];
         ip_addr_fast_field.get_vals(0, &mut out);
