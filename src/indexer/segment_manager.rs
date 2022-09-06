@@ -173,6 +173,7 @@ impl SegmentManager {
                 .to_string();
             return Err(TantivyError::InvalidArgument(error_msg));
         }
+
         Ok(segment_entries)
     }
 
@@ -186,7 +187,7 @@ impl SegmentManager {
     pub(crate) fn end_merge(
         &self,
         before_merge_segment_ids: &[SegmentId],
-        after_merge_segment_entry: SegmentEntry,
+        after_merge_segment_entry: Option<SegmentEntry>,
     ) -> crate::Result<SegmentsStatus> {
         let mut registers_lock = self.write();
         let segments_status = registers_lock
@@ -207,7 +208,9 @@ impl SegmentManager {
         for segment_id in before_merge_segment_ids {
             target_register.remove_segment(segment_id);
         }
-        target_register.add_segment_entry(after_merge_segment_entry);
+        if let Some(entry) = after_merge_segment_entry {
+            target_register.add_segment_entry(entry);
+        }
         Ok(segments_status)
     }
 

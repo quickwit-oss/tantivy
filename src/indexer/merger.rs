@@ -200,6 +200,7 @@ impl IndexMerger {
                 readers.push(reader);
             }
         }
+
         let max_doc = readers.iter().map(|reader| reader.num_docs()).sum();
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
             readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;
