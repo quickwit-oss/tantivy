@@ -236,8 +236,10 @@ struct InnerSegmentMeta {
     #[serde(skip)]
     #[serde(default = "default_temp_store")]
     pub(crate) include_temp_doc_store: Arc<AtomicBool>,
+    #[serde(default)]
     segment_attributes: SegmentAttributes,
 }
+
 fn default_temp_store() -> Arc<AtomicBool> {
     Arc::new(AtomicBool::new(false))
 }
@@ -280,6 +282,7 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    #[serde(default)]
     pub segment_attributes_config: SegmentAttributesConfig,
 }
 

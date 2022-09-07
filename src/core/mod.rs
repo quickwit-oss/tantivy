@@ -22,7 +22,7 @@ pub use self::index_meta::{
 pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::searcher::{Searcher, SearcherGeneration};
 pub use self::segment::Segment;
-pub use self::segment_attributes::{SegmentAttributes, SegmentAttributesConfig};
+pub use self::segment_attributes::{SegmentAttribute, SegmentAttributes, SegmentAttributesConfig};
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
 pub use self::segment_reader::SegmentReader;

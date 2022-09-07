@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum SegmentAttribute {
     ConjunctiveBool(bool),
     DisjunctiveBool(bool),
@@ -33,6 +34,9 @@ impl SegmentAttribute {
 pub struct SegmentAttributesConfig(HashMap<String, SegmentAttribute>);
 
 impl SegmentAttributesConfig {
+    pub fn new(segment_attributes: HashMap<String, SegmentAttribute>) -> SegmentAttributesConfig {
+        SegmentAttributesConfig(segment_attributes)
+    }
     pub fn insert(
         &mut self,
         name: &str,
@@ -145,6 +149,8 @@ mod tests {
             vec![segment_attributes_1, segment_attributes_2].iter(),
             &segment_attributes_config,
         );
+        let parsed: SegmentAttributes = serde_json::from_str("{\"is_frozen\":{\"conjunctive_bool\":false},\"contain_memes\":{\"disjunctive_bool\":true},\"ancestrals\":{\"string_list\":[\"segment_12\",\"segment_16\",\"segment_2\",\"segment_18\"]}}").unwrap();
+        assert_eq!(parsed, segment_attributes_result);
         assert_eq!(
             segment_attributes_result,
             SegmentAttributes(
