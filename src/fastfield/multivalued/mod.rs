@@ -460,8 +460,8 @@ mod bench {
             let fast_field_reader = MultiValuedFastFieldReader::open(idx_reader, vals_reader);
             b.iter(|| {
                 let mut sum = 0u64;
+                let mut data = Vec::with_capacity(10);
                 for i in 0u32..num_docs as u32 {
-                    let mut data = vec![];
                     fast_field_reader.get_vals(i, &mut data);
                     sum += data.iter().sum::<u64>();
                 }
