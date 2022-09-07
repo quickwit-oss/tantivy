@@ -112,7 +112,6 @@ impl BytesFastFieldWriter {
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         // writing the offset index
-        // TODO FIXME No need to double the memory.
         {
             self.doc_index.push(self.vals.len() as u64);
             let col = VecColumn::from(&self.doc_index[..]);
@@ -128,7 +127,7 @@ impl BytesFastFieldWriter {
             }
         }
         // writing the values themselves
-        let mut value_serializer = serializer.new_bytes_fast_field_with_idx(self.field, 1);
+        let mut value_serializer = serializer.new_bytes_fast_field(self.field);
         // the else could be removed, but this is faster (difference not benchmarked)
         if let Some(doc_id_map) = doc_id_map {
             for vals in self.get_ordered_values(Some(doc_id_map)) {

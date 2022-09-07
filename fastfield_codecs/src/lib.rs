@@ -9,21 +9,28 @@ extern crate test;
 
 use std::io;
 use std::io::Write;
+use std::sync::Arc;
 
 use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
+use serialize::Header;
 
 mod bitpacked;
 mod blockwise_linear;
 pub(crate) mod line;
 mod linear;
+mod monotonic_mapping;
 
 mod column;
 mod gcd;
 mod serialize;
 
+pub use self::bitpacked::BitpackedCodec;
+pub use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::serialize::{estimate, open, serialize, serialize_and_load, NormalizedHeader};
+pub use self::linear::LinearCodec;
+pub use self::monotonic_mapping::MonotonicallyMappableToU64;
+pub use self::serialize::{estimate, serialize, serialize_and_load, NormalizedHeader};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -61,70 +68,39 @@ impl FastFieldCodecType {
     }
 }
 
-pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy {
-    /// Converts a value to u64.
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn to_u64(self) -> u64;
-
-    /// Converts a value from u64
-    ///
-    /// Internally all fast field values are encoded as u64.
-    /// **Note: To be used for converting encoded Term, Posting values.**
-    fn from_u64(val: u64) -> Self;
-}
-
-impl MonotonicallyMappableToU64 for u64 {
-    fn to_u64(self) -> u64 {
-        self
-    }
-
-    fn from_u64(val: u64) -> Self {
-        val
-    }
-}
-
-impl MonotonicallyMappableToU64 for i64 {
-    #[inline(always)]
-    fn to_u64(self) -> u64 {
-        common::i64_to_u64(self)
-    }
-
-    #[inline(always)]
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_i64(val)
-    }
-}
-
-impl MonotonicallyMappableToU64 for bool {
-    #[inline(always)]
-    fn to_u64(self) -> u64 {
-        if self {
-            1
-        } else {
-            0
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open<T: MonotonicallyMappableToU64>(
+    mut bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<T>>> {
+    let header = Header::deserialize(&mut bytes)?;
+    match header.codec_type {
+        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
+        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
+        FastFieldCodecType::BlockwiseLinear => {
+            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
         }
     }
-
-    #[inline(always)]
-    fn from_u64(val: u64) -> Self {
-        val > 0
-    }
 }
 
-impl MonotonicallyMappableToU64 for f64 {
-    fn to_u64(self) -> u64 {
-        common::f64_to_u64(self)
-    }
-
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_f64(val)
+fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+    bytes: OwnedBytes,
+    header: &Header,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let normalized_header = header.normalized();
+    let reader = C::open_from_bytes(bytes, normalized_header)?;
+    let min_value = header.min_value;
+    if let Some(gcd) = header.gcd {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+    } else {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
     }
 }
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-trait FastFieldCodec: 'static {
+pub trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
