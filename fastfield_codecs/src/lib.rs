@@ -4,6 +4,7 @@ extern crate more_asserts;
 
 use std::io;
 use std::io::Write;
+use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::Range;
 
@@ -116,19 +117,16 @@ impl<'a> Column for &'a [u64] {
 
 pub struct ColumnIter<'a, C: Column<I>, I> {
     column: &'a C,
-    end_pos: u64,
-    current_pos: u64,
+    range: Range<u64>,
     _phantom: PhantomData<I>,
 }
 
 impl<'a, C: Column<I>, I> ColumnIter<'a, C, I> {
     #[inline]
     pub fn new(col: &'a C, range: Range<u64>) -> Self {
-        let current_pos = range.start;
         Self {
             column: col,
-            end_pos: range.end,
-            current_pos,
+            range,
             _phantom: PhantomData,
         }
     }
@@ -139,15 +137,33 @@ impl<'a, C: Column<I>, I> Iterator for ColumnIter<'a, C, I> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_pos < self.end_pos {
-            let val = self.column.get_val(self.current_pos);
-            self.current_pos += 1;
-            Some(val)
-        } else {
-            None
-        }
+        Some(self.column.get_val(self.range.next()?))
+    }
+
+    #[inline]
+    fn fold<Acc, G>(self, init: Acc, mut g: G) -> Acc
+    where
+        G: FnMut(Acc, Self::Item) -> Acc,
+    {
+        self.range
+            .fold(init, move |acc, idx| g(acc, self.column.get_val(idx)))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = (self.range.end - self.range.start) as usize;
+        (size, Some(size))
     }
 }
+
+impl<'a, C: Column<I>, I> ExactSizeIterator for ColumnIter<'a, C, I> {
+    #[inline]
+    fn len(&self) -> usize {
+        let size = (self.range.end - self.range.start) as usize;
+        size as usize
+    }
+}
+impl<'a, C: Column<I>, I> FusedIterator for ColumnIter<'a, C, I> {}
 
 impl Column for Vec<u64> {
     fn get_val(&self, position: u64) -> u64 {
