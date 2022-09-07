@@ -25,7 +25,7 @@ use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
     SegmentSerializer,
 };
-use crate::{FutureResult, Opstamp};
+use crate::{FutureResult, Opstamp, SegmentAttributes};
 
 const NUM_MERGE_THREADS: usize = 4;
 
@@ -127,7 +127,15 @@ fn merge(
 
     let merged_segment_id = merged_segment.id();
 
-    let segment_meta = index.new_segment_meta(merged_segment_id, num_docs);
+    let merged_segment_attributes = SegmentAttributes::merge(
+        segment_entries
+            .iter()
+            .map(|segment_entry| segment_entry.meta().segment_attributes()),
+        &index.settings().segment_attributes_config,
+    );
+
+    let segment_meta =
+        index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
     Ok(Some(SegmentEntry::new(segment_meta, delete_cursor, None)))
 }
 
@@ -231,7 +239,15 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
     let num_docs = merger.write(segment_serializer)?;
 
-    let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
+    let merged_segment_attributes = SegmentAttributes::merge(
+        segments
+            .iter()
+            .map(|segment| segment.meta().segment_attributes()),
+        &target_settings.segment_attributes_config,
+    );
+
+    let segment_meta =
+        merged_index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
 
     let stats = format!(
         "Segments Merge: [{}]",

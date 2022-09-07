@@ -302,8 +302,8 @@ use serde::{Deserialize, Serialize};
 pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
-    Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
-    SegmentReader, SingleSegmentIndexWriter,
+    Order, Searcher, SearcherGeneration, Segment, SegmentAttributes, SegmentAttributesConfig,
+    SegmentComponent, SegmentId, SegmentMeta, SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
 pub use crate::indexer::demuxer::*;

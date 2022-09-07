@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
+use crate::core::segment_attributes::{SegmentAttributes, SegmentAttributesConfig};
 use crate::core::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
@@ -33,12 +34,18 @@ impl SegmentMetaInventory {
             .collect::<Vec<_>>()
     }
 
-    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+    pub fn new_segment_meta(
+        &self,
+        segment_id: SegmentId,
+        max_doc: u32,
+        segment_attributes: SegmentAttributes,
+    ) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
             include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: None,
+            segment_attributes,
         };
         SegmentMeta::from(self.inventory.track(inner))
     }
@@ -175,6 +182,11 @@ impl SegmentMeta {
         self.num_deleted_docs() > 0
     }
 
+    /// Returns segment attributes
+    pub fn segment_attributes(&self) -> &SegmentAttributes {
+        &self.tracked.segment_attributes
+    }
+
     /// Updates the max_doc value from the `SegmentMeta`.
     ///
     /// This method is only used when updating `max_doc` from 0
@@ -187,6 +199,7 @@ impl SegmentMeta {
             max_doc,
             deletes: None,
             include_temp_doc_store: Arc::new(AtomicBool::new(true)),
+            segment_attributes: inner_meta.segment_attributes.clone(),
         });
         SegmentMeta { tracked }
     }
@@ -207,6 +220,7 @@ impl SegmentMeta {
             max_doc: inner_meta.max_doc,
             include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
+            segment_attributes: inner_meta.segment_attributes.clone(),
         });
         SegmentMeta { tracked }
     }
@@ -222,6 +236,7 @@ struct InnerSegmentMeta {
     #[serde(skip)]
     #[serde(default = "default_temp_store")]
     pub(crate) include_temp_doc_store: Arc<AtomicBool>,
+    segment_attributes: SegmentAttributes,
 }
 fn default_temp_store() -> Arc<AtomicBool> {
     Arc::new(AtomicBool::new(false))
@@ -265,6 +280,7 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    pub segment_attributes_config: SegmentAttributesConfig,
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -279,6 +295,7 @@ impl Default for IndexSettings {
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
+            segment_attributes_config: SegmentAttributesConfig::default(),
         }
     }
 }
@@ -411,7 +428,7 @@ mod tests {
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
     use crate::store::{Compressor, ZstdCompressor};
-    use crate::{IndexSettings, IndexSortByField, Order};
+    use crate::{IndexSettings, IndexSortByField, Order, SegmentAttributesConfig};
 
     #[test]
     fn test_serialize_metas() {
@@ -436,7 +453,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4","docstore_blocksize":16384,"segment_attributes_config":{}},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -463,6 +480,7 @@ mod tests {
                 }),
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
+                segment_attributes_config: SegmentAttributesConfig::default(),
             },
             segments: Vec::new(),
             schema,
@@ -472,7 +490,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000,"segment_attributes_config":{}},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -512,7 +530,8 @@ mod tests {
                 sort_by_field: None,
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
-                docstore_blocksize: 16_384
+                docstore_blocksize: 16_384,
+                segment_attributes_config: SegmentAttributesConfig::default(),
             }
         );
         {

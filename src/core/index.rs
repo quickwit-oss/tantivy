@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use super::segment::Segment;
 use super::IndexSettings;
+use crate::core::segment_attributes::SegmentAttributes;
 use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
 use crate::core::{
     Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
@@ -483,8 +484,14 @@ impl Index {
     /// As long as the `SegmentMeta` lives, the files associated with the
     /// `SegmentMeta` are guaranteed to not be garbage collected, regardless of
     /// whether the segment is recorded as part of the index or not.
-    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
-        self.inventory.new_segment_meta(segment_id, max_doc)
+    pub fn new_segment_meta(
+        &self,
+        segment_id: SegmentId,
+        max_doc: u32,
+        segment_attributes: SegmentAttributes,
+    ) -> SegmentMeta {
+        self.inventory
+            .new_segment_meta(segment_id, max_doc, segment_attributes)
     }
 
     /// Open the index using the provided directory
@@ -611,9 +618,11 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = self
-            .inventory
-            .new_segment_meta(SegmentId::generate_random(), 0);
+        let segment_meta = self.inventory.new_segment_meta(
+            SegmentId::generate_random(),
+            0,
+            self.settings.segment_attributes_config.segment_attributes(),
+        );
         self.segment(segment_meta)
     }
 
