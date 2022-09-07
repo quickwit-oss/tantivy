@@ -138,7 +138,7 @@ impl SegmentWriter {
         remap_and_write(
             &self.per_field_postings_writers,
             self.ctx,
-            &self.fast_field_writers,
+            self.fast_field_writers,
             &self.fieldnorms_writer,
             &self.schema,
             self.segment_serializer,
@@ -345,7 +345,7 @@ impl SegmentWriter {
 fn remap_and_write(
     per_field_postings_writers: &PerFieldPostingsWriter,
     ctx: IndexingContext,
-    fast_field_writers: &FastFieldsWriter,
+    fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     schema: &Schema,
     mut serializer: SegmentSerializer,

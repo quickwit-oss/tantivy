@@ -91,6 +91,12 @@ impl DocIdMapping {
             .map(|old_doc| els[*old_doc as usize])
             .collect()
     }
+    pub fn num_new_doc_ids(&self) -> usize {
+        self.new_doc_id_to_old.len()
+    }
+    pub fn num_old_doc_ids(&self) -> usize {
+        self.old_doc_id_to_new.len()
+    }
 }
 
 pub(crate) fn expect_field_id_for_sort_field(

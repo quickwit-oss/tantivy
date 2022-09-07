@@ -1,8 +1,7 @@
 use std::io::{self, Write};
 
 use common::{BinarySerializable, CountingWriter};
-pub use fastfield_codecs::bitpacked::{BitpackedCodec, BitpackedSerializerLegacy};
-pub use fastfield_codecs::{Column, FastFieldCodec, FastFieldStats};
+pub use fastfield_codecs::{Column, FastFieldStats};
 use fastfield_codecs::{FastFieldCodecType, MonotonicallyMappableToU64, ALL_CODEC_TYPES};
 
 use crate::directory::{CompositeWrite, WritePtr};
@@ -83,40 +82,6 @@ impl CompositeFastFieldSerializer {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         fastfield_codecs::serialize(fastfield_accessor, field_write, &self.codec_types)?;
         Ok(())
-    }
-
-    /// Start serializing a new u64 fast field
-    pub fn serialize_into(
-        &mut self,
-        field: Field,
-        min_value: u64,
-        max_value: u64,
-    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
-        self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
-    }
-
-    /// Start serializing a new u64 fast field
-    pub fn new_u64_fast_field(
-        &mut self,
-        field: Field,
-        min_value: u64,
-        max_value: u64,
-    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
-        self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
-    }
-
-    /// Start serializing a new u64 fast field
-    pub fn new_u64_fast_field_with_idx(
-        &mut self,
-        field: Field,
-        min_value: u64,
-        max_value: u64,
-        idx: usize,
-    ) -> io::Result<BitpackedSerializerLegacy<'_, CountingWriter<WritePtr>>> {
-        let field_write = self.composite_write.for_field_with_idx(field, idx);
-        // Prepend codec id to field data for compatibility with DynamicFastFieldReader.
-        FastFieldCodecType::Bitpacked.serialize(field_write)?;
-        BitpackedSerializerLegacy::open(field_write, min_value, max_value)
     }
 
     /// Start serializing a new [u8] fast field

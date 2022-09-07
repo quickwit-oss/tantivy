@@ -211,12 +211,12 @@ impl FastFieldsWriter {
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
     pub fn serialize(
-        &self,
+        self,
         serializer: &mut CompositeFastFieldSerializer,
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        for field_writer in &self.term_id_writers {
+        for field_writer in self.term_id_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
         }
@@ -224,11 +224,11 @@ impl FastFieldsWriter {
             field_writer.serialize(serializer, doc_id_map)?;
         }
 
-        for field_writer in &self.multi_values_writers {
+        for field_writer in self.multi_values_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
         }
-        for field_writer in &self.bytes_value_writers {
+        for field_writer in self.bytes_value_writers {
             field_writer.serialize(serializer, doc_id_map)?;
         }
         Ok(())

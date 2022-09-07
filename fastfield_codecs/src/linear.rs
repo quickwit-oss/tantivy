@@ -1,10 +1,11 @@
 use std::io::{self, Write};
 
-use common::{BinarySerializable, CountingWriter, DeserializeFrom};
+use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::line::Line;
+use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
 /// Depending on the field type, a different
@@ -12,28 +13,32 @@ use crate::{Column, FastFieldCodec, FastFieldCodecType};
 #[derive(Clone)]
 pub struct LinearReader {
     data: OwnedBytes,
-    footer: LinearParams,
+    linear_params: LinearParams,
+    header: NormalizedHeader,
 }
 
 impl Column for LinearReader {
     #[inline]
     fn get_val(&self, doc: u64) -> u64 {
-        let interpoled_val: u64 = self.footer.line.eval(doc);
-        let bitpacked_diff = self.footer.bit_unpacker.get(doc, &self.data);
+        let interpoled_val: u64 = self.linear_params.line.eval(doc);
+        let bitpacked_diff = self.linear_params.bit_unpacker.get(doc, &self.data);
         interpoled_val.wrapping_add(bitpacked_diff)
     }
 
     #[inline]
     fn min_value(&self) -> u64 {
-        self.footer.min_value
+        // The LinearReader assumes a normalized vector.
+        0u64
     }
+
     #[inline]
     fn max_value(&self) -> u64 {
-        self.footer.max_value
+        self.header.max_value
     }
+
     #[inline]
     fn num_vals(&self) -> u64 {
-        self.footer.num_vals
+        self.header.num_vals
     }
 }
 
@@ -43,33 +48,21 @@ pub struct LinearCodec;
 
 #[derive(Debug, Clone)]
 struct LinearParams {
-    num_vals: u64,
-    min_value: u64,
-    max_value: u64,
     line: Line,
     bit_unpacker: BitUnpacker,
 }
 
 impl BinarySerializable for LinearParams {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
-        self.num_vals.serialize(writer)?;
-        self.min_value.serialize(writer)?;
-        self.max_value.serialize(writer)?;
         self.line.serialize(writer)?;
         self.bit_unpacker.bit_width().serialize(writer)?;
         Ok(())
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let num_vals = u64::deserialize(reader)?;
-        let min_value = u64::deserialize(reader)?;
-        let max_value = u64::deserialize(reader)?;
         let line = Line::deserialize(reader)?;
         let bit_width = u8::deserialize(reader)?;
         Ok(Self {
-            num_vals,
-            min_value,
-            max_value,
             line,
             bit_unpacker: BitUnpacker::new(bit_width),
         })
@@ -82,20 +75,21 @@ impl FastFieldCodec for LinearCodec {
     type Reader = LinearReader;
 
     /// Opens a fast field given a file.
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader> {
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-        let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
-        let footer = LinearParams::deserialize(&mut footer)?;
-        Ok(LinearReader { data, footer })
+    fn open_from_bytes(mut data: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader> {
+        let linear_params = LinearParams::deserialize(&mut data)?;
+        Ok(LinearReader {
+            data,
+            linear_params,
+            header,
+        })
     }
 
     /// Creates a new fast field serializer.
-    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column) -> io::Result<()> {
-        assert!(fastfield_accessor.min_value() <= fastfield_accessor.max_value());
-        let line = Line::train(fastfield_accessor);
+    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()> {
+        assert_eq!(column.min_value(), 0);
+        let line = Line::train(column);
 
-        let max_offset_from_line = fastfield_accessor
+        let max_offset_from_line = column
             .iter()
             .enumerate()
             .map(|(pos, actual_value)| {
@@ -106,26 +100,19 @@ impl FastFieldCodec for LinearCodec {
             .unwrap();
 
         let num_bits = compute_num_bits(max_offset_from_line);
+        let linear_params = LinearParams {
+            line,
+            bit_unpacker: BitUnpacker::new(num_bits),
+        };
+        linear_params.serialize(write)?;
+
         let mut bit_packer = BitPacker::new();
-        for (pos, actual_value) in fastfield_accessor.iter().enumerate() {
+        for (pos, actual_value) in column.iter().enumerate() {
             let calculated_value = line.eval(pos as u64);
             let offset = actual_value.wrapping_sub(calculated_value);
             bit_packer.write(offset, num_bits, write)?;
         }
         bit_packer.close(write)?;
-
-        let footer = LinearParams {
-            num_vals: fastfield_accessor.num_vals(),
-            min_value: fastfield_accessor.min_value(),
-            max_value: fastfield_accessor.max_value(),
-            line,
-            bit_unpacker: BitUnpacker::new(num_bits),
-        };
-
-        let mut counting_wrt = CountingWriter::wrap(write);
-        footer.serialize(&mut counting_wrt)?;
-        let footer_len = counting_wrt.written_bytes();
-        (footer_len as u32).serialize(&mut counting_wrt)?;
 
         Ok(())
     }
@@ -134,23 +121,23 @@ impl FastFieldCodec for LinearCodec {
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
     #[allow(clippy::question_mark)]
-    fn estimate(fastfield_accessor: &impl Column) -> Option<f32> {
-        if fastfield_accessor.num_vals() < 3 {
+    fn estimate(column: &impl Column) -> Option<f32> {
+        if column.num_vals() < 3 {
             return None; // disable compressor for this case
         }
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
-        let num_vals = fastfield_accessor.num_vals() as f32 / 100.0;
+        let num_vals = column.num_vals() as f32 / 100.0;
         let sample_positions = (0..20)
             .map(|pos| (num_vals * pos as f32 * 5.0) as u64)
             .collect::<Vec<_>>();
 
-        let line = Line::estimate(fastfield_accessor, &sample_positions);
+        let line = Line::estimate(column, &sample_positions);
 
         let estimated_bit_width = sample_positions
             .into_iter()
             .map(|pos| {
-                let actual_value = fastfield_accessor.get_val(pos);
+                let actual_value = column.get_val(pos);
                 let interpolated_val = line.eval(pos as u64);
                 actual_value.wrapping_sub(interpolated_val)
             })
@@ -159,8 +146,8 @@ impl FastFieldCodec for LinearCodec {
             .max()
             .unwrap_or(0);
 
-        let num_bits = (estimated_bit_width as u64 * fastfield_accessor.num_vals() as u64) + 64;
-        let num_bits_uncompressed = 64 * fastfield_accessor.num_vals();
+        let num_bits = (estimated_bit_width as u64 * column.num_vals() as u64) + 64;
+        let num_bits_uncompressed = 64 * column.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 }
@@ -225,7 +212,6 @@ mod tests {
     #[test]
     fn linear_interpol_fast_field_test_simple() {
         let data = (10..=20_u64).collect::<Vec<_>>();
-
         create_and_validate(&data, "simple monotonically");
     }
 

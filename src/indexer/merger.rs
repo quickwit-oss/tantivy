@@ -613,25 +613,23 @@ impl IndexMerger {
             .collect::<Vec<_>>();
         // We can now write the actual fast field values.
         // In the case of hierarchical facets, they are actually term ordinals.
-        let max_term_ord = term_ordinal_mappings.max_term_ord();
         {
-            let mut serialize_vals =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
-            let mut vals: Vec<u64> = Vec::with_capacity(100);
-
+            let mut vals = Vec::new();
+            let mut buffer = Vec::new();
             for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
                 let term_ordinal_mapping: &[TermOrdinal] =
                     term_ordinal_mappings.get_segment(old_doc_addr.segment_ord as usize);
 
                 let ff_reader = &fast_field_reader[old_doc_addr.segment_ord as usize];
-                ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                for &prev_term_ord in &vals {
+                ff_reader.get_vals(old_doc_addr.doc_id, &mut buffer);
+                for &prev_term_ord in &buffer {
                     let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
-                    serialize_vals.add_val(new_term_ord)?;
+                    vals.push(new_term_ord);
                 }
             }
 
-            serialize_vals.close_field()?;
+            let col = VecColumn::from(&vals[..]);
+            fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(field, col, 1)?;
         }
         Ok(())
     }

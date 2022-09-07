@@ -26,6 +26,7 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
+pub(crate) use self::multivalued::MultivalueStartIndex;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
@@ -197,19 +198,18 @@ mod tests {
     use std::ops::Range;
     use std::path::Path;
     use std::sync::Arc;
-    use std::time::{Duration, SystemTime};
 
     use common::HasLen;
     use fastfield_codecs::{open, FastFieldCodecType};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
 
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, Schema, FAST, STRING, TEXT};
+    use crate::schema::{Document, Field, Schema, SchemaBuilder, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
@@ -251,7 +251,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 45);
+        assert_eq!(file.len(), 25);
         let composite_file = CompositeFile::open(&file)?;
         let fast_field_bytes = composite_file.open_read(*FIELD).unwrap().read_bytes()?;
         let fast_field_reader = open::<u64>(fast_field_bytes)?;
@@ -282,7 +282,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 70);
+        assert_eq!(file.len(), 53);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite
@@ -321,7 +321,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 43);
+        assert_eq!(file.len(), 26);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite
@@ -356,7 +356,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80051);
+        assert_eq!(file.len(), 80040);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite
@@ -398,12 +398,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        // assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        // assert_eq!(file.len(), 10175_usize); // linear interpol size
-        // assert_eq!(file.len(), 75_usize); // linear interpol size after calc improvement
-        // assert_eq!(file.len(), 1325_usize); // linear interpol size after switching to int based
-        assert_eq!(file.len(), 62_usize); // linear interpol size after switching to int based, off
-                                          // by one fix
+        assert_eq!(file.len(), 40_usize);
 
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
@@ -843,7 +838,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 44);
+        assert_eq!(file.len(), 24);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
@@ -879,7 +874,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 56);
+        assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
@@ -897,24 +892,21 @@ mod tests {
         let directory: RamDirectory = RamDirectory::create();
 
         let mut schema_builder = Schema::builder();
-        schema_builder.add_bool_field("field_bool", FAST);
+        let field = schema_builder.add_bool_field("field_bool", FAST);
         let schema = schema_builder.build();
-        let field = schema.get_field("field_bool").unwrap();
 
         {
             let write: WritePtr = directory.open_write(path).unwrap();
-            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
-            fast_field_writers
-                .serialize(&mut serializer, &HashMap::new(), None)
-                .unwrap();
-            serializer.close().unwrap();
+            fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
+            serializer.close()?;
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 43);
         let composite_file = CompositeFile::open(&file)?;
+        assert_eq!(file.len(), 23);
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
         assert_eq!(fast_field_reader.get_val(0), false);
@@ -948,15 +940,10 @@ mod tests {
     pub fn test_gcd_date() -> crate::Result<()> {
         let size_prec_sec =
             test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds)?;
+        assert_eq!(size_prec_sec, 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
         let size_prec_micro =
             test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds)?;
-        assert!(size_prec_sec < size_prec_micro);
-
-        let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecType::Linear, DatePrecision::Seconds)?;
-        let size_prec_micro =
-            test_gcd_date_with_codec(FastFieldCodecType::Linear, DatePrecision::Microseconds)?;
-        assert!(size_prec_sec < size_prec_micro);
+        assert_eq!(size_prec_micro, 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
         Ok(())
     }
 
@@ -964,40 +951,26 @@ mod tests {
         codec_type: FastFieldCodecType,
         precision: DatePrecision,
     ) -> crate::Result<usize> {
-        let time1 = DateTime::from_timestamp_micros(
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
-        );
-        let time2 = DateTime::from_timestamp_micros(
-            SystemTime::now()
-                .checked_sub(Duration::from_micros(4111))
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
-        );
-
-        let time3 = DateTime::from_timestamp_micros(
-            SystemTime::now()
-                .checked_sub(Duration::from_millis(2000))
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
-        );
-
-        let mut schema_builder = Schema::builder();
+        let mut rng = StdRng::seed_from_u64(2u64);
+        const T0: i64 = 1_662_345_825_012_529i64;
+        const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
+        let times: Vec<DateTime> = std::iter::repeat_with(|| {
+            // +- One hour.
+            let t = T0 + rng.gen_range(-ONE_HOUR_IN_MICROSECS..ONE_HOUR_IN_MICROSECS);
+            DateTime::from_timestamp_micros(t)
+        })
+        .take(1_000)
+        .collect();
         let date_options = DateOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_precision(precision);
+        let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_date_field("field", date_options);
         let schema = schema_builder.build();
 
-        let docs = vec![doc!(field=>time1), doc!(field=>time2), doc!(field=>time3)];
+        let docs: Vec<Document> = times.iter().map(|time| doc!(field=>*time)).collect();
 
-        let directory = get_index(&docs, &schema, &[codec_type])?;
+        let directory = get_index(&docs[..], &schema, &[codec_type])?;
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
@@ -1005,9 +978,9 @@ mod tests {
         let len = file.len();
         let test_fastfield = open::<DateTime>(file.read_bytes()?)?;
 
-        assert_eq!(test_fastfield.get_val(0), time1.truncate(precision));
-        assert_eq!(test_fastfield.get_val(1), time2.truncate(precision));
-        assert_eq!(test_fastfield.get_val(2), time3.truncate(precision));
+        for (i, time) in times.iter().enumerate() {
+            assert_eq!(test_fastfield.get_val(i as u64), time.truncate(precision));
+        }
         Ok(len)
     }
 }

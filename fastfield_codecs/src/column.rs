@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::Mutex;
 
 use tantivy_bitpacker::minmax;
 
@@ -33,16 +34,18 @@ pub trait Column<T = u64> {
 
     /// Returns the minimum value for this fast field.
     ///
-    /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound
-    /// of the actual minimum value.
+    /// This min_value may not be exact.
+    /// For instance, the min value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.min_value()`.
     fn min_value(&self) -> T;
 
     /// Returns the maximum value for this fast field.
     ///
-    /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound
-    /// of the actual maximum value
+    /// This max_value may not be exact.
+    /// For instance, the max value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.max_value()`.
     fn max_value(&self) -> T;
 
     fn num_vals(&self) -> u64;
@@ -57,6 +60,24 @@ pub struct VecColumn<'a, T = u64> {
     values: &'a [T],
     min_value: T,
     max_value: T,
+}
+
+impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
+    fn get_val(&self, idx: u64) -> T {
+        (*self).get_val(idx)
+    }
+
+    fn min_value(&self) -> T {
+        (*self).min_value()
+    }
+
+    fn max_value(&self) -> T {
+        (*self).max_value()
+    }
+
+    fn num_vals(&self) -> u64 {
+        (*self).num_vals()
+    }
 }
 
 impl<'a, T: Copy + PartialOrd> Column<T> for VecColumn<'a, T> {
@@ -142,6 +163,87 @@ where
     }
 }
 
+pub struct RemappedColumn<T, M, C> {
+    column: C,
+    new_to_old_id_mapping: M,
+    min_max_cache: Mutex<Option<(T, T)>>,
+}
+
+impl<T, M, C> RemappedColumn<T, M, C>
+where
+    C: Column<T>,
+    M: Column<u32>,
+    T: Copy + Ord + Default,
+{
+    fn min_max(&self) -> (T, T) {
+        if let Some((min, max)) = self.min_max_cache.lock().unwrap().clone() {
+            return (min, max);
+        }
+        let (min, max) =
+            tantivy_bitpacker::minmax(self.iter()).unwrap_or((T::default(), T::default()));
+        *self.min_max_cache.lock().unwrap() = Some((min, max));
+        (min, max)
+    }
+}
+
+pub struct IterColumn<T>(T);
+
+impl<T> From<T> for IterColumn<T>
+where T: Iterator + Clone + ExactSizeIterator
+{
+    fn from(iter: T) -> Self {
+        IterColumn(iter)
+    }
+}
+
+impl<T> Column<T::Item> for IterColumn<T>
+where T: Iterator + Clone + ExactSizeIterator
+{
+    fn get_val(&self, idx: u64) -> T::Item {
+        self.0.clone().nth(idx as usize).unwrap()
+    }
+
+    fn min_value(&self) -> T::Item {
+        self.0.clone().next().unwrap()
+    }
+
+    fn max_value(&self) -> T::Item {
+        self.0.clone().last().unwrap()
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.0.len() as u64
+    }
+
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T::Item> + 'a> {
+        Box::new(self.0.clone())
+    }
+}
+
+impl<T, M, C> Column<T> for RemappedColumn<T, M, C>
+where
+    C: Column<T>,
+    M: Column<u32>,
+    T: Copy + Ord + Default,
+{
+    fn get_val(&self, idx: u64) -> T {
+        let old_id = self.new_to_old_id_mapping.get_val(idx);
+        self.column.get_val(old_id as u64)
+    }
+
+    fn min_value(&self) -> T {
+        self.min_max().0
+    }
+
+    fn max_value(&self) -> T {
+        self.min_max().1
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.new_to_old_id_mapping.num_vals() as u64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +259,12 @@ mod tests {
         assert_eq!(mapped.num_vals(), 2);
         assert_eq!(mapped.get_val(0), 5);
         assert_eq!(mapped.get_val(1), 7);
+    }
+
+    #[test]
+    fn test_range_as_col() {
+        let col = IterColumn::from(10..100);
+        assert_eq!(col.num_vals(), 90);
+        assert_eq!(col.max_value(), 99);
     }
 }
