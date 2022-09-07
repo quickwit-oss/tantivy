@@ -386,3 +386,151 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    use test::{self, Bencher};
+
+    use super::*;
+    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
+    use crate::indexer::doc_id_mapping::DocIdMapping;
+    use crate::schema::{Cardinality, NumericOptions, Schema};
+    use crate::Document;
+
+    fn multi_values(num_docs: usize, vals_per_doc: usize) -> Vec<Vec<u64>> {
+        let mut vals = vec![];
+        for _i in 0..num_docs {
+            let mut block = vec![];
+            for j in 0..vals_per_doc {
+                block.push(j as u64);
+            }
+            vals.push(block);
+        }
+
+        vals
+    }
+
+    #[bench]
+    fn bench_multi_value_fflookup(b: &mut Bencher) {
+        let num_docs = 100_000;
+
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        let field = {
+            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let mut schema_builder = Schema::builder();
+            let field = schema_builder.add_u64_field("field", options);
+            let schema = schema_builder.build();
+
+            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for block in &multi_values(num_docs, 3) {
+                let mut doc = Document::new();
+                for val in block {
+                    doc.add_u64(field, *val);
+                }
+                fast_field_writers.add_document(&doc);
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+            field
+        };
+        let file = directory.open_read(&path).unwrap();
+        {
+            let fast_fields_composite = CompositeFile::open(&file).unwrap();
+            let data_idx = fast_fields_composite
+                .open_read_with_idx(field, 0)
+                .unwrap()
+                .read_bytes()
+                .unwrap();
+            let idx_reader = fastfield_codecs::open(data_idx).unwrap();
+
+            let data_vals = fast_fields_composite
+                .open_read_with_idx(field, 1)
+                .unwrap()
+                .read_bytes()
+                .unwrap();
+            let vals_reader = fastfield_codecs::open(data_vals).unwrap();
+            let fast_field_reader = MultiValuedFastFieldReader::open(idx_reader, vals_reader);
+            b.iter(|| {
+                let mut sum = 0u64;
+                let mut data = Vec::with_capacity(10);
+                for i in 0u32..num_docs as u32 {
+                    fast_field_reader.get_vals(i, &mut data);
+                    sum += data.iter().sum::<u64>();
+                }
+                sum
+            });
+        }
+    }
+
+    #[bench]
+    fn bench_multi_value_ff_creation(b: &mut Bencher) {
+        // 3 million ff entries
+        let num_docs = 1_000_000;
+        let multi_values = multi_values(num_docs, 3);
+
+        b.iter(|| {
+            let directory: RamDirectory = RamDirectory::create();
+            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let mut schema_builder = Schema::builder();
+            let field = schema_builder.add_u64_field("field", options);
+            let schema = schema_builder.build();
+
+            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for block in &multi_values {
+                let mut doc = Document::new();
+                for val in block {
+                    doc.add_u64(field, *val);
+                }
+                fast_field_writers.add_document(&doc);
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        });
+    }
+
+    #[bench]
+    fn bench_multi_value_ff_creation_with_sorting(b: &mut Bencher) {
+        // 3 million ff entries
+        let num_docs = 1_000_000;
+        let multi_values = multi_values(num_docs, 3);
+
+        let doc_id_mapping =
+            DocIdMapping::from_new_id_to_old_id((0..1_000_000).collect::<Vec<_>>());
+
+        b.iter(|| {
+            let directory: RamDirectory = RamDirectory::create();
+            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let mut schema_builder = Schema::builder();
+            let field = schema_builder.add_u64_field("field", options);
+            let schema = schema_builder.build();
+
+            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for block in &multi_values {
+                let mut doc = Document::new();
+                for val in block {
+                    doc.add_u64(field, *val);
+                }
+                fast_field_writers.add_document(&doc);
+            }
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), Some(&doc_id_mapping))
+                .unwrap();
+            serializer.close().unwrap();
+        });
+    }
+}
