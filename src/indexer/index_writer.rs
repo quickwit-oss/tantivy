@@ -1617,6 +1617,7 @@ mod tests {
 
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
+            let id_reader = segment_reader.fast_fields().u64(id_field).unwrap();
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
             let bool_ff_reader = segment_reader.fast_fields().bools(multi_bools).unwrap();
             for doc in segment_reader.doc_ids_alive() {
@@ -1624,6 +1625,7 @@ mod tests {
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
+                assert_eq!(id_reader.get_val(doc as u64), vals[0]);
 
                 let mut bool_vals = vec![];
                 bool_ff_reader.get_vals(doc, &mut bool_vals);
