@@ -21,6 +21,10 @@ impl SingleSegmentIndexWriter {
         })
     }
 
+    pub fn mem_usage(&self) -> usize {
+        self.segment_writer.mem_usage()
+    }
+
     pub fn add_document(&mut self, document: Document) -> crate::Result<()> {
         let opstamp = self.opstamp;
         self.opstamp += 1;
