@@ -1,5 +1,6 @@
 use std::cmp;
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::Arc;
 
 use fastfield_codecs::VecColumn;
@@ -129,14 +130,6 @@ impl TermOrdinalMapping {
 
     fn get_segment(&self, segment_ord: usize) -> &[TermOrdinal] {
         &(self.per_segment_new_term_ordinals[segment_ord])[..]
-    }
-
-    fn max_term_ord(&self) -> TermOrdinal {
-        self.per_segment_new_term_ordinals
-            .iter()
-            .flat_map(|term_ordinals| term_ordinals.iter().max().cloned())
-            .max()
-            .unwrap_or_default()
     }
 }
 
@@ -814,7 +807,7 @@ impl IndexMerger {
             doc_id_mapping,
             &reader_and_field_accessors,
         )?;
-        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
+        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field(field);
 
         for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
             let bytes_reader = &reader_and_field_accessors[old_doc_addr.segment_ord as usize].1;

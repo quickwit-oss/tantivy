@@ -176,7 +176,7 @@ where
     T: Copy + Ord + Default,
 {
     fn min_max(&self) -> (T, T) {
-        if let Some((min, max)) = self.min_max_cache.lock().unwrap().clone() {
+        if let Some((min, max)) = *self.min_max_cache.lock().unwrap() {
             return (min, max);
         }
         let (min, max) =

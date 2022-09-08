@@ -47,11 +47,11 @@ pub struct NormalizedHeader {
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Header {
-    num_vals: u64,
-    min_value: u64,
-    max_value: u64,
-    gcd: Option<NonZeroU64>,
-    codec_type: FastFieldCodecType,
+    pub num_vals: u64,
+    pub min_value: u64,
+    pub max_value: u64,
+    pub gcd: Option<NonZeroU64>,
+    pub codec_type: FastFieldCodecType,
 }
 
 impl Header {
@@ -124,36 +124,6 @@ impl BinarySerializable for Header {
     }
 }
 
-/// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
-pub fn open<T: MonotonicallyMappableToU64>(
-    mut bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<T>>> {
-    let header = Header::deserialize(&mut bytes)?;
-    match header.codec_type {
-        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
-        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
-        FastFieldCodecType::BlockwiseLinear => {
-            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
-        }
-    }
-}
-
-fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
-    header: &Header,
-) -> io::Result<Arc<dyn Column<Item>>> {
-    let normalized_header = header.normalized();
-    let reader = C::open_from_bytes(bytes, normalized_header)?;
-    let min_value = header.min_value;
-    if let Some(gcd) = header.gcd {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
-    } else {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
-    }
-}
-
 pub fn estimate<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     codec_type: FastFieldCodecType,
@@ -217,8 +187,7 @@ fn detect_codec(
     // removing nan values for codecs with broken calculations, and max values which disables
     // codecs
     estimations.retain(|estimation| !estimation.0.is_nan() && estimation.0 != f32::MAX);
-    estimations
-        .sort_by(|(score_left, _), (score_right, _)| score_left.partial_cmp(&score_right).unwrap());
+    estimations.sort_by(|(score_left, _), (score_right, _)| score_left.total_cmp(score_right));
     Some(estimations.first()?.1)
 }
 

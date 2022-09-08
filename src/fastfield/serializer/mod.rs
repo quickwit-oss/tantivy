@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 
-use common::{BinarySerializable, CountingWriter};
 pub use fastfield_codecs::{Column, FastFieldStats};
 use fastfield_codecs::{FastFieldCodecType, MonotonicallyMappableToU64, ALL_CODEC_TYPES};
 
@@ -16,16 +15,14 @@ use crate::schema::Field;
 /// the serializer.
 /// The serializer expects to receive the following calls.
 ///
-/// * `new_u64_fast_field(...)`
-/// * `add_val(...)`
-/// * `add_val(...)`
-/// * `add_val(...)`
+/// * `create_auto_detect_u64_fast_field(...)`
+/// * `create_auto_detect_u64_fast_field(...)`
 /// * ...
-/// * `close_field()`
-/// * `new_u64_fast_field(...)`
-/// * `add_val(...)`
+/// * `let bytes_fastfield = new_bytes_fast_field(...)`
+/// * `bytes_fastfield.write_all(...)`
+/// * `bytes_fastfield.write_all(...)`
+/// * `bytes_fastfield.flush()`
 /// * ...
-/// * `close_field()`
 /// * `close()`
 pub struct CompositeFastFieldSerializer {
     composite_write: CompositeWrite<WritePtr>,
@@ -33,17 +30,16 @@ pub struct CompositeFastFieldSerializer {
 }
 
 impl CompositeFastFieldSerializer {
-    /// Constructor
+    /// New fast field serializer with all codec types
     pub fn from_write(write: WritePtr) -> io::Result<CompositeFastFieldSerializer> {
         Self::from_write_with_codec(write, &ALL_CODEC_TYPES)
     }
 
-    /// Constructor
+    /// New fast field serializer with allowed codec types
     pub fn from_write_with_codec(
         write: WritePtr,
         codec_types: &[FastFieldCodecType],
     ) -> io::Result<CompositeFastFieldSerializer> {
-        // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
         Ok(CompositeFastFieldSerializer {
             composite_write,
@@ -63,16 +59,6 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn write_header<W: Write>(
-        field_write: &mut W,
-        codec_type: FastFieldCodecType,
-    ) -> io::Result<()> {
-        codec_type.to_code().serialize(field_write)?;
-        Ok(())
-    }
-
-    /// Serialize data into a new u64 fast field. The best compression codec will be chosen
-    /// automatically.
     pub fn create_auto_detect_u64_fast_field_with_idx<T: MonotonicallyMappableToU64>(
         &mut self,
         field: Field,
@@ -84,14 +70,13 @@ impl CompositeFastFieldSerializer {
         Ok(())
     }
 
-    /// Start serializing a new [u8] fast field
-    pub fn new_bytes_fast_field_with_idx(
-        &mut self,
-        field: Field,
-        idx: usize,
-    ) -> FastBytesFieldSerializer<'_, CountingWriter<WritePtr>> {
-        let field_write = self.composite_write.for_field_with_idx(field, idx);
-        FastBytesFieldSerializer { write: field_write }
+    /// Start serializing a new [u8] fast field. Use the returned writer to write data into the
+    /// bytes field. To associate the bytes with documents a seperate index must be created on
+    /// index 0. See bytes/writer.rs::serialize for an example.
+    ///
+    /// The bytes will be stored as is, no compression will be applied.
+    pub fn new_bytes_fast_field(&mut self, field: Field) -> impl Write + '_ {
+        self.composite_write.for_field_with_idx(field, 1)
     }
 
     /// Closes the serializer
@@ -99,19 +84,5 @@ impl CompositeFastFieldSerializer {
     /// After this call the data must be persistently saved on disk.
     pub fn close(self) -> io::Result<()> {
         self.composite_write.close()
-    }
-}
-
-pub struct FastBytesFieldSerializer<'a, W: Write> {
-    write: &'a mut W,
-}
-
-impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
-    pub fn write_all(&mut self, vals: &[u8]) -> io::Result<()> {
-        self.write.write_all(vals)
-    }
-
-    pub fn flush(&mut self) -> io::Result<()> {
-        self.write.flush()
     }
 }

@@ -142,7 +142,7 @@ impl MultiValuedFastFieldWriter {
     pub fn serialize(
         mut self,
         serializer: &mut CompositeFastFieldSerializer,
-        mapping_opt: Option<&FnvHashMap<UnorderedTermId, TermOrdinal>>,
+        term_mapping_opt: Option<&FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         {
@@ -163,7 +163,7 @@ impl MultiValuedFastFieldWriter {
             // Writing the values themselves.
             // TODO FIXME: Use less memory.
             let mut values: Vec<u64> = Vec::new();
-            if let Some(mapping) = mapping_opt {
+            if let Some(term_mapping) = term_mapping_opt {
                 if self.fast_field_type.is_facet() {
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
                     for vals in self.get_ordered_values(doc_id_map) {
@@ -171,7 +171,7 @@ impl MultiValuedFastFieldWriter {
                         doc_vals.clear();
                         let remapped_vals = vals
                             .iter()
-                            .map(|val| *mapping.get(val).expect("Missing term ordinal"));
+                            .map(|val| *term_mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);
                         doc_vals.sort_unstable();
                         for &val in &doc_vals {
@@ -182,7 +182,7 @@ impl MultiValuedFastFieldWriter {
                     for vals in self.get_ordered_values(doc_id_map) {
                         let remapped_vals = vals
                             .iter()
-                            .map(|val| *mapping.get(val).expect("Missing term ordinal"));
+                            .map(|val| *term_mapping.get(val).expect("Missing term ordinal"));
                         for val in remapped_vals {
                             values.push(val);
                         }
@@ -214,6 +214,19 @@ struct MultivalueStartIndexRandomSeeker<'a, C: Column> {
     seek_head: MultivalueStartIndexIter<'a, C>,
     seek_next_id: u64,
 }
+impl<'a, C: Column> MultivalueStartIndexRandomSeeker<'a, C> {
+    fn new(column: &'a C, doc_id_map: &'a DocIdMapping) -> Self {
+        Self {
+            seek_head: MultivalueStartIndexIter {
+                column,
+                doc_id_map,
+                new_doc_id: 0,
+                offset: 0u64,
+            },
+            seek_next_id: 0u64,
+        }
+    }
+}
 
 impl<'a, C: Column> MultivalueStartIndex<'a, C> {
     pub fn new(column: &'a C, doc_id_map: &'a DocIdMapping) -> Self {
@@ -222,20 +235,12 @@ impl<'a, C: Column> MultivalueStartIndex<'a, C> {
             column,
             doc_id_map,
             min_max_opt: Mutex::default(),
-            random_seeker: Mutex::new(MultivalueStartIndexRandomSeeker {
-                seek_head: MultivalueStartIndexIter {
-                    column,
-                    doc_id_map,
-                    new_doc_id: 0,
-                    offset: 0u64,
-                },
-                seek_next_id: 0u64,
-            }),
+            random_seeker: Mutex::new(MultivalueStartIndexRandomSeeker::new(column, doc_id_map)),
         }
     }
 
     fn minmax(&self) -> (u64, u64) {
-        if let Some((min, max)) = self.min_max_opt.lock().unwrap().clone() {
+        if let Some((min, max)) = *self.min_max_opt.lock().unwrap() {
             return (min, max);
         }
         let (min, max) = tantivy_bitpacker::minmax(self.iter()).unwrap_or((0u64, 0u64));
@@ -247,15 +252,8 @@ impl<'a, C: Column> Column for MultivalueStartIndex<'a, C> {
     fn get_val(&self, idx: u64) -> u64 {
         let mut random_seeker_lock = self.random_seeker.lock().unwrap();
         if random_seeker_lock.seek_next_id > idx {
-            *random_seeker_lock = MultivalueStartIndexRandomSeeker {
-                seek_head: MultivalueStartIndexIter {
-                    column: self.column,
-                    doc_id_map: self.doc_id_map,
-                    new_doc_id: 0,
-                    offset: 0u64,
-                },
-                seek_next_id: 0u64,
-            };
+            *random_seeker_lock =
+                MultivalueStartIndexRandomSeeker::new(self.column, self.doc_id_map);
         }
         let to_skip = idx - random_seeker_lock.seek_next_id;
         random_seeker_lock.seek_next_id = idx + 1;
@@ -275,12 +273,7 @@ impl<'a, C: Column> Column for MultivalueStartIndex<'a, C> {
     }
 
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new(MultivalueStartIndexIter {
-            column: &self.column,
-            doc_id_map: self.doc_id_map,
-            new_doc_id: 0,
-            offset: 0,
-        })
+        Box::new(MultivalueStartIndexIter::new(self.column, self.doc_id_map))
     }
 }
 
@@ -289,6 +282,17 @@ struct MultivalueStartIndexIter<'a, C: Column> {
     pub doc_id_map: &'a DocIdMapping,
     pub new_doc_id: usize,
     pub offset: u64,
+}
+
+impl<'a, C: Column> MultivalueStartIndexIter<'a, C> {
+    fn new(column: &'a C, doc_id_map: &'a DocIdMapping) -> Self {
+        Self {
+            column,
+            doc_id_map,
+            new_doc_id: 0,
+            offset: 0,
+        }
+    }
 }
 
 impl<'a, C: Column> Iterator for MultivalueStartIndexIter<'a, C> {

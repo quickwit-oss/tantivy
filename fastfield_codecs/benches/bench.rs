@@ -6,9 +6,6 @@ extern crate test;
 mod tests {
     use std::sync::Arc;
 
-    use fastfield_codecs::bitpacked::BitpackedCodec;
-    use fastfield_codecs::blockwise_linear::BlockwiseLinearCodec;
-    use fastfield_codecs::linear::LinearCodec;
     use fastfield_codecs::*;
 
     fn get_data() -> Vec<u64> {
