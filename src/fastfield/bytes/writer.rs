@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use fastfield_codecs::VecColumn;
 

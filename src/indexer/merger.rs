@@ -1,5 +1,6 @@
 use std::cmp;
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::Arc;
 
 use fastfield_codecs::VecColumn;

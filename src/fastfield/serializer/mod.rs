@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 
-use common::CountingWriter;
 pub use fastfield_codecs::{Column, FastFieldStats};
 use fastfield_codecs::{FastFieldCodecType, MonotonicallyMappableToU64, ALL_CODEC_TYPES};
 
@@ -71,15 +70,13 @@ impl CompositeFastFieldSerializer {
         Ok(())
     }
 
-    /// Start serializing a new [u8] fast field.
+    /// Start serializing a new [u8] fast field. Use the returned writer to write data into the
+    /// bytes field. To associate the bytes with documents a seperate index must be created on
+    /// index 0. See bytes/writer.rs::serialize for an example.
     ///
     /// The bytes will be stored as is, no compression will be applied.
-    pub fn new_bytes_fast_field(
-        &mut self,
-        field: Field,
-    ) -> FastBytesFieldSerializer<'_, CountingWriter<WritePtr>> {
-        let field_write = self.composite_write.for_field_with_idx(field, 1);
-        FastBytesFieldSerializer { write: field_write }
+    pub fn new_bytes_fast_field(&mut self, field: Field) -> impl Write + '_ {
+        self.composite_write.for_field_with_idx(field, 1)
     }
 
     /// Closes the serializer
@@ -87,19 +84,5 @@ impl CompositeFastFieldSerializer {
     /// After this call the data must be persistently saved on disk.
     pub fn close(self) -> io::Result<()> {
         self.composite_write.close()
-    }
-}
-
-pub struct FastBytesFieldSerializer<'a, W: Write> {
-    write: &'a mut W,
-}
-
-impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
-    pub fn write_all(&mut self, vals: &[u8]) -> io::Result<()> {
-        self.write.write_all(vals)
-    }
-
-    pub fn flush(&mut self) -> io::Result<()> {
-        self.write.flush()
     }
 }
