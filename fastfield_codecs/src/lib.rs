@@ -17,6 +17,7 @@ use serialize::Header;
 
 mod bitpacked;
 mod blockwise_linear;
+mod compact_space;
 mod line;
 mod linear;
 mod monotonic_mapping;
@@ -28,6 +29,7 @@ mod serialize;
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
+pub use self::compact_space::{ip_to_u128, CompactSpaceCompressor, CompactSpaceDecompressor};
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
 use self::serialize::NormalizedHeader;
@@ -338,6 +340,8 @@ mod bench {
     use rand::prelude::*;
     use test::{self, Bencher};
 
+    use super::*;
+    use crate::column::ColumnV2;
     use crate::Column;
 
     // Warning: this generates the same permutation at each call
@@ -376,6 +380,28 @@ mod bench {
             let mut a = 0u64;
             for _ in 0..n {
                 a = column.get_val(a as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_jumpy_fflookup_u128(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
+
+        let compressor = CompactSpaceCompressor::train_from(permutation.to_vec());
+        let data = compressor.compress(permutation.iter().cloned()).unwrap();
+        let data = OwnedBytes::new(data);
+
+        let column: Arc<dyn ColumnV2<u128>> =
+            Arc::new(CompactSpaceDecompressor::open(data).unwrap());
+
+        b.iter(|| {
+            let mut a = 0u128;
+            for _ in 0..n {
+                a = column.get_val(a as u64).unwrap();
             }
             a
         });

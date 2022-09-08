@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 use std::sync::Mutex;
 
 use tantivy_bitpacker::minmax;
@@ -50,6 +51,47 @@ pub trait Column<T = u64>: Send + Sync {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
+}
+
+/// Concept of new Column API, which better accounts for null values.
+pub trait ColumnV2<T = u64> {
+    /// Return the value associated to the given idx.
+    ///
+    /// This accessor should return as fast as possible.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx` is greater than the column length.
+    fn get_val(&self, idx: u64) -> Option<T>;
+
+    /// Returns the minimum value for this fast field.
+    ///
+    /// This min_value may not be exact.
+    /// For instance, the min value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.min_value()`.
+    fn min_value(&self) -> T;
+
+    /// Returns the maximum value for this fast field.
+    ///
+    /// This max_value may not be exact.
+    /// For instance, the max value does not take in account of possible
+    /// deleted document. All values are however guaranteed to be higher than
+    /// `.max_value()`.
+    fn max_value(&self) -> T;
+
+    fn num_vals(&self) -> u64;
+
+    /// Returns a iterator over the data
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Option<T>> + 'a> {
+        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+    }
+}
+
+/// Extend ColumnV2 Api
+pub trait ColumnV2Ext<T = u64>: ColumnV2<T> {
+    /// Return the positions of values which are in the provided range.
+    fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64>;
 }
 
 pub struct VecColumn<'a, T = u64> {

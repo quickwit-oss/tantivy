@@ -11,7 +11,10 @@ mod writer;
 
 pub use bitset::*;
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
-pub use vint::{read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt};
+pub use vint::{
+    deserialize_vint_u128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u128,
+    serialize_vint_u32, write_u32_vint, VInt, VIntU128,
+};
 pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
 
 /// Has length trait
