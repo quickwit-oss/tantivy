@@ -27,7 +27,7 @@ use crate::{DatePrecision, DocId};
 /// get_multivalue_writer_mut).
 ///
 /// Once acquired, writing is done by calling
-/// [`.add_document_vals(&[u64])`](MultiValuedFastFieldWriter::add_document_vals) once per document.
+/// [`.add_document(&Document)`](MultiValuedFastFieldWriter::add_document) once per value.
 ///
 /// The serializer makes it possible to remap all of the values
 /// that were pushed to the writer using a mapping.

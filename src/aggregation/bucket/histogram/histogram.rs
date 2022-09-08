@@ -42,8 +42,8 @@ use crate::{DocId, TantivyError};
 /// AggregationCollector.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry] on the
+/// [IntermediateBucketResult](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [IntermediateHistogramBucketEntry](crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry) on the
 /// DistributedAggregationCollector.
 ///
 /// # Limitations/Compatibility
