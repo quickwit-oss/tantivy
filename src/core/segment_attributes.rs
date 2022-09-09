@@ -80,6 +80,14 @@ impl SegmentAttributes {
     }
 }
 
+impl<S: ToString> FromIterator<(S, SegmentAttribute)> for SegmentAttributes {
+    fn from_iter<T: IntoIterator<Item = (S, SegmentAttribute)>>(iter: T) -> Self {
+        SegmentAttributes(HashMap::from_iter(
+            iter.into_iter().map(|(k, v)| (k.to_string(), v)),
+        ))
+    }
+}
+
 mod tests {
     use super::*;
 
@@ -149,7 +157,12 @@ mod tests {
             vec![segment_attributes_1, segment_attributes_2].iter(),
             &segment_attributes_config,
         );
-        let parsed: SegmentAttributes = serde_json::from_str("{\"is_frozen\":{\"conjunctive_bool\":false},\"contain_memes\":{\"disjunctive_bool\":true},\"ancestrals\":{\"string_list\":[\"segment_12\",\"segment_16\",\"segment_2\",\"segment_18\"]}}").unwrap();
+        let parsed: SegmentAttributes = serde_json::from_str(
+            "{\"is_frozen\":{\"conjunctive_bool\":false},\"contain_memes\":{\"disjunctive_bool\":\
+             true},\"ancestrals\":{\"string_list\":[\"segment_12\",\"segment_16\",\"segment_2\",\"\
+             segment_18\"]}}",
+        )
+        .unwrap();
         assert_eq!(parsed, segment_attributes_result);
         assert_eq!(
             segment_attributes_result,

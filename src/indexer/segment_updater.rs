@@ -91,6 +91,7 @@ fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
+    override_segment_attributes: bool,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -127,12 +128,19 @@ fn merge(
 
     let merged_segment_id = merged_segment.id();
 
-    let merged_segment_attributes = SegmentAttributes::merge(
-        segment_entries
-            .iter()
-            .map(|segment_entry| segment_entry.meta().segment_attributes()),
-        &index.settings().segment_attributes_config,
-    );
+    let merged_segment_attributes = if override_segment_attributes {
+        index
+            .settings()
+            .segment_attributes_config
+            .segment_attributes()
+    } else {
+        SegmentAttributes::merge(
+            segment_entries
+                .iter()
+                .map(|segment_entry| segment_entry.meta().segment_attributes()),
+            &index.settings().segment_attributes_config,
+        )
+    };
 
     let segment_meta =
         index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
@@ -477,9 +485,18 @@ impl SegmentUpdater {
         self.active_index_meta.read().unwrap().clone()
     }
 
-    pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
+    pub(crate) fn make_merge_operation(
+        &self,
+        segment_ids: &[SegmentId],
+        override_segment_attributes: bool,
+    ) -> MergeOperation {
         let commit_opstamp = self.load_meta().opstamp;
-        MergeOperation::new(&self.merge_operations, commit_opstamp, segment_ids.to_vec())
+        MergeOperation::new(
+            &self.merge_operations,
+            commit_opstamp,
+            segment_ids.to_vec(),
+            override_segment_attributes,
+        )
     }
 
     // Starts a merge operation. This function will block until the merge operation is effectively
@@ -537,6 +554,7 @@ impl SegmentUpdater {
                 &segment_updater.index,
                 segment_entries,
                 merge_operation.target_opstamp(),
+                merge_operation.override_segment_attributes(),
             ) {
                 Ok(after_merge_segment_entry) => {
                     let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
@@ -577,7 +595,12 @@ impl SegmentUpdater {
             .compute_merge_candidates(&uncommitted_segments)
             .into_iter()
             .map(|merge_candidate| {
-                MergeOperation::new(&self.merge_operations, current_opstamp, merge_candidate.0)
+                MergeOperation::new(
+                    &self.merge_operations,
+                    current_opstamp,
+                    merge_candidate.0,
+                    false,
+                )
             })
             .collect();
 
@@ -586,7 +609,12 @@ impl SegmentUpdater {
             .compute_merge_candidates(&committed_segments)
             .into_iter()
             .map(|merge_candidate: MergeCandidate| {
-                MergeOperation::new(&self.merge_operations, commit_opstamp, merge_candidate.0)
+                MergeOperation::new(
+                    &self.merge_operations,
+                    commit_opstamp,
+                    merge_candidate.0,
+                    false,
+                )
             });
         merge_candidates.extend(committed_merge_candidates);
 
