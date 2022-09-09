@@ -91,7 +91,7 @@ fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
-    override_segment_attributes: bool,
+    segment_attributes: Option<SegmentAttributes>,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -101,14 +101,38 @@ fn merge(
         return Ok(None);
     }
 
-    // first we need to apply deletes to our segment.
-    let merged_segment = index.new_segment();
+    let merged_segment_attributes = match segment_attributes {
+        None => SegmentAttributes::merge(
+            segment_entries
+                .iter()
+                .map(|segment_entry| segment_entry.meta().segment_attributes()),
+            &index.settings().segment_attributes_config,
+        ),
+        Some(segment_attributes) => segment_attributes,
+    };
 
     // First we apply all of the delete to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
         let segment = index.segment(segment_entry.meta().clone());
         advance_deletes(segment, segment_entry, target_opstamp)?;
     }
+
+    if segment_entries.len() == 1 && !segment_entries[0].meta().has_deletes() {
+        let first_segment = &mut segment_entries[0];
+        let segment_meta = index.new_segment_meta(
+            first_segment.segment_id(),
+            num_docs as u32,
+            merged_segment_attributes,
+        );
+        return Ok(Some(SegmentEntry::new(
+            segment_meta,
+            first_segment.delete_cursor().clone(),
+            None,
+        )));
+    }
+
+    // first we need to apply deletes to our segment.
+    let merged_segment = index.new_segment();
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
@@ -127,20 +151,6 @@ fn merge(
     let num_docs = merger.write(segment_serializer)?;
 
     let merged_segment_id = merged_segment.id();
-
-    let merged_segment_attributes = if override_segment_attributes {
-        index
-            .settings()
-            .segment_attributes_config
-            .segment_attributes()
-    } else {
-        SegmentAttributes::merge(
-            segment_entries
-                .iter()
-                .map(|segment_entry| segment_entry.meta().segment_attributes()),
-            &index.settings().segment_attributes_config,
-        )
-    };
 
     let segment_meta =
         index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
@@ -488,14 +498,14 @@ impl SegmentUpdater {
     pub(crate) fn make_merge_operation(
         &self,
         segment_ids: &[SegmentId],
-        override_segment_attributes: bool,
+        segment_attributes: Option<SegmentAttributes>,
     ) -> MergeOperation {
         let commit_opstamp = self.load_meta().opstamp;
         MergeOperation::new(
             &self.merge_operations,
             commit_opstamp,
             segment_ids.to_vec(),
-            override_segment_attributes,
+            segment_attributes,
         )
     }
 
@@ -554,7 +564,7 @@ impl SegmentUpdater {
                 &segment_updater.index,
                 segment_entries,
                 merge_operation.target_opstamp(),
-                merge_operation.override_segment_attributes(),
+                merge_operation.segment_attributes().clone(),
             ) {
                 Ok(after_merge_segment_entry) => {
                     let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
@@ -599,7 +609,7 @@ impl SegmentUpdater {
                     &self.merge_operations,
                     current_opstamp,
                     merge_candidate.0,
-                    false,
+                    None,
                 )
             })
             .collect();
@@ -613,7 +623,7 @@ impl SegmentUpdater {
                     &self.merge_operations,
                     commit_opstamp,
                     merge_candidate.0,
-                    false,
+                    None,
                 )
             });
         merge_candidates.extend(committed_merge_candidates);

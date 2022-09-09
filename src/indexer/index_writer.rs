@@ -510,9 +510,7 @@ impl IndexWriter {
     ///
     /// `segment_ids` is required to be non-empty.
     pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<Option<SegmentMeta>> {
-        let merge_operation = self
-            .segment_updater
-            .make_merge_operation(segment_ids, false);
+        let merge_operation = self.segment_updater.make_merge_operation(segment_ids, None);
         let segment_updater = self.segment_updater.clone();
         segment_updater.start_merge(merge_operation)
     }
@@ -522,11 +520,14 @@ impl IndexWriter {
     /// If all segments are empty no new segment will be created.
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge_with_override(
+    pub fn merge_with_attributes(
         &mut self,
         segment_ids: &[SegmentId],
+        segment_attributes: SegmentAttributes,
     ) -> FutureResult<Option<SegmentMeta>> {
-        let merge_operation = self.segment_updater.make_merge_operation(segment_ids, true);
+        let merge_operation = self
+            .segment_updater
+            .make_merge_operation(segment_ids, Some(segment_attributes));
         let segment_updater = self.segment_updater.clone();
         segment_updater.start_merge(merge_operation)
     }

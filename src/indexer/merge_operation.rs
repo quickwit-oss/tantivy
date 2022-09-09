@@ -46,7 +46,7 @@ pub struct MergeOperation {
 pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
-    override_segment_attributes: bool,
+    segment_attributes: Option<SegmentAttributes>,
 }
 
 impl MergeOperation {
@@ -54,12 +54,12 @@ impl MergeOperation {
         inventory: &MergeOperationInventory,
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
-        override_segment_attributes: bool,
+        segment_attributes: Option<SegmentAttributes>,
     ) -> MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
             segment_ids,
-            override_segment_attributes,
+            segment_attributes,
         };
         MergeOperation {
             inner: inventory.track(inner_merge_operation),
@@ -74,7 +74,7 @@ impl MergeOperation {
         &self.inner.segment_ids[..]
     }
 
-    pub fn override_segment_attributes(&self) -> bool {
-        self.inner.override_segment_attributes
+    pub fn segment_attributes(&self) -> &Option<SegmentAttributes> {
+        &self.inner.segment_attributes
     }
 }
