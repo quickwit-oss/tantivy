@@ -44,14 +44,6 @@ struct BlankSizeAndPos {
     /// Position in the sorted data.
     pos: usize,
 }
-impl BlankSizeAndPos {
-    fn new(blank: u128, pos: usize) -> Self {
-        BlankSizeAndPos {
-            blank_size: blank,
-            pos,
-        }
-    }
-}
 
 impl Ord for BlankSizeAndPos {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -64,29 +56,19 @@ impl PartialOrd for BlankSizeAndPos {
     }
 }
 
-#[test]
-fn test_delta_and_pos_sort() {
-    let mut deltas: BinaryHeap<BlankSizeAndPos> = BinaryHeap::new();
-    deltas.push(BlankSizeAndPos::new(10, 1));
-    deltas.push(BlankSizeAndPos::new(100, 10));
-    deltas.push(BlankSizeAndPos::new(1, 10));
-    assert_eq!(deltas.pop().unwrap().blank_size, 100);
-    assert_eq!(deltas.pop().unwrap().blank_size, 10);
-}
-
 /// Put the deltas for the sorted values into a binary heap
 fn get_deltas(values_sorted: &[u128]) -> BinaryHeap<BlankSizeAndPos> {
     let mut prev_opt = None;
     let mut deltas: BinaryHeap<BlankSizeAndPos> = BinaryHeap::new();
     for (pos, value) in values_sorted.iter().cloned().enumerate() {
-        let delta = if let Some(prev) = prev_opt {
+        let blank_size = if let Some(prev) = prev_opt {
             value - prev
         } else {
             value + 1
         };
         // skip too small deltas
-        if delta > 2 {
-            deltas.push(BlankSizeAndPos::new(delta, pos));
+        if blank_size > 2 {
+            deltas.push(BlankSizeAndPos { blank_size, pos });
         }
         prev_opt = Some(value);
     }
@@ -120,13 +102,17 @@ impl BlankCollector {
     }
 }
 
+fn num_bits(val: u128) -> u8 {
+    (128u32 - val.leading_zeros()) as u8
+}
+
 /// Will collect blanks and add them to compact space if more bits are saved than cost from
 /// metadata.
 fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSpace {
-    let max_val = *values_sorted.last().unwrap_or(&0u128) + 1;
+    let max_val_incl_null = *values_sorted.last().unwrap_or(&0u128) + 1;
     let mut deltas = get_deltas(values_sorted);
-    let mut amplitude_compact_space = max_val;
-    let mut amplitude_bits: u8 = (amplitude_compact_space as f64).log2().ceil() as u8;
+    let mut amplitude_compact_space = max_val_incl_null;
+    let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
     let mut compact_space = CompactSpaceBuilder::new();
 
@@ -139,7 +125,7 @@ fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSp
         let staged_spaces_sum: u128 = blank_collector.staged_blanks_sum();
         // +1 for later added null value
         let amplitude_new_compact_space = amplitude_compact_space - staged_spaces_sum + 1;
-        let amplitude_new_bits = (amplitude_new_compact_space as f64).log2().ceil() as u8;
+        let amplitude_new_bits = num_bits(amplitude_new_compact_space);
         if amplitude_bits == amplitude_new_bits {
             continue;
         }
@@ -170,35 +156,11 @@ fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSp
             compact_space.add_blank(blank_start..=blank_end);
         }
     }
-    compact_space.add_blank(max_val..=u128::MAX);
+    if max_val_incl_null != u128::MAX {
+        compact_space.add_blank(max_val_incl_null..=u128::MAX);
+    }
 
     compact_space.finish()
-}
-
-#[test]
-fn compact_space_test() {
-    let ips = vec![
-        2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
-    ];
-    let compact_space = get_compact_space(&ips, 11);
-    assert_eq!(compact_space.null_value, 5);
-    let amplitude = compact_space.amplitude_compact_space();
-    assert_eq!(amplitude, 20);
-    assert_eq!(2, compact_space.to_compact(2).unwrap());
-    assert_eq!(compact_space.to_compact(100).unwrap_err(), 0);
-
-    let mut output = vec![];
-    compact_space.serialize(&mut output).unwrap();
-
-    assert_eq!(
-        compact_space,
-        CompactSpace::deserialize(&mut &output[..]).unwrap()
-    );
-
-    for ip in &ips {
-        let compact = compact_space.to_compact(*ip).unwrap();
-        assert_eq!(compact_space.unpack(compact), *ip);
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -666,6 +628,51 @@ impl CompactSpaceDecompressor {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn test_binary_heap_pop_order() {
+        let mut deltas: BinaryHeap<BlankSizeAndPos> = BinaryHeap::new();
+        deltas.push(BlankSizeAndPos {
+            blank_size: 10,
+            pos: 1,
+        });
+        deltas.push(BlankSizeAndPos {
+            blank_size: 100,
+            pos: 10,
+        });
+        deltas.push(BlankSizeAndPos {
+            blank_size: 1,
+            pos: 10,
+        });
+        assert_eq!(deltas.pop().unwrap().blank_size, 100);
+        assert_eq!(deltas.pop().unwrap().blank_size, 10);
+    }
+
+    #[test]
+    fn compact_space_test() {
+        let ips = vec![
+            2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
+        ];
+        let compact_space = get_compact_space(&ips, 11);
+        assert_eq!(compact_space.null_value, 5);
+        let amplitude = compact_space.amplitude_compact_space();
+        assert_eq!(amplitude, 20);
+        assert_eq!(2, compact_space.to_compact(2).unwrap());
+        assert_eq!(compact_space.to_compact(100).unwrap_err(), 0);
+
+        let mut output = vec![];
+        compact_space.serialize(&mut output).unwrap();
+
+        assert_eq!(
+            compact_space,
+            CompactSpace::deserialize(&mut &output[..]).unwrap()
+        );
+
+        for ip in &ips {
+            let compact = compact_space.to_compact(*ip).unwrap();
+            assert_eq!(compact_space.unpack(compact), *ip);
+        }
+    }
 
     fn decode_all(data: OwnedBytes) -> Vec<u128> {
         let decompressor = CompactSpaceDecompressor::open(data).unwrap();
