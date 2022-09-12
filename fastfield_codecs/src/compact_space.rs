@@ -295,6 +295,7 @@ impl BinarySerializable for IPCodecParams {
 }
 
 impl ColumnV2<u128> for CompactSpaceDecompressor {
+    #[inline]
     fn get_val(&self, doc: u64) -> Option<u128> {
         self.get(doc)
     }
@@ -311,6 +312,7 @@ impl ColumnV2<u128> for CompactSpaceDecompressor {
         self.params.num_vals
     }
 
+    #[inline]
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Option<u128>> + 'a> {
         Box::new(self.iter())
     }
@@ -425,6 +427,7 @@ impl CompactSpaceDecompressor {
         })
     }
 
+    #[inline]
     pub fn get(&self, idx: u64) -> Option<u128> {
         let compact = self.params.bit_unpacker.get(idx, &self.data);
         if compact == self.params.null_value_compact_space {
