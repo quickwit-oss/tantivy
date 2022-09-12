@@ -96,8 +96,8 @@ impl BinarySerializable for CompactSpace {
 }
 
 impl CompactSpace {
-    /// Amplitude is the value range of the compact space including the sentinel value used to identify null values.
-    /// The compact space is 0..=amplitude .
+    /// Amplitude is the value range of the compact space including the sentinel value used to
+    /// identify null values. The compact space is 0..=amplitude .
     ///
     /// It's only used to verify we don't exceed u64 number space, which would indicate a bug.
     fn amplitude_compact_space(&self) -> u128 {
@@ -174,9 +174,8 @@ impl CompactSpaceCompressor {
         train(&tree, total_num_values_incl_nulls)
     }
 
-    fn write_footer(mut self, writer: &mut impl Write, num_vals: u64) -> io::Result<()> {
+    fn write_footer(self, writer: &mut impl Write) -> io::Result<()> {
         let writer = &mut CountingWriter::wrap(writer);
-        self.params.num_vals = num_vals;
         self.params.serialize(writer)?;
 
         let footer_len = writer.written_bytes() as u32;
@@ -197,7 +196,6 @@ impl CompactSpaceCompressor {
         write: &mut impl Write,
     ) -> io::Result<()> {
         let mut bitpacker = BitPacker::default();
-        let mut num_vals = 0;
         for val in vals {
             let compact = if let Some(val) = val {
                 self.params.compact_space.to_compact(val).map_err(|_| {
@@ -210,10 +208,9 @@ impl CompactSpaceCompressor {
                 self.null_value_compact_space()
             };
             bitpacker.write(compact, self.params.num_bits, write)?;
-            num_vals += 1;
         }
         bitpacker.close(write)?;
-        self.write_footer(write, num_vals)?;
+        self.write_footer(write)?;
         Ok(())
     }
 }
@@ -240,19 +237,17 @@ fn train(values_sorted: &BTreeSet<u128>, total_num_values: usize) -> CompactSpac
             .expect("could not convert max value to compact space")
             < amplitude_compact_space as u64
     );
-    let compressor = CompactSpaceCompressor {
+    CompactSpaceCompressor {
         params: IPCodecParams {
             compact_space,
             bit_unpacker: BitUnpacker::new(num_bits),
             null_value_compact_space: null_compact_space,
             min_value,
             max_value,
-            num_vals: 0, // don't use values_sorted.len() here since they don't include null values
+            num_vals: total_num_values as u64,
             num_bits,
         },
-    };
-
-    compressor
+    }
 }
 
 #[derive(Debug, Clone)]
