@@ -1,6 +1,6 @@
 /// This codec takes a large number space (u128) and reduces it to a compact number space.
 ///
-/// It will find spaces in the numer range. For example:
+/// It will find spaces in the number range. For example:
 ///
 /// 100, 101, 102, 103, 104, 50000, 50001
 /// could be mapped to
@@ -13,6 +13,7 @@
 use std::{
     cmp::Ordering,
     collections::BinaryHeap,
+    convert::{TryFrom, TryInto},
     io::{self, Write},
     net::{IpAddr, Ipv6Addr},
     ops::RangeInclusive,
@@ -32,51 +33,82 @@ pub fn ip_to_u128(ip_addr: IpAddr) -> u128 {
     u128::from_be_bytes(ip_addr_v6.octets())
 }
 
-const INTERVAL_COST_IN_BITS: usize = 64;
+/// The cost per blank is quite hard actually, since blanks are delta encoded, the actual cost of
+/// blanks depends on the number of blanks.
+///
+/// The number is taken by looking at a real dataset. It is optimized for larger datasets.
+const COST_PER_BLANK_IN_BITS: usize = 36;
 
-/// Store blank size and position. Order by blank size.
+/// The range of a blank in value space.
 ///
 /// A blank is an unoccupied space in the data.
-/// E.g. [100, 201] would have a `BlankAndPos{ pos: 0, blank_size: 100}`
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-struct BlankSizeAndPos {
-    blank_size: u128,
-    /// Position in the sorted data.
-    pos: usize,
+/// Ordered by size
+///
+/// Use the try_into(), invalid ranges will be rejected.
+///
+/// TODO: move to own module to force try_into
+#[derive(Debug, Eq, PartialEq, Clone)]
+struct BlankRange {
+    blank_range: RangeInclusive<u128>,
 }
-
-impl Ord for BlankSizeAndPos {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.blank_size.cmp(&other.blank_size)
-    }
-}
-impl PartialOrd for BlankSizeAndPos {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.blank_size.partial_cmp(&other.blank_size)
-    }
-}
-
-/// Put the deltas for the sorted values into a binary heap
-fn get_deltas(values_sorted: &[u128]) -> BinaryHeap<BlankSizeAndPos> {
-    let mut prev_opt = None;
-    let mut deltas: BinaryHeap<BlankSizeAndPos> = BinaryHeap::new();
-    for (pos, value) in values_sorted.iter().cloned().enumerate() {
-        let blank_size = if let Some(prev) = prev_opt {
-            value - prev
+impl TryFrom<RangeInclusive<u128>> for BlankRange {
+    type Error = &'static str;
+    fn try_from(range: RangeInclusive<u128>) -> Result<Self, Self::Error> {
+        let blank_size = range.end().saturating_sub(*range.start());
+        if blank_size < 2 {
+            Err("invalid range")
         } else {
-            value + 1
-        };
-        // skip too small deltas
-        if blank_size > 2 {
-            deltas.push(BlankSizeAndPos { blank_size, pos });
+            Ok(BlankRange { blank_range: range })
         }
-        prev_opt = Some(value);
     }
-    deltas
+}
+impl BlankRange {
+    fn blank_size(&self) -> u128 {
+        self.blank_range.end() - self.blank_range.start()
+    }
+}
+
+impl Ord for BlankRange {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.blank_size().cmp(&other.blank_size())
+    }
+}
+impl PartialOrd for BlankRange {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.blank_size().partial_cmp(&other.blank_size())
+    }
+}
+
+/// Put the blanks for the sorted values into a binary heap
+fn get_blanks(values_sorted: &[u128]) -> BinaryHeap<BlankRange> {
+    let mut blanks: BinaryHeap<BlankRange> = BinaryHeap::new();
+    let mut add_range = |blank_range: RangeInclusive<u128>| {
+        let blank_range: Result<BlankRange, _> = blank_range.try_into();
+        if let Ok(blank_range) = blank_range {
+            blanks.push(blank_range);
+        }
+    };
+    for values in values_sorted.windows(2) {
+        let blank_range = values[0] + 1..=values[1] - 1;
+        add_range(blank_range);
+    }
+    if let Some(first_val) = values_sorted.first().filter(|first_val| **first_val != 0) {
+        let blank_range = 0..=first_val - 1;
+        add_range(blank_range);
+    }
+
+    if let Some(last_val) = values_sorted
+        .last()
+        .filter(|last_val| **last_val != u128::MAX)
+    {
+        let blank_range = last_val + 1..=u128::MAX;
+        add_range(blank_range);
+    }
+    blanks
 }
 
 struct BlankCollector {
-    blanks: Vec<BlankSizeAndPos>,
+    blanks: Vec<BlankRange>,
     staged_blanks_sum: u128,
 }
 impl BlankCollector {
@@ -86,11 +118,11 @@ impl BlankCollector {
             staged_blanks_sum: 0,
         }
     }
-    fn stage_blank(&mut self, blank: BlankSizeAndPos) {
-        self.staged_blanks_sum += blank.blank_size - 1;
+    fn stage_blank(&mut self, blank: BlankRange) {
+        self.staged_blanks_sum += blank.blank_size();
         self.blanks.push(blank);
     }
-    fn drain(&mut self) -> std::vec::Drain<'_, BlankSizeAndPos> {
+    fn drain(&mut self) -> std::vec::Drain<'_, BlankRange> {
         self.staged_blanks_sum = 0;
         self.blanks.drain(..)
     }
@@ -101,26 +133,31 @@ impl BlankCollector {
         self.blanks.len()
     }
 }
-
 fn num_bits(val: u128) -> u8 {
     (128u32 - val.leading_zeros()) as u8
 }
 
 /// Will collect blanks and add them to compact space if more bits are saved than cost from
 /// metadata.
-fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSpace {
-    let max_val_incl_null = *values_sorted.last().unwrap_or(&0u128) + 1;
-    let mut deltas = get_deltas(values_sorted);
-    let mut amplitude_compact_space = max_val_incl_null;
+fn get_compact_space(
+    values_deduped_sorted: &[u128],
+    total_num_values: usize,
+    cost_per_blank: usize,
+) -> CompactSpace {
+    let mut blanks = get_blanks(values_deduped_sorted);
+    let mut amplitude_compact_space = u128::MAX;
     let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
     let mut compact_space = CompactSpaceBuilder::new();
+    if values_deduped_sorted.is_empty() {
+        return compact_space.finish();
+    }
 
     let mut blank_collector = BlankCollector::new();
     // We will stage blanks until they reduce the compact space by 1 bit.
     // Binary heap to process the gaps by their size
-    while let Some(delta_and_pos) = deltas.pop() {
-        blank_collector.stage_blank(delta_and_pos);
+    while let Some(blank_range) = blanks.pop() {
+        blank_collector.stage_blank(blank_range);
 
         let staged_spaces_sum: u128 = blank_collector.staged_blanks_sum();
         // +1 for later added null value
@@ -129,11 +166,13 @@ fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSp
         if amplitude_bits == amplitude_new_bits {
             continue;
         }
-        let saved_bits = (amplitude_bits - amplitude_new_bits) as usize * values_sorted.len();
+        let saved_bits = (amplitude_bits - amplitude_new_bits) as usize * total_num_values;
+        // TODO: Maybe calculate exact cost of blanks and run this more expensive computation only,
+        // when amplitude_new_bits changes
         let cost = blank_collector.num_blanks() * cost_per_blank;
         if cost >= saved_bits {
-            // Continue here, since although we walk over the deltas by size,
-            // we can potentially save a lot at the last bits, which are smaller deltas
+            // Continue here, since although we walk over the blanks by size,
+            // we can potentially save a lot at the last bits, which are smaller blanks
             //
             // E.g. if the first range reduces the compact space by 1000 from 2000 to 1000, which
             // saves 11-10=1 bit and the next range reduces the compact space by 950 to
@@ -143,21 +182,23 @@ fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSp
 
         amplitude_compact_space = amplitude_new_compact_space;
         amplitude_bits = amplitude_new_bits;
-        for pos in blank_collector
-            .drain()
-            .map(|blank_and_pos| blank_and_pos.pos)
-        {
-            let blank_end = values_sorted[pos] - 1;
-            let blank_start = if pos == 0 {
-                0
-            } else {
-                values_sorted[pos - 1] + 1
-            };
-            compact_space.add_blank(blank_start..=blank_end);
-        }
+        compact_space.add_blanks(blank_collector.drain().map(|blank| blank.blank_range));
     }
-    if max_val_incl_null != u128::MAX {
-        compact_space.add_blank(max_val_incl_null..=u128::MAX);
+
+    // special case, when we don't collected any blanks because:
+    // * the data is empty
+    // * the algorithm did decide it's not worth the cost, which can be the case for single values
+    //
+    // We drain one collected blank unconditionally, so the empty case is reserved for empty
+    // data, and therefore empty compact_space means the data is empty and no data is covered
+    // (conversely to all data) and we can assign null to it.
+    if compact_space.is_empty() {
+        compact_space.add_blanks(
+            blank_collector
+                .drain()
+                .map(|blank| blank.blank_range)
+                .take(1),
+        );
     }
 
     compact_space.finish()
@@ -165,59 +206,79 @@ fn get_compact_space(values_sorted: &[u128], cost_per_blank: usize) -> CompactSp
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct CompactSpaceBuilder {
-    covered_space: Vec<RangeInclusive<u128>>,
+    blanks: Vec<RangeInclusive<u128>>,
 }
 
 impl CompactSpaceBuilder {
     /// Creates a new compact space builder which will initially cover the whole space.
     fn new() -> Self {
-        Self {
-            covered_space: vec![0..=u128::MAX],
-        }
+        Self { blanks: vec![] }
     }
 
-    /// Will extend the first range and assign the null value to it.
-    fn assign_and_return_null(&mut self) -> u128 {
-        self.covered_space[0] = *self.covered_space[0].start()..=*self.covered_space[0].end() + 1;
-        *self.covered_space[0].end()
+    /// Assumes that repeated add_blank calls don't overlap and are not adjacent,
+    /// e.g. [3..=5, 5..=10] is not allowed
+    ///
+    /// Both of those assumptions are true when blanks are produced from sorted values.
+    fn add_blanks(&mut self, blank: impl Iterator<Item = RangeInclusive<u128>>) {
+        self.blanks.extend(blank);
     }
 
-    /// Assumes that repeated add_blank calls don't overlap, which will be the case on sorted
-    /// values.
-    fn add_blank(&mut self, blank: RangeInclusive<u128>) {
-        let position = self
-            .covered_space
-            .iter()
-            .position(|range| range.start() <= blank.start() && range.end() >= blank.end());
-        if let Some(position) = position {
-            let old_range = self.covered_space.remove(position);
-            // Exact match, just remove
-            if old_range == blank {
-                return;
-            }
-            let new_range_end = blank.end().saturating_add(1)..=*old_range.end();
-            if old_range.start() == blank.start() {
-                self.covered_space.insert(position, new_range_end);
-                return;
-            }
-            let new_range_start = *old_range.start()..=blank.start().saturating_sub(1);
-            if old_range.end() == blank.end() {
-                self.covered_space.insert(position, new_range_start);
-                return;
-            }
-            self.covered_space.insert(position, new_range_end);
-            self.covered_space.insert(position, new_range_start);
-        }
+    fn is_empty(&self) -> bool {
+        self.blanks.is_empty()
     }
+
+    /// Convert blanks to covered space and assign null value
     fn finish(mut self) -> CompactSpace {
-        let null_value = self.assign_and_return_null();
+        // sort by start since ranges are not allowed to overlap
+        self.blanks.sort_by_key(|blank| *blank.start());
+
+        // Between the blanks
+        let mut covered_space = self
+            .blanks
+            .windows(2)
+            .map(|blanks| {
+                assert!(
+                    blanks[0].end() < blanks[1].start(),
+                    "overlapping or adjacent ranges detected"
+                );
+                *blanks[0].end() + 1..=*blanks[1].start() - 1
+            })
+            .collect::<Vec<_>>();
+
+        // Outside the blanks
+        if let Some(first_blank_start) = self.blanks.first().map(RangeInclusive::start) {
+            if *first_blank_start != 0 {
+                covered_space.insert(0, 0..=first_blank_start - 1);
+            }
+        }
+
+        if let Some(last_blank_end) = self.blanks.last().map(RangeInclusive::end) {
+            if *last_blank_end != u128::MAX {
+                covered_space.push(last_blank_end + 1..=u128::MAX);
+            }
+        }
+
+        // Extend the first range and assign the null value to it.
+        let null_value = if let Some(first_covered_space) = covered_space.first_mut() {
+            // in case the first covered space ends at u128::MAX, assign null to the beginning
+            if *first_covered_space.end() == u128::MAX {
+                *first_covered_space = first_covered_space.start() - 1..=*first_covered_space.end();
+                *first_covered_space.start()
+            } else {
+                *first_covered_space = *first_covered_space.start()..=first_covered_space.end() + 1;
+                *first_covered_space.end()
+            }
+        } else {
+            covered_space.push(0..=0); // empty data case
+            0u128
+        };
 
         let mut compact_start: u64 = 0;
-        let mut ranges_and_compact_start = vec![];
-        for cov in self.covered_space {
-            let covered_range_len = cov.end() - cov.start();
+        let mut ranges_and_compact_start = Vec::with_capacity(covered_space.len());
+        for cov in covered_space {
+            let covered_range_len = cov.end() - cov.start() + 1; // e.g. 0..=1 covered space 1-0+1= 2
             ranges_and_compact_start.push((cov, compact_start));
-            compact_start += covered_range_len as u64 + 1;
+            compact_start += covered_range_len as u64;
         }
         CompactSpace {
             ranges_and_compact_start,
@@ -239,12 +300,12 @@ impl BinarySerializable for CompactSpace {
 
         let mut prev_value = 0;
         for (value_range, _compact) in &self.ranges_and_compact_start {
-            let delta = value_range.start() - prev_value;
-            VIntU128(delta).serialize(writer)?;
+            let blank_delta_start = value_range.start() - prev_value;
+            VIntU128(blank_delta_start).serialize(writer)?;
             prev_value = *value_range.start();
 
-            let delta = value_range.end() - prev_value;
-            VIntU128(delta).serialize(writer)?;
+            let blank_delta_end = value_range.end() - prev_value;
+            VIntU128(blank_delta_end).serialize(writer)?;
             prev_value = *value_range.end();
         }
 
@@ -258,17 +319,17 @@ impl BinarySerializable for CompactSpace {
         let mut value = 0u128;
         let mut compact = 0u64;
         for _ in 0..num_values {
-            let delta = VIntU128::deserialize(reader)?.0;
-            value += delta;
-            let value_start = value;
+            let blank_delta_start = VIntU128::deserialize(reader)?.0;
+            value += blank_delta_start;
+            let blank_start = value;
 
-            let delta = VIntU128::deserialize(reader)?.0;
-            value += delta;
-            let value_end = value;
+            let blank_delta_end = VIntU128::deserialize(reader)?.0;
+            value += blank_delta_end;
+            let blank_end = value;
 
-            let compact_delta = value_end - value_start + 1;
+            let compact_delta = blank_end - blank_start + 1;
 
-            ranges_and_compact_start.push((value_start..=value_end, compact));
+            ranges_and_compact_start.push((blank_start..=blank_end, compact));
             compact += compact_delta as u64;
         }
 
@@ -290,12 +351,12 @@ impl CompactSpace {
     }
 
     /// Returns either Ok(the value in the compact space) or if it is outside the compact space the
-    /// Err(position on the next larger range above the value)
+    /// Err(position where it would be inserted)
     fn to_compact(&self, value: u128) -> Result<u64, usize> {
         self.ranges_and_compact_start
             .binary_search_by(|probe| {
                 let value_range = &probe.0;
-                if *value_range.start() <= value && *value_range.end() >= value {
+                if value_range.contains(&value) {
                     return Ordering::Equal;
                 } else if value < *value_range.start() {
                     return Ordering::Greater;
@@ -308,7 +369,6 @@ impl CompactSpace {
                 let (range, compact_start) = &self.ranges_and_compact_start[pos];
                 compact_start + (value - range.start()) as u64
             })
-            .map_err(|pos| pos - 1)
     }
 
     /// Unpacks a value from compact space u64 to u128 space
@@ -347,12 +407,17 @@ impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory.
     /// It is used to sort the vals.
     ///
-    /// Less memory alternative: We could just store the index (u32), and use that as sorting.
+    /// The lower memory alternative to just store the index (u32) and use that as sorting may be an
+    /// issue for the merge case, where random access is more expensive.
     ///
     /// TODO: Should we take Option<u128> here? (better api, but 24bytes instead 16 per element)
     pub fn train_from(mut vals: Vec<u128>) -> Self {
+        let total_num_values = vals.len(); // TODO: Null values should be here too
         vals.sort();
-        train(&vals)
+        // We don't care for duplicates
+        vals.dedup();
+        vals.shrink_to_fit();
+        train(&vals, total_num_values)
     }
 
     fn to_compact(&self, value: u128) -> u64 {
@@ -375,7 +440,7 @@ impl CompactSpaceCompressor {
         self.compress_into(vals, &mut output)?;
         Ok(output)
     }
-    /// TODO: Should we take Option<u128> here? Other wise the caller has to replace None with
+    /// TODO: Should we take Option<u128> here? Otherwise the caller has to replace None with
     /// `self.null_value()`
     pub fn compress_into(
         self,
@@ -397,8 +462,8 @@ impl CompactSpaceCompressor {
     }
 }
 
-fn train(values_sorted: &[u128]) -> CompactSpaceCompressor {
-    let compact_space = get_compact_space(values_sorted, INTERVAL_COST_IN_BITS);
+fn train(values_sorted: &[u128], total_num_values: usize) -> CompactSpaceCompressor {
+    let compact_space = get_compact_space(values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
     let null_value = compact_space.null_value;
     let null_compact_space = compact_space
         .to_compact(null_value)
@@ -427,10 +492,7 @@ fn train(values_sorted: &[u128]) -> CompactSpaceCompressor {
     };
 
     let max_value = *values_sorted.last().unwrap_or(&0u128).max(&null_value);
-    assert_eq!(
-        compressor.to_compact(max_value) + 1,
-        amplitude_compact_space as u64
-    );
+    assert!(compressor.to_compact(max_value) < amplitude_compact_space as u64);
     compressor
 }
 
@@ -542,28 +604,37 @@ impl CompactSpaceDecompressor {
     /// Comparing on compact space: 1.2 GElements/s
     ///
     /// Comparing on original space: .06 GElements/s (not completely optimized)
-    pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<u64> {
+    pub fn get_range(&self, mut range: RangeInclusive<u128>) -> Vec<u64> {
+        if range.start() > range.end() {
+            range = *range.end()..=*range.start();
+        }
         let from_value = *range.start();
         let to_value = *range.end();
         assert!(to_value >= from_value);
         let compact_from = self.to_compact(from_value);
         let compact_to = self.to_compact(to_value);
+
         // Quick return, if both ranges fall into the same non-mapped space, the range can't cover
         // any values, so we can early exit
         match (compact_to, compact_from) {
-            (Err(pos1), Err(pos2)) if pos1 == pos2 => return vec![],
+            (Err(pos1), Err(pos2)) if pos1 == pos2 => return Vec::new(),
             _ => {}
         }
 
         let compact_from = compact_from.unwrap_or_else(|pos| {
+            // Correctness: Out of bounds, if this value is Err(last_index + 1), we early exit,
+            // since the to_value also mapps into the same non-mapped space
             let range_and_compact_start =
                 self.params.compact_space.get_range_and_compact_start(pos);
-            let compact_end = range_and_compact_start.1
-                + (range_and_compact_start.0.end() - range_and_compact_start.0.start()) as u64;
-            compact_end + 1
+            range_and_compact_start.1
         });
         // If there is no compact space, we go to the closest upperbound compact space
         let compact_to = compact_to.unwrap_or_else(|pos| {
+            // Correctness: Overflow, if this value is Err(0), we early exit,
+            // since the from_value also mapps into the same non-mapped space
+
+            // get end of previous range
+            let pos = pos - 1;
             let range_and_compact_start =
                 self.params.compact_space.get_range_and_compact_start(pos);
             let compact_end = range_and_compact_start.1
@@ -572,7 +643,7 @@ impl CompactSpaceDecompressor {
         });
 
         let range = compact_from..=compact_to;
-        let mut positions = vec![];
+        let mut positions = Vec::new();
 
         for (pos, compact_value) in self
             .iter_compact()
@@ -631,36 +702,34 @@ mod tests {
 
     #[test]
     fn test_binary_heap_pop_order() {
-        let mut deltas: BinaryHeap<BlankSizeAndPos> = BinaryHeap::new();
-        deltas.push(BlankSizeAndPos {
-            blank_size: 10,
-            pos: 1,
+        let mut blanks: BinaryHeap<BlankRange> = BinaryHeap::new();
+        blanks.push(BlankRange {
+            blank_range: 0..=10,
         });
-        deltas.push(BlankSizeAndPos {
-            blank_size: 100,
-            pos: 10,
+        blanks.push(BlankRange {
+            blank_range: 100..=200,
         });
-        deltas.push(BlankSizeAndPos {
-            blank_size: 1,
-            pos: 10,
+        blanks.push(BlankRange {
+            blank_range: 100..=110,
         });
-        assert_eq!(deltas.pop().unwrap().blank_size, 100);
-        assert_eq!(deltas.pop().unwrap().blank_size, 10);
+        assert_eq!(blanks.pop().unwrap().blank_size(), 100);
+        assert_eq!(blanks.pop().unwrap().blank_size(), 10);
     }
 
     #[test]
     fn compact_space_test() {
-        let ips = vec![
+        let ips = &[
             2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
         ];
-        let compact_space = get_compact_space(&ips, 11);
+        let compact_space = get_compact_space(ips, ips.len(), 11);
         assert_eq!(compact_space.null_value, 5);
         let amplitude = compact_space.amplitude_compact_space();
         assert_eq!(amplitude, 20);
         assert_eq!(2, compact_space.to_compact(2).unwrap());
-        assert_eq!(compact_space.to_compact(100).unwrap_err(), 0);
+        assert_eq!(3, compact_space.to_compact(3).unwrap());
+        assert_eq!(compact_space.to_compact(100).unwrap_err(), 1);
 
-        let mut output = vec![];
+        let mut output: Vec<u8> = Vec::new();
         compact_space.serialize(&mut output).unwrap();
 
         assert_eq!(
@@ -668,10 +737,19 @@ mod tests {
             CompactSpace::deserialize(&mut &output[..]).unwrap()
         );
 
-        for ip in &ips {
+        for ip in ips {
             let compact = compact_space.to_compact(*ip).unwrap();
             assert_eq!(compact_space.unpack(compact), *ip);
         }
+    }
+
+    #[test]
+    fn compact_space_amplitude_test() {
+        let ips = &[100000u128, 1000000];
+        let compact_space = get_compact_space(ips, ips.len(), 1);
+        assert_eq!(compact_space.null_value, 100001);
+        let amplitude = compact_space.amplitude_compact_space();
+        assert_eq!(amplitude, 3);
     }
 
     fn decode_all(data: OwnedBytes) -> Vec<u128> {
@@ -717,6 +795,7 @@ mod tests {
         let positions = decomp.get_range(0..=3);
         assert_eq!(positions, vec![0, 2]);
         assert_eq!(decomp.get_range(99999u128..=99999u128), vec![3]);
+        assert_eq!(decomp.get_range(99999u128..=100000u128), vec![3, 4]);
         assert_eq!(decomp.get_range(99998u128..=100000u128), vec![3, 4]);
         assert_eq!(decomp.get_range(99998u128..=99999u128), vec![3]);
         assert_eq!(decomp.get_range(99998u128..=99998u128), vec![]);
@@ -770,6 +849,64 @@ mod tests {
         assert_eq!(positions, vec![]);
         let positions = decomp.get_range(2..=2);
         assert_eq!(positions, vec![1]);
+
+        let positions = decomp.get_range(2..=3);
+        assert_eq!(positions, vec![1]);
+
+        let positions = decomp.get_range(1..=3);
+        assert_eq!(positions, vec![1]);
+
+        let positions = decomp.get_range(2..=3);
+        assert_eq!(positions, vec![1]);
+
+        let positions = decomp.get_range(3..=3);
+        assert_eq!(positions, vec![]);
+    }
+
+    #[test]
+    fn test_range_3() {
+        let vals = &[
+            200u128,
+            201,
+            202,
+            203,
+            204,
+            204,
+            206,
+            207,
+            208,
+            209,
+            210,
+            1_000_000,
+            5_000_000_000,
+        ];
+        let compressor = CompactSpaceCompressor::train_from(vals.to_vec());
+        // let vals = vec![compressor.null_value(), 2u128];
+        let data = compressor.compress(vals.iter().cloned()).unwrap();
+        let decomp = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
+
+        assert_eq!(decomp.get_range(199..=200), vec![0]);
+        assert_eq!(decomp.get_range(199..=201), vec![0, 1]);
+        assert_eq!(decomp.get_range(200..=200), vec![0]);
+        assert_eq!(decomp.get_range(1_000_000..=1_000_000), vec![11]);
+    }
+
+    #[test]
+    fn test_bug1() {
+        let vals = &[9223372036854775806];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_bug2() {
+        let vals = &[340282366920938463463374607431768211455u128];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_bug3() {
+        let vals = &[340282366920938463463374607431768211454];
+        let _data = test_aux_vals(vals);
     }
 
     #[test]
@@ -779,10 +916,20 @@ mod tests {
     }
     use proptest::prelude::*;
 
+    fn num_strategy() -> impl Strategy<Value = u128> {
+        prop_oneof![
+            1 => prop::num::u128::ANY.prop_map(|num| u128::MAX - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| i64::MAX as u128 + 5 - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| i128::MAX as u128 + 5 - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| num % 10 ),
+            20 => prop::num::u128::ANY,
+        ]
+    }
+
     proptest! {
 
             #[test]
-            fn compress_decompress_random(vals in proptest::collection::vec(any::<u128>()
+            fn compress_decompress_random(vals in proptest::collection::vec(num_strategy()
     , 1..1000)) {
                 let _data = test_aux_vals(&vals);
             }
