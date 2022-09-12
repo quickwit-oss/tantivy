@@ -351,7 +351,8 @@ impl CompactSpaceDecompressor {
         self.params.compact_space.unpack(compact)
     }
 
-    /// Comparing on compact space: 1.2 GElements/s
+    /// Comparing on compact space: 1.08 GElements/s, which equals a throughput of 17,3 Gb/s
+    /// (based on u128 = 16byte)
     ///
     /// Comparing on original space: .06 GElements/s (not completely optimized)
     pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<u64> {
@@ -395,14 +396,34 @@ impl CompactSpaceDecompressor {
         let range = compact_from..=compact_to;
         let mut positions = Vec::new();
 
-        for (pos, compact_value) in self
-            .iter_compact()
-            .enumerate()
-            .filter(|(_pos, val)| *val != self.params.null_value_compact_space)
-        {
-            if range.contains(&compact_value) {
-                positions.push(pos as u64);
+        let step_size = 4;
+        let cutoff = self.params.num_vals - self.params.num_vals % step_size;
+
+        let mut check_add = |idx, val| {
+            if range.contains(&val) && val != self.params.null_value_compact_space {
+                positions.push(idx);
             }
+        };
+        let get_val = |idx| self.params.bit_unpacker.get(idx as u64, &self.data) as u64;
+        // unrolled loop
+        for idx in (0..cutoff).step_by(step_size as usize) {
+            let idx1 = idx;
+            let idx2 = idx + 1;
+            let idx3 = idx + 2;
+            let idx4 = idx + 3;
+            let val1 = get_val(idx1);
+            let val2 = get_val(idx2);
+            let val3 = get_val(idx3);
+            let val4 = get_val(idx4);
+            check_add(idx1, val1);
+            check_add(idx2, val2);
+            check_add(idx3, val3);
+            check_add(idx4, val4);
+        }
+
+        // handle rest
+        for idx in cutoff..self.params.num_vals {
+            check_add(idx, get_val(idx));
         }
 
         positions
