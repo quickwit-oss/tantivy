@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn test_null() {
         let vals = &[2u128];
-        let compressor = CompactSpaceCompressor::train_from(vals.iter().cloned(), vals.len());
+        let compressor = CompactSpaceCompressor::train_from(vals.iter().cloned(), 2);
         let vals = vec![None, Some(2u128)];
         let data = compressor.compress(vals.iter().cloned()).unwrap();
         let decomp = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
