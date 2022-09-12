@@ -391,8 +391,11 @@ mod bench {
         let n = permutation.len();
         let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
 
-        let compressor = CompactSpaceCompressor::train_from(permutation.to_vec());
-        let data = compressor.compress(permutation.iter().cloned()).unwrap();
+        let compressor =
+            CompactSpaceCompressor::train_from(permutation.iter().cloned(), permutation.len());
+        let data = compressor
+            .compress(permutation.iter().cloned().map(Some))
+            .unwrap();
         let data = OwnedBytes::new(data);
 
         let column: Arc<dyn ColumnV2<u128>> =
