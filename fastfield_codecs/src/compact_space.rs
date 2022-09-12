@@ -752,24 +752,29 @@ mod tests {
         assert_eq!(amplitude, 3);
     }
 
-    fn decode_all(data: OwnedBytes) -> Vec<u128> {
+    fn test_all(data: OwnedBytes, expected: &[u128]) {
         let decompressor = CompactSpaceDecompressor::open(data).unwrap();
-        let mut u128_vals = Vec::new();
         for idx in 0..decompressor.params.num_vals as usize {
+            let expected_val = expected[idx];
             let val = decompressor.get(idx as u64);
-            if let Some(val) = val {
-                u128_vals.push(val);
-            }
+            assert_eq!(val, Some(expected_val));
+            let positions = decompressor.get_range(expected_val.saturating_sub(1)..=expected_val);
+            assert!(positions.contains(&(idx as u64)));
+            let positions = decompressor.get_range(expected_val..=expected_val);
+            assert!(positions.contains(&(idx as u64)));
+            let positions = decompressor.get_range(expected_val..=expected_val.saturating_add(1));
+            assert!(positions.contains(&(idx as u64)));
+            let positions = decompressor
+                .get_range(expected_val.saturating_sub(1)..=expected_val.saturating_add(1));
+            assert!(positions.contains(&(idx as u64)));
         }
-        u128_vals
     }
 
     fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
         let compressor = CompactSpaceCompressor::train_from(u128_vals.to_vec());
         let data = compressor.compress(u128_vals.iter().cloned()).unwrap();
         let data = OwnedBytes::new(data);
-        let decoded_val = decode_all(data.clone());
-        assert_eq!(&decoded_val, u128_vals);
+        test_all(data.clone(), u128_vals);
         data
     }
 
@@ -927,6 +932,7 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
 
             #[test]
             fn compress_decompress_random(vals in proptest::collection::vec(num_strategy()
