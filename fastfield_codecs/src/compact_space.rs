@@ -18,7 +18,7 @@ use std::{
     ops::RangeInclusive,
 };
 
-use common::{BinarySerializable, CountingWriter, VIntU128};
+use common::{BinarySerializable, CountingWriter, VInt, VIntU128};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
@@ -51,7 +51,7 @@ pub struct CompactSpace {
 impl BinarySerializable for CompactSpace {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         VIntU128(self.null_value).serialize(writer)?;
-        VIntU128(self.ranges_and_compact_start.len() as u128).serialize(writer)?;
+        VInt(self.ranges_and_compact_start.len() as u64).serialize(writer)?;
 
         let mut prev_value = 0;
         for (value_range, _compact) in &self.ranges_and_compact_start {
@@ -69,7 +69,7 @@ impl BinarySerializable for CompactSpace {
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let null_value = VIntU128::deserialize(reader)?.0;
-        let num_values = VIntU128::deserialize(reader)?.0;
+        let num_values = VInt::deserialize(reader)?.0;
         let mut ranges_and_compact_start: Vec<(RangeInclusive<u128>, u64)> = vec![];
         let mut value = 0u128;
         let mut compact = 0u64;
@@ -96,9 +96,14 @@ impl BinarySerializable for CompactSpace {
 }
 
 impl CompactSpace {
+    /// Amplitude is the value range of the compact space including the sentinel value used to identify null values.
+    /// The compact space is 0..=amplitude .
+    ///
+    /// It's only used to verify we don't exceed u64 number space, which would indicate a bug.
     fn amplitude_compact_space(&self) -> u128 {
         let last_range = &self.ranges_and_compact_start[self.ranges_and_compact_start.len() - 1];
-        last_range.1 as u128 + (last_range.0.end() - last_range.0.start()) + 1
+        let last_range_len = last_range.0.end() - last_range.0.start() + 1;
+        last_range.1 as u128 + last_range_len
     }
 
     fn get_range_and_compact_start(&self, pos: usize) -> &(RangeInclusive<u128>, u64) {
@@ -147,7 +152,6 @@ pub struct IPCodecParams {
     compact_space: CompactSpace,
     bit_unpacker: BitUnpacker,
     null_value_compact_space: u64,
-    null_value: u128,
     min_value: u128,
     max_value: u128,
     num_vals: u64,
@@ -168,10 +172,6 @@ impl CompactSpaceCompressor {
         tree.extend(vals);
         assert!(tree.len() <= total_num_values_incl_nulls);
         train(&tree, total_num_values_incl_nulls)
-    }
-
-    fn to_compact(&self, value: u128) -> u64 {
-        self.params.compact_space.to_compact(value).unwrap()
     }
 
     fn write_footer(mut self, writer: &mut impl Write, num_vals: u64) -> io::Result<()> {
@@ -200,16 +200,19 @@ impl CompactSpaceCompressor {
         let mut num_vals = 0;
         for val in vals {
             let compact = if let Some(val) = val {
-                self.to_compact(val)
+                self.params.compact_space.to_compact(val).map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Could not convert value to compact_space. This is a bug.",
+                    )
+                })?
             } else {
                 self.null_value_compact_space()
             };
-            bitpacker
-                .write(compact, self.params.num_bits, write)
-                .unwrap();
+            bitpacker.write(compact, self.params.num_bits, write)?;
             num_vals += 1;
         }
-        bitpacker.close(write).unwrap();
+        bitpacker.close(write)?;
         self.write_footer(write, num_vals)?;
         Ok(())
     }
@@ -217,9 +220,8 @@ impl CompactSpaceCompressor {
 
 fn train(values_sorted: &BTreeSet<u128>, total_num_values: usize) -> CompactSpaceCompressor {
     let compact_space = get_compact_space(values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
-    let null_value = compact_space.null_value;
     let null_compact_space = compact_space
-        .to_compact(null_value)
+        .to_compact(compact_space.null_value)
         .expect("could not convert null_value to compact space");
     let amplitude_compact_space = compact_space.amplitude_compact_space();
 
@@ -231,12 +233,18 @@ fn train(values_sorted: &BTreeSet<u128>, total_num_values: usize) -> CompactSpac
     let num_bits = tantivy_bitpacker::compute_num_bits(amplitude_compact_space as u64);
     let min_value = *values_sorted.iter().next().unwrap_or(&0);
     let max_value = *values_sorted.iter().last().unwrap_or(&0);
+    let max_value_in_value_space = max_value.max(compact_space.null_value);
+    assert!(
+        compact_space
+            .to_compact(max_value_in_value_space)
+            .expect("could not convert max value to compact space")
+            < amplitude_compact_space as u64
+    );
     let compressor = CompactSpaceCompressor {
         params: IPCodecParams {
             compact_space,
             bit_unpacker: BitUnpacker::new(num_bits),
             null_value_compact_space: null_compact_space,
-            null_value,
             min_value,
             max_value,
             num_vals: 0, // don't use values_sorted.len() here since they don't include null values
@@ -244,8 +252,6 @@ fn train(values_sorted: &BTreeSet<u128>, total_num_values: usize) -> CompactSpac
         },
     };
 
-    let max_value_in_value_space = max_value.max(null_value);
-    assert!(compressor.to_compact(max_value_in_value_space) < amplitude_compact_space as u64);
     compressor
 }
 
@@ -261,11 +267,7 @@ impl BinarySerializable for IPCodecParams {
         let footer_flags = 0u64;
         footer_flags.serialize(writer)?;
 
-        let null_value_compact_space = self
-            .compact_space
-            .to_compact(self.null_value)
-            .expect("could not convert null to compact space");
-        VIntU128(null_value_compact_space as u128).serialize(writer)?;
+        VIntU128(self.null_value_compact_space as u128).serialize(writer)?;
         VIntU128(self.min_value).serialize(writer)?;
         VIntU128(self.max_value).serialize(writer)?;
         VIntU128(self.num_vals as u128).serialize(writer)?;
@@ -284,10 +286,8 @@ impl BinarySerializable for IPCodecParams {
         let num_vals = VIntU128::deserialize(reader)?.0 as u64;
         let num_bits = u8::deserialize(reader)?;
         let compact_space = CompactSpace::deserialize(reader)?;
-        let null_value = compact_space.unpack(null_value_compact_space);
 
         Ok(Self {
-            null_value,
             compact_space,
             bit_unpacker: BitUnpacker::new(num_bits),
             null_value_compact_space,
@@ -357,9 +357,9 @@ impl CompactSpaceDecompressor {
     /// Comparing on compact space: 1.2 GElements/s
     ///
     /// Comparing on original space: .06 GElements/s (not completely optimized)
-    pub fn get_range(&self, mut range: RangeInclusive<u128>) -> Vec<u64> {
+    pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<u64> {
         if range.start() > range.end() {
-            range = *range.end()..=*range.start();
+            return Vec::new();
         }
         let from_value = *range.start();
         let to_value = *range.end();

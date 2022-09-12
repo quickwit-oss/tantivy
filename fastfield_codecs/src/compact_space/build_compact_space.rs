@@ -56,7 +56,7 @@ impl BlankCollector {
         self.staged_blanks_sum += blank.blank_size();
         self.blanks.push(blank);
     }
-    fn drain(&mut self) -> std::vec::Drain<'_, BlankRange> {
+    fn drain(&mut self) -> impl Iterator<Item = BlankRange> + '_ {
         self.staged_blanks_sum = 0;
         self.blanks.drain(..)
     }
