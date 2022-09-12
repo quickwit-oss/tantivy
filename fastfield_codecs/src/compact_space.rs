@@ -44,17 +44,33 @@ const COST_PER_BLANK_IN_BITS: usize = 36;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CompactSpace {
-    ranges_and_compact_start: Vec<(RangeInclusive<u128>, u64)>,
+    ranges_mapping: Vec<RangeMapping>,
     pub null_value: u128,
+}
+
+/// Maps the range from the original space to compact_start + range.len()
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct RangeMapping {
+    value_range: RangeInclusive<u128>,
+    compact_start: u64,
+}
+impl RangeMapping {
+    fn range_length(&self) -> u64 {
+        (self.value_range.end() - self.value_range.start()) as u64 + 1
+    }
 }
 
 impl BinarySerializable for CompactSpace {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         VIntU128(self.null_value).serialize(writer)?;
-        VInt(self.ranges_and_compact_start.len() as u64).serialize(writer)?;
+        VInt(self.ranges_mapping.len() as u64).serialize(writer)?;
 
         let mut prev_value = 0;
-        for (value_range, _compact) in &self.ranges_and_compact_start {
+        for value_range in self
+            .ranges_mapping
+            .iter()
+            .map(|range_mapping| &range_mapping.value_range)
+        {
             let blank_delta_start = value_range.start() - prev_value;
             VIntU128(blank_delta_start).serialize(writer)?;
             prev_value = *value_range.start();
@@ -70,9 +86,9 @@ impl BinarySerializable for CompactSpace {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let null_value = VIntU128::deserialize(reader)?.0;
         let num_values = VInt::deserialize(reader)?.0;
-        let mut ranges_and_compact_start: Vec<(RangeInclusive<u128>, u64)> = vec![];
+        let mut ranges_mapping: Vec<RangeMapping> = vec![];
         let mut value = 0u128;
-        let mut compact = 0u64;
+        let mut compact_start = 0u64;
         for _ in 0..num_values {
             let blank_delta_start = VIntU128::deserialize(reader)?.0;
             value += blank_delta_start;
@@ -82,15 +98,18 @@ impl BinarySerializable for CompactSpace {
             value += blank_delta_end;
             let blank_end = value;
 
-            let compact_delta = blank_end - blank_start + 1;
-
-            ranges_and_compact_start.push((blank_start..=blank_end, compact));
-            compact += compact_delta as u64;
+            let range_mapping = RangeMapping {
+                value_range: blank_start..=blank_end,
+                compact_start,
+            };
+            let compact_delta = range_mapping.range_length();
+            ranges_mapping.push(range_mapping);
+            compact_start += compact_delta as u64;
         }
 
         Ok(Self {
             null_value,
-            ranges_and_compact_start,
+            ranges_mapping,
         })
     }
 }
@@ -101,21 +120,20 @@ impl CompactSpace {
     ///
     /// It's only used to verify we don't exceed u64 number space, which would indicate a bug.
     fn amplitude_compact_space(&self) -> u128 {
-        let last_range = &self.ranges_and_compact_start[self.ranges_and_compact_start.len() - 1];
-        let last_range_len = last_range.0.end() - last_range.0.start() + 1;
-        last_range.1 as u128 + last_range_len
+        let last_range = &self.ranges_mapping[self.ranges_mapping.len() - 1];
+        last_range.compact_start as u128 + last_range.range_length() as u128
     }
 
-    fn get_range_and_compact_start(&self, pos: usize) -> &(RangeInclusive<u128>, u64) {
-        &self.ranges_and_compact_start[pos]
+    fn get_range_mapping(&self, pos: usize) -> &RangeMapping {
+        &self.ranges_mapping[pos]
     }
 
     /// Returns either Ok(the value in the compact space) or if it is outside the compact space the
     /// Err(position where it would be inserted)
     fn to_compact(&self, value: u128) -> Result<u64, usize> {
-        self.ranges_and_compact_start
+        self.ranges_mapping
             .binary_search_by(|probe| {
-                let value_range = &probe.0;
+                let value_range = &probe.value_range;
                 if value_range.contains(&value) {
                     return Ordering::Equal;
                 } else if value < *value_range.start() {
@@ -126,21 +144,24 @@ impl CompactSpace {
                 panic!("not covered all ranges in check");
             })
             .map(|pos| {
-                let (range, compact_start) = &self.ranges_and_compact_start[pos];
-                compact_start + (value - range.start()) as u64
+                let range_mapping = &self.ranges_mapping[pos];
+                let pos_in_range = (value - range_mapping.value_range.start()) as u64;
+                range_mapping.compact_start + pos_in_range
             })
     }
 
     /// Unpacks a value from compact space u64 to u128 space
     fn unpack(&self, compact: u64) -> u128 {
         let pos = self
-            .ranges_and_compact_start
-            .binary_search_by_key(&compact, |probe| probe.1)
+            .ranges_mapping
+            .binary_search_by_key(&compact, |range_mapping| range_mapping.compact_start)
+            // Correctness: Overflow. The first range starts at compact space 0, the error from
+            // binary search can never be 0
             .map_or_else(|e| e - 1, |v| v);
 
-        let range_and_compact_start = &self.ranges_and_compact_start[pos];
-        let diff = compact - self.ranges_and_compact_start[pos].1;
-        range_and_compact_start.0.start() + diff as u128
+        let range_mapping = &self.ranges_mapping[pos];
+        let diff = compact - range_mapping.compact_start;
+        range_mapping.value_range.start() + diff as u128
     }
 }
 
@@ -375,22 +396,18 @@ impl CompactSpaceDecompressor {
         let compact_from = compact_from.unwrap_or_else(|pos| {
             // Correctness: Out of bounds, if this value is Err(last_index + 1), we early exit,
             // since the to_value also mapps into the same non-mapped space
-            let range_and_compact_start =
-                self.params.compact_space.get_range_and_compact_start(pos);
-            range_and_compact_start.1
+            let range_mapping = self.params.compact_space.get_range_mapping(pos);
+            range_mapping.compact_start
         });
         // If there is no compact space, we go to the closest upperbound compact space
         let compact_to = compact_to.unwrap_or_else(|pos| {
             // Correctness: Overflow, if this value is Err(0), we early exit,
             // since the from_value also mapps into the same non-mapped space
 
-            // get end of previous range
+            // Get end of previous range
             let pos = pos - 1;
-            let range_and_compact_start =
-                self.params.compact_space.get_range_and_compact_start(pos);
-            let compact_end = range_and_compact_start.1
-                + (range_and_compact_start.0.end() - range_and_compact_start.0.start()) as u64;
-            compact_end
+            let range_mapping = self.params.compact_space.get_range_mapping(pos);
+            range_mapping.compact_start + range_mapping.range_length()
         });
 
         let range = compact_from..=compact_to;
@@ -404,7 +421,7 @@ impl CompactSpaceDecompressor {
                 positions.push(idx);
             }
         };
-        let get_val = |idx| self.params.bit_unpacker.get(idx as u64, &self.data) as u64;
+        let get_val = |idx| self.params.bit_unpacker.get(idx as u64, &self.data);
         // unrolled loop
         for idx in (0..cutoff).step_by(step_size as usize) {
             let idx1 = idx;

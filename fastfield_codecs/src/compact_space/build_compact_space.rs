@@ -163,7 +163,7 @@ impl CompactSpaceBuilder {
 
     /// Convert blanks to covered space and assign null value
     fn finish(mut self) -> CompactSpace {
-        // sort by start since ranges are not allowed to overlap
+        // sort by start. ranges are not allowed to overlap
         self.blanks.sort_by_key(|blank| *blank.start());
 
         // Between the blanks
@@ -209,14 +209,18 @@ impl CompactSpaceBuilder {
         };
 
         let mut compact_start: u64 = 0;
-        let mut ranges_and_compact_start = Vec::with_capacity(covered_space.len());
+        let mut ranges_mapping = Vec::with_capacity(covered_space.len());
         for cov in covered_space {
-            let covered_range_len = cov.end() - cov.start() + 1; // e.g. 0..=1 covered space 1-0+1= 2
-            ranges_and_compact_start.push((cov, compact_start));
+            let range_mapping = super::RangeMapping {
+                value_range: cov,
+                compact_start,
+            };
+            let covered_range_len = range_mapping.range_length();
+            ranges_mapping.push(range_mapping);
             compact_start += covered_range_len as u64;
         }
         CompactSpace {
-            ranges_and_compact_start,
+            ranges_mapping,
             null_value,
         }
     }
