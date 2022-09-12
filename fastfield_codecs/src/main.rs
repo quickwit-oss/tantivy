@@ -7,9 +7,12 @@ use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
 
 use fastfield_codecs::{
-    Column, CompactSpaceCompressor, FastFieldCodecType, FastFieldStats, VecColumn,
+    Column, CompactSpaceCompressor, CompactSpaceDecompressor, FastFieldCodecType, FastFieldStats,
+    VecColumn,
 };
 use itertools::Itertools;
+use measure_time::print_time;
+use ownedbytes::OwnedBytes;
 use prettytable::{Cell, Row, Table};
 
 fn print_set_stats(ip_addrs: &[u128]) {
@@ -51,12 +54,6 @@ fn print_set_stats(ip_addrs: &[u128]) {
             b.1.cmp(&a.1)
         }
     });
-
-    // println!("\n\n----\nIP Address histogram");
-    // println!("IPAddrCount\tFrequency");
-    // for (ip_addr_count, times) in cnts {
-    // println!("{}\t{}", ip_addr_count, times);
-    //}
 }
 
 fn ip_dataset() -> Vec<u128> {
@@ -96,9 +93,10 @@ fn bench_ip() {
     {
         let mut data = vec![];
         for dataset in dataset.chunks(50_000) {
-            let compressor = CompactSpaceCompressor::train_from(dataset.to_vec());
+            let compressor =
+                CompactSpaceCompressor::train_from(dataset.iter().cloned(), dataset.len());
             compressor
-                .compress_into(dataset.iter().cloned(), &mut data)
+                .compress_into(dataset.iter().cloned().map(Some), &mut data)
                 .unwrap();
         }
         let compression = data.len() as f64 / (dataset.len() * 16) as f64;
@@ -109,8 +107,10 @@ fn bench_ip() {
         );
     }
 
-    let compressor = CompactSpaceCompressor::train_from(dataset.to_vec());
-    let data = compressor.compress(dataset.iter().cloned()).unwrap();
+    let compressor = CompactSpaceCompressor::train_from(dataset.iter().cloned(), dataset.len());
+    let data = compressor
+        .compress(dataset.iter().cloned().map(Some))
+        .unwrap();
 
     let compression = data.len() as f64 / (dataset.len() * 16) as f64;
     println!("Compression {:.2}", compression);
@@ -119,12 +119,13 @@ fn bench_ip() {
         (data.len() * 8) as f32 / dataset.len() as f32
     );
 
-    // let decompressor = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
-    // for i in 11100..11150 {
-    // print_time!("get range");
-    // let doc_values = decompressor.get_range(dataset[i]..=dataset[i]);
-    // println!("{:?}", doc_values.len());
-    //}
+    let decompressor = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
+    // Sample some ranges
+    for value in dataset.iter().take(1110).skip(1100).cloned() {
+        print_time!("get range");
+        let doc_values = decompressor.get_range(value..=value);
+        println!("{:?}", doc_values.len());
+    }
 }
 
 fn main() {
