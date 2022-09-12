@@ -3,9 +3,10 @@ use std::ops::RangeInclusive;
 /// The range of a blank in value space.
 ///
 /// A blank is an unoccupied space in the data.
-/// Ordered by size
+/// Use try_into() to construct.
+/// A range has to have at least length of 3. Invalid ranges will be rejected.
 ///
-/// Use the try_into(), invalid ranges will be rejected.
+/// Ordered by range length.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) struct BlankRange {
     blank_range: RangeInclusive<u128>,
@@ -23,7 +24,7 @@ impl TryFrom<RangeInclusive<u128>> for BlankRange {
 }
 impl BlankRange {
     pub(crate) fn blank_size(&self) -> u128 {
-        self.blank_range.end() - self.blank_range.start()
+        self.blank_range.end() - self.blank_range.start() + 1
     }
     pub(crate) fn blank_range(&self) -> RangeInclusive<u128> {
         self.blank_range.clone()

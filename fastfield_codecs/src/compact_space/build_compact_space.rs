@@ -169,13 +169,14 @@ impl CompactSpaceBuilder {
         // Between the blanks
         let mut covered_space = self
             .blanks
-            .windows(2)
-            .map(|blanks| {
+            .iter()
+            .tuple_windows()
+            .map(|(left, right)| {
                 assert!(
-                    blanks[0].end() < blanks[1].start(),
+                    left.end() < right.start(),
                     "overlapping or adjacent ranges detected"
                 );
-                *blanks[0].end() + 1..=*blanks[1].start() - 1
+                *left.end() + 1..=*right.start() - 1
             })
             .collect::<Vec<_>>();
 
@@ -231,7 +232,7 @@ mod tests {
         blanks.push((0..=10).try_into().unwrap());
         blanks.push((100..=200).try_into().unwrap());
         blanks.push((100..=110).try_into().unwrap());
-        assert_eq!(blanks.pop().unwrap().blank_size(), 100);
-        assert_eq!(blanks.pop().unwrap().blank_size(), 10);
+        assert_eq!(blanks.pop().unwrap().blank_size(), 101);
+        assert_eq!(blanks.pop().unwrap().blank_size(), 11);
     }
 }
