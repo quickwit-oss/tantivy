@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use tantivy_bitpacker::minmax;
 
-pub trait Column<T = u64> {
+pub trait Column<T = u64>: Send + Sync {
     /// Return the value associated to the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -80,7 +80,7 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
     }
 }
 
-impl<'a, T: Copy + PartialOrd> Column<T> for VecColumn<'a, T> {
+impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
     fn get_val(&self, position: u64) -> T {
         self.values[position as usize]
     }
@@ -129,7 +129,9 @@ pub fn monotonic_map_column<C, T, Input, Output>(
 ) -> impl Column<Output>
 where
     C: Column<Input>,
-    T: Fn(Input) -> Output,
+    T: Fn(Input) -> Output + Send + Sync,
+    Input: Send + Sync,
+    Output: Send + Sync,
 {
     MonotonicMappingColumn {
         from_column,
@@ -141,7 +143,9 @@ where
 impl<C, T, Input, Output> Column<Output> for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
-    T: Fn(Input) -> Output,
+    T: Fn(Input) -> Output + Send + Sync,
+    Input: Send + Sync,
+    Output: Send + Sync,
 {
     fn get_val(&self, idx: u64) -> Output {
         let from_val = self.from_column.get_val(idx);
@@ -173,7 +177,7 @@ impl<T, M, C> RemappedColumn<T, M, C>
 where
     C: Column<T>,
     M: Column<u32>,
-    T: Copy + Ord + Default,
+    T: Copy + Ord + Default + Send + Sync,
 {
     fn min_max(&self) -> (T, T) {
         if let Some((min, max)) = *self.min_max_cache.lock().unwrap() {
@@ -197,7 +201,7 @@ where T: Iterator + Clone + ExactSizeIterator
 }
 
 impl<T> Column<T::Item> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator
+where T: Iterator + Clone + ExactSizeIterator + Send + Sync
 {
     fn get_val(&self, idx: u64) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()
@@ -224,7 +228,7 @@ impl<T, M, C> Column<T> for RemappedColumn<T, M, C>
 where
     C: Column<T>,
     M: Column<u32>,
-    T: Copy + Ord + Default,
+    T: Copy + Ord + Default + Send + Sync,
 {
     fn get_val(&self, idx: u64) -> T {
         let old_id = self.new_to_old_id_mapping.get_val(idx);

@@ -1,4 +1,4 @@
-pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy {
+pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync {
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.
