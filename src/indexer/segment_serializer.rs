@@ -38,11 +38,16 @@ impl SegmentSerializer {
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
-        let compressor = segment.index().settings().docstore_compression;
-        let blocksize = segment.index().settings().docstore_blocksize;
+        let settings = segment.index().settings();
+        let store_writer = StoreWriter::new(
+            store_write,
+            settings.docstore_compression,
+            settings.docstore_blocksize,
+            settings.docstore_compress_dedicated_thread,
+        )?;
         Ok(SegmentSerializer {
             segment,
-            store_writer: StoreWriter::new(store_write, compressor, blocksize)?,
+            store_writer,
             fast_field_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,

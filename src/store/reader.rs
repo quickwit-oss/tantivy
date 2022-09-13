@@ -393,7 +393,7 @@ mod tests {
         let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE);
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE, true);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
