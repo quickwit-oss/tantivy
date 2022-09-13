@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use itertools::Itertools;
 
 use super::blank_range::BlankRange;
-use super::CompactSpace;
+use super::{CompactSpace, RangeMapping};
 
 /// Put the blanks for the sorted values into a binary heap
 fn get_blanks(values_sorted: &BTreeSet<u128>) -> BinaryHeap<BlankRange> {
@@ -78,14 +78,14 @@ pub fn get_compact_space(
     total_num_values: usize,
     cost_per_blank: usize,
 ) -> CompactSpace {
-    let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
-    let mut amplitude_compact_space = u128::MAX;
-    let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
-
     let mut compact_space = CompactSpaceBuilder::new();
     if values_deduped_sorted.is_empty() {
         return compact_space.finish();
     }
+
+    let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
+    let mut amplitude_compact_space = u128::MAX;
+    let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
     let mut blank_collector = BlankCollector::new();
     // We will stage blanks until they reduce the compact space by 1 bit.
@@ -166,49 +166,37 @@ impl CompactSpaceBuilder {
         // sort by start. ranges are not allowed to overlap
         self.blanks.sort_unstable_by_key(|blank| *blank.start());
 
-        // Between the blanks
-        let mut covered_space = self
-            .blanks
-            .iter()
-            .tuple_windows()
-            .map(|(left, right)| {
-                assert!(
-                    left.end() < right.start(),
-                    "overlapping or adjacent ranges detected"
-                );
-                *left.end() + 1..=*right.start() - 1
-            })
-            .collect::<Vec<_>>();
+        let mut covered_space = Vec::with_capacity(self.blanks.len());
 
-        // Outside the blanks
+        // begining of the blanks
         if let Some(first_blank_start) = self.blanks.first().map(RangeInclusive::start) {
             if *first_blank_start != 0 {
-                covered_space.insert(0, 0..=first_blank_start - 1);
+                covered_space.push(0..=first_blank_start - 1);
             }
         }
 
+        // Between the blanks
+        let between_blanks = self.blanks.iter().tuple_windows().map(|(left, right)| {
+            assert!(
+                left.end() < right.start(),
+                "overlapping or adjacent ranges detected"
+            );
+            *left.end() + 1..=*right.start() - 1
+        });
+        covered_space.extend(between_blanks);
+
+        // end of the blanks
         if let Some(last_blank_end) = self.blanks.last().map(RangeInclusive::end) {
             if *last_blank_end != u128::MAX {
                 covered_space.push(last_blank_end + 1..=u128::MAX);
             }
         }
 
-        // Extend the first range and assign the null value to it.
-        let null_value = if let Some(first_covered_space) = covered_space.first_mut() {
-            // in case the first covered space ends at u128::MAX, assign null to the beginning
-            if *first_covered_space.end() == u128::MAX {
-                *first_covered_space = first_covered_space.start() - 1..=*first_covered_space.end();
-                *first_covered_space.start()
-            } else {
-                *first_covered_space = *first_covered_space.start()..=first_covered_space.end() + 1;
-                *first_covered_space.end()
-            }
-        } else {
+        if covered_space.is_empty() {
             covered_space.push(0..=0); // empty data case
-            0u128
         };
 
-        let mut compact_start: u64 = 0;
+        let mut compact_start: u64 = 1; // 0 is reserved for `null`
         let mut ranges_mapping: Vec<RangeMapping> = Vec::with_capacity(covered_space.len());
         for cov in covered_space {
             let range_mapping = super::RangeMapping {
@@ -219,10 +207,7 @@ impl CompactSpaceBuilder {
             ranges_mapping.push(range_mapping);
             compact_start += covered_range_len as u64;
         }
-        CompactSpace {
-            ranges_mapping,
-            null_value,
-        }
+        CompactSpace { ranges_mapping }
     }
 }
 
