@@ -78,7 +78,7 @@ pub fn get_compact_space(
     total_num_values: usize,
     cost_per_blank: usize,
 ) -> CompactSpace {
-    let mut blanks = get_blanks(values_deduped_sorted);
+    let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
     let mut amplitude_compact_space = u128::MAX;
     let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
@@ -164,7 +164,7 @@ impl CompactSpaceBuilder {
     /// Convert blanks to covered space and assign null value
     fn finish(mut self) -> CompactSpace {
         // sort by start. ranges are not allowed to overlap
-        self.blanks.sort_by_key(|blank| *blank.start());
+        self.blanks.sort_unstable_by_key(|blank| *blank.start());
 
         // Between the blanks
         let mut covered_space = self
@@ -209,7 +209,7 @@ impl CompactSpaceBuilder {
         };
 
         let mut compact_start: u64 = 0;
-        let mut ranges_mapping = Vec::with_capacity(covered_space.len());
+        let mut ranges_mapping: Vec<RangeMapping> = Vec::with_capacity(covered_space.len());
         for cov in covered_space {
             let range_mapping = super::RangeMapping {
                 value_range: cov,

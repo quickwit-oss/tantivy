@@ -134,14 +134,13 @@ impl CompactSpace {
         self.ranges_mapping
             .binary_search_by(|probe| {
                 let value_range = &probe.value_range;
-                if value_range.contains(&value) {
-                    return Ordering::Equal;
-                } else if value < *value_range.start() {
-                    return Ordering::Greater;
+                if value < *value_range.start() {
+                    Ordering::Greater
                 } else if value > *value_range.end() {
-                    return Ordering::Less;
+                    Ordering::Less
+                } else {
+                    Ordering::Equal
                 }
-                panic!("not covered all ranges in check");
             })
             .map(|pos| {
                 let range_mapping = &self.ranges_mapping[pos];
