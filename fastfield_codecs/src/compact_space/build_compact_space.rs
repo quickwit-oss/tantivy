@@ -63,7 +63,7 @@ impl BlankCollector {
     fn staged_blanks_sum(&self) -> u128 {
         self.staged_blanks_sum
     }
-    fn num_blanks(&self) -> usize {
+    fn num_staged_blanks(&self) -> usize {
         self.blanks.len()
     }
 }
@@ -103,7 +103,7 @@ pub fn get_compact_space(
         let saved_bits = (amplitude_bits - amplitude_new_bits) as usize * total_num_values;
         // TODO: Maybe calculate exact cost of blanks and run this more expensive computation only,
         // when amplitude_new_bits changes
-        let cost = blank_collector.num_blanks() * cost_per_blank;
+        let cost = blank_collector.num_staged_blanks() * cost_per_blank;
         if cost >= saved_bits {
             // Continue here, since although we walk over the blanks by size,
             // we can potentially save a lot at the last bits, which are smaller blanks

@@ -405,7 +405,7 @@ impl CompactSpaceDecompressor {
         let step_size = 4;
         let cutoff = self.params.num_vals - self.params.num_vals % step_size;
 
-        let mut add_if_in_range = |idx, val| {
+        let mut push_if_in_range = |idx, val| {
             if range.contains(&val) {
                 positions.push(idx);
             }
@@ -421,15 +421,15 @@ impl CompactSpaceDecompressor {
             let val2 = get_val(idx2);
             let val3 = get_val(idx3);
             let val4 = get_val(idx4);
-            add_if_in_range(idx1, val1);
-            add_if_in_range(idx2, val2);
-            add_if_in_range(idx3, val3);
-            add_if_in_range(idx4, val4);
+            push_if_in_range(idx1, val1);
+            push_if_in_range(idx2, val2);
+            push_if_in_range(idx3, val3);
+            push_if_in_range(idx4, val4);
         }
 
         // handle rest
         for idx in cutoff..self.params.num_vals {
-            add_if_in_range(idx, get_val(idx));
+            push_if_in_range(idx, get_val(idx));
         }
 
         positions
