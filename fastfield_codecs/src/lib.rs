@@ -335,13 +335,14 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use std::iter;
     use std::sync::Arc;
 
+    use column::ColumnV2Ext;
     use rand::prelude::*;
     use test::{self, Bencher};
 
     use super::*;
-    use crate::column::ColumnV2;
     use crate::Column;
 
     // Warning: this generates the same permutation at each call
@@ -385,26 +386,83 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_intfastfield_jumpy_fflookup_u128(b: &mut Bencher) {
+    fn get_u128_column_permutation() -> Arc<dyn ColumnV2Ext<u128>> {
         let permutation = generate_permutation();
-        let n = permutation.len();
-        let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
-
-        let compressor =
-            CompactSpaceCompressor::train_from(permutation.iter().cloned(), permutation.len());
-        let data = compressor
-            .compress(permutation.iter().cloned().map(Some))
-            .unwrap();
+        let permutation = permutation
+            .iter()
+            .map(|el| *el as u128)
+            .map(Some)
+            .collect::<Vec<_>>();
+        get_u128_column(&permutation)
+    }
+    fn get_data_50percent_item() -> (u128, u128, Vec<Option<u128>>) {
+        let mut permutation = generate_permutation();
+        let major_item = permutation[0];
+        let minor_item = permutation[1];
+        permutation.extend(iter::repeat(major_item).take(permutation.len()));
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        let permutation = permutation
+            .iter()
+            .map(|el| Some(*el as u128))
+            .collect::<Vec<_>>();
+        (major_item as u128, minor_item as u128, permutation)
+    }
+    fn get_u128_column(data: &[Option<u128>]) -> Arc<dyn ColumnV2Ext<u128>> {
+        let compressor = CompactSpaceCompressor::train_from(VecColumn::from(&data));
+        let data = compressor.compress(data.iter().cloned()).unwrap();
         let data = OwnedBytes::new(data);
 
-        let column: Arc<dyn ColumnV2<u128>> =
+        let column: Arc<dyn ColumnV2Ext<u128>> =
             Arc::new(CompactSpaceDecompressor::open(data).unwrap());
+        column
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
+        let (major_item, _minor_item, data) = get_data_50percent_item();
+        let column = get_u128_column(&data);
+
+        b.iter(|| column.get_between_vals(major_item..=major_item));
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u128_single_hit(b: &mut Bencher) {
+        let (_major_item, minor_item, data) = get_data_50percent_item();
+        let column = get_u128_column(&data);
+
+        b.iter(|| column.get_between_vals(minor_item..=minor_item));
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u128_hit_all(b: &mut Bencher) {
+        let (_major_item, _minor_item, data) = get_data_50percent_item();
+        let column = get_u128_column(&data);
+
+        b.iter(|| column.get_between_vals(0..=u128::MAX));
+    }
+
+    #[bench]
+    fn bench_intfastfield_jumpy_fflookup_u128(b: &mut Bencher) {
+        let column = get_u128_column_permutation();
 
         b.iter(|| {
             let mut a = 0u128;
-            for _ in 0..n {
+            for _ in 0..column.num_vals() {
                 a = column.get_val(a as u64).unwrap();
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_jumpy_stride5_u128(b: &mut Bencher) {
+        let column = get_u128_column_permutation();
+
+        b.iter(|| {
+            let n = column.num_vals();
+            let mut a = 0u128;
+            for i in (0..n / 5).map(|val| val * 5) {
+                a += column.get_val(i as u64).unwrap();
             }
             a
         });

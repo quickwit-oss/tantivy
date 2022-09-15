@@ -215,7 +215,7 @@ pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
     column: &[T],
 ) -> Arc<dyn Column<T>> {
     let mut buffer = Vec::new();
-    super::serialize(VecColumn::from(column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
+    super::serialize(VecColumn::from(&column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
     super::open(OwnedBytes::new(buffer)).unwrap()
 }
 

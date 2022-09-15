@@ -28,12 +28,14 @@ mod tests {
     }
     fn get_reader_for_bench<Codec: FastFieldCodec>(data: &[u64]) -> Codec::Reader {
         let mut bytes = Vec::new();
+        let min_value = *data.iter().min().unwrap();
+        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
         let col = VecColumn::from(&data);
         let normalized_header = fastfield_codecs::NormalizedHeader {
             num_vals: col.num_vals(),
             max_value: col.max_value(),
         };
-        Codec::serialize(&VecColumn::from(data), &mut bytes).unwrap();
+        Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
         Codec::open_from_bytes(OwnedBytes::new(bytes), normalized_header).unwrap()
     }
     fn bench_get<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
@@ -65,10 +67,13 @@ mod tests {
         bench_get_dynamic_helper(b, col);
     }
     fn bench_create<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+        let min_value = *data.iter().min().unwrap();
+        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
+
         let mut bytes = Vec::new();
         b.iter(|| {
             bytes.clear();
-            Codec::serialize(&VecColumn::from(data), &mut bytes).unwrap();
+            Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
         });
     }
 
