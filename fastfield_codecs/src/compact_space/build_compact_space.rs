@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, BinaryHeap};
+use std::iter;
 use std::ops::RangeInclusive;
 
 use itertools::Itertools;
@@ -9,35 +10,16 @@ use super::{CompactSpace, RangeMapping};
 /// Put the blanks for the sorted values into a binary heap
 fn get_blanks(values_sorted: &BTreeSet<u128>) -> BinaryHeap<BlankRange> {
     let mut blanks: BinaryHeap<BlankRange> = BinaryHeap::new();
-    let mut add_range = |blank_range: RangeInclusive<u128>| {
-        let blank_range: Result<BlankRange, _> = blank_range.try_into();
-        if let Ok(blank_range) = blank_range {
-            blanks.push(blank_range);
-        }
-    };
     for (first, second) in values_sorted.iter().tuple_windows() {
         // Correctness Overflow: the values are deduped and sorted (BTreeSet property), that means
         // there's always space between two values.
         let blank_range = first + 1..=second - 1;
-        add_range(blank_range);
-    }
-
-    // Replace after stabilization of https://github.com/rust-lang/rust/issues/62924
-    // Add preceeding range if values don't start at 0
-    if let Some(first_val) = values_sorted.iter().next() {
-        if *first_val != 0 {
-            let blank_range = 0..=first_val - 1;
-            add_range(blank_range);
+        let blank_range: Result<BlankRange, _> = blank_range.try_into();
+        if let Ok(blank_range) = blank_range {
+            blanks.push(blank_range);
         }
     }
 
-    // Add succeeding range if values don't end at u128::MAX
-    if let Some(last_val) = values_sorted.iter().last() {
-        if *last_val != u128::MAX {
-            let blank_range = last_val + 1..=u128::MAX;
-            add_range(blank_range);
-        }
-    }
     blanks
 }
 
@@ -75,32 +57,46 @@ fn num_bits(val: u128) -> u8 {
 /// metadata.
 pub fn get_compact_space(
     values_deduped_sorted: &BTreeSet<u128>,
-    total_num_values: usize,
+    total_num_values: u64,
     cost_per_blank: usize,
 ) -> CompactSpace {
-    let mut compact_space = CompactSpaceBuilder::new();
+    let mut compact_space_builder = CompactSpaceBuilder::new();
     if values_deduped_sorted.is_empty() {
-        return compact_space.finish();
+        return compact_space_builder.finish();
     }
 
     let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
-    let mut amplitude_compact_space = u128::MAX;
+    // Replace after stabilization of https://github.com/rust-lang/rust/issues/62924
+
+    // We start by space that's limited to min_value..=max_value
+    let min_value = *values_deduped_sorted.iter().next().unwrap_or(&0);
+    let max_value = *values_deduped_sorted.iter().last().unwrap_or(&0);
+
+    // +1 for null, in case min and max covers the whole space, we are off by one.
+    let mut amplitude_compact_space = (max_value - min_value).saturating_add(1);
+    if min_value != 0 {
+        compact_space_builder.add_blanks(iter::once(0..=min_value - 1));
+    }
+    if max_value != u128::MAX {
+        compact_space_builder.add_blanks(iter::once(max_value + 1..=u128::MAX));
+    }
+
     let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
     let mut blank_collector = BlankCollector::new();
-    // We will stage blanks until they reduce the compact space by 1 bit.
+    // We will stage blanks until they reduce the compact space by at least 1 bit and then flush
+    // them if the metadata cost is lower than the total number of saved bits.
     // Binary heap to process the gaps by their size
     while let Some(blank_range) = blanks.pop() {
         blank_collector.stage_blank(blank_range);
 
         let staged_spaces_sum: u128 = blank_collector.staged_blanks_sum();
-        // +1 for later added null value
-        let amplitude_new_compact_space = amplitude_compact_space - staged_spaces_sum + 1;
+        let amplitude_new_compact_space = amplitude_compact_space - staged_spaces_sum;
         let amplitude_new_bits = num_bits(amplitude_new_compact_space);
         if amplitude_bits == amplitude_new_bits {
             continue;
         }
-        let saved_bits = (amplitude_bits - amplitude_new_bits) as usize * total_num_values;
+        let saved_bits = (amplitude_bits - amplitude_new_bits) as usize * total_num_values as usize;
         // TODO: Maybe calculate exact cost of blanks and run this more expensive computation only,
         // when amplitude_new_bits changes
         let cost = blank_collector.num_staged_blanks() * cost_per_blank;
@@ -116,7 +112,7 @@ pub fn get_compact_space(
 
         amplitude_compact_space = amplitude_new_compact_space;
         amplitude_bits = amplitude_new_bits;
-        compact_space.add_blanks(blank_collector.drain().map(|blank| blank.blank_range()));
+        compact_space_builder.add_blanks(blank_collector.drain().map(|blank| blank.blank_range()));
     }
 
     // special case, when we don't collected any blanks because:
@@ -126,8 +122,8 @@ pub fn get_compact_space(
     // We drain one collected blank unconditionally, so the empty case is reserved for empty
     // data, and therefore empty compact_space means the data is empty and no data is covered
     // (conversely to all data) and we can assign null to it.
-    if compact_space.is_empty() {
-        compact_space.add_blanks(
+    if compact_space_builder.is_empty() {
+        compact_space_builder.add_blanks(
             blank_collector
                 .drain()
                 .map(|blank| blank.blank_range())
@@ -135,7 +131,14 @@ pub fn get_compact_space(
         );
     }
 
-    compact_space.finish()
+    let compact_space = compact_space_builder.finish();
+    if max_value - min_value != u128::MAX {
+        debug_assert_eq!(
+            compact_space.amplitude_compact_space(),
+            amplitude_compact_space
+        );
+    }
+    compact_space
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -146,7 +149,7 @@ struct CompactSpaceBuilder {
 impl CompactSpaceBuilder {
     /// Creates a new compact space builder which will initially cover the whole space.
     fn new() -> Self {
-        Self { blanks: vec![] }
+        Self { blanks: Vec::new() }
     }
 
     /// Assumes that repeated add_blank calls don't overlap and are not adjacent,

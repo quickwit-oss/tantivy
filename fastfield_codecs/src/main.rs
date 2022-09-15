@@ -93,8 +93,7 @@ fn bench_ip() {
     {
         let mut data = vec![];
         for dataset in dataset.chunks(50_000) {
-            let compressor =
-                CompactSpaceCompressor::train_from(dataset.iter().cloned(), dataset.len());
+            let compressor = CompactSpaceCompressor::train_from(VecColumn::from(dataset));
             compressor
                 .compress_into(dataset.iter().cloned().map(Some), &mut data)
                 .unwrap();
@@ -107,7 +106,7 @@ fn bench_ip() {
         );
     }
 
-    let compressor = CompactSpaceCompressor::train_from(dataset.iter().cloned(), dataset.len());
+    let compressor = CompactSpaceCompressor::train_from(VecColumn::from(&dataset));
     let data = compressor
         .compress(dataset.iter().cloned().map(Some))
         .unwrap();

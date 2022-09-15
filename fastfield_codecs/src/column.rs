@@ -152,6 +152,42 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
     }
 }
 
+impl<'a, T: Copy + PartialOrd> ColumnV2<T> for VecColumn<'a, T> {
+    fn get_val(&self, position: u64) -> Option<T> {
+        Some(self.values[position as usize])
+    }
+
+    fn min_value(&self) -> T {
+        self.min_value
+    }
+
+    fn max_value(&self) -> T {
+        self.max_value
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.values.len() as u64
+    }
+}
+
+impl<'a, T: Copy + PartialOrd> ColumnV2<T> for VecColumn<'a, Option<T>> {
+    fn get_val(&self, position: u64) -> Option<T> {
+        self.values[position as usize]
+    }
+
+    fn min_value(&self) -> T {
+        self.min_value.unwrap()
+    }
+
+    fn max_value(&self) -> T {
+        self.max_value.unwrap()
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.values.len() as u64
+    }
+}
+
 impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
 where V: AsRef<[T]> + ?Sized
 {
