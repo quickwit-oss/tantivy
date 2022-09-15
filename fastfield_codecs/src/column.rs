@@ -17,15 +17,11 @@ pub trait Column<T = u64>: Send + Sync {
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
     ///
-    /// Regardless of the type of `Item`, this method works
-    /// - transmuting the output array
-    /// - extracting the `Item`s as if they were `u64`
-    /// - possibly converting the `u64` value to the right type.
-    ///
     /// # Panics
     ///
-    /// May panic if `start + output.len()` is greater than
+    /// Must panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
+    #[inline]
     fn get_range(&self, start: u64, output: &mut [T]) {
         for (out, idx) in output.iter_mut().zip(start..) {
             *out = self.get_val(idx);
@@ -78,6 +74,14 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
     fn num_vals(&self) -> u64 {
         (*self).num_vals()
     }
+
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
+        (*self).iter()
+    }
+
+    fn get_range(&self, start: u64, output: &mut [T]) {
+        (*self).get_range(start, output)
+    }
 }
 
 impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
@@ -99,6 +103,10 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
 
     fn num_vals(&self) -> u64 {
         self.values.len() as u64
+    }
+
+    fn get_range(&self, start: u64, output: &mut [T]) {
+        output.copy_from_slice(&self.values[start as usize..][..output.len()])
     }
 }
 
@@ -147,6 +155,7 @@ where
     Input: Send + Sync,
     Output: Send + Sync,
 {
+    #[inline]
     fn get_val(&self, idx: u64) -> Output {
         let from_val = self.from_column.get_val(idx);
         (self.monotonic_mapping)(from_val)
@@ -165,6 +174,13 @@ where
     fn num_vals(&self) -> u64 {
         self.from_column.num_vals()
     }
+
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Output> + 'a> {
+        Box::new(self.from_column.iter().map(&self.monotonic_mapping))
+    }
+
+    // We voluntarily do not implement get_range as it yields a regression,
+    // and we do not have any specialized implementation anyway.
 }
 
 pub struct RemappedColumn<T, M, C> {
@@ -251,6 +267,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MonotonicallyMappableToU64;
 
     #[test]
     fn test_monotonic_mapping() {
@@ -270,5 +287,35 @@ mod tests {
         let col = IterColumn::from(10..100);
         assert_eq!(col.num_vals(), 90);
         assert_eq!(col.max_value(), 99);
+    }
+
+    #[test]
+    fn test_monotonic_mapping_iter() {
+        let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
+        let col = VecColumn::from(&vals);
+        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
+        let val_i64s: Vec<i64> = mapped.iter().collect();
+        for i in 0..100 {
+            assert_eq!(val_i64s[i as usize], mapped.get_val(i));
+        }
+    }
+
+    #[test]
+    fn test_monotonic_mapping_get_range() {
+        let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
+        let col = VecColumn::from(&vals);
+        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
+        assert_eq!(mapped.min_value(), -10i64);
+        assert_eq!(mapped.max_value(), 980i64);
+        assert_eq!(mapped.num_vals(), 100);
+        let val_i64s: Vec<i64> = mapped.iter().collect();
+        assert_eq!(val_i64s.len(), 100);
+        for i in 0..100 {
+            assert_eq!(val_i64s[i as usize], mapped.get_val(i));
+            assert_eq!(val_i64s[i as usize], i64::from_u64(vals[i as usize]) * 10);
+        }
+        let mut buf = [0i64; 20];
+        mapped.get_range(7, &mut buf[..]);
+        assert_eq!(&val_i64s[7..][..20], &buf);
     }
 }
