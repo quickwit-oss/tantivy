@@ -118,8 +118,7 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
 }
 
 impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
-where
-    V: AsRef<[T]> + ?Sized,
+where V: AsRef<[T]> + ?Sized
 {
     fn from(values: &'a V) -> Self {
         let values = values.as_ref();
@@ -217,8 +216,7 @@ where
 pub struct IterColumn<T>(T);
 
 impl<T> From<T> for IterColumn<T>
-where
-    T: Iterator + Clone + ExactSizeIterator,
+where T: Iterator + Clone + ExactSizeIterator
 {
     fn from(iter: T) -> Self {
         IterColumn(iter)

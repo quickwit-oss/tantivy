@@ -7,8 +7,7 @@ use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
 
 use fastfield_codecs::{
-    Column, CompactSpaceCompressor, CompactSpaceDecompressor, FastFieldCodecType, FastFieldStats,
-    VecColumn,
+    open_u128, serialize_u128, Column, FastFieldCodecType, FastFieldStats, VecColumn,
 };
 use itertools::Itertools;
 use measure_time::print_time;
@@ -92,11 +91,8 @@ fn bench_ip() {
     // Chunks
     {
         let mut data = vec![];
-        for dataset in dataset.chunks(50_000) {
-            let compressor = CompactSpaceCompressor::train_from(VecColumn::from(dataset));
-            compressor
-                .compress_into(dataset.iter().cloned(), &mut data)
-                .unwrap();
+        for dataset in dataset.chunks(500_000) {
+            serialize_u128(VecColumn::from(dataset), &mut data).unwrap();
         }
         let compression = data.len() as f64 / (dataset.len() * 16) as f64;
         println!("Compression 50_000 chunks {:.4}", compression);
@@ -106,8 +102,8 @@ fn bench_ip() {
         );
     }
 
-    let compressor = CompactSpaceCompressor::train_from(VecColumn::from(&dataset));
-    let data = compressor.compress(dataset.iter().cloned()).unwrap();
+    let mut data = vec![];
+    serialize_u128(VecColumn::from(&dataset), &mut data).unwrap();
 
     let compression = data.len() as f64 / (dataset.len() * 16) as f64;
     println!("Compression {:.2}", compression);
@@ -116,11 +112,11 @@ fn bench_ip() {
         (data.len() * 8) as f32 / dataset.len() as f32
     );
 
-    let decompressor = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
+    let decompressor = open_u128(OwnedBytes::new(data)).unwrap();
     // Sample some ranges
     for value in dataset.iter().take(1110).skip(1100).cloned() {
         print_time!("get range");
-        let doc_values = decompressor.get_range(value..=value);
+        let doc_values = decompressor.get_between_vals(value..=value);
         println!("{:?}", doc_values.len());
     }
 }

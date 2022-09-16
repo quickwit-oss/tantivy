@@ -210,6 +210,7 @@ impl CompactSpaceBuilder {
             ranges_mapping.push(range_mapping);
             compact_start += covered_range_len as u64;
         }
+        // println!("num ranges {}", ranges_mapping.len());
         CompactSpace { ranges_mapping }
     }
 }

@@ -22,8 +22,9 @@ use common::{BinarySerializable, CountingWriter, VInt, VIntU128};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
+use crate::column::ColumnExt;
 use crate::compact_space::build_compact_space::get_compact_space;
-use crate::{column::ColumnExt, Column};
+use crate::Column;
 
 mod blank_range;
 mod build_compact_space;
@@ -180,7 +181,7 @@ pub struct IPCodecParams {
 
 impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
-    pub fn train_from(column: impl Column<u128>) -> Self {
+    pub fn train_from(column: &impl Column<u128>) -> Self {
         let mut values_sorted = BTreeSet::new();
         values_sorted.extend(column.iter());
         let total_num_values = column.num_vals();
@@ -223,12 +224,6 @@ impl CompactSpaceCompressor {
         footer_len.serialize(writer)?;
 
         Ok(())
-    }
-
-    pub fn compress(self, vals: impl Iterator<Item = u128>) -> io::Result<Vec<u8>> {
-        let mut output = vec![];
-        self.compress_into(vals, &mut output)?;
-        Ok(output)
     }
 
     pub fn compress_into(
@@ -323,7 +318,7 @@ impl Column<u128> for CompactSpaceDecompressor {
 
 impl ColumnExt<u128> for CompactSpaceDecompressor {
     fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
-        self.get_range(range)
+        self.get_between_vals(range)
     }
 }
 
@@ -358,7 +353,7 @@ impl CompactSpaceDecompressor {
     /// (based on u128 = 16byte)
     ///
     /// Comparing on original space: .06 GElements/s (not completely optimized)
-    pub fn get_range(&self, range: RangeInclusive<u128>) -> Vec<u64> {
+    pub fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
         if range.start() > range.end() {
             return Vec::new();
         }
@@ -461,7 +456,7 @@ impl CompactSpaceDecompressor {
 mod tests {
 
     use super::*;
-    use crate::VecColumn;
+    use crate::{open_u128, serialize_u128, VecColumn};
 
     #[test]
     fn compact_space_test() {
@@ -518,7 +513,7 @@ mod tests {
                     .positions(|val| range.contains(val))
                     .map(|pos| pos as u64)
                     .collect::<Vec<_>>();
-                let positions = decompressor.get_range(range);
+                let positions = decompressor.get_between_vals(range);
                 assert_eq!(positions, expected_positions);
             };
 
@@ -530,9 +525,10 @@ mod tests {
     }
 
     fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
-        let compressor = CompactSpaceCompressor::train_from(VecColumn::from(u128_vals));
-        let data = compressor.compress(u128_vals.iter().cloned()).unwrap();
-        let data = OwnedBytes::new(data);
+        let mut out = Vec::new();
+        serialize_u128(VecColumn::from(u128_vals), &mut out).unwrap();
+
+        let data = OwnedBytes::new(out);
         test_all(data.clone(), u128_vals);
         data
     }
@@ -552,24 +548,24 @@ mod tests {
         ];
         let data = test_aux_vals(vals);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
-        let positions = decomp.get_range(0..=1);
+        let positions = decomp.get_between_vals(0..=1);
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_range(0..=2);
+        let positions = decomp.get_between_vals(0..=2);
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_range(0..=3);
+        let positions = decomp.get_between_vals(0..=3);
         assert_eq!(positions, vec![0, 2]);
-        assert_eq!(decomp.get_range(99999u128..=99999u128), vec![3]);
-        assert_eq!(decomp.get_range(99999u128..=100000u128), vec![3, 4]);
-        assert_eq!(decomp.get_range(99998u128..=100000u128), vec![3, 4]);
-        assert_eq!(decomp.get_range(99998u128..=99999u128), vec![3]);
-        assert_eq!(decomp.get_range(99998u128..=99998u128), vec![]);
-        assert_eq!(decomp.get_range(333u128..=333u128), vec![8]);
-        assert_eq!(decomp.get_range(332u128..=333u128), vec![8]);
-        assert_eq!(decomp.get_range(332u128..=334u128), vec![8]);
-        assert_eq!(decomp.get_range(333u128..=334u128), vec![8]);
+        assert_eq!(decomp.get_between_vals(99999u128..=99999u128), vec![3]);
+        assert_eq!(decomp.get_between_vals(99999u128..=100000u128), vec![3, 4]);
+        assert_eq!(decomp.get_between_vals(99998u128..=100000u128), vec![3, 4]);
+        assert_eq!(decomp.get_between_vals(99998u128..=99999u128), vec![3]);
+        assert_eq!(decomp.get_between_vals(99998u128..=99998u128), vec![]);
+        assert_eq!(decomp.get_between_vals(333u128..=333u128), vec![8]);
+        assert_eq!(decomp.get_between_vals(332u128..=333u128), vec![8]);
+        assert_eq!(decomp.get_between_vals(332u128..=334u128), vec![8]);
+        assert_eq!(decomp.get_between_vals(333u128..=334u128), vec![8]);
 
         assert_eq!(
-            decomp.get_range(4_000_211_221u128..=5_000_000_000u128),
+            decomp.get_between_vals(4_000_211_221u128..=5_000_000_000u128),
             vec![6, 7]
         );
     }
@@ -594,11 +590,11 @@ mod tests {
         ];
         let data = test_aux_vals(vals);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
-        let positions = decomp.get_range(0..=5);
+        let positions = decomp.get_between_vals(0..=5);
         assert_eq!(positions, vec![]);
-        let positions = decomp.get_range(0..=100);
+        let positions = decomp.get_between_vals(0..=100);
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_range(0..=105);
+        let positions = decomp.get_between_vals(0..=105);
         assert_eq!(positions, vec![0]);
     }
 
@@ -619,14 +615,14 @@ mod tests {
             1_000_000,
             5_000_000_000,
         ];
-        let compressor = CompactSpaceCompressor::train_from(VecColumn::from(vals));
-        let data = compressor.compress(vals.iter().cloned()).unwrap();
-        let decomp = CompactSpaceDecompressor::open(OwnedBytes::new(data)).unwrap();
+        let mut out = Vec::new();
+        serialize_u128(VecColumn::from(vals), &mut out).unwrap();
+        let decomp = open_u128(OwnedBytes::new(out)).unwrap();
 
-        assert_eq!(decomp.get_range(199..=200), vec![0]);
-        assert_eq!(decomp.get_range(199..=201), vec![0, 1]);
-        assert_eq!(decomp.get_range(200..=200), vec![0]);
-        assert_eq!(decomp.get_range(1_000_000..=1_000_000), vec![11]);
+        assert_eq!(decomp.get_between_vals(199..=200), vec![0]);
+        assert_eq!(decomp.get_between_vals(199..=201), vec![0, 1]);
+        assert_eq!(decomp.get_between_vals(200..=200), vec![0]);
+        assert_eq!(decomp.get_between_vals(1_000_000..=1_000_000), vec![11]);
     }
 
     #[test]

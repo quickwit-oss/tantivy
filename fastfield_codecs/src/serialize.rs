@@ -28,6 +28,7 @@ use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
+use crate::compact_space::CompactSpaceCompressor;
 use crate::linear::LinearCodec;
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
@@ -139,6 +140,19 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
         FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
         FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&normalized_column),
     }
+}
+
+pub fn serialize_u128(
+    typed_column: impl Column<u128>,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    // TODO write header, to later support more codecs
+    let compressor = CompactSpaceCompressor::train_from(&typed_column);
+    compressor
+        .compress_into(typed_column.iter(), output)
+        .unwrap();
+
+    Ok(())
 }
 
 pub fn serialize<T: MonotonicallyMappableToU64>(

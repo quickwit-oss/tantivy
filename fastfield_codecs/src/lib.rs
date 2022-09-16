@@ -11,7 +11,9 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
+use column::ColumnExt;
 use common::BinarySerializable;
+use compact_space::CompactSpaceDecompressor;
 use ownedbytes::OwnedBytes;
 use serialize::Header;
 
@@ -29,11 +31,12 @@ mod serialize;
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::compact_space::{ip_to_u128, CompactSpaceCompressor, CompactSpaceDecompressor};
+pub use self::compact_space::ip_to_u128;
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
-use self::serialize::NormalizedHeader;
-pub use self::serialize::{estimate, serialize, serialize_and_load};
+pub use self::serialize::{
+    estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
+};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -69,6 +72,11 @@ impl FastFieldCodecType {
             _ => None,
         }
     }
+}
+
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn ColumnExt<u128>>> {
+    Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
@@ -401,13 +409,10 @@ mod bench {
         (major_item as u128, minor_item as u128, permutation)
     }
     fn get_u128_column(data: &[u128]) -> Arc<dyn ColumnExt<u128>> {
-        let compressor = CompactSpaceCompressor::train_from(VecColumn::from(&data));
-        let data = compressor.compress(data.iter().cloned()).unwrap();
-        let data = OwnedBytes::new(data);
-
-        let column: Arc<dyn ColumnExt<u128>> =
-            Arc::new(CompactSpaceDecompressor::open(data).unwrap());
-        column
+        let mut out = vec![];
+        serialize_u128(VecColumn::from(&data), &mut out).unwrap();
+        let out = OwnedBytes::new(out);
+        open_u128(out).unwrap()
     }
 
     #[bench]
