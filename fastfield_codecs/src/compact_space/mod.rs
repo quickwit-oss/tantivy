@@ -349,10 +349,10 @@ impl CompactSpaceDecompressor {
         self.params.compact_space.compact_to_u128(compact)
     }
 
-    /// Comparing on compact space: 1.08 GElements/s, which equals a throughput of 17,3 Gb/s
-    /// (based on u128 = 16byte)
+    /// Comparing on compact space: Random dataset 0,24 (50% random hit) - 1.05 GElements/s
+    /// Comparing on compact space: Real dataset 1.08 GElements/s
     ///
-    /// Comparing on original space: .06 GElements/s (not completely optimized)
+    /// Comparing on original space: Real dataset .06 GElements/s (not completely optimized)
     pub fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
         if range.start() > range.end() {
             return Vec::new();

@@ -394,15 +394,27 @@ mod bench {
         });
     }
 
+    fn get_exp_data() -> Vec<u64> {
+        let mut data = vec![];
+        for i in 0..100 {
+            let num = i * i;
+            data.extend(iter::repeat(i as u64).take(num));
+        }
+        data.shuffle(&mut StdRng::from_seed([1u8; 32]));
+
+        // lengt = 328350
+        data
+    }
+
     fn get_u128_column_permutation() -> Arc<dyn ColumnExt<u128>> {
         let permutation = generate_permutation();
         let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
         get_u128_column(&permutation)
     }
     fn get_data_50percent_item() -> (u128, u128, Vec<u128>) {
-        let mut permutation = generate_permutation();
-        let major_item = permutation[0];
-        let minor_item = permutation[1];
+        let mut permutation = get_exp_data();
+        let major_item = 20;
+        let minor_item = 10;
         permutation.extend(iter::repeat(major_item).take(permutation.len()));
         permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
         let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
