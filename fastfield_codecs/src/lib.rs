@@ -338,7 +338,7 @@ mod bench {
     use std::iter;
     use std::sync::Arc;
 
-    use column::ColumnV2Ext;
+    use column::ColumnExt;
     use rand::prelude::*;
     use test::{self, Bencher};
 
@@ -386,33 +386,26 @@ mod bench {
         });
     }
 
-    fn get_u128_column_permutation() -> Arc<dyn ColumnV2Ext<u128>> {
+    fn get_u128_column_permutation() -> Arc<dyn ColumnExt<u128>> {
         let permutation = generate_permutation();
-        let permutation = permutation
-            .iter()
-            .map(|el| *el as u128)
-            .map(Some)
-            .collect::<Vec<_>>();
+        let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
         get_u128_column(&permutation)
     }
-    fn get_data_50percent_item() -> (u128, u128, Vec<Option<u128>>) {
+    fn get_data_50percent_item() -> (u128, u128, Vec<u128>) {
         let mut permutation = generate_permutation();
         let major_item = permutation[0];
         let minor_item = permutation[1];
         permutation.extend(iter::repeat(major_item).take(permutation.len()));
         permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        let permutation = permutation
-            .iter()
-            .map(|el| Some(*el as u128))
-            .collect::<Vec<_>>();
+        let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
         (major_item as u128, minor_item as u128, permutation)
     }
-    fn get_u128_column(data: &[Option<u128>]) -> Arc<dyn ColumnV2Ext<u128>> {
+    fn get_u128_column(data: &[u128]) -> Arc<dyn ColumnExt<u128>> {
         let compressor = CompactSpaceCompressor::train_from(VecColumn::from(&data));
         let data = compressor.compress(data.iter().cloned()).unwrap();
         let data = OwnedBytes::new(data);
 
-        let column: Arc<dyn ColumnV2Ext<u128>> =
+        let column: Arc<dyn ColumnExt<u128>> =
             Arc::new(CompactSpaceDecompressor::open(data).unwrap());
         column
     }
@@ -448,7 +441,7 @@ mod bench {
         b.iter(|| {
             let mut a = 0u128;
             for _ in 0..column.num_vals() {
-                a = column.get_val(a as u64).unwrap();
+                a = column.get_val(a as u64);
             }
             a
         });
@@ -462,7 +455,7 @@ mod bench {
             let n = column.num_vals();
             let mut a = 0u128;
             for i in (0..n / 5).map(|val| val * 5) {
-                a += column.get_val(i as u64).unwrap();
+                a += column.get_val(i as u64);
             }
             a
         });
