@@ -17,7 +17,7 @@ use serialize::Header;
 
 mod bitpacked;
 mod blockwise_linear;
-pub(crate) mod line;
+mod line;
 mod linear;
 mod monotonic_mapping;
 
@@ -25,12 +25,13 @@ mod column;
 mod gcd;
 mod serialize;
 
-pub use self::bitpacked::BitpackedCodec;
-pub use self::blockwise_linear::BlockwiseLinearCodec;
+use self::bitpacked::BitpackedCodec;
+use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::linear::LinearCodec;
+use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
-pub use self::serialize::{estimate, serialize, serialize_and_load, NormalizedHeader};
+use self::serialize::NormalizedHeader;
+pub use self::serialize::{estimate, serialize, serialize_and_load};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -100,7 +101,7 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodec: 'static {
+trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
@@ -131,14 +132,6 @@ pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
     FastFieldCodecType::BlockwiseLinear,
     FastFieldCodecType::Linear,
 ];
-
-#[derive(Debug, Clone)]
-/// Statistics are used in codec detection and stored in the fast field footer.
-pub struct FastFieldStats {
-    pub min_value: u64,
-    pub max_value: u64,
-    pub num_vals: u64,
-}
 
 #[cfg(test)]
 mod tests {
