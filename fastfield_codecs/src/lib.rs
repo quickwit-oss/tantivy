@@ -29,7 +29,7 @@ mod serialize;
 
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
-pub use self::column::{monotonic_map_column, Column, ColumnExt, VecColumn};
+pub use self::column::{monotonic_map_column, Column, VecColumn};
 pub use self::compact_space::ip_to_u128;
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
@@ -74,7 +74,7 @@ impl FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn ColumnExt<u128>>> {
+pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<u128>>> {
     Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
 }
 

@@ -22,7 +22,6 @@ use common::{BinarySerializable, CountingWriter, VInt, VIntU128};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
-use crate::column::ColumnExt;
 use crate::compact_space::build_compact_space::get_compact_space;
 use crate::Column;
 
@@ -314,9 +313,6 @@ impl Column<u128> for CompactSpaceDecompressor {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u128> + 'a> {
         Box::new(self.iter())
     }
-}
-
-impl ColumnExt<u128> for CompactSpaceDecompressor {
     fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
         self.get_between_vals(range)
     }

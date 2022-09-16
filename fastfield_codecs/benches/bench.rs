@@ -90,13 +90,13 @@ mod tests {
         let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
         (major_item as u128, minor_item as u128, permutation)
     }
-    fn get_u128_column_random() -> Arc<dyn ColumnExt<u128>> {
+    fn get_u128_column_random() -> Arc<dyn Column<u128>> {
         let permutation = generate_random();
         let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
         get_u128_column_from_data(&permutation)
     }
 
-    fn get_u128_column_from_data(data: &[u128]) -> Arc<dyn ColumnExt<u128>> {
+    fn get_u128_column_from_data(data: &[u128]) -> Arc<dyn Column<u128>> {
         let mut out = vec![];
         serialize_u128(VecColumn::from(&data), &mut out).unwrap();
         let out = OwnedBytes::new(out);

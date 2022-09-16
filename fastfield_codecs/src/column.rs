@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use tantivy_bitpacker::minmax;
 
-pub trait Column<T = u64>: Send + Sync {
+pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// Return the value associated to the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -29,6 +29,19 @@ pub trait Column<T = u64>: Send + Sync {
         }
     }
 
+    /// Return the positions of values which are in the provided range.
+    #[inline]
+    fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> {
+        let mut vals = Vec::new();
+        for idx in 0..self.num_vals() {
+            let val = self.get_val(idx);
+            if range.contains(&val) {
+                vals.push(idx);
+            }
+        }
+        vals
+    }
+
     /// Returns the minimum value for this fast field.
     ///
     /// This min_value may not be exact.
@@ -51,12 +64,6 @@ pub trait Column<T = u64>: Send + Sync {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
-}
-
-/// Extend Column Api
-pub trait ColumnExt<T = u64>: Column<T> {
-    /// Return the positions of values which are in the provided range.
-    fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64>;
 }
 
 pub struct VecColumn<'a, T = u64> {
@@ -138,7 +145,7 @@ struct MonotonicMappingColumn<C, T, Input> {
 }
 
 /// Creates a view of a column transformed by a monotonic mapping.
-pub fn monotonic_map_column<C, T, Input, Output>(
+pub fn monotonic_map_column<C, T, Input: PartialOrd, Output: PartialOrd>(
     from_column: C,
     monotonic_mapping: T,
 ) -> impl Column<Output>
@@ -155,7 +162,8 @@ where
     }
 }
 
-impl<C, T, Input, Output> Column<Output> for MonotonicMappingColumn<C, T, Input>
+impl<C, T, Input: PartialOrd, Output: PartialOrd> Column<Output>
+    for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
     T: Fn(Input) -> Output + Send + Sync,
@@ -224,7 +232,9 @@ where T: Iterator + Clone + ExactSizeIterator
 }
 
 impl<T> Column<T::Item> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator + Send + Sync
+where
+    T: Iterator + Clone + ExactSizeIterator + Send + Sync,
+    T::Item: PartialOrd,
 {
     fn get_val(&self, idx: u64) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()
