@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::{Column, FastFieldCodecType, FastFieldStats, VecColumn};
+use fastfield_codecs::{Column, FastFieldCodecType, VecColumn};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -89,14 +89,4 @@ pub fn serialize_with_codec(
     fastfield_codecs::serialize(&col, &mut out, &[codec_type]).ok()?;
     let actual_compression = out.len() as f32 / (col.num_vals() * 8) as f32;
     Some((estimation, actual_compression, codec_type))
-}
-
-pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
-    let min_value = data.iter().cloned().min().unwrap_or(0);
-    let max_value = data.iter().cloned().max().unwrap_or(0);
-    FastFieldStats {
-        min_value,
-        max_value,
-        num_vals: data.len() as u64,
-    }
 }

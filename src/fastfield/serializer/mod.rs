@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-pub use fastfield_codecs::{Column, FastFieldStats};
+pub use fastfield_codecs::Column;
 use fastfield_codecs::{FastFieldCodecType, MonotonicallyMappableToU64, ALL_CODEC_TYPES};
 
 use crate::directory::{CompositeWrite, WritePtr};

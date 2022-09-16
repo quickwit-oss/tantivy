@@ -7,7 +7,6 @@ use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
-use super::serializer::FastFieldStats;
 use super::FastFieldType;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -360,16 +359,12 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        let stats = FastFieldStats {
-            min_value: min,
-            max_value: max,
-            num_vals: self.val_count as u64,
-        };
-
         let fastfield_accessor = WriterFastFieldAccessProvider {
             doc_id_map,
             vals: &self.vals,
-            stats,
+            min_value: min,
+            max_value: max,
+            num_vals: self.val_count as u64,
         };
 
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
@@ -382,8 +377,11 @@ impl IntFastFieldWriter {
 struct WriterFastFieldAccessProvider<'map, 'bitp> {
     doc_id_map: Option<&'map DocIdMapping>,
     vals: &'bitp BlockedBitpacker,
-    stats: FastFieldStats,
+    min_value: u64,
+    max_value: u64,
+    num_vals: u64,
 }
+
 impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// Return the value associated to the given doc.
     ///
@@ -417,14 +415,14 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     }
 
     fn min_value(&self) -> u64 {
-        self.stats.min_value
+        self.min_value
     }
 
     fn max_value(&self) -> u64 {
-        self.stats.max_value
+        self.max_value
     }
 
     fn num_vals(&self) -> u64 {
-        self.stats.num_vals
+        self.num_vals
     }
 }

@@ -11,8 +11,7 @@ use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
-    AliveBitSet, Column, CompositeFastFieldSerializer, FastFieldStats, MultiValueLength,
-    MultiValuedFastFieldReader,
+    AliveBitSet, Column, CompositeFastFieldSerializer, MultiValueLength, MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -359,16 +358,13 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
 
-        let stats = FastFieldStats {
-            min_value,
-            max_value,
-            num_vals: doc_id_mapping.len() as u64,
-        };
         #[derive(Clone)]
         struct SortedDocIdFieldAccessProvider<'a> {
             doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<Arc<dyn Column<u64>>>,
-            stats: FastFieldStats,
+            min_value: u64,
+            max_value: u64,
+            num_vals: u64,
         }
         impl<'a> Column for SortedDocIdFieldAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
@@ -391,21 +387,23 @@ impl IndexMerger {
                 )
             }
             fn min_value(&self) -> u64 {
-                self.stats.min_value
+                self.min_value
             }
 
             fn max_value(&self) -> u64 {
-                self.stats.max_value
+                self.max_value
             }
 
             fn num_vals(&self) -> u64 {
-                self.stats.num_vals
+                self.num_vals
             }
         }
         let fastfield_accessor = SortedDocIdFieldAccessProvider {
             doc_id_mapping,
             fast_field_readers: &fast_field_readers,
-            stats,
+            min_value,
+            max_value,
+            num_vals: doc_id_mapping.len() as u64,
         };
         fast_field_serializer.create_auto_detect_u64_fast_field(field, fastfield_accessor)?;
 
@@ -705,17 +703,13 @@ impl IndexMerger {
         }
 
         // We can now initialize our serializer, and push it the different values
-        let stats = FastFieldStats {
-            max_value,
-            num_vals: num_vals as u64,
-            min_value,
-        };
-
         struct SortedDocIdMultiValueAccessProvider<'a> {
             doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
             offsets: Vec<u64>,
-            stats: FastFieldStats,
+            min_value: u64,
+            max_value: u64,
+            num_vals: u64,
         }
         impl<'a> Column for SortedDocIdMultiValueAccessProvider<'a> {
             fn get_val(&self, pos: u64) -> u64 {
@@ -757,22 +751,24 @@ impl IndexMerger {
                 )
             }
             fn min_value(&self) -> u64 {
-                self.stats.min_value
+                self.min_value
             }
 
             fn max_value(&self) -> u64 {
-                self.stats.max_value
+                self.max_value
             }
 
             fn num_vals(&self) -> u64 {
-                self.stats.num_vals
+                self.num_vals
             }
         }
         let fastfield_accessor = SortedDocIdMultiValueAccessProvider {
             doc_id_mapping,
             fast_field_readers: &ff_readers,
             offsets,
-            stats,
+            min_value,
+            max_value,
+            num_vals: num_vals as u64,
         };
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,

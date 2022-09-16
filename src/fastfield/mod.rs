@@ -30,7 +30,7 @@ pub(crate) use self::multivalued::MultivalueStartIndex;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
-pub use self::serializer::{Column, CompositeFastFieldSerializer, FastFieldStats};
+pub use self::serializer::{Column, CompositeFastFieldSerializer};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
 use crate::{DateTime, DocId};
