@@ -30,7 +30,6 @@ mod serialize;
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::compact_space::ip_to_u128;
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
 pub use self::serialize::{

@@ -14,7 +14,6 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     io::{self, Write},
-    net::{IpAddr, Ipv6Addr},
     ops::RangeInclusive,
 };
 
@@ -27,14 +26,6 @@ use crate::Column;
 
 mod blank_range;
 mod build_compact_space;
-
-pub fn ip_to_u128(ip_addr: IpAddr) -> u128 {
-    let ip_addr_v6: Ipv6Addr = match ip_addr {
-        IpAddr::V4(v4) => v4.to_ipv6_mapped(),
-        IpAddr::V6(v6) => v6,
-    };
-    u128::from_be_bytes(ip_addr_v6.octets())
-}
 
 /// The cost per blank is quite hard actually, since blanks are delta encoded, the actual cost of
 /// blanks depends on the number of blanks.
