@@ -28,6 +28,7 @@ use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
+use crate::compact_space::CompactSpaceCompressor;
 use crate::linear::LinearCodec;
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
@@ -141,6 +142,19 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
     }
 }
 
+pub fn serialize_u128(
+    typed_column: impl Column<u128>,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    // TODO write header, to later support more codecs
+    let compressor = CompactSpaceCompressor::train_from(&typed_column);
+    compressor
+        .compress_into(typed_column.iter(), output)
+        .unwrap();
+
+    Ok(())
+}
+
 pub fn serialize<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
@@ -215,7 +229,7 @@ pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
     column: &[T],
 ) -> Arc<dyn Column<T>> {
     let mut buffer = Vec::new();
-    super::serialize(VecColumn::from(column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
+    super::serialize(VecColumn::from(&column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
     super::open(OwnedBytes::new(buffer)).unwrap()
 }
 

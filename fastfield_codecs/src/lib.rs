@@ -12,11 +12,13 @@ use std::io::Write;
 use std::sync::Arc;
 
 use common::BinarySerializable;
+use compact_space::CompactSpaceDecompressor;
 use ownedbytes::OwnedBytes;
 use serialize::Header;
 
 mod bitpacked;
 mod blockwise_linear;
+mod compact_space;
 mod line;
 mod linear;
 mod monotonic_mapping;
@@ -30,8 +32,9 @@ use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
-use self::serialize::NormalizedHeader;
-pub use self::serialize::{estimate, serialize, serialize_and_load};
+pub use self::serialize::{
+    estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
+};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -67,6 +70,11 @@ impl FastFieldCodecType {
             _ => None,
         }
     }
+}
+
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<u128>>> {
+    Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
@@ -328,123 +336,5 @@ mod tests {
             }
         }
         assert_eq!(count_codec, 3);
-    }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-    use std::sync::Arc;
-
-    use rand::prelude::*;
-    use test::{self, Bencher};
-
-    use crate::Column;
-
-    // Warning: this generates the same permutation at each call
-    fn generate_permutation() -> Vec<u64> {
-        let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
-        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        permutation
-    }
-
-    // Warning: this generates the same permutation at each call
-    fn generate_permutation_gcd() -> Vec<u64> {
-        let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();
-        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        permutation
-    }
-
-    #[bench]
-    fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        b.iter(|| {
-            let mut a = 0u64;
-            for _ in 0..n {
-                a = permutation[a as usize];
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_jumpy_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for _ in 0..n {
-                a = column.get_val(a as u64);
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in (0..n / 7).map(|val| val * 7) {
-                a += permutation[i as usize];
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_stride7_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in (0..n / 7).map(|val| val * 7) {
-                a += column.get_val(i as u64);
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0u64..n as u64 {
-                a += column.get_val(i);
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_scan_all_fflookup_gcd(b: &mut Bencher) {
-        let permutation = generate_permutation_gcd();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0..n as u64 {
-                a += column.get_val(i);
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0..permutation.len() {
-                a += permutation[i as usize] as u64;
-            }
-            a
-        });
     }
 }
