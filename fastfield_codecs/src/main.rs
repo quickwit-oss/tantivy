@@ -6,9 +6,7 @@ use std::io::BufRead;
 use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
 
-use fastfield_codecs::{
-    open_u128, serialize_u128, Column, FastFieldCodecType, FastFieldStats, VecColumn,
-};
+use fastfield_codecs::{open_u128, serialize_u128, Column, FastFieldCodecType, VecColumn};
 use itertools::Itertools;
 use measure_time::print_time;
 use ownedbytes::OwnedBytes;
