@@ -192,7 +192,7 @@ impl TermDictionary {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
 
-    /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
+    /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
         self.range().into_stream()
     }
