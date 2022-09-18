@@ -24,7 +24,7 @@ where TScore: Clone + PartialOrd
 /// A custom segment scorer makes it possible to define any kind of score
 /// for a given document belonging to a specific segment.
 ///
-/// It is the segment local version of the [`CustomScorer`](./trait.CustomScorer.html).
+/// It is the segment local version of the [`CustomScorer`].
 pub trait CustomSegmentScorer<TScore>: 'static {
     /// Computes the score of a specific `doc`.
     fn score(&mut self, doc: DocId) -> TScore;
@@ -36,7 +36,7 @@ pub trait CustomSegmentScorer<TScore>: 'static {
 /// Instead, it helps constructing `Self::Child` instances that will compute
 /// the score at a segment scale.
 pub trait CustomScorer<TScore>: Sync {
-    /// Type of the associated [`CustomSegmentScorer`](./trait.CustomSegmentScorer.html).
+    /// Type of the associated [`CustomSegmentScorer`].
     type Child: CustomSegmentScorer<TScore>;
     /// Builds a child scorer for a specific segment. The child scorer is associated to
     /// a specific segment.

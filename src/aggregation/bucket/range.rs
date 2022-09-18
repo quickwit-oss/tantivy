@@ -22,14 +22,14 @@ use crate::{DocId, TantivyError};
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
 ///
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [RangeBucketEntry](crate::aggregation::agg_result::RangeBucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`RangeBucketEntry`](crate::aggregation::agg_result::RangeBucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [IntermediateBucketResult](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
-/// [IntermediateRangeBucketEntry](crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry) on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateRangeBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 /// Overlapping ranges are not yet supported.
@@ -67,11 +67,11 @@ pub struct RangeAggregationRange {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub key: Option<String>,
     /// The from range value, which is inclusive in the range.
-    /// None equals to an open ended interval.
+    /// `None` equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub from: Option<f64>,
     /// The to range value, which is not inclusive in the range.
-    /// None equals to an open ended interval.
+    /// `None` equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub to: Option<f64>,
 }
@@ -101,7 +101,7 @@ impl From<Range<f64>> for RangeAggregationRange {
 pub(crate) struct InternalRangeAggregationRange {
     /// Custom key for the range bucket
     key: Option<String>,
-    /// u64 range value
+    /// `u64` range value
     range: Range<u64>,
 }
 
@@ -131,9 +131,9 @@ pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
     pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
-    /// The from range of the bucket. Equals f64::MIN when None.
+    /// The from range of the bucket. Equals `f64::MIN` when `None`.
     pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None. Open interval, `to` is not
+    /// The to range of the bucket. Equals `f64::MAX` when `None`. Open interval, `to` is not
     /// inclusive.
     pub to: Option<f64>,
 }
@@ -261,7 +261,7 @@ impl SegmentRangeCollector {
         let accessor = bucket_with_accessor
             .accessor
             .as_single()
-            .expect("unexpected fast field cardinatility");
+            .expect("unexpected fast field cardinality");
         for docs in iter.by_ref() {
             let val1 = accessor.get_val(docs[0] as u64);
             let val2 = accessor.get_val(docs[1] as u64);

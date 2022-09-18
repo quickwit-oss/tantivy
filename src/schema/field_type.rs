@@ -103,7 +103,7 @@ impl Type {
     }
 
     /// Interprets a 1byte code as a type.
-    /// Returns None if the code is invalid.
+    /// Returns `None` if the code is invalid.
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             b's' => Some(Type::Str),

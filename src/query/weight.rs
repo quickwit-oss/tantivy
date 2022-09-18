@@ -19,7 +19,7 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 /// Calls `callback` with all of the `(doc, score)` for which score
 /// is exceeding a given threshold.
 ///
-/// This method is useful for the TopDocs collector.
+/// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
 /// For all docsets, the blanket implementation has the benefit
 /// of prefiltering (doc, score) pairs, avoiding the
 /// virtual dispatch cost.
@@ -44,21 +44,19 @@ pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
 /// A Weight is the specialization of a `Query`
 /// for a given set of segments.
 ///
-/// See [`Query`].
-///
-/// [`Query`]: crate::query::Query
+/// See [`Query`](crate::query::Query).
 pub trait Weight: Send + Sync + 'static {
     /// Returns the scorer for the given segment.
     ///
     /// `boost` is a multiplier to apply to the score.
     ///
-    /// See [`Query`](./trait.Query.html).
+    /// See [`Query`](crate::query::Query).
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
 
-    /// Returns an `Explanation` for the given document.
+    /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
-    /// Returns the number documents within the given `SegmentReader`.
+    /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if let Some(alive_bitset) = reader.alive_bitset() {
@@ -83,7 +81,7 @@ pub trait Weight: Send + Sync + 'static {
     /// Calls `callback` with all of the `(doc, score)` for which score
     /// is exceeding a given threshold.
     ///
-    /// This method is useful for the TopDocs collector.
+    /// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
     /// For all docsets, the blanket implementation has the benefit
     /// of prefiltering (doc, score) pairs, avoiding the
     /// virtual dispatch cost.

@@ -37,14 +37,14 @@ use crate::{DocId, TantivyError};
 /// [hard_bounds](HistogramAggregation::hard_bounds).
 ///
 /// # Result
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [BucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`BucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [IntermediateBucketResult](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
-/// [IntermediateHistogramBucketEntry](crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry) on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateHistogramBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 ///
@@ -61,7 +61,7 @@ use crate::{DocId, TantivyError};
 /// ```
 ///
 /// Response
-/// See [BucketEntry](crate::aggregation::agg_result::BucketEntry)
+/// See [`BucketEntry`](crate::aggregation::agg_result::BucketEntry)
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HistogramAggregation {
@@ -518,7 +518,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
 
 /// Applies req extended_bounds/hard_bounds on the min_max value
 ///
-/// May return (f64::MAX, f64::MIN), if there is no range.
+/// May return `(f64::MAX, f64::MIN)`, if there is no range.
 fn get_req_min_max(req: &HistogramAggregation, min_max: Option<(f64, f64)>) -> (f64, f64) {
     let (mut min, mut max) = min_max.unwrap_or((f64::MAX, f64::MIN));
 

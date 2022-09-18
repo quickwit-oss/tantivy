@@ -113,14 +113,14 @@ pub enum BucketResult {
         ///
         /// If there are holes depends on the request, if min_doc_count is 0, then there are no
         /// holes between the first and last bucket.
-        /// See [HistogramAggregation](super::bucket::HistogramAggregation)
+        /// See [`HistogramAggregation`](super::bucket::HistogramAggregation)
         buckets: BucketEntries<BucketEntry>,
     },
     /// This is the term result
     Terms {
         /// The buckets.
         ///
-        /// See [TermsAggregation](super::bucket::TermsAggregation)
+        /// See [`TermsAggregation`](super::bucket::TermsAggregation)
         buckets: Vec<BucketEntry>,
         /// The number of documents that didn’t make it into to TOP N due to shard_size or size
         sum_other_doc_count: u64,
@@ -234,10 +234,10 @@ pub struct RangeBucketEntry {
     #[serde(flatten)]
     /// sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
-    /// The from range of the bucket. Equals f64::MIN when None.
+    /// The from range of the bucket. Equals `f64::MIN` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None.
+    /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
 }

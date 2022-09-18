@@ -124,7 +124,7 @@ impl IndexReaderBuilder {
         self
     }
 
-    /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    /// Set the [`Warmer`]s that are invoked when reloading searchable segments.
     #[must_use]
     pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
         self.warmers = warmers;

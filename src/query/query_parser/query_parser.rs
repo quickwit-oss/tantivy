@@ -113,8 +113,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// The language covered by the current parser is extremely simple.
 ///
 /// * simple terms: "e.g.: `Barack Obama` are simply tokenized using tantivy's
-///   [`SimpleTokenizer`](../tokenizer/struct.SimpleTokenizer.html), hence becoming `["barack",
-///   "obama"]`. The terms are then searched within the default terms of the query parser.
+///   [`SimpleTokenizer`](crate::tokenizer::SimpleTokenizer), hence becoming `["barack", "obama"]`.
+///   The terms are then searched within the default terms of the query parser.
 ///
 ///   e.g. If `body` and `title` are default fields, our example terms are
 ///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
@@ -166,8 +166,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// devops. Negative boosts are not allowed.
 ///
 /// It is also possible to define a boost for a some specific field, at the query parser level.
-/// (See [`set_boost(...)`](#method.set_field_boost) ). Typically you may want to boost a title
-/// field.
+/// (See [`set_field_boost(...)`](QueryParser::set_field_boost)). Typically you may want to boost a
+/// title field.
 ///
 /// Phrase terms support the `~` slop operator which allows to set the phrase's matching
 /// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
