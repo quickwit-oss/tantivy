@@ -13,15 +13,17 @@ use crate::DocId;
 /// This `BytesFastFieldWriter` is only useful for advanced users.
 /// The normal way to get your associated bytes in your index
 /// is to
-/// - declare your field with fast set to `Cardinality::SingleValue`
+/// - declare your field with fast set to
+/// [`Cardinality::SingleValue`](crate::schema::Cardinality::SingleValue)
 /// in your schema
 /// - add your document simply by calling `.add_document(...)` with associating bytes to the field.
 ///
 /// The `BytesFastFieldWriter` can be acquired from the
 /// fast field writer by calling
-/// [`.get_bytes_writer(...)`](./struct.FastFieldsWriter.html#method.get_bytes_writer).
+/// [`.get_bytes_writer_mut(...)`](crate::fastfield::FastFieldsWriter::get_bytes_writer_mut).
 ///
-/// Once acquired, writing is done by calling `.add_document_val(&[u8])`
+/// Once acquired, writing is done by calling
+/// [`.add_document_val(&[u8])`](BytesFastFieldWriter::add_document_val)
 /// once per document, even if there are no bytes associated to it.
 pub struct BytesFastFieldWriter {
     field: Field,

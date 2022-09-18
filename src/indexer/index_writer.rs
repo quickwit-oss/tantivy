@@ -31,7 +31,7 @@ pub const MARGIN_IN_BYTES: usize = 1_000_000;
 pub const MEMORY_ARENA_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
 pub const MEMORY_ARENA_NUM_BYTES_MAX: usize = u32::MAX as usize - MARGIN_IN_BYTES;
 
-// We impose the number of index writer thread to be at most this.
+// We impose the number of index writer threads to be at most this.
 pub const MAX_NUM_THREAD: usize = 8;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
@@ -40,7 +40,7 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 fn error_in_index_worker_thread(context: &str) -> TantivyError {
     TantivyError::ErrorInThread(format!(
-        "{}. A worker thread encounterred an error (io::Error most likely) or panicked.",
+        "{}. A worker thread encountered an error (io::Error most likely) or panicked.",
         context
     ))
 }
@@ -49,7 +49,7 @@ fn error_in_index_worker_thread(context: &str) -> TantivyError {
 ///
 /// It manages a small number of indexing thread, as well as a shared
 /// indexing queue.
-/// Each indexing thread builds its own independent `Segment`, via
+/// Each indexing thread builds its own independent [`Segment`], via
 /// a `SegmentWriter` object.
 pub struct IndexWriter {
     // the lock is just used to bind the
@@ -385,8 +385,8 @@ impl IndexWriter {
             .operation_receiver()
             .ok_or_else(|| {
                 crate::TantivyError::ErrorInThread(
-                    "The index writer was killed. It can happen if an indexing worker \
-                     encounterred an Io error for instance."
+                    "The index writer was killed. It can happen if an indexing worker encountered \
+                     an Io error for instance."
                         .to_string(),
                 )
             })
@@ -595,14 +595,14 @@ impl IndexWriter {
     /// * `.commit()`: to accept this commit
     /// * `.abort()`: to cancel this commit.
     ///
-    /// In the current implementation, `PreparedCommit` borrows
-    /// the `IndexWriter` mutably so we are guaranteed that no new
+    /// In the current implementation, [`PreparedCommit`] borrows
+    /// the [`IndexWriter`] mutably so we are guaranteed that no new
     /// document can be added as long as it is committed or is
     /// dropped.
     ///
     /// It is also possible to add a payload to the `commit`
     /// using this API.
-    /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
+    /// See [`PreparedCommit::set_payload()`].
     pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been

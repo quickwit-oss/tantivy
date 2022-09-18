@@ -72,7 +72,7 @@ impl PhraseQuery {
         self.slop = value;
     }
 
-    /// The `Field` this `PhraseQuery` is targeting.
+    /// The [`Field`] this `PhraseQuery` is targeting.
     pub fn field(&self) -> Field {
         self.field
     }
@@ -85,10 +85,10 @@ impl PhraseQuery {
             .collect::<Vec<Term>>()
     }
 
-    /// Returns the `PhraseWeight` for the given phrase query given a specific `searcher`.
+    /// Returns the [`PhraseWeight`] for the given phrase query given a specific `searcher`.
     ///
-    /// This function is the same as `.weight(...)` except it returns
-    /// a specialized type `PhraseWeight` instead of a Boxed trait.
+    /// This function is the same as [`Query::weight()`] except it returns
+    /// a specialized type [`PhraseWeight`] instead of a Boxed trait.
     pub(crate) fn phrase_weight(
         &self,
         searcher: &Searcher,
@@ -121,7 +121,7 @@ impl PhraseQuery {
 impl Query for PhraseQuery {
     /// Create the weight associated to a query.
     ///
-    /// See [`Weight`](./trait.Weight.html).
+    /// See [`Weight`].
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
         let phrase_weight = self.phrase_weight(searcher, scoring_enabled)?;
         Ok(Box::new(phrase_weight))

@@ -56,10 +56,10 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct CacheCounters {
-    // Number of time the cache prevents to call `mmap`
+    /// Number of time the cache prevents to call `mmap`
     pub hit: usize,
-    // Number of time tantivy had to call `mmap`
-    // as no entry was in the cache.
+    /// Number of time tantivy had to call `mmap`
+    /// as no entry was in the cache.
     pub miss: usize,
 }
 

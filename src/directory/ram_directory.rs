@@ -15,7 +15,7 @@ use crate::directory::{
     WatchHandle, WritePtr,
 };
 
-/// Writer associated with the `RamDirectory`
+/// Writer associated with the [`RamDirectory`].
 ///
 /// The Writer just writes a buffer.
 struct VecWriter {
@@ -137,17 +137,17 @@ impl RamDirectory {
     }
 
     /// Returns the sum of the size of the different files
-    /// in the RamDirectory.
+    /// in the [`RamDirectory`].
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
     }
 
-    /// Write a copy of all of the files saved in the RamDirectory in the target `Directory`.
+    /// Write a copy of all of the files saved in the [`RamDirectory`] in the target [`Directory`].
     ///
-    /// Files are all written using the `Directory::write` meaning, even if they were
-    /// written using the `atomic_write` api.
+    /// Files are all written using the [`Directory::open_write()`] meaning, even if they were
+    /// written using the [`Directory::atomic_write()`] api.
     ///
-    /// If an error is encounterred, files may be persisted partially.
+    /// If an error is encountered, files may be persisted partially.
     pub fn persist(&self, dest: &dyn Directory) -> crate::Result<()> {
         let wlock = self.fs.write().unwrap();
         for (path, file) in wlock.fs.iter() {

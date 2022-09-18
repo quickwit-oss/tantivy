@@ -8,8 +8,8 @@ use once_cell::sync::Lazy;
 /// [`LockParams`](./enum.LockParams.html).
 /// Tantivy itself uses only two locks but client application
 /// can use the directory facility to define their own locks.
-/// - [INDEX_WRITER_LOCK]
-/// - [META_LOCK]
+/// - [`INDEX_WRITER_LOCK`]
+/// - [`META_LOCK`]
 ///
 /// Check out these locks documentation for more information.
 #[derive(Debug)]
@@ -30,7 +30,8 @@ pub struct Lock {
 }
 
 /// Only one process should be able to write tantivy's index at a time.
-/// This lock file, when present, is in charge of preventing other processes to open an IndexWriter.
+/// This lock file, when present, is in charge of preventing other processes to open an
+/// `IndexWriter`.
 ///
 /// If the process is killed and this file remains, it is safe to remove it manually.
 ///

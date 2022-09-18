@@ -67,10 +67,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// (e.g. `/category/fiction`, `/category/biography`, `/category/personal_development`).
 ///
 /// Once collection is finished, you can harvest its results in the form
-/// of a `FacetCounts` object, and extract your face                t counts from it.
+/// of a [`FacetCounts`] object, and extract your facet counts from it.
 ///
 /// This implementation assumes you are working with a number of facets that
-/// is much hundreds of time lower than your number of documents.
+/// is many hundreds of times smaller than your number of documents.
 ///
 ///
 /// ```rust
@@ -231,7 +231,7 @@ impl FacetCollector {
     ///
     /// Adding two facets within which one is the prefix of the other is forbidden.
     /// If you need the correct number of unique documents for two such facets,
-    /// just add them in separate `FacetCollector`.
+    /// just add them in a separate `FacetCollector`.
     pub fn add_facet<T>(&mut self, facet_from: T)
     where Facet: From<T> {
         let facet = Facet::from(facet_from);
@@ -391,7 +391,7 @@ impl<'a> Iterator for FacetChildIterator<'a> {
 
 impl FacetCounts {
     /// Returns an iterator over all of the facet count pairs inside this result.
-    /// See the documentation for [FacetCollector] for a usage example.
+    /// See the documentation for [`FacetCollector`] for a usage example.
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where Facet: From<T> {
         let facet = Facet::from(facet_from);
@@ -410,7 +410,7 @@ impl FacetCounts {
     }
 
     /// Returns a vector of top `k` facets with their counts, sorted highest-to-lowest by counts.
-    /// See the documentation for [FacetCollector] for a usage example.
+    /// See the documentation for [`FacetCollector`] for a usage example.
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
     where Facet: From<T> {
         let mut heap = BinaryHeap::with_capacity(k);

@@ -152,7 +152,7 @@ pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///
-/// Tokenizer are in charge of not emitting tokens larger than this value.
+/// Tokenizers are in charge of not emitting tokens larger than this value.
 /// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
 /// `2^16 - 1 - 5`, the token will simply be ignored downstream.
 pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;

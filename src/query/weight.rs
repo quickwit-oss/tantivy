@@ -41,10 +41,12 @@ pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
-/// A Weight is the specialization of a Query
+/// A Weight is the specialization of a `Query`
 /// for a given set of segments.
 ///
-/// See [`Query`](./trait.Query.html).
+/// See [`Query`].
+///
+/// [`Query`]: crate::query::Query
 pub trait Weight: Send + Sync + 'static {
     /// Returns the scorer for the given segment.
     ///
