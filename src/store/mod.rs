@@ -27,8 +27,7 @@
 //!
 //! - at the segment level, the
 //! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
-//! - at the index level, the
-//! [`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
+//! - at the index level, the [`Searcher::doc()`](crate::Searcher::doc) method
 //!
 //! !
 

@@ -82,7 +82,7 @@ impl Searcher {
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the
-    /// the request to the right `Segment`.
+    /// request to the right `Segment`.
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)

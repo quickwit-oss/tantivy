@@ -95,7 +95,7 @@ called [`Directory`](src/directory/directory.rs).
 Contrary to Lucene however, "files" are quite different from some kind of `io::Read` object.
 Check out [`src/directory/directory.rs`](src/directory/directory.rs) trait for more details.
 
-Tantivy ships two main directory implementation: the `MMapDirectory` and the `RAMDirectory`,
+Tantivy ships two main directory implementation: the `MmapDirectory` and the `RamDirectory`,
 but users can extend tantivy with their own implementation.
 
 ## [schema/](src/schema): What are documents?

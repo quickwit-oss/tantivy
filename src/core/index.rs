@@ -78,8 +78,8 @@ fn save_new_metas(
 
 /// IndexBuilder can be used to create an index.
 ///
-/// Use in conjunction with `SchemaBuilder`. Global index settings
-/// can be configured with `IndexSettings`
+/// Use in conjunction with [`SchemaBuilder`][crate::schema::SchemaBuilder].
+/// Global index settings can be configured with [`IndexSettings`].
 ///
 /// # Examples
 ///
@@ -97,7 +97,13 @@ fn save_new_metas(
 /// );
 ///
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc}), ..Default::default()};
+/// let settings = IndexSettings{
+///     sort_by_field: Some(IndexSortByField{
+///         field: "number".to_string(),
+///         order: Order::Asc
+///     }),
+///     ..Default::default()
+/// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 /// ```
 pub struct IndexBuilder {
@@ -140,7 +146,7 @@ impl IndexBuilder {
         self
     }
 
-    /// Creates a new index using the `RAMDirectory`.
+    /// Creates a new index using the [`RamDirectory`].
     ///
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
@@ -148,13 +154,14 @@ impl IndexBuilder {
         let ram_directory = RamDirectory::create();
         Ok(self
             .create(ram_directory)
-            .expect("Creating a RAMDirectory should never fail"))
+            .expect("Creating a RamDirectory should never fail"))
     }
 
     /// Creates a new index in a given filepath.
-    /// The index will use the `MMapDirectory`.
+    /// The index will use the [`MmapDirectory`].
     ///
-    /// If a previous index was in this directory, it returns an `IndexAlreadyExists` error.
+    /// If a previous index was in this directory, it returns an
+    /// [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
@@ -185,12 +192,13 @@ impl IndexBuilder {
 
     /// Creates a new index in a temp directory.
     ///
-    /// The index will use the `MMapDirectory` in a newly created directory.
-    /// The temp directory will be destroyed automatically when the `Index` object
+    /// The index will use the [`MmapDirectory`] in a newly created directory.
+    /// The temp directory will be destroyed automatically when the [`Index`] object
     /// is destroyed.
     ///
-    /// The temp directory is only used for testing the `MmapDirectory`.
-    /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
+    /// The temp directory is only used for testing the [`MmapDirectory`].
+    /// For other unit tests, prefer the [`RamDirectory`], see:
+    /// [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(self) -> crate::Result<Index> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
@@ -286,7 +294,7 @@ impl Index {
         self.set_multithread_executor(default_num_threads)
     }
 
-    /// Creates a new index using the `RamDirectory`.
+    /// Creates a new index using the [`RamDirectory`].
     ///
     /// The index will be allocated in anonymous memory.
     /// This is useful for indexing small set of documents
@@ -296,9 +304,10 @@ impl Index {
     }
 
     /// Creates a new index in a given filepath.
-    /// The index will use the `MMapDirectory`.
+    /// The index will use the [`MmapDirectory`].
     ///
-    /// If a previous index was in this directory, then it returns  an `IndexAlreadyExists` error.
+    /// If a previous index was in this directory, then it returns
+    /// a [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(
         directory_path: P,
@@ -320,12 +329,13 @@ impl Index {
 
     /// Creates a new index in a temp directory.
     ///
-    /// The index will use the `MMapDirectory` in a newly created directory.
-    /// The temp directory will be destroyed automatically when the `Index` object
+    /// The index will use the [`MmapDirectory`] in a newly created directory.
+    /// The temp directory will be destroyed automatically when the [`Index`] object
     /// is destroyed.
     ///
-    /// The temp directory is only used for testing the `MmapDirectory`.
-    /// For other unit tests, prefer the `RamDirectory`, see: `create_in_ram`.
+    /// The temp directory is only used for testing the [`MmapDirectory`].
+    /// For other unit tests, prefer the [`RamDirectory`],
+    /// see: [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
         IndexBuilder::new().schema(schema).create_from_tempdir()
@@ -345,7 +355,7 @@ impl Index {
         builder.create(dir)
     }
 
-    /// Creates a new index given a directory and an `IndexMeta`.
+    /// Creates a new index given a directory and an [`IndexMeta`].
     fn open_from_metas(
         directory: ManagedDirectory,
         metas: &IndexMeta,
@@ -372,7 +382,7 @@ impl Index {
         &self.tokenizers
     }
 
-    /// Helper to access the tokenizer associated to a specific field.
+    /// Get the tokenizer associated with a specific field.
     pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -404,14 +414,14 @@ impl Index {
             })
     }
 
-    /// Create a default `IndexReader` for the given index.
+    /// Create a default [`IndexReader`] for the given index.
     ///
-    /// See [`Index.reader_builder()`](#method.reader_builder).
+    /// See [`Index.reader_builder()`].
     pub fn reader(&self) -> crate::Result<IndexReader> {
         self.reader_builder().try_into()
     }
 
-    /// Create a `IndexReader` for the given index.
+    /// Create a [`IndexReader`] for the given index.
     ///
     /// Most project should create at most one reader for a given index.
     /// This method is typically called only once per `Index` instance.

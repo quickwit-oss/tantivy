@@ -36,8 +36,7 @@ fn main() -> tantivy::Result<()> {
     // need to be able to be able to retrieve it
     // for our application.
     //
-    // We can make our index lighter and
-    // by omitting `STORED` flag.
+    // We can make our index lighter by omitting the `STORED` flag.
     let body = schema_builder.add_text_field("body", TEXT);
 
     let schema = schema_builder.build();

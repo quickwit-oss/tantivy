@@ -23,7 +23,7 @@ const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|
 /// Parses a field_name
 /// A field name must have at least one character and be followed by a colon.
 /// All characters are allowed including special characters `SPECIAL_CHARS`, but these
-/// need to be escaped with a backslack character '\'.
+/// need to be escaped with a backslash character '\'.
 fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
     static ESCAPED_SPECIAL_CHARS_RE: Lazy<Regex> =
         Lazy::new(|| Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap());
@@ -68,7 +68,7 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
 ///
 /// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
 /// We delegate rejecting such invalid dates to the logical AST computation code
-/// which invokes time::OffsetDateTime::parse(..., &Rfc3339) on the value to actually parse
+/// which invokes `time::OffsetDateTime::parse(..., &Rfc3339)` on the value to actually parse
 /// it (instead of merely extracting the datetime value as string as done here).
 fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
     let two_digits = || recognize::<String, _, _>((digit(), digit()));
