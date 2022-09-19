@@ -4,8 +4,10 @@ use once_cell::sync::Lazy;
 
 /// A directory lock.
 ///
-/// A lock is associated to a specific path and some
-/// [`LockParams`](./enum.LockParams.html).
+/// A lock is associated with a specific path.
+///
+/// The lock will be passed to [`Directory::acquire_lock`](crate::Directory::acquire_lock).
+///
 /// Tantivy itself uses only two locks but client application
 /// can use the directory facility to define their own locks.
 /// - [`INDEX_WRITER_LOCK`]
@@ -18,12 +20,13 @@ pub struct Lock {
     /// Depending on the platform, the lock might rely on the creation
     /// and deletion of this filepath.
     pub filepath: PathBuf,
-    /// `lock_params` describes whether acquiring the lock is meant
+    /// `is_blocking` describes whether acquiring the lock is meant
     /// to be a blocking operation or a non-blocking.
     ///
     /// Acquiring a blocking lock blocks until the lock is
     /// available.
-    /// Acquiring a blocking lock returns rapidly, either successfully
+    ///
+    /// Acquiring a non-blocking lock returns rapidly, either successfully
     /// or with an error signifying that someone is already holding
     /// the lock.
     pub is_blocking: bool,
