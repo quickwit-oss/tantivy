@@ -254,10 +254,7 @@ mod tests {
 
         let make_op = |i: usize| {
             let field = Field::from_field_id(1u32);
-            DeleteOperation {
-                opstamp: i as u64,
-                term: Term::from_field_u64(field, i as u64),
-            }
+            DeleteOperation::new(i as u64, Term::from_field_u64(field, i as u64))
         };
 
         delete_queue.push(make_op(1));

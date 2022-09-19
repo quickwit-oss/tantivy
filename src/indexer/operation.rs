@@ -1,19 +1,35 @@
+use itertools::Either;
+
+use crate::query::Weight;
 use crate::schema::{Document, Term};
 use crate::Opstamp;
 
 /// Timestamped Delete operation.
-#[derive(Clone, Eq, PartialEq, Debug)]
+//#[derive(Clone, Debug)]
 pub struct DeleteOperation {
     pub opstamp: Opstamp,
-    pub term: Term,
+    pub term: Either<Term, Box<dyn Weight>>,
+}
+
+impl DeleteOperation {
+    pub fn new(opstamp: Opstamp, term: Term) -> Self {
+        DeleteOperation {
+            opstamp,
+            term: Either::Left(term),
+        }
+    }
+
+    pub fn new_for_query(opstamp: Opstamp, weight: Box<dyn Weight>) -> Self {
+        DeleteOperation {
+            opstamp,
+            term: Either::Right(weight),
+        }
+    }
 }
 
 impl Default for DeleteOperation {
     fn default() -> Self {
-        DeleteOperation {
-            opstamp: 0u64,
-            term: Term::new(),
-        }
+        DeleteOperation::new(0, Term::new())
     }
 }
 
