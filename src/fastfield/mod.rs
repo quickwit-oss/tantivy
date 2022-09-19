@@ -32,7 +32,7 @@ pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{Column, CompositeFastFieldSerializer};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::schema::{Cardinality, FieldType, Type, Value};
+use crate::schema::{Type, Value};
 use crate::{DateTime, DocId};
 
 mod alive_bitset;
@@ -58,12 +58,6 @@ pub trait MultiValueLength {
 pub trait FastValue:
     MonotonicallyMappableToU64 + Copy + Send + Sync + PartialOrd + 'static
 {
-    /// Returns the fast field cardinality that can be extracted from the given
-    /// `FieldType`.
-    ///
-    /// If the type is not a fast field, `None` is returned.
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality>;
-
     /// Returns the `schema::Type` for this FastValue.
     fn to_type() -> Type;
 
@@ -75,53 +69,24 @@ pub trait FastValue:
 }
 
 impl FastValue for u64 {
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            FieldType::Facet(_) => Some(Cardinality::MultiValues),
-            _ => None,
-        }
-    }
-
     fn to_type() -> Type {
         Type::U64
     }
 }
 
 impl FastValue for i64 {
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::I64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
     fn to_type() -> Type {
         Type::I64
     }
 }
 
 impl FastValue for f64 {
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::F64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
     fn to_type() -> Type {
         Type::F64
     }
 }
 
 impl FastValue for bool {
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::Bool(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
     fn to_type() -> Type {
         Type::Bool
     }
@@ -139,16 +104,6 @@ impl MonotonicallyMappableToU64 for DateTime {
 }
 
 impl FastValue for DateTime {
-    /// Converts a timestamp microseconds into DateTime.
-    ///
-    /// **Note the timestamps is expected to be in microseconds.**
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::Date(ref options) => options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
     fn to_type() -> Type {
         Type::Date
     }
@@ -209,7 +164,7 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, Schema, SchemaBuilder, FAST, STRING, TEXT};
+    use crate::schema::{Cardinality, Document, Field, Schema, SchemaBuilder, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
