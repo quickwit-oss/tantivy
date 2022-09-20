@@ -4,7 +4,6 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use common::BitSet;
-use itertools::Either;
 use smallvec::smallvec;
 
 use super::operation::{AddOperation, UserOperation};
@@ -18,7 +17,7 @@ use crate::fastfield::write_alive_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::index_writer_status::IndexWriterStatus;
-use crate::indexer::operation::DeleteOperation;
+use crate::indexer::operation::{DeleteOperation, DeleteTarget};
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::Query;
@@ -95,8 +94,8 @@ fn compute_deleted_bitset(
 
         // A delete operation should only affect
         // document that were inserted before it.
-        match &delete_op.term {
-            Either::Left(term) => {
+        match &delete_op.target {
+            DeleteTarget::Term(term) => {
                 let inverted_index = segment_reader.inverted_index(term.field())?;
                 if let Some(mut docset) =
                     inverted_index.read_postings(term, IndexRecordOption::Basic)?
@@ -111,7 +110,7 @@ fn compute_deleted_bitset(
                     }
                 }
             }
-            Either::Right(query) => {
+            DeleteTarget::Query(query) => {
                 query.for_each(segment_reader, &mut |doc_matching_delete_query, _| {
                     if doc_opstamps.is_deleted(doc_matching_delete_query, delete_op.opstamp) {
                         alive_bitset.remove(doc_matching_delete_query);
@@ -683,7 +682,10 @@ impl IndexWriter {
     /// only after calling `commit()`.
     pub fn delete_term(&self, term: Term) -> Opstamp {
         let opstamp = self.stamper.stamp();
-        let delete_operation = DeleteOperation::new(opstamp, term);
+        let delete_operation = DeleteOperation {
+            opstamp,
+            target: DeleteTarget::Term(term),
+        };
         self.delete_queue.push(delete_operation);
         opstamp
     }
@@ -702,7 +704,10 @@ impl IndexWriter {
         let weight = query.weight(&self.index_reader.searcher(), false)?;
 
         let opstamp = self.stamper.stamp();
-        let delete_operation = DeleteOperation::new_for_query(opstamp, weight);
+        let delete_operation = DeleteOperation {
+            opstamp,
+            target: DeleteTarget::Query(weight),
+        };
         self.delete_queue.push(delete_operation);
         Ok(opstamp)
     }
@@ -776,7 +781,10 @@ impl IndexWriter {
         for (user_op, opstamp) in user_operations_it.zip(stamps) {
             match user_op {
                 UserOperation::Delete(term) => {
-                    let delete_operation = DeleteOperation::new(opstamp, term);
+                    let delete_operation = DeleteOperation {
+                        opstamp,
+                        target: DeleteTarget::Term(term),
+                    };
                     self.delete_queue.push(delete_operation);
                 }
                 UserOperation::Add(document) => {

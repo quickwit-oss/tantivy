@@ -246,6 +246,7 @@ impl DeleteCursor {
 mod tests {
 
     use super::{DeleteOperation, DeleteQueue};
+    use crate::indexer::operation::DeleteTarget;
     use crate::schema::{Field, Term};
 
     #[test]
@@ -254,7 +255,10 @@ mod tests {
 
         let make_op = |i: usize| {
             let field = Field::from_field_id(1u32);
-            DeleteOperation::new(i as u64, Term::from_field_u64(field, i as u64))
+            DeleteOperation {
+                opstamp: i as u64,
+                target: DeleteTarget::Term(Term::from_field_u64(field, i as u64)),
+            }
         };
 
         delete_queue.push(make_op(1));
