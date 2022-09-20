@@ -187,7 +187,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// effectively stored durably.
     fn sync_directory(&self) -> io::Result<()>;
 
-    /// Acquire a lock in the given directory.
+    /// Acquire a lock in the directory given in the [`Lock`].
     ///
     /// The method is blocking or not depending on the [`Lock`] object.
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {

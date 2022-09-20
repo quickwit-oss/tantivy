@@ -4,7 +4,9 @@ use std::{fmt, io};
 
 use crate::Version;
 
-/// Error while trying to acquire a directory lock.
+/// Error while trying to acquire a directory [lock](crate::directory::Lock).
+///
+/// This is returned from [`Directory::acquire_lock`](crate::Directory::acquire_lock).
 #[derive(Debug, Clone, Error)]
 pub enum LockError {
     /// Failed to acquired a lock as it is already held by another
