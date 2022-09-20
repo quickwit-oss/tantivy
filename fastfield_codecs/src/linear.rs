@@ -134,10 +134,11 @@ impl FastFieldCodec for LinearCodec {
 
         let line = Line::estimate(column, &sample_positions);
 
+        let mut column_reader = column.reader();
         let estimated_bit_width = sample_positions
             .into_iter()
             .map(|pos| {
-                let actual_value = column.get_val(pos);
+                let actual_value = column_reader.seek(pos);
                 let interpolated_val = line.eval(pos as u64);
                 actual_value.wrapping_sub(interpolated_val)
             })

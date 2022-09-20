@@ -74,17 +74,18 @@ impl Line {
 
     // Intercept is only computed from provided positions
     fn train_from(ys: &dyn Column, positions: impl Iterator<Item = u64>) -> Self {
-        let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
-            num_vals
+        let last_idx = if let Some(last_idx) = NonZeroU64::new(ys.num_vals() - 1) {
+            last_idx
         } else {
             return Line::default();
         };
 
-        let y0 = ys.get_val(0);
-        let y1 = ys.get_val(num_vals.get());
+        let mut ys_reader = ys.reader();
+        let y0 = ys_reader.seek(0);
+        let y1 = ys_reader.seek(last_idx.get());
 
         // We first independently pick our slope.
-        let slope = compute_slope(y0, y1, num_vals);
+        let slope = compute_slope(y0, y1, last_idx);
 
         // We picked our slope. Note that it does not have to be perfect.
         // Now we need to compute the best intercept.
@@ -114,9 +115,10 @@ impl Line {
             intercept: 0,
         };
         let heuristic_shift = y0.wrapping_sub(MID_POINT);
+        let mut ys_reader = ys.reader();
         line.intercept = positions
             .map(|pos| {
-                let y = ys.get_val(pos);
+                let y = ys_reader.seek(pos);
                 y.wrapping_sub(line.eval(pos))
             })
             .min_by_key(|&val| val.wrapping_sub(heuristic_shift))

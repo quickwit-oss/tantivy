@@ -1,9 +1,10 @@
+mod multivalue_start_index;
 mod reader;
 mod writer;
 
+pub(crate) use self::multivalue_start_index::MultivalueStartIndex;
 pub use self::reader::MultiValuedFastFieldReader;
 pub use self::writer::MultiValuedFastFieldWriter;
-pub(crate) use self::writer::MultivalueStartIndex;
 
 #[cfg(test)]
 mod tests {

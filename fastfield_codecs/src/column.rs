@@ -4,6 +4,11 @@ use std::ops::RangeInclusive;
 use tantivy_bitpacker::minmax;
 
 pub trait Column<T: PartialOrd = u64>: Send + Sync {
+    /// Return a `ColumnReader`.
+    fn reader(&self) -> Box<dyn ColumnReader<T> + '_> {
+        Box::new(ColumnReaderAdapter { column: self })
+    }
+
     /// Return the value associated to the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -11,6 +16,8 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// # Panics
     ///
     /// May panic if `idx` is greater than the column length.
+    ///
+    /// TODO remove to force people to use `.reader()`.
     fn get_val(&self, idx: u64) -> T;
 
     /// Fills an output buffer with the fast field values
@@ -60,8 +67,37 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     fn num_vals(&self) -> u64;
 
     /// Returns a iterator over the data
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
+    ///
+    /// TODO get rid of `.iter()` and extend ColumnReader instead.
+    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+    }
+}
+
+/// `ColumnReader` makes it possible to read forward through a column.
+///
+/// TODO add methods to make it possible to scan the column and replace `.iter()`
+pub trait ColumnReader<T = u64> {
+    fn seek(&mut self, idx: u64) -> T;
+}
+
+pub(crate) struct ColumnReaderAdapter<'a, C: ?Sized> {
+    column: &'a C,
+}
+
+impl<'a, C: ?Sized> From<&'a C> for ColumnReaderAdapter<'a, C> {
+    fn from(column: &'a C) -> Self {
+        ColumnReaderAdapter { column }
+    }
+}
+
+impl<'a, T, C: ?Sized> ColumnReader<T> for ColumnReaderAdapter<'a, C>
+where
+    C: Column<T>,
+    T: PartialOrd<T>,
+{
+    fn seek(&mut self, idx: u64) -> T {
+        self.column.get_val(idx)
     }
 }
 
@@ -88,7 +124,11 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
         (*self).num_vals()
     }
 
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
+    fn reader(&self) -> Box<dyn ColumnReader<T> + '_> {
+        (*self).reader()
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
         (*self).iter()
     }
 
@@ -193,8 +233,34 @@ where
         Box::new(self.from_column.iter().map(&self.monotonic_mapping))
     }
 
+    fn reader(&self) -> Box<dyn ColumnReader<Output> + '_> {
+        Box::new(MonotonicMappingColumnReader {
+            col_reader: ColumnReaderAdapter::from(&self.from_column),
+            monotonic_mapping: &self.monotonic_mapping,
+            intermdiary_type: PhantomData,
+        })
+    }
+
     // We voluntarily do not implement get_range as it yields a regression,
     // and we do not have any specialized implementation anyway.
+}
+
+struct MonotonicMappingColumnReader<'a, ColR, Transform, U> {
+    col_reader: ColR,
+    monotonic_mapping: &'a Transform,
+    intermdiary_type: PhantomData<U>,
+}
+
+impl<'a, U, V, ColR, Transform> ColumnReader<V>
+    for MonotonicMappingColumnReader<'a, ColR, Transform, U>
+where
+    ColR: ColumnReader<U> + 'a,
+    Transform: Fn(U) -> V,
+{
+    fn seek(&mut self, idx: u64) -> V {
+        let intermediary_value = self.col_reader.seek(idx);
+        (*self.monotonic_mapping)(intermediary_value)
+    }
 }
 
 pub struct IterColumn<T>(T);
