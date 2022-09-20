@@ -236,7 +236,7 @@ where B: AsRef<[u8]>
 
     /// Returns the `u64` value stored in a term.
     ///
-    /// Returns None if the term is not of the u64 type, or if the term byte representation
+    /// Returns `None` if the term is not of the u64 type, or if the term byte representation
     /// is invalid.
     pub fn as_u64(&self) -> Option<u64> {
         self.get_fast_type::<u64>()
@@ -258,7 +258,7 @@ where B: AsRef<[u8]>
 
     /// Returns the `i64` value stored in a term.
     ///
-    /// Returns None if the term is not of the i64 type, or if the term byte representation
+    /// Returns `None` if the term is not of the i64 type, or if the term byte representation
     /// is invalid.
     pub fn as_i64(&self) -> Option<i64> {
         self.get_fast_type::<i64>()
@@ -266,7 +266,7 @@ where B: AsRef<[u8]>
 
     /// Returns the `f64` value stored in a term.
     ///
-    /// Returns None if the term is not of the f64 type, or if the term byte representation
+    /// Returns `None` if the term is not of the f64 type, or if the term byte representation
     /// is invalid.
     pub fn as_f64(&self) -> Option<f64> {
         self.get_fast_type::<f64>()
@@ -274,7 +274,7 @@ where B: AsRef<[u8]>
 
     /// Returns the `bool` value stored in a term.
     ///
-    /// Returns None if the term is not of the bool type, or if the term byte representation
+    /// Returns `None` if the term is not of the bool type, or if the term byte representation
     /// is invalid.
     pub fn as_bool(&self) -> Option<bool> {
         self.get_fast_type::<bool>()
@@ -282,7 +282,7 @@ where B: AsRef<[u8]>
 
     /// Returns the `Date` value stored in a term.
     ///
-    /// Returns None if the term is not of the Date type, or if the term byte representation
+    /// Returns `None` if the term is not of the Date type, or if the term byte representation
     /// is invalid.
     pub fn as_date(&self) -> Option<DateTime> {
         self.get_fast_type::<DateTime>()
@@ -290,7 +290,7 @@ where B: AsRef<[u8]>
 
     /// Returns the text associated with the term.
     ///
-    /// Returns None if the field is not of string type
+    /// Returns `None` if the field is not of string type
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
         if self.as_slice().len() < 5 {
@@ -304,7 +304,7 @@ where B: AsRef<[u8]>
 
     /// Returns the facet associated with the term.
     ///
-    /// Returns None if the field is not of facet type
+    /// Returns `None` if the field is not of facet type
     /// or if the bytes are not valid utf-8.
     pub fn as_facet(&self) -> Option<Facet> {
         if self.as_slice().len() < 5 {
@@ -319,7 +319,7 @@ where B: AsRef<[u8]>
 
     /// Returns the bytes associated with the term.
     ///
-    /// Returns None if the field is not of bytes type.
+    /// Returns `None` if the field is not of bytes type.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         if self.as_slice().len() < 5 {
             return None;
@@ -366,7 +366,7 @@ fn get_fast_type<T: FastValue>(bytes: &[u8]) -> Option<T> {
 }
 
 /// Returns the json path (without non-human friendly separators, the type of the value, and the
-/// value bytes). Returns None if the value is not JSON or is not valid.
+/// value bytes). Returns `None` if the value is not JSON or is not valid.
 pub(crate) fn as_json_path_type_value_bytes(bytes: &[u8]) -> Option<(&str, Type, &[u8])> {
     let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
     let json_path = str::from_utf8(&bytes[..pos]).ok()?;

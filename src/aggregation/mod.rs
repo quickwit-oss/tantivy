@@ -14,13 +14,14 @@
 //!
 //!
 //! To use aggregations, build an aggregation request by constructing
-//! [Aggregations](agg_req::Aggregations).
-//! Create an [AggregationCollector] from this request. AggregationCollector implements the
-//! `Collector` trait and can be passed as collector into `searcher.search()`.
+//! [`Aggregations`](agg_req::Aggregations).
+//! Create an [`AggregationCollector`] from this request. `AggregationCollector` implements the
+//! [`Collector`](crate::collector::Collector) trait and can be passed as collector into
+//! [`Searcher::search()`](crate::Searcher::search).
 //!
 //! #### Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type u64, f64, i64 and
+//! Currently aggregations work only on single value fast fields of type `u64`, `f64`, `i64` and
 //! fast fields on text fields.
 //!
 //! # JSON Format
@@ -44,8 +45,8 @@
 //!     - [Stats](metric::StatsAggregation)
 //!
 //! # Example
-//! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
-//! [agg_req::Aggregation]) iterator.
+//! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
+//! `(String, agg_req::Aggregation)` iterator.
 //!
 //! ```
 //! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
@@ -143,15 +144,15 @@
 //! ```
 //!
 //! # Distributed Aggregation
-//! When the data is distributed on different [crate::Index] instances, the
-//! [DistributedAggregationCollector] provides functionality to merge data between independent
+//! When the data is distributed on different [`Index`](crate::Index) instances, the
+//! [`DistributedAggregationCollector`] provides functionality to merge data between independent
 //! search calls by returning
-//! [IntermediateAggregationResults](intermediate_agg_result::IntermediateAggregationResults).
-//! IntermediateAggregationResults provides the
-//! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
-//! merge multiple results. The merged result can then be converted into
-//! [AggregationResults](agg_result::AggregationResults) via the
-//! [into_final_bucket_result](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
+//! [`IntermediateAggregationResults`](intermediate_agg_result::IntermediateAggregationResults).
+//! `IntermediateAggregationResults` provides the
+//! [`merge_fruits`](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method
+//! to merge multiple results. The merged result can then be converted into
+//! [`AggregationResults`](agg_result::AggregationResults) via the
+//! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
 
 pub mod agg_req;
 mod agg_req_with_accessor;
@@ -259,7 +260,7 @@ impl<T: Clone> VecWithNames<T> {
     }
 }
 
-/// The serialized key is used in a HashMap.
+/// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, PartialOrd)]
@@ -268,7 +269,7 @@ pub type SerializedKey = String;
 pub enum Key {
     /// String key
     Str(String),
-    /// f64 key
+    /// `f64` key
     F64(f64),
 }
 
@@ -281,10 +282,10 @@ impl Display for Key {
     }
 }
 
-/// Invert of to_fastfield_u64. Used to convert to f64 for metrics.
+/// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
-/// Only u64, f64, i64 is supported
+/// Only `u64`, `f64`, and `i64` are supported.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
@@ -296,15 +297,15 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     }
 }
 
-/// Converts the f64 value to fast field value space.
+/// Converts the `f64` value to fast field value space.
 ///
-/// If the fast field has u64, values are stored as u64 in the fast field.
-/// A f64 value of e.g. 2.0 therefore needs to be converted to 1u64
+/// If the fast field has `u64`, values are stored as `u64` in the fast field.
+/// A `f64` value of e.g. `2.0` therefore needs to be converted to `1u64`.
 ///
-/// If the fast field has f64 values are converted and stored to u64 using a
+/// If the fast field has `f64` values are converted and stored to `u64` using a
 /// monotonic mapping.
-/// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
-/// conversion function, so that the value matches the u64 value stored in the fast
+/// A `f64` value of e.g. `2.0` needs to be converted using the same monotonic
+/// conversion function, so that the value matches the `u64` value stored in the fast
 /// field.
 pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {

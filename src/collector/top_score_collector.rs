@@ -287,7 +287,7 @@ impl TopDocs {
     /// # See also
     ///
     /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
-    /// [.order_by_fast_field(...)](#method.order_by_fast_field) method.
+    /// the [.order_by_fast_field(...)](TopDocs::order_by_fast_field) method.
     pub fn order_by_u64_field(
         self,
         field: Field,
@@ -384,7 +384,7 @@ impl TopDocs {
     ///
     /// This method offers a convenient way to tweak or replace
     /// the documents score. As suggested by the prototype you can
-    /// manually define your own [`ScoreTweaker`](./trait.ScoreTweaker.html)
+    /// manually define your own [`ScoreTweaker`]
     /// and pass it as an argument, but there is a much simpler way to
     /// tweak your score: you can use a closure as in the following
     /// example.
@@ -401,7 +401,7 @@ impl TopDocs {
     /// In the following example will will tweak our ranking a bit by
     /// boosting popular products a notch.
     ///
-    /// In more serious application, this tweaking could involved running a
+    /// In more serious application, this tweaking could involve running a
     /// learning-to-rank model over various features
     ///
     /// ```rust
@@ -474,7 +474,7 @@ impl TopDocs {
     /// ```
     ///
     /// # See also
-    /// [custom_score(...)](#method.custom_score).
+    /// - [custom_score(...)](TopDocs::custom_score)
     pub fn tweak_score<TScore, TScoreSegmentTweaker, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,
@@ -491,8 +491,7 @@ impl TopDocs {
     ///
     /// This method offers a convenient way to use a different score.
     ///
-    /// As suggested by the prototype you can manually define your
-    /// own [`CustomScorer`](./trait.CustomScorer.html)
+    /// As suggested by the prototype you can manually define your own [`CustomScorer`]
     /// and pass it as an argument, but there is a much simpler way to
     /// tweak your score: you can use a closure as in the following
     /// example.
@@ -588,7 +587,7 @@ impl TopDocs {
     /// ```
     ///
     /// # See also
-    /// [tweak_score(...)](#method.tweak_score).
+    /// - [tweak_score(...)](TopDocs::tweak_score)
     pub fn custom_score<TScore, TCustomSegmentScorer, TCustomScorer>(
         self,
         custom_score: TCustomScorer,

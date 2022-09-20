@@ -17,14 +17,12 @@ use crate::{DatePrecision, DocId};
 /// This `Writer` is only useful for advanced users.
 /// The normal way to get your multivalued int in your index
 /// is to
-/// - declare your field with fast set to `Cardinality::MultiValues`
-/// in your schema
+/// - declare your field with fast set to
+///   [`Cardinality::MultiValues`](crate::schema::Cardinality::MultiValues) in your schema
 /// - add your document simply by calling `.add_document(...)`.
 ///
-/// The `MultiValuedFastFieldWriter` can be acquired from the
-/// fastfield writer, by calling
-/// [`.get_multivalue_writer_mut(...)`](./struct.FastFieldsWriter.html#method.
-/// get_multivalue_writer_mut).
+/// The `MultiValuedFastFieldWriter` can be acquired from the fastfield writer, by calling
+/// [`FastFieldWriter::get_multivalue_writer_mut()`](crate::fastfield::FastFieldsWriter::get_multivalue_writer_mut).
 ///
 /// Once acquired, writing is done by calling
 /// [`.add_document(&Document)`](MultiValuedFastFieldWriter::add_document) once per value.

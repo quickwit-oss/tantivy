@@ -8,9 +8,9 @@
 //! - [the top 10 documents, by relevancy or by a fast field](crate::collector::TopDocs)
 //! - [facet counts](FacetCollector)
 //!
-//! At one point in your code, you will trigger the actual search operation by calling
-//! [the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).
-//! This call will look like this.
+//! At some point in your code, you will trigger the actual search operation by calling
+//! [`Searcher::search()`](crate::Searcher::search).
+//! This call will look like this:
 //!
 //! ```verbatim
 //! let fruit = searcher.search(&query, &collector)?;
@@ -64,7 +64,7 @@
 //!
 //! The `Collector` trait is implemented for up to 4 collectors.
 //! If you have more than 4 collectors, you can either group them into
-//! tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
+//! tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`].
 //!
 //! # Combining several collectors dynamically
 //!
@@ -74,7 +74,7 @@
 //!
 //! Unfortunately it requires you to know at compile time your collector types.
 //! If on the other hand, the collectors depend on some query parameter,
-//! you can rely on `MultiCollector`'s.
+//! you can rely on [`MultiCollector`]'s.
 //!
 //!
 //! # Implementing your own collectors.

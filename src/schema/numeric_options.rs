@@ -11,16 +11,16 @@ pub enum Cardinality {
     #[serde(rename = "single")]
     SingleValue,
     /// The document can have any number of values associated to the document.
-    /// This is more memory and CPU expensive than the SingleValue solution.
+    /// This is more memory and CPU expensive than the `SingleValue` solution.
     #[serde(rename = "multi")]
     MultiValues,
 }
 
 #[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
-/// Deprecated use [NumericOptions] instead.
+/// Deprecated use [`NumericOptions`] instead.
 pub type IntOptions = NumericOptions;
 
-/// Define how an u64, i64, of f64 field should be handled by tantivy.
+/// Define how an `u64`, `i64`, or `f64` field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(from = "NumericOptionsDeser")]
 pub struct NumericOptions {
@@ -36,7 +36,7 @@ pub struct NumericOptions {
 /// lack of fieldnorms attribute as "true" if and only if indexed.
 ///
 /// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
-/// Note that: newly serialized NumericOptions will include the new attribute.
+/// Note that: newly serialized `NumericOptions` will include the new attribute.
 #[derive(Deserialize)]
 struct NumericOptionsDeser {
     indexed: bool,
@@ -135,7 +135,7 @@ impl NumericOptions {
     /// Returns the cardinality of the fastfield.
     ///
     /// If the field has not been declared as a fastfield, then
-    /// the method returns None.
+    /// the method returns `None`.
     pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
         self.fast
     }

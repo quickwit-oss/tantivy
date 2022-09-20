@@ -168,7 +168,7 @@ impl FastFieldsWriter {
 
     /// Returns the fast field multi-value writer for the given field.
     ///
-    /// Returns None if the field does not exist, or is not
+    /// Returns `None` if the field does not exist, or is not
     /// configured as a multivalued fastfield in the schema.
     pub fn get_multivalue_writer_mut(
         &mut self,
@@ -182,7 +182,7 @@ impl FastFieldsWriter {
 
     /// Returns the bytes fast field writer for the given field.
     ///
-    /// Returns None if the field does not exist, or is not
+    /// Returns `None` if the field does not exist, or is not
     /// configured as a bytes fastfield in the schema.
     pub fn get_bytes_writer_mut(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
         // TODO optimize

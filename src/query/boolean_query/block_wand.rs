@@ -12,7 +12,7 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 ///
 /// We always have `before_pivot_len` < `pivot_len`.
 ///
-/// None is returned if we establish that no document can exceed the threshold.
+/// `None` is returned if we establish that no document can exceed the threshold.
 fn find_pivot_doc(
     term_scorers: &[TermScorerWithMaxScore],
     threshold: Score,

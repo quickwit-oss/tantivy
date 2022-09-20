@@ -115,7 +115,7 @@ impl DateOptions {
     /// Returns the cardinality of the fastfield.
     ///
     /// If the field has not been declared as a fastfield, then
-    /// the method returns None.
+    /// the method returns `None`.
     pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
         self.fast
     }

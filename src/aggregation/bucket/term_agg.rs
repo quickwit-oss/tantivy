@@ -31,7 +31,7 @@ use crate::{DocId, TantivyError};
 ///
 /// Even with a larger `segment_size` value, doc_count values for a terms aggregation may be
 /// approximate. As a result, any sub-aggregations on the terms aggregation may also be approximate.
-/// `sum_other_doc_count` is the number of documents that didn’t make it into the the top size
+/// `sum_other_doc_count` is the number of documents that didn’t make it into the top size
 /// terms. If this is greater than 0, you can be sure that the terms agg had to throw away some
 /// buckets, either because they didn’t fit into size on the root node or they didn’t fit into
 /// `segment_size` on the segment node.
@@ -42,14 +42,14 @@ use crate::{DocId, TantivyError};
 /// each segment. It’s the sum of the size of the largest bucket on each segment that didn’t fit
 /// into segment_size.
 ///
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [TermBucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`TermBucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [IntermediateBucketResult](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
-/// [IntermediateTermBucketEntry](crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry) on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateTermBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 ///
