@@ -110,7 +110,7 @@ fn bench_ip() {
         (data.len() * 8) as f32 / dataset.len() as f32
     );
 
-    let decompressor = open_u128(OwnedBytes::new(data)).unwrap();
+    let decompressor = open_u128::<u128>(OwnedBytes::new(data)).unwrap();
     // Sample some ranges
     for value in dataset.iter().take(1110).skip(1100).cloned() {
         print_time!("get range");

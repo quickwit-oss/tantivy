@@ -22,6 +22,7 @@ mod compact_space;
 mod line;
 mod linear;
 mod monotonic_mapping;
+mod monotonic_mapping_u128;
 
 mod column;
 mod gcd;
@@ -32,6 +33,7 @@ use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
 use self::linear::LinearCodec;
 pub use self::monotonic_mapping::MonotonicallyMappableToU64;
+pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 pub use self::serialize::{
     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
 };
@@ -73,8 +75,12 @@ impl FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<u128>>> {
-    Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
+pub fn open_u128<Item: MonotonicallyMappableToU128>(
+    bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let monotonic_mapping = move |val: u128| Item::from_u128(val);
+    let reader = CompactSpaceDecompressor::open(bytes)?;
+    Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.

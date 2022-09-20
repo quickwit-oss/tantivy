@@ -415,6 +415,14 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
                 debug_value_bytes(typ, bytes, f)?;
             }
         }
+        Type::Ip => {
+            let s = as_str(bytes); // TODO: change when serialization changes
+            write_opt(f, s)?;
+        }
+        Type::U128 => {
+            let s = as_str(bytes); // TODO: change when serialization changes
+            write_opt(f, s)?;
+        }
     }
     Ok(())
 }

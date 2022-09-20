@@ -604,7 +604,7 @@ mod tests {
         ];
         let mut out = Vec::new();
         serialize_u128(VecColumn::from(vals), &mut out).unwrap();
-        let decomp = open_u128(OwnedBytes::new(out)).unwrap();
+        let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
 
         assert_eq!(decomp.get_between_vals(199..=200), vec![0]);
         assert_eq!(decomp.get_between_vals(199..=201), vec![0, 1]);

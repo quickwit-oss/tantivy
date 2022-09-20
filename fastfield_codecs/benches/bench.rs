@@ -102,7 +102,7 @@ mod tests {
         let mut out = vec![];
         serialize_u128(VecColumn::from(&data), &mut out).unwrap();
         let out = OwnedBytes::new(out);
-        open_u128(out).unwrap()
+        open_u128::<u128>(out).unwrap()
     }
 
     #[bench]

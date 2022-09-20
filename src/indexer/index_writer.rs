@@ -803,7 +803,9 @@ impl Drop for IndexWriter {
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
+    use std::net::IpAddr;
 
+    use fastfield_codecs::MonotonicallyMappableToU128;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -815,7 +817,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
-        self, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
+        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IpOptions, NumericOptions,
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
@@ -1593,6 +1595,11 @@ mod tests {
         force_end_merge: bool,
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
+        let ip_field = schema_builder.add_ip_field("ip", FAST | INDEXED | STORED);
+        let ips_field = schema_builder.add_ip_field(
+            "ips",
+            IpOptions::default().set_fast(Cardinality::MultiValues),
+        );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
         let bool_field = schema_builder.add_bool_field("bool", FAST | INDEXED | STORED);
@@ -1648,17 +1655,37 @@ mod tests {
             match op {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
-                    index_writer.add_document(doc!(id_field=>id,
-                            bytes_field => id.to_le_bytes().as_slice(),
-                            multi_numbers=> id,
-                            multi_numbers => id,
-                            bool_field => (id % 2u64) != 0,
-                            multi_bools => (id % 2u64) != 0,
-                            multi_bools => (id % 2u64) == 0,
-                            text_field => id.to_string(),
-                            facet_field => facet,
-                            large_text_field=> LOREM
-                    ))?;
+                    let ip_from_id = IpAddr::from_u128(id as u128);
+
+                    if id % 3 == 0 {
+                        // every 3rd doc has no ip field
+                        index_writer.add_document(doc!(id_field=>id,
+                                bytes_field => id.to_le_bytes().as_slice(),
+                                multi_numbers=> id,
+                                multi_numbers => id,
+                                bool_field => (id % 2u64) != 0,
+                                multi_bools => (id % 2u64) != 0,
+                                multi_bools => (id % 2u64) == 0,
+                                text_field => id.to_string(),
+                                facet_field => facet,
+                                large_text_field=> LOREM
+                        ))?;
+                    } else {
+                        index_writer.add_document(doc!(id_field=>id,
+                                bytes_field => id.to_le_bytes().as_slice(),
+                                ip_field => ip_from_id,
+                                ips_field => ip_from_id,
+                                ips_field => ip_from_id,
+                                multi_numbers=> id,
+                                multi_numbers => id,
+                                bool_field => (id % 2u64) != 0,
+                                multi_bools => (id % 2u64) != 0,
+                                multi_bools => (id % 2u64) == 0,
+                                text_field => id.to_string(),
+                                facet_field => facet,
+                                large_text_field=> LOREM
+                        ))?;
+                    }
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1743,6 +1770,59 @@ mod tests {
                 .cloned()
                 .collect::<HashSet<_>>()
         );
+
+        // Load all ips addr
+        let ips: HashSet<IpAddr> = searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let ff_reader = segment_reader.fast_fields().ip_addr(ip_field).unwrap();
+                segment_reader.doc_ids_alive().flat_map(move |doc| {
+                    let val = ff_reader.get_val(doc as u64);
+                    if val == IpAddr::from_u128(0) {
+                        None
+                    } else {
+                        Some(val)
+                    }
+                })
+            })
+            .collect();
+
+        let expected_ips = expected_ids_and_num_occurrences
+            .keys()
+            .flat_map(|id| {
+                if id % 3 == 0 {
+                    None
+                } else {
+                    Some(IpAddr::from_u128(*id as u128))
+                }
+            })
+            .collect::<HashSet<_>>();
+        assert_eq!(ips, expected_ips);
+
+        let expected_ips = expected_ids_and_num_occurrences
+            .keys()
+            .filter_map(|id| {
+                if id % 3 == 0 {
+                    None
+                } else {
+                    Some(IpAddr::from_u128(*id as u128))
+                }
+            })
+            .collect::<HashSet<_>>();
+        let ips: HashSet<IpAddr> = searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let ff_reader = segment_reader.fast_fields().ip_addrs(ips_field).unwrap();
+                segment_reader.doc_ids_alive().flat_map(move |doc| {
+                    let mut vals = vec![];
+                    ff_reader.get_vals(doc, &mut vals);
+                    vals.into_iter().filter(|val| val.to_u128() != 0)
+                })
+            })
+            .collect();
+        assert_eq!(ips, expected_ips);
 
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
@@ -1845,6 +1925,36 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_minimal() {
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::AddDoc { id: 23 },
+                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::DeleteDoc { id: 13 }
+            ],
+            true,
+            false
+        )
+        .is_ok());
+
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::AddDoc { id: 23 },
+                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::DeleteDoc { id: 13 }
+            ],
+            false,
+            false
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_minimal_sort_merge() {
+        assert!(test_operation_strategy(&[IndexingOp::AddDoc { id: 3 },], true, true).is_ok());
     }
 
     proptest! {

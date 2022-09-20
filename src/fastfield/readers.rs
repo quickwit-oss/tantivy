@@ -1,7 +1,9 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
-use fastfield_codecs::{open, Column};
+use fastfield_codecs::{open, open_u128, Column};
 
+use super::multivalued::MultiValuedU128FastFieldReader;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::fastfield::{
     BytesFastFieldReader, FastFieldNotAvailableError, FastValue, MultiValuedFastFieldReader,
@@ -23,6 +25,7 @@ pub struct FastFieldReaders {
 pub(crate) enum FastType {
     I64,
     U64,
+    U128,
     F64,
     Bool,
     Date,
@@ -49,6 +52,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
         }
+        FieldType::Ip(options) => options
+            .get_fastfield_cardinality()
+            .map(|cardinality| (FastType::U128, cardinality)),
         _ => None,
     }
 }
@@ -141,6 +147,56 @@ impl FastFieldReaders {
     pub fn u64(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
         self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
+    }
+
+    /// Returns the `ip` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 fast field, this method returns an Error.
+    pub fn ip_addr(&self, field: Field) -> crate::Result<Arc<dyn Column<IpAddr>>> {
+        self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
+        let bytes = self.fast_field_data(field, 0)?.read_bytes()?;
+        Ok(open_u128::<IpAddr>(bytes)?)
+    }
+
+    /// Returns the `ip` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 fast field, this method returns an Error.
+    pub fn ip_addrs(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<IpAddr>> {
+        self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
+        let idx_reader: Arc<dyn Column<u64>> = self.typed_fast_field_reader(field)?;
+
+        let bytes = self.fast_field_data(field, 1)?.read_bytes()?;
+        let vals_reader = open_u128::<IpAddr>(bytes)?;
+
+        Ok(MultiValuedU128FastFieldReader::open(
+            idx_reader,
+            vals_reader,
+        ))
+    }
+
+    /// Returns the `u128` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 fast field, this method returns an Error.
+    pub fn u128(&self, field: Field) -> crate::Result<Arc<dyn Column<u128>>> {
+        self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
+        let bytes = self.fast_field_data(field, 0)?.read_bytes()?;
+        Ok(open_u128::<u128>(bytes)?)
+    }
+
+    /// Returns the `u128` multi-valued fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a u128 multi-valued fast field, this method returns an Error.
+    pub fn u128s(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<u128>> {
+        self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
+        let idx_reader: Arc<dyn Column<u64>> = self.typed_fast_field_reader(field)?;
+
+        let bytes = self.fast_field_data(field, 1)?.read_bytes()?;
+        let vals_reader = open_u128::<u128>(bytes)?;
+
+        Ok(MultiValuedU128FastFieldReader::open(
+            idx_reader,
+            vals_reader,
+        ))
     }
 
     /// Returns the `u64` fast field reader reader associated with `field`, regardless of whether

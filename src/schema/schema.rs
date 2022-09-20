@@ -7,6 +7,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Value as JsonValue};
 
+use super::ip_options::IpOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::field_type::ValueParsingError;
@@ -141,6 +142,28 @@ impl SchemaBuilder {
     ) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_date(field_name, field_options.into());
+        self.add_field(field_entry)
+    }
+
+    /// Adds a ip field.
+    /// Returns the associated field handle
+    /// Internally, Tantivy simply stores ips as u64,
+    /// while the user supplies IpAddr values for convenience.
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
+    /// by the second one.
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_ip_field<T: Into<IpOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_ip(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
