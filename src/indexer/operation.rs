@@ -18,7 +18,7 @@ impl Default for DeleteOperation {
     fn default() -> Self {
         DeleteOperation {
             opstamp: 0,
-            target: DeleteTarget::Term(Term::new().into()),
+            target: DeleteTarget::Term(Term::new()),
         }
     }
 }
