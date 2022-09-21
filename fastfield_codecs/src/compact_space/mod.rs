@@ -301,7 +301,7 @@ impl Column<u128> for CompactSpaceDecompressor {
     }
 
     #[inline]
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = u128> + 'a> {
+    fn iter(&self) -> Box<dyn Iterator<Item = u128> + '_> {
         Box::new(self.iter())
     }
     fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
