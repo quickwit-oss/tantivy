@@ -121,7 +121,7 @@ impl FastFieldCodec for LinearCodec {
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
     #[allow(clippy::question_mark)]
-    fn estimate(column: &impl Column) -> Option<f32> {
+    fn estimate(column: &dyn Column) -> Option<f32> {
         if column.num_vals() < 3 {
             return None; // disable compressor for this case
         }

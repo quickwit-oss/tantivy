@@ -71,7 +71,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     }
 
     // Estimate first_chunk and extrapolate
-    fn estimate(column: &impl crate::Column) -> Option<f32> {
+    fn estimate(column: &dyn crate::Column) -> Option<f32> {
         if column.num_vals() < 10 * CHUNK_SIZE as u64 {
             return None;
         }
@@ -100,7 +100,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
 
-    fn serialize(column: &dyn crate::Column, wrt: &mut impl io::Write) -> io::Result<()> {
+    fn serialize(column: &dyn Column, wrt: &mut impl io::Write) -> io::Result<()> {
         // The BitpackedReader assumes a normalized vector.
         assert_eq!(column.min_value(), 0);
         let mut buffer = Vec::with_capacity(CHUNK_SIZE);
