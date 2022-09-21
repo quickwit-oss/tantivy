@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use std::sync::Mutex;
 
 use tantivy_bitpacker::minmax;
 
@@ -103,7 +102,7 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
         self.values[position as usize]
     }
 
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
+    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
         Box::new(self.values.iter().copied())
     }
 
@@ -190,35 +189,12 @@ where
         self.from_column.num_vals()
     }
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = Output> + 'a> {
+    fn iter(&self) -> Box<dyn Iterator<Item = Output> + '_> {
         Box::new(self.from_column.iter().map(&self.monotonic_mapping))
     }
 
     // We voluntarily do not implement get_range as it yields a regression,
     // and we do not have any specialized implementation anyway.
-}
-
-pub struct RemappedColumn<T, M, C> {
-    column: C,
-    new_to_old_id_mapping: M,
-    min_max_cache: Mutex<Option<(T, T)>>,
-}
-
-impl<T, M, C> RemappedColumn<T, M, C>
-where
-    C: Column<T>,
-    M: Column<u32>,
-    T: Copy + Ord + Default + Send + Sync,
-{
-    fn min_max(&self) -> (T, T) {
-        if let Some((min, max)) = *self.min_max_cache.lock().unwrap() {
-            return (min, max);
-        }
-        let (min, max) =
-            tantivy_bitpacker::minmax(self.iter()).unwrap_or((T::default(), T::default()));
-        *self.min_max_cache.lock().unwrap() = Some((min, max));
-        (min, max)
-    }
 }
 
 pub struct IterColumn<T>(T);
@@ -252,32 +228,8 @@ where
         self.0.len() as u64
     }
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T::Item> + 'a> {
+    fn iter(&self) -> Box<dyn Iterator<Item = T::Item> + '_> {
         Box::new(self.0.clone())
-    }
-}
-
-impl<T, M, C> Column<T> for RemappedColumn<T, M, C>
-where
-    C: Column<T>,
-    M: Column<u32>,
-    T: Copy + Ord + Default + Send + Sync,
-{
-    fn get_val(&self, idx: u64) -> T {
-        let old_id = self.new_to_old_id_mapping.get_val(idx);
-        self.column.get_val(old_id as u64)
-    }
-
-    fn min_value(&self) -> T {
-        self.min_max().0
-    }
-
-    fn max_value(&self) -> T {
-        self.min_max().1
-    }
-
-    fn num_vals(&self) -> u64 {
-        self.new_to_old_id_mapping.num_vals() as u64
     }
 }
 
