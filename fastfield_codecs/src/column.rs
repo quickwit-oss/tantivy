@@ -3,10 +3,11 @@ use std::ops::RangeInclusive;
 
 use tantivy_bitpacker::minmax;
 
-pub trait Column<T: PartialOrd = u64>: Send + Sync {
+pub trait Column<T: PartialOrd + Copy + 'static = u64>: Send + Sync {
     /// Return a `ColumnReader`.
     fn reader(&self) -> Box<dyn ColumnReader<T> + '_> {
-        Box::new(ColumnReaderAdapter { column: self })
+        // Box::new(ColumnReaderAdapter { column: self, idx: 0,  })
+        Box::new(ColumnReaderAdapter::from(self))
     }
 
     /// Return the value associated to the given idx.
@@ -65,39 +66,70 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     fn max_value(&self) -> T;
 
     fn num_vals(&self) -> u64;
-
-    /// Returns a iterator over the data
-    ///
-    /// TODO get rid of `.iter()` and extend ColumnReader instead.
-    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
-        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
-    }
 }
 
 /// `ColumnReader` makes it possible to read forward through a column.
-///
-/// TODO add methods to make it possible to scan the column and replace `.iter()`
 pub trait ColumnReader<T = u64> {
-    fn seek(&mut self, idx: u64) -> T;
+    /// Advance the reader to the target_idx.
+    ///
+    /// After a successful call to seek,
+    /// `.get()` should returns `column.get_val(target_idx)`.
+    fn seek(&mut self, target_idx: u64) -> T;
+
+    fn advance(&mut self) -> bool;
+
+    /// Get the current value without advancing the reader
+    fn get(&self) -> T;
 }
 
-pub(crate) struct ColumnReaderAdapter<'a, C: ?Sized> {
+pub fn iter_from_reader<'a, T: 'static>(
+    mut column_reader: Box<dyn ColumnReader<T> + 'a>,
+) -> impl Iterator<Item = T> + 'a {
+    std::iter::from_fn(move || {
+        if !column_reader.advance() {
+            return None;
+        }
+        Some(column_reader.get())
+    })
+}
+
+pub(crate) struct ColumnReaderAdapter<'a, C: ?Sized, T> {
     column: &'a C,
+    idx: u64,
+    len: u64,
+    _phantom: PhantomData<T>,
 }
 
-impl<'a, C: ?Sized> From<&'a C> for ColumnReaderAdapter<'a, C> {
+impl<'a, C: Column<T> + ?Sized, T: Copy + PartialOrd + 'static> From<&'a C>
+    for ColumnReaderAdapter<'a, C, T>
+{
     fn from(column: &'a C) -> Self {
-        ColumnReaderAdapter { column }
+        ColumnReaderAdapter {
+            column,
+            idx: u64::MAX,
+            len: column.num_vals(),
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<'a, T, C: ?Sized> ColumnReader<T> for ColumnReaderAdapter<'a, C>
+impl<'a, T, C: ?Sized> ColumnReader<T> for ColumnReaderAdapter<'a, C, T>
 where
     C: Column<T>,
-    T: PartialOrd<T>,
+    T: PartialOrd<T> + Copy + 'static,
 {
     fn seek(&mut self, idx: u64) -> T {
-        self.column.get_val(idx)
+        self.idx = idx;
+        self.get()
+    }
+
+    fn advance(&mut self) -> bool {
+        self.idx = self.idx.wrapping_add(1);
+        self.idx < self.len
+    }
+
+    fn get(&self) -> T {
+        self.column.get_val(self.idx)
     }
 }
 
@@ -107,7 +139,9 @@ pub struct VecColumn<'a, T = u64> {
     max_value: T,
 }
 
-impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
+impl<'a, C: Column<T>, T> Column<T> for &'a C
+where T: Copy + PartialOrd + 'static
+{
     fn get_val(&self, idx: u64) -> T {
         (*self).get_val(idx)
     }
@@ -128,22 +162,14 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
         (*self).reader()
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
-        (*self).iter()
-    }
-
     fn get_range(&self, start: u64, output: &mut [T]) {
         (*self).get_range(start, output)
     }
 }
 
-impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
+impl<'a, T: Copy + PartialOrd + Send + Sync + 'static> Column<T> for VecColumn<'a, T> {
     fn get_val(&self, position: u64) -> T {
         self.values[position as usize]
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
-        Box::new(self.values.iter().copied())
     }
 
     fn min_value(&self) -> T {
@@ -184,15 +210,15 @@ struct MonotonicMappingColumn<C, T, Input> {
 }
 
 /// Creates a view of a column transformed by a monotonic mapping.
-pub fn monotonic_map_column<C, T, Input: PartialOrd, Output: PartialOrd>(
+pub fn monotonic_map_column<C, T, Input: PartialOrd + Copy, Output: PartialOrd + Copy>(
     from_column: C,
     monotonic_mapping: T,
 ) -> impl Column<Output>
 where
     C: Column<Input>,
     T: Fn(Input) -> Output + Send + Sync,
-    Input: Send + Sync,
-    Output: Send + Sync,
+    Input: Send + Sync + 'static,
+    Output: Send + Sync + 'static,
 {
     MonotonicMappingColumn {
         from_column,
@@ -201,13 +227,13 @@ where
     }
 }
 
-impl<C, T, Input: PartialOrd, Output: PartialOrd> Column<Output>
+impl<C, T, Input: PartialOrd + Copy, Output: PartialOrd + Copy> Column<Output>
     for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
     T: Fn(Input) -> Output + Send + Sync,
-    Input: Send + Sync,
-    Output: Send + Sync,
+    Input: Send + Sync + 'static,
+    Output: Send + Sync + 'static,
 {
     #[inline]
     fn get_val(&self, idx: u64) -> Output {
@@ -229,13 +255,9 @@ where
         self.from_column.num_vals()
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = Output> + '_> {
-        Box::new(self.from_column.iter().map(&self.monotonic_mapping))
-    }
-
     fn reader(&self) -> Box<dyn ColumnReader<Output> + '_> {
         Box::new(MonotonicMappingColumnReader {
-            col_reader: ColumnReaderAdapter::from(&self.from_column),
+            col_reader: self.from_column.reader(),
             monotonic_mapping: &self.monotonic_mapping,
             intermdiary_type: PhantomData,
         })
@@ -245,21 +267,29 @@ where
     // and we do not have any specialized implementation anyway.
 }
 
-struct MonotonicMappingColumnReader<'a, ColR, Transform, U> {
-    col_reader: ColR,
+struct MonotonicMappingColumnReader<'a, Transform, U> {
+    col_reader: Box<dyn ColumnReader<U> + 'a>,
     monotonic_mapping: &'a Transform,
     intermdiary_type: PhantomData<U>,
 }
 
-impl<'a, U, V, ColR, Transform> ColumnReader<V>
-    for MonotonicMappingColumnReader<'a, ColR, Transform, U>
+impl<'a, U, V, Transform> ColumnReader<V> for MonotonicMappingColumnReader<'a, Transform, U>
 where
-    ColR: ColumnReader<U> + 'a,
+    U: Copy,
+    V: Copy,
     Transform: Fn(U) -> V,
 {
     fn seek(&mut self, idx: u64) -> V {
         let intermediary_value = self.col_reader.seek(idx);
         (*self.monotonic_mapping)(intermediary_value)
+    }
+
+    fn advance(&mut self) -> bool {
+        self.col_reader.advance()
+    }
+
+    fn get(&self) -> V {
+        (*self.monotonic_mapping)(self.col_reader.get())
     }
 }
 
@@ -276,7 +306,7 @@ where T: Iterator + Clone + ExactSizeIterator
 impl<T> Column<T::Item> for IterColumn<T>
 where
     T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd,
+    T::Item: PartialOrd + Copy + 'static,
 {
     fn get_val(&self, idx: u64) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()
@@ -292,10 +322,6 @@ where
 
     fn num_vals(&self) -> u64 {
         self.0.len() as u64
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = T::Item> + '_> {
-        Box::new(self.0.clone())
     }
 }
 
@@ -329,7 +355,7 @@ mod tests {
         let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
         let col = VecColumn::from(&vals);
         let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
-        let val_i64s: Vec<i64> = mapped.iter().collect();
+        let val_i64s: Vec<i64> = crate::iter_from_reader(mapped.reader()).collect();
         for i in 0..100 {
             assert_eq!(val_i64s[i as usize], mapped.get_val(i));
         }
@@ -343,7 +369,7 @@ mod tests {
         assert_eq!(mapped.min_value(), -10i64);
         assert_eq!(mapped.max_value(), 980i64);
         assert_eq!(mapped.num_vals(), 100);
-        let val_i64s: Vec<i64> = mapped.iter().collect();
+        let val_i64s: Vec<i64> = crate::iter_from_reader(mapped.reader()).collect();
         assert_eq!(val_i64s.len(), 100);
         for i in 0..100 {
             assert_eq!(val_i64s[i as usize], mapped.get_val(i));

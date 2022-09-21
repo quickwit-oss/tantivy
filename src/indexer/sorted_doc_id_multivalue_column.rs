@@ -1,6 +1,6 @@
 use std::cmp;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::{Column, ColumnReader};
 
 use crate::fastfield::{MultiValueLength, MultiValuedFastFieldReader};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
@@ -95,18 +95,6 @@ impl<'a> Column for SortedDocIdMultiValueColumn<'a> {
         vals[pos_in_values as usize]
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        Box::new(
-            self.doc_id_mapping
-                .iter_old_doc_addrs()
-                .flat_map(|old_doc_addr| {
-                    let ff_reader = &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                    let mut vals = Vec::new();
-                    ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                    vals.into_iter()
-                }),
-        )
-    }
     fn min_value(&self) -> u64 {
         self.min_value
     }
@@ -117,5 +105,81 @@ impl<'a> Column for SortedDocIdMultiValueColumn<'a> {
 
     fn num_vals(&self) -> u64 {
         self.num_vals
+    }
+
+    fn reader(&self) -> Box<dyn ColumnReader<u64> + '_> {
+        let mut reader = SortedDocMultiValueColumnReader {
+            doc_id_mapping: self.doc_id_mapping,
+            fast_field_readers: &self.fast_field_readers[..],
+            new_doc_id: u32::MAX,
+            in_buffer_idx: 0,
+            buffer: Vec::new(),
+            idx: u64::MAX,
+        };
+        reader.reset();
+        Box::new(reader)
+    }
+}
+
+struct SortedDocMultiValueColumnReader<'a> {
+    doc_id_mapping: &'a SegmentDocIdMapping,
+    fast_field_readers: &'a [MultiValuedFastFieldReader<u64>],
+
+    new_doc_id: DocId,
+    in_buffer_idx: usize,
+    buffer: Vec<u64>,
+    idx: u64,
+}
+
+impl<'a> SortedDocMultiValueColumnReader<'a> {
+    fn fill(&mut self) {
+        let old_doc = self.doc_id_mapping.get_old_doc_addr(self.new_doc_id);
+        let ff_reader = &self.fast_field_readers[old_doc.segment_ord as usize];
+        ff_reader.get_vals(old_doc.doc_id, &mut self.buffer);
+        self.in_buffer_idx = 0;
+    }
+
+    fn reset(&mut self) {
+        self.buffer.clear();
+        self.idx = u64::MAX;
+        self.in_buffer_idx = 0;
+        self.new_doc_id = u32::MAX;
+    }
+}
+
+impl<'a> ColumnReader for SortedDocMultiValueColumnReader<'a> {
+    fn seek(&mut self, target_idx: u64) -> u64 {
+        if target_idx < self.idx {
+            self.reset();
+            self.advance();
+        }
+        for _ in self.idx..target_idx {
+            // TODO could be optimized.
+            assert!(self.advance());
+        }
+        self.get()
+    }
+
+    fn advance(&mut self) -> bool {
+        loop {
+            self.in_buffer_idx += 1;
+            if self.in_buffer_idx < self.buffer.len() {
+                self.idx = self.idx.wrapping_add(1);
+                return true;
+            }
+            self.new_doc_id = self.new_doc_id.wrapping_add(1);
+            if self.new_doc_id >= self.doc_id_mapping.len() as u32 {
+                return false;
+            }
+            self.fill();
+            if !self.buffer.is_empty() {
+                self.idx = self.idx.wrapping_add(1);
+                return true;
+            }
+        }
+    }
+
+    fn get(&self) -> u64 {
+        self.buffer[self.in_buffer_idx]
     }
 }

@@ -1,6 +1,7 @@
 use fastfield_codecs::{Column, ColumnReader};
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::DocId;
 
 pub(crate) struct MultivalueStartIndex<'a, C: Column> {
     column: &'a C,
@@ -10,38 +11,63 @@ pub(crate) struct MultivalueStartIndex<'a, C: Column> {
 }
 
 struct MultivalueStartIndexReader<'a, C: Column> {
-    seek_head: MultivalueStartIndexIter<'a, C>,
-    seek_next_id: u64,
+    column: &'a C,
+    doc_id_map: &'a DocIdMapping,
+    idx: u64,
+    val: u64,
+    len: u64,
 }
 
 impl<'a, C: Column> MultivalueStartIndexReader<'a, C> {
     fn new(column: &'a C, doc_id_map: &'a DocIdMapping) -> Self {
         Self {
-            seek_head: MultivalueStartIndexIter {
-                column,
-                doc_id_map,
-                new_doc_id: 0,
-                offset: 0u64,
-            },
-            seek_next_id: 0u64,
+            column,
+            doc_id_map,
+            idx: u64::MAX,
+            val: 0,
+            len: doc_id_map.num_new_doc_ids() as u64 + 1,
         }
     }
 
     fn reset(&mut self) {
-        self.seek_next_id = 0;
-        self.seek_head.new_doc_id = 0;
-        self.seek_head.offset = 0;
+        self.idx = u64::MAX;
+        self.val = 0;
     }
 }
 
 impl<'a, C: Column> ColumnReader for MultivalueStartIndexReader<'a, C> {
     fn seek(&mut self, idx: u64) -> u64 {
-        if self.seek_next_id > idx {
+        if self.idx > idx {
             self.reset();
+            self.advance();
         }
-        let to_skip = idx - self.seek_next_id;
-        self.seek_next_id = idx + 1;
-        self.seek_head.nth(to_skip as usize).unwrap()
+        for _ in self.idx..idx {
+            self.advance();
+        }
+        self.get()
+    }
+
+    fn advance(&mut self) -> bool {
+        if self.idx == u64::MAX {
+            self.idx = 0;
+            self.val = 0;
+            return true;
+        }
+        let new_doc_id: DocId = self.idx as DocId;
+        self.idx += 1;
+        if self.idx >= self.len {
+            self.idx = self.len;
+            return false;
+        }
+        let old_doc: DocId = self.doc_id_map.get_old_doc_id(new_doc_id);
+        let num_vals_for_doc =
+            self.column.get_val(old_doc as u64 + 1) - self.column.get_val(old_doc as u64);
+        self.val += num_vals_for_doc;
+        true
+    }
+
+    fn get(&self) -> u64 {
+        self.val
     }
 }
 
@@ -82,10 +108,6 @@ impl<'a, C: Column> Column for MultivalueStartIndex<'a, C> {
 
     fn num_vals(&self) -> u64 {
         (self.doc_id_map.num_new_doc_ids() + 1) as u64
-    }
-
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
-        Box::new(MultivalueStartIndexIter::new(self.column, self.doc_id_map))
     }
 }
 
@@ -143,7 +165,8 @@ mod tests {
         );
         assert_eq!(multivalue_start_index.num_vals(), 4);
         assert_eq!(
-            multivalue_start_index.iter().collect::<Vec<u64>>(),
+            fastfield_codecs::iter_from_reader(multivalue_start_index.reader())
+                .collect::<Vec<u64>>(),
             vec![0, 4, 6, 11]
         ); // 4, 2, 5
     }
@@ -156,7 +179,8 @@ mod tests {
         let col = VecColumn::from(&[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55][..]);
         let multivalue_start_index = MultivalueStartIndex::new(&col, &doc_id_mapping);
         assert_eq!(
-            multivalue_start_index.iter().collect::<Vec<u64>>(),
+            fastfield_codecs::iter_from_reader(multivalue_start_index.reader())
+                .collect::<Vec<u64>>(),
             vec![0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
         );
         assert_eq!(multivalue_start_index.num_vals(), 11);

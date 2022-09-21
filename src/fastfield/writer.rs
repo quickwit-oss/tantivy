@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
-use fastfield_codecs::{Column, MonotonicallyMappableToU64};
+use fastfield_codecs::MonotonicallyMappableToU64;
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::FastFieldType;
+use crate::fastfield::remapped_column::WriterFastFieldColumn;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -351,7 +352,7 @@ impl IntFastFieldWriter {
     pub fn serialize(
         &self,
         serializer: &mut CompositeFastFieldSerializer,
-        doc_id_map: Option<&DocIdMapping>,
+        doc_id_mapping_opt: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let (min, max) = if self.val_min > self.val_max {
             (0, 0)
@@ -359,8 +360,8 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        let fastfield_accessor = WriterFastFieldAccessProvider {
-            doc_id_map,
+        let fastfield_accessor = WriterFastFieldColumn {
+            doc_id_mapping_opt,
             vals: &self.vals,
             min_value: min,
             max_value: max,
@@ -370,59 +371,5 @@ impl IntFastFieldWriter {
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
 
         Ok(())
-    }
-}
-
-#[derive(Clone)]
-struct WriterFastFieldAccessProvider<'map, 'bitp> {
-    doc_id_map: Option<&'map DocIdMapping>,
-    vals: &'bitp BlockedBitpacker,
-    min_value: u64,
-    max_value: u64,
-    num_vals: u64,
-}
-
-impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
-    /// Return the value associated to the given doc.
-    ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
-    /// reasons.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `doc` is greater than the index.
-    fn get_val(&self, doc: u64) -> u64 {
-        if let Some(doc_id_map) = self.doc_id_map {
-            self.vals
-                .get(doc_id_map.get_old_doc_id(doc as u32) as usize) // consider extra
-                                                                     // FastFieldReader wrapper for
-                                                                     // non doc_id_map
-        } else {
-            self.vals.get(doc as usize)
-        }
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        if let Some(doc_id_map) = self.doc_id_map {
-            Box::new(
-                doc_id_map
-                    .iter_old_doc_ids()
-                    .map(|doc_id| self.vals.get(doc_id as usize)),
-            )
-        } else {
-            Box::new(self.vals.iter())
-        }
-    }
-
-    fn min_value(&self) -> u64 {
-        self.min_value
-    }
-
-    fn max_value(&self) -> u64 {
-        self.max_value
-    }
-
-    fn num_vals(&self) -> u64 {
-        self.num_vals
     }
 }

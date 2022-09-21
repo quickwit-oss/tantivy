@@ -22,7 +22,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
 use crate::compact_space::build_compact_space::get_compact_space;
-use crate::Column;
+use crate::{iter_from_reader, Column, ColumnReader};
 
 mod blank_range;
 mod build_compact_space;
@@ -173,11 +173,14 @@ impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
     pub fn train_from(column: &impl Column<u128>) -> Self {
         let mut values_sorted = BTreeSet::new();
-        values_sorted.extend(column.iter());
+
         let total_num_values = column.num_vals();
+
+        values_sorted.extend(iter_from_reader(column.reader()));
 
         let compact_space =
             get_compact_space(&values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
+
         let amplitude_compact_space = compact_space.amplitude_compact_space();
 
         assert!(
@@ -218,11 +221,12 @@ impl CompactSpaceCompressor {
 
     pub fn compress_into(
         self,
-        vals: impl Iterator<Item = u128>,
+        mut vals: Box<dyn ColumnReader<u128> + '_>,
         write: &mut impl Write,
     ) -> io::Result<()> {
         let mut bitpacker = BitPacker::default();
-        for val in vals {
+        while vals.advance() {
+            let val = vals.get();
             let compact = self
                 .params
                 .compact_space
@@ -300,12 +304,12 @@ impl Column<u128> for CompactSpaceDecompressor {
         self.params.num_vals
     }
 
-    #[inline]
-    fn iter(&self) -> Box<dyn Iterator<Item = u128> + '_> {
-        Box::new(self.iter())
-    }
     fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
         self.get_between_vals(range)
+    }
+
+    fn reader(&self) -> Box<dyn ColumnReader<u128> + '_> {
+        Box::new(self.specialized_reader())
     }
 }
 
@@ -410,18 +414,13 @@ impl CompactSpaceDecompressor {
         positions
     }
 
-    #[inline]
-    fn iter_compact(&self) -> impl Iterator<Item = u64> + '_ {
-        (0..self.params.num_vals)
-            .map(move |idx| self.params.bit_unpacker.get(idx as u64, &self.data) as u64)
-    }
-
-    #[inline]
-    fn iter(&self) -> impl Iterator<Item = u128> + '_ {
-        // TODO: Performance. It would be better to iterate on the ranges and check existence via
-        // the bit_unpacker.
-        self.iter_compact()
-            .map(|compact| self.compact_to_u128(compact))
+    fn specialized_reader(&self) -> CompactSpaceReader<'_> {
+        CompactSpaceReader {
+            data: self.data.as_slice(),
+            params: &self.params,
+            idx: 0u64,
+            len: self.params.num_vals,
+        }
     }
 
     #[inline]
@@ -436,6 +435,30 @@ impl CompactSpaceDecompressor {
 
     pub fn max_value(&self) -> u128 {
         self.params.max_value
+    }
+}
+
+pub struct CompactSpaceReader<'a> {
+    data: &'a [u8],
+    params: &'a IPCodecParams,
+    idx: u64,
+    len: u64,
+}
+
+impl<'a> ColumnReader<u128> for CompactSpaceReader<'a> {
+    fn seek(&mut self, target_idx: u64) -> u128 {
+        self.idx = target_idx;
+        self.get()
+    }
+
+    fn advance(&mut self) -> bool {
+        self.idx = self.idx.wrapping_add(1);
+        self.idx < self.len
+    }
+
+    fn get(&self) -> u128 {
+        let compact_code = self.params.bit_unpacker.get(self.idx, self.data);
+        self.params.compact_space.compact_to_u128(compact_code)
     }
 }
 

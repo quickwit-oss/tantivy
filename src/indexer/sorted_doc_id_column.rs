@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::{Column, ColumnReader};
 use itertools::Itertools;
 
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::schema::Field;
-use crate::{DocAddress, SegmentReader};
+use crate::{DocAddress, DocId, SegmentReader};
 
 pub(crate) struct SortedDocIdColumn<'a> {
     doc_id_mapping: &'a SegmentDocIdMapping,
@@ -87,17 +87,14 @@ impl<'a> Column for SortedDocIdColumn<'a> {
         self.fast_field_readers[segment_ord as usize].get_val(doc_id as u64)
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        Box::new(
-            self.doc_id_mapping
-                .iter_old_doc_addrs()
-                .map(|old_doc_addr| {
-                    let fast_field_reader =
-                        &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                    fast_field_reader.get_val(old_doc_addr.doc_id as u64)
-                }),
-        )
+    fn reader(&self) -> Box<dyn ColumnReader<u64> + '_> {
+        Box::new(SortedDocIdColumnReader {
+            doc_id_mapping: self.doc_id_mapping,
+            fast_field_readers: &self.fast_field_readers[..],
+            new_doc_id: u32::MAX,
+        })
     }
+
     fn min_value(&self) -> u64 {
         self.min_value
     }
@@ -108,5 +105,29 @@ impl<'a> Column for SortedDocIdColumn<'a> {
 
     fn num_vals(&self) -> u64 {
         self.num_vals
+    }
+}
+
+struct SortedDocIdColumnReader<'a> {
+    doc_id_mapping: &'a SegmentDocIdMapping,
+    fast_field_readers: &'a [Arc<dyn Column>],
+    new_doc_id: DocId,
+}
+
+impl<'a> ColumnReader for SortedDocIdColumnReader<'a> {
+    fn seek(&mut self, target_idx: u64) -> u64 {
+        assert!(target_idx < self.doc_id_mapping.len() as u64);
+        self.new_doc_id = target_idx as u32;
+        self.get()
+    }
+
+    fn advance(&mut self) -> bool {
+        self.new_doc_id = self.new_doc_id.wrapping_add(1);
+        self.new_doc_id < self.doc_id_mapping.len() as u32
+    }
+
+    fn get(&self) -> u64 {
+        let old_doc = self.doc_id_mapping.get_old_doc_addr(self.new_doc_id);
+        self.fast_field_readers[old_doc.segment_ord as usize].get_val(old_doc.doc_id as u64)
     }
 }

@@ -31,8 +31,8 @@ use crate::blockwise_linear::BlockwiseLinearCodec;
 use crate::compact_space::CompactSpaceCompressor;
 use crate::linear::LinearCodec;
 use crate::{
-    monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
-    VecColumn, ALL_CODEC_TYPES,
+    iter_from_reader, monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType,
+    MonotonicallyMappableToU64, VecColumn, ALL_CODEC_TYPES,
 };
 
 /// The normalized header gives some parameters after applying the following
@@ -79,8 +79,9 @@ impl Header {
         let num_vals = column.num_vals();
         let min_value = column.min_value();
         let max_value = column.max_value();
-        let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
-            .filter(|gcd| gcd.get() > 1u64);
+        let gcd =
+            crate::gcd::find_gcd(iter_from_reader(column.reader()).map(|val| val - min_value))
+                .filter(|gcd| gcd.get() > 1u64);
         let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
         let shifted_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
         let codec_type = detect_codec(shifted_column, codecs)?;
@@ -131,7 +132,7 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
 ) -> Option<f32> {
     let column = monotonic_map_column(typed_column, T::to_u64);
     let min_value = column.min_value();
-    let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
+    let gcd = crate::gcd::find_gcd(iter_from_reader(column.reader()).map(|val| val - min_value))
         .filter(|gcd| gcd.get() > 1u64);
     let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
     let normalized_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
@@ -149,7 +150,7 @@ pub fn serialize_u128(
     // TODO write header, to later support more codecs
     let compressor = CompactSpaceCompressor::train_from(&typed_column);
     compressor
-        .compress_into(typed_column.iter(), output)
+        .compress_into(typed_column.reader(), output)
         .unwrap();
 
     Ok(())
@@ -240,7 +241,8 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         let original = [1u64, 5u64, 10u64];
-        let restored: Vec<u64> = serialize_and_load(&original[..]).iter().collect();
+        let restored: Vec<u64> =
+            crate::iter_from_reader(serialize_and_load(&original[..]).reader()).collect();
         assert_eq!(&restored, &original[..]);
     }
 

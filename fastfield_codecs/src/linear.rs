@@ -89,8 +89,7 @@ impl FastFieldCodec for LinearCodec {
         assert_eq!(column.min_value(), 0);
         let line = Line::train(column);
 
-        let max_offset_from_line = column
-            .iter()
+        let max_offset_from_line = crate::iter_from_reader(column.reader())
             .enumerate()
             .map(|(pos, actual_value)| {
                 let calculated_value = line.eval(pos as u64);
@@ -107,7 +106,12 @@ impl FastFieldCodec for LinearCodec {
         linear_params.serialize(write)?;
 
         let mut bit_packer = BitPacker::new();
-        for (pos, actual_value) in column.iter().enumerate() {
+        let mut col_reader = column.reader();
+        for pos in 0.. {
+            if !col_reader.advance() {
+                break;
+            }
+            let actual_value = col_reader.get();
             let calculated_value = line.eval(pos as u64);
             let offset = actual_value.wrapping_sub(calculated_value);
             bit_packer.write(offset, num_bits, write)?;

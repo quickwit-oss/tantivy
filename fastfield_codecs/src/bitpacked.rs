@@ -68,7 +68,9 @@ impl FastFieldCodec for BitpackedCodec {
         assert_eq!(column.min_value(), 0u64);
         let num_bits = compute_num_bits(column.max_value());
         let mut bit_packer = BitPacker::new();
-        for val in column.iter() {
+        let mut reader = column.reader();
+        while reader.advance() {
+            let val = reader.get();
             bit_packer.write(val, num_bits, write)?;
         }
         bit_packer.close(write)?;

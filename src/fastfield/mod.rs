@@ -41,6 +41,7 @@ mod error;
 mod facet_reader;
 mod multivalued;
 mod readers;
+mod remapped_column;
 mod serializer;
 mod writer;
 
@@ -424,7 +425,7 @@ mod tests {
         permutation
     }
 
-    fn test_intfastfield_permutation_with_data(permutation: Vec<u64>) -> crate::Result<()> {
+    fn test_intfastfield_permutation_with_data(permutation: &[u64]) -> crate::Result<()> {
         let path = Path::new("test");
         let n = permutation.len();
         let directory = RamDirectory::create();
@@ -432,7 +433,7 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
+            for &x in permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
             }
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
@@ -446,7 +447,6 @@ mod tests {
                 .unwrap()
                 .read_bytes()?;
             let fast_field_reader = open::<u64>(data)?;
-
             for a in 0..n {
                 assert_eq!(fast_field_reader.get_val(a as u64), permutation[a as usize]);
             }
@@ -455,16 +455,23 @@ mod tests {
     }
 
     #[test]
-    fn test_intfastfield_permutation_gcd() -> crate::Result<()> {
-        let permutation = generate_permutation_gcd();
-        test_intfastfield_permutation_with_data(permutation)?;
+    fn test_intfastfield_simple() -> crate::Result<()> {
+        let permutation = &[1, 2, 3];
+        test_intfastfield_permutation_with_data(&permutation[..])?;
         Ok(())
     }
 
     #[test]
     fn test_intfastfield_permutation() -> crate::Result<()> {
         let permutation = generate_permutation();
-        test_intfastfield_permutation_with_data(permutation)?;
+        test_intfastfield_permutation_with_data(&permutation)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_intfastfield_permutation_gcd() -> crate::Result<()> {
+        let permutation = generate_permutation_gcd();
+        test_intfastfield_permutation_with_data(&permutation)?;
         Ok(())
     }
 
