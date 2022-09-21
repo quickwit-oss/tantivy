@@ -123,7 +123,7 @@ trait FastFieldCodec: 'static {
     ///
     /// The column iterator should be preferred over using column `get_val` method for
     /// performance reasons.
-    fn serialize(column: &dyn Column<u64>, write: &mut impl Write) -> io::Result<()>;
+    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()>;
 
     /// Returns an estimate of the compression ratio.
     /// If the codec is not applicable, returns `None`.
@@ -132,7 +132,7 @@ trait FastFieldCodec: 'static {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(column: &impl Column) -> Option<f32>;
+    fn estimate(column: &dyn Column) -> Option<f32>;
 }
 
 pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [

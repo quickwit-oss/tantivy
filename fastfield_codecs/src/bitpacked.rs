@@ -75,7 +75,7 @@ impl FastFieldCodec for BitpackedCodec {
         Ok(())
     }
 
-    fn estimate(column: &impl Column) -> Option<f32> {
+    fn estimate(column: &dyn Column) -> Option<f32> {
         let num_bits = compute_num_bits(column.max_value());
         let num_bits_uncompressed = 64;
         Some(num_bits as f32 / num_bits_uncompressed as f32)
