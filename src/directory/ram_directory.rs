@@ -136,6 +136,20 @@ impl RamDirectory {
         Self::default()
     }
 
+    /// Deep clones the directory.
+    ///
+    /// Ulterior writes on one of the copy
+    /// will not affect the other copy.
+    pub fn deep_clone(&self) -> RamDirectory {
+        let inner_clone = InnerDirectory {
+            fs: self.fs.read().unwrap().fs.clone(),
+            watch_router: Default::default(),
+        };
+        RamDirectory {
+            fs: Arc::new(RwLock::new(inner_clone)),
+        }
+    }
+
     /// Returns the sum of the size of the different files
     /// in the [`RamDirectory`].
     pub fn total_mem_usage(&self) -> usize {
@@ -255,5 +269,24 @@ mod tests {
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
+    }
+
+    #[test]
+    fn test_ram_directory_deep_clone() {
+        let dir = RamDirectory::default();
+        let test = Path::new("test");
+        let test2 = Path::new("test2");
+        dir.atomic_write(test, b"firstwrite").unwrap();
+        let dir_clone = dir.deep_clone();
+        assert_eq!(
+            dir_clone.atomic_read(test).unwrap(),
+            dir.atomic_read(test).unwrap()
+        );
+        dir.atomic_write(test, b"original").unwrap();
+        dir_clone.atomic_write(test, b"clone").unwrap();
+        dir_clone.atomic_write(test2, b"clone2").unwrap();
+        assert_eq!(dir.atomic_read(test).unwrap(), b"original");
+        assert_eq!(&dir_clone.atomic_read(test).unwrap(), b"clone");
+        assert_eq!(&dir_clone.atomic_read(test2).unwrap(), b"clone2");
     }
 }
