@@ -57,7 +57,7 @@ impl SegmentId {
     /// Picking the first 8 chars is ok to identify
     /// segments in a display message (e.g. a5c4dfcb).
     pub fn short_uuid_string(&self) -> String {
-        (&self.0.as_simple().to_string()[..8]).to_string()
+        self.0.as_simple().to_string()[..8].to_string()
     }
 
     /// Returns a segment uuid string.
