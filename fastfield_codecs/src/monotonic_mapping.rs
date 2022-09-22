@@ -36,11 +36,7 @@ impl MonotonicallyMappableToU64 for i64 {
 impl MonotonicallyMappableToU64 for bool {
     #[inline(always)]
     fn to_u64(self) -> u64 {
-        if self {
-            1
-        } else {
-            0
-        }
+        u64::from(self)
     }
 
     #[inline(always)]
