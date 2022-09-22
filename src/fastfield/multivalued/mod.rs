@@ -402,6 +402,74 @@ mod bench {
     use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::Document;
 
+    fn bench_multi_value_ff_merge_opt(
+        num_docs: usize,
+        segments_every_n_docs: usize,
+        merge_policy: impl crate::indexer::MergePolicy + 'static,
+    ) {
+        let mut builder = crate::schema::SchemaBuilder::new();
+
+        let fast_multi =
+            crate::schema::NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let multi_field = builder.add_f64_field("f64s", fast_multi);
+
+        let index = crate::Index::create_in_ram(builder.build());
+
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.set_merge_policy(Box::new(merge_policy));
+
+        for i in 0..num_docs {
+            let mut doc = crate::Document::new();
+            doc.add_f64(multi_field, 0.24);
+            doc.add_f64(multi_field, 0.27);
+            doc.add_f64(multi_field, 0.37);
+            if i % 3 == 0 {
+                doc.add_f64(multi_field, 0.44);
+            }
+
+            writer.add_document(doc).unwrap();
+            if i % segments_every_n_docs == 0 {
+                writer.commit().unwrap();
+            }
+        }
+
+        {
+            writer.wait_merging_threads().unwrap();
+            let mut writer = index.writer_for_tests().unwrap();
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            writer.merge(&segment_ids).wait().unwrap();
+        }
+
+        // If a merging thread fails, we should end up with more
+        // than one segment here
+        assert_eq!(1, index.searchable_segments().unwrap().len());
+    }
+
+    #[bench]
+    fn bench_multi_value_ff_merge_many_segments(b: &mut Bencher) {
+        let num_docs = 100_000;
+        b.iter(|| {
+            bench_multi_value_ff_merge_opt(num_docs, 1_000, crate::indexer::NoMergePolicy);
+        });
+    }
+
+    #[bench]
+    fn bench_multi_value_ff_merge_many_segments_log_merge(b: &mut Bencher) {
+        let num_docs = 100_000;
+        b.iter(|| {
+            let merge_policy = crate::indexer::LogMergePolicy::default();
+            bench_multi_value_ff_merge_opt(num_docs, 1_000, merge_policy);
+        });
+    }
+
+    #[bench]
+    fn bench_multi_value_ff_merge_few_segments(b: &mut Bencher) {
+        let num_docs = 100_000;
+        b.iter(|| {
+            bench_multi_value_ff_merge_opt(num_docs, 33_000, crate::indexer::NoMergePolicy);
+        });
+    }
+
     fn multi_values(num_docs: usize, vals_per_doc: usize) -> Vec<Vec<u64>> {
         let mut vals = vec![];
         for _i in 0..num_docs {
