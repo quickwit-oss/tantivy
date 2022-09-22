@@ -472,6 +472,8 @@ mod tests {
     // There are more tests in directory/mod.rs
     // The following tests are specific to the MmapDirectory
 
+    use std::time::Duration;
+
     use common::HasLen;
 
     use super::*;
@@ -610,7 +612,14 @@ mod tests {
                 mmap_directory.get_cache_info().mmapped.len()
             );
         }
-        assert!(mmap_directory.get_cache_info().mmapped.is_empty());
-        Ok(())
+        // This test failed on CI. The last Mmap is dropped from the merging thread so there might
+        // be a race condition indeed.
+        for _ in 0..10 {
+            if mmap_directory.get_cache_info().mmapped.is_empty() {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        panic!("The cache still contains information. One of the Mmap has not been dropped.");
     }
 }
