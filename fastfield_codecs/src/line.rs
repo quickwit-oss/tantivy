@@ -69,11 +69,17 @@ impl Line {
 
     // Same as train, but the intercept is only estimated from provided sample positions
     pub fn estimate(ys: &dyn Column, sample_positions: &[u64]) -> Self {
-        Self::train_from(ys, sample_positions.iter().cloned())
+        Self::train_from(
+            ys,
+            sample_positions
+                .iter()
+                .cloned()
+                .map(|pos| (pos, ys.get_val(pos))),
+        )
     }
 
     // Intercept is only computed from provided positions
-    fn train_from(ys: &dyn Column, positions: impl Iterator<Item = u64>) -> Self {
+    fn train_from(ys: &dyn Column, positions_and_values: impl Iterator<Item = (u64, u64)>) -> Self {
         let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
             num_vals
         } else {
@@ -114,11 +120,8 @@ impl Line {
             intercept: 0,
         };
         let heuristic_shift = y0.wrapping_sub(MID_POINT);
-        line.intercept = positions
-            .map(|pos| {
-                let y = ys.get_val(pos);
-                y.wrapping_sub(line.eval(pos))
-            })
+        line.intercept = positions_and_values
+            .map(|(pos, y)| y.wrapping_sub(line.eval(pos)))
             .min_by_key(|&val| val.wrapping_sub(heuristic_shift))
             .unwrap_or(0u64); //< Never happens.
         line
@@ -135,7 +138,10 @@ impl Line {
     /// This function is only invariable by translation if all of the
     /// `ys` are packaged into half of the space. (See heuristic below)
     pub fn train(ys: &dyn Column) -> Self {
-        Self::train_from(ys, 0..ys.num_vals())
+        Self::train_from(
+            ys,
+            ys.iter().enumerate().map(|(pos, val)| (pos as u64, val)),
+        )
     }
 }
 
