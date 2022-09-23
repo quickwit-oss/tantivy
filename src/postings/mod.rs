@@ -31,7 +31,7 @@ pub use self::term_info::TermInfo;
 
 pub(crate) type UnorderedTermId = u64;
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
