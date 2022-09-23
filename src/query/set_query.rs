@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 
 use tantivy_fst::raw::CompiledAddr;
 use tantivy_fst::{Automaton, Map};
@@ -13,12 +12,17 @@ use crate::{Searcher, Term};
 #[derive(Debug, Clone)]
 pub struct TermSetQuery {
     field: Field,
-    terms: BTreeSet<Term>,
+    terms: Vec<Term>,
 }
 
 impl TermSetQuery {
     /// Create a Term Set Query
-    pub fn new(field: Field, terms: BTreeSet<Term>) -> Self {
+    pub fn new<T: IntoIterator<Item=Term>>(field: Field, terms: T) -> Self {
+        let mut terms: Vec<_> = terms.into_iter()
+            .filter(|key| key.field() == field)
+            .collect();
+        terms.sort_unstable();
+        terms.dedup();
         TermSetQuery { field, terms }
     }
 
@@ -41,7 +45,7 @@ impl TermSetQuery {
         let map = Map::from_iter(
             self.terms
                 .iter()
-                .filter(|key| key.field() == self.field && key.typ() == field_type)
+                .filter(|key| key.typ() == field_type)
                 .map(|key| (key.value_bytes(), 0)),
         )
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -88,7 +92,6 @@ impl Automaton for SetDfaWrapper {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
 
     use crate::collector::TopDocs;
     use crate::query::TermSetQuery;
@@ -123,8 +126,9 @@ mod tests {
 
         {
             // single element
-            let mut terms = BTreeSet::new();
-            terms.insert(Term::from_field_text(field1, "doc1"));
+            let mut terms = vec![
+                Term::from_field_text(field1, "doc1"),
+            ];
 
             let term_set_query = TermSetQuery::new(field1, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
@@ -135,8 +139,9 @@ mod tests {
 
         {
             // single element, absent
-            let mut terms = BTreeSet::new();
-            terms.insert(Term::from_field_text(field1, "doc4"));
+            let mut terms = vec![
+                Term::from_field_text(field1, "doc4"),
+            ];
 
             let term_set_query = TermSetQuery::new(field1, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(1))?;
@@ -145,9 +150,10 @@ mod tests {
 
         {
             // multiple elements
-            let mut terms = BTreeSet::new();
-            terms.insert(Term::from_field_text(field1, "doc1"));
-            terms.insert(Term::from_field_text(field1, "doc2"));
+            let mut terms = vec![
+                Term::from_field_text(field1, "doc1"),
+                Term::from_field_text(field1, "doc2"),
+            ];
 
             let term_set_query = TermSetQuery::new(field1, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
@@ -159,8 +165,9 @@ mod tests {
 
         {
             // single element, wrong field
-            let mut terms = BTreeSet::new();
-            terms.insert(Term::from_field_text(field1, "doc1"));
+            let mut terms = vec![
+                Term::from_field_text(field1, "doc1"),
+            ];
 
             let term_set_query = TermSetQuery::new(field2, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(1))?;
@@ -168,9 +175,11 @@ mod tests {
         }
         {
             // multiple elements, mixed fields
-            let mut terms = BTreeSet::new();
-            terms.insert(Term::from_field_text(field1, "doc1"));
-            terms.insert(Term::from_field_text(field2, "val2"));
+            let mut terms = vec![
+                Term::from_field_text(field1, "doc1"),
+                Term::from_field_text(field1, "doc1"),
+                Term::from_field_text(field2, "val2"),
+            ];
 
             let term_set_query = TermSetQuery::new(field1, terms.clone());
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
