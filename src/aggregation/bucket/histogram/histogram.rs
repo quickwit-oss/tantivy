@@ -425,7 +425,7 @@ impl SegmentHistogramCollector {
         let bucket = &mut self.buckets[bucket_pos];
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
-            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor)?;
+            sub_aggregation[bucket_pos].collect(doc, bucket_with_accessor)?;
         }
         Ok(())
     }
