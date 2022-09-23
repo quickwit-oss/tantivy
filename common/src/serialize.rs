@@ -161,8 +161,7 @@ impl FixedSize for u8 {
 
 impl BinarySerializable for bool {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let val = if *self { 1 } else { 0 };
-        writer.write_u8(val)
+        writer.write_u8(u8::from(*self))
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
         let val = reader.read_u8()?;

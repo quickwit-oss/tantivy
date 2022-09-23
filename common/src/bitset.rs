@@ -259,11 +259,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len += if self.tinysets[higher as usize].insert_mut(lower) {
-            1
-        } else {
-            0
-        };
+        self.len += u64::from(self.tinysets[higher as usize].insert_mut(lower));
     }
 
     /// Inserts an element in the `BitSet`
@@ -272,11 +268,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len -= if self.tinysets[higher as usize].remove_mut(lower) {
-            1
-        } else {
-            0
-        };
+        self.len -= u64::from(self.tinysets[higher as usize].remove_mut(lower));
     }
 
     /// Returns true iff the elements is in the `BitSet`.
