@@ -23,7 +23,8 @@ use std::sync::Arc;
 
 use common::{BinarySerializable, VInt};
 use fastdivide::DividerU64;
-use log::warn;
+use log::{debug, warn};
+use measure_time::debug_time;
 use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
@@ -183,6 +184,7 @@ fn detect_codec(
 ) -> Option<FastFieldCodecType> {
     let mut estimations = Vec::new();
     for &codec in codecs {
+        debug_time!("estimate time for codec: {:?}", codec);
         let estimation_opt = match codec {
             FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&column),
             FastFieldCodecType::Linear => LinearCodec::estimate(&column),
@@ -202,6 +204,7 @@ fn detect_codec(
     // codecs
     estimations.retain(|estimation| !estimation.0.is_nan() && estimation.0 != f32::MAX);
     estimations.sort_by(|(score_left, _), (score_right, _)| score_left.total_cmp(score_right));
+    debug!("Chosen Codec {:?}", estimations.first()?.1);
     Some(estimations.first()?.1)
 }
 
@@ -210,6 +213,12 @@ fn serialize_given_codec(
     codec_type: FastFieldCodecType,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
+    debug_time!(
+        "Serialize time for codec: {:?}, num_vals {}",
+        codec_type,
+        column.num_vals()
+    );
+
     match codec_type {
         FastFieldCodecType::Bitpacked => {
             BitpackedCodec::serialize(&column, output)?;

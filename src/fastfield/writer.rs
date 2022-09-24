@@ -4,6 +4,7 @@ use std::io;
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU64};
 use fnv::FnvHashMap;
+use measure_time::debug_time;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
@@ -366,6 +367,8 @@ impl IntFastFieldWriter {
             max_value: max,
             num_vals: self.val_count as u64,
         };
+
+        debug_time!("segment-write-single-field, field_id {:?}", self.field());
 
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
 

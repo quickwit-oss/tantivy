@@ -250,7 +250,11 @@ impl IndexMerger {
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write-fast-fields");
+        debug_time!(
+            "merge-all-fast-fields, num_segments {}, num docs new segment {}",
+            self.readers.len(),
+            doc_id_mapping.len()
+        );
 
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
@@ -311,6 +315,12 @@ impl IndexMerger {
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         let fast_field_accessor = SortedDocIdColumn::new(&self.readers, doc_id_mapping, field);
+        debug_time!(
+            "merge-single-fast-field, num_vals {}, num_segments {}, field_id {:?}",
+            fast_field_accessor.num_vals(),
+            self.readers.len(),
+            field
+        );
         fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
 
         Ok(())
@@ -458,6 +468,12 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Vec<u64>> {
+        debug_time!(
+            "merge-multi-fast-field-idx, num_segments {}, field_id {:?}",
+            self.readers.len(),
+            field
+        );
+
         let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
@@ -571,6 +587,13 @@ impl IndexMerger {
 
         let fastfield_accessor =
             SortedDocIdMultiValueColumn::new(&self.readers, doc_id_mapping, &offsets, field);
+        debug_time!(
+            "merge-multi-fast-field-values, num_vals {}, num_segments {}, field_id {:?}",
+            fastfield_accessor.num_vals(),
+            self.readers.len(),
+            field
+        );
+
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,
             fastfield_accessor,
