@@ -1,4 +1,3 @@
-
 use tantivy_fst::raw::CompiledAddr;
 use tantivy_fst::{Automaton, Map};
 
@@ -17,8 +16,9 @@ pub struct TermSetQuery {
 
 impl TermSetQuery {
     /// Create a Term Set Query
-    pub fn new<T: IntoIterator<Item=Term>>(field: Field, terms: T) -> Self {
-        let mut terms: Vec<_> = terms.into_iter()
+    pub fn new<T: IntoIterator<Item = Term>>(field: Field, terms: T) -> Self {
+        let mut terms: Vec<_> = terms
+            .into_iter()
             .filter(|key| key.field() == field)
             .collect();
         terms.sort_unstable();
@@ -126,9 +126,7 @@ mod tests {
 
         {
             // single element
-            let mut terms = vec![
-                Term::from_field_text(field1, "doc1"),
-            ];
+            let mut terms = vec![Term::from_field_text(field1, "doc1")];
 
             let term_set_query = TermSetQuery::new(field1, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
@@ -139,9 +137,7 @@ mod tests {
 
         {
             // single element, absent
-            let mut terms = vec![
-                Term::from_field_text(field1, "doc4"),
-            ];
+            let mut terms = vec![Term::from_field_text(field1, "doc4")];
 
             let term_set_query = TermSetQuery::new(field1, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(1))?;
@@ -165,9 +161,7 @@ mod tests {
 
         {
             // single element, wrong field
-            let mut terms = vec![
-                Term::from_field_text(field1, "doc1"),
-            ];
+            let mut terms = vec![Term::from_field_text(field1, "doc1")];
 
             let term_set_query = TermSetQuery::new(field2, terms);
             let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(1))?;
