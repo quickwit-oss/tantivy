@@ -74,16 +74,7 @@ impl<'a> Column for SortedDocIdMultiValueColumn<'a> {
         // use the offsets index to find the doc_id which will contain the position.
         // the offsets are strictly increasing so we can do a binary search on it.
 
-        let mut new_doc_id: DocId = self
-            .offsets
-            .binary_search_by(|&offset| offset.cmp(&pos))
-            .unwrap_or_else(|pos| pos - 1) as DocId; // Offsets start at 0, so -1 is safe
-
-        // There are duplicates in the data, but we want the one, where the next offset is not the
-        // same as the one we have, so the range is not empty
-        while self.offsets.get(new_doc_id as usize + 1) == self.offsets.get(new_doc_id as usize) {
-            new_doc_id += 1;
-        }
+        let new_doc_id: DocId = self.offsets.partition_point(|&offset| offset <= pos) as DocId - 1; // Offsets start at 0, so -1 is safe
 
         // now we need to find the position of `pos` in the multivalued bucket
         let num_pos_covered_until_now = self.offsets[new_doc_id as usize];
