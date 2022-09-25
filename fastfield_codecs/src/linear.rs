@@ -4,6 +4,7 @@ use common::BinarySerializable;
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
+use crate::column::EstimateColumn;
 use crate::line::Line;
 use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType};
@@ -121,23 +122,23 @@ impl FastFieldCodec for LinearCodec {
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
     #[allow(clippy::question_mark)]
-    fn estimate(column: &dyn Column) -> Option<f32> {
+    fn estimate(column: &EstimateColumn) -> Option<f32> {
         if column.num_vals() < 3 {
             return None; // disable compressor for this case
         }
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
         let num_vals = column.num_vals() as f32 / 100.0;
-        let sample_positions = (0..20)
+        let sample_positions_and_values = (0..20)
             .map(|pos| (num_vals * pos as f32 * 5.0) as u64)
+            .map(|pos| (pos, column.get_val(pos)))
             .collect::<Vec<_>>();
 
-        let line = Line::estimate(column, &sample_positions);
+        let line = { Line::train_from(column, sample_positions_and_values.iter().cloned()) };
 
-        let estimated_bit_width = sample_positions
+        let estimated_bit_width = sample_positions_and_values
             .into_iter()
-            .map(|pos| {
-                let actual_value = column.get_val(pos);
+            .map(|(pos, actual_value)| {
                 let interpolated_val = line.eval(pos as u64);
                 actual_value.wrapping_sub(interpolated_val)
             })

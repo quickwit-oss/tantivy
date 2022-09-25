@@ -11,6 +11,7 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
+use column::EstimateColumn;
 use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
 use ownedbytes::OwnedBytes;
@@ -132,7 +133,7 @@ trait FastFieldCodec: 'static {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(column: &dyn Column) -> Option<f32>;
+    fn estimate(column: &EstimateColumn) -> Option<f32>;
 }
 
 pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
@@ -149,6 +150,7 @@ mod tests {
 
     use crate::bitpacked::BitpackedCodec;
     use crate::blockwise_linear::BlockwiseLinearCodec;
+    use crate::column::EstimateColumn;
     use crate::linear::LinearCodec;
     use crate::serialize::Header;
 
@@ -159,7 +161,9 @@ mod tests {
         let col = &VecColumn::from(data);
         let header = Header::compute_header(col, &[Codec::CODEC_TYPE])?;
         let normalized_col = header.normalize_column(col);
-        let estimation = Codec::estimate(&normalized_col)?;
+
+        let limited_column = EstimateColumn::new(&normalized_col);
+        let estimation = Codec::estimate(&limited_column)?;
 
         let mut out = Vec::new();
         let col = VecColumn::from(data);
@@ -280,14 +284,16 @@ mod tests {
         let data = (10..=20000_u64).collect::<Vec<_>>();
         let data: VecColumn = data.as_slice().into();
 
-        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
+        let linear_interpol_estimation =
+            LinearCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_le!(linear_interpol_estimation, 0.01);
 
-        let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
+        let multi_linear_interpol_estimation =
+            BlockwiseLinearCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
         assert_lt!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        let bitpacked_estimation = BitpackedCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_lt!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
@@ -295,18 +301,20 @@ mod tests {
         let data: &[u64] = &[200, 10, 10, 10, 10, 1000, 20];
 
         let data: VecColumn = data.into();
-        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
+        let linear_interpol_estimation =
+            LinearCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_le!(linear_interpol_estimation, 0.34);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        let bitpacked_estimation = BitpackedCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_lt!(bitpacked_estimation, linear_interpol_estimation);
     }
 
     #[test]
     fn estimation_prefer_bitpacked() {
         let data = VecColumn::from(&[10, 10, 10, 10]);
-        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
-        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        let linear_interpol_estimation =
+            LinearCodec::estimate(&EstimateColumn::new(&data)).unwrap();
+        let bitpacked_estimation = BitpackedCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_lt!(bitpacked_estimation, linear_interpol_estimation);
     }
 
@@ -318,10 +326,11 @@ mod tests {
 
         // in this case the linear interpolation can't in fact not be worse than bitpacking,
         // but the estimator adds some threshold, which leads to estimated worse behavior
-        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
+        let linear_interpol_estimation =
+            LinearCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_le!(linear_interpol_estimation, 0.35);
 
-        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        let bitpacked_estimation = BitpackedCodec::estimate(&EstimateColumn::new(&data)).unwrap();
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }

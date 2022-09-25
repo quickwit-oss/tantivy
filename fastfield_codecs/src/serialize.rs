@@ -28,6 +28,7 @@ use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
+use crate::column::EstimateColumn;
 use crate::compact_space::CompactSpaceCompressor;
 use crate::linear::LinearCodec;
 use crate::{
@@ -125,23 +126,6 @@ impl BinarySerializable for Header {
     }
 }
 
-pub fn estimate<T: MonotonicallyMappableToU64>(
-    typed_column: impl Column<T>,
-    codec_type: FastFieldCodecType,
-) -> Option<f32> {
-    let column = monotonic_map_column(typed_column, T::to_u64);
-    let min_value = column.min_value();
-    let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
-        .filter(|gcd| gcd.get() > 1u64);
-    let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
-    let normalized_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
-    match codec_type {
-        FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&normalized_column),
-        FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
-        FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&normalized_column),
-    }
-}
-
 pub fn serialize_u128(
     typed_column: impl Column<u128>,
     output: &mut impl io::Write,
@@ -177,10 +161,29 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     Ok(())
 }
 
+pub fn estimate<T: MonotonicallyMappableToU64>(
+    typed_column: impl Column<T>,
+    codec_type: FastFieldCodecType,
+) -> Option<f32> {
+    let column = monotonic_map_column(typed_column, T::to_u64);
+    let min_value = column.min_value();
+    let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
+        .filter(|gcd| gcd.get() > 1u64);
+    let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
+    let normalized_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
+    let estimate_column = EstimateColumn::new(&normalized_column);
+    match codec_type {
+        FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&estimate_column),
+        FastFieldCodecType::Linear => LinearCodec::estimate(&estimate_column),
+        FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&estimate_column),
+    }
+}
+
 fn detect_codec(
     column: impl Column<u64>,
     codecs: &[FastFieldCodecType],
 ) -> Option<FastFieldCodecType> {
+    let column: EstimateColumn = EstimateColumn::new(&column);
     let mut estimations = Vec::new();
     for &codec in codecs {
         let estimation_opt = match codec {

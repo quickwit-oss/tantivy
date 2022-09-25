@@ -137,6 +137,57 @@ where V: AsRef<[T]> + ?Sized
     }
 }
 
+// Creates a view over a Column with a limited number of vals. Stats like min max are unchanged
+pub struct EstimateColumn<'a> {
+    column: &'a dyn Column,
+    num_vals: u64,
+}
+impl<'a> EstimateColumn<'a> {
+    pub(crate) fn new(column: &'a dyn Column) -> Self {
+        let limit_num_vals = column.num_vals().min(100_000);
+        Self {
+            column,
+            num_vals: limit_num_vals,
+        }
+    }
+}
+
+impl<'a> Column for EstimateColumn<'a> {
+    fn get_val(&self, idx: u64) -> u64 {
+        (*self.column).get_val(idx)
+    }
+
+    fn min_value(&self) -> u64 {
+        (*self.column).min_value()
+    }
+
+    fn max_value(&self) -> u64 {
+        (*self.column).max_value()
+    }
+
+    fn num_vals(&self) -> u64 {
+        self.num_vals
+    }
+
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u64> + 'b> {
+        Box::new((*self.column).iter().take(self.num_vals as usize))
+    }
+
+    fn get_range(&self, start: u64, output: &mut [u64]) {
+        (*self.column).get_range(start, output)
+    }
+}
+
+impl<'a> From<&'a dyn Column> for EstimateColumn<'a> {
+    fn from(column: &'a dyn Column) -> Self {
+        let limit_num_vals = column.num_vals().min(100_000);
+        Self {
+            column,
+            num_vals: limit_num_vals,
+        }
+    }
+}
+
 struct MonotonicMappingColumn<C, T, Input> {
     from_column: C,
     monotonic_mapping: T,

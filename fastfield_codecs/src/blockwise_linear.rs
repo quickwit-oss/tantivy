@@ -5,6 +5,7 @@ use common::{BinarySerializable, CountingWriter, DeserializeFrom};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
+use crate::column::EstimateColumn;
 use crate::line::Line;
 use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType, VecColumn};
@@ -71,7 +72,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     }
 
     // Estimate first_chunk and extrapolate
-    fn estimate(column: &dyn crate::Column) -> Option<f32> {
+    fn estimate(column: &EstimateColumn) -> Option<f32> {
         if column.num_vals() < 10 * CHUNK_SIZE as u64 {
             return None;
         }

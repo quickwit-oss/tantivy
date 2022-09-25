@@ -67,19 +67,11 @@ impl Line {
         self.intercept.wrapping_add(linear_part)
     }
 
-    // Same as train, but the intercept is only estimated from provided sample positions
-    pub fn estimate(ys: &dyn Column, sample_positions: &[u64]) -> Self {
-        Self::train_from(
-            ys,
-            sample_positions
-                .iter()
-                .cloned()
-                .map(|pos| (pos, ys.get_val(pos))),
-        )
-    }
-
     // Intercept is only computed from provided positions
-    fn train_from(ys: &dyn Column, positions_and_values: impl Iterator<Item = (u64, u64)>) -> Self {
+    pub fn train_from(
+        ys: &dyn Column,
+        positions_and_values: impl Iterator<Item = (u64, u64)>,
+    ) -> Self {
         let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
             num_vals
         } else {
