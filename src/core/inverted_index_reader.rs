@@ -9,11 +9,11 @@ use crate::schema::{IndexRecordOption, Term};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
-/// the inverted index associated to a specific field.
+/// the inverted index associated with a specific field.
 ///
 /// # Note
 ///
-/// It is safe to delete the segment associated to
+/// It is safe to delete the segment associated with
 /// an `InvertedIndexReader`. As long as it is open,
 /// the `FileSlice` it is relying on should
 /// stay available.

@@ -131,7 +131,7 @@ impl FastFieldsWriter {
                 .sum::<usize>()
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_term_id_writer(&self, field: Field) -> Option<&MultiValuedFastFieldWriter> {
         // TODO optimize
         self.term_id_writers
@@ -139,7 +139,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_field_writer(&self, field: Field) -> Option<&IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
@@ -147,7 +147,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
@@ -155,7 +155,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_term_id_writer_mut(
         &mut self,
         field: Field,
@@ -294,7 +294,7 @@ impl IntFastFieldWriter {
     /// Records a new value.
     ///
     /// The n-th value being recorded is implicitly
-    /// associated to the document with the `DocId` n.
+    /// associated with the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
         self.vals.add(val);
@@ -313,7 +313,7 @@ impl IntFastFieldWriter {
     /// (or use the default value) and records it.
     ///
     ///
-    /// Extract the value associated to the fast field for
+    /// Extract the value associated with the fast field for
     /// this document.
     ///
     /// i64 and f64 are remapped to u64 using the logic
@@ -383,7 +383,7 @@ struct WriterFastFieldAccessProvider<'map, 'bitp> {
 }
 
 impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
-    /// Return the value associated to the given doc.
+    /// Return the value associated with the given doc.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
     /// reasons.

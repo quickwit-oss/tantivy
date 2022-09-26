@@ -135,7 +135,7 @@ impl FastFieldReaders {
         Ok(MultiValuedFastFieldReader::open(idx_reader, vals_reader))
     }
 
-    /// Returns the `u64` fast field reader reader associated to `field`.
+    /// Returns the `u64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns an Error.
     pub fn u64(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
@@ -143,16 +143,16 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the
-    /// given field is effectively of type `u64` or not.
+    /// Returns the `u64` fast field reader reader associated with `field`, regardless of whether
+    /// the given field is effectively of type `u64` or not.
     ///
-    /// If not, the fastfield reader will returns the u64-value associated to the original
+    /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
     pub fn u64_lenient(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `i64` fast field reader reader associated to `field`.
+    /// Returns the `i64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
     pub fn i64(&self, field: Field) -> crate::Result<Arc<dyn Column<i64>>> {
@@ -160,7 +160,7 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `date` fast field reader reader associated to `field`.
+    /// Returns the `date` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
     pub fn date(&self, field: Field) -> crate::Result<Arc<dyn Column<DateTime>>> {
@@ -168,7 +168,7 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `f64` fast field reader reader associated to `field`.
+    /// Returns the `f64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
     pub fn f64(&self, field: Field) -> crate::Result<Arc<dyn Column<f64>>> {
@@ -176,7 +176,7 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `bool` fast field reader reader associated to `field`.
+    /// Returns the `bool` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a bool fast field, this method returns an Error.
     pub fn bool(&self, field: Field) -> crate::Result<Arc<dyn Column<bool>>> {
@@ -184,7 +184,7 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns a `u64s` multi-valued fast field reader reader associated to `field`.
+    /// Returns a `u64s` multi-valued fast field reader reader associated with `field`.
     ///
     /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
     pub fn u64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {
@@ -192,15 +192,15 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `u64s` multi-valued fast field reader reader associated to `field`, regardless of
-    /// whether the given field is effectively of type `u64` or not.
+    /// Returns a `u64s` multi-valued fast field reader reader associated with `field`, regardless
+    /// of whether the given field is effectively of type `u64` or not.
     ///
     /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
     pub fn u64s_lenient(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `i64s` multi-valued fast field reader reader associated to `field`.
+    /// Returns a `i64s` multi-valued fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 multi-valued fast field, this method returns an Error.
     pub fn i64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<i64>> {
@@ -208,7 +208,7 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `f64s` multi-valued fast field reader reader associated to `field`.
+    /// Returns a `f64s` multi-valued fast field reader reader associated with `field`.
     ///
     /// If `field` is not a f64 multi-valued fast field, this method returns an Error.
     pub fn f64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<f64>> {
@@ -216,7 +216,7 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `bools` multi-valued fast field reader reader associated to `field`.
+    /// Returns a `bools` multi-valued fast field reader reader associated with `field`.
     ///
     /// If `field` is not a bool multi-valued fast field, this method returns an Error.
     pub fn bools(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<bool>> {
@@ -224,7 +224,7 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `time::OffsetDateTime` multi-valued fast field reader reader associated to
+    /// Returns a `time::OffsetDateTime` multi-valued fast field reader reader associated with
     /// `field`.
     ///
     /// If `field` is not a `time::OffsetDateTime` multi-valued fast field, this method returns an
@@ -234,7 +234,7 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns the `bytes` fast field reader associated to `field`.
+    /// Returns the `bytes` fast field reader associated with `field`.
     ///
     /// If `field` is not a bytes fast field, returns an Error.
     pub fn bytes(&self, field: Field) -> crate::Result<BytesFastFieldReader> {

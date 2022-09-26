@@ -119,7 +119,7 @@ impl PhraseQuery {
 }
 
 impl Query for PhraseQuery {
-    /// Create the weight associated to a query.
+    /// Create the weight associated with a query.
     ///
     /// See [`Weight`].
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {

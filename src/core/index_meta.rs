@@ -130,7 +130,7 @@ impl SegmentMeta {
     /// Returns the relative path of a component of our segment.
     ///
     /// It just joins the segment id with the extension
-    /// associated to a segment component.
+    /// associated with a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
@@ -326,13 +326,13 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
-    /// List of `SegmentMeta` information associated to each finalized segment of the index.
+    /// List of `SegmentMeta` information associated with each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
     pub schema: Schema,
-    /// Opstamp associated to the last `commit` operation.
+    /// Opstamp associated with the last `commit` operation.
     pub opstamp: Opstamp,
-    /// Payload associated to the last commit.
+    /// Payload associated with the last commit.
     ///
     /// Upon commit, clients can optionally add a small `String` payload to their commit
     /// to help identify this commit.

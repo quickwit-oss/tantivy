@@ -40,7 +40,7 @@ pub trait ScoreTweaker<TScore>: Sync {
     /// Type of the associated [`ScoreSegmentTweaker`].
     type Child: ScoreSegmentTweaker<TScore>;
 
-    /// Builds a child tweaker for a specific segment. The child scorer is associated to
+    /// Builds a child tweaker for a specific segment. The child scorer is associated with
     /// a specific segment.
     fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
 }

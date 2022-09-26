@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use tantivy_bitpacker::minmax;
 
 pub trait Column<T: PartialOrd = u64>: Send + Sync {
-    /// Return the value associated to the given idx.
+    /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
     ///

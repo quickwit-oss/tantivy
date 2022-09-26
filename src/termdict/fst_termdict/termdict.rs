@@ -138,12 +138,12 @@ impl TermDictionary {
         self.term_info_store.num_terms()
     }
 
-    /// Returns the ordinal associated to a given term.
+    /// Returns the ordinal associated with a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
         Ok(self.fst_index.get(key))
     }
 
-    /// Stores the term associated to a given term ordinal in
+    /// Stores the term associated with a given term ordinal in
     /// a `bytes` buffer.
     ///
     /// Term ordinals are defined as the position of the term in

@@ -104,7 +104,7 @@ impl DateOptions {
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
-    /// If more than one value is associated to a fast field, only the last one is
+    /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
     pub fn set_fast(mut self, cardinality: Cardinality) -> DateOptions {

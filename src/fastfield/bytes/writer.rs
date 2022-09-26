@@ -24,7 +24,7 @@ use crate::DocId;
 ///
 /// Once acquired, writing is done by calling
 /// [`.add_document_val(&[u8])`](BytesFastFieldWriter::add_document_val)
-/// once per document, even if there are no bytes associated to it.
+/// once per document, even if there are no bytes associated with it.
 pub struct BytesFastFieldWriter {
     field: Field,
     vals: Vec<u8>,
@@ -45,7 +45,7 @@ impl BytesFastFieldWriter {
     pub fn mem_usage(&self) -> usize {
         self.vals.capacity() + self.doc_index.capacity() * std::mem::size_of::<u64>()
     }
-    /// Access the field associated to the `BytesFastFieldWriter`
+    /// Access the field associated with the `BytesFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
     }
@@ -67,7 +67,7 @@ impl BytesFastFieldWriter {
         }
     }
 
-    /// Register the bytes associated to a document.
+    /// Register the bytes associated with a document.
     ///
     /// The method returns the `DocId` of the document that was
     /// just written.

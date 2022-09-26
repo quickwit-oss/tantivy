@@ -370,9 +370,9 @@ impl IndexWriter {
     /// This method is useful only for users trying to do complex
     /// operations, like converting an index format to another.
     ///
-    /// It is safe to start writing file associated to the new `Segment`.
+    /// It is safe to start writing file associated with the new `Segment`.
     /// These will not be garbage collected as long as an instance object of
-    /// `SegmentMeta` object associated to the new `Segment` is "alive".
+    /// `SegmentMeta` object associated with the new `Segment` is "alive".
     pub fn new_segment(&self) -> Segment {
         self.index.new_segment()
     }

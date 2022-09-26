@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use common::{BinarySerializable, FixedSize};
 
-/// `TermInfo` wraps the metadata associated to a Term.
+/// `TermInfo` wraps the metadata associated with a Term.
 /// It is segment-local.
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct TermInfo {

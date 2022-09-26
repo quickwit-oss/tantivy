@@ -610,7 +610,7 @@ impl QueryParser {
         if let Some((field, path)) = self.split_full_path(full_path) {
             return Ok(vec![(field, path, literal.phrase.as_str())]);
         }
-        // We need to add terms associated to json default fields.
+        // We need to add terms associated with json default fields.
         let triplets: Vec<(Field, &str, &str)> = self
             .default_indexed_json_fields()
             .map(|json_field| (json_field, full_path.as_str(), literal.phrase.as_str()))

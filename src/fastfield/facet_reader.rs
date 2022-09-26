@@ -7,7 +7,7 @@ use crate::termdict::{TermDictionary, TermOrdinal};
 use crate::DocId;
 
 /// The facet reader makes it possible to access the list of
-/// facets associated to a given document in a specific
+/// facets associated with a given document in a specific
 /// segment.
 ///
 /// Rather than manipulating `Facet` object directly, the API
@@ -58,7 +58,7 @@ impl FacetReader {
         &self.term_dict
     }
 
-    /// Given a term ordinal returns the term associated to it.
+    /// Given a term ordinal returns the term associated with it.
     pub fn facet_from_ord(
         &mut self,
         facet_ord: TermOrdinal,
@@ -74,7 +74,7 @@ impl FacetReader {
         Ok(())
     }
 
-    /// Return the list of facet ordinals associated to a document.
+    /// Return the list of facet ordinals associated with a document.
     pub fn facet_ords(&self, doc: DocId, output: &mut Vec<u64>) {
         self.term_ords.get_vals(doc, output);
     }

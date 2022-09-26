@@ -7,10 +7,10 @@ use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Express whether a field is single-value or multi-valued.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Cardinality {
-    /// The document must have exactly one value associated to the document.
+    /// The document must have exactly one value associated with the document.
     #[serde(rename = "single")]
     SingleValue,
-    /// The document can have any number of values associated to the document.
+    /// The document can have any number of values associated with the document.
     /// This is more memory and CPU expensive than the `SingleValue` solution.
     #[serde(rename = "multi")]
     MultiValues,
@@ -124,7 +124,7 @@ impl NumericOptions {
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
-    /// If more than one value is associated to a fast field, only the last one is
+    /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
     pub fn set_fast(mut self, cardinality: Cardinality) -> NumericOptions {

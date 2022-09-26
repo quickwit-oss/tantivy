@@ -89,7 +89,7 @@ impl SegmentReader {
         &self.fast_fields_readers
     }
 
-    /// Accessor to the `FacetReader` associated to a given `Field`.
+    /// Accessor to the `FacetReader` associated with a given `Field`.
     pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
 
@@ -208,13 +208,13 @@ impl SegmentReader {
         })
     }
 
-    /// Returns a field reader associated to the field given in argument.
+    /// Returns a field reader associated with the field given in argument.
     /// If the field was not present in the index during indexing time,
     /// the InvertedIndexReader is empty.
     ///
     /// The field reader is in charge of iterating through the
-    /// term dictionary associated to a specific field,
-    /// and opening the posting list associated to any term.
+    /// term dictionary associated with a specific field,
+    /// and opening the posting list associated with any term.
     ///
     /// If the field is not marked as index, a warn is logged and an empty `InvertedIndexReader`
     /// is returned.
@@ -241,7 +241,7 @@ impl SegmentReader {
 
         if postings_file_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
-            // As a result, no data is associated to the inverted index.
+            // As a result, no data is associated with the inverted index.
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);

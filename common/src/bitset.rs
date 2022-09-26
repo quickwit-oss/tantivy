@@ -277,7 +277,7 @@ impl BitSet {
         self.tinyset(el / 64u32).contains(el % 64)
     }
 
-    /// Returns the first non-empty `TinySet` associated to a bucket lower
+    /// Returns the first non-empty `TinySet` associated with a bucket lower
     /// or greater than bucket.
     ///
     /// Reminder: the tiny set with the bucket `bucket`, represents the

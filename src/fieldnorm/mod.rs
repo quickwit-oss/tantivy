@@ -1,4 +1,4 @@
-//! The fieldnorm represents the length associated to
+//! The fieldnorm represents the length associated with
 //! a given Field of a given document.
 //!
 //! This metric is important to compute the score of a

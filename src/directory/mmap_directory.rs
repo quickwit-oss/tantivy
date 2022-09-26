@@ -334,7 +334,7 @@ impl Directory for MmapDirectory {
         Ok(Arc::new(owned_bytes))
     }
 
-    /// Any entry associated to the path in the mmap will be
+    /// Any entry associated with the path in the mmap will be
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         let full_path = self.resolve_path(path);

@@ -69,7 +69,7 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Returns the `Index` associated to the `Searcher`
+    /// Returns the `Index` associated with the `Searcher`
     pub fn index(&self) -> &Index {
         &self.inner.index
     }
@@ -108,7 +108,7 @@ impl Searcher {
         store_reader.get_async(doc_address.doc_id).await
     }
 
-    /// Access the schema associated to the index of this searcher.
+    /// Access the schema associated with the index of this searcher.
     pub fn schema(&self) -> &Schema {
         &self.inner.schema
     }
@@ -161,11 +161,11 @@ impl Searcher {
     ///
     /// Search works as follows :
     ///
-    ///  First the weight object associated to the query is created.
+    ///  First the weight object associated with the query is created.
     ///
     ///  Then, the query loops over the segments and for each segment :
     ///  - setup the collector and informs it that the segment being processed has changed.
-    ///  - creates a SegmentCollector for collecting documents associated to the segment
+    ///  - creates a SegmentCollector for collecting documents associated with the segment
     ///  - creates a `Scorer` object associated for this segment
     ///  - iterate through the matched documents and push them to the segment collector.
     ///

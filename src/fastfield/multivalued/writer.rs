@@ -62,7 +62,7 @@ impl MultiValuedFastFieldWriter {
             + self.doc_index.capacity() * std::mem::size_of::<u64>()
     }
 
-    /// Access the field associated to the `MultiValuedFastFieldWriter`
+    /// Access the field associated with the `MultiValuedFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
     }
