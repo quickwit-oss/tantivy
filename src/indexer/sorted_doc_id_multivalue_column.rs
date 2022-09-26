@@ -72,13 +72,9 @@ impl<'a> SortedDocIdMultiValueColumn<'a> {
 impl<'a> Column for SortedDocIdMultiValueColumn<'a> {
     fn get_val(&self, pos: u64) -> u64 {
         // use the offsets index to find the doc_id which will contain the position.
-        // the offsets are strictly increasing so we can do a simple search on it.
-        let new_doc_id: DocId = self
-            .offsets
-            .iter()
-            .position(|&offset| offset > pos)
-            .expect("pos is out of bounds") as DocId
-            - 1u32;
+        // the offsets are strictly increasing so we can do a binary search on it.
+
+        let new_doc_id: DocId = self.offsets.partition_point(|&offset| offset <= pos) as DocId - 1; // Offsets start at 0, so -1 is safe
 
         // now we need to find the position of `pos` in the multivalued bucket
         let num_pos_covered_until_now = self.offsets[new_doc_id as usize];
