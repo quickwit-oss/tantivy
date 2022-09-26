@@ -10,6 +10,7 @@ pub use warming::Warmer;
 use self::warming::WarmingState;
 use crate::core::searcher::{SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
+use crate::error::TantivyError;
 use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 
@@ -18,7 +19,7 @@ use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 /// Regardless of whether you search and index in the same process, tantivy does not necessarily
 /// reflects the change that are committed to your index. `ReloadPolicy` precisely helps you define
 /// when you want your index to be reloaded.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum ReloadPolicy {
     /// The index is entirely reloaded manually.
     /// All updates of the index should be manual.
@@ -29,6 +30,9 @@ pub enum ReloadPolicy {
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
     OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
+    /// The index is on read-only storage and no lock needs to be obtained as the files
+    /// will not be re-written.
+    ReadOnly,
 }
 
 /// [`IndexReader`] builder
@@ -51,7 +55,11 @@ impl IndexReaderBuilder {
     #[must_use]
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
-            reload_policy: ReloadPolicy::OnCommit,
+            reload_policy: if index.is_read_only() {
+                ReloadPolicy::ReadOnly
+            } else {
+                ReloadPolicy::OnCommit
+            },
             index,
             warmers: Vec::new(),
             num_warming_threads: 1,
@@ -65,6 +73,9 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     pub fn try_into(self) -> crate::Result<IndexReader> {
+        if self.index.is_read_only() && self.reload_policy != ReloadPolicy::ReadOnly {
+            return Err(TantivyError::IndexReadOnly);
+        };
         let searcher_generation_inventory = Inventory::default();
         let warming_state = WarmingState::new(
             self.num_warming_threads,
@@ -76,10 +87,11 @@ impl IndexReaderBuilder {
             self.index,
             warming_state,
             searcher_generation_inventory,
+            self.reload_policy,
         )?;
         let inner_reader_arc = Arc::new(inner_reader);
         let watch_handle_opt: Option<WatchHandle> = match self.reload_policy {
-            ReloadPolicy::Manual => {
+            ReloadPolicy::Manual | ReloadPolicy::ReadOnly => {
                 // No need to set anything...
                 None
             }
@@ -157,6 +169,7 @@ struct InnerIndexReader {
     searcher: arc_swap::ArcSwap<SearcherInner>,
     searcher_generation_counter: Arc<AtomicU64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
+    reload_policy: ReloadPolicy,
 }
 
 impl InnerIndexReader {
@@ -167,6 +180,7 @@ impl InnerIndexReader {
         // The searcher_generation_inventory is not used as source, but as target to track the
         // loaded segments.
         searcher_generation_inventory: Inventory<SearcherGeneration>,
+        reload_policy: ReloadPolicy,
     ) -> crate::Result<Self> {
         let searcher_generation_counter: Arc<AtomicU64> = Default::default();
 
@@ -176,6 +190,7 @@ impl InnerIndexReader {
             &warming_state,
             &searcher_generation_counter,
             &searcher_generation_inventory,
+            reload_policy,
         )?;
         Ok(InnerIndexReader {
             doc_store_cache_size,
@@ -184,15 +199,28 @@ impl InnerIndexReader {
             searcher: ArcSwap::from(searcher),
             searcher_generation_counter,
             searcher_generation_inventory,
+            reload_policy,
         })
     }
     /// Opens the freshest segments [`SegmentReader`].
     ///
-    /// This function acquires a lot to prevent GC from removing files
+    /// If the `index` is not [read only](Index::is_read_only), then
+    /// this function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
+    ///
+    /// If the `index` is [read only](Index::is_read_only), then it
+    /// assumed that the index files won't be rewritten and the files
+    /// don't need to be protected.
+    fn open_segment_readers(
+        index: &Index,
+        reload_policy: ReloadPolicy,
+    ) -> crate::Result<Vec<SegmentReader>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
-        let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
+        let _meta_lock = if reload_policy == ReloadPolicy::ReadOnly {
+            None
+        } else {
+            Some(index.directory().acquire_lock(&META_LOCK)?)
+        };
         let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
@@ -218,8 +246,9 @@ impl InnerIndexReader {
         warming_state: &WarmingState,
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
+        reload_policy: ReloadPolicy,
     ) -> crate::Result<Arc<SearcherInner>> {
-        let segment_readers = Self::open_segment_readers(index)?;
+        let segment_readers = Self::open_segment_readers(index, reload_policy)?;
         let searcher_generation = Self::track_segment_readers_in_inventory(
             &segment_readers,
             searcher_generation_counter,
@@ -240,12 +269,16 @@ impl InnerIndexReader {
     }
 
     fn reload(&self) -> crate::Result<()> {
+        if self.reload_policy == ReloadPolicy::ReadOnly {
+            return Err(TantivyError::IndexReadOnly);
+        }
         let searcher = Self::create_searcher(
             &self.index,
             self.doc_store_cache_size,
             &self.warming_state,
             &self.searcher_generation_counter,
             &self.searcher_generation_inventory,
+            self.reload_policy,
         )?;
 
         self.searcher.store(searcher);

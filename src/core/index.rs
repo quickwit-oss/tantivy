@@ -228,6 +228,21 @@ impl IndexBuilder {
             ))
         }
     }
+
+    /// Opens a new index in the provided directory in read-only mode.
+    pub fn open_read_only<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        let mut index = Index::open(dir.into())?;
+        index.set_read_only(true);
+        index.set_tokenizers(self.tokenizer_manager.clone());
+        if index.schema() == self.get_expect_schema()? {
+            Ok(index)
+        } else {
+            Err(TantivyError::SchemaError(
+                "An index exists but the schema does not match.".to_string(),
+            ))
+        }
+    }
+
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
@@ -256,6 +271,7 @@ pub struct Index {
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
+    read_only: bool,
 }
 
 impl Index {
@@ -268,6 +284,23 @@ impl Index {
     /// Effectively, it only checks for the presence of the `meta.json` file.
     pub fn exists(dir: &dyn Directory) -> Result<bool, OpenReadError> {
         dir.exists(&META_FILEPATH)
+    }
+
+    /// Get whether or not this index was opened in read-only mode.
+    ///
+    /// If this is read-only, then the [`ReloadPolicy`] on any
+    /// [`IndexReader`] will be [`ReloadPolicy::ReadOnly`] and no
+    /// I/O should be performed in the index's storage directory.
+    ///
+    /// [`ReloadPolicy`]: crate::reader::ReloadPolicy
+    /// [`ReloadPolicy::ReadOnly`]: crate::reader::ReloadPolicy::ReadOnly
+    pub fn is_read_only(&self) -> bool {
+        self.read_only
+    }
+
+    /// Set the index to be in read-only mode.
+    pub fn set_read_only(&mut self, read_only: bool) {
+        self.read_only = read_only;
     }
 
     /// Accessor to the search executor.
@@ -369,6 +402,7 @@ impl Index {
             tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
+            read_only: false,
         }
     }
 
@@ -487,12 +521,16 @@ impl Index {
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     /// If the memory arena per thread is too small or too big, returns
-    /// `TantivyError::InvalidArgument`
+    /// `TantivyError::InvalidArgument`.
+    /// If the index is read-only, returns `TantivyError::IndexReadOnly`.
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
         overall_memory_arena_in_bytes: usize,
     ) -> crate::Result<IndexWriter> {
+        if self.read_only {
+            return Err(TantivyError::IndexReadOnly);
+        }
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -535,7 +573,8 @@ impl Index {
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// If the memory arena per thread is too small or too big, returns
-    /// `TantivyError::InvalidArgument`
+    /// `TantivyError::InvalidArgument`.
+    /// If the index is read-only, returns `TantivyError::IndexReadOnly`.
     pub fn writer(&self, memory_arena_num_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let memory_arena_num_bytes_per_thread = memory_arena_num_bytes / num_threads;
@@ -707,6 +746,9 @@ mod tests {
         assert!(Index::exists(directory.as_ref()).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
+
+    #[test]
+    fn open_read_only_should_be_read_only() {}
 
     #[test]
     fn create_should_wipeoff_existing() {
