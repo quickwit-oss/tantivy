@@ -88,6 +88,9 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 }
 
 impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
+    fn get_range(&self, doc_id: DocId) -> Range<u64> {
+        self.range(doc_id)
+    }
     fn get_len(&self, doc_id: DocId) -> u64 {
         self.num_vals(doc_id) as u64
     }
