@@ -179,7 +179,7 @@ where
     }
 
     /// Return the next `(key, value)` pair.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<(&[u8], &TermInfo)> {
         if self.advance() {
             Some((self.key(), self.value()))

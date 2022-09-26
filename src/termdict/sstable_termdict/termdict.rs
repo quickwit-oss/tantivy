@@ -52,7 +52,7 @@ impl<W: io::Write> TermDictionaryBuilder<W> {
     /// to insert_key and insert_value.
     ///
     /// Prefer using `.insert(key, value)`
-    #[allow(clippy::clippy::clippy::unnecessary_wraps)]
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.sstable_writer.write_key(key);
         Ok(())
