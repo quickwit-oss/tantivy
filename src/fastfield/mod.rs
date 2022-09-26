@@ -47,6 +47,8 @@ mod writer;
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
 /// for a doc_id
 pub trait MultiValueLength {
+    /// returns the positions for a docid
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64>;
     /// returns the num of values associated to a doc_id
     fn get_len(&self, doc_id: DocId) -> u64;
     /// returns the sum of num values for all doc_ids
