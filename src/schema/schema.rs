@@ -422,12 +422,8 @@ pub enum DocParsingError {
 impl DocParsingError {
     /// Builds a NotJson DocParsingError
     fn invalid_json(invalid_json: &str) -> Self {
-        let sample_json: String = if invalid_json.len() < 20 {
-            invalid_json.to_string()
-        } else {
-            format!("{:?}...", &invalid_json[0..20])
-        };
-        DocParsingError::InvalidJson(sample_json)
+        let sample = invalid_json.chars().take(20).collect();
+        DocParsingError::InvalidJson(sample)
     }
 }
 
@@ -792,6 +788,11 @@ mod tests {
                     ValueParsingError::OverflowError { .. }
                 ))
             );
+        }
+        {
+            // Short JSON, under the 20 char take.
+            let json_err = schema.parse_document(r#"{"count": 50,}"#);
+            assert_matches!(json_err, Err(InvalidJson(_)));
         }
         {
             let json_err = schema.parse_document(
