@@ -1,5 +1,5 @@
 use std::ops::{Deref, Range};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
@@ -7,9 +7,6 @@ use common::HasLen;
 use stable_deref_trait::StableDeref;
 
 use crate::directory::OwnedBytes;
-
-pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///

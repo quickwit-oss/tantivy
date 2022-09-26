@@ -3,7 +3,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Read, Seek, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
 use fs2::FileExt;
@@ -18,9 +18,12 @@ use crate::directory::error::{
 };
 use crate::directory::file_watcher::FileWatcher;
 use crate::directory::{
-    AntiCallToken, ArcBytes, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes,
-    TerminatingWrite, WatchCallback, WatchHandle, WeakArcBytes, WritePtr,
+    AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
+    WatchCallback, WatchHandle, WritePtr,
 };
+
+pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
