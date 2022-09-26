@@ -44,7 +44,7 @@ fn main() -> tantivy::Result<()> {
         // A segment contains different data structure.
         // Inverted index stands for the combination of
         // - the term dictionary
-        // - the inverted lists associated to each terms and their positions
+        // - the inverted lists associated with each terms and their positions
         let inverted_index = segment_reader.inverted_index(title)?;
 
         // A `Term` is a text token associated with a field.
@@ -105,7 +105,7 @@ fn main() -> tantivy::Result<()> {
         // A segment contains different data structure.
         // Inverted index stands for the combination of
         // - the term dictionary
-        // - the inverted lists associated to each terms and their positions
+        // - the inverted lists associated with each terms and their positions
         let inverted_index = segment_reader.inverted_index(title)?;
 
         // This segment posting object is like a cursor over the documents matching the term.

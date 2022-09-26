@@ -30,8 +30,8 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         }
     }
 
-    /// Returns `[start, end)`, such that the values associated
-    /// to the given document are `start..end`.
+    /// Returns `[start, end)`, such that the values associated with
+    /// the given document are `start..end`.
     #[inline]
     fn range(&self, doc: DocId) -> Range<u64> {
         let idx = doc as u64;
@@ -40,7 +40,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         start..end
     }
 
-    /// Returns the array of values associated to the given `doc`.
+    /// Returns the array of values associated with the given `doc`.
     #[inline]
     fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<Item>) {
         let len = (range.end - range.start) as usize;
@@ -48,7 +48,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         self.vals_reader.get_range(range.start, &mut vals[..]);
     }
 
-    /// Returns the array of values associated to the given `doc`.
+    /// Returns the array of values associated with the given `doc`.
     #[inline]
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let range = self.range(doc);

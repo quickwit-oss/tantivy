@@ -49,7 +49,7 @@ mod writer;
 pub trait MultiValueLength {
     /// returns the positions for a docid
     fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64>;
-    /// returns the num of values associated to a doc_id
+    /// returns the num of values associated with a doc_id
     fn get_len(&self, doc_id: DocId) -> u64;
     /// returns the sum of num values for all doc_ids
     fn get_total_len(&self) -> u64;

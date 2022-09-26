@@ -38,7 +38,7 @@ pub trait CustomSegmentScorer<TScore>: 'static {
 pub trait CustomScorer<TScore>: Sync {
     /// Type of the associated [`CustomSegmentScorer`].
     type Child: CustomSegmentScorer<TScore>;
-    /// Builds a child scorer for a specific segment. The child scorer is associated to
+    /// Builds a child scorer for a specific segment. The child scorer is associated with
     /// a specific segment.
     fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child>;
 }

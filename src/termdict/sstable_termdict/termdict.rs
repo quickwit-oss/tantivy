@@ -153,7 +153,7 @@ impl TermDictionary {
         self.num_terms as usize
     }
 
-    /// Returns the ordinal associated to a given term.
+    /// Returns the ordinal associated with a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
         let mut term_ord = 0u64;
         let key_bytes = key.as_ref();
@@ -167,7 +167,7 @@ impl TermDictionary {
         Ok(None)
     }
 
-    /// Returns the term associated to a given term ordinal.
+    /// Returns the term associated with a given term ordinal.
     ///
     /// Term ordinals are defined as the position of the term in
     /// the sorted list of terms.

@@ -39,13 +39,13 @@ impl BytesFastFieldReader {
         start..end
     }
 
-    /// Returns the bytes associated to the given `doc`
+    /// Returns the bytes associated with the given `doc`
     pub fn get_bytes(&self, doc: DocId) -> &[u8] {
         let range = self.range(doc);
         &self.values.as_slice()[range.start as usize..range.end as usize]
     }
 
-    /// Returns the length of the bytes associated to the given `doc`
+    /// Returns the length of the bytes associated with the given `doc`
     pub fn num_bytes(&self, doc: DocId) -> u64 {
         let range = self.range(doc);
         range.end - range.start

@@ -47,9 +47,9 @@ impl FieldNormReaders {
     }
 }
 
-/// Reads the fieldnorm associated to a document.
+/// Reads the fieldnorm associated with a document.
 ///
-/// The [fieldnorm](FieldNormReader::fieldnorm) represents the length associated to
+/// The [fieldnorm](FieldNormReader::fieldnorm) represents the length associated with
 /// a given Field of a given document.
 #[derive(Clone)]
 pub struct FieldNormReader(ReaderImplEnum);
@@ -104,7 +104,7 @@ impl FieldNormReader {
         }
     }
 
-    /// Returns the `fieldnorm` associated to a doc id.
+    /// Returns the `fieldnorm` associated with a doc id.
     /// The fieldnorm is a value approximating the number
     /// of tokens in a given field of the `doc_id`.
     ///
@@ -123,7 +123,7 @@ impl FieldNormReader {
         }
     }
 
-    /// Returns the `fieldnorm_id` associated to a document.
+    /// Returns the `fieldnorm_id` associated with a document.
     #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {

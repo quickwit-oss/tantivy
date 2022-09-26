@@ -693,7 +693,7 @@ impl Collector for TopDocs {
     }
 }
 
-/// Segment Collector associated to `TopDocs`.
+/// Segment Collector associated with `TopDocs`.
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 
 impl SegmentCollector for TopScoreSegmentCollector {

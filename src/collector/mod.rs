@@ -142,7 +142,7 @@ pub trait Collector: Sync + Send {
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
-    /// Type of the `SegmentCollector` associated to this collector.
+    /// Type of the `SegmentCollector` associated with this collector.
     type Child: SegmentCollector;
 
     /// `set_segment` is called before beginning to enumerate
@@ -156,7 +156,7 @@ pub trait Collector: Sync + Send {
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
-    /// Combines the fruit associated to the collection of each segments
+    /// Combines the fruit associated with the collection of each segments
     /// into one fruit.
     fn merge_fruits(
         &self,

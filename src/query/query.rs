@@ -42,7 +42,7 @@ use crate::{DocAddress, Term};
 /// [`Scorer`]: crate::query::Scorer
 /// [`SegmentReader`]: crate::SegmentReader
 pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
-    /// Create the weight associated to a query.
+    /// Create the weight associated with a query.
     ///
     /// If scoring is not required, setting `scoring_enabled` to `false`
     /// can increase performances.
@@ -67,7 +67,7 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
         Ok(result)
     }
 
-    /// Extract all of the terms associated to the query and pass them to the
+    /// Extract all of the terms associated with the query and pass them to the
     /// given closure.
     ///
     /// Each term is associated with a boolean indicating whether

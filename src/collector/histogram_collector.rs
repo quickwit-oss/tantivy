@@ -37,7 +37,7 @@ impl HistogramCollector {
     /// The scale/range of the histogram is not dynamic. It is required to
     /// define it by supplying following parameter:
     ///  - `min_value`: the minimum value that can be recorded in the histogram.
-    ///  - `bucket_width`: the length of the interval that is associated to each buckets.
+    ///  - `bucket_width`: the length of the interval that is associated with each buckets.
     ///  - `num_buckets`: The overall number of buckets.
     ///
     /// Together, this parameters define a partition of `[min_value, min_value + num_buckets *

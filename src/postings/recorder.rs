@@ -50,7 +50,7 @@ impl<'a> Iterator for VInt32Reader<'a> {
 /// Recorder is in charge of recording relevant information about
 /// the presence of a term in a document.
 ///
-/// Depending on the `TextIndexingOptions` associated to the
+/// Depending on the `TextIndexingOptions` associated with the
 /// field, the recorder may records
 ///   * the document frequency
 ///   * the document id

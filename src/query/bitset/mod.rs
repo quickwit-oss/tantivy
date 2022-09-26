@@ -14,7 +14,7 @@ use crate::DocId;
 /// when the bitset is sparse
 pub struct BitSetDocSet {
     docs: BitSet,
-    cursor_bucket: u32, //< index associated to the current tiny bitset
+    cursor_bucket: u32, //< index associated with the current tiny bitset
     cursor_tinybitset: TinySet,
     doc: u32,
 }

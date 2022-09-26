@@ -50,7 +50,7 @@ to get tantivy to fit your use case:
 
 *Example 1* You could for instance use hadoop to build a very large search index in a timely manner, copy all of the resulting segment files in the same directory and edit the `meta.json` to get a functional index.[^2]
 
-*Example 2* You could also disable your merge policy and enforce daily segments. Removing data after one week can then be done very efficiently by just editing the `meta.json` and deleting the files associated to segment `D-7`.
+*Example 2* You could also disable your merge policy and enforce daily segments. Removing data after one week can then be done very efficiently by just editing the `meta.json` and deleting the files associated with segment `D-7`.
 
 ## Merging
 

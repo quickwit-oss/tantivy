@@ -161,7 +161,7 @@ impl TextFieldIndexing {
         self
     }
 
-    /// Returns the indexing options associated to this field.
+    /// Returns the indexing options associated with this field.
     ///
     /// See [`IndexRecordOption`] for more detail.
     pub fn index_option(&self) -> IndexRecordOption {

@@ -154,14 +154,14 @@ impl CompositeFile {
         }
     }
 
-    /// Returns the `FileSlice` associated
-    /// to a given `Field` and stored in a `CompositeFile`.
+    /// Returns the `FileSlice` associated with
+    /// a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<FileSlice> {
         self.open_read_with_idx(field, 0)
     }
 
-    /// Returns the `FileSlice` associated
-    /// to a given `Field` and stored in a `CompositeFile`.
+    /// Returns the `FileSlice` associated with
+    /// a given `Field` and stored in a `CompositeFile`.
     pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<FileSlice> {
         self.offsets_index
             .get(&FileAddr { field, idx })

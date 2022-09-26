@@ -35,7 +35,7 @@ pub enum FacetParseError {
 /// For instance, an e-commerce website could
 /// have a `Facet` for `/electronics/tv_and_video/led_tv`.
 ///
-/// A document can be associated to any number of facets.
+/// A document can be associated with any number of facets.
 /// The hierarchy implicitly imply that a document
 /// belonging to a facet also belongs to the ancestor of
 /// its facet. In the example above, `/electronics/tv_and_video/`
