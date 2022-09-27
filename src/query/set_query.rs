@@ -17,17 +17,16 @@ pub struct TermSetQuery {
 impl TermSetQuery {
     /// Create a Term Set Query
     pub fn new<T: IntoIterator<Item = Term>>(terms: T) -> Self {
-        let mut terms_map: HashMap<_, Vec<_>> = terms
-            .into_iter()
-            .map(|term| (term.field(), term))
-            .fold(HashMap::new(), |mut map, (field, term)| {
-                map.entry(field).or_default().push(term);
-                map
-            });
+        let mut terms_map: HashMap<_, Vec<_>> = HashMap::new();
+        for term in terms {
+            terms_map.entry(term.field()).or_default().push(term);
+        }
+
         for terms in terms_map.values_mut() {
             terms.sort_unstable();
             terms.dedup();
         }
+
         TermSetQuery { terms_map }
     }
 
