@@ -184,6 +184,36 @@ mod tests {
     }
 
     #[bench]
+    fn bench_intfastfield_stride7_fflookup_sparse_roaring(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
+        let column = SparseCodecRoaringBitmap::with_full(column);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_stride7_fflookup_dense_bitmap_with_offset(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
+        let column = DenseCodec::with_full(column);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
     fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         let n = permutation.len();

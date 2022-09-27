@@ -22,10 +22,13 @@ mod compact_space;
 mod line;
 mod linear;
 mod monotonic_mapping;
+mod sparse_codec_wrapper;
 
 mod column;
 mod gcd;
 mod serialize;
+
+pub use sparse_codec_wrapper::{DenseCodec, SparseCodecRoaringBitmap};
 
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
@@ -440,6 +443,7 @@ mod bench {
         let data: Vec<_> = get_data();
         bench_get::<BitpackedCodec>(b, &data);
     }
+
     #[bench]
     fn bench_fastfield_bitpack_get_dynamic(b: &mut Bencher) {
         let data: Vec<_> = get_data();
