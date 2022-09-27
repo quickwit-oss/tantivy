@@ -355,49 +355,16 @@ impl IndexMerger {
             .map(|(_, ff_reader)| ff_reader)
             .collect::<Vec<_>>();
 
-        struct RemappedFFReader<'a> {
-            doc_id_mapping: &'a SegmentDocIdMapping,
-            fast_field_readers: Vec<MultiValuedU128FastFieldReader<u128>>,
-        }
-        impl<'a> Column<u128> for RemappedFFReader<'a> {
-            fn get_val(&self, _idx: u64) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn min_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn max_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn num_vals(&self) -> u64 {
-                self.doc_id_mapping.len() as u64
-            }
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u128> + 'b> {
-                Box::new(
-                    self.doc_id_mapping
-                        .iter_old_doc_addrs()
-                        .flat_map(|doc_addr| {
-                            let fast_field_reader =
-                                &self.fast_field_readers[doc_addr.segment_ord as usize];
-                            let mut out = vec![];
-                            fast_field_reader.get_vals(doc_addr.doc_id, &mut out);
-                            out.into_iter()
-                        }),
-                )
-            }
-        }
-        let column = RemappedFFReader {
-            doc_id_mapping,
-            fast_field_readers,
+        let iter = || {
+            doc_id_mapping.iter_old_doc_addrs().flat_map(|doc_addr| {
+                let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
+                let mut out = vec![];
+                fast_field_reader.get_vals(doc_addr.doc_id, &mut out);
+                out.into_iter()
+            })
         };
         let field_write = fast_field_serializer.get_field_writer(field, 1);
-        serialize_u128(column, field_write)?;
+        serialize_u128(iter, doc_id_mapping.len() as u64, field_write)?;
 
         Ok(())
     }
@@ -421,42 +388,14 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
 
-        struct RemappedFFReader<'a> {
-            doc_id_mapping: &'a SegmentDocIdMapping,
-            fast_field_readers: Vec<Arc<dyn Column<u128>>>,
-        }
-        impl<'a> Column<u128> for RemappedFFReader<'a> {
-            fn get_val(&self, _idx: u64) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn min_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn max_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn num_vals(&self) -> u64 {
-                self.doc_id_mapping.len() as u64
-            }
-            fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = u128> + 'b> {
-                Box::new(self.doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
-                    let fast_field_reader = &self.fast_field_readers[doc_addr.segment_ord as usize];
-                    fast_field_reader.get_val(doc_addr.doc_id as u64)
-                }))
-            }
-        }
-        let column = RemappedFFReader {
-            doc_id_mapping,
-            fast_field_readers,
-        };
         let field_write = fast_field_serializer.get_field_writer(field, 0);
-        serialize_u128(column, field_write)?;
+        let iter = || {
+            doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
+                let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
+                fast_field_reader.get_val(doc_addr.doc_id as u64)
+            })
+        };
+        fastfield_codecs::serialize_u128(iter, doc_id_mapping.len() as u64, field_write)?;
         Ok(())
     }
 

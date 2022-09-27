@@ -364,65 +364,31 @@ impl U128FastFieldWriter {
             }
         }
 
-        struct RemappedFFWriter<'a> {
-            doc_id_map: Option<&'a DocIdMapping>,
-            null_values: &'a RoaringBitmap,
-            vals: &'a [u128],
-            idx_to_val_idx: Vec<u32>,
-            val_count: u32,
-        }
-        impl<'a> Column<u128> for RemappedFFWriter<'a> {
-            fn get_val(&self, _idx: u64) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn min_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn max_value(&self) -> u128 {
-                // unused by codec
-                unreachable!()
-            }
-
-            fn num_vals(&self) -> u64 {
-                self.val_count as u64
-            }
-            fn iter(&self) -> Box<dyn Iterator<Item = u128> + '_> {
-                if let Some(doc_id_map) = self.doc_id_map {
-                    let iter = doc_id_map.iter_old_doc_ids().map(|idx| {
-                        if self.null_values.contains(idx as u32) {
-                            0 // TODO properly handle nulls
-                        } else {
-                            self.vals[self.idx_to_val_idx[idx as usize] as usize]
-                        }
-                    });
-                    Box::new(iter)
-                } else {
-                    let iter = (0..self.val_count).map(|idx| {
-                        if self.null_values.contains(idx as u32) {
-                            0 // TODO properly handle nulls
-                        } else {
-                            self.vals[self.idx_to_val_idx[idx as usize] as usize]
-                        }
-                    });
-                    Box::new(iter)
-                }
-            }
-        }
-
-        let column = RemappedFFWriter {
-            doc_id_map,
-            null_values: &self.null_values,
-            vals: &self.vals,
-            idx_to_val_idx,
-            val_count: self.val_count,
-        };
-
         let field_write = serializer.get_field_writer(self.field, 0);
-        serialize_u128(column, field_write)?;
+
+        if let Some(doc_id_map) = doc_id_map {
+            let iter = || {
+                doc_id_map.iter_old_doc_ids().map(|idx| {
+                    if self.null_values.contains(idx as u32) {
+                        0 // TODO properly handle nulls
+                    } else {
+                        self.vals[idx_to_val_idx[idx as usize] as usize]
+                    }
+                })
+            };
+            serialize_u128(iter, self.val_count as u64, field_write)?;
+        } else {
+            let iter = || {
+                (0..self.val_count).map(|idx| {
+                    if self.null_values.contains(idx as u32) {
+                        0 // TODO properly handle nulls
+                    } else {
+                        self.vals[idx_to_val_idx[idx as usize] as usize]
+                    }
+                })
+            };
+            serialize_u128(iter, self.val_count as u64, field_write)?;
+        }
 
         Ok(())
     }

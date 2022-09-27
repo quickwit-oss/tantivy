@@ -361,15 +361,8 @@ impl MultiValueU128FastFieldWriter {
         {
             let field_write = serializer.get_field_writer(self.field, 1);
 
-            let mut values = Vec::with_capacity(self.vals.len());
-            for vals in self.get_ordered_values(doc_id_map) {
-                for &val in vals {
-                    values.push(val);
-                }
-            }
-            let col = VecColumn::from(&values[..]);
-
-            serialize_u128(col, field_write)?;
+            let iter = || self.get_ordered_values(doc_id_map).flatten().cloned();
+            serialize_u128(iter, self.vals.len() as u64, field_write)?;
         }
         Ok(())
     }

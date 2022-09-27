@@ -142,15 +142,14 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
     }
 }
 
-pub fn serialize_u128(
-    typed_column: impl Column<u128>,
+pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
+    iter_gen: F,
+    num_vals: u64,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     // TODO write header, to later support more codecs
-    let compressor = CompactSpaceCompressor::train_from(&typed_column);
-    compressor
-        .compress_into(typed_column.iter(), output)
-        .unwrap();
+    let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
+    compressor.compress_into(iter_gen(), output).unwrap();
 
     Ok(())
 }
