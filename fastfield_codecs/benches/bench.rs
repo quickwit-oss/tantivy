@@ -44,6 +44,15 @@ mod tests {
         open(OwnedBytes::new(buffer)).unwrap()
     }
 
+    pub fn serialize_and_load_dense<T: MonotonicallyMappableToU64 + Ord + Default>(
+        column: &[T],
+        fill_ratio: u32,
+    ) -> Arc<dyn Column<T>> {
+        let mut buffer = Vec::new();
+        serialize(VecColumn::from(&column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
+        open_dense(OwnedBytes::new(buffer), fill_ratio).unwrap()
+    }
+
     #[bench]
     fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
@@ -202,8 +211,39 @@ mod tests {
     fn bench_intfastfield_stride7_fflookup_dense_bitmap_with_offset(b: &mut Bencher) {
         let permutation = generate_permutation();
         let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
-        let column = DenseCodec::with_full(column);
+        let column: Arc<dyn Column<u64>> = serialize_and_load_dense(&permutation, 1000);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_stride7_fflookup_dense_bitmap_with_offset_70percent_dense(
+        b: &mut Bencher,
+    ) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = serialize_and_load_dense(&permutation, 700);
+        b.iter(|| {
+            let mut a = 0u64;
+            for i in (0..n / 7).map(|val| val * 7) {
+                a += column.get_val(i as u64);
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_stride7_fflookup_dense_bitmap_with_offset_20percent_dense(
+        b: &mut Bencher,
+    ) {
+        let permutation = generate_permutation();
+        let n = permutation.len();
+        let column: Arc<dyn Column<u64>> = serialize_and_load_dense(&permutation, 200);
         b.iter(|| {
             let mut a = 0u64;
             for i in (0..n / 7).map(|val| val * 7) {

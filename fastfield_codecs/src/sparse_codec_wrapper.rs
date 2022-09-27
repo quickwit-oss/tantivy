@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use rand::{thread_rng, Rng};
 use roaring::RoaringBitmap;
 
 use crate::Column;
@@ -37,16 +38,43 @@ impl Column for SparseCodecRoaringBitmap {
     }
 }
 
-pub struct DenseCodec {
+pub struct DenseCodec<C> {
     // the bitmap blocks of length 64 bit each
     blocks: Vec<u64>,
     // the offset for each block
     offsets: Vec<u32>,
-    column: Arc<dyn Column<u64>>, // column: C,
+    column: C, // column: C,
 }
 
-impl DenseCodec {
-    pub fn with_full(column: Arc<dyn Column<u64>>) -> Self {
+impl<C: Column> DenseCodec<C> {
+    // fill ratio valid range 0..1000 1000 == all elements, 1 == every 1000th element
+    pub fn with_fill_ratio(column: C, fill_ratio: u32) -> Self {
+        let mut rng = thread_rng();
+        let num_blocks = (column.num_vals() as usize / 64) + 1;
+        let mut blocks = Vec::with_capacity(num_blocks);
+        let mut offsets = Vec::with_capacity(num_blocks);
+        // fill all blocks
+        let mut offset = 0;
+        for _block_num in 0..num_blocks {
+            let mut block = 0;
+            for n in 0..64 {
+                if rng.gen_range(0..=1000) <= fill_ratio {
+                    set_bit_at(&mut block, n);
+                }
+            }
+            blocks.push(block);
+            offsets.push(offset);
+            offset += block.count_ones();
+        }
+
+        Self {
+            blocks,
+            offsets,
+            column,
+        }
+    }
+
+    pub fn with_full(column: C) -> Self {
         let num_blocks = (column.num_vals() as usize / 64) + 1;
         let mut blocks = Vec::with_capacity(num_blocks);
         let mut offsets = Vec::with_capacity(num_blocks);
@@ -76,7 +104,11 @@ fn get_bit_at(input: u64, n: u64) -> bool {
     input & (1 << n) != 0
 }
 
-impl Column for DenseCodec {
+fn set_bit_at(input: &mut u64, n: u64) {
+    *input |= 1 << n;
+}
+
+impl<C: Column> Column for DenseCodec<C> {
     fn get_val(&self, idx: u64) -> u64 {
         let block_pos = idx / 64;
         let pos_in_block = idx % 64;
@@ -106,20 +138,20 @@ impl Column for DenseCodec {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
+    //use itertools::Itertools;
 
-    use super::*;
-    use crate::serialize_and_load;
+    //use super::*;
+    //use crate::serialize_and_load;
 
-    #[test]
-    fn dense_test() {
-        let data = (0..100u64).collect_vec();
-        {
-            let column = serialize_and_load(&data);
-            let dense = DenseCodec::with_full(column);
-            for i in 0..100 {
-                dense.get_val(i);
-            }
-        }
-    }
+    //#[test]
+    //fn dense_test() {
+    //let data = (0..100u64).collect_vec();
+    //{
+    //let column = serialize_and_load(&data);
+    //let dense = DenseCodec::with_full(column);
+    //for i in 0..100 {
+    //dense.get_val(i);
+    //}
+    //}
+    //}
 }

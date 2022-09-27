@@ -28,8 +28,6 @@ mod column;
 mod gcd;
 mod serialize;
 
-pub use sparse_codec_wrapper::{DenseCodec, SparseCodecRoaringBitmap};
-
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
@@ -38,6 +36,8 @@ pub use self::monotonic_mapping::MonotonicallyMappableToU64;
 pub use self::serialize::{
     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
 };
+pub use sparse_codec_wrapper::DenseCodec;
+pub use sparse_codec_wrapper::SparseCodecRoaringBitmap;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -78,6 +78,44 @@ impl FastFieldCodecType {
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<u128>>> {
     Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
+}
+//DenseCodec
+//
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_dense<T: MonotonicallyMappableToU64>(
+    mut bytes: OwnedBytes,
+    fill_ratio: u32,
+) -> io::Result<Arc<dyn Column<T>>> {
+    let header = Header::deserialize(&mut bytes)?;
+    match header.codec_type {
+        FastFieldCodecType::Bitpacked => {
+            open_specific_codec_dense::<BitpackedCodec, _>(bytes, &header, fill_ratio)
+        }
+        FastFieldCodecType::Linear => {
+            open_specific_codec_dense::<LinearCodec, _>(bytes, &header, fill_ratio)
+        }
+        FastFieldCodecType::BlockwiseLinear => {
+            open_specific_codec_dense::<BlockwiseLinearCodec, _>(bytes, &header, fill_ratio)
+        }
+    }
+}
+
+fn open_specific_codec_dense<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+    bytes: OwnedBytes,
+    header: &Header,
+    fill_ratio: u32,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let normalized_header = header.normalized();
+    let reader = C::open_from_bytes(bytes, normalized_header)?;
+    let reader = DenseCodec::with_fill_ratio(reader, fill_ratio);
+    let min_value = header.min_value;
+    if let Some(gcd) = header.gcd {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+    } else {
+        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
+        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+    }
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
