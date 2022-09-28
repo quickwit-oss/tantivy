@@ -80,7 +80,11 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
 ) -> io::Result<Arc<dyn Column<Item>>> {
     let monotonic_mapping = move |val: u128| Item::from_u128(val);
     let reader = CompactSpaceDecompressor::open(bytes)?;
-    Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+    Ok(Arc::new(monotonic_map_column(
+        reader,
+        monotonic_mapping,
+        Item::to_u128,
+    )))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
@@ -106,10 +110,18 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     let min_value = header.min_value;
     if let Some(gcd) = header.gcd {
         let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+        Ok(Arc::new(monotonic_map_column(
+            reader,
+            monotonic_mapping,
+            Item::to_u64,
+        )))
     } else {
         let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+        Ok(Arc::new(monotonic_map_column(
+            reader,
+            monotonic_mapping,
+            Item::to_u64,
+        )))
     }
 }
 

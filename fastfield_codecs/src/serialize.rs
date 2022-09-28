@@ -69,7 +69,11 @@ impl Header {
         let min_value = self.min_value;
         let gcd = self.gcd.map(|gcd| gcd.get()).unwrap_or(1);
         let divider = DividerU64::divide_by(gcd);
-        monotonic_map_column(from_column, move |val| divider.divide(val - min_value))
+        monotonic_map_column(
+            from_column,
+            move |val| divider.divide(val - min_value),
+            |val| val,
+        )
     }
 
     pub fn compute_header(
@@ -82,7 +86,8 @@ impl Header {
         let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
             .filter(|gcd| gcd.get() > 1u64);
         let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
-        let shifted_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
+        let shifted_column =
+            monotonic_map_column(&column, |val| divider.divide(val - min_value), |val| val);
         let codec_type = detect_codec(shifted_column, codecs)?;
         Some(Header {
             num_vals,
@@ -129,12 +134,13 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     codec_type: FastFieldCodecType,
 ) -> Option<f32> {
-    let column = monotonic_map_column(typed_column, T::to_u64);
+    let column = monotonic_map_column(typed_column, T::to_u64, T::from_u64);
     let min_value = column.min_value();
     let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
         .filter(|gcd| gcd.get() > 1u64);
     let divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
-    let normalized_column = monotonic_map_column(&column, |val| divider.divide(val - min_value));
+    let normalized_column =
+        monotonic_map_column(&column, |val| divider.divide(val - min_value), |val| val);
     match codec_type {
         FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&normalized_column),
         FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
@@ -159,7 +165,7 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     output: &mut impl io::Write,
     codecs: &[FastFieldCodecType],
 ) -> io::Result<()> {
-    let column = monotonic_map_column(typed_column, T::to_u64);
+    let column = monotonic_map_column(typed_column, T::to_u64, T::from_u64);
     let header = Header::compute_header(&column, codecs).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,

@@ -124,7 +124,8 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
 }
 
 impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
-where V: AsRef<[T]> + ?Sized
+where
+    V: AsRef<[T]> + ?Sized,
 {
     fn from(values: &'a V) -> Self {
         let values = values.as_ref();
@@ -137,52 +138,57 @@ where V: AsRef<[T]> + ?Sized
     }
 }
 
-struct MonotonicMappingColumn<C, T, Input> {
+struct MonotonicMappingColumn<C, T, U, Input> {
     from_column: C,
-    monotonic_mapping: T,
+    monotonic_mapping_to_output: T,
+    monotonic_mapping_to_input: U,
     _phantom: PhantomData<Input>,
 }
 
 /// Creates a view of a column transformed by a monotonic mapping.
-pub fn monotonic_map_column<C, T, Input: PartialOrd, Output: PartialOrd>(
+pub fn monotonic_map_column<C, T, U, Input: PartialOrd, Output: PartialOrd + Clone>(
     from_column: C,
-    monotonic_mapping: T,
+    monotonic_mapping_to_output: T,
+    monotonic_mapping_to_input: U,
 ) -> impl Column<Output>
 where
     C: Column<Input>,
     T: Fn(Input) -> Output + Send + Sync,
+    U: Fn(Output) -> Input + Send + Sync,
     Input: Send + Sync,
     Output: Send + Sync,
 {
     MonotonicMappingColumn {
         from_column,
-        monotonic_mapping,
+        monotonic_mapping_to_output,
+        monotonic_mapping_to_input,
         _phantom: PhantomData,
     }
 }
 
-impl<C, T, Input: PartialOrd, Output: PartialOrd> Column<Output>
-    for MonotonicMappingColumn<C, T, Input>
+impl<C, T, U, Input: PartialOrd, Output: PartialOrd> Column<Output>
+    for MonotonicMappingColumn<C, T, U, Input>
 where
     C: Column<Input>,
     T: Fn(Input) -> Output + Send + Sync,
+    U: Fn(Output) -> Input + Send + Sync,
     Input: Send + Sync,
-    Output: Send + Sync,
+    Output: Send + Sync + Clone,
 {
     #[inline]
     fn get_val(&self, idx: u64) -> Output {
         let from_val = self.from_column.get_val(idx);
-        (self.monotonic_mapping)(from_val)
+        (self.monotonic_mapping_to_output)(from_val)
     }
 
     fn min_value(&self) -> Output {
         let from_min_value = self.from_column.min_value();
-        (self.monotonic_mapping)(from_min_value)
+        (self.monotonic_mapping_to_output)(from_min_value)
     }
 
     fn max_value(&self) -> Output {
         let from_max_value = self.from_column.max_value();
-        (self.monotonic_mapping)(from_max_value)
+        (self.monotonic_mapping_to_output)(from_max_value)
     }
 
     fn num_vals(&self) -> u64 {
@@ -190,7 +196,18 @@ where
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = Output> + '_> {
-        Box::new(self.from_column.iter().map(&self.monotonic_mapping))
+        Box::new(
+            self.from_column
+                .iter()
+                .map(&self.monotonic_mapping_to_output),
+        )
+    }
+
+    fn get_between_vals(&self, range: RangeInclusive<Output>) -> Vec<u64> {
+        self.from_column.get_between_vals(
+            (self.monotonic_mapping_to_input)(range.start().clone())
+                ..=(self.monotonic_mapping_to_input)(range.end().clone()),
+        )
     }
 
     // We voluntarily do not implement get_range as it yields a regression,
@@ -200,7 +217,8 @@ where
 pub struct IterColumn<T>(T);
 
 impl<T> From<T> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator
+where
+    T: Iterator + Clone + ExactSizeIterator,
 {
     fn from(iter: T) -> Self {
         IterColumn(iter)
@@ -242,7 +260,7 @@ mod tests {
     fn test_monotonic_mapping() {
         let vals = &[1u64, 3u64][..];
         let col = VecColumn::from(vals);
-        let mapped = monotonic_map_column(col, |el| el + 4);
+        let mapped = monotonic_map_column(col, |el| el + 4, |el| el);
         assert_eq!(mapped.min_value(), 5u64);
         assert_eq!(mapped.max_value(), 7u64);
         assert_eq!(mapped.num_vals(), 2);
@@ -262,7 +280,7 @@ mod tests {
     fn test_monotonic_mapping_iter() {
         let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
         let col = VecColumn::from(&vals);
-        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
+        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64, i64::to_u64);
         let val_i64s: Vec<i64> = mapped.iter().collect();
         for i in 0..100 {
             assert_eq!(val_i64s[i as usize], mapped.get_val(i));
@@ -273,7 +291,7 @@ mod tests {
     fn test_monotonic_mapping_get_range() {
         let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
         let col = VecColumn::from(&vals);
-        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
+        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64, i64::to_u64);
         assert_eq!(mapped.min_value(), -10i64);
         assert_eq!(mapped.max_value(), 980i64);
         assert_eq!(mapped.num_vals(), 100);
