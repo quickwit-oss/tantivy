@@ -51,7 +51,6 @@ impl TermSetQuery {
             let map = Map::from_iter(
                 sorted_terms
                     .iter()
-                    .filter(|key| key.typ() == field_type)
                     .map(|key| (key.value_bytes(), 0)),
             )
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
