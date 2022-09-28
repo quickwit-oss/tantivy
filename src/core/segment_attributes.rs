@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
+/// SegmentAttribute is a single attribute related to a segment
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SegmentAttribute {
@@ -13,19 +14,21 @@ pub enum SegmentAttribute {
 
 impl SegmentAttribute {
     pub fn merge(&mut self, other: &SegmentAttribute) {
-        match self {
-            SegmentAttribute::ConjunctiveBool(a) => match other {
-                SegmentAttribute::ConjunctiveBool(b) => *a = *a && *b,
-                _ => unreachable!(),
-            },
-            SegmentAttribute::DisjunctiveBool(a) => match other {
-                SegmentAttribute::DisjunctiveBool(b) => *a = *a || *b,
-                _ => unreachable!(),
-            },
-            SegmentAttribute::StringList(a) => match other {
-                SegmentAttribute::StringList(b) => a.extend(b.iter().cloned()),
-                _ => unreachable!(),
-            },
+        match (self, other) {
+            (SegmentAttribute::ConjunctiveBool(a), SegmentAttribute::ConjunctiveBool(b)) => {
+                *a = *a && *b
+            }
+            (SegmentAttribute::DisjunctiveBool(a), SegmentAttribute::DisjunctiveBool(b)) => {
+                *a = *a || *b
+            }
+            (SegmentAttribute::StringList(a), SegmentAttribute::StringList(b)) => {
+                a.extend(b.iter().cloned())
+            }
+            (a, b) => warn!(
+                "SegmentAttribute {other:?} cannot be merged to {self:?}, defaulted to {self:?}",
+                other = b,
+                self = a
+            ),
         }
     }
 }
@@ -49,6 +52,9 @@ impl SegmentAttributesConfig {
     }
     pub fn get(&self, name: &str) -> Option<&SegmentAttribute> {
         self.0.get(name)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -77,6 +83,9 @@ impl SegmentAttributes {
             }
         }
         new_attributes
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
