@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 pub enum SegmentAttribute {
     ConjunctiveBool(bool),
     DisjunctiveBool(bool),
+    MaxInteger(i64),
+    MinInteger(i64),
+    AccumulatedInteger(i64),
     StringList(Vec<String>),
 }
 
@@ -20,6 +23,15 @@ impl SegmentAttribute {
             }
             (SegmentAttribute::DisjunctiveBool(a), SegmentAttribute::DisjunctiveBool(b)) => {
                 *a = *a || *b
+            }
+            (SegmentAttribute::MaxInteger(a), SegmentAttribute::MaxInteger(b)) => {
+                *a = std::cmp::max(*a, *b)
+            }
+            (SegmentAttribute::MinInteger(a), SegmentAttribute::MinInteger(b)) => {
+                *a = std::cmp::min(*a, *b)
+            }
+            (SegmentAttribute::AccumulatedInteger(a), SegmentAttribute::AccumulatedInteger(b)) => {
+                *a += b
             }
             (SegmentAttribute::StringList(a), SegmentAttribute::StringList(b)) => {
                 a.extend(b.iter().cloned())
