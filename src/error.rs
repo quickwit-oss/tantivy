@@ -65,6 +65,9 @@ pub enum TantivyError {
     /// Index already exists in this directory.
     #[error("Index already exists")]
     IndexAlreadyExists,
+    /// Index is read-only.
+    #[error("Index is read-only")]
+    IndexReadOnly,
     /// Failed to acquire file lock.
     #[error("Failed to acquire Lockfile: {0:?}. {1:?}")]
     LockFailure(LockError, Option<String>),
