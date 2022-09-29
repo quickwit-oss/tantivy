@@ -1396,6 +1396,35 @@ mod tests {
     }
 
     #[test]
+    fn test_sort_by_multivalue_field_error() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+        schema_builder.add_u64_field("id", options);
+        let schema = schema_builder.build();
+
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "id".to_string(),
+                order: Order::Desc,
+            }),
+            ..Default::default()
+        };
+
+        let err = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "An invalid argument was passed: 'Only single value fast field Cardinality supported \
+             for sorting index id'"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_delete_with_sort_by_field() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field =
