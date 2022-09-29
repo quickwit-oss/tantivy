@@ -4,7 +4,7 @@ use std::io;
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU64};
 use fnv::FnvHashMap;
-use measure_time::debug_time;
+use measure_time::{debug_time, trace_time};
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::MultiValuedFastFieldWriter;
@@ -216,6 +216,7 @@ impl FastFieldsWriter {
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
+        debug_time!("segment-serialize-all-fast-fields",);
         for field_writer in self.term_id_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
@@ -368,7 +369,10 @@ impl IntFastFieldWriter {
             num_vals: self.val_count as u64,
         };
 
-        debug_time!("segment-write-single-field, field_id {:?}", self.field());
+        trace_time!(
+            "segment-serialize-single-value-field, field_id {:?}",
+            self.field()
+        );
 
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
 

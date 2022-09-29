@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use fastfield_codecs::{Column, MonotonicallyMappableToU64, VecColumn};
 use fnv::FnvHashMap;
-use measure_time::debug_time;
+use measure_time::{debug_time, trace_time};
 
 use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -148,8 +148,8 @@ impl MultiValuedFastFieldWriter {
             self.doc_index.push(self.vals.len() as u64);
             let col = VecColumn::from(&self.doc_index[..]);
 
-            debug_time!(
-                "segment-write-multi-fast-field-idx, num_vals {}, field_id {:?}",
+            trace_time!(
+                "segment-serialize-multi-fast-field-idx, num_vals {}, field_id {:?}",
                 col.num_vals(),
                 self.field()
             );
@@ -166,8 +166,8 @@ impl MultiValuedFastFieldWriter {
             }
         }
         {
-            debug_time!(
-                "segment-write-multi-fast-field-values, num_vals {}, field_id {:?}",
+            trace_time!(
+                "segment-serialize-multi-fast-field-values, num_vals {}, field_id {:?}",
                 self.vals.len(),
                 self.field()
             );

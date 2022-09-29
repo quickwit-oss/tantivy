@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use fastfield_codecs::VecColumn;
 use itertools::Itertools;
-use measure_time::debug_time;
+use measure_time::{debug_time, trace_time};
 
 use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
@@ -315,7 +315,7 @@ impl IndexMerger {
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         let fast_field_accessor = SortedDocIdColumn::new(&self.readers, doc_id_mapping, field);
-        debug_time!(
+        trace_time!(
             "merge-single-fast-field, num_vals {}, num_segments {}, field_id {:?}",
             fast_field_accessor.num_vals(),
             self.readers.len(),
@@ -468,7 +468,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Vec<u64>> {
-        debug_time!(
+        trace_time!(
             "merge-multi-fast-field-idx, num_segments {}, field_id {:?}",
             self.readers.len(),
             field
@@ -504,7 +504,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("write-term-id-fast-field");
+        trace_time!("write-term-id-fast-field");
 
         // Multifastfield consists of 2 fastfields.
         // The first serves as an index into the second one and is strictly increasing.
@@ -587,7 +587,7 @@ impl IndexMerger {
 
         let fastfield_accessor =
             SortedDocIdMultiValueColumn::new(&self.readers, doc_id_mapping, &offsets, field);
-        debug_time!(
+        trace_time!(
             "merge-multi-fast-field-values, num_vals {}, num_segments {}, field_id {:?}",
             fastfield_accessor.num_vals(),
             self.readers.len(),
@@ -647,7 +647,7 @@ impl IndexMerger {
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Option<TermOrdinalMapping>> {
-        debug_time!("write-postings-for-field");
+        debug_time!("write-postings-for-field {:?}", indexed_field);
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
@@ -850,7 +850,7 @@ impl IndexMerger {
         debug!("write-storable-field");
 
         if !doc_id_mapping.is_trivial() {
-            debug!("non-trivial-doc-id-mapping");
+            debug!("non-trivial-doc-id-mapping (index is sorted)");
 
             let store_readers: Vec<_> = self
                 .readers
@@ -878,7 +878,7 @@ impl IndexMerger {
                 }
             }
         } else {
-            debug!("trivial-doc-id-mapping");
+            debug!("trivial-doc-id-mapping (index is not sorted)");
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader(1)?;
                 if reader.has_deletes()
