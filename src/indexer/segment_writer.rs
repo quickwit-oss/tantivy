@@ -374,9 +374,9 @@ fn remap_and_write(
         doc_id_map,
     )?;
 
-    debug!("resort-docstore");
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {
+        debug!("resort-docstore");
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;

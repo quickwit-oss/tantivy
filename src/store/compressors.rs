@@ -104,6 +104,13 @@ impl ZstdCompressor {
                             value, opt_name, err
                         )
                     })?;
+                    if value >= 15 {
+                        warn!(
+                            "High zstd compression level detected: {:?}. High compression levels \
+                             (>=15) are slow and will limit indexing speed.",
+                            value
+                        )
+                    }
                     compressor.compression_level = Some(value);
                 }
                 _ => {
