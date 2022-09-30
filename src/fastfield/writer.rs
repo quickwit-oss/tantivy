@@ -6,7 +6,6 @@ use fastfield_codecs::{
     serialize_u128, Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
 };
 use fnv::FnvHashMap;
-use roaring::RoaringBitmap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
