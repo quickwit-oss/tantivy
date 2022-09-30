@@ -361,8 +361,8 @@ impl MultiValueU128FastFieldWriter {
         {
             let field_write = serializer.get_field_writer(self.field, 1);
 
-            let iter = || self.get_ordered_values(doc_id_map).flatten().cloned();
-            serialize_u128(iter, self.vals.len() as u64, field_write)?;
+            let iter_gen = || self.get_ordered_values(doc_id_map).flatten().cloned();
+            serialize_u128(iter_gen, self.vals.len() as u64, field_write)?;
         }
         Ok(())
     }

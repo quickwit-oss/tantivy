@@ -330,18 +330,18 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let segment_and_ff_readers = self
-            .readers
-            .iter()
-            .map(|segment_reader| {
-                let ff_reader: MultiValuedU128FastFieldReader<u128> =
-                    segment_reader.fast_fields().u128s(field).expect(
-                        "Failed to find index for multivalued field. This is a bug in tantivy, \
-                         please report.",
-                    );
-                (segment_reader, ff_reader)
-            })
-            .collect::<Vec<_>>();
+        let segment_and_ff_readers: Vec<(&SegmentReader, MultiValuedU128FastFieldReader<u128>)> =
+            self.readers
+                .iter()
+                .map(|segment_reader| {
+                    let ff_reader: MultiValuedU128FastFieldReader<u128> =
+                        segment_reader.fast_fields().u128s(field).expect(
+                            "Failed to find index for multivalued field. This is a bug in \
+                             tantivy, please report.",
+                        );
+                    (segment_reader, ff_reader)
+                })
+                .collect::<Vec<_>>();
 
         Self::write_1_n_fast_field_idx_generic(
             field,
@@ -355,7 +355,7 @@ impl IndexMerger {
             .map(|(_, ff_reader)| ff_reader)
             .collect::<Vec<_>>();
 
-        let iter = || {
+        let iter_gen = || {
             doc_id_mapping.iter_old_doc_addrs().flat_map(|doc_addr| {
                 let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
                 let mut out = vec![];
@@ -364,7 +364,7 @@ impl IndexMerger {
             })
         };
         let field_write = fast_field_serializer.get_field_writer(field, 1);
-        serialize_u128(iter, doc_id_mapping.len() as u64, field_write)?;
+        serialize_u128(iter_gen, doc_id_mapping.len() as u64, field_write)?;
 
         Ok(())
     }
@@ -389,13 +389,13 @@ impl IndexMerger {
             .collect::<Vec<_>>();
 
         let field_write = fast_field_serializer.get_field_writer(field, 0);
-        let iter = || {
+        let iter_gen = || {
             doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
                 fast_field_reader.get_val(doc_addr.doc_id as u64)
             })
         };
-        fastfield_codecs::serialize_u128(iter, doc_id_mapping.len() as u64, field_write)?;
+        fastfield_codecs::serialize_u128(iter_gen, doc_id_mapping.len() as u64, field_write)?;
         Ok(())
     }
 

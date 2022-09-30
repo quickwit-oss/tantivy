@@ -350,15 +350,15 @@ impl U128FastFieldWriter {
         let field_write = serializer.get_field_writer(self.field, 0);
 
         if let Some(doc_id_map) = doc_id_map {
-            let iter = || {
+            let iter_gen = || {
                 doc_id_map
                     .iter_old_doc_ids()
                     .map(|idx| self.vals[idx as usize])
             };
-            serialize_u128(iter, self.val_count as u64, field_write)?;
+            serialize_u128(iter_gen, self.val_count as u64, field_write)?;
         } else {
-            let iter = || (0..self.val_count).map(|idx| self.vals[idx as usize]);
-            serialize_u128(iter, self.val_count as u64, field_write)?;
+            let iter_gen = || (0..self.val_count).map(|idx| self.vals[idx as usize]);
+            serialize_u128(iter_gen, self.val_count as u64, field_write)?;
         }
 
         Ok(())
