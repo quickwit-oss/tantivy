@@ -19,7 +19,7 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
 
@@ -152,9 +152,7 @@ impl IndexBuilder {
     /// This should only be used for unit tests.
     pub fn create_in_ram(self) -> Result<Index, TantivyError> {
         let ram_directory = RamDirectory::create();
-        Ok(self
-            .create(ram_directory)
-            .expect("Creating a RamDirectory should never fail"))
+        self.create(ram_directory)
     }
 
     /// Creates a new index in a given filepath.
@@ -228,10 +226,44 @@ impl IndexBuilder {
             ))
         }
     }
+
+    fn validate(&self) -> crate::Result<()> {
+        if let Some(schema) = self.schema.as_ref() {
+            if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref() {
+                let schema_field = schema.get_field(&sort_by_field.field).ok_or_else(|| {
+                    TantivyError::InvalidArgument(format!(
+                        "Field to sort index {} not found in schema",
+                        sort_by_field.field
+                    ))
+                })?;
+                let entry = schema.get_field_entry(schema_field);
+                if !entry.is_fast() {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Field {} is no fast field. Field needs to be a single value fast field \
+                         to be used to sort an index",
+                        sort_by_field.field
+                    )));
+                }
+                if entry.field_type().fastfield_cardinality() != Some(Cardinality::SingleValue) {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Only single value fast field Cardinality supported for sorting index {}",
+                        sort_by_field.field
+                    )));
+                }
+            }
+            Ok(())
+        } else {
+            Err(TantivyError::InvalidArgument(
+                "no schema passed".to_string(),
+            ))
+        }
+    }
+
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
     fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        self.validate()?;
         let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(

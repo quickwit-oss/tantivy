@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+use super::Cardinality;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
@@ -211,6 +212,26 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(_) => false,
+        }
+    }
+
+    /// returns true if the field is fast.
+    pub fn fastfield_cardinality(&self) -> Option<Cardinality> {
+        match *self {
+            FieldType::Bytes(ref bytes_options) if bytes_options.is_fast() => {
+                Some(Cardinality::SingleValue)
+            }
+            FieldType::Str(ref text_options) if text_options.is_fast() => {
+                Some(Cardinality::MultiValues)
+            }
+            FieldType::U64(ref int_options)
+            | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality(),
+            FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
+            FieldType::Facet(_) => Some(Cardinality::MultiValues),
+            FieldType::JsonObject(_) => None,
+            _ => None,
         }
     }
 

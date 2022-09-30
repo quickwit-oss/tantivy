@@ -43,7 +43,6 @@ impl TermSetQuery {
                 let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
                 return Err(crate::TantivyError::SchemaError(error_msg));
             }
-            let field_type = field_type.value_type();
 
             // In practice this won't fail because:
             // - we are writing to memory, so no IoError
