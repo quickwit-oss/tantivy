@@ -7,7 +7,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
-use crate::core::segment_attributes::{SegmentAttributes, SegmentAttributesConfig};
 use crate::core::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
@@ -38,7 +37,7 @@ impl SegmentMetaInventory {
         &self,
         segment_id: SegmentId,
         max_doc: u32,
-        segment_attributes: SegmentAttributes,
+        segment_attributes: Option<serde_json::Value>,
     ) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,
@@ -183,7 +182,7 @@ impl SegmentMeta {
     }
 
     /// Returns segment attributes
-    pub fn segment_attributes(&self) -> &SegmentAttributes {
+    pub fn segment_attributes(&self) -> &Option<serde_json::Value> {
         &self.tracked.segment_attributes
     }
 
@@ -236,9 +235,8 @@ struct InnerSegmentMeta {
     #[serde(skip)]
     #[serde(default = "default_temp_store")]
     pub(crate) include_temp_doc_store: Arc<AtomicBool>,
-    #[serde(skip_serializing_if = "SegmentAttributes::is_empty")]
     #[serde(default)]
-    segment_attributes: SegmentAttributes,
+    segment_attributes: Option<serde_json::Value>,
 }
 
 fn default_temp_store() -> Arc<AtomicBool> {
@@ -283,11 +281,6 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
-    /// Configuration for segment attributes that will be used for injecting attributes to new
-    /// segments
-    #[serde(default)]
-    #[serde(skip_serializing_if = "SegmentAttributesConfig::is_empty")]
-    pub segment_attributes_config: SegmentAttributesConfig,
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -302,7 +295,6 @@ impl Default for IndexSettings {
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
-            segment_attributes_config: SegmentAttributesConfig::default(),
         }
     }
 }
@@ -435,7 +427,7 @@ mod tests {
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
     use crate::store::{Compressor, ZstdCompressor};
-    use crate::{IndexSettings, IndexSortByField, Order, SegmentAttributesConfig};
+    use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
     fn test_serialize_metas() {
@@ -487,7 +479,6 @@ mod tests {
                 }),
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
-                segment_attributes_config: SegmentAttributesConfig::default(),
             },
             segments: Vec::new(),
             schema,
@@ -538,7 +529,6 @@ mod tests {
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
                 docstore_blocksize: 16_384,
-                segment_attributes_config: SegmentAttributesConfig::default(),
             }
         );
         {

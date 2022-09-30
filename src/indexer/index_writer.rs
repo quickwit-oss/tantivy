@@ -510,12 +510,10 @@ impl IndexWriter {
     ///
     /// `segment_ids` is required to be non-empty.
     pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<Option<SegmentMeta>> {
-        let merge_operation = self.segment_updater.make_merge_operation(segment_ids, None);
-        let segment_updater = self.segment_updater.clone();
-        segment_updater.start_merge(merge_operation)
+        self.merge_with_attributes(segment_ids, None)
     }
 
-    /// Merges a given list of segments and override attributes for result segment from settings
+    /// Merges a given list of segments and set attributes in merged segment.
     ///
     /// If all segments are empty no new segment will be created.
     ///
@@ -523,11 +521,11 @@ impl IndexWriter {
     pub fn merge_with_attributes(
         &mut self,
         segment_ids: &[SegmentId],
-        segment_attributes: SegmentAttributes,
+        segment_attributes: Option<serde_json::Value>,
     ) -> FutureResult<Option<SegmentMeta>> {
         let merge_operation = self
             .segment_updater
-            .make_merge_operation(segment_ids, Some(segment_attributes));
+            .make_merge_operation(segment_ids, segment_attributes);
         let segment_updater = self.segment_updater.clone();
         segment_updater.start_merge(merge_operation)
     }

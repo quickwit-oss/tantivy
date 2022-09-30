@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::ops::Deref;
 
-use crate::{Inventory, Opstamp, SegmentAttributes, SegmentId, TrackedObject};
+use crate::{Inventory, Opstamp, SegmentId, TrackedObject};
 
 #[derive(Default)]
 pub(crate) struct MergeOperationInventory(Inventory<InnerMergeOperation>);
@@ -46,7 +46,7 @@ pub struct MergeOperation {
 pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
-    segment_attributes: Option<SegmentAttributes>,
+    segment_attributes: Option<serde_json::Value>,
 }
 
 impl MergeOperation {
@@ -54,7 +54,7 @@ impl MergeOperation {
         inventory: &MergeOperationInventory,
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
-        segment_attributes: Option<SegmentAttributes>,
+        segment_attributes: Option<serde_json::Value>,
     ) -> MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
@@ -74,7 +74,7 @@ impl MergeOperation {
         &self.inner.segment_ids[..]
     }
 
-    pub fn segment_attributes(&self) -> &Option<SegmentAttributes> {
+    pub fn segment_attributes(&self) -> &Option<serde_json::Value> {
         &self.inner.segment_attributes
     }
 }

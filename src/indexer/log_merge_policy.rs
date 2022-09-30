@@ -144,7 +144,7 @@ mod tests {
     use once_cell::sync::Lazy;
 
     use super::*;
-    use crate::core::{SegmentAttributes, SegmentId, SegmentMeta, SegmentMetaInventory};
+    use crate::core::{SegmentId, SegmentMeta, SegmentMetaInventory};
     use crate::indexer::merge_policy::MergePolicy;
     use crate::schema;
     use crate::schema::INDEXED;
@@ -228,11 +228,7 @@ mod tests {
     }
 
     fn create_random_segment_meta(num_docs: u32) -> SegmentMeta {
-        INVENTORY.new_segment_meta(
-            SegmentId::generate_random(),
-            num_docs,
-            SegmentAttributes::default(),
-        )
+        INVENTORY.new_segment_meta(SegmentId::generate_random(), num_docs, None)
     }
 
     #[test]

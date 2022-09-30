@@ -25,7 +25,7 @@ use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
     SegmentSerializer,
 };
-use crate::{FutureResult, Opstamp, SegmentAttributes};
+use crate::{FutureResult, Opstamp};
 
 const NUM_MERGE_THREADS: usize = 4;
 
@@ -91,7 +91,7 @@ fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
-    segment_attributes: Option<SegmentAttributes>,
+    segment_attributes: Option<serde_json::Value>,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -101,38 +101,27 @@ fn merge(
         return Ok(None);
     }
 
-    let merged_segment_attributes = match segment_attributes {
-        None => SegmentAttributes::merge(
-            segment_entries
-                .iter()
-                .map(|segment_entry| segment_entry.meta().segment_attributes()),
-            &index.settings().segment_attributes_config,
-        ),
-        Some(segment_attributes) => segment_attributes,
-    };
+    // first we need to apply deletes to our segment.
+    let merged_segment = index.new_segment();
+
+    let segment_attributes = segment_attributes.or_else(|| {
+        index
+            .segment_attributes_merger()
+            .as_ref()
+            .map(|segment_attributes_merger| {
+                let existing_segment_attributes: Vec<_> = segment_entries
+                    .iter()
+                    .filter_map(|segment_entry| segment_entry.meta().segment_attributes().as_ref())
+                    .collect();
+                segment_attributes_merger.merge_json(existing_segment_attributes)
+            })
+    });
 
     // First we apply all of the delete to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
         let segment = index.segment(segment_entry.meta().clone());
         advance_deletes(segment, segment_entry, target_opstamp)?;
     }
-
-    if segment_entries.len() == 1 && !segment_entries[0].meta().has_deletes() {
-        let first_segment = &mut segment_entries[0];
-        let segment_meta = index.new_segment_meta(
-            first_segment.segment_id(),
-            num_docs as u32,
-            merged_segment_attributes,
-        );
-        return Ok(Some(SegmentEntry::new(
-            segment_meta,
-            first_segment.delete_cursor().clone(),
-            None,
-        )));
-    }
-
-    // first we need to apply deletes to our segment.
-    let merged_segment = index.new_segment();
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
@@ -152,8 +141,7 @@ fn merge(
 
     let merged_segment_id = merged_segment.id();
 
-    let segment_meta =
-        index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
+    let segment_meta = index.new_segment_meta(merged_segment_id, num_docs, segment_attributes);
     Ok(Some(SegmentEntry::new(segment_meta, delete_cursor, None)))
 }
 
@@ -257,15 +245,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
     let num_docs = merger.write(segment_serializer)?;
 
-    let merged_segment_attributes = SegmentAttributes::merge(
-        segments
-            .iter()
-            .map(|segment| segment.meta().segment_attributes()),
-        &target_settings.segment_attributes_config,
-    );
-
-    let segment_meta =
-        merged_index.new_segment_meta(merged_segment_id, num_docs, merged_segment_attributes);
+    let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs, None);
 
     let stats = format!(
         "Segments Merge: [{}]",
@@ -498,7 +478,7 @@ impl SegmentUpdater {
     pub(crate) fn make_merge_operation(
         &self,
         segment_ids: &[SegmentId],
-        segment_attributes: Option<SegmentAttributes>,
+        segment_attributes: Option<serde_json::Value>,
     ) -> MergeOperation {
         let commit_opstamp = self.load_meta().opstamp;
         MergeOperation::new(
