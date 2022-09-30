@@ -393,8 +393,8 @@ fn remap_and_write(
             serializer
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
-            1, /* The docstore is configured for tiny docs for fast random access, we don't need
-                * the the cache */
+            1, /* The docstore is configured to have one doc per block, and each doc is accessed
+                * only once: we don't need caching. */
         )?;
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
             let doc_bytes = store_read.get_document_bytes(old_doc_id)?;

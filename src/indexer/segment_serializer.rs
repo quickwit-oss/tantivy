@@ -31,7 +31,7 @@ impl SegmentSerializer {
                 store_write,
                 crate::store::Compressor::None,
                 0, // we want random access on the docs, so we choose a minimal block size. Every
-                // doc will be flushed
+                // doc will get its own block.
                 settings.docstore_compress_dedicated_thread,
             )?
         } else {
