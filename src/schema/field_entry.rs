@@ -63,7 +63,7 @@ impl FieldEntry {
 
     /// Creates a new ip field entry.
     pub fn new_ip(field_name: String, ip_options: IpOptions) -> FieldEntry {
-        Self::new(field_name, FieldType::Ip(ip_options))
+        Self::new(field_name, FieldType::IpAddr(ip_options))
     }
 
     /// Creates a field entry for a facet.
@@ -120,7 +120,7 @@ impl FieldEntry {
             FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
-            FieldType::Ip(ref options) => options.is_stored(),
+            FieldType::IpAddr(ref options) => options.is_stored(),
         }
     }
 }

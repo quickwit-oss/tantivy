@@ -104,7 +104,7 @@ impl FastFieldsWriter {
                         bytes_value_writers.push(fast_field_writer);
                     }
                 }
-                FieldType::Ip(opt) => {
+                FieldType::IpAddr(opt) => {
                     if opt.is_fast() {
                         match opt.get_fastfield_cardinality() {
                             Some(Cardinality::SingleValue) => {

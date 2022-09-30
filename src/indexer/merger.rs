@@ -295,7 +295,7 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
-                FieldType::Ip(options) => match options.get_fastfield_cardinality() {
+                FieldType::IpAddr(options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
                         self.write_u128_single_fast_field(
                             field,

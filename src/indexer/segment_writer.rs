@@ -294,7 +294,7 @@ impl SegmentWriter {
                         ctx,
                     )?;
                 }
-                FieldType::Ip(_) => {
+                FieldType::IpAddr(_) => {
                     for value in values {
                         let ip_val = value.as_ip().ok_or_else(make_schema_error)?;
                         term_buffer.set_text(&ip_val.to_string());

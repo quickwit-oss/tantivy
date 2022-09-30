@@ -76,7 +76,9 @@ impl Document {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add_field_value(field, value);
@@ -98,8 +100,8 @@ impl Document {
         self.add_field_value(field, value);
     }
 
-    /// Add a u64 field
-    pub fn add_ip(&mut self, field: Field, value: IpAddr) {
+    /// Add a IP address field
+    pub fn add_ip_addr(&mut self, field: Field, value: IpAddr) {
         self.add_field_value(field, value);
     }
 

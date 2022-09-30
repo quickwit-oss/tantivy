@@ -400,7 +400,7 @@ impl QueryParser {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 Ok(Term::from_field_bytes(field, &bytes))
             }
-            FieldType::Ip(_) => Ok(Term::from_field_text(field, phrase)),
+            FieldType::IpAddr(_) => Ok(Term::from_field_text(field, phrase)),
         }
     }
 
@@ -507,7 +507,7 @@ impl QueryParser {
                 let bytes_term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![LogicalLiteral::Term(bytes_term)])
             }
-            FieldType::Ip(_) => Err(QueryParserError::FieldNotIndexed(field_name.to_string())),
+            FieldType::IpAddr(_) => Err(QueryParserError::FieldNotIndexed(field_name.to_string())),
         }
     }
 

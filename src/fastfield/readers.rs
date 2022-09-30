@@ -52,7 +52,7 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
         }
-        FieldType::Ip(options) => options
+        FieldType::IpAddr(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::U128, cardinality)),
         _ => None,
