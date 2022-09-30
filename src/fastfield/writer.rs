@@ -296,8 +296,6 @@ pub struct U128FastFieldWriter {
     field: Field,
     vals: Vec<u128>,
     val_count: u32,
-
-    null_values: RoaringBitmap,
 }
 
 impl U128FastFieldWriter {
@@ -307,7 +305,6 @@ impl U128FastFieldWriter {
             field,
             vals: vec![],
             val_count: 0,
-            null_values: RoaringBitmap::new(),
         }
     }
 
@@ -338,7 +335,7 @@ impl U128FastFieldWriter {
                 self.add_val(value);
             }
             None => {
-                self.null_values.insert(self.val_count as u32);
+                self.add_val(0); // TODO fix null handling
             }
         };
         self.val_count += 1;
@@ -350,43 +347,17 @@ impl U128FastFieldWriter {
         serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        // To get the actual value, we could materialize the vec with u128 including nulls, but
-        // that could cost a lot of memory. Instead we just compute the index for of
-        // the values
-        let mut idx_to_val_idx = vec![];
-        idx_to_val_idx.resize(self.val_count as usize, 0);
-
-        let mut val_idx = 0;
-        for idx in 0..self.val_count {
-            if !self.null_values.contains(idx as u32) {
-                idx_to_val_idx[idx as usize] = val_idx as u32;
-                val_idx += 1;
-            }
-        }
-
         let field_write = serializer.get_field_writer(self.field, 0);
 
         if let Some(doc_id_map) = doc_id_map {
             let iter = || {
-                doc_id_map.iter_old_doc_ids().map(|idx| {
-                    if self.null_values.contains(idx as u32) {
-                        0 // TODO properly handle nulls
-                    } else {
-                        self.vals[idx_to_val_idx[idx as usize] as usize]
-                    }
-                })
+                doc_id_map
+                    .iter_old_doc_ids()
+                    .map(|idx| self.vals[idx as usize])
             };
             serialize_u128(iter, self.val_count as u64, field_write)?;
         } else {
-            let iter = || {
-                (0..self.val_count).map(|idx| {
-                    if self.null_values.contains(idx as u32) {
-                        0 // TODO properly handle nulls
-                    } else {
-                        self.vals[idx_to_val_idx[idx as usize] as usize]
-                    }
-                })
-            };
+            let iter = || (0..self.val_count).map(|idx| self.vals[idx as usize]);
             serialize_u128(iter, self.val_count as u64, field_write)?;
         }
 
