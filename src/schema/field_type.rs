@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
-use super::Cardinality;
 use super::ip_options::IpOptions;
+use super::Cardinality;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{

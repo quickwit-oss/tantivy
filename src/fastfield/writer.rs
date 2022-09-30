@@ -329,7 +329,10 @@ impl U128FastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         match doc.get_first(self.field) {
             Some(v) => {
-                let ip_addr = v.as_ip().unwrap();
+                let ip_addr = v
+                    .as_ip()
+                    .expect(&format!("expected and ip, but got {:?}", v));
+
                 let value = ip_addr.to_u128();
                 self.add_val(value);
             }

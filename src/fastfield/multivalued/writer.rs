@@ -317,7 +317,9 @@ impl MultiValueU128FastFieldWriter {
         for field_value in doc.field_values() {
             if field_value.field == self.field {
                 let value = field_value.value();
-                let ip_addr = value.as_ip().unwrap();
+                let ip_addr = value
+                    .as_ip()
+                    .expect(&format!("expected and ip, but got {:?}", value));
                 let value = ip_addr.to_u128();
                 self.add_val(value);
             }
