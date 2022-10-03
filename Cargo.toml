@@ -11,6 +11,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2021"
+rust-version = "1.62"
 
 [dependencies]
 oneshot = "0.1.3"
