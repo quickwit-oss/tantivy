@@ -323,8 +323,8 @@ impl SegmentRangeCollector {
 /// Converts the user provided f64 range value to fast field value space.
 ///
 /// Internally fast field values are always stored as u64.
-/// If the fast field has u64 [1,2,5], these values are stored as is in the fast field.
-/// A fast field with f64 [1.0, 2.0, 5.0] is converted to u64 space, using a
+/// If the fast field has u64 `[1, 2, 5]`, these values are stored as is in the fast field.
+/// A fast field with f64 `[1.0, 2.0, 5.0]` is converted to u64 space, using a
 /// monotonic mapping function, so the order is preserved.
 ///
 /// Consequently, a f64 user range 1.0..3.0 needs to be converted to fast field value space using
