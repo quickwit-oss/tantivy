@@ -198,24 +198,16 @@ impl SegmentWriter {
                 }
                 FieldType::Str(_) => {
                     let mut token_streams: Vec<BoxTokenStream> = vec![];
-                    let mut offsets = vec![];
-                    let mut total_offset = 0;
 
                     for value in values {
                         match value {
                             Value::PreTokStr(tok_str) => {
-                                offsets.push(total_offset);
-                                if let Some(last_token) = tok_str.tokens.last() {
-                                    total_offset += last_token.offset_to;
-                                }
                                 token_streams
                                     .push(PreTokenizedStream::from(tok_str.clone()).into());
                             }
                             Value::Str(ref text) => {
                                 let text_analyzer =
                                     &self.per_field_text_analyzers[field.field_id() as usize];
-                                offsets.push(total_offset);
-                                total_offset += text.len();
                                 token_streams.push(text_analyzer.token_stream(text));
                             }
                             _ => (),
