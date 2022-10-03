@@ -304,7 +304,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
             "Path {:?} does not have parent directory.",
         )
     })?;
-    let mut tempfile = tempfile::Builder::new().tempfile_in(&parent_path)?;
+    let mut tempfile = tempfile::Builder::new().tempfile_in(parent_path)?;
     tempfile.write_all(content)?;
     tempfile.flush()?;
     tempfile.as_file_mut().sync_data()?;
