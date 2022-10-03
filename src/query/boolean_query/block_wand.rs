@@ -144,7 +144,7 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
 
 /// Implements the WAND (Weak AND) algorithm for dynamic pruning
 /// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
-/// Link: http://engineering.nyu.edu/~suel/papers/bmw.pdf
+/// Link: <http://engineering.nyu.edu/~suel/papers/bmw.pdf>
 pub fn block_wand(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,

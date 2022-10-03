@@ -255,7 +255,7 @@ where T: Iterator<Item = usize>
 /// Emits all of the offsets where a codepoint starts
 /// or a codepoint ends.
 ///
-/// By convention, we emit [0] for the empty string.
+/// By convention, we emit `[0]` for the empty string.
 struct CodepointFrontiers<'a> {
     s: &'a str,
     next_el: Option<usize>,
