@@ -338,11 +338,7 @@ impl SegmentCollector for FacetSegmentCollector {
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords_buf {
             let collapsed_ord = self.collapse_mapping[facet_ord as usize];
-            self.counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord {
-                0
-            } else {
-                1
-            };
+            self.counts[collapsed_ord] += u64::from(collapsed_ord != previous_collapsed_ord);
             previous_collapsed_ord = collapsed_ord;
         }
     }
