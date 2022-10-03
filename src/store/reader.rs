@@ -4,7 +4,7 @@ use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::{BinarySerializable, HasLen, VInt};
+use common::{BinarySerializable, HasLen};
 use lru::LruCache;
 use ownedbytes::OwnedBytes;
 
@@ -296,9 +296,10 @@ impl StoreReader {
 
 fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
     let doc_pos = doc_pos as usize;
-    let mut cursor = block;
-    let index_len_vint = VInt::deserialize(&mut cursor)?;
-    let index_len = index_len_vint.val() as usize;
+    let size_of_u32 = std::mem::size_of::<u32>();
+
+    let index_len_pos = block.len() - size_of_u32;
+    let index_len = u32::deserialize(&mut &block[index_len_pos..])? as usize;
 
     if doc_pos > index_len {
         return Err(crate::TantivyError::InternalError(
@@ -306,16 +307,12 @@ fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
         ));
     }
 
-    let size_of_u32 = std::mem::size_of::<u32>();
-    let index_size = index_len * size_of_u32 + index_len_vint.serialize_into(&mut [0; 10]);
+    let index_start = block.len() - (index_len + 1) * size_of_u32;
+    let index = &block[index_start..index_start + index_len * size_of_u32];
 
-    let start_pos = u32::deserialize(&mut &cursor[doc_pos * size_of_u32..])? as usize + index_size;
-    let end_pos = if doc_pos + 1 == index_len {
-        block.len()
-    } else {
-        u32::deserialize(&mut &cursor[(doc_pos + 1) * size_of_u32..])? as usize + index_size
-    };
-
+    let start_pos = u32::deserialize(&mut &index[doc_pos * size_of_u32..])? as usize;
+    let end_pos = u32::deserialize(&mut &index[(doc_pos + 1) * size_of_u32..])
+        .unwrap_or(index_start as u32) as usize;
     Ok(Range {
         start: start_pos,
         end: end_pos,
@@ -420,7 +417,7 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
-        assert_eq!(store.cache.peek_lru(), Some(11086));
+        assert_eq!(store.cache.peek_lru(), Some(11163));
 
         Ok(())
     }

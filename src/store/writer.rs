@@ -78,14 +78,19 @@ impl StoreWriter {
             return Ok(());
         }
 
-        self.intermediary_buffer.clear();
+        let size_of_u32 = std::mem::size_of::<u32>();
+        self.current_block
+            .reserve((self.doc_pos.len() + 1) * size_of_u32);
 
-        self.doc_pos.serialize(&mut self.intermediary_buffer)?;
-        self.intermediary_buffer.append(&mut self.current_block);
+        for pos in self.doc_pos.iter() {
+            pos.serialize(&mut self.current_block)?;
+        }
+        (self.doc_pos.len() as u32).serialize(&mut self.current_block)?;
 
         self.block_compressor
-            .compress_block_and_write(&self.intermediary_buffer, self.num_docs_in_current_block)?;
+            .compress_block_and_write(&self.current_block, self.num_docs_in_current_block)?;
         self.doc_pos.clear();
+        self.current_block.clear();
         self.num_docs_in_current_block = 0;
         Ok(())
     }
