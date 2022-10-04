@@ -319,7 +319,7 @@ impl MultiValueU128FastFieldWriter {
                 let value = field_value.value();
                 let ip_addr = value
                     .as_ip()
-                    .expect(&format!("expected and ip, but got {:?}", value));
+                    .unwrap_or_else(|| panic!("expected and ip, but got {:?}", value));
                 let value = ip_addr.to_u128();
                 self.add_val(value);
             }

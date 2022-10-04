@@ -13,6 +13,9 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
+use fastdivide::DividerU64;
+use monotonic_mapping::gcd_min_val_mapping_pairs::{from_gcd_normalized_u64, normalize_with_gcd};
+use monotonic_mapping::min_val_mapping_pairs::{from_normalized_u64, normalize};
 use ownedbytes::OwnedBytes;
 use serialize::Header;
 
@@ -78,11 +81,10 @@ impl FastFieldCodecType {
 pub fn open_u128<Item: MonotonicallyMappableToU128>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
-    let monotonic_mapping = move |val: u128| Item::from_u128(val);
     let reader = CompactSpaceDecompressor::open(bytes)?;
     Ok(Arc::new(monotonic_map_column(
         reader,
-        monotonic_mapping,
+        Item::from_u128,
         Item::to_u128,
     )))
 }
@@ -109,18 +111,17 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     let reader = C::open_from_bytes(bytes, normalized_header)?;
     let min_value = header.min_value;
     if let Some(gcd) = header.gcd {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
+        let divider = DividerU64::divide_by(gcd.get());
         Ok(Arc::new(monotonic_map_column(
             reader,
-            monotonic_mapping,
-            Item::to_u64,
+            move |val: u64| from_gcd_normalized_u64(val, min_value, gcd.get()),
+            move |val| normalize_with_gcd(val, min_value, &divider),
         )))
     } else {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
         Ok(Arc::new(monotonic_map_column(
             reader,
-            monotonic_mapping,
-            Item::to_u64,
+            move |val: u64| from_normalized_u64(val, min_value),
+            move |val| normalize(val, min_value),
         )))
     }
 }
@@ -161,6 +162,7 @@ pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
 
 #[cfg(test)]
 mod tests {
+
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
@@ -194,6 +196,18 @@ mod tests {
                 "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
                  `{data:?}`",
             );
+        }
+
+        if !data.is_empty() {
+            let test_rand_idx = rand::thread_rng().gen_range(0..=data.len() - 1);
+            let expected_positions: Vec<u64> = data
+                .iter()
+                .enumerate()
+                .filter(|(_, el)| **el == data[test_rand_idx])
+                .map(|(pos, _)| pos as u64)
+                .collect();
+            let positions = reader.get_between_vals(data[test_rand_idx]..=data[test_rand_idx]);
+            assert_eq!(expected_positions, positions);
         }
         Some((estimation, actual_compression))
     }

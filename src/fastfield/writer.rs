@@ -331,7 +331,7 @@ impl U128FastFieldWriter {
             Some(v) => {
                 let ip_addr = v
                     .as_ip()
-                    .expect(&format!("expected and ip, but got {:?}", v));
+                    .unwrap_or_else(|| panic!("expected and ip, but got {:?}", v));
 
                 let value = ip_addr.to_u128();
                 self.add_val(value);
