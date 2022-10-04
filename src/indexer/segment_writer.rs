@@ -1,4 +1,5 @@
 use fastfield_codecs::MonotonicallyMappableToU64;
+use itertools::Itertools;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
@@ -157,7 +158,13 @@ impl SegmentWriter {
 
     fn index_document(&mut self, doc: &Document) -> crate::Result<()> {
         let doc_id = self.max_doc;
-        for (field, values) in doc.get_sorted_field_values() {
+        let vals_grouped_by_field = doc
+            .field_values()
+            .iter()
+            .sorted_by_key(|el| el.field())
+            .group_by(|el| el.field());
+        for (field, field_values) in &vals_grouped_by_field {
+            let values = field_values.map(|field_value| field_value.value());
             let field_entry = self.schema.get_field_entry(field);
             let make_schema_error = || {
                 crate::TantivyError::SchemaError(format!(
@@ -276,9 +283,8 @@ impl SegmentWriter {
                 }
                 FieldType::JsonObject(_) => {
                     let text_analyzer = &self.per_field_text_analyzers[field.field_id() as usize];
-                    let json_values_it = values
-                        .iter()
-                        .map(|value| value.as_json().ok_or_else(make_schema_error));
+                    let json_values_it =
+                        values.map(|value| value.as_json().ok_or_else(make_schema_error));
                     index_json_values(
                         doc_id,
                         json_values_it,
