@@ -251,20 +251,15 @@ fn iter_remapped_multivalue_index<'a, C: Column>(
     column: &'a C,
 ) -> impl Iterator<Item = u64> + 'a {
     let mut offset = 0;
-    doc_id_map
+    let offsets = doc_id_map
         .iter_old_doc_ids()
-        .chain(std::iter::once(u32::MAX))
         .map(move |old_doc| {
-            if old_doc == u32::MAX {
-                // sentinel value for last offset
-                return offset;
-            }
             let num_vals_for_doc =
                 column.get_val(old_doc as u64 + 1) - column.get_val(old_doc as u64);
-            let start_offset = offset;
             offset += num_vals_for_doc;
-            start_offset
-        })
+            offset
+        });
+    std::iter::once(0u64).chain(offsets)
 }
 
 #[cfg(test)]
