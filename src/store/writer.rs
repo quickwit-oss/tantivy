@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use common::{BinarySerializable, VInt};
+use common::BinarySerializable;
 
 use super::compressors::Compressor;
 use super::StoreReader;
@@ -22,6 +22,7 @@ pub struct StoreWriter {
     num_docs_in_current_block: DocId,
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
+    doc_pos: Vec<u32>,
     block_compressor: BlockCompressor,
 }
 
@@ -42,6 +43,7 @@ impl StoreWriter {
             block_size,
             num_docs_in_current_block: 0,
             intermediary_buffer: Vec::new(),
+            doc_pos: Vec::new(),
             current_block: Vec::new(),
             block_compressor,
         })
@@ -53,12 +55,17 @@ impl StoreWriter {
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.intermediary_buffer.capacity() + self.current_block.capacity()
+        self.intermediary_buffer.capacity()
+            + self.current_block.capacity()
+            + self.doc_pos.capacity() * std::mem::size_of::<u32>()
     }
 
     /// Checks if the current block is full, and if so, compresses and flushes it.
     fn check_flush_block(&mut self) -> io::Result<()> {
-        if self.current_block.len() > self.block_size {
+        // this does not count the VInt storing the index lenght itself, but it is negligible in
+        // front of everything else.
+        let index_len = self.doc_pos.len() * std::mem::size_of::<usize>();
+        if self.current_block.len() + index_len > self.block_size {
             self.send_current_block_to_compressor()?;
         }
         Ok(())
@@ -70,8 +77,19 @@ impl StoreWriter {
         if self.current_block.is_empty() {
             return Ok(());
         }
+
+        let size_of_u32 = std::mem::size_of::<u32>();
+        self.current_block
+            .reserve((self.doc_pos.len() + 1) * size_of_u32);
+
+        for pos in self.doc_pos.iter() {
+            pos.serialize(&mut self.current_block)?;
+        }
+        (self.doc_pos.len() as u32).serialize(&mut self.current_block)?;
+
         self.block_compressor
             .compress_block_and_write(&self.current_block, self.num_docs_in_current_block)?;
+        self.doc_pos.clear();
         self.current_block.clear();
         self.num_docs_in_current_block = 0;
         Ok(())
@@ -87,8 +105,7 @@ impl StoreWriter {
         // calling store bytes would be preferable for code reuse, but then we can't use
         // intermediary_buffer due to the borrow checker
         // a new buffer costs ~1% indexing performance
-        let doc_num_bytes = self.intermediary_buffer.len();
-        VInt(doc_num_bytes as u64).serialize_into_vec(&mut self.current_block);
+        self.doc_pos.push(self.current_block.len() as u32);
         self.current_block
             .write_all(&self.intermediary_buffer[..])?;
         self.num_docs_in_current_block += 1;
@@ -101,8 +118,7 @@ impl StoreWriter {
     /// The document id is implicitly the current number
     /// of documents.
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
-        let doc_num_bytes = serialized_document.len();
-        VInt(doc_num_bytes as u64).serialize_into_vec(&mut self.current_block);
+        self.doc_pos.push(self.current_block.len() as u32);
         self.current_block.extend_from_slice(serialized_document);
         self.num_docs_in_current_block += 1;
         self.check_flush_block()?;

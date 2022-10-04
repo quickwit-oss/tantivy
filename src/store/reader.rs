@@ -1,10 +1,10 @@
 use std::io;
 use std::iter::Sum;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::{BinarySerializable, HasLen, VInt};
+use common::{BinarySerializable, HasLen};
 use lru::LruCache;
 use ownedbytes::OwnedBytes;
 
@@ -211,17 +211,10 @@ impl StoreReader {
         doc_id: DocId,
         checkpoint: &Checkpoint,
     ) -> crate::Result<OwnedBytes> {
-        let mut cursor = &block[..];
-        let cursor_len_before = cursor.len();
-        for _ in checkpoint.doc_range.start..doc_id {
-            let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-            cursor = &cursor[doc_length..];
-        }
+        let doc_pos = doc_id - checkpoint.doc_range.start;
 
-        let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-        let start_pos = cursor_len_before - cursor.len();
-        let end_pos = cursor_len_before - cursor.len() + doc_length;
-        Ok(block.slice(start_pos..end_pos))
+        let range = block_read_index(&block, doc_pos)?;
+        Ok(block.slice(range))
     }
 
     /// Iterator over all Documents in their order as they are stored in the doc store.
@@ -254,9 +247,7 @@ impl StoreReader {
         let mut curr_block = curr_checkpoint
             .as_ref()
             .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
-        let mut block_start_pos = 0;
-        let mut num_skipped = 0;
-        let mut reset_block_pos = false;
+        let mut doc_pos = 0;
         (0..last_doc_id)
             .filter_map(move |doc_id| {
                 // filter_map is only used to resolve lifetime issues between the two closures on
@@ -268,24 +259,19 @@ impl StoreReader {
                     curr_block = curr_checkpoint
                         .as_ref()
                         .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind()));
-                    reset_block_pos = true;
-                    num_skipped = 0;
+                    doc_pos = 0;
                 }
 
                 let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
-                if alive {
-                    let ret = Some((curr_block.clone(), num_skipped, reset_block_pos));
-                    // the map block will move over the num_skipped, so we reset to 0
-                    num_skipped = 0;
-                    reset_block_pos = false;
-                    ret
+                let res = if alive {
+                    Some((curr_block.clone(), doc_pos))
                 } else {
-                    // we keep the number of skipped documents to move forward in the map block
-                    num_skipped += 1;
                     None
-                }
+                };
+                doc_pos += 1;
+                res
             })
-            .map(move |(block, num_skipped, reset_block_pos)| {
+            .map(move |(block, doc_pos)| {
                 let block = block
                     .ok_or_else(|| {
                         DataCorruption::comment_only(
@@ -296,30 +282,9 @@ impl StoreReader {
                     .map_err(|error_kind| {
                         std::io::Error::new(error_kind, "error when reading block in doc store")
                     })?;
-                // this flag is set, when filter_map moved to the next block
-                if reset_block_pos {
-                    block_start_pos = 0;
-                }
-                let mut cursor = &block[block_start_pos..];
-                let mut pos = 0;
-                // move forward 1 doc + num_skipped in block and return length of current doc
-                let doc_length = loop {
-                    let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-                    let num_bytes_read = block[block_start_pos..].len() - cursor.len();
-                    block_start_pos += num_bytes_read;
 
-                    pos += 1;
-                    if pos == num_skipped + 1 {
-                        break doc_length;
-                    } else {
-                        block_start_pos += doc_length;
-                        cursor = &block[block_start_pos..];
-                    }
-                };
-                let end_pos = block_start_pos + doc_length;
-                let doc_bytes = block.slice(block_start_pos..end_pos);
-                block_start_pos = end_pos;
-                Ok(doc_bytes)
+                let range = block_read_index(&block, doc_pos)?;
+                Ok(block.slice(range))
             })
     }
 
@@ -327,6 +292,28 @@ impl StoreReader {
     pub fn space_usage(&self) -> StoreSpaceUsage {
         self.space_usage.clone()
     }
+}
+
+fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
+    let doc_pos = doc_pos as usize;
+    let size_of_u32 = std::mem::size_of::<u32>();
+
+    let index_len_pos = block.len() - size_of_u32;
+    let index_len = u32::deserialize(&mut &block[index_len_pos..])? as usize;
+
+    if doc_pos > index_len {
+        return Err(crate::TantivyError::InternalError(
+            "Attempted to read doc from wrong block".to_owned(),
+        ));
+    }
+
+    let index_start = block.len() - (index_len + 1) * size_of_u32;
+    let index = &block[index_start..index_start + index_len * size_of_u32];
+
+    let start_offset = u32::deserialize(&mut &index[doc_pos * size_of_u32..])? as usize;
+    let end_offset = u32::deserialize(&mut &index[(doc_pos + 1) * size_of_u32..])
+        .unwrap_or(index_start as u32) as usize;
+    Ok(start_offset..end_offset)
 }
 
 #[cfg(feature = "quickwit")]
@@ -427,7 +414,7 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
-        assert_eq!(store.cache.peek_lru(), Some(9210));
+        assert_eq!(store.cache.peek_lru(), Some(11163));
 
         Ok(())
     }
