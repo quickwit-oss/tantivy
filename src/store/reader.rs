@@ -310,13 +310,10 @@ fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
     let index_start = block.len() - (index_len + 1) * size_of_u32;
     let index = &block[index_start..index_start + index_len * size_of_u32];
 
-    let start_pos = u32::deserialize(&mut &index[doc_pos * size_of_u32..])? as usize;
-    let end_pos = u32::deserialize(&mut &index[(doc_pos + 1) * size_of_u32..])
+    let start_offset = u32::deserialize(&mut &index[doc_pos * size_of_u32..])? as usize;
+    let end_offset = u32::deserialize(&mut &index[(doc_pos + 1) * size_of_u32..])
         .unwrap_or(index_start as u32) as usize;
-    Ok(Range {
-        start: start_pos,
-        end: end_pos,
-    })
+    Ok(start_offset..end_offset)
 }
 
 #[cfg(feature = "quickwit")]
