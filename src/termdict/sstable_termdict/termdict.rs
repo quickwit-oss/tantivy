@@ -24,6 +24,8 @@ impl SSTable for TermInfoSSTable {
     type Reader = TermInfoReader;
     type Writer = TermInfoWriter;
 }
+
+/// Builder for the new term dictionary.
 pub struct TermDictionaryBuilder<W: io::Write> {
     sstable_writer: Writer<W, TermInfoWriter>,
 }
@@ -138,6 +140,7 @@ impl TermDictionary {
         })
     }
 
+    /// Creates a term dictionary from the supplied bytes.
     pub fn from_bytes(owned_bytes: OwnedBytes) -> crate::Result<TermDictionary> {
         TermDictionary::open(FileSlice::new(Arc::new(owned_bytes)))
     }
@@ -229,19 +232,19 @@ impl TermDictionary {
         Ok(None)
     }
 
-    // Returns a range builder, to stream all of the terms
-    // within an interval.
+    /// Returns a range builder, to stream all of the terms
+    /// within an interval.
     pub fn range(&self) -> TermStreamerBuilder<'_> {
         TermStreamerBuilder::new(self, AlwaysMatch)
     }
 
-    // A stream of all the sorted terms.
+    /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
         self.range().into_stream()
     }
 
-    // Returns a search builder, to stream all of the terms
-    // within the Automaton
+    /// Returns a search builder, to stream all of the terms
+    /// within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
     where A::State: Clone {
         TermStreamerBuilder::<A>::new(self, automaton)
