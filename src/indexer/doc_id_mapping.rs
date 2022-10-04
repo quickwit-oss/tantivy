@@ -34,10 +34,6 @@ impl SegmentDocIdMapping {
         self.new_doc_id_to_old_doc_addr.len()
     }
 
-    pub(crate) fn get_old_doc_addr(&self, new_doc_id: DocId) -> DocAddress {
-        self.new_doc_id_to_old_doc_addr[new_doc_id as usize]
-    }
-
     /// This flags means the segments are simply stacked in the order of their ordinal.
     /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
     ///

@@ -312,7 +312,7 @@ mod tests {
 
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
-        let mut data: Vec<u64> = (200..=20000_u64).collect();
+        let mut data: Vec<u64> = (201..=20000_u64).collect();
         data.push(1_000_000);
         let data: VecColumn = data.as_slice().into();
 

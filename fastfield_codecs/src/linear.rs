@@ -126,18 +126,21 @@ impl FastFieldCodec for LinearCodec {
             return None; // disable compressor for this case
         }
 
-        // let's sample at 0%, 5%, 10% .. 95%, 100%
-        let num_vals = column.num_vals() as f32 / 100.0;
-        let sample_positions = (0..20)
-            .map(|pos| (num_vals * pos as f32 * 5.0) as u64)
-            .collect::<Vec<_>>();
+        let limit_num_vals = column.num_vals().min(100_000);
 
-        let line = Line::estimate(column, &sample_positions);
+        let num_samples = 100;
+        let step_size = (limit_num_vals / num_samples).max(1); // 20 samples
+        let mut sample_positions_and_values: Vec<_> = Vec::new();
+        for (idx, val) in column.iter().step_by(step_size as usize).enumerate() {
+            let pos = idx as u64 * step_size;
+            sample_positions_and_values.push((pos, val));
+        }
 
-        let estimated_bit_width = sample_positions
+        let line = Line::estimate(&sample_positions_and_values);
+
+        let estimated_bit_width = sample_positions_and_values
             .into_iter()
-            .map(|pos| {
-                let actual_value = column.get_val(pos);
+            .map(|(pos, actual_value)| {
                 let interpolated_val = line.eval(pos as u64);
                 actual_value.wrapping_sub(interpolated_val)
             })
@@ -146,6 +149,7 @@ impl FastFieldCodec for LinearCodec {
             .max()
             .unwrap_or(0);
 
+        // Extrapolate to whole column
         let num_bits = (estimated_bit_width as u64 * column.num_vals() as u64) + 64;
         let num_bits_uncompressed = 64 * column.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)

@@ -68,29 +68,37 @@ impl Line {
     }
 
     // Same as train, but the intercept is only estimated from provided sample positions
-    pub fn estimate(ys: &dyn Column, sample_positions: &[u64]) -> Self {
+    pub fn estimate(sample_positions_and_values: &[(u64, u64)]) -> Self {
+        let first_val = sample_positions_and_values[0].1;
+        let last_val = sample_positions_and_values[sample_positions_and_values.len() - 1].1;
+        let num_vals = sample_positions_and_values[sample_positions_and_values.len() - 1].0 + 1;
         Self::train_from(
-            ys,
-            sample_positions
-                .iter()
-                .cloned()
-                .map(|pos| (pos, ys.get_val(pos))),
+            first_val,
+            last_val,
+            num_vals,
+            sample_positions_and_values.iter().cloned(),
         )
     }
 
     // Intercept is only computed from provided positions
-    fn train_from(ys: &dyn Column, positions_and_values: impl Iterator<Item = (u64, u64)>) -> Self {
-        let num_vals = if let Some(num_vals) = NonZeroU64::new(ys.num_vals() - 1) {
-            num_vals
+    fn train_from(
+        first_val: u64,
+        last_val: u64,
+        num_vals: u64,
+        positions_and_values: impl Iterator<Item = (u64, u64)>,
+    ) -> Self {
+        // TODO replace with let else
+        let idx_last_val = if let Some(idx_last_val) = NonZeroU64::new(num_vals - 1) {
+            idx_last_val
         } else {
             return Line::default();
         };
 
-        let y0 = ys.get_val(0);
-        let y1 = ys.get_val(num_vals.get());
+        let y0 = first_val;
+        let y1 = last_val;
 
         // We first independently pick our slope.
-        let slope = compute_slope(y0, y1, num_vals);
+        let slope = compute_slope(y0, y1, idx_last_val);
 
         // We picked our slope. Note that it does not have to be perfect.
         // Now we need to compute the best intercept.
@@ -138,8 +146,12 @@ impl Line {
     /// This function is only invariable by translation if all of the
     /// `ys` are packaged into half of the space. (See heuristic below)
     pub fn train(ys: &dyn Column) -> Self {
+        let first_val = ys.iter().next().unwrap();
+        let last_val = ys.iter().nth(ys.num_vals() as usize - 1).unwrap();
         Self::train_from(
-            ys,
+            first_val,
+            last_val,
+            ys.num_vals(),
             ys.iter().enumerate().map(|(pos, val)| (pos as u64, val)),
         )
     }

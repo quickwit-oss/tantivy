@@ -5,9 +5,9 @@ use itertools::Itertools;
 
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::schema::Field;
-use crate::{DocAddress, SegmentReader};
+use crate::SegmentReader;
 
-pub(crate) struct SortedDocIdColumn<'a> {
+pub(crate) struct RemappedDocIdColumn<'a> {
     doc_id_mapping: &'a SegmentDocIdMapping,
     fast_field_readers: Vec<Arc<dyn Column<u64>>>,
     min_value: u64,
@@ -37,7 +37,7 @@ fn compute_min_max_val(
         .into_option()
 }
 
-impl<'a> SortedDocIdColumn<'a> {
+impl<'a> RemappedDocIdColumn<'a> {
     pub(crate) fn new(
         readers: &'a [SegmentReader],
         doc_id_mapping: &'a SegmentDocIdMapping,
@@ -68,7 +68,7 @@ impl<'a> SortedDocIdColumn<'a> {
             })
             .collect::<Vec<_>>();
 
-        SortedDocIdColumn {
+        RemappedDocIdColumn {
             doc_id_mapping,
             fast_field_readers,
             min_value,
@@ -78,13 +78,9 @@ impl<'a> SortedDocIdColumn<'a> {
     }
 }
 
-impl<'a> Column for SortedDocIdColumn<'a> {
-    fn get_val(&self, doc: u64) -> u64 {
-        let DocAddress {
-            doc_id,
-            segment_ord,
-        } = self.doc_id_mapping.get_old_doc_addr(doc as u32);
-        self.fast_field_readers[segment_ord as usize].get_val(doc_id as u64)
+impl<'a> Column for RemappedDocIdColumn<'a> {
+    fn get_val(&self, _doc: u64) -> u64 {
+        unimplemented!()
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
