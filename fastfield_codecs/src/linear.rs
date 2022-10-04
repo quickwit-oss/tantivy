@@ -131,9 +131,8 @@ impl FastFieldCodec for LinearCodec {
         let num_samples = 100;
         let step_size = (limit_num_vals / num_samples).max(1); // 20 samples
         let mut sample_positions_and_values: Vec<_> = Vec::new();
-        for (idx, val) in column.iter().step_by(step_size as usize).enumerate() {
-            let pos = idx as u64 * step_size;
-            sample_positions_and_values.push((pos, val));
+        for (pos, val) in column.iter().enumerate().step_by(step_size as usize) {
+            sample_positions_and_values.push((pos as u64, val));
         }
 
         let line = Line::estimate(&sample_positions_and_values);
