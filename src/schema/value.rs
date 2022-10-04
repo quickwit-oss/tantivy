@@ -448,11 +448,10 @@ mod binary_serialize {
 #[cfg(test)]
 mod tests {
     use super::Value;
+    use crate::schema::{BytesOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::DateTime;
-    use crate::Document;
-    use crate::schema::{BytesOptions, Schema};
+    use crate::{DateTime, Document};
 
     #[test]
     fn test_parse_bytes_doc() {
@@ -463,9 +462,36 @@ mod tests {
         let mut doc = Document::default();
         doc.add_bytes(bytes_field, "this is a test".as_bytes());
         let json_string = schema.to_json(&doc);
+        assert_eq!(json_string, "{\"my_bytes\":[\"dGhpcyBpcyBhIHRlc3Q=\"]}");
+    }
+
+    #[test]
+    fn test_parse_empty_bytes_doc() {
+        let mut schema_builder = Schema::builder();
+        let bytes_options = BytesOptions::default();
+        let bytes_field = schema_builder.add_bytes_field("my_bytes", bytes_options);
+        let schema = schema_builder.build();
+        let mut doc = Document::default();
+        doc.add_bytes(bytes_field, "".as_bytes());
+        let json_string = schema.to_json(&doc);
+        assert_eq!(json_string, "{\"my_bytes\":[\"\"]}");
+    }
+
+    #[test]
+    fn test_parse_many_bytes_doc() {
+        let mut schema_builder = Schema::builder();
+        let bytes_options = BytesOptions::default();
+        let bytes_field = schema_builder.add_bytes_field("my_bytes", bytes_options);
+        let schema = schema_builder.build();
+        let mut doc = Document::default();
+        doc.add_bytes(
+            bytes_field,
+            "A bigger test I guess\nspanning on multiple lines\nhoping this will work".as_bytes(),
+        );
+        let json_string = schema.to_json(&doc);
         assert_eq!(
             json_string,
-            "{\"my_bytes\":\"dGhpcyBpcyBhIHRlc3Q=\"}"
+            "{\"my_bytes\":[\"QSBiaWdnZXIgdGVzdCBJIGd1ZXNzCnNwYW5uaW5nIG9uIG11bHRpcGxlIGxpbmVzCmhvcGluZyB0aGlzIHdpbGwgd29yaw==\"]}"
         );
     }
 
