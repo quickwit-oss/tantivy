@@ -14,8 +14,8 @@ use crate::fastfield::{
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
-use crate::indexer::sorted_doc_id_column::SortedDocIdColumn;
-use crate::indexer::sorted_doc_id_multivalue_column::SortedDocIdMultiValueColumn;
+use crate::indexer::sorted_doc_id_column::RemappedDocIdColumn;
+use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
@@ -310,7 +310,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let fast_field_accessor = SortedDocIdColumn::new(&self.readers, doc_id_mapping, field);
+        let fast_field_accessor = RemappedDocIdColumn::new(&self.readers, doc_id_mapping, field);
         fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
 
         Ok(())
@@ -428,14 +428,8 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
         reader_and_field_accessors: &[(&SegmentReader, T)],
-    ) -> crate::Result<Vec<u64>> {
-        // We can now create our `idx` serializer, and in a second pass,
-        // can effectively push the different indexes.
-
-        // copying into a temp vec is not ideal, but the fast field codec api requires random
-        // access, which is used in the estimation. It's possible to 1. calculate random
-        // access on the fly or 2. change the codec api to make random access optional, but
-        // they both have also major drawbacks.
+    ) -> crate::Result<()> {
+        // TODO Use `Column` implementation instead
 
         let mut offsets = Vec::with_capacity(doc_id_mapping.len());
         let mut offset = 0;
@@ -449,7 +443,7 @@ impl IndexMerger {
         let fastfield_accessor = VecColumn::from(&offsets[..]);
 
         fast_field_serializer.create_auto_detect_u64_fast_field(field, fastfield_accessor)?;
-        Ok(offsets)
+        Ok(())
     }
     /// Returns the fastfield index (index for the data, not the data).
     fn write_multi_value_fast_field_idx(
@@ -457,7 +451,7 @@ impl IndexMerger {
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<Vec<u64>> {
+    ) -> crate::Result<()> {
         let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
@@ -561,16 +555,16 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        // Multifastfield consists in 2 fastfields.
+        // Multifastfield consists of 2 fastfields.
         // The first serves as an index into the second one and is strictly increasing.
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        let offsets =
-            self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
+
+        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
         let fastfield_accessor =
-            SortedDocIdMultiValueColumn::new(&self.readers, doc_id_mapping, &offsets, field);
+            RemappedDocIdMultiValueColumn::new(&self.readers, doc_id_mapping, field);
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,
             fastfield_accessor,

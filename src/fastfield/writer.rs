@@ -391,15 +391,8 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// # Panics
     ///
     /// May panic if `doc` is greater than the index.
-    fn get_val(&self, doc: u64) -> u64 {
-        if let Some(doc_id_map) = self.doc_id_map {
-            self.vals
-                .get(doc_id_map.get_old_doc_id(doc as u32) as usize) // consider extra
-                                                                     // FastFieldReader wrapper for
-                                                                     // non doc_id_map
-        } else {
-            self.vals.get(doc as usize)
-        }
+    fn get_val(&self, _doc: u64) -> u64 {
+        unimplemented!()
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
