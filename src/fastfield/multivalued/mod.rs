@@ -1,9 +1,21 @@
 mod reader;
 mod writer;
 
+use fastfield_codecs::FastFieldCodecType;
+
 pub use self::reader::MultiValuedFastFieldReader;
 pub use self::writer::MultiValuedFastFieldWriter;
 pub(crate) use self::writer::MultivalueStartIndex;
+
+/// The valid codecs for multivalue values excludes the linear interpolation codec.
+///
+/// This limitation is only valid for the values, not the offset index of the multivalue index.
+pub(crate) fn get_fastfield_codecs_for_multivalue() -> [FastFieldCodecType; 2] {
+    [
+        FastFieldCodecType::Bitpacked,
+        FastFieldCodecType::BlockwiseLinear,
+    ]
+}
 
 #[cfg(test)]
 mod tests {
