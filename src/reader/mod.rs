@@ -263,8 +263,7 @@ impl InnerIndexReader {
 /// It controls when a new version of the index should be loaded and lends
 /// you instances of `Searcher` for the last loaded version.
 ///
-/// `Clone` does not clone the different pool of searcher. `IndexReader`
-/// just wraps an `Arc`.
+/// `IndexReader` just wraps an `Arc`.
 #[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
@@ -294,9 +293,6 @@ impl IndexReader {
     ///
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
     ///
     /// The same searcher must be used for a given query, as it ensures
     /// the use of a consistent segment set.
