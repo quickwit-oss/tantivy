@@ -4,8 +4,9 @@ use fastfield_codecs::Column;
 
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
+use crate::indexer::flat_map_with_buffer;
 use crate::schema::Field;
-use crate::SegmentReader;
+use crate::{DocAddress, SegmentReader};
 
 pub(crate) struct RemappedDocIdMultiValueColumn<'a> {
     doc_id_mapping: &'a SegmentDocIdMapping,
@@ -71,16 +72,13 @@ impl<'a> Column for RemappedDocIdMultiValueColumn<'a> {
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        Box::new(
-            self.doc_id_mapping
-                .iter_old_doc_addrs()
-                .flat_map(|old_doc_addr| {
-                    let ff_reader = &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                    let mut vals = Vec::new();
-                    ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                    vals.into_iter()
-                }),
-        )
+        Box::new(flat_map_with_buffer(
+            self.doc_id_mapping.iter_old_doc_addrs(),
+            |old_doc_addr: DocAddress, buffer| {
+                let ff_reader = &self.fast_field_readers[old_doc_addr.segment_ord as usize];
+                ff_reader.get_vals(old_doc_addr.doc_id, buffer);
+            },
+        ))
     }
     fn min_value(&self) -> u64 {
         self.min_value
