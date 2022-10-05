@@ -133,15 +133,15 @@ fn merge(
 
 /// Advanced: Merges a list of segments from different indices in a new index.
 ///
-/// Returns `TantivyError` if the the indices list is empty or their
+/// Returns `TantivyError` if the indices list is empty or their
 /// schemas don't match.
 ///
 /// `output_directory`: is assumed to be empty.
 ///
 /// # Warning
 /// This function does NOT check or take the `IndexWriter` is running. It is not
-/// meant to work if you have an IndexWriter running for the origin indices, or
-/// the destination Index.
+/// meant to work if you have an `IndexWriter` running for the origin indices, or
+/// the destination `Index`.
 #[doc(hidden)]
 pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
@@ -179,15 +179,15 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
 /// Advanced: Merges a list of segments from different indices in a new index.
 /// Additional you can provide a delete bitset for each segment to ignore doc_ids.
 ///
-/// Returns `TantivyError` if the the indices list is empty or their
+/// Returns `TantivyError` if the indices list is empty or their
 /// schemas don't match.
 ///
 /// `output_directory`: is assumed to be empty.
 ///
 /// # Warning
 /// This function does NOT check or take the `IndexWriter` is running. It is not
-/// meant to work if you have an IndexWriter running for the origin indices, or
-/// the destination Index.
+/// meant to work if you have an `IndexWriter` running for the origin indices, or
+/// the destination `Index`.
 #[doc(hidden)]
 pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     segments: &[Segment],

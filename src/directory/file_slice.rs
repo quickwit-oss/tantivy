@@ -13,8 +13,8 @@ use crate::directory::OwnedBytes;
 /// By contract, whatever happens to the directory file, as long as a FileHandle
 /// is alive, the data associated with it cannot be altered or destroyed.
 ///
-/// The underlying behavior is therefore specific to the `Directory` that created it.
-/// Despite its name, a `FileSlice` may or may not directly map to an actual file
+/// The underlying behavior is therefore specific to the [`Directory`](crate::Directory) that
+/// created it. Despite its name, a [`FileSlice`] may or may not directly map to an actual file
 /// on the filesystem.
 
 #[async_trait]

@@ -452,7 +452,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
 ) -> crate::Result<Vec<BucketEntry>> {
-    // Generate the the full list of buckets without gaps.
+    // Generate the full list of buckets without gaps.
     //
     // The bounds are the min max from the current buckets, optionally extended by
     // extended_bounds from the request

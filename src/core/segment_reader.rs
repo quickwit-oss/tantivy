@@ -216,10 +216,10 @@ impl SegmentReader {
     /// term dictionary associated with a specific field,
     /// and opening the posting list associated with any term.
     ///
-    /// If the field is not marked as index, a warn is logged and an empty `InvertedIndexReader`
+    /// If the field is not marked as index, a warning is logged and an empty `InvertedIndexReader`
     /// is returned.
-    /// Similarly if the field is marked as indexed but no term has been indexed for the given
-    /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
+    /// Similarly, if the field is marked as indexed but no term has been indexed for the given
+    /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
     pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache

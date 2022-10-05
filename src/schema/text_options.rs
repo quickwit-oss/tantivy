@@ -47,7 +47,9 @@ impl TextOptions {
     /// unchanged. The "default" tokenizer will store the terms as lower case and this will be
     /// reflected in the dictionary.
     ///
-    /// The original text can be retrieved via `ord_to_term` from the dictionary.
+    /// The original text can be retrieved via
+    /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
+    /// from the dictionary.
     #[must_use]
     pub fn set_fast(mut self) -> TextOptions {
         self.fast = true;

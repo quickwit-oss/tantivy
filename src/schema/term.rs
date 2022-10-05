@@ -54,27 +54,27 @@ impl Term {
         term
     }
 
-    /// Builds a term given a field, and a u64-value
+    /// Builds a term given a field, and a `u64`-value
     pub fn from_field_u64(field: Field, val: u64) -> Term {
         Term::from_fast_value(field, &val)
     }
 
-    /// Builds a term given a field, and a i64-value
+    /// Builds a term given a field, and a `i64`-value
     pub fn from_field_i64(field: Field, val: i64) -> Term {
         Term::from_fast_value(field, &val)
     }
 
-    /// Builds a term given a field, and a f64-value
+    /// Builds a term given a field, and a `f64`-value
     pub fn from_field_f64(field: Field, val: f64) -> Term {
         Term::from_fast_value(field, &val)
     }
 
-    /// Builds a term given a field, and a f64-value
+    /// Builds a term given a field, and a `bool`-value
     pub fn from_field_bool(field: Field, val: bool) -> Term {
         Term::from_fast_value(field, &val)
     }
 
-    /// Builds a term given a field, and a DateTime value
+    /// Builds a term given a field, and a `DateTime` value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
         Term::from_fast_value(field, &val.truncate(DatePrecision::Seconds))
     }
@@ -130,7 +130,7 @@ impl Term {
         self.set_fast_value(val);
     }
 
-    /// Sets a `i64` value in the term.
+    /// Sets a `DateTime` value in the term.
     pub fn set_date(&mut self, date: DateTime) {
         self.set_fast_value(date);
     }

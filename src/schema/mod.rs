@@ -28,10 +28,10 @@
 //! use tantivy::schema::*;
 //! let mut schema_builder = Schema::builder();
 //! let title_options = TextOptions::default()
-//! .set_stored()
-//! .set_indexing_options(TextFieldIndexing::default()
-//! .set_tokenizer("default")
-//! .set_index_option(IndexRecordOption::WithFreqsAndPositions));
+//!     .set_stored()
+//!     .set_indexing_options(TextFieldIndexing::default()
+//!     .set_tokenizer("default")
+//!     .set_index_option(IndexRecordOption::WithFreqsAndPositions));
 //! schema_builder.add_text_field("title", title_options);
 //! let schema = schema_builder.build();
 //! ```
@@ -45,8 +45,7 @@
 //! In the first phase, the ability to search for documents by the given field is determined by the
 //! [`IndexRecordOption`] of our [`TextOptions`].
 //!
-//! The effect of each possible setting is described more in detail
-//! [`TextIndexingOptions`](enum.TextIndexingOptions.html).
+//! The effect of each possible setting is described more in detail in [`TextOptions`].
 //!
 //! On the other hand setting the field as stored or not determines whether the field should be
 //! returned when [`Searcher::doc()`](crate::Searcher::doc) is called.
@@ -60,8 +59,8 @@
 //! use tantivy::schema::*;
 //! let mut schema_builder = Schema::builder();
 //! let num_stars_options = NumericOptions::default()
-//! .set_stored()
-//! .set_indexed();
+//!     .set_stored()
+//!     .set_indexed();
 //! schema_builder.add_u64_field("num_stars", num_stars_options);
 //! let schema = schema_builder.build();
 //! ```
@@ -79,8 +78,8 @@
 //! For convenience, it is possible to define your field indexing options by combining different
 //! flags using the  `|` operator.
 //!
-//! For instance, a schema containing the two fields defined in the example above could be rewritten
-//! :
+//! For instance, a schema containing the two fields defined in the example above could be
+//! rewritten:
 //!
 //! ```
 //! use tantivy::schema::*;
