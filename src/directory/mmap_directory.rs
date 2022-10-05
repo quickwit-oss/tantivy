@@ -610,9 +610,11 @@ mod tests {
             assert!(num_segments <= 4);
             let num_components_except_deletes_and_tempstore =
                 crate::core::SegmentComponent::iterator().len() - 2;
-            assert_eq!(
-                num_segments * num_components_except_deletes_and_tempstore,
-                mmap_directory.get_cache_info().mmapped.len()
+            let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
+            assert!(
+                num_mmapped <= num_segments * num_components_except_deletes_and_tempstore,
+                "Expected at most {} mmapped files, got {num_mmapped}",
+                num_segments * num_components_except_deletes_and_tempstore
             );
         }
         // This test failed on CI. The last Mmap is dropped from the merging thread so there might
