@@ -70,6 +70,20 @@ impl CompositeFastFieldSerializer {
         Ok(())
     }
 
+    /// Serialize data into a new u64 fast field. The best compression codec of the the provided
+    /// will be chosen.
+    pub fn create_auto_detect_u64_fast_field_with_idx_and_codecs<T: MonotonicallyMappableToU64>(
+        &mut self,
+        field: Field,
+        fastfield_accessor: impl Column<T>,
+        idx: usize,
+        codec_types: &[FastFieldCodecType],
+    ) -> io::Result<()> {
+        let field_write = self.composite_write.for_field_with_idx(field, idx);
+        fastfield_codecs::serialize(fastfield_accessor, field_write, codec_types)?;
+        Ok(())
+    }
+
     /// Start serializing a new [u8] fast field. Use the returned writer to write data into the
     /// bytes field. To associate the bytes with documents a seperate index must be created on
     /// index 0. See bytes/writer.rs::serialize for an example.

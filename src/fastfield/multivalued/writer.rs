@@ -3,6 +3,7 @@ use std::io;
 use fastfield_codecs::{Column, MonotonicallyMappableToU64, VecColumn};
 use fnv::FnvHashMap;
 
+use super::get_fastfield_codecs_for_multivalue;
 use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -194,7 +195,12 @@ impl MultiValuedFastFieldWriter {
                 }
             }
             let col = VecColumn::from(&values[..]);
-            serializer.create_auto_detect_u64_fast_field_with_idx(self.field, col, 1)?;
+            serializer.create_auto_detect_u64_fast_field_with_idx_and_codecs(
+                self.field,
+                col,
+                1,
+                &get_fastfield_codecs_for_multivalue(),
+            )?;
         }
         Ok(())
     }
@@ -251,20 +257,11 @@ fn iter_remapped_multivalue_index<'a, C: Column>(
     column: &'a C,
 ) -> impl Iterator<Item = u64> + 'a {
     let mut offset = 0;
-    doc_id_map
-        .iter_old_doc_ids()
-        .chain(std::iter::once(u32::MAX))
-        .map(move |old_doc| {
-            if old_doc == u32::MAX {
-                // sentinel value for last offset
-                return offset;
-            }
-            let num_vals_for_doc =
-                column.get_val(old_doc as u64 + 1) - column.get_val(old_doc as u64);
-            let start_offset = offset;
-            offset += num_vals_for_doc;
-            start_offset
-        })
+    std::iter::once(0).chain(doc_id_map.iter_old_doc_ids().map(move |old_doc| {
+        let num_vals_for_doc = column.get_val(old_doc as u64 + 1) - column.get_val(old_doc as u64);
+        offset += num_vals_for_doc;
+        offset as u64
+    }))
 }
 
 #[cfg(test)]
