@@ -3,6 +3,7 @@ pub mod delete_queue;
 pub mod demuxer;
 pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
+mod flat_map_with_buffer;
 pub mod index_writer;
 mod index_writer_status;
 mod json_term_writer;

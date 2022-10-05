@@ -2,10 +2,11 @@ use std::cmp;
 
 use fastfield_codecs::Column;
 
+use super::flat_map_with_buffer::FlatMapWithBufferIter;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::schema::Field;
-use crate::SegmentReader;
+use crate::{DocAddress, SegmentReader};
 
 pub(crate) struct RemappedDocIdMultiValueColumn<'a> {
     doc_id_mapping: &'a SegmentDocIdMapping,
@@ -74,11 +75,9 @@ impl<'a> Column for RemappedDocIdMultiValueColumn<'a> {
         Box::new(
             self.doc_id_mapping
                 .iter_old_doc_addrs()
-                .flat_map(|old_doc_addr| {
+                .flat_map_with_buffer(|old_doc_addr: DocAddress, buffer| {
                     let ff_reader = &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                    let mut vals = Vec::new();
-                    ff_reader.get_vals(old_doc_addr.doc_id, &mut vals);
-                    vals.into_iter()
+                    ff_reader.get_vals(old_doc_addr.doc_id, buffer);
                 }),
         )
     }
