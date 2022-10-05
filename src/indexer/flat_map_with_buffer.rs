@@ -1,10 +1,10 @@
-struct FlatMapWithgBuffer<T, F, Iter> {
+pub struct FlatMapWithBuffer<T, F, Iter> {
     buffer: Vec<T>,
     fill_buffer: F,
     underlying_it: Iter,
 }
 
-impl<T, F, Iter, I> Iterator for FlatMapWithgBuffer<T, F, Iter>
+impl<T, F, Iter, I> Iterator for FlatMapWithBuffer<T, F, Iter>
 where
     Iter: Iterator<Item = I>,
     F: Fn(I, &mut Vec<T>),
@@ -22,53 +22,48 @@ where
     }
 }
 
-/// FUnction similar to `flat_map`, but the generating function fills a buffer
-/// instead of returning an Iterator.
-pub fn flat_map_with_buffer<T, F, I, Iter>(
-    underlying_it: Iter,
-    fill_buffer: F,
-) -> impl Iterator<Item = T>
-where
-    F: Fn(I, &mut Vec<T>),
-    Iter: Iterator<Item = I>,
-{
-    FlatMapWithgBuffer {
-        buffer: Vec::with_capacity(10),
-        fill_buffer,
-        underlying_it,
+pub trait FlatMapWithBufferIter: Iterator {
+    /// Function similar to `flat_map`, but allows reusing a shared `Vec`.
+    fn flat_map_with_buffer<F, T>(self, fill_buffer: F) -> FlatMapWithBuffer<T, F, Self>
+    where
+        F: Fn(Self::Item, &mut Vec<T>),
+        Self: Sized,
+    {
+        FlatMapWithBuffer {
+            buffer: Vec::with_capacity(10),
+            fill_buffer,
+            underlying_it: self,
+        }
     }
 }
 
+impl<T: ?Sized> FlatMapWithBufferIter for T where T: Iterator {}
+
 #[cfg(test)]
 mod tests {
-    use super::flat_map_with_buffer;
+    use crate::indexer::flat_map_with_buffer::FlatMapWithBufferIter;
 
     #[test]
     fn test_flat_map_with_buffer_empty() {
-        let vals: Vec<usize> = flat_map_with_buffer(
-            std::iter::empty::<usize>(),
-            |_val: usize, _buffer: &mut Vec<usize>| {},
-        )
-        .collect();
-        assert!(vals.is_empty());
+        let mut empty_iter = std::iter::empty::<usize>()
+            .flat_map_with_buffer(|_val: usize, _buffer: &mut Vec<usize>| {});
+        assert!(empty_iter.next().is_none());
     }
 
     #[test]
     fn test_flat_map_with_buffer_simple() {
-        let vals: Vec<usize> = flat_map_with_buffer(1..5, |val: usize, buffer: &mut Vec<usize>| {
-            buffer.extend(0..val)
-        })
-        .collect();
+        let vals: Vec<usize> = (1..5)
+            .flat_map_with_buffer(|val: usize, buffer: &mut Vec<usize>| buffer.extend(0..val))
+            .collect();
         assert_eq!(&[0, 0, 1, 0, 1, 2, 0, 1, 2, 3], &vals[..]);
     }
 
     #[test]
     fn test_flat_map_filling_no_elements_does_not_stop_iterator() {
-        let vals: Vec<usize> = flat_map_with_buffer(
-            [2, 0, 0, 3].into_iter(),
-            |val: usize, buffer: &mut Vec<usize>| buffer.extend(0..val),
-        )
-        .collect();
+        let vals: Vec<usize> = [2, 0, 0, 3]
+            .into_iter()
+            .flat_map_with_buffer(|val: usize, buffer: &mut Vec<usize>| buffer.extend(0..val))
+            .collect();
         assert_eq!(&[0, 1, 0, 1, 2], &vals[..]);
     }
 }

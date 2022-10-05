@@ -27,7 +27,6 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
-pub use self::flat_map_with_buffer::flat_map_with_buffer;
 pub use self::index_writer::IndexWriter;
 pub(crate) use self::json_term_writer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
