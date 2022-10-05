@@ -15,12 +15,11 @@ use crate::termdict::TermDictionary;
 ///
 /// It is safe to delete the segment associated with
 /// an `InvertedIndexReader`. As long as it is open,
-/// the `FileSlice` it is relying on should
+/// the [`FileSlice`] it is relying on should
 /// stay available.
 ///
-///
 /// `InvertedIndexReader` are created by calling
-/// the `SegmentReader`'s [`.inverted_index(...)`] method
+/// [`SegmentReader::inverted_index()`](crate::SegmentReader::inverted_index).
 pub struct InvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
@@ -75,7 +74,7 @@ impl InvertedIndexReader {
     ///
     /// This is useful for enumerating through a list of terms,
     /// and consuming the associated posting lists while avoiding
-    /// reallocating a `BlockSegmentPostings`.
+    /// reallocating a [`BlockSegmentPostings`].
     ///
     /// # Warning
     ///
@@ -96,7 +95,7 @@ impl InvertedIndexReader {
     /// Returns a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_block_postings(
         &self,
         term: &Term,
@@ -110,7 +109,7 @@ impl InvertedIndexReader {
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_block_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
@@ -130,7 +129,7 @@ impl InvertedIndexReader {
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
@@ -164,12 +163,12 @@ impl InvertedIndexReader {
     /// or `None` if the term has never been encountered and indexed.
     ///
     /// If the field was not indexed with the indexing options that cover
-    /// the requested options, the returned `SegmentPostings` the method does not fail
+    /// the requested options, the returned [`SegmentPostings`] the method does not fail
     /// and returns a `SegmentPostings` with as much information as possible.
     ///
-    /// For instance, requesting `IndexRecordOption::Freq` for a
-    /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
-    /// with `DocId`s and frequencies.
+    /// For instance, requesting [`IndexRecordOption::WithFreqs`] for a
+    /// [`TextOptions`](crate::schema::TextOptions) that does not index position
+    /// will return a [`SegmentPostings`] with `DocId`s and frequencies.
     pub fn read_postings(
         &self,
         term: &Term,
@@ -211,7 +210,7 @@ impl InvertedIndexReader {
     /// Returns a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub async fn warm_postings(
         &self,
         term: &Term,

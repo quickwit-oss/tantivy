@@ -140,10 +140,10 @@ impl StoreReader {
         self.cache.stats()
     }
 
-    /// Get checkpoint for DocId. The checkpoint can be used to load a block containing the
+    /// Get checkpoint for `DocId`. The checkpoint can be used to load a block containing the
     /// document.
     ///
-    /// Advanced API. In most cases use [get](Self::get).
+    /// Advanced API. In most cases use [`get`](Self::get).
     fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
         self.skip_index.seek(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
@@ -160,7 +160,7 @@ impl StoreReader {
 
     /// Loads and decompresses a block.
     ///
-    /// Advanced API. In most cases use [get](Self::get).
+    /// Advanced API. In most cases use [`get`](Self::get).
     fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
         let cache_key = checkpoint.byte_range.start;
         if let Some(block) = self.cache.get_from_cache(cache_key) {
@@ -205,7 +205,7 @@ impl StoreReader {
 
     /// Advanced API.
     ///
-    /// In most cases use [get_document_bytes](Self::get_document_bytes).
+    /// In most cases use [`get_document_bytes`](Self::get_document_bytes).
     fn get_document_bytes_from_block(
         block: OwnedBytes,
         doc_id: DocId,
@@ -219,7 +219,7 @@ impl StoreReader {
 
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
-    /// The alive_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
     pub fn iter<'a: 'b, 'b>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
@@ -230,9 +230,9 @@ impl StoreReader {
         })
     }
 
-    /// Iterator over all RawDocuments in their order as they are stored in the doc store.
+    /// Iterator over all raw Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
-    /// The alive_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
     pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
@@ -320,7 +320,7 @@ fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
 impl StoreReader {
     /// Advanced API.
     ///
-    /// In most cases use [get_async](Self::get_async)
+    /// In most cases use [`get_async`](Self::get_async)
     ///
     /// Loads and decompresses a block asynchronously.
     async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
@@ -344,14 +344,14 @@ impl StoreReader {
         Ok(decompressed_block)
     }
 
-    /// Fetches a document asynchronously.
+    /// Reads raw bytes of a given document asynchronously.
     pub async fn get_document_bytes_async(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
         let checkpoint = self.block_checkpoint(doc_id)?;
         let block = self.read_block_async(&checkpoint).await?;
         Self::get_document_bytes_from_block(block, doc_id, &checkpoint)
     }
 
-    /// Reads raw bytes of a given document. Async version of [get](Self::get).
+    /// Fetches a document asynchronously. Async version of [`get`](Self::get).
     pub async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
         Ok(Document::deserialize(&mut doc_bytes)?)

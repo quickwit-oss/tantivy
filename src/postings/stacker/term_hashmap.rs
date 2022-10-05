@@ -199,7 +199,7 @@ impl TermHashMap {
     /// `update` create a new entry for a given key if it does not exists
     /// or updates the existing entry.
     ///
-    /// The actual logic for this update is define in the the `updater`
+    /// The actual logic for this update is define in the `updater`
     /// argument.
     ///
     /// If the key is not present, `updater` will receive `None` and

@@ -47,11 +47,11 @@ impl<'a> Iterator for VInt32Reader<'a> {
     }
 }
 
-/// Recorder is in charge of recording relevant information about
+/// `Recorder` is in charge of recording relevant information about
 /// the presence of a term in a document.
 ///
-/// Depending on the `TextIndexingOptions` associated with the
-/// field, the recorder may records
+/// Depending on the [`TextOptions`](crate::schema::TextOptions) associated
+/// with the field, the recorder may record:
 ///   * the document frequency
 ///   * the document id
 ///   * the term frequency
