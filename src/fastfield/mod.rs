@@ -26,10 +26,8 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub(crate) use self::multivalued::MultivalueStartIndex;
-pub use self::multivalued::{
-    get_fastfield_codecs_for_multivalue, MultiValuedFastFieldReader, MultiValuedFastFieldWriter,
-};
+pub(crate) use self::multivalued::{get_fastfield_codecs_for_multivalue, MultivalueStartIndex};
+pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{Column, CompositeFastFieldSerializer};

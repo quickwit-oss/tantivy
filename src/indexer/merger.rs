@@ -429,12 +429,10 @@ impl IndexMerger {
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
-        segment_readers_and_field_accessor: &[(&SegmentReader, T)],
+        segment_and_ff_readers: &[(&SegmentReader, T)],
     ) -> crate::Result<()> {
-        let column = RemappedDocIdMultiValueIndexColumn::new(
-            segment_readers_and_field_accessor,
-            doc_id_mapping,
-        );
+        let column =
+            RemappedDocIdMultiValueIndexColumn::new(segment_and_ff_readers, doc_id_mapping);
 
         fast_field_serializer.create_auto_detect_u64_fast_field(field, column)?;
         Ok(())
@@ -446,7 +444,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let segment_reader_and_field_accessors = self
+        let segment_and_ff_readers = self
             .readers
             .iter()
             .map(|reader| {
@@ -465,7 +463,7 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &segment_reader_and_field_accessors,
+            &segment_and_ff_readers,
         )
     }
 
@@ -580,7 +578,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let segment_reader_and_field_accessors = self
+        let segment_and_ff_readers = self
             .readers
             .iter()
             .map(|reader| {
@@ -595,14 +593,13 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &segment_reader_and_field_accessors,
+            &segment_and_ff_readers,
         )?;
 
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field(field);
 
         for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
-            let bytes_reader =
-                &segment_reader_and_field_accessors[old_doc_addr.segment_ord as usize].1;
+            let bytes_reader = &segment_and_ff_readers[old_doc_addr.segment_ord as usize].1;
             let val = bytes_reader.get_bytes(old_doc_addr.doc_id);
             serialize_vals.write_all(val)?;
         }

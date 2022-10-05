@@ -104,7 +104,7 @@ pub(crate) struct RemappedDocIdMultiValueIndexColumn<'a, T: MultiValueLength> {
 
 impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
     pub(crate) fn new(
-        segment_and_multi_value_length_readers: &'a [(&'a SegmentReader, T)],
+        segment_and_ff_readers: &'a [(&'a SegmentReader, T)],
         doc_id_mapping: &'a SegmentDocIdMapping,
     ) -> Self {
         // We go through a complete first pass to compute the minimum and the
@@ -112,11 +112,10 @@ impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
         let mut num_vals = 0;
         let min_value = 0;
         let mut max_value = 0;
-        let mut multi_value_length_readers =
-            Vec::with_capacity(segment_and_multi_value_length_readers.len());
-        for reader_and_multi_value_length_reader in segment_and_multi_value_length_readers {
-            let segment_reader = reader_and_multi_value_length_reader.0;
-            let multi_value_length_reader = &reader_and_multi_value_length_reader.1;
+        let mut multi_value_length_readers = Vec::with_capacity(segment_and_ff_readers.len());
+        for segment_and_ff_reader in segment_and_ff_readers {
+            let segment_reader = segment_and_ff_reader.0;
+            let multi_value_length_reader = &segment_and_ff_reader.1;
             if !segment_reader.has_deletes() {
                 max_value += multi_value_length_reader.get_total_len();
             } else {
