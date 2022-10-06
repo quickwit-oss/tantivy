@@ -220,8 +220,8 @@ impl<T: MonotonicallyMappableToU128> MultiValueLength for MultiValuedU128FastFie
 ///
 /// Correctness: positions needs to be sorted.
 ///
-/// TODO: Instead of a linear scan we can employ a binary search to match a docid to its value
-/// position.
+/// TODO: Instead of a linear scan we can employ a expotential search into binary search to match a
+/// docid to its value position.
 fn positions_to_docids<T: MultiValueLength>(positions: &[u64], multival_idx: &T) -> Vec<DocId> {
     let mut docs = vec![];
     let mut cur_doc = 0u32;
@@ -250,7 +250,41 @@ fn positions_to_docids<T: MultiValueLength>(positions: &[u64], multival_idx: &T)
 mod tests {
 
     use crate::core::Index;
+    use crate::fastfield::multivalued::reader::positions_to_docids;
+    use crate::fastfield::MultiValueLength;
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
+
+    #[test]
+    fn test_positions_to_docid() {
+        let positions = vec![10u64, 11, 15, 20, 21, 22];
+
+        let offsets = vec![0, 10, 12, 15, 22, 23];
+
+        struct MultiValueLenghtIdx {
+            offsets: Vec<u64>,
+        }
+
+        impl MultiValueLength for MultiValueLenghtIdx {
+            fn get_range(&self, doc_id: crate::DocId) -> std::ops::Range<u64> {
+                let idx = doc_id as u64;
+                let start = self.offsets[idx as usize];
+                let end = self.offsets[idx as usize + 1];
+                start..end
+            }
+
+            fn get_len(&self, _doc_id: crate::DocId) -> u64 {
+                todo!()
+            }
+
+            fn get_total_len(&self) -> u64 {
+                todo!()
+            }
+        }
+
+        let idx = MultiValueLenghtIdx { offsets };
+        let docids = positions_to_docids(&positions, &idx);
+        assert_eq!(docids, vec![1, 3, 4]);
+    }
 
     #[test]
     fn test_multifastfield_reader() -> crate::Result<()> {

@@ -33,7 +33,7 @@ pub enum Value {
     Bytes(Vec<u8>),
     /// Json object value.
     JsonObject(serde_json::Map<String, serde_json::Value>),
-    /// Ip
+    /// Ip Address value
     IpAddr(IpAddr),
 }
 
@@ -53,7 +53,7 @@ impl Serialize for Value {
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
-            Value::IpAddr(ref obj) => obj.serialize(serializer), // TODO check serialization
+            Value::IpAddr(ref obj) => obj.serialize(serializer),
         }
     }
 }
@@ -307,11 +307,11 @@ impl From<serde_json::Value> for Value {
 }
 
 mod binary_serialize {
-    use std::io::{self, ErrorKind, Read, Write};
+    use std::io::{self, Read, Write};
     use std::net::IpAddr;
-    use std::str::FromStr;
 
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
+    use fastfield_codecs::MonotonicallyMappableToU128;
 
     use super::Value;
     use crate::schema::Facet;
@@ -391,7 +391,7 @@ mod binary_serialize {
                 }
                 Value::IpAddr(ref ip) => {
                     IP_CODE.serialize(writer)?;
-                    ip.to_string().serialize(writer) // TODO Check best format
+                    ip.to_u128().serialize(writer)
                 }
             }
         }
@@ -445,7 +445,7 @@ mod binary_serialize {
                         _ => Err(io::Error::new(
                             io::ErrorKind::InvalidData,
                             format!(
-                                "No extened field type is associated with code {:?}",
+                                "No extended field type is associated with code {:?}",
                                 ext_type_code
                             ),
                         )),
@@ -464,10 +464,8 @@ mod binary_serialize {
                     Ok(Value::JsonObject(json_map))
                 }
                 IP_CODE => {
-                    let text = String::deserialize(reader)?;
-                    Ok(Value::IpAddr(IpAddr::from_str(&text).map_err(|err| {
-                        io::Error::new(ErrorKind::Other, err.to_string())
-                    })?))
+                    let value = u128::deserialize(reader)?;
+                    Ok(Value::IpAddr(IpAddr::from_u128(value)))
                 }
 
                 _ => Err(io::Error::new(
