@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
-use super::ip_options::IpOptions;
+use super::ip_options::IpAddrOptions;
 use super::Cardinality;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -67,7 +67,7 @@ pub enum Type {
     /// Leaf in a Json object.
     Json = b'j',
     /// IpAddr
-    Ip = b'p',
+    IpAddr = b'p',
     /// IpAddr
     U128 = b'1',
 }
@@ -82,7 +82,7 @@ const ALL_TYPES: [Type; 11] = [
     Type::Facet,
     Type::Bytes,
     Type::Json,
-    Type::Ip,
+    Type::IpAddr,
     Type::U128,
 ];
 
@@ -110,7 +110,7 @@ impl Type {
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
             Type::Json => "Json",
-            Type::Ip => "Ip",
+            Type::IpAddr => "IpAddr",
             Type::U128 => "U128",
         }
     }
@@ -128,7 +128,7 @@ impl Type {
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
-            b'p' => Some(Type::Ip),
+            b'p' => Some(Type::IpAddr),
             b'1' => Some(Type::U128),
             _ => None,
         }
@@ -161,7 +161,7 @@ pub enum FieldType {
     /// Json object
     JsonObject(JsonObjectOptions),
     /// IpAddr field
-    IpAddr(IpOptions),
+    IpAddr(IpAddrOptions),
 }
 
 impl FieldType {
@@ -177,7 +177,7 @@ impl FieldType {
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
-            FieldType::IpAddr(_) => Type::Ip,
+            FieldType::IpAddr(_) => Type::IpAddr,
         }
     }
 

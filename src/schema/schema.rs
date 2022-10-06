@@ -7,7 +7,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Value as JsonValue};
 
-use super::ip_options::IpOptions;
+use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::field_type::ValueParsingError;
@@ -157,13 +157,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_ip_field<T: Into<IpOptions>>(
+    pub fn add_ip_addr_field<T: Into<IpAddrOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
     ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_ip(field_name, field_options.into());
+        let field_entry = FieldEntry::new_ip_addr(field_name, field_options.into());
         self.add_field(field_entry)
     }
 

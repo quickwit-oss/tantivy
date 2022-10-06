@@ -283,7 +283,7 @@ impl FastFieldsWriter {
 /// The fast field writer just keeps the values in memory.
 ///
 /// Only when the segment writer can be closed and
-/// persisted on disc, the fast field writer is
+/// persisted on disk, the fast field writer is
 /// sent to a `FastFieldSerializer` via the `.serialize(...)`
 /// method.
 ///
@@ -371,7 +371,7 @@ impl U128FastFieldWriter {
 /// The fast field writer just keeps the values in memory.
 ///
 /// Only when the segment writer can be closed and
-/// persisted on disc, the fast field writer is
+/// persisted on disk, the fast field writer is
 /// sent to a `FastFieldSerializer` via the `.serialize(...)`
 /// method.
 ///

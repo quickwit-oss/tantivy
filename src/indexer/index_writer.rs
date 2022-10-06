@@ -817,7 +817,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
-        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IpOptions, NumericOptions,
+        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions,
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
@@ -1595,10 +1595,10 @@ mod tests {
         force_end_merge: bool,
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let ip_field = schema_builder.add_ip_field("ip", FAST | INDEXED | STORED);
-        let ips_field = schema_builder.add_ip_field(
+        let ip_field = schema_builder.add_ip_addr_field("ip", FAST | INDEXED | STORED);
+        let ips_field = schema_builder.add_ip_addr_field(
             "ips",
-            IpOptions::default().set_fast(Cardinality::MultiValues),
+            IpAddrOptions::default().set_fast(Cardinality::MultiValues),
         );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
