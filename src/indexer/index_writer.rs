@@ -1780,6 +1780,7 @@ mod tests {
                 segment_reader.doc_ids_alive().flat_map(move |doc| {
                     let val = ff_reader.get_val(doc as u64);
                     if val == IpAddr::from_u128(0) {
+                        // TODO Fix null handling
                         None
                     } else {
                         Some(val)
@@ -1818,7 +1819,7 @@ mod tests {
                 segment_reader.doc_ids_alive().flat_map(move |doc| {
                     let mut vals = vec![];
                     ff_reader.get_vals(doc, &mut vals);
-                    vals.into_iter().filter(|val| val.to_u128() != 0)
+                    vals.into_iter().filter(|val| val.to_u128() != 0) // TODO Fix null handling
                 })
             })
             .collect();

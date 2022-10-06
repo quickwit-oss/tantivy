@@ -11,8 +11,8 @@ use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
-    get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer, MultiValueLength,
-    MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
+    get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer,
+    MultiValueLength, MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
