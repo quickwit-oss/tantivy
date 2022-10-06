@@ -1,7 +1,7 @@
 use std::io;
 
 use fastfield_codecs::{
-    serialize_u128, Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
+    Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
 };
 use fnv::FnvHashMap;
 
@@ -361,10 +361,14 @@ impl MultiValueU128FastFieldWriter {
             }
         }
         {
-            let field_write = serializer.get_field_writer(self.field, 1);
-
             let iter_gen = || self.get_ordered_values(doc_id_map).flatten().cloned();
-            serialize_u128(iter_gen, self.vals.len() as u64, field_write)?;
+
+            serializer.create_u128_fast_field_with_idx(
+                self.field,
+                iter_gen,
+                self.vals.len() as u64,
+                1,
+            )?;
         }
         Ok(())
     }

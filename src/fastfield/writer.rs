@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
-use fastfield_codecs::{
-    serialize_u128, Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-};
+use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
@@ -349,18 +347,27 @@ impl U128FastFieldWriter {
         serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        let field_write = serializer.get_field_writer(self.field, 0);
-
         if let Some(doc_id_map) = doc_id_map {
             let iter_gen = || {
                 doc_id_map
                     .iter_old_doc_ids()
                     .map(|idx| self.vals[idx as usize])
             };
-            serialize_u128(iter_gen, self.val_count as u64, field_write)?;
+
+            serializer.create_u128_fast_field_with_idx(
+                self.field,
+                iter_gen,
+                self.val_count as u64,
+                0,
+            )?;
         } else {
             let iter_gen = || self.vals.iter().cloned();
-            serialize_u128(iter_gen, self.val_count as u64, field_write)?;
+            serializer.create_u128_fast_field_with_idx(
+                self.field,
+                iter_gen,
+                self.val_count as u64,
+                0,
+            )?;
         }
 
         Ok(())

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 
-use fastfield_codecs::{serialize_u128, VecColumn};
+use fastfield_codecs::VecColumn;
 use itertools::Itertools;
 use measure_time::debug_time;
 
@@ -364,8 +364,13 @@ impl IndexMerger {
                     fast_field_reader.get_vals(doc_addr.doc_id, buffer);
                 })
         };
-        let field_write = fast_field_serializer.get_field_writer(field, 1);
-        serialize_u128(iter_gen, doc_id_mapping.len() as u64, field_write)?;
+
+        fast_field_serializer.create_u128_fast_field_with_idx(
+            field,
+            iter_gen,
+            doc_id_mapping.len() as u64,
+            1,
+        )?;
 
         Ok(())
     }
@@ -389,14 +394,18 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
 
-        let field_write = fast_field_serializer.get_field_writer(field, 0);
         let iter_gen = || {
             doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
                 fast_field_reader.get_val(doc_addr.doc_id as u64)
             })
         };
-        fastfield_codecs::serialize_u128(iter_gen, doc_id_mapping.len() as u64, field_write)?;
+        fast_field_serializer.create_u128_fast_field_with_idx(
+            field,
+            iter_gen,
+            doc_id_mapping.len() as u64,
+            0,
+        )?;
         Ok(())
     }
 

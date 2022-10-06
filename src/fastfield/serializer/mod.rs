@@ -84,6 +84,21 @@ impl CompositeFastFieldSerializer {
         Ok(())
     }
 
+    /// Serialize data into a new u128 fast field. The codec will be compact space compressor,
+    /// which is optimized for scanning the fast field for a given range.
+    pub fn create_u128_fast_field_with_idx<F: Fn() -> I, I: Iterator<Item = u128>>(
+        &mut self,
+        field: Field,
+        iter_gen: F,
+        num_vals: u64,
+        idx: usize,
+    ) -> io::Result<()> {
+        let field_write = self.composite_write.for_field_with_idx(field, idx);
+        fastfield_codecs::serialize_u128(iter_gen, num_vals, field_write)?;
+
+        Ok(())
+    }
+
     /// Start serializing a new [u8] fast field. Use the returned writer to write data into the
     /// bytes field. To associate the bytes with documents a seperate index must be created on
     /// index 0. See bytes/writer.rs::serialize for an example.
@@ -91,11 +106,6 @@ impl CompositeFastFieldSerializer {
     /// The bytes will be stored as is, no compression will be applied.
     pub fn new_bytes_fast_field(&mut self, field: Field) -> impl Write + '_ {
         self.composite_write.for_field_with_idx(field, 1)
-    }
-
-    /// Gets the underlying writer
-    pub fn get_field_writer(&mut self, field: Field, idx: usize) -> &mut impl Write {
-        self.composite_write.for_field_with_idx(field, idx)
     }
 
     /// Closes the serializer
