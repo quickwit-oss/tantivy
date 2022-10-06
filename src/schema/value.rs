@@ -41,9 +41,7 @@ impl Eq for Value {}
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    where S: Serializer {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::PreTokStr(ref v) => v.serialize(serializer),
@@ -62,9 +60,7 @@ impl Serialize for Value {
 
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         struct ValueVisitor;
 
         impl<'de> Visitor<'de> for ValueVisitor {

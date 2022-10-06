@@ -400,11 +400,9 @@ impl QueryParser {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 Ok(Term::from_field_bytes(field, &bytes))
             }
-            FieldType::IpAddr(_) => {
-                return Err(QueryParserError::UnsupportedQuery(
-                    "Range query are not supported on IpAddr field.".to_string(),
-                ));
-            }
+            FieldType::IpAddr(_) => Err(QueryParserError::UnsupportedQuery(
+                "Range query are not supported on IpAddr field.".to_string(),
+            )),
         }
     }
 
