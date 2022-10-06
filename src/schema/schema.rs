@@ -146,9 +146,7 @@ impl SchemaBuilder {
     }
 
     /// Adds a ip field.
-    /// Returns the associated field handle
-    /// Internally, Tantivy simply stores ips as u64,
-    /// while the user supplies IpAddr values for convenience.
+    /// Returns the associated field handle.
     ///
     /// # Caution
     ///

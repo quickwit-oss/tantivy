@@ -34,14 +34,16 @@ pub enum Value {
     /// Json object value.
     JsonObject(serde_json::Map<String, serde_json::Value>),
     /// Ip
-    Ip(IpAddr),
+    IpAddr(IpAddr),
 }
 
 impl Eq for Value {}
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::PreTokStr(ref v) => v.serialize(serializer),
@@ -53,14 +55,16 @@ impl Serialize for Value {
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
-            Value::Ip(ref obj) => obj.serialize(serializer), // TODO check serialization
+            Value::IpAddr(ref obj) => obj.serialize(serializer), // TODO check serialization
         }
     }
 }
 
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         struct ValueVisitor;
 
         impl<'de> Visitor<'de> for ValueVisitor {
@@ -208,8 +212,8 @@ impl Value {
 
     /// Returns the ip addr, provided the value is of the `Ip` type.
     /// (Returns None if the value is not of the `Ip` type)
-    pub fn as_ip(&self) -> Option<IpAddr> {
-        if let Value::Ip(val) = self {
+    pub fn as_ip_addr(&self) -> Option<IpAddr> {
+        if let Value::IpAddr(val) = self {
             Some(*val)
         } else {
             None
@@ -225,7 +229,7 @@ impl From<String> for Value {
 
 impl From<IpAddr> for Value {
     fn from(v: IpAddr) -> Value {
-        Value::Ip(v)
+        Value::IpAddr(v)
     }
 }
 
@@ -389,7 +393,7 @@ mod binary_serialize {
                     serde_json::to_writer(writer, &map)?;
                     Ok(())
                 }
-                Value::Ip(ref ip) => {
+                Value::IpAddr(ref ip) => {
                     IP_CODE.serialize(writer)?;
                     ip.to_string().serialize(writer) // TODO Check best format
                 }
@@ -465,7 +469,7 @@ mod binary_serialize {
                 }
                 IP_CODE => {
                     let text = String::deserialize(reader)?;
-                    Ok(Value::Ip(IpAddr::from_str(&text).map_err(|err| {
+                    Ok(Value::IpAddr(IpAddr::from_str(&text).map_err(|err| {
                         io::Error::new(ErrorKind::Other, err.to_string())
                     })?))
                 }

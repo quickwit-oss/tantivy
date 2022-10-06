@@ -6,6 +6,7 @@ use fastfield_codecs::{serialize_u128, VecColumn};
 use itertools::Itertools;
 use measure_time::debug_time;
 
+use super::flat_map_with_buffer::FlatMapWithBufferIter;
 use super::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueIndexColumn;
 use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
@@ -356,12 +357,12 @@ impl IndexMerger {
             .collect::<Vec<_>>();
 
         let iter_gen = || {
-            doc_id_mapping.iter_old_doc_addrs().flat_map(|doc_addr| {
-                let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
-                let mut out = vec![];
-                fast_field_reader.get_vals(doc_addr.doc_id, &mut out);
-                out.into_iter()
-            })
+            doc_id_mapping
+                .iter_old_doc_addrs()
+                .flat_map_with_buffer(|doc_addr, buffer| {
+                    let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
+                    fast_field_reader.get_vals(doc_addr.doc_id, buffer);
+                })
         };
         let field_write = fast_field_serializer.get_field_writer(field, 1);
         serialize_u128(iter_gen, doc_id_mapping.len() as u64, field_write)?;

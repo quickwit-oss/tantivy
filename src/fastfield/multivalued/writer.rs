@@ -318,10 +318,10 @@ impl MultiValueU128FastFieldWriter {
             if field_value.field == self.field {
                 let value = field_value.value();
                 let ip_addr = value
-                    .as_ip()
+                    .as_ip_addr()
                     .unwrap_or_else(|| panic!("expected and ip, but got {:?}", value));
-                let value = ip_addr.to_u128();
-                self.add_val(value);
+                let ip_addr_u128 = ip_addr.to_u128();
+                self.add_val(ip_addr_u128);
             }
         }
     }

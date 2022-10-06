@@ -330,7 +330,7 @@ impl U128FastFieldWriter {
         match doc.get_first(self.field) {
             Some(v) => {
                 let ip_addr = v
-                    .as_ip()
+                    .as_ip_addr()
                     .unwrap_or_else(|| panic!("expected and ip, but got {:?}", v));
 
                 let value = ip_addr.to_u128();
@@ -359,7 +359,7 @@ impl U128FastFieldWriter {
             };
             serialize_u128(iter_gen, self.val_count as u64, field_write)?;
         } else {
-            let iter_gen = || (0..self.val_count).map(|idx| self.vals[idx as usize]);
+            let iter_gen = || self.vals.iter().cloned();
             serialize_u128(iter_gen, self.val_count as u64, field_write)?;
         }
 

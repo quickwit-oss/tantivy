@@ -61,7 +61,7 @@ impl FieldEntry {
         Self::new(field_name, FieldType::Date(date_options))
     }
 
-    /// Creates a new ip field entry.
+    /// Creates a new ip address field entry.
     pub fn new_ip_addr(field_name: String, ip_options: IpAddrOptions) -> FieldEntry {
         Self::new(field_name, FieldType::IpAddr(ip_options))
     }
