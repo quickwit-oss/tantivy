@@ -22,7 +22,6 @@ use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use common::{BinarySerializable, VInt};
-use fastdivide::DividerU64;
 use log::warn;
 use ownedbytes::OwnedBytes;
 
@@ -30,7 +29,10 @@ use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
 use crate::compact_space::CompactSpaceCompressor;
 use crate::linear::LinearCodec;
-use crate::monotonic_mapping::gcd_min_val_mapping_pairs::normalize_with_gcd;
+use crate::monotonic_mapping::{
+    StrictlyMonotonicFn, StrictlyMonotonicMappingToInternal,
+    StrictlyMonotonicMappingToInternalGCDBaseval,
+};
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
     VecColumn, ALL_CODEC_TYPES,
@@ -59,8 +61,10 @@ pub(crate) struct Header {
 impl Header {
     pub fn normalized(self) -> NormalizedHeader {
         let gcd = self.gcd.map(|gcd| gcd.get()).unwrap_or(1);
-        let gcd_divider = DividerU64::divide_by(gcd);
-        let max_value = normalize_with_gcd(self.max_value, self.min_value, &gcd_divider);
+        let gcd_min_val_mapping =
+            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd, self.min_value);
+
+        let max_value = gcd_min_val_mapping.mapping(self.max_value);
         NormalizedHeader {
             num_vals: self.num_vals,
             max_value,
@@ -98,12 +102,9 @@ pub fn normalize_column<C: Column>(
     gcd: Option<NonZeroU64>,
 ) -> impl Column {
     let gcd = gcd.map(|gcd| gcd.get()).unwrap_or(1);
-    let gcd_divider = DividerU64::divide_by(gcd);
-    monotonic_map_column(
-        from_column,
-        move |val| normalize_with_gcd(val, min_value, &gcd_divider),
-        move |_val| unimplemented!(), // This code is only used in serialization
-    )
+
+    let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd, min_value);
+    monotonic_map_column(from_column, mapping)
 }
 
 impl BinarySerializable for Header {
@@ -141,16 +142,15 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     codec_type: FastFieldCodecType,
 ) -> Option<f32> {
-    let column = monotonic_map_column(typed_column, T::to_u64, T::from_u64);
+    let column = monotonic_map_column(typed_column, StrictlyMonotonicMappingToInternal::<T>::new());
     let min_value = column.min_value();
     let gcd = crate::gcd::find_gcd(column.iter().map(|val| val - min_value))
         .filter(|gcd| gcd.get() > 1u64);
-    let gcd_divider = DividerU64::divide_by(gcd.map(|gcd| gcd.get()).unwrap_or(1u64));
-    let normalized_column = monotonic_map_column(
-        &column,
-        |val| normalize_with_gcd(val, min_value, &gcd_divider),
-        |_val| unimplemented!(),
+    let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(
+        gcd.map(|gcd| gcd.get()).unwrap_or(1u64),
+        min_value,
     );
+    let normalized_column = monotonic_map_column(&column, mapping);
     match codec_type {
         FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&normalized_column),
         FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
@@ -175,7 +175,7 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     output: &mut impl io::Write,
     codecs: &[FastFieldCodecType],
 ) -> io::Result<()> {
-    let column = monotonic_map_column(typed_column, T::to_u64, T::from_u64);
+    let column = monotonic_map_column(typed_column, StrictlyMonotonicMappingToInternal::<T>::new());
     let header = Header::compute_header(&column, codecs).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,

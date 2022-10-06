@@ -13,9 +13,10 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
-use fastdivide::DividerU64;
-use monotonic_mapping::gcd_min_val_mapping_pairs::{from_gcd_normalized_u64, normalize_with_gcd};
-use monotonic_mapping::min_val_mapping_pairs::{from_normalized_u64, normalize};
+use monotonic_mapping::{
+    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
+    StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
+};
 use ownedbytes::OwnedBytes;
 use serialize::Header;
 
@@ -35,7 +36,7 @@ use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
 use self::linear::LinearCodec;
-pub use self::monotonic_mapping::MonotonicallyMappableToU64;
+pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 pub use self::serialize::{
     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
@@ -82,11 +83,9 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
     let reader = CompactSpaceDecompressor::open(bytes)?;
-    Ok(Arc::new(monotonic_map_column(
-        reader,
-        Item::from_u128,
-        Item::to_u128,
-    )))
+    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
+        StrictlyMonotonicMappingToInternal::<Item>::new().into();
+    Ok(Arc::new(monotonic_map_column(reader, inverted)))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
@@ -111,18 +110,15 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     let reader = C::open_from_bytes(bytes, normalized_header)?;
     let min_value = header.min_value;
     if let Some(gcd) = header.gcd {
-        let divider = DividerU64::divide_by(gcd.get());
-        Ok(Arc::new(monotonic_map_column(
-            reader,
-            move |val: u64| from_gcd_normalized_u64(val, min_value, gcd.get()),
-            move |val| normalize_with_gcd(val, min_value, &divider),
-        )))
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
     } else {
-        Ok(Arc::new(monotonic_map_column(
-            reader,
-            move |val: u64| from_normalized_u64(val, min_value),
-            move |val| normalize(val, min_value),
-        )))
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalBaseval::new(min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
     }
 }
 

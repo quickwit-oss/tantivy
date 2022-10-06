@@ -1,4 +1,8 @@
+use std::marker::PhantomData;
+
 use fastdivide::DividerU64;
+
+use crate::MonotonicallyMappableToU128;
 
 pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync {
     /// Converts a value to u64.
@@ -13,51 +17,133 @@ pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync 
     fn from_u64(val: u64) -> Self;
 }
 
-// Mapping pairs for the case we subtract the min_value and apply a gcd (greatest common divisor)
-pub mod gcd_min_val_mapping_pairs {
+/// Values need to be strictly monotonic mapped to a `Internal` value (u64 or u128) that can be
+/// used in fast field codecs.
+///
+/// The monotonic mapping is required so that `PartialOrd` can be used on `Internal` without
+/// converting to `External`.
+///
+/// All strictly monotonic functions are invertible because they are guaranteed to have a one-to-one
+/// mapping from their range to their domain. The `inverse` method is required when opening a codec,
+/// so a value can be converted back to its original domain (e.g. ip address or f64) from its
+/// internal representation.
+pub trait StrictlyMonotonicFn<External, Internal> {
+    /// Strictly monotonically maps the value from External to Internal.
+    fn mapping(&self, inp: External) -> Internal;
+    /// Inverse of `mapping`. Maps the value from Internal to External.
+    fn inverse(&self, out: Internal) -> External;
+}
 
-    use super::*;
-    pub fn from_gcd_normalized_u64<Item: MonotonicallyMappableToU64>(
-        val: u64,
-        min_value: u64,
-        gcd: u64,
-    ) -> Item {
-        Item::from_u64(min_value + val * gcd)
-    }
-
-    pub fn normalize_with_gcd<Item: MonotonicallyMappableToU64>(
-        val: Item,
-        min_value: u64,
-        gcd_divider: &DividerU64,
-    ) -> u64 {
-        gcd_divider.divide(Item::to_u64(val) - min_value)
-    }
-
-    #[test]
-    fn monotonic_mapping_roundtrip_test() {
-        let gcd = std::num::NonZeroU64::new(10).unwrap();
-        let divider = DividerU64::divide_by(gcd.get());
-
-        let orig_value: u64 = 500;
-        let normalized_val: u64 = normalize_with_gcd(orig_value, 100, &divider);
-        assert_eq!(normalized_val, 40);
-        assert_eq!(
-            from_gcd_normalized_u64::<u64>(normalized_val, 100, gcd.get()),
-            500
-        );
+/// Inverts a strictly monotonic mapping from `StrictlyMonotonicFn<A, B>` to
+/// `StrictlyMonotonicFn<B, A>`.
+pub(crate) struct StrictlyMonotonicMappingInverter<T> {
+    orig_mapping: T,
+}
+impl<T> From<T> for StrictlyMonotonicMappingInverter<T> {
+    fn from(orig_mapping: T) -> Self {
+        Self { orig_mapping }
     }
 }
 
-// Mapping pairs for the case we subtract the min_value
-pub mod min_val_mapping_pairs {
-    use super::*;
-
-    pub fn from_normalized_u64<Item: MonotonicallyMappableToU64>(val: u64, min_value: u64) -> Item {
-        Item::from_u64(min_value + val)
+impl<From, To, T> StrictlyMonotonicFn<To, From> for StrictlyMonotonicMappingInverter<T>
+where T: StrictlyMonotonicFn<From, To>
+{
+    fn mapping(&self, val: To) -> From {
+        self.orig_mapping.inverse(val)
     }
 
-    pub fn normalize<Item: MonotonicallyMappableToU64>(val: Item, min_value: u64) -> u64 {
-        Item::to_u64(val) - min_value
+    fn inverse(&self, val: From) -> To {
+        self.orig_mapping.mapping(val)
+    }
+}
+
+/// Applies the strictly monotonic mapping from `T` without any additional changes.
+pub(crate) struct StrictlyMonotonicMappingToInternal<T> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T> StrictlyMonotonicMappingToInternal<T> {
+    pub(crate) fn new() -> StrictlyMonotonicMappingToInternal<T> {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<External: MonotonicallyMappableToU128, T: MonotonicallyMappableToU128>
+    StrictlyMonotonicFn<External, u128> for StrictlyMonotonicMappingToInternal<T>
+where T: MonotonicallyMappableToU128
+{
+    fn mapping(&self, inp: External) -> u128 {
+        External::to_u128(inp)
+    }
+
+    fn inverse(&self, out: u128) -> External {
+        External::from_u128(out)
+    }
+}
+
+impl<External: MonotonicallyMappableToU64, T: MonotonicallyMappableToU64>
+    StrictlyMonotonicFn<External, u64> for StrictlyMonotonicMappingToInternal<T>
+where T: MonotonicallyMappableToU64
+{
+    fn mapping(&self, inp: External) -> u64 {
+        External::to_u64(inp)
+    }
+
+    fn inverse(&self, out: u64) -> External {
+        External::from_u64(out)
+    }
+}
+
+/// Strictly monotonic mapping with a gcd and a base value.
+pub(crate) struct StrictlyMonotonicMappingToInternalGCDBaseval {
+    gcd_divider: DividerU64,
+    gcd: u64,
+    min_value: u64,
+}
+impl StrictlyMonotonicMappingToInternalGCDBaseval {
+    pub(crate) fn new(gcd: u64, min_value: u64) -> Self {
+        let gcd_divider = DividerU64::divide_by(gcd);
+        Self {
+            gcd_divider,
+            gcd,
+            min_value,
+        }
+    }
+}
+impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
+    for StrictlyMonotonicMappingToInternalGCDBaseval
+{
+    fn mapping(&self, inp: External) -> u64 {
+        self.gcd_divider
+            .divide(External::to_u64(inp) - self.min_value)
+    }
+
+    fn inverse(&self, out: u64) -> External {
+        External::from_u64(self.min_value + out * self.gcd)
+    }
+}
+
+/// Strictly monotonic mapping with a base value.
+pub(crate) struct StrictlyMonotonicMappingToInternalBaseval {
+    min_value: u64,
+}
+impl StrictlyMonotonicMappingToInternalBaseval {
+    pub(crate) fn new(min_value: u64) -> Self {
+        Self { min_value }
+    }
+}
+
+impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
+    for StrictlyMonotonicMappingToInternalBaseval
+{
+    fn mapping(&self, val: External) -> u64 {
+        External::to_u64(val) - self.min_value
+    }
+
+    fn inverse(&self, val: u64) -> External {
+        External::from_u64(self.min_value + val)
     }
 }
 
