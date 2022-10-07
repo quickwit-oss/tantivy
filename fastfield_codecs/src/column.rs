@@ -126,8 +126,7 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
 }
 
 impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
-where
-    V: AsRef<[T]> + ?Sized,
+where V: AsRef<[T]> + ?Sized
 {
     fn from(values: &'a V) -> Self {
         let values = values.as_ref();
@@ -147,8 +146,11 @@ struct MonotonicMappingColumn<C, T, Input> {
 }
 
 /// Creates a view of a column transformed by a strictly monotonic mapping. See
-/// [`StrictlyMonotonicFn`]. E.g. apply a gcd monotonic_mapping([100, 200, 300]) == [1, 2, 3]
-/// The provided mappings need to be the inverse of each other.
+/// [`StrictlyMonotonicFn`].
+///
+/// E.g. apply a gcd monotonic_mapping([100, 200, 300]) == [1, 2, 3]
+/// monotonic_mapping.mapping() is expected to be injective, and we should always have
+/// monotonic_mapping.inverse(monotonic_mapping.mapping(el)) == el
 ///
 /// The inverse of the mapping is required for:
 /// `fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> `
@@ -224,8 +226,7 @@ where
 pub struct IterColumn<T>(T);
 
 impl<T> From<T> for IterColumn<T>
-where
-    T: Iterator + Clone + ExactSizeIterator,
+where T: Iterator + Clone + ExactSizeIterator
 {
     fn from(iter: T) -> Self {
         IterColumn(iter)
