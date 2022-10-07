@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::IpAddr;
+use std::net::Ipv6Addr;
 
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -33,15 +33,17 @@ pub enum Value {
     Bytes(Vec<u8>),
     /// Json object value.
     JsonObject(serde_json::Map<String, serde_json::Value>),
-    /// Ip Address value
-    IpAddr(IpAddr),
+    /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
+    IpAddr(Ipv6Addr),
 }
 
 impl Eq for Value {}
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::PreTokStr(ref v) => v.serialize(serializer),
@@ -60,7 +62,9 @@ impl Serialize for Value {
 
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         struct ValueVisitor;
 
         impl<'de> Visitor<'de> for ValueVisitor {
@@ -208,7 +212,7 @@ impl Value {
 
     /// Returns the ip addr, provided the value is of the `Ip` type.
     /// (Returns None if the value is not of the `Ip` type)
-    pub fn as_ip_addr(&self) -> Option<IpAddr> {
+    pub fn as_ip_addr(&self) -> Option<Ipv6Addr> {
         if let Value::IpAddr(val) = self {
             Some(*val)
         } else {
@@ -223,8 +227,8 @@ impl From<String> for Value {
     }
 }
 
-impl From<IpAddr> for Value {
-    fn from(v: IpAddr) -> Value {
+impl From<Ipv6Addr> for Value {
+    fn from(v: Ipv6Addr) -> Value {
         Value::IpAddr(v)
     }
 }
@@ -308,7 +312,7 @@ impl From<serde_json::Value> for Value {
 
 mod binary_serialize {
     use std::io::{self, Read, Write};
-    use std::net::IpAddr;
+    use std::net::Ipv6Addr;
 
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use fastfield_codecs::MonotonicallyMappableToU128;
@@ -465,7 +469,7 @@ mod binary_serialize {
                 }
                 IP_CODE => {
                     let value = u128::deserialize(reader)?;
-                    Ok(Value::IpAddr(IpAddr::from_u128(value)))
+                    Ok(Value::IpAddr(Ipv6Addr::from_u128(value)))
                 }
 
                 _ => Err(io::Error::new(

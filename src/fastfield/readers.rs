@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use fastfield_codecs::{open, open_u128, Column};
@@ -155,18 +155,21 @@ impl FastFieldReaders {
     pub fn ip_addr(&self, field: Field) -> crate::Result<Arc<dyn Column<Ipv6Addr>>> {
         self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
         let bytes = self.fast_field_data(field, 0)?.read_bytes()?;
-        Ok(open_u128::<IpAddr>(bytes)?)
+        Ok(open_u128::<Ipv6Addr>(bytes)?)
     }
 
     /// Returns the `ip` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u128 fast field, this method returns an Error.
-    pub fn ip_addrs(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<IpAddr>> {
+    pub fn ip_addrs(
+        &self,
+        field: Field,
+    ) -> crate::Result<MultiValuedU128FastFieldReader<Ipv6Addr>> {
         self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
         let idx_reader: Arc<dyn Column<u64>> = self.typed_fast_field_reader(field)?;
 
         let bytes = self.fast_field_data(field, 1)?.read_bytes()?;
-        let vals_reader = open_u128::<IpAddr>(bytes)?;
+        let vals_reader = open_u128::<Ipv6Addr>(bytes)?;
 
         Ok(MultiValuedU128FastFieldReader::open(
             idx_reader,

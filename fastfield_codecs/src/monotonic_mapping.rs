@@ -202,14 +202,30 @@ impl MonotonicallyMappableToU64 for f64 {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn strictly_monotonic_test() {
-        let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100);
+        // identity mapping
+        test_round_trip(&StrictlyMonotonicMappingToInternal::<u64>::new(), 100u64);
+        // round trip to i64
+        test_round_trip(&StrictlyMonotonicMappingToInternal::<i64>::new(), 100u64);
+        // identity mapping
+        test_round_trip(&StrictlyMonotonicMappingToInternal::<u128>::new(), 100u128);
 
-        let test_val = 100u64;
-        assert_eq!(mapping.mapping(test_val), 0);
+        // base value to i64 round trip
+        let mapping = StrictlyMonotonicMappingToInternalBaseval::new(100);
+        test_round_trip::<_, _, u64>(&mapping, 100i64);
+        // base value and gcd to u64 round trip
+        let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100);
+        test_round_trip::<_, _, u64>(&mapping, 100u64);
+    }
+
+    fn test_round_trip<T: StrictlyMonotonicFn<K, L>, K: std::fmt::Debug + Eq + Copy, L>(
+        mapping: &T,
+        test_val: K,
+    ) {
         assert_eq!(mapping.inverse(mapping.mapping(test_val)), test_val);
     }
 }

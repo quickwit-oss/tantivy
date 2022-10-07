@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::mem;
-use std::net::IpAddr;
+use std::net::Ipv6Addr;
 
 use common::{BinarySerializable, VInt};
 
@@ -76,7 +76,9 @@ impl Document {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add_field_value(field, value);
@@ -98,8 +100,8 @@ impl Document {
         self.add_field_value(field, value);
     }
 
-    /// Add a IP address field
-    pub fn add_ip_addr(&mut self, field: Field, value: IpAddrV6) {
+    /// Add a IP address field. Internally only Ipv6Addr is used.
+    pub fn add_ip_addr(&mut self, field: Field, value: Ipv6Addr) {
         self.add_field_value(field, value);
     }
 

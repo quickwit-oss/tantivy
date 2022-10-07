@@ -803,7 +803,7 @@ impl Drop for IndexWriter {
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
-    use std::net::IpAddr;
+    use std::net::Ipv6Addr;
 
     use fastfield_codecs::MonotonicallyMappableToU128;
     use proptest::prelude::*;
@@ -1655,7 +1655,7 @@ mod tests {
             match op {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
-                    let ip_from_id = IpAddr::from_u128(id as u128);
+                    let ip_from_id = Ipv6Addr::from_u128(id as u128);
 
                     if id % 3 == 0 {
                         // every 3rd doc has no ip field
@@ -1772,14 +1772,14 @@ mod tests {
         );
 
         // Load all ips addr
-        let ips: HashSet<IpAddr> = searcher
+        let ips: HashSet<Ipv6Addr> = searcher
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
                 let ff_reader = segment_reader.fast_fields().ip_addr(ip_field).unwrap();
                 segment_reader.doc_ids_alive().flat_map(move |doc| {
                     let val = ff_reader.get_val(doc as u64);
-                    if val == IpAddr::from_u128(0) {
+                    if val == Ipv6Addr::from_u128(0) {
                         // TODO Fix null handling
                         None
                     } else {
@@ -1795,7 +1795,7 @@ mod tests {
                 if id % 3 == 0 {
                     None
                 } else {
-                    Some(IpAddr::from_u128(*id as u128))
+                    Some(Ipv6Addr::from_u128(*id as u128))
                 }
             })
             .collect::<HashSet<_>>();
@@ -1807,11 +1807,11 @@ mod tests {
                 if id % 3 == 0 {
                     None
                 } else {
-                    Some(IpAddr::from_u128(*id as u128))
+                    Some(Ipv6Addr::from_u128(*id as u128))
                 }
             })
             .collect::<HashSet<_>>();
-        let ips: HashSet<IpAddr> = searcher
+        let ips: HashSet<Ipv6Addr> = searcher
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {

@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -320,43 +320,50 @@ impl FieldType {
     /// target field is a `Str`, this method will return an Error.
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
-            JsonValue::String(field_text) => match self {
-                FieldType::Date(_) => {
-                    let dt_with_fixed_tz =
-                        OffsetDateTime::parse(&field_text, &Rfc3339).map_err(|_err| {
-                            ValueParsingError::TypeError {
+            JsonValue::String(field_text) => {
+                match self {
+                    FieldType::Date(_) => {
+                        let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
+                            .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
+                                json: JsonValue::String(field_text),
+                            })?;
+                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
+                    }
+                    FieldType::Str(_) => Ok(Value::Str(field_text)),
+                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
+                        Err(ValueParsingError::TypeError {
+                            expected: "an integer",
+                            json: JsonValue::String(field_text),
+                        })
+                    }
+                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                        expected: "a boolean",
+                        json: JsonValue::String(field_text),
+                    }),
+                    FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                    FieldType::Bytes(_) => base64::decode(&field_text)
+                        .map(Value::Bytes)
+                        .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                        expected: "a json object",
+                        json: JsonValue::String(field_text),
+                    }),
+                    FieldType::IpAddr(_) => {
+                        let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
+                            ValueParsingError::ParseError {
+                                error: err.to_string(),
                                 json: JsonValue::String(field_text),
                             }
                         })?;
-                    Ok(DateTime::from_utc(dt_with_fixed_tz).into())
+                        let ip_addr_v6: Ipv6Addr = match ip_addr {
+                            IpAddr::V4(v4) => v4.to_ipv6_mapped(),
+                            IpAddr::V6(v6) => v6,
+                        };
+                        Ok(Value::IpAddr(ip_addr_v6))
+                    }
                 }
-                FieldType::Str(_) => Ok(Value::Str(field_text)),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "an integer",
-                        json: JsonValue::String(field_text),
-                    })
-                }
-                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
-                    expected: "a boolean",
-                    json: JsonValue::String(field_text),
-                }),
-                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                FieldType::Bytes(_) => base64::decode(&field_text)
-                    .map(Value::Bytes)
-                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                    expected: "a json object",
-                    json: JsonValue::String(field_text),
-                }),
-                FieldType::IpAddr(_) => Ok(Value::IpAddr(IpAddr::from_str(&field_text).map_err(
-                    |err| ValueParsingError::ParseError {
-                        error: err.to_string(),
-                        json: JsonValue::String(field_text),
-                    },
-                )?)),
-            },
+            }
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
