@@ -177,7 +177,7 @@ impl FastFieldReaders {
     /// Returns the `u128` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u128 fast field, this method returns an Error.
-    pub fn u128(&self, field: Field) -> crate::Result<Arc<dyn Column<u128>>> {
+    pub(crate) fn u128(&self, field: Field) -> crate::Result<Arc<dyn Column<u128>>> {
         self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
         let bytes = self.fast_field_data(field, 0)?.read_bytes()?;
         Ok(open_u128::<u128>(bytes)?)

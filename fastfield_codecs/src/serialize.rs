@@ -102,7 +102,6 @@ pub fn normalize_column<C: Column>(
     gcd: Option<NonZeroU64>,
 ) -> impl Column {
     let gcd = gcd.map(|gcd| gcd.get()).unwrap_or(1);
-
     let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd, min_value);
     monotonic_map_column(from_column, mapping)
 }
