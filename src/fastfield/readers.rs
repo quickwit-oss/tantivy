@@ -152,7 +152,7 @@ impl FastFieldReaders {
     /// Returns the `ip` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u128 fast field, this method returns an Error.
-    pub fn ip_addr(&self, field: Field) -> crate::Result<Arc<dyn Column<IpAddr>>> {
+    pub fn ip_addr(&self, field: Field) -> crate::Result<Arc<dyn Column<Ipv6Addr>>> {
         self.check_type(field, FastType::U128, Cardinality::SingleValue)?;
         let bytes = self.fast_field_data(field, 0)?.read_bytes()?;
         Ok(open_u128::<IpAddr>(bytes)?)

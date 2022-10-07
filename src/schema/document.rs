@@ -99,7 +99,7 @@ impl Document {
     }
 
     /// Add a IP address field
-    pub fn add_ip_addr(&mut self, field: Field, value: IpAddr) {
+    pub fn add_ip_addr(&mut self, field: Field, value: IpAddrV6) {
         self.add_field_value(field, value);
     }
 
