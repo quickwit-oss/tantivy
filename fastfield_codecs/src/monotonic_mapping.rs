@@ -190,3 +190,17 @@ impl MonotonicallyMappableToU64 for f64 {
         common::u64_to_f64(val)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strictly_monotonic_test() {
+        let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100);
+
+        let test_val = 100u64;
+        assert_eq!(mapping.mapping(test_val), 0);
+        assert_eq!(mapping.inverse(mapping.mapping(test_val)), test_val);
+    }
+}

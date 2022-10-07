@@ -260,11 +260,11 @@ mod tests {
 
         let offsets = vec![0, 10, 12, 15, 22, 23];
 
-        struct MultiValueLenghtIdx {
+        struct MultiValueLengthIdx {
             offsets: Vec<u64>,
         }
 
-        impl MultiValueLength for MultiValueLenghtIdx {
+        impl MultiValueLength for MultiValueLengthIdx {
             fn get_range(&self, doc_id: crate::DocId) -> std::ops::Range<u64> {
                 let idx = doc_id as u64;
                 let start = self.offsets[idx as usize];
@@ -281,7 +281,7 @@ mod tests {
             }
         }
 
-        let idx = MultiValueLenghtIdx { offsets };
+        let idx = MultiValueLengthIdx { offsets };
         let docids = positions_to_docids(&positions, &idx);
         assert_eq!(docids, vec![1, 3, 4]);
     }
