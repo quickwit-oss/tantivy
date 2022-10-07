@@ -162,7 +162,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
     pub fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<DocId> {
         let positions = self.vals_reader.get_between_vals(range);
 
-        positions_to_docids(&positions, self)
+        positions_to_docids(&positions, self.idx_reader.as_ref())
     }
 
     /// Iterates over all elements in the fast field
@@ -218,19 +218,20 @@ impl<T: MonotonicallyMappableToU128> MultiValueLength for MultiValuedU128FastFie
 ///
 /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the index.
 ///
-/// Correctness: positions needs to be sorted.
+/// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically increasing
+/// positions.
 ///
 /// TODO: Instead of a linear scan we can employ a expotential search into binary search to match a
 /// docid to its value position.
-fn positions_to_docids<T: MultiValueLength>(positions: &[u64], multival_idx: &T) -> Vec<DocId> {
+fn positions_to_docids<C: Column + ?Sized>(positions: &[u64], idx_reader: &C) -> Vec<DocId> {
     let mut docs = vec![];
     let mut cur_doc = 0u32;
     let mut last_doc = None;
 
     for pos in positions {
         loop {
-            let range = multival_idx.get_range(cur_doc);
-            if range.contains(pos) {
+            let end = idx_reader.get_val(cur_doc as u64 + 1);
+            if end > *pos {
                 // avoid duplicates
                 if Some(cur_doc) == last_doc {
                     break;
@@ -249,9 +250,10 @@ fn positions_to_docids<T: MultiValueLength>(positions: &[u64], multival_idx: &T)
 #[cfg(test)]
 mod tests {
 
+    use fastfield_codecs::VecColumn;
+
     use crate::core::Index;
     use crate::fastfield::multivalued::reader::positions_to_docids;
-    use crate::fastfield::MultiValueLength;
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
 
     #[test]
@@ -259,31 +261,12 @@ mod tests {
         let positions = vec![10u64, 11, 15, 20, 21, 22];
 
         let offsets = vec![0, 10, 12, 15, 22, 23];
+        {
+            let column = VecColumn::from(&offsets);
 
-        struct MultiValueLengthIdx {
-            offsets: Vec<u64>,
+            let docids = positions_to_docids(&positions, &column);
+            assert_eq!(docids, vec![1, 3, 4]);
         }
-
-        impl MultiValueLength for MultiValueLengthIdx {
-            fn get_range(&self, doc_id: crate::DocId) -> std::ops::Range<u64> {
-                let idx = doc_id as u64;
-                let start = self.offsets[idx as usize];
-                let end = self.offsets[idx as usize + 1];
-                start..end
-            }
-
-            fn get_len(&self, _doc_id: crate::DocId) -> u64 {
-                todo!()
-            }
-
-            fn get_total_len(&self) -> u64 {
-                todo!()
-            }
-        }
-
-        let idx = MultiValueLengthIdx { offsets };
-        let docids = positions_to_docids(&positions, &idx);
-        assert_eq!(docids, vec![1, 3, 4]);
     }
 
     #[test]
