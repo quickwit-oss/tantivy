@@ -48,7 +48,7 @@ impl Serialize for Value {
             Value::Bool(b) => serializer.serialize_bool(b),
             Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
-            Value::Bytes(ref bytes) => String::serialize(&base64::encode(bytes), serializer),
+            Value::Bytes(ref bytes) => serializer.serialize_str(&base64::encode(bytes)),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
         }
     }
