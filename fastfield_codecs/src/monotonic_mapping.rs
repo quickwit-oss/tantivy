@@ -39,8 +39,9 @@ pub trait StrictlyMonotonicFn<External, Internal> {
 ///
 /// # Warning
 ///
-/// This type comes with a footgun. A type being strictly monotonic does not impose that the inverse mapping is strictly monotonic over the entire space External. e.g. a -> a * 2.
-/// Use at your own risks.
+/// This type comes with a footgun. A type being strictly monotonic does not impose that the inverse
+/// mapping is strictly monotonic over the entire space External. e.g. a -> a * 2. Use at your own
+/// risks.
 pub(crate) struct StrictlyMonotonicMappingInverter<T> {
     orig_mapping: T,
 }
@@ -102,7 +103,7 @@ where T: MonotonicallyMappableToU64
 }
 
 /// Mapping dividing by  gcd and a base value.
-/// 
+///
 /// The function is assumed to be only called on values divided by passed
 /// gcd value. (It is necessary for the function to be monotonic.)
 pub(crate) struct StrictlyMonotonicMappingToInternalGCDBaseval {
