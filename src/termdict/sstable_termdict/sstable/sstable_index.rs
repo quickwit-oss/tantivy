@@ -86,8 +86,8 @@ impl SSTableIndexBuilder {
     }
 
     pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
-        ciborium::ser::into_writer(&self.index, wrt).unwrap();
-        Ok(())
+        ciborium::ser::into_writer(&self.index, wrt)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 }
 
