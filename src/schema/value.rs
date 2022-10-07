@@ -462,7 +462,7 @@ mod tests {
         let mut doc = Document::default();
         doc.add_bytes(bytes_field, "this is a test".as_bytes());
         let json_string = schema.to_json(&doc);
-        assert_eq!(json_string, "{\"my_bytes\":[\"dGhpcyBpcyBhIHRlc3Q=\"]}");
+        assert_eq!(json_string, r#"{"my_bytes":["dGhpcyBpcyBhIHRlc3Q="]}"#);
     }
 
     #[test]
@@ -474,7 +474,7 @@ mod tests {
         let mut doc = Document::default();
         doc.add_bytes(bytes_field, "".as_bytes());
         let json_string = schema.to_json(&doc);
-        assert_eq!(json_string, "{\"my_bytes\":[\"\"]}");
+        assert_eq!(json_string, r#"{"my_bytes":[""]}"#);
     }
 
     #[test]
@@ -491,7 +491,7 @@ mod tests {
         let json_string = schema.to_json(&doc);
         assert_eq!(
             json_string,
-            "{\"my_bytes\":[\"QSBiaWdnZXIgdGVzdCBJIGd1ZXNzCnNwYW5uaW5nIG9uIG11bHRpcGxlIGxpbmVzCmhvcGluZyB0aGlzIHdpbGwgd29yaw==\"]}"
+            r#"{"my_bytes":["QSBiaWdnZXIgdGVzdCBJIGd1ZXNzCnNwYW5uaW5nIG9uIG11bHRpcGxlIGxpbmVzCmhvcGluZyB0aGlzIHdpbGwgd29yaw=="]}"#
         );
     }
 
