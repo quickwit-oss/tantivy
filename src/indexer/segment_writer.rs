@@ -12,7 +12,7 @@ use crate::postings::{
     compute_table_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::{FieldEntry, FieldType, FieldValue, Schema, Term, Value};
+use crate::schema::{FieldEntry, FieldType, Schema, Term, Value};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer,
@@ -307,9 +307,8 @@ impl SegmentWriter {
         self.doc_opstamps.push(add_operation.opstamp);
         self.fast_field_writers.add_document(&doc);
         self.index_document(&doc)?;
-        let prepared_doc = prepare_doc_for_store(doc, &self.schema);
         let doc_writer = self.segment_serializer.get_store_writer();
-        doc_writer.store(&prepared_doc)?;
+        doc_writer.store(&doc, &self.schema)?;
         self.max_doc += 1;
         Ok(())
     }
@@ -406,40 +405,24 @@ fn remap_and_write(
     Ok(())
 }
 
-/// Prepares Document for being stored in the document store
-///
-/// Method transforms PreTokenizedString values into String
-/// values.
-pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
-    Document::from(
-        doc.into_iter()
-            .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
-            .map(|field_value| match field_value {
-                FieldValue {
-                    field,
-                    value: Value::PreTokStr(pre_tokenized_text),
-                } => FieldValue {
-                    field,
-                    value: Value::Str(pre_tokenized_text.text),
-                },
-                field_value => field_value,
-            })
-            .collect::<Vec<_>>(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::compute_initial_table_size;
     use crate::collector::Count;
+    use crate::directory::RamDirectory;
     use crate::indexer::json_term_writer::JsonTermWriter;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
     use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::{DateTime, DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED};
+    use crate::{
+        DateTime, Directory, DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED,
+    };
 
     #[test]
     fn test_hashmap_size() {
@@ -469,14 +452,21 @@ mod tests {
 
         doc.add_pre_tokenized_text(text_field, pre_tokenized_text);
         doc.add_text(text_field, "title");
-        let prepared_doc = super::prepare_doc_for_store(doc, &schema);
 
-        assert_eq!(prepared_doc.field_values().len(), 2);
-        assert_eq!(prepared_doc.field_values()[0].value().as_text(), Some("A"));
-        assert_eq!(
-            prepared_doc.field_values()[1].value().as_text(),
-            Some("title")
-        );
+        let path = Path::new("store");
+        let directory = RamDirectory::create();
+        let store_wrt = directory.open_write(path).unwrap();
+
+        let mut store_writer = StoreWriter::new(store_wrt, Compressor::None, 0, false).unwrap();
+        store_writer.store(&doc, &schema).unwrap();
+        store_writer.close().unwrap();
+
+        let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
+        let doc = reader.get(0).unwrap();
+
+        assert_eq!(doc.field_values().len(), 2);
+        assert_eq!(doc.field_values()[0].value().as_text(), Some("A"));
+        assert_eq!(doc.field_values()[1].value().as_text(), Some("title"));
     }
 
     #[test]

@@ -96,7 +96,7 @@ pub mod tests {
                 let mut doc = Document::default();
                 doc.add_field_value(field_body, LOREM.to_string());
                 doc.add_field_value(field_title, format!("Doc {i}"));
-                store_writer.store(&doc).unwrap();
+                store_writer.store(&doc, &schema).unwrap();
             }
             store_writer.close().unwrap();
         }

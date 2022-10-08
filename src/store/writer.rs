@@ -1,11 +1,11 @@
-use std::io::{self, Write};
+use std::io;
 
 use common::BinarySerializable;
 
 use super::compressors::Compressor;
 use super::StoreReader;
 use crate::directory::WritePtr;
-use crate::schema::Document;
+use crate::schema::{Document, Schema};
 use crate::store::store_compressor::BlockCompressor;
 use crate::DocId;
 
@@ -99,15 +99,9 @@ impl StoreWriter {
     ///
     /// The document id is implicitly the current number
     /// of documents.
-    pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
-        self.intermediary_buffer.clear();
-        stored_document.serialize(&mut self.intermediary_buffer)?;
-        // calling store bytes would be preferable for code reuse, but then we can't use
-        // intermediary_buffer due to the borrow checker
-        // a new buffer costs ~1% indexing performance
+    pub fn store(&mut self, document: &Document, schema: &Schema) -> io::Result<()> {
         self.doc_pos.push(self.current_block.len() as u32);
-        self.current_block
-            .write_all(&self.intermediary_buffer[..])?;
+        document.serialize_stored(schema, &mut self.current_block)?;
         self.num_docs_in_current_block += 1;
         self.check_flush_block()?;
         Ok(())
