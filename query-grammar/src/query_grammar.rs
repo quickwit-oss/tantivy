@@ -374,24 +374,27 @@ pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     spaces()
         .with(optional(ast()).skip(eof()))
         .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAst::empty_query))
-        .map(|ast| rewrite_ast(ast))
+        .map(rewrite_ast)
 }
 
 /// Removes unnecessary children clauses in AST
 ///
 /// Motivated by [issue #1433](https://github.com/quickwit-oss/tantivy/issues/1433)
-fn rewrite_ast(input: UserInputAst) -> UserInputAst {
-    if let UserInputAst::Clause(terms) = input {
-        UserInputAst::Clause(terms.into_iter().map(rewrite_ast_clause).collect())
-    } else {
-        input
+fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
+    if let UserInputAst::Clause(terms) = &mut input {
+        for term in terms {
+            rewrite_ast_clause(term);
+        }
     }
+    input
 }
 
-fn rewrite_ast_clause(input: (Option<Occur>, UserInputAst)) -> (Option<Occur>, UserInputAst) {
+fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
     match input {
-        (None, UserInputAst::Clause(mut clauses)) if clauses.len() == 1 => clauses.remove(0),
-        other => other,
+        (None, UserInputAst::Clause(ref mut clauses)) if clauses.len() == 1 => {
+            *input = clauses.pop().unwrap(); // safe because clauses.len() == 1
+        }
+        _ => {}
     }
 }
 
