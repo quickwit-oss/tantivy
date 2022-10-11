@@ -6,6 +6,7 @@ use fastfield_codecs::{
 use fnv::FnvHashMap;
 
 use super::get_fastfield_codecs_for_multivalue;
+use crate::fastfield::writer::unexpected_value;
 use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
@@ -81,11 +82,11 @@ impl MultiValuedFastFieldWriter {
 
     /// Shift to the next document and adds
     /// all of the matching field values present in the document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         self.next_doc();
         // facets/texts are indexed in the `SegmentWriter` as we encode their unordered id.
         if self.fast_field_type.is_storing_term_ids() {
-            return;
+            return Ok(());
         }
         for field_value in doc.field_values() {
             if field_value.field == self.field {
@@ -94,11 +95,12 @@ impl MultiValuedFastFieldWriter {
                     (Some(precision), Value::Date(date_val)) => {
                         date_val.truncate(precision).to_u64()
                     }
-                    _ => value_to_u64(value),
+                    _ => value_to_u64(value)?,
                 };
                 self.add_val(value_u64);
             }
         }
+        Ok(())
     }
 
     /// Returns an iterator over values per doc_id in ascending doc_id order.
@@ -312,18 +314,19 @@ impl MultiValueU128FastFieldWriter {
 
     /// Shift to the next document and adds
     /// all of the matching field values present in the document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         self.next_doc();
         for field_value in doc.field_values() {
             if field_value.field == self.field {
                 let value = field_value.value();
                 let ip_addr = value
                     .as_ip_addr()
-                    .unwrap_or_else(|| panic!("expected and ip, but got {:?}", value));
+                    .ok_or_else(|| unexpected_value("ip", value))?;
                 let ip_addr_u128 = ip_addr.to_u128();
                 self.add_val(ip_addr_u128);
             }
         }
+        Ok(())
     }
 
     /// Returns an iterator over values per doc_id in ascending doc_id order.
