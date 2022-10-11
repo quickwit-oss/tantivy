@@ -7,6 +7,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Value as JsonValue};
 
+use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::field_type::ValueParsingError;
@@ -141,6 +142,26 @@ impl SchemaBuilder {
     ) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_date(field_name, field_options.into());
+        self.add_field(field_entry)
+    }
+
+    /// Adds a ip field.
+    /// Returns the associated field handle.
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
+    /// by the second one.
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_ip_addr_field<T: Into<IpAddrOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_ip_addr(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -598,18 +619,53 @@ mod tests {
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
+        schema_builder.add_ip_addr_field("ip", FAST | STORED);
         schema_builder.add_bool_field("is_read", is_read_options);
         let schema = schema_builder.build();
         let doc_json = r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
+                "ip": "127.0.0.1",
                 "is_read": true
         }"#;
         let doc = schema.parse_document(doc_json).unwrap();
 
         let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
         assert_eq!(doc, doc_serdeser);
+    }
+
+    #[test]
+    pub fn test_document_to_ipv4_json() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_ip_addr_field("ip", FAST | STORED);
+        let schema = schema_builder.build();
+
+        // IpV4 loopback
+        let doc_json = r#"{
+                "ip": "127.0.0.1"
+        }"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        assert_eq!(value["ip"][0], "127.0.0.1");
+
+        // Special case IpV6 loopback. We don't want to map that to IPv4
+        let doc_json = r#"{
+                "ip": "::1"
+        }"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        assert_eq!(value["ip"][0], "::1");
+
+        // testing ip address of every router in the world
+        let doc_json = r#"{
+                "ip": "192.168.0.1"
+        }"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        assert_eq!(value["ip"][0], "192.168.0.1");
     }
 
     #[test]

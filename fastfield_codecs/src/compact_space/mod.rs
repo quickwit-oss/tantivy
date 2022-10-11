@@ -171,10 +171,10 @@ pub struct IPCodecParams {
 
 impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
-    pub fn train_from(column: &impl Column<u128>) -> Self {
+    pub fn train_from(iter: impl Iterator<Item = u128>, num_vals: u64) -> Self {
         let mut values_sorted = BTreeSet::new();
-        values_sorted.extend(column.iter());
-        let total_num_values = column.num_vals();
+        values_sorted.extend(iter);
+        let total_num_values = num_vals;
 
         let compact_space =
             get_compact_space(&values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
@@ -443,7 +443,7 @@ impl CompactSpaceDecompressor {
 mod tests {
 
     use super::*;
-    use crate::{open_u128, serialize_u128, VecColumn};
+    use crate::{open_u128, serialize_u128};
 
     #[test]
     fn compact_space_test() {
@@ -513,7 +513,12 @@ mod tests {
 
     fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
         let mut out = Vec::new();
-        serialize_u128(VecColumn::from(u128_vals), &mut out).unwrap();
+        serialize_u128(
+            || u128_vals.iter().cloned(),
+            u128_vals.len() as u64,
+            &mut out,
+        )
+        .unwrap();
 
         let data = OwnedBytes::new(out);
         test_all(data.clone(), u128_vals);
@@ -603,8 +608,8 @@ mod tests {
             5_000_000_000,
         ];
         let mut out = Vec::new();
-        serialize_u128(VecColumn::from(vals), &mut out).unwrap();
-        let decomp = open_u128(OwnedBytes::new(out)).unwrap();
+        serialize_u128(|| vals.iter().cloned(), vals.len() as u64, &mut out).unwrap();
+        let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
 
         assert_eq!(decomp.get_between_vals(199..=200), vec![0]);
         assert_eq!(decomp.get_between_vals(199..=201), vec![0, 1]);

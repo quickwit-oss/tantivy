@@ -6,13 +6,14 @@ use fastfield_codecs::VecColumn;
 use itertools::Itertools;
 use measure_time::debug_time;
 
+use super::flat_map_with_buffer::FlatMapWithBufferIter;
 use super::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueIndexColumn;
 use crate::core::{Segment, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
     get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer,
-    MultiValueLength, MultiValuedFastFieldReader,
+    MultiValueLength, MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -295,6 +296,24 @@ impl IndexMerger {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
+                FieldType::IpAddr(options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
+                        self.write_u128_single_fast_field(
+                            field,
+                            fast_field_serializer,
+                            doc_id_mapping,
+                        )?;
+                    }
+                    Some(Cardinality::MultiValues) => {
+                        self.write_u128_multi_fast_field(
+                            field,
+                            fast_field_serializer,
+                            doc_id_mapping,
+                        )?;
+                    }
+                    None => {}
+                },
+
                 FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
                     // We don't handle json fast field for the moment
                     // They can be implemented using what is done
@@ -302,6 +321,91 @@ impl IndexMerger {
                 }
             }
         }
+        Ok(())
+    }
+
+    // used to merge `u128` single fast fields.
+    fn write_u128_multi_fast_field(
+        &self,
+        field: Field,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        let segment_and_ff_readers: Vec<(&SegmentReader, MultiValuedU128FastFieldReader<u128>)> =
+            self.readers
+                .iter()
+                .map(|segment_reader| {
+                    let ff_reader: MultiValuedU128FastFieldReader<u128> =
+                        segment_reader.fast_fields().u128s(field).expect(
+                            "Failed to find index for multivalued field. This is a bug in \
+                             tantivy, please report.",
+                        );
+                    (segment_reader, ff_reader)
+                })
+                .collect::<Vec<_>>();
+
+        Self::write_1_n_fast_field_idx_generic(
+            field,
+            fast_field_serializer,
+            doc_id_mapping,
+            &segment_and_ff_readers,
+        )?;
+
+        let fast_field_readers = segment_and_ff_readers
+            .into_iter()
+            .map(|(_, ff_reader)| ff_reader)
+            .collect::<Vec<_>>();
+
+        let iter_gen = || {
+            doc_id_mapping
+                .iter_old_doc_addrs()
+                .flat_map_with_buffer(|doc_addr, buffer| {
+                    let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
+                    fast_field_reader.get_vals(doc_addr.doc_id, buffer);
+                })
+        };
+
+        fast_field_serializer.create_u128_fast_field_with_idx(
+            field,
+            iter_gen,
+            doc_id_mapping.len() as u64,
+            1,
+        )?;
+
+        Ok(())
+    }
+
+    // used to merge `u128` single fast fields.
+    fn write_u128_single_fast_field(
+        &self,
+        field: Field,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        let fast_field_readers = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let u128_reader: Arc<dyn Column<u128>> = reader.fast_fields().u128(field).expect(
+                    "Failed to find a reader for single fast field. This is a tantivy bug and it \
+                     should never happen.",
+                );
+                u128_reader
+            })
+            .collect::<Vec<_>>();
+
+        let iter_gen = || {
+            doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
+                let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
+                fast_field_reader.get_val(doc_addr.doc_id as u64)
+            })
+        };
+        fast_field_serializer.create_u128_fast_field_with_idx(
+            field,
+            iter_gen,
+            doc_id_mapping.len() as u64,
+            0,
+        )?;
         Ok(())
     }
 

@@ -3,6 +3,8 @@ use std::ops::RangeInclusive;
 
 use tantivy_bitpacker::minmax;
 
+use crate::monotonic_mapping::StrictlyMonotonicFn;
+
 pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
@@ -143,16 +145,30 @@ struct MonotonicMappingColumn<C, T, Input> {
     _phantom: PhantomData<Input>,
 }
 
-/// Creates a view of a column transformed by a monotonic mapping.
-pub fn monotonic_map_column<C, T, Input: PartialOrd, Output: PartialOrd>(
+/// Creates a view of a column transformed by a strictly monotonic mapping. See
+/// [`StrictlyMonotonicFn`].
+///
+/// E.g. apply a gcd monotonic_mapping([100, 200, 300]) == [1, 2, 3]
+/// monotonic_mapping.mapping() is expected to be injective, and we should always have
+/// monotonic_mapping.inverse(monotonic_mapping.mapping(el)) == el
+///
+/// The inverse of the mapping is required for:
+/// `fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> `
+/// The user provides the original value range and we need to monotonic map them in the same way the
+/// serialization does before calling the underlying column.
+///
+/// Note that when opening a codec, the monotonic_mapping should be the inverse of the mapping
+/// during serialization. And therefore the monotonic_mapping_inv when opening is the same as
+/// monotonic_mapping during serialization.
+pub fn monotonic_map_column<C, T, Input, Output>(
     from_column: C,
     monotonic_mapping: T,
 ) -> impl Column<Output>
 where
     C: Column<Input>,
-    T: Fn(Input) -> Output + Send + Sync,
-    Input: Send + Sync,
-    Output: Send + Sync,
+    T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
+    Input: PartialOrd + Send + Sync + Clone,
+    Output: PartialOrd + Send + Sync + Clone,
 {
     MonotonicMappingColumn {
         from_column,
@@ -161,28 +177,27 @@ where
     }
 }
 
-impl<C, T, Input: PartialOrd, Output: PartialOrd> Column<Output>
-    for MonotonicMappingColumn<C, T, Input>
+impl<C, T, Input, Output> Column<Output> for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
-    T: Fn(Input) -> Output + Send + Sync,
-    Input: Send + Sync,
-    Output: Send + Sync,
+    T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
+    Input: PartialOrd + Send + Sync + Clone,
+    Output: PartialOrd + Send + Sync + Clone,
 {
     #[inline]
     fn get_val(&self, idx: u64) -> Output {
         let from_val = self.from_column.get_val(idx);
-        (self.monotonic_mapping)(from_val)
+        self.monotonic_mapping.mapping(from_val)
     }
 
     fn min_value(&self) -> Output {
         let from_min_value = self.from_column.min_value();
-        (self.monotonic_mapping)(from_min_value)
+        self.monotonic_mapping.mapping(from_min_value)
     }
 
     fn max_value(&self) -> Output {
         let from_max_value = self.from_column.max_value();
-        (self.monotonic_mapping)(from_max_value)
+        self.monotonic_mapping.mapping(from_max_value)
     }
 
     fn num_vals(&self) -> u64 {
@@ -190,7 +205,18 @@ where
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = Output> + '_> {
-        Box::new(self.from_column.iter().map(&self.monotonic_mapping))
+        Box::new(
+            self.from_column
+                .iter()
+                .map(|el| self.monotonic_mapping.mapping(el)),
+        )
+    }
+
+    fn get_between_vals(&self, range: RangeInclusive<Output>) -> Vec<u64> {
+        self.from_column.get_between_vals(
+            self.monotonic_mapping.inverse(range.start().clone())
+                ..=self.monotonic_mapping.inverse(range.end().clone()),
+        )
     }
 
     // We voluntarily do not implement get_range as it yields a regression,
@@ -236,19 +262,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MonotonicallyMappableToU64;
+    use crate::monotonic_mapping::{
+        StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternalBaseval,
+        StrictlyMonotonicMappingToInternalGCDBaseval,
+    };
 
     #[test]
     fn test_monotonic_mapping() {
-        let vals = &[1u64, 3u64][..];
+        let vals = &[3u64, 5u64][..];
         let col = VecColumn::from(vals);
-        let mapped = monotonic_map_column(col, |el| el + 4);
-        assert_eq!(mapped.min_value(), 5u64);
-        assert_eq!(mapped.max_value(), 7u64);
+        let mapped = monotonic_map_column(col, StrictlyMonotonicMappingToInternalBaseval::new(2));
+        assert_eq!(mapped.min_value(), 1u64);
+        assert_eq!(mapped.max_value(), 3u64);
         assert_eq!(mapped.num_vals(), 2);
         assert_eq!(mapped.num_vals(), 2);
-        assert_eq!(mapped.get_val(0), 5);
-        assert_eq!(mapped.get_val(1), 7);
+        assert_eq!(mapped.get_val(0), 1);
+        assert_eq!(mapped.get_val(1), 3);
     }
 
     #[test]
@@ -260,10 +289,15 @@ mod tests {
 
     #[test]
     fn test_monotonic_mapping_iter() {
-        let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
+        let vals: Vec<u64> = (10..110u64).map(|el| el * 10).collect();
         let col = VecColumn::from(&vals);
-        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
-        let val_i64s: Vec<i64> = mapped.iter().collect();
+        let mapped = monotonic_map_column(
+            col,
+            StrictlyMonotonicMappingInverter::from(
+                StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100),
+            ),
+        );
+        let val_i64s: Vec<u64> = mapped.iter().collect();
         for i in 0..100 {
             assert_eq!(val_i64s[i as usize], mapped.get_val(i));
         }
@@ -271,20 +305,26 @@ mod tests {
 
     #[test]
     fn test_monotonic_mapping_get_range() {
-        let vals: Vec<u64> = (-1..99).map(i64::to_u64).collect();
+        let vals: Vec<u64> = (0..100u64).map(|el| el * 10).collect();
         let col = VecColumn::from(&vals);
-        let mapped = monotonic_map_column(col, |el| i64::from_u64(el) * 10i64);
-        assert_eq!(mapped.min_value(), -10i64);
-        assert_eq!(mapped.max_value(), 980i64);
+        let mapped = monotonic_map_column(
+            col,
+            StrictlyMonotonicMappingInverter::from(
+                StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 0),
+            ),
+        );
+
+        assert_eq!(mapped.min_value(), 0u64);
+        assert_eq!(mapped.max_value(), 9900u64);
         assert_eq!(mapped.num_vals(), 100);
-        let val_i64s: Vec<i64> = mapped.iter().collect();
-        assert_eq!(val_i64s.len(), 100);
+        let val_u64s: Vec<u64> = mapped.iter().collect();
+        assert_eq!(val_u64s.len(), 100);
         for i in 0..100 {
-            assert_eq!(val_i64s[i as usize], mapped.get_val(i));
-            assert_eq!(val_i64s[i as usize], i64::from_u64(vals[i as usize]) * 10);
+            assert_eq!(val_u64s[i as usize], mapped.get_val(i));
+            assert_eq!(val_u64s[i as usize], vals[i as usize] * 10);
         }
-        let mut buf = [0i64; 20];
+        let mut buf = [0u64; 20];
         mapped.get_range(7, &mut buf[..]);
-        assert_eq!(&val_i64s[7..][..20], &buf);
+        assert_eq!(&val_u64s[7..][..20], &buf);
     }
 }

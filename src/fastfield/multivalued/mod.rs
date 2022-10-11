@@ -3,9 +3,9 @@ mod writer;
 
 use fastfield_codecs::FastFieldCodecType;
 
-pub use self::reader::MultiValuedFastFieldReader;
-pub use self::writer::MultiValuedFastFieldWriter;
+pub use self::reader::{MultiValuedFastFieldReader, MultiValuedU128FastFieldReader};
 pub(crate) use self::writer::MultivalueStartIndex;
+pub use self::writer::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
 
 /// The valid codecs for multivalue values excludes the linear interpolation codec.
 ///

@@ -415,6 +415,9 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
                 debug_value_bytes(typ, bytes, f)?;
             }
         }
+        Type::IpAddr => {
+            write!(f, "")?; // TODO change once we actually have IP address terms.
+        }
     }
     Ok(())
 }

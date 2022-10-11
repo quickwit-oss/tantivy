@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::mem;
+use std::net::Ipv6Addr;
 
 use common::{BinarySerializable, VInt};
 
@@ -94,6 +95,11 @@ impl Document {
 
     /// Add a u64 field
     pub fn add_u64(&mut self, field: Field, value: u64) {
+        self.add_field_value(field, value);
+    }
+
+    /// Add a IP address field. Internally only Ipv6Addr is used.
+    pub fn add_ip_addr(&mut self, field: Field, value: Ipv6Addr) {
         self.add_field_value(field, value);
     }
 

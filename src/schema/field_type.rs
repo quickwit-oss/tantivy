@@ -1,7 +1,11 @@
+use std::net::{IpAddr, Ipv6Addr};
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+use super::ip_options::IpAddrOptions;
 use super::Cardinality;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -62,9 +66,11 @@ pub enum Type {
     Bytes = b'b',
     /// Leaf in a Json object.
     Json = b'j',
+    /// IpAddr
+    IpAddr = b'p',
 }
 
-const ALL_TYPES: [Type; 9] = [
+const ALL_TYPES: [Type; 10] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -74,6 +80,7 @@ const ALL_TYPES: [Type; 9] = [
     Type::Facet,
     Type::Bytes,
     Type::Json,
+    Type::IpAddr,
 ];
 
 impl Type {
@@ -100,6 +107,7 @@ impl Type {
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
             Type::Json => "Json",
+            Type::IpAddr => "IpAddr",
         }
     }
 
@@ -116,6 +124,7 @@ impl Type {
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
+            b'p' => Some(Type::IpAddr),
             _ => None,
         }
     }
@@ -146,6 +155,8 @@ pub enum FieldType {
     Bytes(BytesOptions),
     /// Json object
     JsonObject(JsonObjectOptions),
+    /// IpAddr field
+    IpAddr(IpAddrOptions),
 }
 
 impl FieldType {
@@ -161,6 +172,7 @@ impl FieldType {
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
+            FieldType::IpAddr(_) => Type::IpAddr,
         }
     }
 
@@ -176,6 +188,7 @@ impl FieldType {
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
+            FieldType::IpAddr(_) => false,
         }
     }
 
@@ -210,6 +223,7 @@ impl FieldType {
             | FieldType::F64(ref int_options)
             | FieldType::Bool(ref int_options) => int_options.is_fast(),
             FieldType::Date(ref date_options) => date_options.is_fast(),
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(_) => false,
         }
@@ -250,6 +264,7 @@ impl FieldType {
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
+            FieldType::IpAddr(_) => false,
         }
     }
 
@@ -294,6 +309,7 @@ impl FieldType {
             FieldType::JsonObject(ref json_obj_options) => json_obj_options
                 .get_text_indexing_options()
                 .map(TextFieldIndexing::index_option),
+            FieldType::IpAddr(_) => None,
         }
     }
 
@@ -333,6 +349,19 @@ impl FieldType {
                         expected: "a json object",
                         json: JsonValue::String(field_text),
                     }),
+                    FieldType::IpAddr(_) => {
+                        let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
+                            ValueParsingError::ParseError {
+                                error: err.to_string(),
+                                json: JsonValue::String(field_text),
+                            }
+                        })?;
+                        let ip_addr_v6: Ipv6Addr = match ip_addr {
+                            IpAddr::V4(v4) => v4.to_ipv6_mapped(),
+                            IpAddr::V6(v6) => v6,
+                        };
+                        Ok(Value::IpAddr(ip_addr_v6))
+                    }
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -378,6 +407,10 @@ impl FieldType {
                 }
                 FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
             },

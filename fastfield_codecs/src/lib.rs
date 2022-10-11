@@ -13,6 +13,10 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
+use monotonic_mapping::{
+    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
+    StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
+};
 use ownedbytes::OwnedBytes;
 use serialize::Header;
 
@@ -22,6 +26,7 @@ mod compact_space;
 mod line;
 mod linear;
 mod monotonic_mapping;
+mod monotonic_mapping_u128;
 
 mod column;
 mod gcd;
@@ -31,7 +36,8 @@ use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
 use self::linear::LinearCodec;
-pub use self::monotonic_mapping::MonotonicallyMappableToU64;
+pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
+pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 pub use self::serialize::{
     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
 };
@@ -73,8 +79,13 @@ impl FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<u128>>> {
-    Ok(Arc::new(CompactSpaceDecompressor::open(bytes)?))
+pub fn open_u128<Item: MonotonicallyMappableToU128>(
+    bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let reader = CompactSpaceDecompressor::open(bytes)?;
+    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
+        StrictlyMonotonicMappingToInternal::<Item>::new().into();
+    Ok(Arc::new(monotonic_map_column(reader, inverted)))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
@@ -99,11 +110,15 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     let reader = C::open_from_bytes(bytes, normalized_header)?;
     let min_value = header.min_value;
     if let Some(gcd) = header.gcd {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val * gcd.get());
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
     } else {
-        let monotonic_mapping = move |val: u64| Item::from_u64(min_value + val);
-        Ok(Arc::new(monotonic_map_column(reader, monotonic_mapping)))
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalBaseval::new(min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
     }
 }
 
@@ -143,6 +158,7 @@ pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
 
 #[cfg(test)]
 mod tests {
+
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
@@ -176,6 +192,18 @@ mod tests {
                 "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
                  `{data:?}`",
             );
+        }
+
+        if !data.is_empty() {
+            let test_rand_idx = rand::thread_rng().gen_range(0..=data.len() - 1);
+            let expected_positions: Vec<u64> = data
+                .iter()
+                .enumerate()
+                .filter(|(_, el)| **el == data[test_rand_idx])
+                .map(|(pos, _)| pos as u64)
+                .collect();
+            let positions = reader.get_between_vals(data[test_rand_idx]..=data[test_rand_idx]);
+            assert_eq!(expected_positions, positions);
         }
         Some((estimation, actual_compression))
     }

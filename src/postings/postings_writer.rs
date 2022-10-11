@@ -89,6 +89,7 @@ pub(crate) fn serialize_postings(
             | FieldType::Bool(_) => {}
             FieldType::Bytes(_) => {}
             FieldType::JsonObject(_) => {}
+            FieldType::IpAddr(_) => {}
         }
 
         let postings_writer = per_field_postings_writers.get_for_field(field);

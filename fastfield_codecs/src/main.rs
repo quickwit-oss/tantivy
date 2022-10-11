@@ -90,7 +90,7 @@ fn bench_ip() {
     {
         let mut data = vec![];
         for dataset in dataset.chunks(500_000) {
-            serialize_u128(VecColumn::from(dataset), &mut data).unwrap();
+            serialize_u128(|| dataset.iter().cloned(), dataset.len() as u64, &mut data).unwrap();
         }
         let compression = data.len() as f64 / (dataset.len() * 16) as f64;
         println!("Compression 50_000 chunks {:.4}", compression);
@@ -101,7 +101,10 @@ fn bench_ip() {
     }
 
     let mut data = vec![];
-    serialize_u128(VecColumn::from(&dataset), &mut data).unwrap();
+    {
+        print_time!("creation");
+        serialize_u128(|| dataset.iter().cloned(), dataset.len() as u64, &mut data).unwrap();
+    }
 
     let compression = data.len() as f64 / (dataset.len() * 16) as f64;
     println!("Compression {:.2}", compression);
@@ -110,7 +113,7 @@ fn bench_ip() {
         (data.len() * 8) as f32 / dataset.len() as f32
     );
 
-    let decompressor = open_u128(OwnedBytes::new(data)).unwrap();
+    let decompressor = open_u128::<u128>(OwnedBytes::new(data)).unwrap();
     // Sample some ranges
     for value in dataset.iter().take(1110).skip(1100).cloned() {
         print_time!("get range");

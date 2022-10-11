@@ -1,4 +1,5 @@
 use std::fmt;
+use std::net::Ipv6Addr;
 
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -32,6 +33,8 @@ pub enum Value {
     Bytes(Vec<u8>),
     /// Json object value.
     JsonObject(serde_json::Map<String, serde_json::Value>),
+    /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
+    IpAddr(Ipv6Addr),
 }
 
 impl Eq for Value {}
@@ -50,6 +53,14 @@ impl Serialize for Value {
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_str(&base64::encode(bytes)),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
+            Value::IpAddr(ref obj) => {
+                // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
+                if let Some(ip_v4) = obj.to_ipv4_mapped() {
+                    ip_v4.serialize(serializer)
+                } else {
+                    obj.serialize(serializer)
+                }
+            }
         }
     }
 }
@@ -201,11 +212,27 @@ impl Value {
             None
         }
     }
+
+    /// Returns the ip addr, provided the value is of the `Ip` type.
+    /// (Returns None if the value is not of the `Ip` type)
+    pub fn as_ip_addr(&self) -> Option<Ipv6Addr> {
+        if let Value::IpAddr(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
 }
 
 impl From<String> for Value {
     fn from(s: String) -> Value {
         Value::Str(s)
+    }
+}
+
+impl From<Ipv6Addr> for Value {
+    fn from(v: Ipv6Addr) -> Value {
+        Value::IpAddr(v)
     }
 }
 
@@ -288,8 +315,10 @@ impl From<serde_json::Value> for Value {
 
 mod binary_serialize {
     use std::io::{self, Read, Write};
+    use std::net::Ipv6Addr;
 
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
+    use fastfield_codecs::MonotonicallyMappableToU128;
 
     use super::Value;
     use crate::schema::Facet;
@@ -306,6 +335,7 @@ mod binary_serialize {
     const EXT_CODE: u8 = 7;
     const JSON_OBJ_CODE: u8 = 8;
     const BOOL_CODE: u8 = 9;
+    const IP_CODE: u8 = 10;
 
     // extended types
 
@@ -365,6 +395,10 @@ mod binary_serialize {
                     JSON_OBJ_CODE.serialize(writer)?;
                     serde_json::to_writer(writer, &map)?;
                     Ok(())
+                }
+                Value::IpAddr(ref ip) => {
+                    IP_CODE.serialize(writer)?;
+                    ip.to_u128().serialize(writer)
                 }
             }
         }
@@ -436,6 +470,11 @@ mod binary_serialize {
                     let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de)?;
                     Ok(Value::JsonObject(json_map))
                 }
+                IP_CODE => {
+                    let value = u128::deserialize(reader)?;
+                    Ok(Value::IpAddr(Ipv6Addr::from_u128(value)))
+                }
+
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {:?}", type_code),

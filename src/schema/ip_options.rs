@@ -7,13 +7,13 @@ use super::Cardinality;
 
 /// Define how an ip field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct IpOptions {
+pub struct IpAddrOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     fast: Option<Cardinality>,
     stored: bool,
 }
 
-impl IpOptions {
+impl IpAddrOptions {
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast.is_some()
@@ -52,52 +52,52 @@ impl IpOptions {
     }
 }
 
-impl From<()> for IpOptions {
-    fn from(_: ()) -> IpOptions {
-        IpOptions::default()
+impl From<()> for IpAddrOptions {
+    fn from(_: ()) -> IpAddrOptions {
+        IpAddrOptions::default()
     }
 }
 
-impl From<FastFlag> for IpOptions {
+impl From<FastFlag> for IpAddrOptions {
     fn from(_: FastFlag) -> Self {
-        IpOptions {
+        IpAddrOptions {
             stored: false,
             fast: Some(Cardinality::SingleValue),
         }
     }
 }
 
-impl From<StoredFlag> for IpOptions {
+impl From<StoredFlag> for IpAddrOptions {
     fn from(_: StoredFlag) -> Self {
-        IpOptions {
+        IpAddrOptions {
             stored: true,
             fast: None,
         }
     }
 }
 
-impl From<IndexedFlag> for IpOptions {
+impl From<IndexedFlag> for IpAddrOptions {
     fn from(_: IndexedFlag) -> Self {
-        IpOptions {
+        IpAddrOptions {
             stored: false,
             fast: None,
         }
     }
 }
 
-impl<T: Into<IpOptions>> BitOr<T> for IpOptions {
-    type Output = IpOptions;
+impl<T: Into<IpAddrOptions>> BitOr<T> for IpAddrOptions {
+    type Output = IpAddrOptions;
 
-    fn bitor(self, other: T) -> IpOptions {
+    fn bitor(self, other: T) -> IpAddrOptions {
         let other = other.into();
-        IpOptions {
+        IpAddrOptions {
             stored: self.stored | other.stored,
             fast: self.fast.or(other.fast),
         }
     }
 }
 
-impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for IpOptions
+impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for IpAddrOptions
 where
     Head: Clone,
     Tail: Clone,

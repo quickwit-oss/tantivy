@@ -294,6 +294,7 @@ impl SegmentWriter {
                         ctx,
                     )?;
                 }
+                FieldType::IpAddr(_) => {}
             }
         }
         Ok(())
