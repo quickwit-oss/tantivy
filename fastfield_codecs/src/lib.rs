@@ -1,4 +1,11 @@
+#![warn(missing_docs)]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
+
+//! # `fastfield_codecs`
+//!
+//! - Columnar storage of data for tantivy [`Column`].
+//! - Encode data in different codecs.
+//! - Monotonically map values to u64/u128
 
 #[cfg(test)]
 #[macro_use]
@@ -44,9 +51,16 @@ pub use self::serialize::{
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
+/// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
 pub enum FastFieldCodecType {
+    /// Bitpack all values in the value range. The number of bits is defined by the amplitude
+    /// column.max_value()-column.min_value()
     Bitpacked = 1,
+    /// Linear interpolation puts a line between the first and last value and then bitpacks the
+    /// values by the offset from the line. The number of bits is defined by the max deviation from
+    /// the line.
     Linear = 2,
+    /// Same as [`FastFieldCodecType::Linear`], but encodes in blocks of 512 elements.
     BlockwiseLinear = 3,
 }
 
@@ -64,11 +78,11 @@ impl BinarySerializable for FastFieldCodecType {
 }
 
 impl FastFieldCodecType {
-    pub fn to_code(self) -> u8 {
+    pub(crate) fn to_code(self) -> u8 {
         self as u8
     }
 
-    pub fn from_code(code: u8) -> Option<Self> {
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
         match code {
             1 => Some(Self::Bitpacked),
             2 => Some(Self::Linear),
@@ -150,6 +164,7 @@ trait FastFieldCodec: 'static {
     fn estimate(column: &dyn Column) -> Option<f32>;
 }
 
+/// The list of all available codecs for u64 convertible data.
 pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
     FastFieldCodecType::Bitpacked,
     FastFieldCodecType::BlockwiseLinear,
