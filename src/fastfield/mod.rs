@@ -34,6 +34,7 @@ pub use self::multivalued::{
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{Column, CompositeFastFieldSerializer};
+use self::writer::unexpected_value;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Type, Value};
 use crate::{DateTime, DocId};
@@ -120,15 +121,16 @@ impl FastValue for DateTime {
     }
 }
 
-fn value_to_u64(value: &Value) -> u64 {
-    match value {
+fn value_to_u64(value: &Value) -> crate::Result<u64> {
+    let value = match value {
         Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
         Value::Bool(val) => val.to_u64(),
         Value::Date(val) => val.to_u64(),
-        _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
-    }
+        _ => return Err(unexpected_value("u64/i64/f64/bool/date", value)),
+    };
+    Ok(value)
 }
 
 /// The fast field type
@@ -202,9 +204,15 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            fast_field_writers.add_document(&doc!(*FIELD=>13u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>14u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>2u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>13u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>2u64))
+                .unwrap();
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
@@ -229,15 +237,33 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            fast_field_writers.add_document(&doc!(*FIELD=>4u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>14_082_001u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>3_052u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>9_002u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>15_001u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>777u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>1_002u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>1_501u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>215u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>4u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14_082_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>3_052u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>9_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>15_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>777u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_501u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>215u64))
+                .unwrap();
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
@@ -273,7 +299,9 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
-                fast_field_writers.add_document(&doc!(*FIELD=>100_000u64));
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>100_000u64))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -306,9 +334,13 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             // forcing the amplitude to be high
-            fast_field_writers.add_document(&doc!(*FIELD=>0u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>0u64))
+                .unwrap();
             for i in 0u64..10_000u64 {
-                fast_field_writers.add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + i));
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + i))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -350,7 +382,7 @@ mod tests {
             for i in -100i64..10_000i64 {
                 let mut doc = Document::default();
                 doc.add_i64(i64_field, i);
-                fast_field_writers.add_document(&doc);
+                fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -395,7 +427,7 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
-            fast_field_writers.add_document(&doc);
+            fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
@@ -438,7 +470,7 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+                fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
@@ -788,10 +820,14 @@ mod tests {
             let write: WritePtr = directory.open_write(path).unwrap();
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-            fast_field_writers.add_document(&doc!(field=>true));
-            fast_field_writers.add_document(&doc!(field=>false));
-            fast_field_writers.add_document(&doc!(field=>true));
-            fast_field_writers.add_document(&doc!(field=>false));
+            fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+            fast_field_writers
+                .add_document(&doc!(field=>false))
+                .unwrap();
+            fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+            fast_field_writers
+                .add_document(&doc!(field=>false))
+                .unwrap();
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
@@ -825,8 +861,10 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             for _ in 0..50 {
-                fast_field_writers.add_document(&doc!(field=>true));
-                fast_field_writers.add_document(&doc!(field=>false));
+                fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+                fast_field_writers
+                    .add_document(&doc!(field=>false))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -860,7 +898,7 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
-            fast_field_writers.add_document(&doc);
+            fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
@@ -886,7 +924,7 @@ mod tests {
                 CompositeFastFieldSerializer::from_write_with_codec(write, codec_types).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(schema);
             for doc in docs {
-                fast_field_writers.add_document(doc);
+                fast_field_writers.add_document(doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)

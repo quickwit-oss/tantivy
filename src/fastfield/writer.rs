@@ -25,6 +25,13 @@ pub struct FastFieldsWriter {
     bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
 
+pub(crate) fn unexpected_value(expected: &str, actual: &Value) -> crate::TantivyError {
+    crate::TantivyError::SchemaError(format!(
+        "Expected a {:?} in fast field, but got {:?}",
+        expected, actual
+    ))
+}
+
 fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
     match *field_entry.field_type() {
         FieldType::I64(_) | FieldType::Date(_) => common::i64_to_u64(0i64),
@@ -222,25 +229,26 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         for field_writer in &mut self.term_id_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.single_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.multi_values_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.bytes_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.u128_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.u128_multi_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
+        Ok(())
     }
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
@@ -324,13 +332,10 @@ impl U128FastFieldWriter {
     ///
     /// Extract the value associated to the fast field for
     /// this document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         match doc.get_first(self.field) {
             Some(v) => {
-                let ip_addr = v
-                    .as_ip_addr()
-                    .unwrap_or_else(|| panic!("expected and ip, but got {:?}", v));
-
+                let ip_addr = v.as_ip_addr().ok_or_else(|| unexpected_value("ip", v))?;
                 let value = ip_addr.to_u128();
                 self.add_val(value);
             }
@@ -339,6 +344,7 @@ impl U128FastFieldWriter {
             }
         };
         self.val_count += 1;
+        Ok(())
     }
 
     /// Push the fast fields value to the `FastFieldWriter`.
@@ -465,14 +471,14 @@ impl IntFastFieldWriter {
     /// only the first one is taken in account.
     ///
     /// Values on text fast fields are skipped.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         match doc.get_first(self.field) {
             Some(v) => {
                 let value = match (self.precision_opt, v) {
                     (Some(precision), Value::Date(date_val)) => {
                         date_val.truncate(precision).to_u64()
                     }
-                    _ => super::value_to_u64(v),
+                    _ => super::value_to_u64(v)?,
                 };
                 self.add_val(value);
             }
@@ -480,6 +486,7 @@ impl IntFastFieldWriter {
                 self.add_val(self.val_if_missing);
             }
         };
+        Ok(())
     }
 
     /// get iterator over the data

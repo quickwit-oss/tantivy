@@ -306,7 +306,7 @@ impl SegmentWriter {
     pub fn add_document(&mut self, add_operation: AddOperation) -> crate::Result<()> {
         let doc = add_operation.document;
         self.doc_opstamps.push(add_operation.opstamp);
-        self.fast_field_writers.add_document(&doc);
+        self.fast_field_writers.add_document(&doc)?;
         self.index_document(&doc)?;
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc, &self.schema)?;

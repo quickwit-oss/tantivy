@@ -57,14 +57,15 @@ impl BytesFastFieldWriter {
 
     /// Shift to the next document and add all of the
     /// matching field values present in the document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         self.next_doc();
         for field_value in doc.get_all(self.field) {
             if let Value::Bytes(ref bytes) = field_value {
                 self.vals.extend_from_slice(bytes);
-                return;
+                return Ok(());
             }
         }
+        Ok(())
     }
 
     /// Register the bytes associated with a document.
