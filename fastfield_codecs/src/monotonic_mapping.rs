@@ -4,6 +4,8 @@ use fastdivide::DividerU64;
 
 use crate::MonotonicallyMappableToU128;
 
+/// Monotonic maps a value to u64 value space.
+/// Monotonic mapping enables `PartialOrd` on u64 space without conversion to original space.
 pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync {
     /// Converts a value to u64.
     ///

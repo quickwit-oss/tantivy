@@ -45,7 +45,9 @@ use crate::{
 /// By design, after normalization, `min_value = 0` and `gcd = 1`.
 #[derive(Debug, Copy, Clone)]
 pub struct NormalizedHeader {
+    /// The number of values in the underlying column.
     pub num_vals: u64,
+    /// The max value of the underlying column.
     pub max_value: u64,
 }
 
@@ -137,6 +139,8 @@ impl BinarySerializable for Header {
     }
 }
 
+/// Return estimated compression for given codec in the value range [0.0..1.0], where 1.0 means no
+/// compression.
 pub fn estimate<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     codec_type: FastFieldCodecType,
@@ -157,6 +161,7 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
     }
 }
 
+/// Serializes u128 values with the compact space codec.
 pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     iter_gen: F,
     num_vals: u64,
@@ -169,6 +174,7 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     Ok(())
 }
 
+/// Serializes the column with the codec with the best estimate on the data.
 pub fn serialize<T: MonotonicallyMappableToU64>(
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
@@ -239,6 +245,7 @@ fn serialize_given_codec(
     Ok(())
 }
 
+/// Helper function to serialize a column (autodetect from all codecs) and then open it
 pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
     column: &[T],
 ) -> Arc<dyn Column<T>> {

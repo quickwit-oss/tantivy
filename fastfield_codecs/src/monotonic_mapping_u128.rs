@@ -1,5 +1,7 @@
 use std::net::Ipv6Addr;
 
+/// Montonic maps a value to u128 value space
+/// Monotonic mapping enables `PartialOrd` on u128 space without conversion to original space.
 pub trait MonotonicallyMappableToU128: 'static + PartialOrd + Copy + Send + Sync {
     /// Converts a value to u128.
     ///

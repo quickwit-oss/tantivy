@@ -5,6 +5,7 @@ use tantivy_bitpacker::minmax;
 
 use crate::monotonic_mapping::StrictlyMonotonicFn;
 
+/// `Column` provides columnar access on a field.
 pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
@@ -59,6 +60,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// `.max_value()`.
     fn max_value(&self) -> T;
 
+    /// The number of values in the column.
     fn num_vals(&self) -> u64;
 
     /// Returns a iterator over the data
@@ -67,6 +69,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     }
 }
 
+/// VecColumn provides `Column` over a slice.
 pub struct VecColumn<'a, T = u64> {
     values: &'a [T],
     min_value: T,
