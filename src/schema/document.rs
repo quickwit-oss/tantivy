@@ -197,6 +197,34 @@ impl Document {
     pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.get_all(field).next()
     }
+
+    /// Serializes stored field values.
+    pub fn serialize_stored<W: Write>(&self, schema: &Schema, writer: &mut W) -> io::Result<()> {
+        let stored_field_values = || {
+            self.field_values()
+                .iter()
+                .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
+        };
+        let num_field_values = stored_field_values().count();
+
+        VInt(num_field_values as u64).serialize(writer)?;
+        for field_value in stored_field_values() {
+            match field_value {
+                FieldValue {
+                    field,
+                    value: Value::PreTokStr(pre_tokenized_text),
+                } => {
+                    let field_value = FieldValue {
+                        field: *field,
+                        value: Value::Str(pre_tokenized_text.text.to_string()),
+                    };
+                    field_value.serialize(writer)?;
+                }
+                field_value => field_value.serialize(writer)?,
+            };
+        }
+        Ok(())
+    }
 }
 
 impl BinarySerializable for Document {
