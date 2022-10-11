@@ -260,12 +260,8 @@ pub struct JsonTermWriter<'a> {
 }
 
 impl<'a> JsonTermWriter<'a> {
-    pub fn from_field_and_json_path(
-        field: Field,
-        json_path: &str,
-        term_buffer: &'a mut Term,
-    ) -> Self {
-        term_buffer.set_field(Type::Json, field);
+    pub fn from_json_path(json_path: &str, field: Field, term_buffer: &'a mut Term) -> Self {
+        term_buffer.set_field_and_type(field, Type::Json);
         let mut json_term_writer = Self::wrap(term_buffer);
         for segment in json_path.split('.') {
             json_term_writer.push_path_segment(segment);
@@ -356,8 +352,7 @@ mod tests {
     #[test]
     fn test_json_writer() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("attributes");
         json_writer.push_path_segment("color");
@@ -391,8 +386,7 @@ mod tests {
     #[test]
     fn test_string_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
@@ -405,8 +399,7 @@ mod tests {
     #[test]
     fn test_i64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(-4i64);
@@ -419,8 +412,7 @@ mod tests {
     #[test]
     fn test_u64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4u64);
@@ -433,8 +425,7 @@ mod tests {
     #[test]
     fn test_f64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4.0f64);
@@ -447,8 +438,7 @@ mod tests {
     #[test]
     fn test_bool_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(true);
@@ -461,8 +451,7 @@ mod tests {
     #[test]
     fn test_push_after_set_path_segment() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("attribute");
         json_writer.set_str("something");
@@ -477,8 +466,7 @@ mod tests {
     #[test]
     fn test_pop_segment() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.push_path_segment("hue");
@@ -493,8 +481,7 @@ mod tests {
     #[test]
     fn test_json_writer_path() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         assert_eq!(json_writer.path(), b"color");

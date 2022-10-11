@@ -7,18 +7,6 @@ use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
 use crate::{DatePrecision, DateTime};
 
-/// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
-/// <field> + <type byte> + <value len>
-///
-/// - <field> is a big endian encoded u32 field id
-/// - <type_byte>'s most significant bit expresses whether the term is a json term or not
-/// The remaining 7 bits are used to encode the type of the value.
-/// If this is a JSON term, the type is the type of the leaf of the json.
-///
-/// - <value> is,  if this is not the json term, a binary representation specific to the type.
-/// If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
-const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
-
 /// Separates the different segments of
 /// the json path.
 pub const JSON_PATH_SEGMENT_SEP: u8 = 1u8;
@@ -42,16 +30,48 @@ impl AsMut<Vec<u8>> for Term {
     }
 }
 
+/// The number of bytes used as metadata by `Term`.
+const TERM_METADATA_LENGTH: usize = 5;
+
 impl Term {
-    pub(crate) fn new() -> Term {
-        Term(Vec::with_capacity(100))
+    pub(crate) fn with_capacity(capacity: usize) -> Term {
+        let mut data = Vec::with_capacity(TERM_METADATA_LENGTH + capacity);
+        data.resize(TERM_METADATA_LENGTH, 0u8);
+        Term(data)
+    }
+
+    pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {
+        let mut term = Self::with_capacity(8);
+        term.set_field_and_type(field, typ);
+        term
+    }
+
+    fn with_bytes_and_field_and_payload(typ: Type, field: Field, bytes: &[u8]) -> Term {
+        let mut term = Self::with_capacity(bytes.len());
+        term.set_field_and_type(field, typ);
+        term.0.extend_from_slice(bytes);
+        term
     }
 
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
-        let mut term = Term(vec![0u8; FAST_VALUE_TERM_LEN]);
-        term.set_field(T::to_type(), field);
+        let mut term = Self::with_type_and_field(T::to_type(), field);
+        term.set_field_and_type(field, T::to_type());
         term.set_u64(val.to_u64());
         term
+    }
+
+    /// Panics when there are byte values.
+    ///
+    /// Sets field and the type.
+    pub(crate) fn set_field_and_type(&mut self, field: Field, typ: Type) {
+        assert_eq!(self.0.len(), TERM_METADATA_LENGTH);
+        self.0[0..4].clone_from_slice(field.field_id().to_be_bytes().as_ref());
+        self.0[4] = typ.to_code();
+    }
+
+    /// Is empty if there are no value bytes.
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == TERM_METADATA_LENGTH
     }
 
     /// Builds a term given a field, and a `u64`-value
@@ -82,31 +102,29 @@ impl Term {
     /// Creates a `Term` given a facet.
     pub fn from_facet(field: Field, facet: &Facet) -> Term {
         let facet_encoded_str = facet.encoded_str();
-        Term::create_bytes_term(Type::Facet, field, facet_encoded_str.as_bytes())
+        Term::with_bytes_and_field_and_payload(Type::Facet, field, facet_encoded_str.as_bytes())
     }
 
     /// Builds a term given a field, and a string value
     pub fn from_field_text(field: Field, text: &str) -> Term {
-        Term::create_bytes_term(Type::Str, field, text.as_bytes())
-    }
-
-    fn create_bytes_term(typ: Type, field: Field, bytes: &[u8]) -> Term {
-        let mut term = Term(vec![0u8; 5 + bytes.len()]);
-        term.set_field(typ, field);
-        term.0.extend_from_slice(bytes);
-        term
+        Term::with_bytes_and_field_and_payload(Type::Str, field, text.as_bytes())
     }
 
     /// Builds a term bytes.
     pub fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
-        Term::create_bytes_term(Type::Bytes, field, bytes)
+        Term::with_bytes_and_field_and_payload(Type::Bytes, field, bytes)
     }
 
-    pub(crate) fn set_field(&mut self, typ: Type, field: Field) {
-        self.0.clear();
-        self.0
-            .extend_from_slice(field.field_id().to_be_bytes().as_ref());
-        self.0.push(typ.to_code());
+    /// Removes the value_bytes and set the field and type code.
+    pub(crate) fn clear_with_field_and_type(&mut self, typ: Type, field: Field) {
+        self.truncate(TERM_METADATA_LENGTH);
+        self.set_field_and_type(field, typ);
+    }
+
+    /// Removes the value_bytes and set the type code.
+    pub fn clear_with_type(&mut self, typ: Type) {
+        self.truncate(TERM_METADATA_LENGTH);
+        self.0[4] = typ.to_code();
     }
 
     /// Sets a u64 value in the term.
@@ -117,12 +135,6 @@ impl Term {
     /// the natural order of the values.
     pub fn set_u64(&mut self, val: u64) {
         self.set_fast_value(val);
-        self.set_bytes(val.to_be_bytes().as_ref());
-    }
-
-    fn set_fast_value<T: FastValue>(&mut self, val: T) {
-        self.0.resize(FAST_VALUE_TERM_LEN, 0u8);
-        self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
     /// Sets a `i64` value in the term.
@@ -145,9 +157,13 @@ impl Term {
         self.set_fast_value(val);
     }
 
+    fn set_fast_value<T: FastValue>(&mut self, val: T) {
+        self.set_bytes(val.to_u64().to_be_bytes().as_ref());
+    }
+
     /// Sets the value of a `Bytes` field.
     pub fn set_bytes(&mut self, bytes: &[u8]) {
-        self.0.resize(5, 0u8);
+        self.0.truncate(TERM_METADATA_LENGTH);
         self.0.extend(bytes);
     }
 
@@ -156,18 +172,13 @@ impl Term {
         self.set_bytes(text.as_bytes());
     }
 
-    /// Removes the value_bytes and set the type code.
-    pub fn clear_with_type(&mut self, typ: Type) {
-        self.truncate(5);
-        self.0[4] = typ.to_code();
-    }
-
-    /// Truncate the term right after the field and the type code.
+    /// Truncates the term. The new length needs to be at least 5, which is reserved for metadata.
     pub fn truncate(&mut self, len: usize) {
+        assert!(len >= TERM_METADATA_LENGTH);
         self.0.truncate(len);
     }
 
-    /// Truncate the term right after the field and the type code.
+    /// Appends value bytes to the Term.
     pub fn append_bytes(&mut self, bytes: &[u8]) {
         self.0.extend_from_slice(bytes);
     }
@@ -293,7 +304,7 @@ where B: AsRef<[u8]>
     /// Returns `None` if the field is not of string type
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
-        if self.as_slice().len() < 5 {
+        if self.as_slice().len() < TERM_METADATA_LENGTH {
             return None;
         }
         if self.typ() != Type::Str {
@@ -307,7 +318,7 @@ where B: AsRef<[u8]>
     /// Returns `None` if the field is not of facet type
     /// or if the bytes are not valid utf-8.
     pub fn as_facet(&self) -> Option<Facet> {
-        if self.as_slice().len() < 5 {
+        if self.as_slice().len() < TERM_METADATA_LENGTH {
             return None;
         }
         if self.typ() != Type::Facet {
@@ -321,7 +332,7 @@ where B: AsRef<[u8]>
     ///
     /// Returns `None` if the field is not of bytes type.
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        if self.as_slice().len() < 5 {
+        if self.as_slice().len() < TERM_METADATA_LENGTH {
             return None;
         }
         if self.typ() != Type::Bytes {
@@ -337,7 +348,7 @@ where B: AsRef<[u8]>
     /// If the term is a u64, its value is encoded according
     /// to `byteorder::LittleEndian`.
     pub fn value_bytes(&self) -> &[u8] {
-        &self.0.as_ref()[5..]
+        &self.0.as_ref()[TERM_METADATA_LENGTH..]
     }
 
     /// Returns the underlying `&[u8]`.
@@ -451,6 +462,18 @@ mod tests {
         assert_eq!(term.as_str(), Some("test"))
     }
 
+    /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
+    /// <field> + <type byte> + <value len>
+    ///
+    /// - <field> is a big endian encoded u32 field id
+    /// - <type_byte>'s most significant bit expresses whether the term is a json term or not
+    /// The remaining 7 bits are used to encode the type of the value.
+    /// If this is a JSON term, the type is the type of the leaf of the json.
+    ///
+    /// - <value> is,  if this is not the json term, a binary representation specific to the type.
+    /// If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
+    const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+
     #[test]
     pub fn test_term_u64() {
         let mut schema_builder = Schema::builder();
@@ -458,7 +481,7 @@ mod tests {
         let term = Term::from_field_u64(count_field, 983u64);
         assert_eq!(term.field(), count_field);
         assert_eq!(term.typ(), Type::U64);
-        assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
+        assert_eq!(term.as_slice().len(), FAST_VALUE_TERM_LEN);
         assert_eq!(term.as_u64(), Some(983u64))
     }
 
@@ -469,7 +492,7 @@ mod tests {
         let term = Term::from_field_bool(bool_field, true);
         assert_eq!(term.field(), bool_field);
         assert_eq!(term.typ(), Type::Bool);
-        assert_eq!(term.as_slice().len(), super::FAST_VALUE_TERM_LEN);
+        assert_eq!(term.as_slice().len(), FAST_VALUE_TERM_LEN);
         assert_eq!(term.as_bool(), Some(true))
     }
 }
