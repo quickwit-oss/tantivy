@@ -83,21 +83,21 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
 
 /// Only records the doc ids
 #[derive(Clone, Copy)]
-pub struct NothingRecorder {
+pub struct DocIdRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
 }
 
-impl Default for NothingRecorder {
+impl Default for DocIdRecorder {
     fn default() -> Self {
-        NothingRecorder {
+        DocIdRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::MAX,
         }
     }
 }
 
-impl Recorder for NothingRecorder {
+impl Recorder for DocIdRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
