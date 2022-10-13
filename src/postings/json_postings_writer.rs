@@ -3,7 +3,7 @@ use std::io;
 use crate::fastfield::MultiValuedFastFieldWriter;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
-use crate::postings::recorder::{BufferLender, NothingRecorder, Recorder};
+use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::stacker::Addr;
 use crate::postings::{
     FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter, UnorderedTermId,
@@ -16,7 +16,7 @@ use crate::{DocId, Term};
 #[derive(Default)]
 pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
     str_posting_writer: SpecializedPostingsWriter<Rec>,
-    non_str_posting_writer: SpecializedPostingsWriter<NothingRecorder>,
+    non_str_posting_writer: SpecializedPostingsWriter<DocIdRecorder>,
 }
 
 impl<Rec: Recorder> From<JsonPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
@@ -77,7 +77,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
                         serializer,
                     )?;
                 } else {
-                    SpecializedPostingsWriter::<NothingRecorder>::serialize_one_term(
+                    SpecializedPostingsWriter::<DocIdRecorder>::serialize_one_term(
                         term,
                         *addr,
                         doc_id_map,
