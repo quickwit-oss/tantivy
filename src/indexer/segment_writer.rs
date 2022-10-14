@@ -176,10 +176,12 @@ impl SegmentWriter {
             if !field_entry.is_indexed() {
                 continue;
             }
+
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
             let postings_writer: &mut dyn PostingsWriter =
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.set_field(field_entry.field_type().value_type(), field);
+
             match *field_entry.field_type() {
                 FieldType::Facet(_) => {
                     for value in values {
@@ -240,45 +242,75 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::U64(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(u64_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
                 }
                 FieldType::Date(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(date_val.truncate(DatePrecision::Seconds).to_u64());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
                 }
                 FieldType::I64(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(i64_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
                 }
                 FieldType::F64(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
                 }
                 FieldType::Bool(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let bool_val = value.as_bool().ok_or_else(make_schema_error)?;
                         term_buffer.set_bool(bool_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
                 }
                 FieldType::Bytes(_) => {
+                    let mut num_vals = 0;
                     for value in values {
+                        num_vals += 1;
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
                 FieldType::JsonObject(_) => {

@@ -821,7 +821,9 @@ mod tests {
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
-    use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term};
+    use crate::{
+        DateTime, DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term,
+    };
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
                          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad \
@@ -1601,6 +1603,9 @@ mod tests {
             IpAddrOptions::default().set_fast(Cardinality::MultiValues),
         );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
+        let i64_field = schema_builder.add_i64_field("i64", INDEXED);
+        let f64_field = schema_builder.add_f64_field("f64", INDEXED);
+        let date_field = schema_builder.add_date_field("date", INDEXED);
         let bytes_field = schema_builder.add_bytes_field("bytes", FAST | INDEXED | STORED);
         let bool_field = schema_builder.add_bool_field("bool", FAST | INDEXED | STORED);
         let text_field = schema_builder.add_text_field(
@@ -1664,6 +1669,9 @@ mod tests {
                                 multi_numbers=> id,
                                 multi_numbers => id,
                                 bool_field => (id % 2u64) != 0,
+                                i64_field => id as i64,
+                                f64_field => id as f64,
+                                date_field => DateTime::from_timestamp_secs(id as i64),
                                 multi_bools => (id % 2u64) != 0,
                                 multi_bools => (id % 2u64) == 0,
                                 text_field => id.to_string(),
@@ -1679,6 +1687,9 @@ mod tests {
                                 multi_numbers=> id,
                                 multi_numbers => id,
                                 bool_field => (id % 2u64) != 0,
+                                i64_field => id as i64,
+                                f64_field => id as f64,
+                                date_field => DateTime::from_timestamp_secs(id as i64),
                                 multi_bools => (id % 2u64) != 0,
                                 multi_bools => (id % 2u64) == 0,
                                 text_field => id.to_string(),
@@ -1889,10 +1900,8 @@ mod tests {
             }
         }
         // test search
-        let my_text_field = index.schema().get_field("text_field").unwrap();
-
-        let do_search = |term: &str| {
-            let query = QueryParser::for_index(&index, vec![my_text_field])
+        let do_search = |term: &str, field| {
+            let query = QueryParser::for_index(&index, vec![field])
                 .parse_query(term)
                 .unwrap();
             let top_docs: Vec<(f32, DocAddress)> =
@@ -1901,11 +1910,49 @@ mod tests {
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
 
+        let do_search2 = |term: Term| {
+            let query = TermQuery::new(term, IndexRecordOption::Basic);
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(1000)).unwrap();
+
+            top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
+        };
+
         for (existing_id, count) in expected_ids_and_num_occurrences {
-            assert_eq!(do_search(&existing_id.to_string()).len() as u64, count);
+            let assert_field = |field| do_search(&existing_id.to_string(), field).len() as u64;
+            assert_eq!(assert_field(text_field), count);
+            assert_eq!(assert_field(i64_field), count);
+            assert_eq!(assert_field(f64_field), count);
+            assert_eq!(assert_field(id_field), count);
+
+            // Test bytes
+            let term = Term::from_field_bytes(bytes_field, existing_id.to_le_bytes().as_slice());
+            assert_eq!(do_search2(term).len() as u64, count);
+
+            // Test date
+            let term = Term::from_field_date(
+                date_field,
+                DateTime::from_timestamp_secs(existing_id as i64),
+            );
+            assert_eq!(do_search2(term).len() as u64, count);
         }
-        for existing_id in deleted_ids {
-            assert_eq!(do_search(&existing_id.to_string()).len(), 0);
+        for deleted_id in deleted_ids {
+            let assert_field = |field| {
+                assert_eq!(do_search(&deleted_id.to_string(), field).len() as u64, 0);
+            };
+            assert_field(text_field);
+            assert_field(f64_field);
+            assert_field(i64_field);
+            assert_field(id_field);
+
+            // Test bytes
+            let term = Term::from_field_bytes(bytes_field, deleted_id.to_le_bytes().as_slice());
+            assert_eq!(do_search2(term).len() as u64, 0);
+
+            // Test date
+            let term =
+                Term::from_field_date(date_field, DateTime::from_timestamp_secs(deleted_id as i64));
+            assert_eq!(do_search2(term).len() as u64, 0);
         }
         // test facets
         for segment_reader in searcher.segment_readers().iter() {
@@ -2048,6 +2095,137 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(idfield=>"myid"))?;
         index_writer.commit()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_bug_1617_3() {
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::DeleteDoc { id: 0 },
+                IndexingOp::AddDoc { id: 6 },
+                IndexingOp::DeleteDocQuery { id: 11 },
+                IndexingOp::Commit,
+                IndexingOp::Merge,
+                IndexingOp::Commit,
+                IndexingOp::Commit
+            ],
+            false,
+            false
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_bug_1617_2() {
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::DeleteDoc { id: 13 },
+                IndexingOp::Commit,
+                IndexingOp::AddDoc { id: 30 },
+                IndexingOp::Commit,
+                IndexingOp::Merge,
+            ],
+            false,
+            true
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_bug_1617() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", INDEXED);
+
+        let schema = schema_builder.build();
+        let index = Index::builder().schema(schema).create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        let existing_id = 16u64;
+        let deleted_id = 13u64;
+        index_writer.add_document(doc!(
+            id_field=>existing_id,
+        ))?;
+        index_writer.add_document(doc!(
+            id_field=>deleted_id,
+        ))?;
+        index_writer.delete_term(Term::from_field_u64(id_field, deleted_id));
+        index_writer.commit()?;
+
+        // Merge
+        {
+            assert!(index_writer.wait_merging_threads().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            index_writer.merge(&segment_ids).wait().unwrap();
+            assert!(index_writer.wait_merging_threads().is_ok());
+        }
+        let searcher = index.reader()?.searcher();
+
+        let query = TermQuery::new(
+            Term::from_field_u64(id_field, existing_id),
+            IndexRecordOption::Basic,
+        );
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+
+        assert_eq!(top_docs.len(), 1); // Fails
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bug_1618() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let id_field = schema_builder.add_i64_field("id", INDEXED);
+
+        let schema = schema_builder.build();
+        let index = Index::builder().schema(schema).create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        index_writer.add_document(doc!(
+            id_field=>10i64,
+        ))?;
+        index_writer.add_document(doc!(
+            id_field=>30i64,
+        ))?;
+        index_writer.commit()?;
+
+        // Merge
+        {
+            assert!(index_writer.wait_merging_threads().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            index_writer.merge(&segment_ids).wait().unwrap();
+            assert!(index_writer.wait_merging_threads().is_ok());
+        }
+        let searcher = index.reader()?.searcher();
+
+        let query = TermQuery::new(
+            Term::from_field_i64(id_field, 10i64),
+            IndexRecordOption::Basic,
+        );
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+
+        assert_eq!(top_docs.len(), 1); // Fails
+
+        let query = TermQuery::new(
+            Term::from_field_i64(id_field, 30i64),
+            IndexRecordOption::Basic,
+        );
+        let top_docs: Vec<(f32, DocAddress)> =
+            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+
+        assert_eq!(top_docs.len(), 1); // Fails
+
         Ok(())
     }
 }
