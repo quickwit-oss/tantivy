@@ -735,7 +735,8 @@ fn generate_literals_for_json_object(
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
     let mut logical_literals = Vec::new();
     let mut term = Term::with_capacity(100);
-    let mut json_term_writer = JsonTermWriter::from_json_path(json_path, field, &mut term);
+    let mut json_term_writer =
+        JsonTermWriter::from_field_and_json_path(field, json_path, &mut term);
     if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
         logical_literals.push(LogicalLiteral::Term(term));
     }

@@ -24,12 +24,6 @@ pub const JSON_END_OF_PATH: u8 = 0u8;
 pub struct Term<B = Vec<u8>>(B)
 where B: AsRef<[u8]>;
 
-impl AsMut<Vec<u8>> for Term {
-    fn as_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.0
-    }
-}
-
 /// The number of bytes used as metadata by `Term`.
 const TERM_METADATA_LENGTH: usize = 5;
 
@@ -55,16 +49,16 @@ impl Term {
 
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
         let mut term = Self::with_type_and_field(T::to_type(), field);
-        term.set_field_and_type(field, T::to_type());
         term.set_u64(val.to_u64());
         term
     }
 
-    /// Panics when there are byte values.
+    /// Panics when the term is not empty... ie: some value is set.
+    /// Use `clear_with_field_and_type` in that case.
     ///
     /// Sets field and the type.
     pub(crate) fn set_field_and_type(&mut self, field: Field, typ: Type) {
-        assert_eq!(self.0.len(), TERM_METADATA_LENGTH);
+        assert!(self.is_empty());
         self.0[0..4].clone_from_slice(field.field_id().to_be_bytes().as_ref());
         self.0[4] = typ.to_code();
     }
@@ -173,9 +167,24 @@ impl Term {
     }
 
     /// Truncates the term. The new length needs to be at least 5, which is reserved for metadata.
-    pub fn truncate(&mut self, len: usize) {
+    fn truncate(&mut self, len: usize) {
         assert!(len >= TERM_METADATA_LENGTH);
         self.0.truncate(len);
+    }
+
+    /// Truncates the value bytes of the term. Value and field type stays the same.
+    pub fn truncate_value_bytes(&mut self, len: usize) {
+        self.0.truncate(len + TERM_METADATA_LENGTH);
+    }
+
+    /// Returns the value bytes as mutable slice
+    pub fn value_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.0[TERM_METADATA_LENGTH..]
+    }
+
+    /// The length of the bytes.
+    pub fn len_bytes(&self) -> usize {
+        self.0.len() - TERM_METADATA_LENGTH
     }
 
     /// Appends value bytes to the Term.
@@ -304,9 +313,6 @@ where B: AsRef<[u8]>
     /// Returns `None` if the field is not of string type
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
-        if self.as_slice().len() < TERM_METADATA_LENGTH {
-            return None;
-        }
         if self.typ() != Type::Str {
             return None;
         }
@@ -318,9 +324,6 @@ where B: AsRef<[u8]>
     /// Returns `None` if the field is not of facet type
     /// or if the bytes are not valid utf-8.
     pub fn as_facet(&self) -> Option<Facet> {
-        if self.as_slice().len() < TERM_METADATA_LENGTH {
-            return None;
-        }
         if self.typ() != Type::Facet {
             return None;
         }
@@ -332,9 +335,6 @@ where B: AsRef<[u8]>
     ///
     /// Returns `None` if the field is not of bytes type.
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        if self.as_slice().len() < TERM_METADATA_LENGTH {
-            return None;
-        }
         if self.typ() != Type::Bytes {
             return None;
         }
