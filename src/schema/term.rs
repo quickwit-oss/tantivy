@@ -111,13 +111,13 @@ impl Term {
 
     /// Removes the value_bytes and set the field and type code.
     pub(crate) fn clear_with_field_and_type(&mut self, typ: Type, field: Field) {
-        self.truncate(TERM_METADATA_LENGTH);
+        self.truncate_value_bytes(0);
         self.set_field_and_type(field, typ);
     }
 
     /// Removes the value_bytes and set the type code.
     pub fn clear_with_type(&mut self, typ: Type) {
-        self.truncate(TERM_METADATA_LENGTH);
+        self.truncate_value_bytes(0);
         self.0[4] = typ.to_code();
     }
 
@@ -157,19 +157,13 @@ impl Term {
 
     /// Sets the value of a `Bytes` field.
     pub fn set_bytes(&mut self, bytes: &[u8]) {
-        self.0.truncate(TERM_METADATA_LENGTH);
+        self.truncate_value_bytes(0);
         self.0.extend(bytes);
     }
 
     /// Set the texts only, keeping the field untouched.
     pub fn set_text(&mut self, text: &str) {
         self.set_bytes(text.as_bytes());
-    }
-
-    /// Truncates the term. The new length needs to be at least 5, which is reserved for metadata.
-    fn truncate(&mut self, len: usize) {
-        assert!(len >= TERM_METADATA_LENGTH);
-        self.0.truncate(len);
     }
 
     /// Truncates the value bytes of the term. Value and field type stays the same.
