@@ -571,9 +571,21 @@ mod tests {
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }
 
+    fn assert_eventually<P: Fn() -> Option<String>>(predicate: P) {
+        for _ in 0..30 {
+            if predicate().is_none() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        if let Some(error_msg) = predicate() {
+            panic!("{}", error_msg);
+        }
+    }
+
     #[test]
-    fn test_mmap_released() -> crate::Result<()> {
-        let mmap_directory = MmapDirectory::create_from_tempdir()?;
+    fn test_mmap_released() {
+        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let mut schema_builder: SchemaBuilder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -582,49 +594,56 @@ mod tests {
             let index =
                 Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
 
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();
             log_merge_policy.set_min_num_segments(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));
             for _num_commits in 0..10 {
                 for _ in 0..10 {
-                    index_writer.add_document(doc!(text_field=>"abc"))?;
+                    index_writer.add_document(doc!(text_field=>"abc")).unwrap();
                 }
-                index_writer.commit()?;
+                index_writer.commit().unwrap();
             }
 
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
-                .try_into()?;
+                .try_into()
+                .unwrap();
 
             for _ in 0..4 {
-                index_writer.add_document(doc!(text_field=>"abc"))?;
-                index_writer.commit()?;
-                reader.reload()?;
+                index_writer.add_document(doc!(text_field=>"abc")).unwrap();
+                index_writer.commit().unwrap();
+                reader.reload().unwrap();
             }
-            index_writer.wait_merging_threads()?;
+            index_writer.wait_merging_threads().unwrap();
 
-            reader.reload()?;
+            reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
             let num_components_except_deletes_and_tempstore =
                 crate::core::SegmentComponent::iterator().len() - 2;
-            let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
-            assert!(
-                num_mmapped <= num_segments * num_components_except_deletes_and_tempstore,
-                "Expected at most {} mmapped files, got {num_mmapped}",
-                num_segments * num_components_except_deletes_and_tempstore
-            );
+            let max_num_mmapped = num_components_except_deletes_and_tempstore * num_segments;
+            assert_eventually(|| {
+                let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
+                if num_mmapped > max_num_mmapped {
+                    Some(format!(
+                        "Expected at most {max_num_mmapped} mmapped files, got {num_mmapped}"
+                    ))
+                } else {
+                    None
+                }
+            });
         }
         // This test failed on CI. The last Mmap is dropped from the merging thread so there might
         // be a race condition indeed.
-        for _ in 0..10 {
-            if mmap_directory.get_cache_info().mmapped.is_empty() {
-                return Ok(());
+        assert_eventually(|| {
+            let num_mmapped = mmap_directory.get_cache_info().mmapped.len();
+            if num_mmapped > 0 {
+                Some(format!("Expected no mmapped files, got {num_mmapped}"))
+            } else {
+                None
             }
-            std::thread::sleep(Duration::from_millis(200));
-        }
-        panic!("The cache still contains information. One of the Mmap has not been dropped.");
+        });
     }
 }
