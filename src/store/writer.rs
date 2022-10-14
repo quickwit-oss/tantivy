@@ -20,7 +20,6 @@ pub struct StoreWriter {
     compressor: Compressor,
     block_size: usize,
     num_docs_in_current_block: DocId,
-    intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
     doc_pos: Vec<u32>,
     block_compressor: BlockCompressor,
@@ -42,7 +41,6 @@ impl StoreWriter {
             compressor,
             block_size,
             num_docs_in_current_block: 0,
-            intermediary_buffer: Vec::new(),
             doc_pos: Vec::new(),
             current_block: Vec::new(),
             block_compressor,
@@ -55,9 +53,7 @@ impl StoreWriter {
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.intermediary_buffer.capacity()
-            + self.current_block.capacity()
-            + self.doc_pos.capacity() * std::mem::size_of::<u32>()
+        self.current_block.capacity() + self.doc_pos.capacity() * std::mem::size_of::<u32>()
     }
 
     /// Checks if the current block is full, and if so, compresses and flushes it.
