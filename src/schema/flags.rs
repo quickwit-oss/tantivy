@@ -37,6 +37,8 @@ pub struct FastFlag;
 ///
 /// Fast fields can be random-accessed rapidly. Fields useful for scoring, filtering
 /// or collection should be mark as fast fields.
+///
+/// See [fast fields](`crate::fastfield`).
 pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
     head: FastFlag,
     tail: (),

@@ -7,16 +7,15 @@
 //! It is designed for the fast random access of some document
 //! fields given a document id.
 //!
-//! `FastField` are useful when a field is required for all or most of
-//! the `DocSet` : for instance for scoring, grouping, filtering, or faceting.
+//! Fast fields are useful when a field is required for all or most of
+//! the `DocSet`: for instance for scoring, grouping, aggregation, filtering, or faceting.
 //!
 //!
-//! Fields have to be declared as `FAST` in the  schema.
-//! Currently supported fields are: u64, i64, f64 and bytes.
+//! Fields have to be declared as `FAST` in the schema.
+//! Currently supported fields are: u64, i64, f64, bytes and text.
 //!
-//! u64, i64 and f64 fields are stored in a bit-packed fashion so that
-//! their memory usage is directly linear with the amplitude of the
-//! values stored.
+//! Fast fields are stored in with [different codecs](fastfield_codecs). The best codec is detected
+//! automatically, when serializing.
 //!
 //! Read access performance is comparable to that of an array lookup.
 
