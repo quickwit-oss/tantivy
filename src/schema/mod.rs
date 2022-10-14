@@ -138,7 +138,7 @@ pub use self::field_type::{FieldType, Type};
 pub use self::field_value::FieldValue;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::index_record_option::IndexRecordOption;
-pub use self::ip_options::IpAddrOptions;
+pub use self::ip_options::{IntoIpv6Addr, IpAddrOptions};
 pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::numeric_options::NumericOptions;

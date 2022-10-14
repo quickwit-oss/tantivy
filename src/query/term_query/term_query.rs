@@ -124,3 +124,70 @@ impl Query for TermQuery {
         visitor(&self.term, false);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv6Addr};
+    use std::str::FromStr;
+
+    use fastfield_codecs::MonotonicallyMappableToU128;
+
+    use crate::collector::{Count, TopDocs};
+    use crate::query::{Query, QueryParser, TermQuery};
+    use crate::schema::{IndexRecordOption, IntoIpv6Addr, Schema, INDEXED, STORED};
+    use crate::{doc, Index, Term};
+
+    #[test]
+    fn search_ip_test() {
+        let mut schema_builder = Schema::builder();
+        let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let ip_addr_1 = IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr();
+        let ip_addr_2 = Ipv6Addr::from_u128(10);
+
+        {
+            let mut index_writer = index.writer(3_000_000).unwrap();
+            index_writer
+                .add_document(doc!(
+                    ip_field => ip_addr_1
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    ip_field => ip_addr_2
+                ))
+                .unwrap();
+
+            index_writer.commit().unwrap();
+        }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        let assert_single_hit = |query| {
+            let (_top_docs, count) = searcher
+                .search(&query, &(TopDocs::with_limit(2), Count))
+                .unwrap();
+            assert_eq!(count, 1);
+        };
+        let query_from_text = |text: String| {
+            QueryParser::for_index(&index, vec![ip_field])
+                .parse_query(&text)
+                .unwrap()
+        };
+
+        let query_from_ip = |ip_addr| -> Box<dyn Query> {
+            Box::new(TermQuery::new(
+                Term::from_field_ip_addr(ip_field, ip_addr),
+                IndexRecordOption::Basic,
+            ))
+        };
+
+        assert_single_hit(query_from_ip(ip_addr_1));
+        assert_single_hit(query_from_ip(ip_addr_2));
+        assert_single_hit(query_from_text("127.0.0.1".to_string()));
+        assert_single_hit(query_from_text("\"127.0.0.1\"".to_string()));
+        assert_single_hit(query_from_text(format!("\"{}\"", ip_addr_1)));
+        assert_single_hit(query_from_text(format!("\"{}\"", ip_addr_2)));
+    }
+}

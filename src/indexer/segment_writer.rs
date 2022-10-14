@@ -320,7 +320,18 @@ impl SegmentWriter {
                         ctx,
                     )?;
                 }
-                FieldType::IpAddr(_) => {}
+                FieldType::IpAddr(_) => {
+                    let mut num_vals = 0;
+                    for value in values {
+                        num_vals += 1;
+                        let ip_addr = value.as_ip_addr().ok_or_else(make_schema_error)?;
+                        term_buffer.set_ip_addr(ip_addr);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    }
+                    if field_entry.has_fieldnorms() {
+                        self.fieldnorms_writer.record(doc_id, field, num_vals);
+                    }
+                }
             }
         }
         Ok(())

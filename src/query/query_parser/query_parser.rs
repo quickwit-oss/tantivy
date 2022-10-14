@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
@@ -15,7 +16,7 @@ use crate::query::{
     TermQuery,
 };
 use crate::schema::{
-    Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
+    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, Schema, Term, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -84,6 +85,9 @@ pub enum QueryParserError {
     /// The format for the facet field is invalid.
     #[error("The facet field is malformed: {0}")]
     FacetFormatError(#[from] FacetParseError),
+    /// The format for the ip field is invalid.
+    #[error("The ip field is malformed: {0}")]
+    IpFormatError(#[from] AddrParseError),
 }
 
 /// Recursively remove empty clause from the AST
@@ -401,7 +405,7 @@ impl QueryParser {
                 Ok(Term::from_field_bytes(field, &bytes))
             }
             FieldType::IpAddr(_) => Err(QueryParserError::UnsupportedQuery(
-                "Range query are not supported on IpAddr field.".to_string(),
+                "Range query are not supported on ip field.".to_string(),
             )),
         }
     }
@@ -509,7 +513,11 @@ impl QueryParser {
                 let bytes_term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![LogicalLiteral::Term(bytes_term)])
             }
-            FieldType::IpAddr(_) => Err(QueryParserError::FieldNotIndexed(field_name.to_string())),
+            FieldType::IpAddr(_) => {
+                let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
+                let term = Term::from_field_ip_addr(field, ip_v6);
+                Ok(vec![LogicalLiteral::Term(term)])
+            }
         }
     }
 

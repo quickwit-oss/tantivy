@@ -1,6 +1,9 @@
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
+use std::net::Ipv6Addr;
 use std::{fmt, str};
+
+use fastfield_codecs::MonotonicallyMappableToU128;
 
 use super::Field;
 use crate::fastfield::FastValue;
@@ -66,6 +69,13 @@ impl Term {
     /// Is empty if there are no value bytes.
     pub fn is_empty(&self) -> bool {
         self.0.len() == TERM_METADATA_LENGTH
+    }
+
+    /// Builds a term given a field, and a `Ipv6Addr`-value
+    pub fn from_field_ip_addr(field: Field, ip_addr: Ipv6Addr) -> Term {
+        let mut term = Self::with_type_and_field(Type::IpAddr, field);
+        term.set_ip_addr(ip_addr);
+        term
     }
 
     /// Builds a term given a field, and a `u64`-value
@@ -153,6 +163,11 @@ impl Term {
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.set_bytes(val.to_u64().to_be_bytes().as_ref());
+    }
+
+    /// Sets a `Ipv6Addr` value in the term.
+    pub fn set_ip_addr(&mut self, val: Ipv6Addr) {
+        self.set_bytes(val.to_u128().to_be_bytes().as_ref());
     }
 
     /// Sets the value of a `Bytes` field.
