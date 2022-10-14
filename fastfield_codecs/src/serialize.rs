@@ -40,7 +40,7 @@ use crate::{
 
 /// The normalized header gives some parameters after applying the following
 /// normalization of the vector:
-/// val -> (val - min_value) / gcd
+/// `val -> (val - min_value) / gcd`
 ///
 /// By design, after normalization, `min_value = 0` and `gcd = 1`.
 #[derive(Debug, Copy, Clone)]

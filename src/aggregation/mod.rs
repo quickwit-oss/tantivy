@@ -10,21 +10,19 @@
 //!
 //! There are two categories: [Metrics](metric) and [Buckets](bucket).
 //!
-//! # Usage
+//! ## Prerequisite
+//! Currently aggregations work only on [fast fields](`crate::fastfield`). Single value fast fields
+//! of type `u64`, `f64`, `i64` and fast fields on text fields.
 //!
-//!
+//! ## Usage
 //! To use aggregations, build an aggregation request by constructing
 //! [`Aggregations`](agg_req::Aggregations).
 //! Create an [`AggregationCollector`] from this request. `AggregationCollector` implements the
 //! [`Collector`](crate::collector::Collector) trait and can be passed as collector into
 //! [`Searcher::search()`](crate::Searcher::search).
 //!
-//! #### Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type `u64`, `f64`, `i64` and
-//! fast fields on text fields.
-//!
-//! # JSON Format
+//! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
 //! ```verbatim
@@ -35,7 +33,7 @@
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
 //! ```
 //!
-//! # Supported Aggregations
+//! ## Supported Aggregations
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
 //!     - [Range](bucket::RangeAggregation)

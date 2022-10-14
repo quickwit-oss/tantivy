@@ -54,7 +54,7 @@ pub use self::serialize::{
 /// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
 pub enum FastFieldCodecType {
     /// Bitpack all values in the value range. The number of bits is defined by the amplitude
-    /// column.max_value()-column.min_value()
+    /// `column.max_value() - column.min_value()`
     Bitpacked = 1,
     /// Linear interpolation puts a line between the first and last value and then bitpacks the
     /// values by the offset from the line. The number of bits is defined by the max deviation from
