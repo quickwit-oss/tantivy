@@ -14,9 +14,7 @@ use crate::postings::{
 };
 use crate::schema::{FieldEntry, FieldType, Schema, Term, Value};
 use crate::store::{StoreReader, StoreWriter};
-use crate::tokenizer::{
-    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer,
-};
+use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DatePrecision, DocId, Document, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
@@ -206,26 +204,22 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Str(_) => {
-                    let mut token_streams: Vec<BoxTokenStream> = vec![];
-
+                    let mut indexing_position = IndexingPosition::default();
                     for value in values {
-                        match value {
+                        let mut token_stream = match value {
                             Value::PreTokStr(tok_str) => {
-                                token_streams
-                                    .push(PreTokenizedStream::from(tok_str.clone()).into());
+                                PreTokenizedStream::from(tok_str.clone()).into()
                             }
                             Value::Str(ref text) => {
                                 let text_analyzer =
                                     &self.per_field_text_analyzers[field.field_id() as usize];
-                                token_streams.push(text_analyzer.token_stream(text));
+                                text_analyzer.token_stream(text)
                             }
-                            _ => (),
-                        }
-                    }
+                            _ => {
+                                continue;
+                            }
+                        };
 
-                    let mut indexing_position = IndexingPosition::default();
-
-                    for mut token_stream in token_streams {
                         assert_eq!(term_buffer.as_slice().len(), 5);
                         postings_writer.index_text(
                             doc_id,
