@@ -153,7 +153,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
         indexing_position: &mut IndexingPosition,
         mut term_id_fast_field_writer_opt: Option<&mut MultiValuedFastFieldWriter>,
     ) {
-        let end_of_path_idx = term_buffer.as_slice().len();
+        let end_of_path_idx = term_buffer.len_bytes();
         let mut num_tokens = 0;
         let mut end_position = 0;
         token_stream.process(&mut |token: &Token| {
@@ -167,7 +167,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
                 );
                 return;
             }
-            term_buffer.truncate(end_of_path_idx);
+            term_buffer.truncate_value_bytes(end_of_path_idx);
             term_buffer.append_bytes(token.text.as_bytes());
             let start_position = indexing_position.end_position + token.position as u32;
             end_position = start_position + token.position_length as u32;
@@ -181,7 +181,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
 
         indexing_position.end_position = end_position + POSITION_GAP;
         indexing_position.num_tokens += num_tokens;
-        term_buffer.truncate(end_of_path_idx);
+        term_buffer.truncate_value_bytes(end_of_path_idx);
     }
 
     fn total_num_tokens(&self) -> u64;
