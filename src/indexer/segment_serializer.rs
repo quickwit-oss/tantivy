@@ -30,8 +30,10 @@ impl SegmentSerializer {
             StoreWriter::new(
                 store_write,
                 crate::store::Compressor::None,
-                0, // we want random access on the docs, so we choose a minimal block size. Every
-                // doc will get its own block.
+                // We want fast random access on the docs, so we choose a small block size.
+                // If this is zero, the skip index will contain too many checkpoints and
+                // therefore will be relatively slow.
+                16000,
                 settings.docstore_compress_dedicated_thread,
             )?
         } else {
