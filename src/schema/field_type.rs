@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv6Addr};
+use std::net::IpAddr;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde_json::Value as JsonValue;
 use thiserror::Error;
 
 use super::ip_options::IpAddrOptions;
-use super::Cardinality;
+use super::{Cardinality, IntoIpv6Addr};
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
@@ -188,7 +188,7 @@ impl FieldType {
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
-            FieldType::IpAddr(_) => false,
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
         }
     }
 
@@ -264,7 +264,7 @@ impl FieldType {
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
-            FieldType::IpAddr(_) => false,
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
         }
     }
 
@@ -309,7 +309,13 @@ impl FieldType {
             FieldType::JsonObject(ref json_obj_options) => json_obj_options
                 .get_text_indexing_options()
                 .map(TextFieldIndexing::index_option),
-            FieldType::IpAddr(_) => None,
+            FieldType::IpAddr(ref ip_addr_options) => {
+                if ip_addr_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -356,11 +362,8 @@ impl FieldType {
                                 json: JsonValue::String(field_text),
                             }
                         })?;
-                        let ip_addr_v6: Ipv6Addr = match ip_addr {
-                            IpAddr::V4(v4) => v4.to_ipv6_mapped(),
-                            IpAddr::V6(v6) => v6,
-                        };
-                        Ok(Value::IpAddr(ip_addr_v6))
+
+                        Ok(Value::IpAddr(ip_addr.into_ipv6_addr()))
                     }
                 }
             }

@@ -212,12 +212,12 @@ pub fn block_wand(
 }
 
 /// Specialized version of [`block_wand`] for a single scorer.
-/// In this case, the algorithm is simple and readable and faster (~ x3)
+/// In this case, the algorithm is simple, readable and faster (~ x3)
 /// than the generic algorithm.
 /// The algorithm behaves as follows:
 /// - While we don't hit the end of the docset:
 ///   - While the block max score is under the `threshold`, go to the next block.
-///   - On a block, advance until the end and execute `callback`` when the doc score is greater or
+///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
     mut scorer: TermScorer,

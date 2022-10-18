@@ -1656,13 +1656,15 @@ mod tests {
 
         let old_reader = index.reader()?;
 
+        let ip_exists = |id| id % 3 != 0; // 0 does not exist
+
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     let ip_from_id = Ipv6Addr::from_u128(id as u128);
 
-                    if id % 3 == 0 {
+                    if !ip_exists(id) {
                         // every 3rd doc has no ip field
                         index_writer.add_document(doc!(id_field=>id,
                                 bytes_field => id.to_le_bytes().as_slice(),
@@ -1803,7 +1805,7 @@ mod tests {
         let expected_ips = expected_ids_and_num_occurrences
             .keys()
             .flat_map(|id| {
-                if id % 3 == 0 {
+                if !ip_exists(*id) {
                     None
                 } else {
                     Some(Ipv6Addr::from_u128(*id as u128))
@@ -1815,7 +1817,7 @@ mod tests {
         let expected_ips = expected_ids_and_num_occurrences
             .keys()
             .filter_map(|id| {
-                if id % 3 == 0 {
+                if !ip_exists(*id) {
                     None
                 } else {
                     Some(Ipv6Addr::from_u128(*id as u128))
@@ -1918,7 +1920,8 @@ mod tests {
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
 
-        for (existing_id, count) in expected_ids_and_num_occurrences {
+        for (existing_id, count) in &expected_ids_and_num_occurrences {
+            let (existing_id, count) = (*existing_id, *count);
             let assert_field = |field| do_search(&existing_id.to_string(), field).len() as u64;
             assert_eq!(assert_field(text_field), count);
             assert_eq!(assert_field(i64_field), count);
@@ -1953,6 +1956,26 @@ mod tests {
             let term =
                 Term::from_field_date(date_field, DateTime::from_timestamp_secs(deleted_id as i64));
             assert_eq!(do_search2(term).len() as u64, 0);
+        }
+        // search ip address
+        //
+        for (existing_id, count) in &expected_ids_and_num_occurrences {
+            let (existing_id, count) = (*existing_id, *count);
+            if !ip_exists(existing_id) {
+                continue;
+            }
+            let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
+            let ip_addr = Ipv6Addr::from_u128(existing_id as u128);
+            // Test incoming ip as ipv6
+            assert_eq!(do_search_ip_field(&format!("\"{}\"", ip_addr)), count);
+
+            let term = Term::from_field_ip_addr(ip_field, ip_addr);
+            assert_eq!(do_search2(term).len() as u64, count);
+
+            // Test incoming ip as ipv4
+            if let Some(ip_addr) = ip_addr.to_ipv4_mapped() {
+                assert_eq!(do_search_ip_field(&format!("\"{}\"", ip_addr)), count);
+            }
         }
         // test facets
         for segment_reader in searcher.segment_readers().iter() {

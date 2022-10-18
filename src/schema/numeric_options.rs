@@ -59,7 +59,7 @@ impl From<NumericOptionsDeser> for NumericOptions {
 }
 
 impl NumericOptions {
-    /// Returns true iff the value is stored.
+    /// Returns true iff the value is stored in the doc store.
     pub fn is_stored(&self) -> bool {
         self.stored
     }
