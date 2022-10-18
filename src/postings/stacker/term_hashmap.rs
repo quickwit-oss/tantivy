@@ -98,7 +98,7 @@ impl<'a> Iterator for Iter<'a> {
 /// # Panics if n == 0
 fn compute_previous_power_of_two(n: usize) -> usize {
     assert!(n > 0);
-    let msb = (63u32 - n.leading_zeros()) as u8;
+    let msb = (63u32 - (n as u64).leading_zeros()) as u8;
     1 << msb
 }
 
