@@ -1619,6 +1619,7 @@ mod tests {
         );
 
         let large_text_field = schema_builder.add_text_field("large_text_field", TEXT | STORED);
+        let multi_text_fields = schema_builder.add_text_field("multi_text_fields", TEXT | STORED);
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
@@ -1658,6 +1659,12 @@ mod tests {
 
         let ip_exists = |id| id % 3 != 0; // 0 does not exist
 
+        let multi_text_field_text1 = "test1 test2 test3 test1 test2 test3";
+        // rotate left
+        let multi_text_field_text2 = "test2 test3 test1 test2 test3 test1";
+        // rotate right
+        let multi_text_field_text3 = "test3 test1 test2 test3 test1 test2";
+
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
@@ -1678,7 +1685,10 @@ mod tests {
                                 multi_bools => (id % 2u64) == 0,
                                 text_field => id.to_string(),
                                 facet_field => facet,
-                                large_text_field=> LOREM
+                                large_text_field => LOREM,
+                                multi_text_fields => multi_text_field_text1,
+                                multi_text_fields => multi_text_field_text2,
+                                multi_text_fields => multi_text_field_text3,
                         ))?;
                     } else {
                         index_writer.add_document(doc!(id_field=>id,
@@ -1696,7 +1706,10 @@ mod tests {
                                 multi_bools => (id % 2u64) == 0,
                                 text_field => id.to_string(),
                                 facet_field => facet,
-                                large_text_field=> LOREM
+                                large_text_field => LOREM,
+                                multi_text_fields => multi_text_field_text1,
+                                multi_text_fields => multi_text_field_text2,
+                                multi_text_fields => multi_text_field_text3,
                         ))?;
                     }
                 }
@@ -1922,11 +1935,21 @@ mod tests {
 
         for (existing_id, count) in &expected_ids_and_num_occurrences {
             let (existing_id, count) = (*existing_id, *count);
-            let assert_field = |field| do_search(&existing_id.to_string(), field).len() as u64;
-            assert_eq!(assert_field(text_field), count);
-            assert_eq!(assert_field(i64_field), count);
-            assert_eq!(assert_field(f64_field), count);
-            assert_eq!(assert_field(id_field), count);
+            let get_num_hits = |field| do_search(&existing_id.to_string(), field).len() as u64;
+            assert_eq!(get_num_hits(text_field), count);
+            assert_eq!(get_num_hits(i64_field), count);
+            assert_eq!(get_num_hits(f64_field), count);
+            assert_eq!(get_num_hits(id_field), count);
+
+            // Test multi text
+            assert_eq!(
+                do_search("\"test1 test2\"", multi_text_fields).len(),
+                num_docs_expected
+            );
+            assert_eq!(
+                do_search("\"test2 test3\"", multi_text_fields).len(),
+                num_docs_expected
+            );
 
             // Test bytes
             let term = Term::from_field_bytes(bytes_field, existing_id.to_le_bytes().as_slice());
