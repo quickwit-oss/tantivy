@@ -866,6 +866,6 @@ mod tests {
         assert_eq!(postings.doc(), 0u32);
         let mut positions = Vec::new();
         postings.positions(&mut positions);
-        assert_eq!(positions, &[4]); //< as opposed to 0, 2 if we had a position length of 1.
+        assert_eq!(positions, &[4]); //< as opposed to 3 if we had a position length of 1.
     }
 }
