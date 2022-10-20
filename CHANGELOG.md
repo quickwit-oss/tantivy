@@ -1,3 +1,7 @@
+Tantivy 0.18.1
+================================
+- Hotfix: positions computation.  #1629 (@fmassot, @fulmicoton, @PSeitz)
+
 Tantivy 0.18
 ================================
 - For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
