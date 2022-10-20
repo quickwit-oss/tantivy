@@ -12,7 +12,7 @@ pub(crate) struct RemappedDocIdColumn<'a> {
     fast_field_readers: Vec<Arc<dyn Column<u64>>>,
     min_value: u64,
     max_value: u64,
-    num_vals: u64,
+    num_vals: u32,
 }
 
 fn compute_min_max_val(
@@ -73,7 +73,7 @@ impl<'a> RemappedDocIdColumn<'a> {
             fast_field_readers,
             min_value,
             max_value,
-            num_vals: doc_id_mapping.len() as u64,
+            num_vals: doc_id_mapping.len() as u32,
         }
     }
 }
@@ -102,7 +102,7 @@ impl<'a> Column for RemappedDocIdColumn<'a> {
         self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.num_vals
     }
 }

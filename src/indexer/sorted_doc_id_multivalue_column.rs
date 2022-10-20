@@ -13,7 +13,7 @@ pub(crate) struct RemappedDocIdMultiValueColumn<'a> {
     fast_field_readers: Vec<MultiValuedFastFieldReader<u64>>,
     min_value: u64,
     max_value: u64,
-    num_vals: u64,
+    num_vals: u32,
 }
 
 impl<'a> RemappedDocIdMultiValueColumn<'a> {
@@ -61,7 +61,7 @@ impl<'a> RemappedDocIdMultiValueColumn<'a> {
             fast_field_readers,
             min_value,
             max_value,
-            num_vals: num_vals as u64,
+            num_vals: num_vals as u32,
         }
     }
 }
@@ -89,7 +89,7 @@ impl<'a> Column for RemappedDocIdMultiValueColumn<'a> {
         self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.num_vals
     }
 }
@@ -99,7 +99,7 @@ pub(crate) struct RemappedDocIdMultiValueIndexColumn<'a, T: MultiValueLength> {
     multi_value_length_readers: Vec<&'a T>,
     min_value: u64,
     max_value: u64,
-    num_vals: u64,
+    num_vals: u32,
 }
 
 impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
@@ -123,7 +123,7 @@ impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
                     max_value += multi_value_length_reader.get_len(doc);
                 }
             }
-            num_vals += segment_reader.num_docs() as u64;
+            num_vals += segment_reader.num_docs();
             multi_value_length_readers.push(multi_value_length_reader);
         }
         Self {
@@ -162,7 +162,7 @@ impl<'a, T: MultiValueLength + Send + Sync> Column for RemappedDocIdMultiValueIn
         self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.num_vals
     }
 }

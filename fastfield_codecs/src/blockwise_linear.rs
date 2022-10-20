@@ -36,7 +36,7 @@ impl BinarySerializable for Block {
     }
 }
 
-fn compute_num_blocks(num_vals: u64) -> usize {
+fn compute_num_blocks(num_vals: u32) -> usize {
     (num_vals as usize + CHUNK_SIZE - 1) / CHUNK_SIZE
 }
 
@@ -72,7 +72,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
 
     // Estimate first_chunk and extrapolate
     fn estimate(column: &dyn crate::Column) -> Option<f32> {
-        if column.num_vals() < 10 * CHUNK_SIZE as u64 {
+        if column.num_vals() < 10 * CHUNK_SIZE as u32 {
             return None;
         }
         let mut first_chunk: Vec<u64> = column.iter().take(CHUNK_SIZE as usize).collect();
@@ -95,7 +95,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         };
         let num_bits = estimated_bit_width as u64 * column.num_vals() as u64
             // function metadata per block
-            + metadata_per_block as u64 * (column.num_vals() / CHUNK_SIZE as u64);
+            + metadata_per_block as u64 * (column.num_vals() as u64 / CHUNK_SIZE as u64);
         let num_bits_uncompressed = 64 * column.num_vals();
         Some(num_bits as f32 / num_bits_uncompressed as f32)
     }
@@ -180,7 +180,7 @@ impl Column for BlockwiseLinearReader {
         self.normalized_header.max_value
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.normalized_header.num_vals
     }
 }

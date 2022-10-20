@@ -37,7 +37,7 @@ impl Column for LinearReader {
     }
 
     #[inline]
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.header.num_vals
     }
 }

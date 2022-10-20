@@ -199,7 +199,7 @@ mod tests {
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
         let reader = crate::open::<u64>(OwnedBytes::new(out)).unwrap();
-        assert_eq!(reader.num_vals(), data.len() as u64);
+        assert_eq!(reader.num_vals(), data.len() as u32);
         for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u64);
             assert_eq!(

@@ -165,13 +165,13 @@ pub struct IPCodecParams {
     bit_unpacker: BitUnpacker,
     min_value: u128,
     max_value: u128,
-    num_vals: u64,
+    num_vals: u32,
     num_bits: u8,
 }
 
 impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
-    pub fn train_from(iter: impl Iterator<Item = u128>, num_vals: u64) -> Self {
+    pub fn train_from(iter: impl Iterator<Item = u128>, num_vals: u32) -> Self {
         let mut values_sorted = BTreeSet::new();
         values_sorted.extend(iter);
         let total_num_values = num_vals;
@@ -200,7 +200,7 @@ impl CompactSpaceCompressor {
                 bit_unpacker: BitUnpacker::new(num_bits),
                 min_value,
                 max_value,
-                num_vals: total_num_values as u64,
+                num_vals: total_num_values,
                 num_bits,
             },
         }
@@ -267,7 +267,7 @@ impl BinarySerializable for IPCodecParams {
         let _header_flags = u64::deserialize(reader)?;
         let min_value = VIntU128::deserialize(reader)?.0;
         let max_value = VIntU128::deserialize(reader)?.0;
-        let num_vals = VIntU128::deserialize(reader)?.0 as u64;
+        let num_vals = VIntU128::deserialize(reader)?.0 as u32;
         let num_bits = u8::deserialize(reader)?;
         let compact_space = CompactSpace::deserialize(reader)?;
 
@@ -296,7 +296,7 @@ impl Column<u128> for CompactSpaceDecompressor {
         self.max_value()
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.params.num_vals
     }
 
@@ -378,7 +378,7 @@ impl CompactSpaceDecompressor {
         let mut positions = Vec::new();
 
         let step_size = 4;
-        let cutoff = self.params.num_vals - self.params.num_vals % step_size;
+        let cutoff = self.params.num_vals as u64 - self.params.num_vals as u64 % step_size;
 
         let mut push_if_in_range = |idx, val| {
             if range.contains(&val) {
@@ -403,7 +403,7 @@ impl CompactSpaceDecompressor {
         }
 
         // handle rest
-        for idx in cutoff..self.params.num_vals {
+        for idx in cutoff..self.params.num_vals as u64 {
             push_if_in_range(idx, get_val(idx));
         }
 
@@ -452,7 +452,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let compact_space = get_compact_space(ips, ips.len() as u64, 11);
+        let compact_space = get_compact_space(ips, ips.len() as u32, 11);
         let amplitude = compact_space.amplitude_compact_space();
         assert_eq!(amplitude, 17);
         assert_eq!(1, compact_space.u128_to_compact(2).unwrap());
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn compact_space_amplitude_test() {
         let ips = &[100000u128, 1000000].into_iter().collect();
-        let compact_space = get_compact_space(ips, ips.len() as u64, 1);
+        let compact_space = get_compact_space(ips, ips.len() as u32, 1);
         let amplitude = compact_space.amplitude_compact_space();
         assert_eq!(amplitude, 2);
     }
@@ -515,7 +515,7 @@ mod tests {
         let mut out = Vec::new();
         serialize_u128(
             || u128_vals.iter().cloned(),
-            u128_vals.len() as u64,
+            u128_vals.len() as u32,
             &mut out,
         )
         .unwrap();
@@ -608,7 +608,7 @@ mod tests {
             5_000_000_000,
         ];
         let mut out = Vec::new();
-        serialize_u128(|| vals.iter().cloned(), vals.len() as u64, &mut out).unwrap();
+        serialize_u128(|| vals.iter().cloned(), vals.len() as u32, &mut out).unwrap();
         let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
 
         assert_eq!(decomp.get_between_vals(199..=200), vec![0]);

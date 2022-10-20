@@ -219,7 +219,7 @@ pub(crate) struct MultivalueStartIndex<'a, C: Column> {
 
 impl<'a, C: Column> MultivalueStartIndex<'a, C> {
     pub fn new(column: &'a C, doc_id_map: &'a DocIdMapping) -> Self {
-        assert_eq!(column.num_vals(), doc_id_map.num_old_doc_ids() as u64 + 1);
+        assert_eq!(column.num_vals(), doc_id_map.num_old_doc_ids() as u32 + 1);
         let (min, max) =
             tantivy_bitpacker::minmax(iter_remapped_multivalue_index(doc_id_map, column))
                 .unwrap_or((0u64, 0u64));
@@ -244,8 +244,8 @@ impl<'a, C: Column> Column for MultivalueStartIndex<'a, C> {
         self.max
     }
 
-    fn num_vals(&self) -> u64 {
-        (self.doc_id_map.num_new_doc_ids() + 1) as u64
+    fn num_vals(&self) -> u32 {
+        (self.doc_id_map.num_new_doc_ids() + 1) as u32
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
@@ -369,7 +369,7 @@ impl MultiValueU128FastFieldWriter {
             serializer.create_u128_fast_field_with_idx(
                 self.field,
                 iter_gen,
-                self.vals.len() as u64,
+                self.vals.len() as u32,
                 1,
             )?;
         }
