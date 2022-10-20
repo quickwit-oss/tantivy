@@ -785,4 +785,87 @@ mod tests {
         // On release this was [2, 1]. (< note the decreasing values)
         assert_eq!(positions, &[2, 5]);
     }
+
+    #[test]
+    fn test_multiple_field_value_and_long_tokens() {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let mut doc = Document::default();
+        // This is a bit of a contrived example.
+        let tokens = PreTokenizedString {
+            text: "roller-coaster".to_string(),
+            tokens: vec![Token {
+                offset_from: 0,
+                offset_to: 14,
+                position: 0,
+                text: "rollercoaster".to_string(),
+                position_length: 2,
+            }],
+        };
+        doc.add_pre_tokenized_text(text, tokens.clone());
+        doc.add_pre_tokenized_text(text, tokens);
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let seg_reader = searcher.segment_reader(0);
+        let inv_index = seg_reader.inverted_index(text).unwrap();
+        let term = Term::from_field_text(text, "rollercoaster");
+        let mut postings = inv_index
+            .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
+            .unwrap()
+            .unwrap();
+        assert_eq!(postings.doc(), 0u32);
+        let mut positions = Vec::new();
+        postings.positions(&mut positions);
+        assert_eq!(positions, &[0, 3]); //< as opposed to 0, 2 if we had a position length of 1.
+    }
+
+    #[test]
+    fn test_last_token_not_ending_last() {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let mut doc = Document::default();
+        // This is a bit of a contrived example.
+        let tokens = PreTokenizedString {
+            text: "contrived-example".to_string(), //< I can't think of a use case where this corner case happens in real life.
+            tokens: vec![Token { // Not the last token, yet ends after the last token.
+                offset_from: 0,
+                offset_to: 14,
+                position: 0,
+                text: "long_token".to_string(),
+                position_length: 3,
+            },
+            Token {
+                offset_from: 0,
+                offset_to: 14,
+                position: 1,
+                text: "short".to_string(),
+                position_length: 1,
+            }],
+        };
+        doc.add_pre_tokenized_text(text, tokens);
+        doc.add_text(text, "hello");
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let seg_reader = searcher.segment_reader(0);
+        let inv_index = seg_reader.inverted_index(text).unwrap();
+        let term = Term::from_field_text(text, "hello");
+        let mut postings = inv_index
+            .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
+            .unwrap()
+            .unwrap();
+        assert_eq!(postings.doc(), 0u32);
+        let mut positions = Vec::new();
+        postings.positions(&mut positions);
+        assert_eq!(positions, &[4]); //< as opposed to 3 if we had a position length of 1.
+    }
 }
