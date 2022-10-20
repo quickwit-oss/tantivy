@@ -751,4 +751,38 @@ mod tests {
         let phrase_query = PhraseQuery::new(vec![nothello_term, happy_term]);
         assert_eq!(searcher.search(&phrase_query, &Count).unwrap(), 0);
     }
+
+    #[test]
+    fn test_bug_regression_1629_position_when_array_with_a_field_value_that_does_not_contain_any_token(
+    ) {
+        // We experienced a bug where we would have a position underflow when computing position
+        // delta in an horrible corner case.
+        //
+        // See the commit with this unit test if you want the details.
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let doc = schema
+            .parse_document(r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#)
+            .unwrap();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc).unwrap();
+        // On debug this did panic on the underflow
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let seg_reader = searcher.segment_reader(0);
+        let inv_index = seg_reader.inverted_index(text).unwrap();
+        let term = Term::from_field_text(text, "aaa");
+        let mut postings = inv_index
+            .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
+            .unwrap()
+            .unwrap();
+        assert_eq!(postings.doc(), 0u32);
+        let mut positions = Vec::new();
+        postings.positions(&mut positions);
+        // On release this was [2, 1]. (< note the decreasing values)
+        assert_eq!(positions, &[2, 5]);
+    }
 }

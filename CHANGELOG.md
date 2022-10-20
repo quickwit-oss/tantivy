@@ -27,7 +27,6 @@ Tantivy 0.19
   - [#1582](https://github.com/quickwit-oss/tantivy/pull/1582 (@PSeitz)
   - [#1611](https://github.com/quickwit-oss/tantivy/pull/1611 (@PSeitz)
 
-
 Tantivy 0.18
 ================================
 
@@ -43,6 +42,10 @@ Tantivy 0.18
 - Add support for fastfield on text fields (@PSeitz)
 - Add terms aggregation (@PSeitz)
 - Add support for zstd compression (@kryesh)
+
+Tantivy 0.18.1
+================================
+- Hotfix: positions computation.  #1629 (@fmassot, @fulmicoton, @PSeitz)
 
 Tantivy 0.17
 ================================

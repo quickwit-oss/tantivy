@@ -155,7 +155,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
     ) {
         let end_of_path_idx = term_buffer.len_bytes();
         let mut num_tokens = 0;
-        let mut end_position = 0;
+        let mut end_position = indexing_position.end_position;
         token_stream.process(&mut |token: &Token| {
             // We skip all tokens with a len greater than u16.
             if token.text.len() > MAX_TOKEN_LEN {

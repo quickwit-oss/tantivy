@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.18.0"
+version = "0.18.1"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -14,7 +14,7 @@ edition = "2021"
 rust-version = "1.62"
 
 [dependencies]
-oneshot = "0.1.3"
+oneshot = "0.1.5"
 base64 = "0.13.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
