@@ -23,7 +23,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     }
 }
 
-/// `RangeQuery` match all documents that have at least one term within a defined range.
+/// `RangeQuery` matches all documents that have at least one term within a defined range.
 ///
 /// Matched document will all get a constant `Score` of one.
 ///
@@ -328,13 +328,15 @@ impl Weight for RangeWeight {
 #[cfg(test)]
 mod tests {
 
+    use std::net::IpAddr;
     use std::ops::Bound;
+    use std::str::FromStr;
 
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
     use crate::query::QueryParser;
-    use crate::schema::{Document, Field, Schema, INDEXED, TEXT};
-    use crate::Index;
+    use crate::schema::{Document, Field, IntoIpv6Addr, Schema, INDEXED, STORED, TEXT};
+    use crate::{doc, Index};
 
     #[test]
     fn test_range_query_simple() -> crate::Result<()> {
@@ -505,5 +507,70 @@ mod tests {
         let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
         assert_eq!(top_docs.len(), 1);
         Ok(())
+    }
+
+    #[test]
+    fn search_ip_range_test() {
+        let mut schema_builder = Schema::builder();
+        let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let ip_addr_1 = IpAddr::from_str("127.0.0.10").unwrap().into_ipv6_addr();
+        let ip_addr_2 = IpAddr::from_str("127.0.0.20").unwrap().into_ipv6_addr();
+
+        {
+            let mut index_writer = index.writer(3_000_000).unwrap();
+            index_writer
+                .add_document(doc!(
+                    ip_field => ip_addr_1
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    ip_field => ip_addr_2
+                ))
+                .unwrap();
+
+            index_writer.commit().unwrap();
+        }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        let get_num_hits = |query| {
+            let (_top_docs, count) = searcher
+                .search(&query, &(TopDocs::with_limit(10), Count))
+                .unwrap();
+            count
+        };
+        let query_from_text = |text: &str| {
+            QueryParser::for_index(&index, vec![ip_field])
+                .parse_query(text)
+                .unwrap()
+        };
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:[127.0.0.1 TO 127.0.0.20]")),
+            2
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:[127.0.0.10 TO 127.0.0.20]")),
+            2
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:[127.0.0.11 TO 127.0.0.20]")),
+            1
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:[127.0.0.11 TO 127.0.0.19]")),
+            0
+        );
+
+        assert_eq!(get_num_hits(query_from_text("ip:[127.0.0.11 TO *]")), 1);
+        assert_eq!(get_num_hits(query_from_text("ip:[127.0.0.21 TO *]")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:[* TO 127.0.0.9]")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:[* TO 127.0.0.10]")), 1);
     }
 }

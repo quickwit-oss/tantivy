@@ -101,7 +101,7 @@ where
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
-    /// is an unitialized state.
+    /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
         while self.delta_reader.advance().unwrap() {
             self.term_ord = Some(
@@ -179,7 +179,7 @@ where
     }
 
     /// Return the next `(key, value)` pair.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<(&[u8], &TermInfo)> {
         if self.advance() {
             Some((self.key(), self.value()))

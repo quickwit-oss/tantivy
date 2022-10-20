@@ -24,7 +24,7 @@ where TScore: Clone + PartialOrd
 /// A `ScoreSegmentTweaker` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
 ///
-/// It is the segment local version of the [`ScoreTweaker`](./trait.ScoreTweaker.html).
+/// It is the segment local version of the [`ScoreTweaker`].
 pub trait ScoreSegmentTweaker<TScore>: 'static {
     /// Tweak the given `score` for the document `doc`.
     fn score(&mut self, doc: DocId, score: Score) -> TScore;
@@ -37,10 +37,10 @@ pub trait ScoreSegmentTweaker<TScore>: 'static {
 /// Instead, it helps constructing `Self::Child` instances that will compute
 /// the score at a segment scale.
 pub trait ScoreTweaker<TScore>: Sync {
-    /// Type of the associated [`ScoreSegmentTweaker`](./trait.ScoreSegmentTweaker.html).
+    /// Type of the associated [`ScoreSegmentTweaker`].
     type Child: ScoreSegmentTweaker<TScore>;
 
-    /// Builds a child tweaker for a specific segment. The child scorer is associated to
+    /// Builds a child tweaker for a specific segment. The child scorer is associated with
     /// a specific segment.
     fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
 }

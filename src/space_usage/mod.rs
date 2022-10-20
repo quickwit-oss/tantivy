@@ -208,7 +208,7 @@ impl StoreSpaceUsage {
     }
 }
 
-/// Represents space usage for all of the (field, index) pairs that appear in a CompositeFile.
+/// Represents space usage for all of the (field, index) pairs that appear in a `CompositeFile`.
 ///
 /// A field can appear with a single index (typically 0) or with multiple indexes.
 /// Multiple indexes are used to handle variable length things, where
@@ -238,7 +238,7 @@ impl PerFieldSpaceUsage {
 /// Represents space usage of a given field, breaking it down into the (field, index) pairs that
 /// comprise it.
 ///
-/// See documentation for PerFieldSpaceUsage for slightly more information.
+/// See documentation for [`PerFieldSpaceUsage`] for slightly more information.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldUsage {
     field: Field,

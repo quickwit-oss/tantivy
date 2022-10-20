@@ -17,7 +17,7 @@ impl Query for AllQuery {
     }
 }
 
-/// Weight associated to the `AllQuery` query.
+/// Weight associated with the `AllQuery` query.
 pub struct AllWeight;
 
 impl Weight for AllWeight {
@@ -37,7 +37,7 @@ impl Weight for AllWeight {
     }
 }
 
-/// Scorer associated to the `AllQuery` query.
+/// Scorer associated with the `AllQuery` query.
 pub struct AllScorer {
     doc: DocId,
     max_doc: DocId,

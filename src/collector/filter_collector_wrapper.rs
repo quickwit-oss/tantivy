@@ -10,9 +10,12 @@
 // ---
 // Importing tantivy...
 use std::marker::PhantomData;
+use std::sync::Arc;
+
+use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
@@ -158,7 +161,7 @@ where
     TPredicate: 'static,
     TPredicateValue: FastValue,
 {
-    fast_field_reader: DynamicFastFieldReader<TPredicateValue>,
+    fast_field_reader: Arc<dyn Column<TPredicateValue>>,
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
@@ -174,7 +177,7 @@ where
     type Fruit = TSegmentCollector::Fruit;
 
     fn collect(&mut self, doc: u32, score: Score) {
-        let value = self.fast_field_reader.get(doc);
+        let value = self.fast_field_reader.get_val(doc as u64);
         if (self.predicate)(value) {
             self.segment_collector.collect(doc, score)
         }

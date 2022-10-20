@@ -19,7 +19,7 @@ pub trait DeserializeFrom<T: BinarySerializable> {
 
 /// Implement deserialize from &[u8] for all types which implement BinarySerializable.
 ///
-/// TryFrom would actually be preferrable, but not possible because of the orphan
+/// TryFrom would actually be preferable, but not possible because of the orphan
 /// rules (not completely sure if this could be resolved)
 impl<T: BinarySerializable> DeserializeFrom<T> for &[u8] {
     fn deserialize(&mut self) -> io::Result<T> {
@@ -107,6 +107,19 @@ impl FixedSize for u64 {
     const SIZE_IN_BYTES: usize = 8;
 }
 
+impl BinarySerializable for u128 {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_u128::<Endianness>(*self)
+    }
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        reader.read_u128::<Endianness>()
+    }
+}
+
+impl FixedSize for u128 {
+    const SIZE_IN_BYTES: usize = 16;
+}
+
 impl BinarySerializable for f32 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_f32::<Endianness>(*self)
@@ -161,8 +174,7 @@ impl FixedSize for u8 {
 
 impl BinarySerializable for bool {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let val = if *self { 1 } else { 0 };
-        writer.write_u8(val)
+        writer.write_u8(u8::from(*self))
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
         let val = reader.read_u8()?;
@@ -229,7 +241,7 @@ pub mod test {
         fixed_size_test::<u32>();
         assert_eq!(4, serialize_test(3u32));
         assert_eq!(4, serialize_test(5u32));
-        assert_eq!(4, serialize_test(u32::max_value()));
+        assert_eq!(4, serialize_test(u32::MAX));
     }
 
     #[test]
@@ -245,6 +257,11 @@ pub mod test {
     #[test]
     fn test_serialize_u64() {
         fixed_size_test::<u64>();
+    }
+
+    #[test]
+    fn test_serialize_bool() {
+        fixed_size_test::<bool>();
     }
 
     #[test]
@@ -272,6 +289,6 @@ pub mod test {
         assert_eq!(serialize_test(VInt(1234u64)), 2);
         assert_eq!(serialize_test(VInt(16_383u64)), 2);
         assert_eq!(serialize_test(VInt(16_384u64)), 3);
-        assert_eq!(serialize_test(VInt(u64::max_value())), 10);
+        assert_eq!(serialize_test(VInt(u64::MAX)), 10);
     }
 }

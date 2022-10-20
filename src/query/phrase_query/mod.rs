@@ -359,7 +359,7 @@ pub mod tests {
         let matching_docs = |query: &str| {
             let query_parser = QueryParser::for_index(&index, vec![json_field]);
             let phrase_query = query_parser.parse_query(query).unwrap();
-            let phrase_weight = phrase_query.weight(&*searcher, false).unwrap();
+            let phrase_weight = phrase_query.weight(&searcher, false).unwrap();
             let mut phrase_scorer = phrase_weight
                 .scorer(searcher.segment_reader(0), 1.0f32)
                 .unwrap();

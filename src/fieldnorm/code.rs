@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_u32_max() {
-        assert_eq!(fieldnorm_to_id(u32::max_value()), u8::max_value());
+        assert_eq!(fieldnorm_to_id(u32::MAX), u8::MAX);
     }
 
     #[test]

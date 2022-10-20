@@ -17,7 +17,7 @@ impl<'a> PreparedCommit<'a> {
         }
     }
 
-    /// Returns the opstamp associated to the prepared commit.
+    /// Returns the opstamp associated with the prepared commit.
     pub fn opstamp(&self) -> Opstamp {
         self.opstamp
     }

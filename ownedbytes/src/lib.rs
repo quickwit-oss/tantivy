@@ -6,7 +6,7 @@ use std::{fmt, io, mem};
 use stable_deref_trait::StableDeref;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
-/// this data as a static slice.
+/// this data as a slice.
 ///
 /// The backing object is required to be `StableDeref`.
 #[derive(Clone)]
@@ -21,7 +21,7 @@ impl OwnedBytes {
         OwnedBytes::new(&[][..])
     }
 
-    /// Creates an `OwnedBytes` intance given a `StableDeref` object.
+    /// Creates an `OwnedBytes` instance given a `StableDeref` object.
     pub fn new<T: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync>(
         data_holder: T,
     ) -> OwnedBytes {

@@ -33,7 +33,7 @@ impl<W: io::Write> PositionSerializer<W> {
     /// at this point.
     /// When called before writing the positions of a term, this value is used as
     /// start offset.
-    /// When called after writing the positions of a term, this value is used as a
+    /// When called after writing the positions of a term, this value is used as
     /// end offset.
     pub fn written_bytes(&self) -> u64 {
         self.positions_wrt.written_bytes()
@@ -74,7 +74,7 @@ impl<W: io::Write> PositionSerializer<W> {
         self.block.clear();
     }
 
-    /// Close the positions for the given term.
+    /// Close the positions for the current term.
     pub fn close_term(&mut self) -> io::Result<()> {
         self.flush_block();
         VInt(self.bit_widths.len() as u64).serialize(&mut self.positions_wrt)?;

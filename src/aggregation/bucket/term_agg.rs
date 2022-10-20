@@ -11,13 +11,17 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
 use crate::error::DataCorruption;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
-/// Creates a bucket for every unique term
+/// Creates a bucket for every unique term and counts the number of occurences.
+/// Note that doc_count in the response buckets equals term count here.
+///
+/// If the text is untokenized and single value, that means one term per document and therefore it
+/// is in fact doc count.
 ///
 /// ### Terminology
 /// Shard parameters are supposed to be equivalent to elasticsearch shard parameter.
@@ -31,7 +35,7 @@ use crate::{DocId, TantivyError};
 ///
 /// Even with a larger `segment_size` value, doc_count values for a terms aggregation may be
 /// approximate. As a result, any sub-aggregations on the terms aggregation may also be approximate.
-/// `sum_other_doc_count` is the number of documents that didn’t make it into the the top size
+/// `sum_other_doc_count` is the number of documents that didn’t make it into the top size
 /// terms. If this is greater than 0, you can be sure that the terms agg had to throw away some
 /// buckets, either because they didn’t fit into size on the root node or they didn’t fit into
 /// `segment_size` on the segment node.
@@ -42,14 +46,14 @@ use crate::{DocId, TantivyError};
 /// each segment. It’s the sum of the size of the largest bucket on each segment that didn’t fit
 /// into segment_size.
 ///
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [TermBucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`TermBucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry] on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateTermBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 ///
@@ -64,6 +68,25 @@ use crate::{DocId, TantivyError};
 ///     }
 /// }
 /// ```
+///
+/// /// # Response JSON Format
+/// ```json
+/// {
+///     ...
+///     "aggregations": {
+///         "genres": {
+///             "doc_count_error_upper_bound": 0,   
+///             "sum_other_doc_count": 0,           
+///             "buckets": [                        
+///                 { "key": "drumnbass", "doc_count": 6 },
+///                 { "key": "raggae", "doc_count": 4 },
+///                 { "key": "jazz", "doc_count": 2 }
+///             ]
+///         }
+///     }
+/// }
+/// ```
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TermsAggregation {
     /// The field to aggregate on.
@@ -110,8 +133,8 @@ pub struct TermsAggregation {
     /// Set the order. `String` is here a target, which is either "_count", "_key", or the name of
     /// a metric sub_aggregation.
     ///
-    /// Single value metrics like average can be adressed by its name.
-    /// Multi value metrics like stats are required to adress their field by name e.g.
+    /// Single value metrics like average can be addressed by its name.
+    /// Multi value metrics like stats are required to address their field by name e.g.
     /// "stats.avg"
     ///
     /// Examples in JSON format:
@@ -244,28 +267,33 @@ impl TermBuckets {
         &mut self,
         term_ids: &[u64],
         doc: DocId,
-        bucket_with_accessor: &AggregationsWithAccessor,
+        sub_aggregation: &AggregationsWithAccessor,
+        bucket_count: &BucketCount,
         blueprint: &Option<SegmentAggregationResultsCollector>,
-    ) {
-        // self.ensure_vec_exists(term_ids);
+    ) -> crate::Result<()> {
         for &term_id in term_ids {
-            let entry = self
-                .entries
-                .entry(term_id as u32)
-                .or_insert_with(|| TermBucketEntry::from_blueprint(blueprint));
+            let entry = self.entries.entry(term_id as u32).or_insert_with(|| {
+                bucket_count.add_count(1);
+
+                TermBucketEntry::from_blueprint(blueprint)
+            });
             entry.doc_count += 1;
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.collect(doc, bucket_with_accessor);
+                sub_aggregations.collect(doc, sub_aggregation)?;
             }
         }
+        bucket_count.validate_bucket_count()?;
+
+        Ok(())
     }
 
-    fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) {
+    fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         for entry in &mut self.entries.values_mut() {
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.flush_staged_docs(agg_with_accessor, false);
+                sub_aggregations.flush_staged_docs(agg_with_accessor, false)?;
             }
         }
+        Ok(())
     }
 }
 
@@ -421,7 +449,7 @@ impl SegmentTermCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         let accessor = bucket_with_accessor
             .accessor
             .as_multi()
@@ -441,26 +469,30 @@ impl SegmentTermCollector {
                 &vals1,
                 docs[0],
                 &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals2,
                 docs[1],
                 &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals3,
                 docs[2],
                 &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
-            );
+            )?;
             self.term_buckets.increment_bucket(
                 &vals4,
                 docs[3],
                 &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
-            );
+            )?;
         }
         for &doc in iter.remainder() {
             accessor.get_vals(doc, &mut vals1);
@@ -469,13 +501,15 @@ impl SegmentTermCollector {
                 &vals1,
                 doc,
                 &bucket_with_accessor.sub_aggregation,
+                &bucket_with_accessor.bucket_count,
                 &self.blueprint,
-            );
+            )?;
         }
         if force_flush {
             self.term_buckets
-                .force_flush(&bucket_with_accessor.sub_aggregation);
+                .force_flush(&bucket_with_accessor.sub_aggregation)?;
         }
+        Ok(())
     }
 }
 
@@ -1174,6 +1208,65 @@ mod tests {
     }
 
     #[test]
+    fn terms_aggregation_term_bucket_limit() -> crate::Result<()> {
+        let terms: Vec<String> = (0..100_000).map(|el| el.to_string()).collect();
+        let terms_per_segment = vec![terms.iter().map(|el| el.as_str()).collect()];
+
+        let index = get_test_index_from_terms(true, &terms_per_segment)?;
+
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    min_doc_count: Some(0),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None);
+
+        assert!(res.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_multi_token_per_doc() -> crate::Result<()> {
+        let terms = vec!["Hello Hello", "Hallo Hallo"];
+
+        let index = get_test_index_from_terms(true, &[terms])?;
+
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "text_id".to_string(),
+                    min_doc_count: Some(0),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "hello");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
+
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "hallo");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_json_format() -> crate::Result<()> {
         let agg_req: Aggregations = vec![(
             "term_agg_test".to_string(),
@@ -1291,9 +1384,15 @@ mod bench {
         let mut collector = get_collector_with_buckets(total_terms);
         let vals = get_rand_terms(total_terms, num_terms);
         let aggregations_with_accessor: AggregationsWithAccessor = Default::default();
+        let bucket_count: BucketCount = BucketCount {
+            bucket_count: Default::default(),
+            max_bucket_count: 1_000_001u32,
+        };
         b.iter(|| {
             for &val in &vals {
-                collector.increment_bucket(&[val], 0, &aggregations_with_accessor, &None);
+                collector
+                    .increment_bucket(&[val], 0, &aggregations_with_accessor, &bucket_count, &None)
+                    .unwrap();
             }
         })
     }

@@ -10,31 +10,30 @@
 //!
 //! There are two categories: [Metrics](metric) and [Buckets](bucket).
 //!
-//! # Usage
+//! ## Prerequisite
+//! Currently aggregations work only on [fast fields](`crate::fastfield`). Single value fast fields
+//! of type `u64`, `f64`, `i64` and fast fields on text fields.
 //!
-//!
+//! ## Usage
 //! To use aggregations, build an aggregation request by constructing
-//! [Aggregations](agg_req::Aggregations).
-//! Create an [AggregationCollector] from this request. AggregationCollector implements the
-//! `Collector` trait and can be passed as collector into `searcher.search()`.
+//! [`Aggregations`](agg_req::Aggregations).
+//! Create an [`AggregationCollector`] from this request. `AggregationCollector` implements the
+//! [`Collector`](crate::collector::Collector) trait and can be passed as collector into
+//! [`Searcher::search()`](crate::Searcher::search).
 //!
-//! #### Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type u64, f64, i64 and
-//! fast fields on text fields.
-//!
-//! # JSON Format
+//! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
-//! let collector = AggregationCollector::from_aggs(agg_req);
+//! let collector = AggregationCollector::from_aggs(agg_req, None);
 //! let searcher = reader.searcher();
 //! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
 //! ```
 //!
-//! # Supported Aggregations
+//! ## Supported Aggregations
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
 //!     - [Range](bucket::RangeAggregation)
@@ -44,8 +43,8 @@
 //!     - [Stats](metric::StatsAggregation)
 //!
 //! # Example
-//! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
-//! [agg_req::Aggregation]) iterator.
+//! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
+//! `(String, agg_req::Aggregation)` iterator.
 //!
 //! ```
 //! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
@@ -68,7 +67,7 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req);
+//!     let collector = AggregationCollector::from_aggs(agg_req, None);
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
@@ -132,6 +131,7 @@
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: false,
 //!             }),
 //!             sub_aggregation: sub_agg_req_1.clone(),
 //!         }),
@@ -142,15 +142,15 @@
 //! ```
 //!
 //! # Distributed Aggregation
-//! When the data is distributed on different [crate::Index] instances, the
-//! [DistributedAggregationCollector] provides functionality to merge data between independent
+//! When the data is distributed on different [`Index`](crate::Index) instances, the
+//! [`DistributedAggregationCollector`] provides functionality to merge data between independent
 //! search calls by returning
-//! [IntermediateAggregationResults](intermediate_agg_result::IntermediateAggregationResults).
-//! IntermediateAggregationResults provides the
-//! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
-//! merge multiple results. The merged result can then be converted into
-//! [agg_result::AggregationResults] via the
-//! [agg_result::AggregationResults::from_intermediate_and_req] method.
+//! [`IntermediateAggregationResults`](intermediate_agg_result::IntermediateAggregationResults).
+//! `IntermediateAggregationResults` provides the
+//! [`merge_fruits`](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method
+//! to merge multiple results. The merged result can then be converted into
+//! [`AggregationResults`](agg_result::AggregationResults) via the
+//! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
 
 pub mod agg_req;
 mod agg_req_with_accessor;
@@ -160,17 +160,17 @@ mod collector;
 pub mod intermediate_agg_result;
 pub mod metric;
 mod segment_agg_result;
-
 use std::collections::HashMap;
 use std::fmt::Display;
 
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
+    MAX_BUCKET_COUNT,
 };
+use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::fastfield::FastValue;
 use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
@@ -258,7 +258,7 @@ impl<T: Clone> VecWithNames<T> {
     }
 }
 
-/// The serialized key is used in a HashMap.
+/// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, PartialOrd)]
@@ -267,7 +267,7 @@ pub type SerializedKey = String;
 pub enum Key {
     /// String key
     Str(String),
-    /// f64 key
+    /// `f64` key
     F64(f64),
 }
 
@@ -280,10 +280,10 @@ impl Display for Key {
     }
 }
 
-/// Invert of to_fastfield_u64. Used to convert to f64 for metrics.
+/// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
-/// Only u64, f64, i64 is supported
+/// Only `u64`, `f64`, and `i64` are supported.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
@@ -295,15 +295,15 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     }
 }
 
-/// Converts the f64 value to fast field value space.
+/// Converts the `f64` value to fast field value space.
 ///
-/// If the fast field has u64, values are stored as u64 in the fast field.
-/// A f64 value of e.g. 2.0 therefore needs to be converted to 1u64
+/// If the fast field has `u64`, values are stored as `u64` in the fast field.
+/// A `f64` value of e.g. `2.0` therefore needs to be converted to `1u64`.
 ///
-/// If the fast field has f64 values are converted and stored to u64 using a
+/// If the fast field has `f64` values are converted and stored to `u64` using a
 /// monotonic mapping.
-/// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
-/// conversion function, so that the value matches the u64 value stored in the fast
+/// A `f64` value of e.g. `2.0` needs to be converted using the same monotonic
+/// conversion function, so that the value matches the `u64` value stored in the fast
 /// field.
 pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {
@@ -358,7 +358,7 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req);
+        let collector = AggregationCollector::from_aggs(agg_req, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -375,7 +375,7 @@ mod tests {
             searcher.search(&AllQuery, &collector)?
         };
 
-        // Test serialization/deserialization rountrip
+        // Test serialization/deserialization roundtrip
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
         Ok(res)
     }
@@ -417,7 +417,9 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
-                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::Basic)
+                    .set_fieldnorms(false),
             )
             .set_fast()
             .set_stored();
@@ -435,7 +437,8 @@ mod tests {
         );
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_for_tests()?;
+            // let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
             for values in segment_and_values {
                 for (i, term) in values {
                     let i = *i;
@@ -457,9 +460,11 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
-            index_writer.merge(&segment_ids).wait()?;
-            index_writer.wait_merging_threads()?;
+            if segment_ids.len() > 1 {
+                let mut index_writer = index.writer_for_tests()?;
+                index_writer.merge(&segment_ids).wait()?;
+                index_writer.wait_merging_threads()?;
+            }
         }
 
         Ok(index)
@@ -511,7 +516,7 @@ mod tests {
             "histogram": {
                 "field": "score",
                 "interval":  70.0,
-                "offset": 3.0,
+                "offset": 3.0
             },
             "aggs": {
                 "bucketsL2": {
@@ -542,16 +547,15 @@ mod tests {
                 .unwrap();
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
-            AggregationResults::from_intermediate_and_req(
-                searcher.search(&AllQuery, &collector).unwrap(),
-                agg_req,
-            )
-            .unwrap()
+            let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
+            intermediate_agg_result
+                .into_final_bucket_result(agg_req)
+                .unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req);
+            let collector = AggregationCollector::from_aggs(agg_req, None);
 
             let searcher = reader.searcher();
             searcher.search(&AllQuery, &collector).unwrap()
@@ -760,6 +764,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -770,6 +775,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_f64".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -780,6 +786,7 @@ mod tests {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_i64".to_string(),
                         ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -788,7 +795,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -936,6 +943,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -950,6 +958,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req.clone(),
                     }),
@@ -964,6 +973,7 @@ mod tests {
                                 (7f64..19f64).into(),
                                 (19f64..20f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: sub_agg_req,
                     }),
@@ -978,16 +988,16 @@ mod tests {
         assert_eq!(field_names, vec!["text".to_string()].into_iter().collect());
 
         let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
+            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             let res = searcher.search(&term_query, &collector).unwrap();
             // Test de/serialization roundtrip on intermediate_agg_result
             let res: IntermediateAggregationResults =
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            AggregationResults::from_intermediate_and_req(res, agg_req.clone()).unwrap()
+            res.into_final_bucket_result(agg_req.clone()).unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req.clone());
+            let collector = AggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
@@ -1045,7 +1055,7 @@ mod tests {
         );
 
         // Test empty result set
-        let collector = AggregationCollector::from_aggs(agg_req);
+        let collector = AggregationCollector::from_aggs(agg_req, None);
         let searcher = reader.searcher();
         searcher.search(&query_with_no_hits, &collector).unwrap();
 
@@ -1110,7 +1120,7 @@ mod tests {
             .into_iter()
             .collect();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1);
+            let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
             let searcher = reader.searcher();
 
@@ -1223,7 +1233,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1254,7 +1264,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1285,7 +1295,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1324,7 +1334,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1353,7 +1363,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req);
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1382,7 +1392,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req);
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1411,6 +1421,7 @@ mod tests {
                                 (40000f64..50000f64).into(),
                                 (50000f64..60000f64).into(),
                             ],
+                            ..Default::default()
                         }),
                         sub_aggregation: Default::default(),
                     }),
@@ -1418,7 +1429,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1453,7 +1464,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1492,7 +1503,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1522,7 +1533,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1570,6 +1581,7 @@ mod tests {
                                     (7000f64..20000f64).into(),
                                     (20000f64..60000f64).into(),
                                 ],
+                                ..Default::default()
                             }),
                             sub_aggregation: sub_agg_req_1.clone(),
                         }),
@@ -1578,7 +1590,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =

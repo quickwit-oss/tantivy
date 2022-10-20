@@ -178,7 +178,7 @@ pub struct DeleteCursor {
 impl DeleteCursor {
     /// Skips operations and position it so that
     /// - either all of the delete operation currently in the queue are consume and the next get
-    ///   will return None.
+    ///   will return `None`.
     /// - the next get will return the first operation with an
     /// `opstamp >= target_opstamp`.
     pub fn skip_to(&mut self, target_opstamp: Opstamp) {
@@ -188,7 +188,7 @@ impl DeleteCursor {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::wrong_self_convention))]
+    #[allow(clippy::wrong_self_convention)]
     fn is_behind_opstamp(&mut self, target_opstamp: Opstamp) -> bool {
         self.get()
             .map(|operation| operation.opstamp < target_opstamp)
@@ -246,18 +246,27 @@ impl DeleteCursor {
 mod tests {
 
     use super::{DeleteOperation, DeleteQueue};
-    use crate::schema::{Field, Term};
+    use crate::query::{Explanation, Scorer, Weight};
+    use crate::{DocId, Score, SegmentReader};
+
+    struct DummyWeight;
+    impl Weight for DummyWeight {
+        fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
+            Err(crate::TantivyError::InternalError("dummy impl".to_owned()))
+        }
+
+        fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
+            Err(crate::TantivyError::InternalError("dummy impl".to_owned()))
+        }
+    }
 
     #[test]
     fn test_deletequeue() {
         let delete_queue = DeleteQueue::new();
 
-        let make_op = |i: usize| {
-            let field = Field::from_field_id(1u32);
-            DeleteOperation {
-                opstamp: i as u64,
-                term: Term::from_field_u64(field, i as u64),
-            }
+        let make_op = |i: usize| DeleteOperation {
+            opstamp: i as u64,
+            target: Box::new(DummyWeight),
         };
 
         delete_queue.push(make_op(1));

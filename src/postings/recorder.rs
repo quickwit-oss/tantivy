@@ -47,16 +47,16 @@ impl<'a> Iterator for VInt32Reader<'a> {
     }
 }
 
-/// Recorder is in charge of recording relevant information about
+/// `Recorder` is in charge of recording relevant information about
 /// the presence of a term in a document.
 ///
-/// Depending on the `TextIndexingOptions` associated to the
-/// field, the recorder may records
+/// Depending on the [`TextOptions`](crate::schema::TextOptions) associated
+/// with the field, the recorder may record:
 ///   * the document frequency
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub(crate) trait Recorder: Copy + Default + 'static {
+pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
@@ -83,21 +83,21 @@ pub(crate) trait Recorder: Copy + Default + 'static {
 
 /// Only records the doc ids
 #[derive(Clone, Copy)]
-pub struct NothingRecorder {
+pub struct DocIdRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
 }
 
-impl Default for NothingRecorder {
+impl Default for DocIdRecorder {
     fn default() -> Self {
-        NothingRecorder {
+        DocIdRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: u32::MAX,
         }
     }
 }
 
-impl Recorder for NothingRecorder {
+impl Recorder for DocIdRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -230,7 +230,7 @@ impl Default for TfAndPositionRecorder {
     fn default() -> Self {
         TfAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: u32::MAX,
             term_doc_freq: 0u32,
         }
     }
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn test_vint_u32() {
         let mut buffer = vec![];
-        let vals = [0, 1, 324_234_234, u32::max_value()];
+        let vals = [0, 1, 324_234_234, u32::MAX];
         for &i in &vals {
             assert!(write_u32_vint(i, &mut buffer).is_ok());
         }

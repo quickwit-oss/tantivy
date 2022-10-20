@@ -67,10 +67,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// (e.g. `/category/fiction`, `/category/biography`, `/category/personal_development`).
 ///
 /// Once collection is finished, you can harvest its results in the form
-/// of a `FacetCounts` object, and extract your face                t counts from it.
+/// of a [`FacetCounts`] object, and extract your facet counts from it.
 ///
 /// This implementation assumes you are working with a number of facets that
-/// is much hundreds of time lower than your number of documents.
+/// is many hundreds of times smaller than your number of documents.
 ///
 ///
 /// ```rust
@@ -91,7 +91,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     let index = Index::create_in_ram(schema);
 ///     {
 ///         let mut index_writer = index.writer(3_000_000)?;
-///         // a document can be associated to any number of facets
+///         // a document can be associated with any number of facets
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",
 ///             facet => Facet::from("/lang/en"),
@@ -231,7 +231,7 @@ impl FacetCollector {
     ///
     /// Adding two facets within which one is the prefix of the other is forbidden.
     /// If you need the correct number of unique documents for two such facets,
-    /// just add them in separate `FacetCollector`.
+    /// just add them in a separate `FacetCollector`.
     pub fn add_facet<T>(&mut self, facet_from: T)
     where Facet: From<T> {
         let facet = Facet::from(facet_from);
@@ -271,8 +271,8 @@ impl Collector for FacetCollector {
             let mut facet_streamer = facet_reader.facet_dict().range().into_stream()?;
             if facet_streamer.advance() {
                 'outer: loop {
-                    // at the begining of this loop, facet_streamer
-                    // is positionned on a term that has not been processed yet.
+                    // at the beginning of this loop, facet_streamer
+                    // is positioned on a term that has not been processed yet.
                     let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
                     match skip_result {
                         SkipResult::Found => {
@@ -338,11 +338,7 @@ impl SegmentCollector for FacetSegmentCollector {
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords_buf {
             let collapsed_ord = self.collapse_mapping[facet_ord as usize];
-            self.counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord {
-                0
-            } else {
-                1
-            };
+            self.counts[collapsed_ord] += u64::from(collapsed_ord != previous_collapsed_ord);
             previous_collapsed_ord = collapsed_ord;
         }
     }
@@ -391,7 +387,7 @@ impl<'a> Iterator for FacetChildIterator<'a> {
 
 impl FacetCounts {
     /// Returns an iterator over all of the facet count pairs inside this result.
-    /// See the documentation for [FacetCollector] for a usage example.
+    /// See the documentation for [`FacetCollector`] for a usage example.
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where Facet: From<T> {
         let facet = Facet::from(facet_from);
@@ -410,7 +406,7 @@ impl FacetCounts {
     }
 
     /// Returns a vector of top `k` facets with their counts, sorted highest-to-lowest by counts.
-    /// See the documentation for [FacetCollector] for a usage example.
+    /// See the documentation for [`FacetCollector`] for a usage example.
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
     where Facet: From<T> {
         let mut heap = BinaryHeap::with_capacity(k);

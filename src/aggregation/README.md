@@ -12,7 +12,7 @@ Tantivy's aggregations have been designed to mimic the
 The code is organized in submodules:
 
 ## bucket
-Contains all bucket aggregations, like range aggregation. These bucket aggregations group documents into buckets and can contain sub-aggegations.
+Contains all bucket aggregations, like range aggregation. These bucket aggregations group documents into buckets and can contain sub-aggregations.
 
 ## metric
 Contains all metric aggregations, like average aggregation. Metric aggregations do not have sub aggregations.

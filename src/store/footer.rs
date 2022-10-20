@@ -2,13 +2,13 @@ use std::io;
 
 use common::{BinarySerializable, FixedSize, HasLen};
 
+use super::Decompressor;
 use crate::directory::FileSlice;
-use crate::store::Compressor;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocStoreFooter {
     pub offset: u64,
-    pub compressor: Compressor,
+    pub decompressor: Decompressor,
 }
 
 /// Serialises the footer to a byte-array
@@ -18,7 +18,7 @@ pub struct DocStoreFooter {
 impl BinarySerializable for DocStoreFooter {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         BinarySerializable::serialize(&self.offset, writer)?;
-        BinarySerializable::serialize(&self.compressor.get_id(), writer)?;
+        BinarySerializable::serialize(&self.decompressor.get_id(), writer)?;
         writer.write_all(&[0; 15])?;
         Ok(())
     }
@@ -30,7 +30,7 @@ impl BinarySerializable for DocStoreFooter {
         reader.read_exact(&mut skip_buf)?;
         Ok(DocStoreFooter {
             offset,
-            compressor: Compressor::from_id(compressor_id),
+            decompressor: Decompressor::from_id(compressor_id),
         })
     }
 }
@@ -40,8 +40,11 @@ impl FixedSize for DocStoreFooter {
 }
 
 impl DocStoreFooter {
-    pub fn new(offset: u64, compressor: Compressor) -> Self {
-        DocStoreFooter { offset, compressor }
+    pub fn new(offset: u64, decompressor: Decompressor) -> Self {
+        DocStoreFooter {
+            offset,
+            decompressor,
+        }
     }
 
     pub fn extract_footer(file: FileSlice) -> io::Result<(DocStoreFooter, FileSlice)> {

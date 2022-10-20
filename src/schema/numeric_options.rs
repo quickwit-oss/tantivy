@@ -7,20 +7,20 @@ use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Express whether a field is single-value or multi-valued.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Cardinality {
-    /// The document must have exactly one value associated to the document.
+    /// The document must have exactly one value associated with the document.
     #[serde(rename = "single")]
     SingleValue,
-    /// The document can have any number of values associated to the document.
-    /// This is more memory and CPU expensive than the SingleValue solution.
+    /// The document can have any number of values associated with the document.
+    /// This is more memory and CPU expensive than the `SingleValue` solution.
     #[serde(rename = "multi")]
     MultiValues,
 }
 
 #[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
-/// Deprecated use [NumericOptions] instead.
+/// Deprecated use [`NumericOptions`] instead.
 pub type IntOptions = NumericOptions;
 
-/// Define how an u64, i64, of f64 field should be handled by tantivy.
+/// Define how an `u64`, `i64`, or `f64` field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(from = "NumericOptionsDeser")]
 pub struct NumericOptions {
@@ -32,11 +32,11 @@ pub struct NumericOptions {
     stored: bool,
 }
 
-/// For backward compability we add an intermediary to interpret the
+/// For backward compatibility we add an intermediary to interpret the
 /// lack of fieldnorms attribute as "true" if and only if indexed.
 ///
 /// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
-/// Note that: newly serialized NumericOptions will include the new attribute.
+/// Note that: newly serialized `NumericOptions` will include the new attribute.
 #[derive(Deserialize)]
 struct NumericOptionsDeser {
     indexed: bool,
@@ -59,7 +59,7 @@ impl From<NumericOptionsDeser> for NumericOptions {
 }
 
 impl NumericOptions {
-    /// Returns true iff the value is stored.
+    /// Returns true iff the value is stored in the doc store.
     pub fn is_stored(&self) -> bool {
         self.stored
     }
@@ -124,7 +124,7 @@ impl NumericOptions {
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
-    /// If more than one value is associated to a fast field, only the last one is
+    /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
     pub fn set_fast(mut self, cardinality: Cardinality) -> NumericOptions {
@@ -135,7 +135,7 @@ impl NumericOptions {
     /// Returns the cardinality of the fastfield.
     ///
     /// If the field has not been declared as a fastfield, then
-    /// the method returns None.
+    /// the method returns `None`.
     pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
         self.fast
     }

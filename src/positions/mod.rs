@@ -1,18 +1,18 @@
 //! Tantivy can (if instructed to do so in the schema) store the term positions in a given field.
-//! This positions are expressed as token ordinal. For instance,
-//! In "The beauty and the beast", the term "the" appears in position 0 and position 4.
+//! This position is expressed as token ordinal. For instance,
+//! In "The beauty and the beast", the term "the" appears in position 0 and position 3.
 //! This information is useful to run phrase queries.
 //!
-//! The `SegmentComponent::POSITIONS` file contains all of the bitpacked positions delta,
-//! for all terms of a given field, one term after the other.
+//! The [position](crate::SegmentComponent::Positions) file contains all of the
+//! bitpacked positions delta, for all terms of a given field, one term after the other.
 //!
-//! Each terms is encoded independently.
-//! Like for positing lists, tantivy rely on simd bitpacking to encode the positions delta in blocks
-//! of 128 deltas. Because we rarely have a multiple of 128, a final block may encode the remaining
-//! values variable byte encoding.
+//! Each term is encoded independently.
+//! Like for posting lists, tantivy relies on simd bitpacking to encode the positions delta in
+//! blocks of 128 deltas. Because we rarely have a multiple of 128, the final block encodes
+//! the remaining values with variable int encoding.
 //!
-//! In order to make reading possible, the term delta positions first encodes the number of
-//! bitpacked blocks, then the bitwidth for each blocks, then the actual bitpacked block and finally
+//! In order to make reading possible, the term delta positions first encode the number of
+//! bitpacked blocks, then the bitwidth for each block, then the actual bitpacked blocks and finally
 //! the final variable int encoded block.
 //!
 //! Contrary to postings list, the reader does not have access on the number of positions that is

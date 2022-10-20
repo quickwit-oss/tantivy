@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::mem;
+use std::net::Ipv6Addr;
 
 use common::{BinarySerializable, VInt};
 
@@ -11,10 +12,7 @@ use crate::DateTime;
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
 ///
-/// Documents are fundamentally a collection of unordered couple `(field, value)`.
-/// In this list, one field may appear more than once.
-
-/// Documents are really just a list of couple `(field, value)`.
+/// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct Document {
@@ -100,6 +98,11 @@ impl Document {
         self.add_field_value(field, value);
     }
 
+    /// Add a IP address field. Internally only Ipv6Addr is used.
+    pub fn add_ip_addr(&mut self, field: Field, value: Ipv6Addr) {
+        self.add_field_value(field, value);
+    }
+
     /// Add a i64 field
     pub fn add_i64(&mut self, field: Field, value: i64) {
         self.add_field_value(field, value);
@@ -107,6 +110,11 @@ impl Document {
 
     /// Add a f64 field
     pub fn add_f64(&mut self, field: Field, value: f64) {
+        self.add_field_value(field, value);
+    }
+
+    /// Add a bool field
+    pub fn add_bool(&mut self, field: Field, value: bool) {
         self.add_field_value(field, value);
     }
 
@@ -120,7 +128,7 @@ impl Document {
         self.add_field_value(field, value.into());
     }
 
-    /// Add a bytes field
+    /// Add a JSON field
     pub fn add_json_object(
         &mut self,
         field: Field,
@@ -188,6 +196,34 @@ impl Document {
     /// Returns the first `FieldValue` associated the given field
     pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.get_all(field).next()
+    }
+
+    /// Serializes stored field values.
+    pub fn serialize_stored<W: Write>(&self, schema: &Schema, writer: &mut W) -> io::Result<()> {
+        let stored_field_values = || {
+            self.field_values()
+                .iter()
+                .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
+        };
+        let num_field_values = stored_field_values().count();
+
+        VInt(num_field_values as u64).serialize(writer)?;
+        for field_value in stored_field_values() {
+            match field_value {
+                FieldValue {
+                    field,
+                    value: Value::PreTokStr(pre_tokenized_text),
+                } => {
+                    let field_value = FieldValue {
+                        field: *field,
+                        value: Value::Str(pre_tokenized_text.text.to_string()),
+                    };
+                    field_value.serialize(writer)?;
+                }
+                field_value => field_value.serialize(writer)?,
+            };
+        }
+        Ok(())
     }
 }
 

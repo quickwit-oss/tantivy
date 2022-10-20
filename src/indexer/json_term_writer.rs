@@ -1,3 +1,4 @@
+use fastfield_codecs::MonotonicallyMappableToU64;
 use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
 
@@ -8,7 +9,7 @@ use crate::schema::{Field, Type};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
-use crate::{DateTime, DocId, Term};
+use crate::{DatePrecision, DateTime, DocId, Term};
 
 /// This object is a map storing the last position for a given path for the current document
 /// being indexed.
@@ -38,10 +39,10 @@ use crate::{DateTime, DocId, Term};
 /// of values, with a position gap. Here we would like `The` and `Who` to get indexed at
 /// position 2 and 3 respectively.
 ///
-/// With regular fields, we sort the fields beforehands, so that all terms with the same
+/// With regular fields, we sort the fields beforehand, so that all terms with the same
 /// path are indexed consecutively.
 ///
-/// In JSON object, we do not have this confort, so we need to record these position offsets in
+/// In JSON object, we do not have this comfort, so we need to record these position offsets in
 /// a map.
 ///
 /// Note that using a single position for the entire object would not hurt correctness.
@@ -123,8 +124,7 @@ fn index_json_value<'a>(
     match json_value {
         serde_json::Value::Null => {}
         serde_json::Value::Bool(val_bool) => {
-            let bool_u64 = if *val_bool { 1u64 } else { 0u64 };
-            json_term_writer.set_fast_value(bool_u64);
+            json_term_writer.set_fast_value(*val_bool);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
         serde_json::Value::Number(number) => {
@@ -220,6 +220,9 @@ pub(crate) fn convert_to_fast_value_and_get_term(
     if let Ok(f64_val) = str::parse::<f64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, f64_val));
     }
+    if let Ok(bool_val) = str::parse::<bool>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, bool_val));
+    }
     None
 }
 // helper function to generate a Term from a json fastvalue
@@ -239,10 +242,12 @@ pub(crate) fn set_string_and_get_terms(
 ) -> Vec<(usize, Term)> {
     let mut positions_and_terms = Vec::<(usize, Term)>::new();
     json_term_writer.close_path_and_set_type(Type::Str);
-    let term_num_bytes = json_term_writer.term_buffer.as_slice().len();
+    let term_num_bytes = json_term_writer.term_buffer.len_bytes();
     let mut token_stream = text_analyzer.token_stream(value);
     token_stream.process(&mut |token| {
-        json_term_writer.term_buffer.truncate(term_num_bytes);
+        json_term_writer
+            .term_buffer
+            .truncate_value_bytes(term_num_bytes);
         json_term_writer
             .term_buffer
             .append_bytes(token.text.as_bytes());
@@ -262,7 +267,7 @@ impl<'a> JsonTermWriter<'a> {
         json_path: &str,
         term_buffer: &'a mut Term,
     ) -> Self {
-        term_buffer.set_field(Type::Json, field);
+        term_buffer.set_field_and_type(field, Type::Json);
         let mut json_term_writer = Self::wrap(term_buffer);
         for segment in json_path.split('.') {
             json_term_writer.push_path_segment(segment);
@@ -273,7 +278,7 @@ impl<'a> JsonTermWriter<'a> {
     pub fn wrap(term_buffer: &'a mut Term) -> Self {
         term_buffer.clear_with_type(Type::Json);
         let mut path_stack = Vec::with_capacity(10);
-        path_stack.push(5);
+        path_stack.push(0);
         Self {
             term_buffer,
             path_stack,
@@ -282,28 +287,28 @@ impl<'a> JsonTermWriter<'a> {
 
     fn trim_to_end_of_path(&mut self) {
         let end_of_path = *self.path_stack.last().unwrap();
-        self.term_buffer.truncate(end_of_path);
+        self.term_buffer.truncate_value_bytes(end_of_path);
     }
 
     pub fn close_path_and_set_type(&mut self, typ: Type) {
         self.trim_to_end_of_path();
-        let buffer = self.term_buffer.as_mut();
+        let buffer = self.term_buffer.value_bytes_mut();
         let buffer_len = buffer.len();
         buffer[buffer_len - 1] = JSON_END_OF_PATH;
-        buffer.push(typ.to_code());
+        self.term_buffer.append_bytes(&[typ.to_code()]);
     }
 
     pub fn push_path_segment(&mut self, segment: &str) {
         // the path stack should never be empty.
         self.trim_to_end_of_path();
-        let buffer = self.term_buffer.as_mut();
+        let buffer = self.term_buffer.value_bytes_mut();
         let buffer_len = buffer.len();
         if self.path_stack.len() > 1 {
             buffer[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
         }
-        buffer.extend(segment.as_bytes());
-        buffer.push(JSON_PATH_SEGMENT_SEP);
-        self.path_stack.push(buffer.len());
+        self.term_buffer.append_bytes(segment.as_bytes());
+        self.term_buffer.append_bytes(&[JSON_PATH_SEGMENT_SEP]);
+        self.path_stack.push(self.term_buffer.len_bytes());
     }
 
     pub fn pop_path_segment(&mut self) {
@@ -315,21 +320,27 @@ impl<'a> JsonTermWriter<'a> {
     /// Returns the json path of the term being currently built.
     #[cfg(test)]
     pub(crate) fn path(&self) -> &[u8] {
-        let end_of_path = self.path_stack.last().cloned().unwrap_or(6);
-        &self.term().as_slice()[5..end_of_path - 1]
+        let end_of_path = self.path_stack.last().cloned().unwrap_or(1);
+        &self.term().value_bytes()[..end_of_path - 1]
     }
 
     pub fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.close_path_and_set_type(T::to_type());
+        let value = if T::to_type() == Type::Date {
+            DateTime::from_u64(val.to_u64())
+                .truncate(DatePrecision::Seconds)
+                .to_u64()
+        } else {
+            val.to_u64()
+        };
         self.term_buffer
-            .as_mut()
-            .extend_from_slice(val.to_u64().to_be_bytes().as_slice());
+            .append_bytes(value.to_be_bytes().as_slice());
     }
 
     #[cfg(test)]
     pub(crate) fn set_str(&mut self, text: &str) {
         self.close_path_and_set_type(Type::Str);
-        self.term_buffer.as_mut().extend_from_slice(text.as_bytes());
+        self.term_buffer.append_bytes(text.as_bytes());
     }
 
     pub fn term(&self) -> &Term {
@@ -346,8 +357,7 @@ mod tests {
     #[test]
     fn test_json_writer() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("attributes");
         json_writer.push_path_segment("color");
@@ -381,8 +391,7 @@ mod tests {
     #[test]
     fn test_string_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
@@ -395,8 +404,7 @@ mod tests {
     #[test]
     fn test_i64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(-4i64);
@@ -409,8 +417,7 @@ mod tests {
     #[test]
     fn test_u64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4u64);
@@ -423,8 +430,7 @@ mod tests {
     #[test]
     fn test_f64_term() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4.0f64);
@@ -435,10 +441,22 @@ mod tests {
     }
 
     #[test]
+    fn test_bool_term() {
+        let field = Field::from_field_id(1);
+        let mut term = Term::with_type_and_field(Type::Json, field);
+        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        json_writer.push_path_segment("color");
+        json_writer.set_fast_value(true);
+        assert_eq!(
+            json_writer.term().as_slice(),
+            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
+        )
+    }
+
+    #[test]
     fn test_push_after_set_path_segment() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("attribute");
         json_writer.set_str("something");
@@ -453,8 +471,7 @@ mod tests {
     #[test]
     fn test_pop_segment() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         json_writer.push_path_segment("hue");
@@ -469,8 +486,7 @@ mod tests {
     #[test]
     fn test_json_writer_path() {
         let field = Field::from_field_id(1);
-        let mut term = Term::new();
-        term.set_field(Type::Json, field);
+        let mut term = Term::with_type_and_field(Type::Json, field);
         let mut json_writer = JsonTermWriter::wrap(&mut term);
         json_writer.push_path_segment("color");
         assert_eq!(json_writer.path(), b"color");

@@ -33,9 +33,9 @@ impl Ord for ScoreTerm {
     }
 }
 
-/// A struct used as helper to build [`MoreLikeThisQuery`]
-/// This more-like-this implementation is inspired by the Appache Lucene
-/// amd closely follows the same implementation with adaptabtion to Tantivy vocabulary and API.
+/// A struct used as helper to build [`MoreLikeThisQuery`](crate::query::MoreLikeThisQuery)
+/// This more-like-this implementation is inspired by the Apache Lucene
+/// and closely follows the same implementation with adaptation to Tantivy vocabulary and API.
 ///
 /// [MoreLikeThis](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThis.java#L147)
 /// [MoreLikeThisQuery](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThisQuery.java#L36)
@@ -139,7 +139,7 @@ impl MoreLikeThis {
     }
 
     /// Finds terms for a more-like-this query.
-    /// field_to_field_values is a mapping from field to possible values of taht field.
+    /// field_to_field_values is a mapping from field to possible values of that field.
     fn retrieve_terms_from_doc_fields(
         &self,
         searcher: &Searcher,
@@ -243,13 +243,12 @@ impl MoreLikeThis {
             }
             FieldType::Date(_) => {
                 for value in values {
-                    // TODO: Ask if this is the semantic (timestamp) we want
-                    let unix_timestamp = value
+                    let timestamp_micros = value
                         .as_date()
                         .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
-                        .into_unix_timestamp();
-                    if !self.is_noise_word(unix_timestamp.to_string()) {
-                        let term = Term::from_field_i64(field, unix_timestamp);
+                        .into_timestamp_micros();
+                    if !self.is_noise_word(timestamp_micros.to_string()) {
+                        let term = Term::from_field_i64(field, timestamp_micros);
                         *term_frequencies.entry(term).or_insert(0) += 1;
                     }
                 }

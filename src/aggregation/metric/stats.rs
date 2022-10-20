@@ -1,14 +1,14 @@
+use fastfield_codecs::Column;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::f64_from_fastfield_u64;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes stats of numeric values that are
 /// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
-/// See [Stats] for returned statistics.
+/// Supported field types are `u64`, `i64`, and `f64`.
+/// See [`Stats`] for returned statistics.
 ///
 /// # JSON Format
 /// ```json
@@ -43,13 +43,13 @@ pub struct Stats {
     pub count: usize,
     /// The sum of the fast field values.
     pub sum: f64,
-    /// The standard deviation of the fast field values. None for count == 0.
+    /// The standard deviation of the fast field values. `None` for count == 0.
     pub standard_deviation: Option<f64>,
     /// The min value of the fast field values.
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
-    /// The average of the values. None for count == 0.
+    /// The average of the values. `None` for count == 0.
     pub avg: Option<f64>,
 }
 
@@ -70,7 +70,7 @@ impl Stats {
     }
 }
 
-/// IntermediateStats contains the mergeable version for stats.
+/// `IntermediateStats` contains the mergeable version for stats.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     count: usize,
@@ -163,13 +163,13 @@ impl SegmentStatsCollector {
             stats: IntermediateStats::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
+    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val1 = field.get(docs[0]);
-            let val2 = field.get(docs[1]);
-            let val3 = field.get(docs[2]);
-            let val4 = field.get(docs[3]);
+            let val1 = field.get_val(docs[0] as u64);
+            let val2 = field.get_val(docs[1] as u64);
+            let val3 = field.get_val(docs[2] as u64);
+            let val4 = field.get_val(docs[3] as u64);
             let val1 = f64_from_fastfield_u64(val1, &self.field_type);
             let val2 = f64_from_fastfield_u64(val2, &self.field_type);
             let val3 = f64_from_fastfield_u64(val3, &self.field_type);
@@ -179,8 +179,8 @@ impl SegmentStatsCollector {
             self.stats.collect(val3);
             self.stats.collect(val4);
         }
-        for doc in iter.remainder() {
-            let val = field.get(*doc);
+        for &doc in iter.remainder() {
+            let val = field.get_val(doc as u64);
             let val = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val);
         }
@@ -222,7 +222,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -285,6 +285,7 @@ mod tests {
                             (7f64..19f64).into(),
                             (19f64..20f64).into(),
                         ],
+                        ..Default::default()
                     }),
                     sub_aggregation: iter::once((
                         "stats".to_string(),
@@ -299,7 +300,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();

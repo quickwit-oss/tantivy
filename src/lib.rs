@@ -11,6 +11,7 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 #![allow(clippy::len_without_is_empty)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 //! # `tantivy`
 //!
@@ -133,7 +134,7 @@ pub use time;
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
-/// A date/time value with second precision.
+/// A date/time value with microsecond precision.
 ///
 /// This timestamp does not carry any explicit time zone information.
 /// Users are responsible for applying the provided conversion
@@ -145,13 +146,30 @@ use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 /// to prevent unintended usage.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
-    unix_timestamp: i64,
+    // Timestamp in microseconds.
+    pub(crate) timestamp_micros: i64,
 }
 
 impl DateTime {
-    /// Create new from UNIX timestamp
-    pub const fn from_unix_timestamp(unix_timestamp: i64) -> Self {
-        Self { unix_timestamp }
+    /// Create new from UNIX timestamp in seconds
+    pub const fn from_timestamp_secs(seconds: i64) -> Self {
+        Self {
+            timestamp_micros: seconds * 1_000_000,
+        }
+    }
+
+    /// Create new from UNIX timestamp in milliseconds
+    pub const fn from_timestamp_millis(milliseconds: i64) -> Self {
+        Self {
+            timestamp_micros: milliseconds * 1_000,
+        }
+    }
+
+    /// Create new from UNIX timestamp in microseconds.
+    pub const fn from_timestamp_micros(microseconds: i64) -> Self {
+        Self {
+            timestamp_micros: microseconds,
+        }
     }
 
     /// Create new from `OffsetDateTime`
@@ -159,7 +177,8 @@ impl DateTime {
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
     pub const fn from_utc(dt: OffsetDateTime) -> Self {
-        Self::from_unix_timestamp(dt.unix_timestamp())
+        let timestamp_micros = dt.unix_timestamp() as i64 * 1_000_000 + dt.microsecond() as i64;
+        Self { timestamp_micros }
     }
 
     /// Create new from `PrimitiveDateTime`
@@ -167,21 +186,30 @@ impl DateTime {
     /// Implicitly assumes that the given date/time is in UTC!
     /// Otherwise the original value must only be reobtained with
     /// [`Self::into_primitive()`].
-    pub const fn from_primitive(dt: PrimitiveDateTime) -> Self {
+    pub fn from_primitive(dt: PrimitiveDateTime) -> Self {
         Self::from_utc(dt.assume_utc())
     }
 
-    /// Convert to UNIX timestamp
-    pub const fn into_unix_timestamp(self) -> i64 {
-        let Self { unix_timestamp } = self;
-        unix_timestamp
+    /// Convert to UNIX timestamp in seconds.
+    pub const fn into_timestamp_secs(self) -> i64 {
+        self.timestamp_micros / 1_000_000
+    }
+
+    /// Convert to UNIX timestamp in milliseconds.
+    pub const fn into_timestamp_millis(self) -> i64 {
+        self.timestamp_micros / 1_000
+    }
+
+    /// Convert to UNIX timestamp in microseconds.
+    pub const fn into_timestamp_micros(self) -> i64 {
+        self.timestamp_micros
     }
 
     /// Convert to UTC `OffsetDateTime`
     pub fn into_utc(self) -> OffsetDateTime {
-        let Self { unix_timestamp } = self;
-        let utc_datetime =
-            OffsetDateTime::from_unix_timestamp(unix_timestamp).expect("valid UNIX timestamp");
+        let timestamp_nanos = self.timestamp_micros as i128 * 1000;
+        let utc_datetime = OffsetDateTime::from_unix_timestamp_nanos(timestamp_nanos)
+            .expect("valid UNIX timestamp");
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
         utc_datetime
     }
@@ -200,6 +228,18 @@ impl DateTime {
         // Discard the UTC time zone offset
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
         PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
+    }
+
+    /// Truncates the microseconds value to the corresponding precision.
+    pub(crate) fn truncate(self, precision: DatePrecision) -> Self {
+        let truncated_timestamp_micros = match precision {
+            DatePrecision::Seconds => (self.timestamp_micros / 1_000_000) * 1_000_000,
+            DatePrecision::Milliseconds => (self.timestamp_micros / 1_000) * 1_000,
+            DatePrecision::Microseconds => self.timestamp_micros,
+        };
+        Self {
+            timestamp_micros: truncated_timestamp_micros,
+        }
     }
 }
 
@@ -261,15 +301,14 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
     Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
-    SegmentReader,
+    SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
 pub use crate::indexer::demuxer::*;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
-pub use crate::reader::LeasedItem;
-pub use crate::schema::{Document, Term};
+pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 4;
@@ -385,15 +424,15 @@ pub mod tests {
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    use time::OffsetDateTime;
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::FastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::*;
-    use crate::{DocAddress, Index, Postings, ReloadPolicy};
+    use crate::{DateTime, DocAddress, Index, Postings, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -996,21 +1035,21 @@ pub mod tests {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
             assert!(fast_field_reader_opt.is_ok());
             let fast_field_reader = fast_field_reader_opt.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4u64)
+            assert_eq!(fast_field_reader.get_val(0), 4u64)
         }
 
         {
             let fast_field_reader_res = segment_reader.fast_fields().i64(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4i64)
+            assert_eq!(fast_field_reader.get_val(0), 4i64)
         }
 
         {
             let fast_field_reader_res = segment_reader.fast_fields().f64(fast_field_float);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4f64)
+            assert_eq!(fast_field_reader.get_val(0), 4f64)
         }
         Ok(())
     }
@@ -1101,5 +1140,36 @@ pub mod tests {
         writer.merge(&segment_ids).wait()?;
         assert!(index.validate_checksum()?.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn test_datetime() {
+        let now = OffsetDateTime::now_utc();
+
+        let dt = DateTime::from_utc(now).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+        // We don't store nanosecond level precision.
+        assert_eq!(dt.nanosecond(), now.microsecond() * 1000);
+
+        let dt = DateTime::from_timestamp_secs(now.unix_timestamp()).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms(), now.to_hms());
+        // Constructed from a second precision.
+        assert_ne!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt =
+            DateTime::from_timestamp_micros((now.unix_timestamp_nanos() / 1_000) as i64).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt_from_ts_nanos =
+            OffsetDateTime::from_unix_timestamp_nanos(18446744073709551615i128).unwrap();
+        let offset_dt = DateTime::from_utc(dt_from_ts_nanos).into_utc();
+        assert_eq!(
+            dt_from_ts_nanos.to_ordinal_date(),
+            offset_dt.to_ordinal_date()
+        );
+        assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
     }
 }

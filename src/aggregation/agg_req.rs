@@ -1,7 +1,7 @@
 //! Contains the aggregation request tree. Used to build an
-//! [AggregationCollector](super::AggregationCollector).
+//! [`AggregationCollector`](super::AggregationCollector).
 //!
-//! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
+//! [`Aggregations`] is the top level entry point to create a request, which is a `HashMap<String,
 //! Aggregation>`.
 //!
 //! Requests are compatible with the json format of elasticsearch.
@@ -20,6 +20,7 @@
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: false,
 //!             }),
 //!             sub_aggregation: Default::default(),
 //!         }),
@@ -53,8 +54,8 @@ use super::bucket::{HistogramAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
 
-/// The top-level aggregation request structure, which contains [Aggregation] and their user defined
-/// names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
+/// The top-level aggregation request structure, which contains [`Aggregation`] and their user
+/// defined names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
@@ -100,6 +101,12 @@ pub(crate) struct BucketAggregationInternal {
 }
 
 impl BucketAggregationInternal {
+    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
+        match &self.bucket_agg {
+            BucketAggregationType::Range(range) => Some(range),
+            _ => None,
+        }
+    }
     pub(crate) fn as_histogram(&self) -> Option<&HistogramAggregation> {
         match &self.bucket_agg {
             BucketAggregationType::Histogram(histogram) => Some(histogram),
@@ -132,15 +139,15 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
-/// Aggregation request of [BucketAggregation] or [MetricAggregation].
+/// Aggregation request of [`BucketAggregation`] or [`MetricAggregation`].
 ///
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Aggregation {
-    /// Bucket aggregation, see [BucketAggregation] for details.
+    /// Bucket aggregation, see [`BucketAggregation`] for details.
     Bucket(BucketAggregation),
-    /// Metric aggregation, see [MetricAggregation] for details.
+    /// Metric aggregation, see [`MetricAggregation`] for details.
     Metric(MetricAggregation),
 }
 
@@ -264,6 +271,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    keyed: true,
                 }),
                 sub_aggregation: Default::default(),
             }),
@@ -290,7 +298,8 @@ mod tests {
         {
           "from": 20.0
         }
-      ]
+      ],
+      "keyed": true
     }
   }
 }"#;
@@ -312,6 +321,7 @@ mod tests {
                             (7f64..20f64).into(),
                             (20f64..f64::MAX).into(),
                         ],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
                 }),
@@ -337,6 +347,7 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    ..Default::default()
                 }),
                 sub_aggregation: agg_req2,
             }),

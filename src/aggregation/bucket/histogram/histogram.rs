@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
+use fastfield_codecs::Column;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +15,6 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -37,18 +37,16 @@ use crate::{DocId, TantivyError};
 /// [hard_bounds](HistogramAggregation::hard_bounds).
 ///
 /// # Result
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [BucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`BucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry] on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateHistogramBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
-///
-/// The keyed parameter (elasticsearch) is not yet supported.
 ///
 /// # JSON Format
 /// ```json
@@ -63,7 +61,7 @@ use crate::{DocId, TantivyError};
 /// ```
 ///
 /// Response
-/// See [BucketEntry](crate::aggregation::agg_result::BucketEntry)
+/// See [`BucketEntry`](crate::aggregation::agg_result::BucketEntry)
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HistogramAggregation {
@@ -72,7 +70,7 @@ pub struct HistogramAggregation {
     /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
     pub interval: f64,
-    /// Intervals implicitely defines an absolute grid of buckets `[interval * k, interval * (k +
+    /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
     ///
     /// Offset makes it possible to shift this grid into
@@ -117,6 +115,9 @@ pub struct HistogramAggregation {
     /// Cannot be set in conjunction with min_doc_count > 0, since the empty buckets from extended
     /// bounds would not be returned.
     pub extended_bounds: Option<HistogramBounds>,
+    /// Whether to return the buckets as a hash map
+    #[serde(default)]
+    pub keyed: bool,
 }
 
 impl HistogramAggregation {
@@ -250,6 +251,11 @@ impl SegmentHistogramCollector {
             );
         };
 
+        agg_with_accessor
+            .bucket_count
+            .add_count(buckets.len() as u32);
+        agg_with_accessor.bucket_count.validate_bucket_count()?;
+
         Ok(IntermediateBucketResult::Histogram { buckets })
     }
 
@@ -257,7 +263,7 @@ impl SegmentHistogramCollector {
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
-        accessor: &DynamicFastFieldReader<u64>,
+        accessor: &dyn Column<u64>,
     ) -> crate::Result<Self> {
         req.validate()?;
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
@@ -311,7 +317,7 @@ impl SegmentHistogramCollector {
         doc: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
-    ) {
+    ) -> crate::Result<()> {
         let bounds = self.bounds;
         let interval = self.interval;
         let offset = self.offset;
@@ -325,10 +331,10 @@ impl SegmentHistogramCollector {
             .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(accessor.get(docs[0]));
-            let val1 = self.f64_from_fastfield_u64(accessor.get(docs[1]));
-            let val2 = self.f64_from_fastfield_u64(accessor.get(docs[2]));
-            let val3 = self.f64_from_fastfield_u64(accessor.get(docs[3]));
+            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0] as u64));
+            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1] as u64));
+            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2] as u64));
+            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3] as u64));
 
             let bucket_pos0 = get_bucket_num(val0);
             let bucket_pos1 = get_bucket_num(val1);
@@ -341,31 +347,31 @@ impl SegmentHistogramCollector {
                 bucket_pos0,
                 docs[0],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val1,
                 &bounds,
                 bucket_pos1,
                 docs[1],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val2,
                 &bounds,
                 bucket_pos2,
                 docs[2],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
             self.increment_bucket_if_in_bounds(
                 val3,
                 &bounds,
                 bucket_pos3,
                 docs[3],
                 &bucket_with_accessor.sub_aggregation,
-            );
+            )?;
         }
-        for doc in iter.remainder() {
-            let val = f64_from_fastfield_u64(accessor.get(*doc), &self.field_type);
+        for &doc in iter.remainder() {
+            let val = f64_from_fastfield_u64(accessor.get_val(doc as u64), &self.field_type);
             if !bounds.contains(val) {
                 continue;
             }
@@ -376,16 +382,17 @@ impl SegmentHistogramCollector {
                 self.buckets[bucket_pos].key,
                 get_bucket_val(val, self.interval, self.offset) as f64
             );
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
+            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
                 for sub_aggregation in sub_aggregations {
                     sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
+                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush)?;
                 }
             }
         }
+        Ok(())
     }
 
     #[inline]
@@ -396,15 +403,16 @@ impl SegmentHistogramCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         if bounds.contains(val) {
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
                 get_bucket_val(val, self.interval, self.offset) as f64
             );
 
-            self.increment_bucket(bucket_pos, doc, bucket_with_accessor);
+            self.increment_bucket(bucket_pos, doc, bucket_with_accessor)?;
         }
+        Ok(())
     }
 
     #[inline]
@@ -413,12 +421,13 @@ impl SegmentHistogramCollector {
         bucket_pos: usize,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
+    ) -> crate::Result<()> {
         let bucket = &mut self.buckets[bucket_pos];
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
-            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor);
+            sub_aggregation[bucket_pos].collect(doc, bucket_with_accessor)?;
         }
+        Ok(())
     }
 
     fn f64_from_fastfield_u64(&self, val: u64) -> f64 {
@@ -443,7 +452,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
 ) -> crate::Result<Vec<BucketEntry>> {
-    // Generate the the full list of buckets without gaps.
+    // Generate the full list of buckets without gaps.
     //
     // The bounds are the min max from the current buckets, optionally extended by
     // extended_bounds from the request
@@ -482,14 +491,12 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
                 sub_aggregation: empty_sub_aggregation.clone(),
             },
         })
-        .map(|intermediate_bucket| {
-            BucketEntry::from_intermediate_and_req(intermediate_bucket, sub_aggregation)
-        })
+        .map(|intermediate_bucket| intermediate_bucket.into_final_bucket_entry(sub_aggregation))
         .collect::<crate::Result<Vec<_>>>()
 }
 
 // Convert to BucketEntry
-pub(crate) fn intermediate_buckets_to_final_buckets(
+pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
@@ -503,15 +510,15 @@ pub(crate) fn intermediate_buckets_to_final_buckets(
     } else {
         buckets
             .into_iter()
-            .filter(|bucket| bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|bucket| BucketEntry::from_intermediate_and_req(bucket, sub_aggregation))
+            .filter(|histogram_bucket| histogram_bucket.doc_count >= histogram_req.min_doc_count())
+            .map(|histogram_bucket| histogram_bucket.into_final_bucket_entry(sub_aggregation))
             .collect::<crate::Result<Vec<_>>>()
     }
 }
 
 /// Applies req extended_bounds/hard_bounds on the min_max value
 ///
-/// May return (f64::MAX, f64::MIN), if there is no range.
+/// May return `(f64::MAX, f64::MIN)`, if there is no range.
 fn get_req_min_max(req: &HistogramAggregation, min_max: Option<(f64, f64)>) -> (f64, f64) {
     let (mut min, mut max) = min_max.unwrap_or((f64::MAX, f64::MIN));
 
@@ -546,7 +553,7 @@ pub(crate) fn generate_buckets_with_opt_minmax(
     let offset = req.offset.unwrap_or(0.0);
     let first_bucket_num = get_bucket_num_f64(min, req.interval, offset) as i64;
     let last_bucket_num = get_bucket_num_f64(max, req.interval, offset) as i64;
-    let mut buckets = vec![];
+    let mut buckets = Vec::with_capacity((first_bucket_num..=last_bucket_num).count());
     for bucket_pos in first_bucket_num..=last_bucket_num {
         let bucket_key = bucket_pos as f64 * req.interval + offset;
         buckets.push(bucket_key);
@@ -1386,6 +1393,48 @@ mod tests {
         let agg_res = exec_request(agg_req, &index);
 
         assert!(agg_res.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 50.0,
+                    keyed: true,
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request(agg_req, &index)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "histogram": {
+                    "buckets": {
+                        "0": {
+                            "key": 0.0,
+                            "doc_count": 50
+                        },
+                        "50": {
+                            "key": 50.0,
+                            "doc_count": 50
+                        }
+                    }
+                }
+            })
+        );
 
         Ok(())
     }

@@ -83,7 +83,6 @@ mod tests {
             }
             assert!(sstable_writer.finalize().is_ok());
         }
-        dbg!(&buffer);
         buffer
     }
 

@@ -1,5 +1,5 @@
 use std::ops::{Deref, Range};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
@@ -8,16 +8,13 @@ use stable_deref_trait::StableDeref;
 
 use crate::directory::OwnedBytes;
 
-pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-
 /// Objects that represents files sections in tantivy.
 ///
 /// By contract, whatever happens to the directory file, as long as a FileHandle
 /// is alive, the data associated with it cannot be altered or destroyed.
 ///
-/// The underlying behavior is therefore specific to the `Directory` that created it.
-/// Despite its name, a `FileSlice` may or may not directly map to an actual file
+/// The underlying behavior is therefore specific to the [`Directory`](crate::Directory) that
+/// created it. Despite its name, a [`FileSlice`] may or may not directly map to an actual file
 /// on the filesystem.
 
 #[async_trait]
@@ -54,7 +51,7 @@ impl<B> From<B> for FileSlice
 where B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync
 {
     fn from(bytes: B) -> FileSlice {
-        FileSlice::new(Box::new(OwnedBytes::new(bytes)))
+        FileSlice::new(Arc::new(OwnedBytes::new(bytes)))
     }
 }
 
@@ -75,7 +72,7 @@ impl fmt::Debug for FileSlice {
 
 impl FileSlice {
     /// Wraps a FileHandle.
-    pub fn new(file_handle: Box<dyn FileHandle>) -> Self {
+    pub fn new(file_handle: Arc<dyn FileHandle>) -> Self {
         let num_bytes = file_handle.len();
         FileSlice::new_with_num_bytes(file_handle, num_bytes)
     }
@@ -83,9 +80,9 @@ impl FileSlice {
     /// Wraps a FileHandle.
     #[doc(hidden)]
     #[must_use]
-    pub fn new_with_num_bytes(file_handle: Box<dyn FileHandle>, num_bytes: usize) -> Self {
+    pub fn new_with_num_bytes(file_handle: Arc<dyn FileHandle>, num_bytes: usize) -> Self {
         FileSlice {
-            data: Arc::from(file_handle),
+            data: file_handle,
             range: 0..num_bytes,
         }
     }
@@ -112,7 +109,7 @@ impl FileSlice {
 
     /// Returns a `OwnedBytes` with all of the data in the `FileSlice`.
     ///
-    /// The behavior is strongly dependant on the implementation of the underlying
+    /// The behavior is strongly dependent on the implementation of the underlying
     /// `Directory` and the `FileSliceTrait` it creates.
     /// In particular, it is  up to the `Directory` implementation
     /// to handle caching if needed.
@@ -235,6 +232,7 @@ impl FileHandle for OwnedBytes {
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::sync::Arc;
 
     use common::HasLen;
 
@@ -242,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_file_slice() -> io::Result<()> {
-        let file_slice = FileSlice::new(Box::new(b"abcdef".as_ref()));
+        let file_slice = FileSlice::new(Arc::new(b"abcdef".as_ref()));
         assert_eq!(file_slice.len(), 6);
         assert_eq!(file_slice.slice_from(2).read_bytes()?.as_slice(), b"cdef");
         assert_eq!(file_slice.slice_to(2).read_bytes()?.as_slice(), b"ab");
@@ -286,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_slice_simple_read() -> io::Result<()> {
-        let slice = FileSlice::new(Box::new(&b"abcdef"[..]));
+        let slice = FileSlice::new(Arc::new(&b"abcdef"[..]));
         assert_eq!(slice.len(), 6);
         assert_eq!(slice.read_bytes()?.as_ref(), b"abcdef");
         assert_eq!(slice.slice(1..4).read_bytes()?.as_ref(), b"bcd");
@@ -295,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_slice_read_slice() -> io::Result<()> {
-        let slice_deref = FileSlice::new(Box::new(&b"abcdef"[..]));
+        let slice_deref = FileSlice::new(Arc::new(&b"abcdef"[..]));
         assert_eq!(slice_deref.read_bytes_slice(1..4)?.as_ref(), b"bcd");
         Ok(())
     }
@@ -303,7 +301,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "end of requested range exceeds the fileslice length (10 > 6)")]
     fn test_slice_read_slice_invalid_range_exceeds() {
-        let slice_deref = FileSlice::new(Box::new(&b"abcdef"[..]));
+        let slice_deref = FileSlice::new(Arc::new(&b"abcdef"[..]));
         assert_eq!(
             slice_deref.read_bytes_slice(0..10).unwrap().as_ref(),
             b"bcd"

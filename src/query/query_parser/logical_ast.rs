@@ -8,7 +8,7 @@ use crate::Score;
 #[derive(Clone)]
 pub enum LogicalLiteral {
     Term(Term),
-    Phrase(Vec<(usize, Term)>),
+    Phrase(Vec<(usize, Term)>, u32),
     Range {
         field: Field,
         value_type: Type,
@@ -74,7 +74,14 @@ impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
-            LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),
+            LogicalLiteral::Phrase(ref terms, slop) => {
+                write!(formatter, "\"{:?}\"", terms)?;
+                if slop > 0 {
+                    write!(formatter, "~{:?}", slop)
+                } else {
+                    Ok(())
+                }
+            }
             LogicalLiteral::Range {
                 ref lower,
                 ref upper,

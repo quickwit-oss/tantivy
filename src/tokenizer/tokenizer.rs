@@ -30,7 +30,7 @@ impl Default for Token {
         Token {
             offset_from: 0,
             offset_to: 0,
-            position: usize::max_value(),
+            position: usize::MAX,
             text: String::with_capacity(200),
             position_length: 1,
         }
@@ -116,7 +116,7 @@ impl Clone for TextAnalyzer {
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
 ///
-/// See the [module documentation](./index.html) for more detail.
+/// See the [module documentation](crate::tokenizer) for more detail.
 ///
 /// # Warning
 ///
@@ -155,7 +155,7 @@ impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 ///
-/// See `TokenStream` for more information.
+/// See [`TokenStream`] for more information.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
 impl<'a, T> From<T> for BoxTokenStream<'a>
@@ -181,7 +181,7 @@ impl<'a> DerefMut for BoxTokenStream<'a> {
 
 /// Simple wrapper of `Box<dyn TokenFilter + 'a>`.
 ///
-/// See `TokenStream` for more information.
+/// See [`TokenFilter`] for more information.
 pub struct BoxTokenFilter(Box<dyn TokenFilter>);
 
 impl Deref for BoxTokenFilter {

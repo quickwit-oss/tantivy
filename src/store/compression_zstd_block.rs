@@ -4,7 +4,11 @@ use zstd::bulk::{compress_to_buffer, decompress_to_buffer};
 use zstd::DEFAULT_COMPRESSION_LEVEL;
 
 #[inline]
-pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
+pub fn compress(
+    uncompressed: &[u8],
+    compressed: &mut Vec<u8>,
+    compression_level: Option<i32>,
+) -> io::Result<()> {
     let count_size = std::mem::size_of::<u32>();
     let max_size = zstd::zstd_safe::compress_bound(uncompressed.len()) + count_size;
 
@@ -14,7 +18,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
     let compressed_size = compress_to_buffer(
         uncompressed,
         &mut compressed[count_size..],
-        DEFAULT_COMPRESSION_LEVEL,
+        compression_level.unwrap_or(DEFAULT_COMPRESSION_LEVEL),
     )?;
 
     compressed[0..count_size].copy_from_slice(&(uncompressed.len() as u32).to_le_bytes());

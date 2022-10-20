@@ -1,12 +1,17 @@
+use std::net::IpAddr;
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+use super::ip_options::IpAddrOptions;
+use super::{Cardinality, IntoIpv6Addr};
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
-    Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing, TextOptions,
-    Value,
+    DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing,
+    TextOptions, Value,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -25,6 +30,11 @@ pub enum ValueParsingError {
     #[error("Type error. Expected {expected}, got {json}")]
     TypeError {
         expected: &'static str,
+        json: serde_json::Value,
+    },
+    #[error("Parse  error on {json}: {error}")]
+    ParseError {
+        error: String,
         json: serde_json::Value,
     },
     #[error("Invalid base64: {base64}")]
@@ -46,6 +56,8 @@ pub enum Type {
     I64 = b'i',
     /// `f64`
     F64 = b'f',
+    /// `bool`
+    Bool = b'o',
     /// `date(i64) timestamp`
     Date = b'd',
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
@@ -54,17 +66,21 @@ pub enum Type {
     Bytes = b'b',
     /// Leaf in a Json object.
     Json = b'j',
+    /// IpAddr
+    IpAddr = b'p',
 }
 
-const ALL_TYPES: [Type; 8] = [
+const ALL_TYPES: [Type; 10] = [
     Type::Str,
     Type::U64,
     Type::I64,
     Type::F64,
+    Type::Bool,
     Type::Date,
     Type::Facet,
     Type::Bytes,
     Type::Json,
+    Type::IpAddr,
 ];
 
 impl Type {
@@ -86,25 +102,29 @@ impl Type {
             Type::U64 => "U64",
             Type::I64 => "I64",
             Type::F64 => "F64",
+            Type::Bool => "Bool",
             Type::Date => "Date",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
             Type::Json => "Json",
+            Type::IpAddr => "IpAddr",
         }
     }
 
     /// Interprets a 1byte code as a type.
-    /// Returns None if the code is invalid.
+    /// Returns `None` if the code is invalid.
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             b's' => Some(Type::Str),
             b'u' => Some(Type::U64),
             b'i' => Some(Type::I64),
             b'f' => Some(Type::F64),
+            b'o' => Some(Type::Bool),
             b'd' => Some(Type::Date),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
+            b'p' => Some(Type::IpAddr),
             _ => None,
         }
     }
@@ -125,14 +145,18 @@ pub enum FieldType {
     I64(NumericOptions),
     /// 64-bits float 64 field type configuration
     F64(NumericOptions),
+    /// Bool field type configuration
+    Bool(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
-    Date(NumericOptions),
-    /// Hierachical Facet
+    Date(DateOptions),
+    /// Hierarchical Facet
     Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
     /// Json object
     JsonObject(JsonObjectOptions),
+    /// IpAddr field
+    IpAddr(IpAddrOptions),
 }
 
 impl FieldType {
@@ -143,10 +167,12 @@ impl FieldType {
             FieldType::U64(_) => Type::U64,
             FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
+            FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
+            FieldType::IpAddr(_) => Type::IpAddr,
         }
     }
 
@@ -156,11 +182,13 @@ impl FieldType {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options) => int_options.is_indexed(),
+            | FieldType::F64(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
         }
     }
 
@@ -193,9 +221,31 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.get_fastfield_cardinality().is_some(),
+            | FieldType::Bool(ref int_options) => int_options.is_fast(),
+            FieldType::Date(ref date_options) => date_options.is_fast(),
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(_) => false,
+        }
+    }
+
+    /// returns true if the field is fast.
+    pub fn fastfield_cardinality(&self) -> Option<Cardinality> {
+        match *self {
+            FieldType::Bytes(ref bytes_options) if bytes_options.is_fast() => {
+                Some(Cardinality::SingleValue)
+            }
+            FieldType::Str(ref text_options) if text_options.is_fast() => {
+                Some(Cardinality::MultiValues)
+            }
+            FieldType::U64(ref int_options)
+            | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality(),
+            FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
+            FieldType::Facet(_) => Some(Cardinality::MultiValues),
+            FieldType::JsonObject(_) => None,
+            _ => None,
         }
     }
 
@@ -209,10 +259,12 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.fieldnorms(),
+            | FieldType::Bool(ref int_options) => int_options.fieldnorms(),
+            FieldType::Date(ref date_options) => date_options.fieldnorms(),
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
         }
     }
 
@@ -232,8 +284,15 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => {
+            | FieldType::Bool(ref int_options) => {
                 if int_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
+            FieldType::Date(ref date_options) => {
+                if date_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
@@ -250,6 +309,13 @@ impl FieldType {
             FieldType::JsonObject(ref json_obj_options) => json_obj_options
                 .get_text_indexing_options()
                 .map(TextFieldIndexing::index_option),
+            FieldType::IpAddr(ref ip_addr_options) => {
+                if ip_addr_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -261,7 +327,7 @@ impl FieldType {
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
-                match *self {
+                match self {
                     FieldType::Date(_) => {
                         let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
                             .map_err(|_err| ValueParsingError::TypeError {
@@ -277,6 +343,10 @@ impl FieldType {
                             json: JsonValue::String(field_text),
                         })
                     }
+                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                        expected: "a boolean",
+                        json: JsonValue::String(field_text),
+                    }),
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
                     FieldType::Bytes(_) => base64::decode(&field_text)
                         .map(Value::Bytes)
@@ -285,6 +355,16 @@ impl FieldType {
                         expected: "a json object",
                         json: JsonValue::String(field_text),
                     }),
+                    FieldType::IpAddr(_) => {
+                        let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
+                            ValueParsingError::ParseError {
+                                error: err.to_string(),
+                                json: JsonValue::String(field_text),
+                            }
+                        })?;
+
+                        Ok(Value::IpAddr(ip_addr.into_ipv6_addr()))
+                    }
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -318,6 +398,10 @@ impl FieldType {
                         })
                     }
                 }
+                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                    expected: "a boolean",
+                    json: JsonValue::Number(field_val_num),
+                }),
                 FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
                     Err(ValueParsingError::TypeError {
                         expected: "a string",
@@ -326,6 +410,10 @@ impl FieldType {
                 }
                 FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
             },
@@ -346,6 +434,13 @@ impl FieldType {
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
+                }),
+            },
+            JsonValue::Bool(json_bool_val) => match self {
+                FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Bool(json_bool_val),
                 }),
             },
             _ => Err(ValueParsingError::TypeError {
@@ -375,8 +470,8 @@ mod tests {
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
-        // Time zone is converted to UTC and subseconds are discarded
-        assert_eq!("Date(2019-10-12T05:20:50Z)", format!("{:?}", date));
+        // Time zone is converted to UTC
+        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{:?}", date));
     }
 
     #[test]

@@ -110,6 +110,7 @@ fn main() -> tantivy::Result<()> {
                     (9f64..14f64).into(),
                     (14f64..20f64).into(),
                 ],
+                ..Default::default()
             }),
             sub_aggregation: sub_agg_req_1.clone(),
         }),
@@ -117,7 +118,7 @@ fn main() -> tantivy::Result<()> {
     .into_iter()
     .collect();
 
-    let collector = AggregationCollector::from_aggs(agg_req_1);
+    let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();

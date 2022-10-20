@@ -1,14 +1,17 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
+use std::rc::Rc;
+use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+
+use fastfield_codecs::Column;
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
+use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::fastfield::{
-    type_and_cardinality, DynamicFastFieldReader, FastType, MultiValuedFastFieldReader,
-};
+use crate::fastfield::{type_and_cardinality, FastType, MultiValuedFastFieldReader};
 use crate::schema::{Cardinality, Type};
 use crate::{InvertedIndexReader, SegmentReader, TantivyError};
 
@@ -34,10 +37,16 @@ impl AggregationsWithAccessor {
 #[derive(Clone)]
 pub(crate) enum FastFieldAccessor {
     Multi(MultiValuedFastFieldReader<u64>),
-    Single(DynamicFastFieldReader<u64>),
+    Single(Arc<dyn Column<u64>>),
 }
 impl FastFieldAccessor {
-    pub fn as_single(&self) -> Option<&DynamicFastFieldReader<u64>> {
+    pub fn as_single(&self) -> Option<&dyn Column<u64>> {
+        match self {
+            FastFieldAccessor::Multi(_) => None,
+            FastFieldAccessor::Single(reader) => Some(&**reader),
+        }
+    }
+    pub fn into_single(self) -> Option<Arc<dyn Column<u64>>> {
         match self {
             FastFieldAccessor::Multi(_) => None,
             FastFieldAccessor::Single(reader) => Some(reader),
@@ -60,6 +69,7 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) field_type: Type,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
+    pub(crate) bucket_count: BucketCount,
 }
 
 impl BucketAggregationWithAccessor {
@@ -67,12 +77,13 @@ impl BucketAggregationWithAccessor {
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
+        bucket_count: Rc<AtomicU32>,
+        max_bucket_count: u32,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let mut inverted_index = None;
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
-                field: field_name,
-                ranges: _,
+                field: field_name, ..
             }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
@@ -92,9 +103,18 @@ impl BucketAggregationWithAccessor {
         Ok(BucketAggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggs_with_accessor_and_validate(&sub_aggregation, reader)?,
+            sub_aggregation: get_aggs_with_accessor_and_validate(
+                &sub_aggregation,
+                reader,
+                bucket_count.clone(),
+                max_bucket_count,
+            )?,
             bucket_agg: bucket.clone(),
             inverted_index,
+            bucket_count: BucketCount {
+                bucket_count,
+                max_bucket_count,
+            },
         })
     }
 }
@@ -104,7 +124,7 @@ impl BucketAggregationWithAccessor {
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: Type,
-    pub accessor: DynamicFastFieldReader<u64>,
+    pub accessor: Arc<dyn Column>,
 }
 
 impl MetricAggregationWithAccessor {
@@ -120,9 +140,8 @@ impl MetricAggregationWithAccessor {
 
                 Ok(MetricAggregationWithAccessor {
                     accessor: accessor
-                        .as_single()
-                        .expect("unexpected fast field cardinality")
-                        .clone(),
+                        .into_single()
+                        .expect("unexpected fast field cardinality"),
                     field_type,
                     metric: metric.clone(),
                 })
@@ -134,6 +153,8 @@ impl MetricAggregationWithAccessor {
 pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
+    bucket_count: Rc<AtomicU32>,
+    max_bucket_count: u32,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut metrics = vec![];
     let mut buckets = vec![];
@@ -145,6 +166,8 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
+                    Rc::clone(&bucket_count),
+                    max_bucket_count,
                 )?,
             )),
             Aggregation::Metric(metric) => metrics.push((

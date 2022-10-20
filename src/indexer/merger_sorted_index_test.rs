@@ -2,7 +2,7 @@
 mod tests {
     use crate::collector::TopDocs;
     use crate::core::Index;
-    use crate::fastfield::{AliveBitSet, FastFieldReader, MultiValuedFastFieldReader};
+    use crate::fastfield::{AliveBitSet, MultiValuedFastFieldReader};
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, NumericOptions,
@@ -186,17 +186,17 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get(5u32), 1u64);
-        assert_eq!(fast_field.get(4u32), 2u64);
-        assert_eq!(fast_field.get(3u32), 3u64);
+        assert_eq!(fast_field.get_val(5), 1u64);
+        assert_eq!(fast_field.get_val(4), 2u64);
+        assert_eq!(fast_field.get_val(3), 3u64);
         if force_disjunct_segment_sort_values {
-            assert_eq!(fast_field.get(2u32), 20u64);
-            assert_eq!(fast_field.get(1u32), 100u64);
+            assert_eq!(fast_field.get_val(2u64), 20u64);
+            assert_eq!(fast_field.get_val(1u64), 100u64);
         } else {
-            assert_eq!(fast_field.get(2u32), 10u64);
-            assert_eq!(fast_field.get(1u32), 20u64);
+            assert_eq!(fast_field.get_val(2u64), 10u64);
+            assert_eq!(fast_field.get_val(1u64), 20u64);
         }
-        assert_eq!(fast_field.get(0u32), 1_000u64);
+        assert_eq!(fast_field.get_val(0u64), 1_000u64);
 
         // test new field norm mapping
         {
@@ -373,12 +373,12 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get(0u32), 1u64);
-        assert_eq!(fast_field.get(1u32), 2u64);
-        assert_eq!(fast_field.get(2u32), 3u64);
-        assert_eq!(fast_field.get(3u32), 10u64);
-        assert_eq!(fast_field.get(4u32), 20u64);
-        assert_eq!(fast_field.get(5u32), 1_000u64);
+        assert_eq!(fast_field.get_val(0), 1u64);
+        assert_eq!(fast_field.get_val(1), 2u64);
+        assert_eq!(fast_field.get_val(2), 3u64);
+        assert_eq!(fast_field.get_val(3), 10u64);
+        assert_eq!(fast_field.get_val(4), 20u64);
+        assert_eq!(fast_field.get_val(5), 1_000u64);
 
         let get_vals = |fast_field: &MultiValuedFastFieldReader<u64>, doc_id: u32| -> Vec<u64> {
             let mut vals = vec![];
@@ -478,13 +478,14 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
+    use std::sync::Arc;
+
+    use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use crate::core::Index;
-    // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
-    use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
     use crate::indexer::merger::IndexMerger;
-    use crate::schema::{Cardinality, Document, NumericOptions, Schema};
+    use crate::schema::{Cardinality, NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
@@ -503,9 +504,7 @@ mod bench_sorted_index_merge {
         {
             let mut index_writer = index.writer_for_tests().unwrap();
             let index_doc = |index_writer: &mut IndexWriter, val: u64| {
-                let mut doc = Document::default();
-                doc.add_u64(int_field, val);
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc!(int_field=>val)).unwrap();
             };
             // 3 segments with 10_000 values in the fast fields
             for _ in 0..3 {
@@ -518,6 +517,7 @@ mod bench_sorted_index_merge {
         }
         index
     }
+
     #[bench]
     fn create_sorted_index_walk_overkmerge_on_merge_fastfield(
         b: &mut Bencher,
@@ -533,19 +533,19 @@ mod bench_sorted_index_merge {
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
         let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
         b.iter(|| {
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, ordinal)| {
-                let reader = &merger.readers[*ordinal as usize];
-                let u64_reader: DynamicFastFieldReader<u64> =
+            let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
+                let reader = &merger.readers[doc_addr.segment_ord as usize];
+                let u64_reader: Arc<dyn Column<u64>> =
                     reader.fast_fields().typed_fast_field_reader(field).expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
                     );
-                (doc_id, reader, u64_reader)
+                (doc_addr.doc_id, reader, u64_reader)
             });
             // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get(*doc_id);
+                val = field_reader.get_val(doc_id as u64);
             }
 
             val

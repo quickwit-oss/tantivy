@@ -7,6 +7,7 @@ mod segment;
 mod segment_component;
 mod segment_id;
 mod segment_reader;
+mod single_segment_index_writer;
 
 use std::path::Path;
 
@@ -23,6 +24,7 @@ pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
 pub use self::segment_reader::SegmentReader;
+pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
 /// The meta file contains all the information about the list of segments and the schema
 /// of the index.

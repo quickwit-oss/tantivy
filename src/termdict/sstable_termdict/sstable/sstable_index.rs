@@ -13,7 +13,7 @@ pub struct SSTableIndex {
 
 impl SSTableIndex {
     pub(crate) fn load(data: &[u8]) -> Result<SSTableIndex, DataCorruption> {
-        serde_cbor::de::from_slice(data)
+        ciborium::de::from_reader(data)
             .map_err(|_| DataCorruption::comment_only("SSTable index is corrupted"))
     }
 
@@ -35,7 +35,7 @@ pub struct BlockAddr {
 struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,
-    /// and yet stricly smaller than the first key in the next block.
+    /// and yet strictly smaller than the first key in the next block.
     pub last_key_or_greater: Vec<u8>,
     pub block_addr: BlockAddr,
 }
@@ -50,7 +50,7 @@ pub struct SSTableIndexBuilder {
 /// matches `left <= left' < right`.
 fn find_shorter_str_in_between(left: &mut Vec<u8>, right: &[u8]) {
     assert!(&left[..] < right);
-    let common_len = common_prefix_len(&left, right);
+    let common_len = common_prefix_len(left, right);
     if left.len() == common_len {
         return;
     }
@@ -85,9 +85,9 @@ impl SSTableIndexBuilder {
         })
     }
 
-    pub fn serialize(&self, wrt: &mut dyn io::Write) -> io::Result<()> {
-        serde_cbor::ser::to_writer(wrt, &self.index).unwrap();
-        Ok(())
+    pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
+        ciborium::ser::into_writer(&self.index, wrt)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 }
 

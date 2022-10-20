@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 
 use downcast_rs::impl_downcast;
@@ -16,38 +15,39 @@ use crate::{DocAddress, Term};
 /// - a set of documents
 /// - a way to score these documents
 ///
-/// When performing a [search](#method.search),  these documents will then
-/// be pushed to a [Collector](../collector/trait.Collector.html),
+/// When performing a [search](Searcher::search), these documents will then
+/// be pushed to a [`Collector`](crate::collector::Collector),
 /// which will in turn be in charge of deciding what to do with them.
 ///
 /// Concretely, this scored docset is represented by the
-/// [`Scorer`](./trait.Scorer.html) trait.
+/// [`Scorer`] trait.
 ///
 /// Because our index is actually split into segments, the
-/// query does not actually directly creates `DocSet` object.
-/// Instead, the query creates a [`Weight`](./trait.Weight.html)
-/// object for a given searcher.
+/// query does not actually directly creates [`DocSet`](crate::DocSet) object.
+/// Instead, the query creates a [`Weight`] object for a given searcher.
 ///
 /// The weight object, in turn, makes it possible to create
-/// a scorer for a specific [`SegmentReader`](../struct.SegmentReader.html).
+/// a scorer for a specific [`SegmentReader`].
 ///
 /// So to sum it up :
-/// - a `Query` is recipe to define a set of documents as well the way to score them.
-/// - a `Weight` is this recipe tied to a specific `Searcher`. It may for instance
+/// - a `Query` is a recipe to define a set of documents as well the way to score them.
+/// - a [`Weight`] is this recipe tied to a specific [`Searcher`]. It may for instance
 /// hold statistics about the different term of the query. It is created by the query.
-/// - a `Scorer` is a cursor over the set of matching documents, for a specific
-/// [`SegmentReader`](../struct.SegmentReader.html). It is created by the
-/// [`Weight`](./trait.Weight.html).
+/// - a [`Scorer`] is a cursor over the set of matching documents, for a specific
+/// [`SegmentReader`]. It is created by the [`Weight`].
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
-/// dedicated `Query`, `Weight` and `Scorer`.
+/// dedicated `Query`, [`Weight`] and [`Scorer`].
+///
+/// [`Scorer`]: crate::query::Scorer
+/// [`SegmentReader`]: crate::SegmentReader
 pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
-    /// Create the weight associated to a query.
+    /// Create the weight associated with a query.
     ///
     /// If scoring is not required, setting `scoring_enabled` to `false`
     /// can increase performances.
     ///
-    /// See [`Weight`](./trait.Weight.html).
+    /// See [`Weight`].
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>>;
 
     /// Returns an `Explanation` for the score of the document.
@@ -67,12 +67,15 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
         Ok(result)
     }
 
-    /// Extract all of the terms associated to the query and insert them in the
-    /// term set given in arguments.
+    /// Extract all of the terms associated with the query and pass them to the
+    /// given closure.
     ///
     /// Each term is associated with a boolean indicating whether
-    /// Positions are required or not.
-    fn query_terms(&self, _term_set: &mut BTreeMap<Term, bool>) {}
+    /// positions are required or not.
+    ///
+    /// Note that there can be multiple instances of any given term
+    /// in a query and deduplication must be handled by the visitor.
+    fn query_terms<'a>(&'a self, _visitor: &mut dyn FnMut(&'a Term, bool)) {}
 }
 
 /// Implements `box_clone`.
@@ -98,8 +101,8 @@ impl Query for Box<dyn Query> {
         self.as_ref().count(searcher)
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
-        self.as_ref().query_terms(terms);
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        self.as_ref().query_terms(visitor);
     }
 }
 

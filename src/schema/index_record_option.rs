@@ -1,18 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 /// `IndexRecordOption` describes an amount information associated
-/// to a given indexed field.
+/// with a given indexed field.
 ///
 /// It is both used to:
 ///
-///  * describe in the schema the amount of information
-/// that should be retained during indexing (See
-/// [`TextFieldIndexing.html.set_index_option`](
-///     ../schema/struct.TextFieldIndexing.html#method.set_index_option))
-///  * to request for a given
-/// amount of information to be decoded as one goes through a posting list.
-/// (See [`InvertedIndexReader.read_postings`](
-///     ../struct.InvertedIndexReader.html#method.read_postings))
+///  * describe in the schema the amount of information that should be retained during indexing (See
+///    [`TextFieldIndexing::set_index_option()`](crate::schema::TextFieldIndexing::set_index_option))
+///  * request that a given amount of information to be decoded as one goes through a posting list.
+///    (See [`InvertedIndexReader::read_postings()`](crate::InvertedIndexReader::read_postings))
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize)]
 pub enum IndexRecordOption {
     /// records only the `DocId`s
@@ -23,8 +19,8 @@ pub enum IndexRecordOption {
     #[serde(rename = "freq")]
     WithFreqs,
     /// records the document id, the term frequency and the positions of
-    /// the occurences in the document.
-    /// Positions are required to run [PhraseQueries](../query/struct.PhraseQuery.html).
+    /// the occurrences in the document.
+    /// Positions are required to run a [`PhraseQuery`](crate::query::PhraseQuery).
     #[serde(rename = "position")]
     WithFreqsAndPositions,
 }

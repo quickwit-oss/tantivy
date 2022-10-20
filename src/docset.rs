@@ -3,11 +3,11 @@ use std::borrow::{Borrow, BorrowMut};
 use crate::fastfield::AliveBitSet;
 use crate::DocId;
 
-/// Sentinel value returned when a DocSet has been entirely consumed.
+/// Sentinel value returned when a [`DocSet`] has been entirely consumed.
 ///
-/// This is not u32::MAX as one would have expected, due to the lack of SSE2 instructions
-/// to compare [u32; 4].
-pub const TERMINATED: DocId = std::i32::MAX as u32;
+/// This is not `u32::MAX` as one would have expected, due to the lack of SSE2 instructions
+/// to compare `[u32; 4]`.
+pub const TERMINATED: DocId = i32::MAX as u32;
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet: Send {
@@ -20,22 +20,21 @@ pub trait DocSet: Send {
     /// assert_eq!(doc, docset.doc());
     /// ```
     ///
-    /// If we reached the end of the DocSet, TERMINATED should be returned.
+    /// If we reached the end of the `DocSet`, [`TERMINATED`] should be returned.
     ///
-    /// Calling `.advance()` on a terminated DocSet should be supported, and TERMINATED should
+    /// Calling `.advance()` on a terminated `DocSet` should be supported, and [`TERMINATED`] should
     /// be returned.
-    /// TODO Test existing docsets.
     fn advance(&mut self) -> DocId;
 
-    /// Advances the DocSet forward until reaching the target, or going to the
-    /// lowest DocId greater than the target.
+    /// Advances the `DocSet` forward until reaching the target, or going to the
+    /// lowest [`DocId`] greater than the target.
     ///
-    /// If the end of the DocSet is reached, TERMINATED is returned.
+    /// If the end of the `DocSet` is reached, [`TERMINATED`] is returned.
     ///
-    /// Calling `.seek(target)` on a terminated DocSet is legal. Implementation
-    /// of DocSet should support it.
+    /// Calling `.seek(target)` on a terminated `DocSet` is legal. Implementation
+    /// of `DocSet` should support it.
     ///
-    /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a DocSet.
+    /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a `DocSet`.
     fn seek(&mut self, target: DocId) -> DocId {
         let mut doc = self.doc();
         debug_assert!(doc <= target);
@@ -74,9 +73,9 @@ pub trait DocSet: Send {
     }
 
     /// Returns the current document
-    /// Right after creating a new DocSet, the docset points to the first document.
+    /// Right after creating a new `DocSet`, the docset points to the first document.
     ///
-    /// If the DocSet is empty, .doc() should return `TERMINATED`.
+    /// If the `DocSet` is empty, `.doc()` should return [`TERMINATED`].
     fn doc(&self) -> DocId;
 
     /// Returns a best-effort hint of the

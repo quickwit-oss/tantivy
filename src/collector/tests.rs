@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
+use fastfield_codecs::Column;
+
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
+use crate::fastfield::BytesFastFieldReader;
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
@@ -69,10 +73,8 @@ pub fn test_filter_collector() -> crate::Result<()> {
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
-/// It is unusable in pr
-///
-/// actise, as it does not store
-/// the segment ordinals
+/// It is unusable in practise, as it does
+/// not store the segment ordinals
 pub struct TestCollector {
     pub compute_score: bool,
 }
@@ -158,7 +160,7 @@ pub struct FastFieldTestCollector {
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: DynamicFastFieldReader<u64>,
+    reader: Arc<dyn Column<u64>>,
 }
 
 impl FastFieldTestCollector {
@@ -199,7 +201,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let val = self.reader.get(doc);
+        let val = self.reader.get_val(doc as u64);
         self.vals.push(val);
     }
 
@@ -265,7 +267,7 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
     }
 }
 
-fn make_test_searcher() -> crate::Result<crate::LeasedItem<Searcher>> {
+fn make_test_searcher() -> crate::Result<Searcher> {
     let schema = Schema::builder().build();
     let index = Index::create_in_ram(schema);
     let mut index_writer = index.writer_for_tests()?;

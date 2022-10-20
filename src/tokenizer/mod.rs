@@ -55,9 +55,9 @@
 //!
 //! # Custom tokenizers
 //!
-//! You can write your own tokenizer by implementing the [`Tokenizer`](./trait.Tokenizer.html)
-//! or you can extend an existing [`Tokenizer`](./trait.Tokenizer.html) by chaining it several
-//! [`TokenFilter`s](./trait.TokenFilter.html).
+//! You can write your own tokenizer by implementing the [`Tokenizer`] trait
+//! or you can extend an existing [`Tokenizer`] by chaining it with several
+//! [`TokenFilter`]s.
 //!
 //! For instance, the `en_stem` is defined as follows.
 //!
@@ -71,7 +71,7 @@
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
-//! register it with a name in your index's [`TokenizerManager`](./struct.TokenizerManager.html).
+//! register it with a name in your index's [`TokenizerManager`].
 //!
 //! ```rust
 //! # use tantivy::schema::Schema;
@@ -89,7 +89,7 @@
 //! could like this for instance.
 //!
 //! Note that tokens with a len greater or equal to
-//! [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).
+//! [`MAX_TOKEN_LEN`].
 //!
 //! # Example
 //!
@@ -152,10 +152,10 @@ pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///
-/// Tokenizer are in charge of not emitting tokens larger than this value.
+/// Tokenizers are in charge of not emitting tokens larger than this value.
 /// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
 /// `2^16 - 1 - 5`, the token will simply be ignored downstream.
-pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 5;
+pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
 pub mod tests {

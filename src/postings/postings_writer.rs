@@ -82,9 +82,14 @@ pub(crate) fn serialize_postings(
                     .collect();
                 unordered_term_mappings.insert(field, mapping);
             }
-            FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
+            FieldType::U64(_)
+            | FieldType::I64(_)
+            | FieldType::F64(_)
+            | FieldType::Date(_)
+            | FieldType::Bool(_) => {}
             FieldType::Bytes(_) => {}
             FieldType::JsonObject(_) => {}
+            FieldType::IpAddr(_) => {}
         }
 
         let postings_writer = per_field_postings_writers.get_for_field(field);
@@ -112,7 +117,7 @@ pub(crate) struct IndexingPosition {
 /// and building a `Segment` in anonymous memory.
 ///
 /// `PostingsWriter` writes in a `MemoryArena`.
-pub(crate) trait PostingsWriter {
+pub(crate) trait PostingsWriter: Send + Sync {
     /// Record that a document contains a term at a given position.
     ///
     /// * doc  - the document id
@@ -148,7 +153,7 @@ pub(crate) trait PostingsWriter {
         indexing_position: &mut IndexingPosition,
         mut term_id_fast_field_writer_opt: Option<&mut MultiValuedFastFieldWriter>,
     ) {
-        let end_of_path_idx = term_buffer.as_slice().len();
+        let end_of_path_idx = term_buffer.len_bytes();
         let mut num_tokens = 0;
         let mut end_position = indexing_position.end_position;
         token_stream.process(&mut |token: &Token| {
@@ -162,7 +167,7 @@ pub(crate) trait PostingsWriter {
                 );
                 return;
             }
-            term_buffer.truncate(end_of_path_idx);
+            term_buffer.truncate_value_bytes(end_of_path_idx);
             term_buffer.append_bytes(token.text.as_bytes());
             let start_position = indexing_position.end_position + token.position as u32;
             end_position = start_position + token.position_length as u32;
@@ -176,7 +181,7 @@ pub(crate) trait PostingsWriter {
 
         indexing_position.end_position = end_position + POSITION_GAP;
         indexing_position.num_tokens += num_tokens;
-        term_buffer.truncate(end_of_path_idx);
+        term_buffer.truncate_value_bytes(end_of_path_idx);
     }
 
     fn total_num_tokens(&self) -> u64;

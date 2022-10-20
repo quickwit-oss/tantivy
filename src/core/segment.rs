@@ -70,7 +70,7 @@ impl Segment {
     /// Returns the relative path of a component of our segment.
     ///
     /// It just joins the segment id with the extension
-    /// associated to a segment component.
+    /// associated with a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.meta.relative_path(component)
     }

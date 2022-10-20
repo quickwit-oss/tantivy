@@ -7,30 +7,35 @@
 //! It is designed for the fast random access of some document
 //! fields given a document id.
 //!
-//! `FastField` are useful when a field is required for all or most of
-//! the `DocSet` : for instance for scoring, grouping, filtering, or faceting.
+//! Fast fields are useful when a field is required for all or most of
+//! the `DocSet`: for instance for scoring, grouping, aggregation, filtering, or faceting.
 //!
 //!
-//! Fields have to be declared as `FAST` in the  schema.
-//! Currently supported fields are: u64, i64, f64 and bytes.
+//! Fields have to be declared as `FAST` in the schema.
+//! Currently supported fields are: u64, i64, f64, bytes and text.
 //!
-//! u64, i64 and f64 fields are stored in a bit-packed fashion so that
-//! their memory usage is directly linear with the amplitude of the
-//! values stored.
+//! Fast fields are stored in with [different codecs](fastfield_codecs). The best codec is detected
+//! automatically, when serializing.
 //!
 //! Read access performance is comparable to that of an array lookup.
+
+use fastfield_codecs::MonotonicallyMappableToU64;
 
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
+pub(crate) use self::multivalued::{get_fastfield_codecs_for_multivalue, MultivalueStartIndex};
+pub use self::multivalued::{
+    MultiValueU128FastFieldWriter, MultiValuedFastFieldReader, MultiValuedFastFieldWriter,
+    MultiValuedU128FastFieldReader,
+};
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
-pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
+pub use self::serializer::{Column, CompositeFastFieldSerializer};
+use self::writer::unexpected_value;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::schema::{Cardinality, FieldType, Type, Value};
+use crate::schema::{Type, Value};
 use crate::{DateTime, DocId};
 
 mod alive_bitset;
@@ -38,7 +43,6 @@ mod bytes;
 mod error;
 mod facet_reader;
 mod multivalued;
-mod reader;
 mod readers;
 mod serializer;
 mod writer;
@@ -46,154 +50,86 @@ mod writer;
 /// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
 /// for a doc_id
 pub trait MultiValueLength {
-    /// returns the num of values associated to a doc_id
+    /// returns the positions for a docid
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64>;
+    /// returns the num of values associated with a doc_id
     fn get_len(&self, doc_id: DocId) -> u64;
     /// returns the sum of num values for all doc_ids
     fn get_total_len(&self) -> u64;
 }
 
-/// Trait for types that are allowed for fast fields: (u64, i64 and f64).
-pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
-    /// Converts a value from u64
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn from_u64(val: u64) -> Self;
-
-    /// Converts a value to u64.
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn to_u64(&self) -> u64;
-
-    /// Returns the fast field cardinality that can be extracted from the given
-    /// `FieldType`.
-    ///
-    /// If the type is not a fast field, `None` is returned.
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality>;
-
-    /// Cast value to `u64`.
-    /// The value is just reinterpreted in memory.
-    fn as_u64(&self) -> u64;
+/// Trait for types that are allowed for fast fields:
+/// (u64, i64 and f64, bool, DateTime).
+pub trait FastValue:
+    MonotonicallyMappableToU64 + Copy + Send + Sync + PartialOrd + 'static
+{
+    /// Returns the `schema::Type` for this FastValue.
+    fn to_type() -> Type;
 
     /// Build a default value. This default value is never used, so the value does not
     /// really matter.
     fn make_zero() -> Self {
-        Self::from_u64(0i64.to_u64())
+        Self::from_u64(0u64)
     }
-
-    /// Returns the `schema::Type` for this FastValue.
-    fn to_type() -> Type;
 }
 
 impl FastValue for u64 {
-    fn from_u64(val: u64) -> Self {
-        val
-    }
-
-    fn to_u64(&self) -> u64 {
-        *self
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            FieldType::Facet(_) => Some(Cardinality::MultiValues),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        *self
-    }
-
     fn to_type() -> Type {
         Type::U64
     }
 }
 
 impl FastValue for i64 {
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_i64(val)
-    }
-
-    fn to_u64(&self) -> u64 {
-        common::i64_to_u64(*self)
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::I64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        *self as u64
-    }
-
     fn to_type() -> Type {
         Type::I64
     }
 }
 
 impl FastValue for f64 {
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_f64(val)
-    }
-
-    fn to_u64(&self) -> u64 {
-        common::f64_to_u64(*self)
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::F64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.to_bits()
-    }
-
     fn to_type() -> Type {
         Type::F64
     }
 }
 
-impl FastValue for DateTime {
-    fn from_u64(timestamp_u64: u64) -> Self {
-        let unix_timestamp = i64::from_u64(timestamp_u64);
-        Self::from_unix_timestamp(unix_timestamp)
-    }
-
-    fn to_u64(&self) -> u64 {
-        self.into_unix_timestamp().to_u64()
-    }
-
-    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
-        match *field_type {
-            FieldType::Date(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.into_unix_timestamp().as_u64()
-    }
-
+impl FastValue for bool {
     fn to_type() -> Type {
-        Type::Date
+        Type::Bool
     }
 }
 
-fn value_to_u64(value: &Value) -> u64 {
-    match value {
+impl MonotonicallyMappableToU64 for DateTime {
+    fn to_u64(self) -> u64 {
+        self.timestamp_micros.to_u64()
+    }
+
+    fn from_u64(val: u64) -> Self {
+        let timestamp_micros = i64::from_u64(val);
+        DateTime { timestamp_micros }
+    }
+}
+
+impl FastValue for DateTime {
+    fn to_type() -> Type {
+        Type::Date
+    }
+
+    fn make_zero() -> Self {
+        DateTime {
+            timestamp_micros: 0,
+        }
+    }
+}
+
+fn value_to_u64(value: &Value) -> crate::Result<u64> {
+    let value = match value {
         Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
+        Value::Bool(val) => val.to_u64(),
         Value::Date(val) => val.to_u64(),
-        _ => panic!("Expected a u64/i64/f64/date field, got {:?} ", value),
-    }
+        _ => return Err(unexpected_value("u64/i64/f64/bool/date", value)),
+    };
+    Ok(value)
 }
 
 /// The fast field type
@@ -222,34 +158,35 @@ mod tests {
     use std::collections::HashMap;
     use std::ops::Range;
     use std::path::Path;
+    use std::sync::Arc;
 
     use common::HasLen;
+    use fastfield_codecs::{open, FastFieldCodecType};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
 
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, NumericOptions, Schema, FAST, STRING, TEXT};
+    use crate::schema::{Cardinality, Document, Field, Schema, SchemaBuilder, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
-    use crate::{Index, SegmentId, SegmentReader};
+    use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
         schema_builder.add_u64_field("field", FAST);
         schema_builder.build()
     });
-
     pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
 
     #[test]
     pub fn test_fastfield() {
-        let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
-        assert_eq!(test_fastfield.get(0), 100);
-        assert_eq!(test_fastfield.get(1), 200);
-        assert_eq!(test_fastfield.get(2), 300);
+        let test_fastfield = fastfield_codecs::serialize_and_load(&[100u64, 200u64, 300u64][..]);
+        assert_eq!(test_fastfield.get_val(0u64), 100);
+        assert_eq!(test_fastfield.get_val(1u64), 200);
+        assert_eq!(test_fastfield.get_val(2u64), 300);
     }
 
     #[test]
@@ -266,22 +203,28 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            fast_field_writers.add_document(&doc!(*FIELD=>13u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>14u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>2u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>13u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>2u64))
+                .unwrap();
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 37);
+        assert_eq!(file.len(), 25);
         let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(*FIELD).unwrap();
-        let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
-        assert_eq!(fast_field_reader.get(0), 13u64);
-        assert_eq!(fast_field_reader.get(1), 14u64);
-        assert_eq!(fast_field_reader.get(2), 2u64);
+        let fast_field_bytes = composite_file.open_read(*FIELD).unwrap().read_bytes()?;
+        let fast_field_reader = open::<u64>(fast_field_bytes)?;
+        assert_eq!(fast_field_reader.get_val(0), 13u64);
+        assert_eq!(fast_field_reader.get_val(1), 14u64);
+        assert_eq!(fast_field_reader.get_val(2), 2u64);
         Ok(())
     }
 
@@ -293,33 +236,54 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            fast_field_writers.add_document(&doc!(*FIELD=>4u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>14_082_001u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>3_052u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>9_002u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>15_001u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>777u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>1_002u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>1_501u64));
-            fast_field_writers.add_document(&doc!(*FIELD=>215u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>4u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14_082_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>3_052u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>9_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>15_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>777u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_501u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>215u64))
+                .unwrap();
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 62);
+        assert_eq!(file.len(), 53);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
-            assert_eq!(fast_field_reader.get(0), 4u64);
-            assert_eq!(fast_field_reader.get(1), 14_082_001u64);
-            assert_eq!(fast_field_reader.get(2), 3_052u64);
-            assert_eq!(fast_field_reader.get(3), 9002u64);
-            assert_eq!(fast_field_reader.get(4), 15_001u64);
-            assert_eq!(fast_field_reader.get(5), 777u64);
-            assert_eq!(fast_field_reader.get(6), 1_002u64);
-            assert_eq!(fast_field_reader.get(7), 1_501u64);
-            assert_eq!(fast_field_reader.get(8), 215u64);
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<u64>(data)?;
+            assert_eq!(fast_field_reader.get_val(0), 4u64);
+            assert_eq!(fast_field_reader.get_val(1), 14_082_001u64);
+            assert_eq!(fast_field_reader.get_val(2), 3_052u64);
+            assert_eq!(fast_field_reader.get_val(3), 9002u64);
+            assert_eq!(fast_field_reader.get_val(4), 15_001u64);
+            assert_eq!(fast_field_reader.get_val(5), 777u64);
+            assert_eq!(fast_field_reader.get_val(6), 1_002u64);
+            assert_eq!(fast_field_reader.get_val(7), 1_501u64);
+            assert_eq!(fast_field_reader.get_val(8), 215u64);
         }
         Ok(())
     }
@@ -334,7 +298,9 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
-                fast_field_writers.add_document(&doc!(*FIELD=>100_000u64));
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>100_000u64))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -342,13 +308,16 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
+        assert_eq!(file.len(), 26);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<u64>(data)?;
             for doc in 0..10_000 {
-                assert_eq!(fast_field_reader.get(doc), 100_000u64);
+                assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
             }
         }
         Ok(())
@@ -364,9 +333,13 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             // forcing the amplitude to be high
-            fast_field_writers.add_document(&doc!(*FIELD=>0u64));
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>0u64))
+                .unwrap();
             for i in 0u64..10_000u64 {
-                fast_field_writers.add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + i));
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + i))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -374,15 +347,18 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80043);
+        assert_eq!(file.len(), 80040);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
-            assert_eq!(fast_field_reader.get(0), 0u64);
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<u64>(data)?;
+            assert_eq!(fast_field_reader.get_val(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(
-                    fast_field_reader.get(doc),
+                    fast_field_reader.get_val(doc),
                     5_000_000_000_000_000_000u64 + doc as u64 - 1u64
                 );
             }
@@ -391,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_intfastfield() -> crate::Result<()> {
+    fn test_signed_intfastfield_normal() -> crate::Result<()> {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
         let mut schema_builder = Schema::builder();
@@ -405,7 +381,7 @@ mod tests {
             for i in -100i64..10_000i64 {
                 let mut doc = Document::default();
                 doc.add_i64(i64_field, i);
-                fast_field_writers.add_document(&doc);
+                fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -413,17 +389,20 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        // assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        assert_eq!(file.len(), 10175_usize); // linear interpol size
+        assert_eq!(file.len(), 40_usize);
+
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(i64_field)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<i64>(data)?;
 
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
-                assert_eq!(fast_field_reader.get(doc as u32), i);
+                assert_eq!(fast_field_reader.get_val(doc as u64), i);
             }
             let mut buffer = vec![0i64; 100];
             fast_field_reader.get_range(53, &mut buffer[..]);
@@ -447,7 +426,7 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
-            fast_field_writers.add_document(&doc);
+            fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
@@ -457,9 +436,12 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
-            assert_eq!(fast_field_reader.get(0u32), 0i64);
+            let data = fast_fields_composite
+                .open_read(i64_field)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<i64>(data)?;
+            assert_eq!(fast_field_reader.get_val(0), 0i64);
         }
         Ok(())
     }
@@ -471,10 +453,15 @@ mod tests {
         permutation
     }
 
-    #[test]
-    fn test_intfastfield_permutation() -> crate::Result<()> {
+    // Warning: this generates the same permutation at each call
+    pub fn generate_permutation_gcd() -> Vec<u64> {
+        let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        permutation
+    }
+
+    fn test_intfastfield_permutation_with_data(permutation: Vec<u64>) -> crate::Result<()> {
         let path = Path::new("test");
-        let permutation = generate_permutation();
         let n = permutation.len();
         let directory = RamDirectory::create();
         {
@@ -482,7 +469,7 @@ mod tests {
             let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+                fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
@@ -490,15 +477,30 @@ mod tests {
         let file = directory.open_read(path)?;
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
+            let data = fast_fields_composite
+                .open_read(*FIELD)
+                .unwrap()
+                .read_bytes()?;
+            let fast_field_reader = open::<u64>(data)?;
 
-            let mut a = 0u64;
-            for _ in 0..n {
-                assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
-                a = fast_field_reader.get(a as u32);
+            for a in 0..n {
+                assert_eq!(fast_field_reader.get_val(a as u64), permutation[a as usize]);
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_intfastfield_permutation_gcd() -> crate::Result<()> {
+        let permutation = generate_permutation_gcd();
+        test_intfastfield_permutation_with_data(permutation)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_intfastfield_permutation() -> crate::Result<()> {
+        let permutation = generate_permutation();
+        test_intfastfield_permutation_with_data(permutation)?;
         Ok(())
     }
 
@@ -530,15 +532,15 @@ mod tests {
     }
 
     #[test]
-    fn test_default_datetime() {
-        assert_eq!(0, DateTime::make_zero().into_unix_timestamp());
+    fn test_default_date() {
+        assert_eq!(0, DateTime::make_zero().into_timestamp_secs());
     }
 
     fn get_vals_for_docs(ff: &MultiValuedFastFieldReader<u64>, docs: Range<u32>) -> Vec<u64> {
         let mut all = vec![];
 
         for doc in docs {
-            let mut out = vec![];
+            let mut out: Vec<u64> = vec![];
             ff.get_vals(doc, &mut out);
             all.extend(out);
         }
@@ -735,12 +737,16 @@ mod tests {
 
     #[test]
     fn test_datefastfield() -> crate::Result<()> {
-        use crate::fastfield::FastValue;
         let mut schema_builder = Schema::builder();
-        let date_field = schema_builder.add_date_field("date", FAST);
+        let date_field = schema_builder.add_date_field(
+            "date",
+            DateOptions::from(FAST).set_precision(DatePrecision::Microseconds),
+        );
         let multi_date_field = schema_builder.add_date_field(
             "multi_date",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            DateOptions::default()
+                .set_precision(DatePrecision::Microseconds)
+                .set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -768,131 +774,210 @@ mod tests {
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
         let mut dates = vec![];
         {
-            assert_eq!(date_fast_field.get(0u32).into_unix_timestamp(), 1i64);
+            assert_eq!(date_fast_field.get_val(0).into_timestamp_micros(), 1i64);
             dates_fast_field.get_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_unix_timestamp(), 2i64);
-            assert_eq!(dates[1].into_unix_timestamp(), 3i64);
+            assert_eq!(dates[0].into_timestamp_micros(), 2i64);
+            assert_eq!(dates[1].into_timestamp_micros(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get(1u32).into_unix_timestamp(), 4i64);
+            assert_eq!(date_fast_field.get_val(1).into_timestamp_micros(), 4i64);
             dates_fast_field.get_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get(2u32).into_unix_timestamp(), 0i64);
+            assert_eq!(date_fast_field.get_val(2).into_timestamp_micros(), 0i64);
             dates_fast_field.get_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_unix_timestamp(), 5i64);
-            assert_eq!(dates[1].into_unix_timestamp(), 6i64);
+            assert_eq!(dates[0].into_timestamp_micros(), 5i64);
+            assert_eq!(dates[1].into_timestamp_micros(), 6i64);
         }
         Ok(())
     }
-}
 
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-    use std::collections::HashMap;
-    use std::path::Path;
-
-    use test::{self, Bencher};
-
-    use super::tests::{generate_permutation, FIELD, SCHEMA};
-    use super::*;
-    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
-    use crate::fastfield::FastFieldReader;
-
-    #[bench]
-    fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        b.iter(|| {
-            let n = test::black_box(7000u32);
-            let mut a = 0u64;
-            for i in (0u32..n / 7).map(|v| v * 7) {
-                a ^= permutation[i as usize];
-            }
-            a
-        });
+    #[test]
+    pub fn test_fastfield_bool() {
+        let test_fastfield: Arc<dyn Column<bool>> =
+            fastfield_codecs::serialize_and_load::<bool>(&[true, false, true, false]);
+        assert_eq!(test_fastfield.get_val(0), true);
+        assert_eq!(test_fastfield.get_val(1), false);
+        assert_eq!(test_fastfield.get_val(2), true);
+        assert_eq!(test_fastfield.get_val(3), false);
     }
 
-    #[bench]
-    fn bench_intfastfield_veclookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        b.iter(|| {
-            let n = test::black_box(1000u32);
-            let mut a = 0u64;
-            for _ in 0u32..n {
-                a = permutation[a as usize];
-            }
-            a
-        });
-    }
-
-    #[bench]
-    fn bench_intfastfield_linear_fflookup(b: &mut Bencher) {
-        let path = Path::new("test");
-        let permutation = generate_permutation();
+    #[test]
+    pub fn test_fastfield_bool_small() -> crate::Result<()> {
+        let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
         {
-            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let write: WritePtr = directory.open_write(path).unwrap();
             let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+            fast_field_writers
+                .add_document(&doc!(field=>false))
+                .unwrap();
+            fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+            fast_field_writers
+                .add_document(&doc!(field=>false))
+                .unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new(), None)
+                .unwrap();
+            serializer.close().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 24);
+        let composite_file = CompositeFile::open(&file)?;
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open::<bool>(data)?;
+        assert_eq!(fast_field_reader.get_val(0), true);
+        assert_eq!(fast_field_reader.get_val(1), false);
+        assert_eq!(fast_field_reader.get_val(2), true);
+        assert_eq!(fast_field_reader.get_val(3), false);
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_fastfield_bool_large() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+        let field = schema.get_field("field_bool").unwrap();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            for _ in 0..50 {
+                fast_field_writers.add_document(&doc!(field=>true)).unwrap();
+                fast_field_writers
+                    .add_document(&doc!(field=>false))
+                    .unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
-
-            b.iter(|| {
-                let n = test::black_box(7000u32);
-                let mut a = 0u64;
-                for i in (0u32..n / 7).map(|val| val * 7) {
-                    a ^= fast_field_reader.get(i);
-                }
-                a
-            });
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 36);
+        let composite_file = CompositeFile::open(&file)?;
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open::<bool>(data)?;
+        for i in 0..25 {
+            assert_eq!(fast_field_reader.get_val(i * 2), true);
+            assert_eq!(fast_field_reader.get_val(i * 2 + 1), false);
         }
+
+        Ok(())
     }
 
-    #[bench]
-    fn bench_intfastfield_fflookup(b: &mut Bencher) {
-        let path = Path::new("test");
-        let permutation = generate_permutation();
+    #[test]
+    pub fn test_fastfield_bool_default_value() -> crate::Result<()> {
+        let path = Path::new("test_bool");
+        let directory: RamDirectory = RamDirectory::create();
+
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bool_field("field_bool", FAST);
+        let schema = schema_builder.build();
+
+        {
+            let write: WritePtr = directory.open_write(path).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            let doc = Document::default();
+            fast_field_writers.add_document(&doc).unwrap();
+            fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
+            serializer.close()?;
+        }
+        let file = directory.open_read(path).unwrap();
+        let composite_file = CompositeFile::open(&file)?;
+        assert_eq!(file.len(), 23);
+        let data = composite_file.open_read(field).unwrap().read_bytes()?;
+        let fast_field_reader = open::<bool>(data)?;
+        assert_eq!(fast_field_reader.get_val(0), false);
+
+        Ok(())
+    }
+
+    fn get_index(
+        docs: &[crate::Document],
+        schema: &Schema,
+        codec_types: &[FastFieldCodecType],
+    ) -> crate::Result<RamDirectory> {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for &x in &permutation {
-                fast_field_writers.add_document(&doc!(*FIELD=>x));
+            let mut serializer =
+                CompositeFastFieldSerializer::from_write_with_codec(write, codec_types).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(schema);
+            for doc in docs {
+                fast_field_writers.add_document(doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
+        Ok(directory)
+    }
 
-            b.iter(|| {
-                let n = test::black_box(1000u32);
-                let mut a = 0u32;
-                for _ in 0u32..n {
-                    a = fast_field_reader.get(a) as u32;
-                }
-                a
-            });
+    #[test]
+    pub fn test_gcd_date() -> crate::Result<()> {
+        let size_prec_sec =
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds)?;
+        assert_eq!(size_prec_sec, 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
+        let size_prec_micro =
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds)?;
+        assert_eq!(size_prec_micro, 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
+        Ok(())
+    }
+
+    fn test_gcd_date_with_codec(
+        codec_type: FastFieldCodecType,
+        precision: DatePrecision,
+    ) -> crate::Result<usize> {
+        let mut rng = StdRng::seed_from_u64(2u64);
+        const T0: i64 = 1_662_345_825_012_529i64;
+        const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
+        let times: Vec<DateTime> = std::iter::repeat_with(|| {
+            // +- One hour.
+            let t = T0 + rng.gen_range(-ONE_HOUR_IN_MICROSECS..ONE_HOUR_IN_MICROSECS);
+            DateTime::from_timestamp_micros(t)
+        })
+        .take(1_000)
+        .collect();
+        let date_options = DateOptions::default()
+            .set_fast(Cardinality::SingleValue)
+            .set_precision(precision);
+        let mut schema_builder = SchemaBuilder::default();
+        let field = schema_builder.add_date_field("field", date_options);
+        let schema = schema_builder.build();
+
+        let docs: Vec<Document> = times.iter().map(|time| doc!(field=>*time)).collect();
+
+        let directory = get_index(&docs[..], &schema, &[codec_type])?;
+        let path = Path::new("test");
+        let file = directory.open_read(path).unwrap();
+        let composite_file = CompositeFile::open(&file)?;
+        let file = composite_file.open_read(*FIELD).unwrap();
+        let len = file.len();
+        let test_fastfield = open::<DateTime>(file.read_bytes()?)?;
+
+        for (i, time) in times.iter().enumerate() {
+            assert_eq!(test_fastfield.get_val(i as u64), time.truncate(precision));
         }
+        Ok(len)
     }
 }

@@ -89,7 +89,7 @@ impl SegmentReader {
         &self.fast_fields_readers
     }
 
-    /// Accessor to the `FacetReader` associated to a given `Field`.
+    /// Accessor to the `FacetReader` associated with a given `Field`.
     pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
 
@@ -128,13 +128,14 @@ impl SegmentReader {
         })
     }
 
-    pub(crate) fn fieldnorms_readers(&self) -> &FieldNormReaders {
+    #[doc(hidden)]
+    pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
         &self.fieldnorm_readers
     }
 
     /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone())
+    pub fn get_store_reader(&self, cache_size: usize) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone(), cache_size)
     }
 
     /// Open a new segment for reading.
@@ -175,9 +176,9 @@ impl SegmentReader {
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let original_bitset = if segment.meta().has_deletes() {
-            let delete_file_slice = segment.open_read(SegmentComponent::Delete)?;
-            let delete_data = delete_file_slice.read_bytes()?;
-            Some(AliveBitSet::open(delete_data))
+            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
+            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
+            Some(AliveBitSet::open(alive_doc_data))
         } else {
             None
         };
@@ -207,18 +208,18 @@ impl SegmentReader {
         })
     }
 
-    /// Returns a field reader associated to the field given in argument.
+    /// Returns a field reader associated with the field given in argument.
     /// If the field was not present in the index during indexing time,
     /// the InvertedIndexReader is empty.
     ///
     /// The field reader is in charge of iterating through the
-    /// term dictionary associated to a specific field,
-    /// and opening the posting list associated to any term.
+    /// term dictionary associated with a specific field,
+    /// and opening the posting list associated with any term.
     ///
-    /// If the field is marked as index, a warn is logged and an empty `InvertedIndexReader`
+    /// If the field is not marked as index, a warning is logged and an empty `InvertedIndexReader`
     /// is returned.
-    /// Similarly if the field is marked as indexed but no term has been indexed for the given
-    /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
+    /// Similarly, if the field is marked as indexed but no term has been indexed for the given
+    /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
     pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
@@ -240,7 +241,7 @@ impl SegmentReader {
 
         if postings_file_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
-            // As a result, no data is associated to the inverted index.
+            // As a result, no data is associated with the inverted index.
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
@@ -295,8 +296,7 @@ impl SegmentReader {
         self.delete_opstamp
     }
 
-    /// Returns the bitset representing
-    /// the documents that have been deleted.
+    /// Returns the bitset representing the alive `DocId`s.
     pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
         self.alive_bitset_opt.as_ref()
     }
@@ -305,7 +305,7 @@ impl SegmentReader {
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.alive_bitset()
-            .map(|delete_set| delete_set.is_deleted(doc))
+            .map(|alive_bitset| alive_bitset.is_deleted(doc))
             .unwrap_or(false)
     }
 
@@ -327,7 +327,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
-            self.get_store_reader()?.space_usage(),
+            self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)

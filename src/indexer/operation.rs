@@ -1,20 +1,11 @@
+use crate::query::Weight;
 use crate::schema::{Document, Term};
 use crate::Opstamp;
 
 /// Timestamped Delete operation.
-#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct DeleteOperation {
     pub opstamp: Opstamp,
-    pub term: Term,
-}
-
-impl Default for DeleteOperation {
-    fn default() -> Self {
-        DeleteOperation {
-            opstamp: 0u64,
-            term: Term::new(),
-        }
-    }
+    pub target: Box<dyn Weight>,
 }
 
 /// Timestamped Add operation.

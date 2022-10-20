@@ -1,6 +1,9 @@
 use std::collections::BinaryHeap;
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::Arc;
+
+use fastfield_codecs::Column;
 
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
@@ -9,7 +12,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::query::Weight;
 use crate::schema::Field;
 use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
@@ -79,7 +82,7 @@ where
 /// sorted by their score.
 ///
 /// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity for collecting the top `K` out of `n` documents
+/// The theoretical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
 ///
 /// This collector guarantees a stable sorting in case of a tie on the
@@ -129,12 +132,12 @@ impl fmt::Debug for TopDocs {
 }
 
 struct ScorerByFastFieldReader {
-    ff_reader: DynamicFastFieldReader<u64>,
+    ff_reader: Arc<dyn Column<u64>>,
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
     fn score(&mut self, doc: DocId) -> u64 {
-        self.ff_reader.get(doc)
+        self.ff_reader.get_val(doc as u64)
     }
 }
 
@@ -283,8 +286,8 @@ impl TopDocs {
     ///
     /// # See also
     ///
-    /// To confortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
-    /// [.order_by_fast_field(...)](#method.order_by_fast_field) method.
+    /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
+    /// the [.order_by_fast_field(...)](TopDocs::order_by_fast_field) method.
     pub fn order_by_u64_field(
         self,
         field: Field,
@@ -381,7 +384,7 @@ impl TopDocs {
     ///
     /// This method offers a convenient way to tweak or replace
     /// the documents score. As suggested by the prototype you can
-    /// manually define your own [`ScoreTweaker`](./trait.ScoreTweaker.html)
+    /// manually define your own [`ScoreTweaker`]
     /// and pass it as an argument, but there is a much simpler way to
     /// tweak your score: you can use a closure as in the following
     /// example.
@@ -398,7 +401,7 @@ impl TopDocs {
     /// In the following example will will tweak our ranking a bit by
     /// boosting popular products a notch.
     ///
-    /// In more serious application, this tweaking could involved running a
+    /// In more serious application, this tweaking could involve running a
     /// learning-to-rank model over various features
     ///
     /// ```rust
@@ -407,7 +410,6 @@ impl TopDocs {
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
-    /// use tantivy::fastfield::FastFieldReader;
     /// use tantivy::schema::Field;
     ///
     /// fn create_schema() -> Schema {
@@ -456,7 +458,7 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
-    ///                 let popularity: u64 = popularity_reader.get(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
     ///                 let popularity_boost_score = ((2u64 + popularity) as Score).log2();
@@ -472,7 +474,7 @@ impl TopDocs {
     /// ```
     ///
     /// # See also
-    /// [custom_score(...)](#method.custom_score).
+    /// - [custom_score(...)](TopDocs::custom_score)
     pub fn tweak_score<TScore, TScoreSegmentTweaker, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,
@@ -489,8 +491,7 @@ impl TopDocs {
     ///
     /// This method offers a convenient way to use a different score.
     ///
-    /// As suggested by the prototype you can manually define your
-    /// own [`CustomScorer`](./trait.CustomScorer.html)
+    /// As suggested by the prototype you can manually define your own [`CustomScorer`]
     /// and pass it as an argument, but there is a much simpler way to
     /// tweak your score: you can use a closure as in the following
     /// example.
@@ -499,7 +500,7 @@ impl TopDocs {
     ///
     /// This method only makes it possible to compute the score from a given
     /// `DocId`, fastfield values for the doc and any information you could
-    /// have precomputed beforehands. It does not make it possible for instance
+    /// have precomputed beforehand. It does not make it possible for instance
     /// to compute something like TfIdf as it does not have access to the list of query
     /// terms present in the document, nor the term frequencies for the different terms.
     ///
@@ -515,7 +516,6 @@ impl TopDocs {
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::Field;
-    /// use tantivy::fastfield::FastFieldReader;
     ///
     /// # fn create_schema() -> Schema {
     /// #    let mut schema_builder = Schema::builder();
@@ -567,8 +567,8 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {
-    ///                 let popularity: u64 = popularity_reader.get(doc);
-    ///                 let boosted: u64 = boosted_reader.get(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
+    ///                 let boosted: u64 = boosted_reader.get_val(doc as u64);
     ///                 // Score do not have to be `f64` in tantivy.
     ///                 // Here we return a couple to get lexicographical order
     ///                 // for free.
@@ -587,7 +587,7 @@ impl TopDocs {
     /// ```
     ///
     /// # See also
-    /// [tweak_score(...)](#method.tweak_score).
+    /// - [tweak_score(...)](TopDocs::tweak_score)
     pub fn custom_score<TScore, TCustomSegmentScorer, TCustomScorer>(
         self,
         custom_score: TCustomScorer,
@@ -693,7 +693,7 @@ impl Collector for TopDocs {
     }
 }
 
-/// Segment Collector associated to `TopDocs`.
+/// Segment Collector associated with `TopDocs`.
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 
 impl SegmentCollector for TopScoreSegmentCollector {

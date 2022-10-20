@@ -24,12 +24,27 @@ impl SegmentSerializer {
         // In the merge case this is not necessary because we can kmerge the already sorted
         // segments
         let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
-        let store_component = if remapping_required {
-            SegmentComponent::TempStore
+        let settings = segment.index().settings().clone();
+        let store_writer = if remapping_required {
+            let store_write = segment.open_write(SegmentComponent::TempStore)?;
+            StoreWriter::new(
+                store_write,
+                crate::store::Compressor::None,
+                // We want fast random access on the docs, so we choose a small block size.
+                // If this is zero, the skip index will contain too many checkpoints and
+                // therefore will be relatively slow.
+                16000,
+                settings.docstore_compress_dedicated_thread,
+            )?
         } else {
-            SegmentComponent::Store
+            let store_write = segment.open_write(SegmentComponent::Store)?;
+            StoreWriter::new(
+                store_write,
+                settings.docstore_compression,
+                settings.docstore_blocksize,
+                settings.docstore_compress_dedicated_thread,
+            )?
         };
-        let store_write = segment.open_write(store_component)?;
 
         let fast_field_write = segment.open_write(SegmentComponent::FastFields)?;
         let fast_field_serializer = CompositeFastFieldSerializer::from_write(fast_field_write)?;
@@ -38,11 +53,9 @@ impl SegmentSerializer {
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
-        let compressor = segment.index().settings().docstore_compression;
-        let blocksize = segment.index().settings().docstore_blocksize;
         Ok(SegmentSerializer {
             segment,
-            store_writer: StoreWriter::new(store_write, compressor, blocksize),
+            store_writer,
             fast_field_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,

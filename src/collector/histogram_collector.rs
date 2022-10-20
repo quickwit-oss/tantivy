@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use fastdivide::DividerU64;
+use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
+use crate::fastfield::FastValue;
 use crate::schema::{Field, Type};
 use crate::{DocId, Score};
 
@@ -34,7 +37,7 @@ impl HistogramCollector {
     /// The scale/range of the histogram is not dynamic. It is required to
     /// define it by supplying following parameter:
     ///  - `min_value`: the minimum value that can be recorded in the histogram.
-    ///  - `bucket_width`: the length of the interval that is associated to each buckets.
+    ///  - `bucket_width`: the length of the interval that is associated with each buckets.
     ///  - `num_buckets`: The overall number of buckets.
     ///
     /// Together, this parameters define a partition of `[min_value, min_value + num_buckets *
@@ -72,8 +75,7 @@ impl HistogramComputer {
             return;
         }
         let delta = value - self.min_value;
-        let delta_u64 = delta.to_u64();
-        let bucket_id: usize = self.divider.divide(delta_u64) as usize;
+        let bucket_id: usize = self.divider.divide(delta) as usize;
         if bucket_id < self.counts.len() {
             self.counts[bucket_id] += 1;
         }
@@ -85,14 +87,14 @@ impl HistogramComputer {
 }
 pub struct SegmentHistogramCollector {
     histogram_computer: HistogramComputer,
-    ff_reader: DynamicFastFieldReader<u64>,
+    ff_reader: Arc<dyn Column<u64>>,
 }
 
 impl SegmentCollector for SegmentHistogramCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let value = self.ff_reader.get(doc);
+        let value = self.ff_reader.get_val(doc as u64);
         self.histogram_computer.add_value(value);
     }
 
@@ -287,7 +289,7 @@ mod tests {
             DateTime::from_primitive(
                 Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
             ),
-            3600 * 24 * 365, // it is just for a unit test... sorry leap years.
+            3_600_000_000 * 24 * 365, // it is just for a unit test... sorry leap years.
             10,
         );
         let week_histogram = searcher.search(&all_query, &week_histogram_collector)?;
