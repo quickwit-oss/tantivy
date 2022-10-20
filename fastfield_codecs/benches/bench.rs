@@ -111,7 +111,9 @@ mod tests {
         let (major_item, _minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(major_item..=major_item));
+        b.iter(|| {
+            column.get_positions_for_value_range(major_item..=major_item, 0..data.len() as u32)
+        });
     }
 
     #[bench]
@@ -119,7 +121,9 @@ mod tests {
         let (_major_item, minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(minor_item..=minor_item));
+        b.iter(|| {
+            column.get_positions_for_value_range(minor_item..=minor_item, 0..data.len() as u32)
+        });
     }
 
     #[bench]
@@ -127,7 +131,7 @@ mod tests {
         let (_major_item, _minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(0..=u128::MAX));
+        b.iter(|| column.get_positions_for_value_range(0..=u128::MAX, 0..data.len() as u32));
     }
 
     #[bench]

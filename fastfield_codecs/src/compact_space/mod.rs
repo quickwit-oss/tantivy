@@ -14,7 +14,7 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     io::{self, Write},
-    ops::RangeInclusive,
+    ops::{Range, RangeInclusive},
 };
 
 use common::{BinarySerializable, CountingWriter, VInt, VIntU128};
@@ -304,8 +304,14 @@ impl Column<u128> for CompactSpaceDecompressor {
     fn iter(&self) -> Box<dyn Iterator<Item = u128> + '_> {
         Box::new(self.iter())
     }
-    fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
-        self.get_between_vals(range)
+
+    #[inline]
+    fn get_positions_for_value_range(
+        &self,
+        value_range: RangeInclusive<u128>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
+        self.get_positions_for_value_range(value_range, doc_id_range)
     }
 }
 
@@ -340,12 +346,18 @@ impl CompactSpaceDecompressor {
     /// Comparing on compact space: Real dataset 1.08 GElements/s
     ///
     /// Comparing on original space: Real dataset .06 GElements/s (not completely optimized)
-    pub fn get_between_vals(&self, range: RangeInclusive<u128>) -> Vec<u64> {
-        if range.start() > range.end() {
+    #[inline]
+    pub fn get_positions_for_value_range(
+        &self,
+        value_range: RangeInclusive<u128>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
+        if value_range.start() > value_range.end() {
             return Vec::new();
         }
-        let from_value = *range.start();
-        let to_value = *range.end();
+        let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
+        let from_value = *value_range.start();
+        let to_value = *value_range.end();
         assert!(to_value >= from_value);
         let compact_from = self.u128_to_compact(from_value);
         let compact_to = self.u128_to_compact(to_value);
@@ -377,8 +389,10 @@ impl CompactSpaceDecompressor {
         let range = compact_from..=compact_to;
         let mut positions = Vec::new();
 
+        let scan_num_docs = doc_id_range.end - doc_id_range.start;
+
         let step_size = 4;
-        let cutoff = self.params.num_vals as u64 - self.params.num_vals as u64 % step_size;
+        let cutoff = doc_id_range.start + scan_num_docs - scan_num_docs % step_size;
 
         let mut push_if_in_range = |idx, val| {
             if range.contains(&val) {
@@ -387,7 +401,7 @@ impl CompactSpaceDecompressor {
         };
         let get_val = |idx| self.params.bit_unpacker.get(idx as u64, &self.data);
         // unrolled loop
-        for idx in (0..cutoff).step_by(step_size as usize) {
+        for idx in (doc_id_range.start..cutoff).step_by(step_size as usize) {
             let idx1 = idx;
             let idx2 = idx + 1;
             let idx3 = idx + 2;
@@ -403,7 +417,7 @@ impl CompactSpaceDecompressor {
         }
 
         // handle rest
-        for idx in cutoff..self.params.num_vals as u64 {
+        for idx in cutoff..doc_id_range.end {
             push_if_in_range(idx, get_val(idx));
         }
 
@@ -498,9 +512,10 @@ mod tests {
                 let expected_positions = expected
                     .iter()
                     .positions(|val| range.contains(val))
-                    .map(|pos| pos as u64)
+                    .map(|pos| pos as u32)
                     .collect::<Vec<_>>();
-                let positions = decompressor.get_between_vals(range);
+                let positions =
+                    decompressor.get_positions_for_value_range(range, 0..decompressor.num_vals());
                 assert_eq!(positions, expected_positions);
             };
 
@@ -540,24 +555,66 @@ mod tests {
         ];
         let data = test_aux_vals(vals);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
-        let positions = decomp.get_between_vals(0..=1);
+        let complete_range = 0..vals.len() as u32;
+        for (pos, val) in vals.iter().enumerate() {
+            let val = *val as u128;
+            let pos = pos as u32;
+            let positions = decomp.get_positions_for_value_range(val..=val, pos..pos + 1);
+            assert_eq!(positions, vec![pos]);
+        }
+
+        // handle docid range out of bounds
+        let positions = decomp.get_positions_for_value_range(0..=1, 1..u32::MAX);
+        assert_eq!(positions, vec![]);
+
+        let positions = decomp.get_positions_for_value_range(0..=1, complete_range.clone());
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_between_vals(0..=2);
+        let positions = decomp.get_positions_for_value_range(0..=2, complete_range.clone());
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_between_vals(0..=3);
+        let positions = decomp.get_positions_for_value_range(0..=3, complete_range.clone());
         assert_eq!(positions, vec![0, 2]);
-        assert_eq!(decomp.get_between_vals(99999u128..=99999u128), vec![3]);
-        assert_eq!(decomp.get_between_vals(99999u128..=100000u128), vec![3, 4]);
-        assert_eq!(decomp.get_between_vals(99998u128..=100000u128), vec![3, 4]);
-        assert_eq!(decomp.get_between_vals(99998u128..=99999u128), vec![3]);
-        assert_eq!(decomp.get_between_vals(99998u128..=99998u128), vec![]);
-        assert_eq!(decomp.get_between_vals(333u128..=333u128), vec![8]);
-        assert_eq!(decomp.get_between_vals(332u128..=333u128), vec![8]);
-        assert_eq!(decomp.get_between_vals(332u128..=334u128), vec![8]);
-        assert_eq!(decomp.get_between_vals(333u128..=334u128), vec![8]);
+        assert_eq!(
+            decomp.get_positions_for_value_range(99999u128..=99999u128, complete_range.clone()),
+            vec![3]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(99999u128..=100000u128, complete_range.clone()),
+            vec![3, 4]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(99998u128..=100000u128, complete_range.clone()),
+            vec![3, 4]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(99998u128..=99999u128, complete_range.clone()),
+            vec![3]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(99998u128..=99998u128, complete_range.clone()),
+            vec![]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(333u128..=333u128, complete_range.clone()),
+            vec![8]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(332u128..=333u128, complete_range.clone()),
+            vec![8]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(332u128..=334u128, complete_range.clone()),
+            vec![8]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(333u128..=334u128, complete_range.clone()),
+            vec![8]
+        );
 
         assert_eq!(
-            decomp.get_between_vals(4_000_211_221u128..=5_000_000_000u128),
+            decomp.get_positions_for_value_range(
+                4_000_211_221u128..=5_000_000_000u128,
+                complete_range.clone()
+            ),
             vec![6, 7]
         );
     }
@@ -582,11 +639,12 @@ mod tests {
         ];
         let data = test_aux_vals(vals);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
-        let positions = decomp.get_between_vals(0..=5);
+        let complete_range = 0..vals.len() as u32;
+        let positions = decomp.get_positions_for_value_range(0..=5, complete_range.clone());
         assert_eq!(positions, vec![]);
-        let positions = decomp.get_between_vals(0..=100);
+        let positions = decomp.get_positions_for_value_range(0..=100, complete_range.clone());
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_between_vals(0..=105);
+        let positions = decomp.get_positions_for_value_range(0..=105, complete_range.clone());
         assert_eq!(positions, vec![0]);
     }
 
@@ -610,11 +668,24 @@ mod tests {
         let mut out = Vec::new();
         serialize_u128(|| vals.iter().cloned(), vals.len() as u32, &mut out).unwrap();
         let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
+        let complete_range = 0..vals.len() as u32;
 
-        assert_eq!(decomp.get_between_vals(199..=200), vec![0]);
-        assert_eq!(decomp.get_between_vals(199..=201), vec![0, 1]);
-        assert_eq!(decomp.get_between_vals(200..=200), vec![0]);
-        assert_eq!(decomp.get_between_vals(1_000_000..=1_000_000), vec![11]);
+        assert_eq!(
+            decomp.get_positions_for_value_range(199..=200, complete_range.clone()),
+            vec![0]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(199..=201, complete_range.clone()),
+            vec![0, 1]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(200..=200, complete_range.clone()),
+            vec![0]
+        );
+        assert_eq!(
+            decomp.get_positions_for_value_range(1_000_000..=1_000_000, complete_range.clone()),
+            vec![11]
+        );
     }
 
     #[test]

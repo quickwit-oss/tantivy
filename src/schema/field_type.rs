@@ -176,6 +176,11 @@ impl FieldType {
         }
     }
 
+    /// returns true if this is an ip address field
+    pub fn is_ip_addr(&self) -> bool {
+        matches!(self, FieldType::IpAddr(_))
+    }
+
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
@@ -232,11 +237,11 @@ impl FieldType {
     /// returns true if the field is fast.
     pub fn fastfield_cardinality(&self) -> Option<Cardinality> {
         match *self {
-            FieldType::Bytes(ref bytes_options) if bytes_options.is_fast() => {
-                Some(Cardinality::SingleValue)
+            FieldType::Bytes(ref bytes_options) => {
+                bytes_options.is_fast().then_some(Cardinality::SingleValue)
             }
-            FieldType::Str(ref text_options) if text_options.is_fast() => {
-                Some(Cardinality::MultiValues)
+            FieldType::Str(ref text_options) => {
+                text_options.is_fast().then_some(Cardinality::MultiValues)
             }
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
@@ -245,7 +250,7 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
             FieldType::Facet(_) => Some(Cardinality::MultiValues),
             FieldType::JsonObject(_) => None,
-            _ => None,
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.get_fastfield_cardinality(),
         }
     }
 

@@ -211,13 +211,16 @@ mod tests {
 
         if !data.is_empty() {
             let test_rand_idx = rand::thread_rng().gen_range(0..=data.len() - 1);
-            let expected_positions: Vec<u64> = data
+            let expected_positions: Vec<u32> = data
                 .iter()
                 .enumerate()
                 .filter(|(_, el)| **el == data[test_rand_idx])
-                .map(|(pos, _)| pos as u64)
+                .map(|(pos, _)| pos as u32)
                 .collect();
-            let positions = reader.get_between_vals(data[test_rand_idx]..=data[test_rand_idx]);
+            let positions = reader.get_positions_for_value_range(
+                data[test_rand_idx]..=data[test_rand_idx],
+                0..data.len() as u32,
+            );
             assert_eq!(expected_positions, positions);
         }
         Some((estimation, actual_compression))

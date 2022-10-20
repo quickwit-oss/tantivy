@@ -117,7 +117,8 @@ fn bench_ip() {
     // Sample some ranges
     for value in dataset.iter().take(1110).skip(1100).cloned() {
         print_time!("get range");
-        let doc_values = decompressor.get_between_vals(value..=value);
+        let doc_values =
+            decompressor.get_positions_for_value_range(value..=value, 0..decompressor.num_vals());
         println!("{:?}", doc_values.len());
     }
 }
