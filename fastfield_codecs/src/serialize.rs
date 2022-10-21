@@ -46,14 +46,14 @@ use crate::{
 #[derive(Debug, Copy, Clone)]
 pub struct NormalizedHeader {
     /// The number of values in the underlying column.
-    pub num_vals: u64,
+    pub num_vals: u32,
     /// The max value of the underlying column.
     pub max_value: u64,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Header {
-    pub num_vals: u64,
+    pub num_vals: u32,
     pub min_value: u64,
     pub max_value: u64,
     pub gcd: Option<NonZeroU64>,
@@ -110,7 +110,7 @@ pub fn normalize_column<C: Column>(
 
 impl BinarySerializable for Header {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.num_vals).serialize(writer)?;
+        VInt(self.num_vals as u64).serialize(writer)?;
         VInt(self.min_value).serialize(writer)?;
         VInt(self.max_value - self.min_value).serialize(writer)?;
         if let Some(gcd) = self.gcd {
@@ -123,7 +123,7 @@ impl BinarySerializable for Header {
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let num_vals = VInt::deserialize(reader)?.0;
+        let num_vals = VInt::deserialize(reader)?.0 as u32;
         let min_value = VInt::deserialize(reader)?.0;
         let amplitude = VInt::deserialize(reader)?.0;
         let max_value = min_value + amplitude;
@@ -164,7 +164,7 @@ pub fn estimate<T: MonotonicallyMappableToU64>(
 /// Serializes u128 values with the compact space codec.
 pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     iter_gen: F,
-    num_vals: u64,
+    num_vals: u32,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     // TODO write header, to later support more codecs

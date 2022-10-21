@@ -363,7 +363,7 @@ impl U128FastFieldWriter {
             serializer.create_u128_fast_field_with_idx(
                 self.field,
                 iter_gen,
-                self.val_count as u64,
+                self.val_count as u32,
                 0,
             )?;
         } else {
@@ -371,7 +371,7 @@ impl U128FastFieldWriter {
             serializer.create_u128_fast_field_with_idx(
                 self.field,
                 iter_gen,
-                self.val_count as u64,
+                self.val_count as u32,
                 0,
             )?;
         }
@@ -511,7 +511,7 @@ impl IntFastFieldWriter {
             vals: &self.vals,
             min_value: min,
             max_value: max,
-            num_vals: self.val_count as u64,
+            num_vals: self.val_count as u32,
         };
 
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
@@ -526,7 +526,7 @@ struct WriterFastFieldAccessProvider<'map, 'bitp> {
     vals: &'bitp BlockedBitpacker,
     min_value: u64,
     max_value: u64,
-    num_vals: u64,
+    num_vals: u32,
 }
 
 impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
@@ -562,7 +562,7 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
         self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.num_vals
     }
 }

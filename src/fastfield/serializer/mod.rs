@@ -90,7 +90,7 @@ impl CompositeFastFieldSerializer {
         &mut self,
         field: Field,
         iter_gen: F,
-        num_vals: u64,
+        num_vals: u32,
         idx: usize,
     ) -> io::Result<()> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);

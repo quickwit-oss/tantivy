@@ -1,5 +1,5 @@
 use std::io;
-use std::num::NonZeroU64;
+use std::num::NonZeroU32;
 
 use common::{BinarySerializable, VInt};
 
@@ -29,7 +29,7 @@ pub struct Line {
 ///   compute_slope(y0, y1)
 /// = compute_slope(y0 + X % 2^64, y1 + X % 2^64)
 /// `
-fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU64) -> u64 {
+fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU32) -> u64 {
     let dy = y1.wrapping_sub(y0);
     let sign = dy <= (1 << 63);
     let abs_dy = if sign {
@@ -43,7 +43,7 @@ fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU64) -> u64 {
         return 0u64;
     }
 
-    let abs_slope = (abs_dy << 32) / num_vals.get();
+    let abs_slope = (abs_dy << 32) / num_vals.get() as u64;
     if sign {
         abs_slope
     } else {
@@ -75,7 +75,7 @@ impl Line {
         Self::train_from(
             first_val,
             last_val,
-            num_vals,
+            num_vals as u32,
             sample_positions_and_values.iter().cloned(),
         )
     }
@@ -84,11 +84,11 @@ impl Line {
     fn train_from(
         first_val: u64,
         last_val: u64,
-        num_vals: u64,
+        num_vals: u32,
         positions_and_values: impl Iterator<Item = (u64, u64)>,
     ) -> Self {
         // TODO replace with let else
-        let idx_last_val = if let Some(idx_last_val) = NonZeroU64::new(num_vals - 1) {
+        let idx_last_val = if let Some(idx_last_val) = NonZeroU32::new(num_vals - 1) {
             idx_last_val
         } else {
             return Line::default();

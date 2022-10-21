@@ -101,7 +101,7 @@ mod tests {
     fn get_u128_column_from_data(data: &[u128]) -> Arc<dyn Column<u128>> {
         let mut out = vec![];
         let iter_gen = || data.iter().cloned();
-        serialize_u128(iter_gen, data.len() as u64, &mut out).unwrap();
+        serialize_u128(iter_gen, data.len() as u32, &mut out).unwrap();
         let out = OwnedBytes::new(out);
         open_u128::<u128>(out).unwrap()
     }

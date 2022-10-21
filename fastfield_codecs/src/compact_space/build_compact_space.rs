@@ -57,7 +57,7 @@ fn num_bits(val: u128) -> u8 {
 /// metadata.
 pub fn get_compact_space(
     values_deduped_sorted: &BTreeSet<u128>,
-    total_num_values: u64,
+    total_num_values: u32,
     cost_per_blank: usize,
 ) -> CompactSpace {
     let mut compact_space_builder = CompactSpaceBuilder::new();

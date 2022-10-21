@@ -368,7 +368,7 @@ impl IndexMerger {
         fast_field_serializer.create_u128_fast_field_with_idx(
             field,
             iter_gen,
-            doc_id_mapping.len() as u64,
+            doc_id_mapping.len() as u32,
             1,
         )?;
 
@@ -403,7 +403,7 @@ impl IndexMerger {
         fast_field_serializer.create_u128_fast_field_with_idx(
             field,
             iter_gen,
-            doc_id_mapping.len() as u64,
+            doc_id_mapping.len() as u32,
             0,
         )?;
         Ok(())

@@ -35,7 +35,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     #[inline]
     fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> {
         let mut vals = Vec::new();
-        for idx in 0..self.num_vals() {
+        for idx in 0..self.num_vals() as u64 {
             let val = self.get_val(idx);
             if range.contains(&val) {
                 vals.push(idx);
@@ -61,11 +61,11 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     fn max_value(&self) -> T;
 
     /// The number of values in the column.
-    fn num_vals(&self) -> u64;
+    fn num_vals(&self) -> u32;
 
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
-        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+        Box::new((0..self.num_vals() as u64).map(|idx| self.get_val(idx)))
     }
 }
 
@@ -89,7 +89,7 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
         (*self).max_value()
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         (*self).num_vals()
     }
 
@@ -119,8 +119,8 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
         self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
-        self.values.len() as u64
+    fn num_vals(&self) -> u32 {
+        self.values.len() as u32
     }
 
     fn get_range(&self, start: u64, output: &mut [T]) {
@@ -203,7 +203,7 @@ where
         self.monotonic_mapping.mapping(from_max_value)
     }
 
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.from_column.num_vals()
     }
 
@@ -253,8 +253,8 @@ where
         self.0.clone().last().unwrap()
     }
 
-    fn num_vals(&self) -> u64 {
-        self.0.len() as u64
+    fn num_vals(&self) -> u32 {
+        self.0.len() as u32
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = T::Item> + '_> {

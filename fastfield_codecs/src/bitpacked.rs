@@ -30,7 +30,7 @@ impl Column for BitpackedReader {
         self.normalized_header.max_value
     }
     #[inline]
-    fn num_vals(&self) -> u64 {
+    fn num_vals(&self) -> u32 {
         self.normalized_header.num_vals
     }
 }
