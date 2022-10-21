@@ -190,13 +190,13 @@ mod tests {
         assert_eq!(fast_field.get_val(4), 2u64);
         assert_eq!(fast_field.get_val(3), 3u64);
         if force_disjunct_segment_sort_values {
-            assert_eq!(fast_field.get_val(2u64), 20u64);
-            assert_eq!(fast_field.get_val(1u64), 100u64);
+            assert_eq!(fast_field.get_val(2), 20u64);
+            assert_eq!(fast_field.get_val(1), 100u64);
         } else {
-            assert_eq!(fast_field.get_val(2u64), 10u64);
-            assert_eq!(fast_field.get_val(1u64), 20u64);
+            assert_eq!(fast_field.get_val(2), 10u64);
+            assert_eq!(fast_field.get_val(1), 20u64);
         }
-        assert_eq!(fast_field.get_val(0u64), 1_000u64);
+        assert_eq!(fast_field.get_val(0), 1_000u64);
 
         // test new field norm mapping
         {
@@ -545,7 +545,7 @@ mod bench_sorted_index_merge {
             // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get_val(doc_id as u64);
+                val = field_reader.get_val(doc_id);
             }
 
             val

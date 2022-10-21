@@ -331,10 +331,10 @@ impl SegmentHistogramCollector {
             .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0] as u64));
-            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1] as u64));
-            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2] as u64));
-            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3] as u64));
+            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0]));
+            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1]));
+            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2]));
+            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3]));
 
             let bucket_pos0 = get_bucket_num(val0);
             let bucket_pos1 = get_bucket_num(val1);
@@ -371,7 +371,7 @@ impl SegmentHistogramCollector {
             )?;
         }
         for &doc in iter.remainder() {
-            let val = f64_from_fastfield_u64(accessor.get_val(doc as u64), &self.field_type);
+            let val = f64_from_fastfield_u64(accessor.get_val(doc), &self.field_type);
             if !bounds.contains(val) {
                 continue;
             }

@@ -87,15 +87,15 @@ impl BitUnpacker {
     }
 
     #[inline]
-    pub fn get(&self, idx: u64, data: &[u8]) -> u64 {
+    pub fn get(&self, idx: u32, data: &[u8]) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
         }
-        let addr_in_bits = idx * self.num_bits;
+        let addr_in_bits = idx * self.num_bits as u32;
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
         debug_assert!(
-            addr + 8 <= data.len() as u64,
+            addr + 8 <= data.len() as u32,
             "The fast field field should have been padded with 7 bytes."
         );
         let bytes: [u8; 8] = (&data[(addr as usize)..(addr as usize) + 8])
@@ -130,7 +130,7 @@ mod test {
     fn test_bitpacker_util(len: usize, num_bits: u8) {
         let (bitunpacker, vals, data) = create_fastfield_bitpacker(len, num_bits);
         for (i, val) in vals.iter().enumerate() {
-            assert_eq!(bitunpacker.get(i as u64, &data), *val);
+            assert_eq!(bitunpacker.get(i as u32, &data), *val);
         }
     }
 

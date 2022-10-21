@@ -397,7 +397,7 @@ impl IndexMerger {
         let iter_gen = || {
             doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
-                fast_field_reader.get_val(doc_addr.doc_id as u64)
+                fast_field_reader.get_val(doc_addr.doc_id)
             })
         };
         fast_field_serializer.create_u128_fast_field_with_idx(
@@ -510,8 +510,8 @@ impl IndexMerger {
             doc_id_reader_pair
                 .into_iter()
                 .kmerge_by(|a, b| {
-                    let val1 = a.2.get_val(a.0 as u64);
-                    let val2 = b.2.get_val(b.0 as u64);
+                    let val1 = a.2.get_val(a.0);
+                    let val2 = b.2.get_val(b.0);
                     if sort_by_field.order == Order::Asc {
                         val1 < val2
                     } else {

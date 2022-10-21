@@ -284,7 +284,7 @@ impl BinarySerializable for IPCodecParams {
 
 impl Column<u128> for CompactSpaceDecompressor {
     #[inline]
-    fn get_val(&self, doc: u64) -> u128 {
+    fn get_val(&self, doc: u32) -> u128 {
         self.get(doc)
     }
 
@@ -399,17 +399,17 @@ impl CompactSpaceDecompressor {
                 positions.push(idx);
             }
         };
-        let get_val = |idx| self.params.bit_unpacker.get(idx as u64, &self.data);
+        let get_val = |idx| self.params.bit_unpacker.get(idx, &self.data);
         // unrolled loop
         for idx in (doc_id_range.start..cutoff).step_by(step_size as usize) {
             let idx1 = idx;
             let idx2 = idx + 1;
             let idx3 = idx + 2;
             let idx4 = idx + 3;
-            let val1 = get_val(idx1);
-            let val2 = get_val(idx2);
-            let val3 = get_val(idx3);
-            let val4 = get_val(idx4);
+            let val1 = get_val(idx1 as u32);
+            let val2 = get_val(idx2 as u32);
+            let val3 = get_val(idx3 as u32);
+            let val4 = get_val(idx4 as u32);
             push_if_in_range(idx1, val1);
             push_if_in_range(idx2, val2);
             push_if_in_range(idx3, val3);
@@ -418,7 +418,7 @@ impl CompactSpaceDecompressor {
 
         // handle rest
         for idx in cutoff..doc_id_range.end {
-            push_if_in_range(idx, get_val(idx));
+            push_if_in_range(idx, get_val(idx as u32));
         }
 
         positions
@@ -427,7 +427,7 @@ impl CompactSpaceDecompressor {
     #[inline]
     fn iter_compact(&self) -> impl Iterator<Item = u64> + '_ {
         (0..self.params.num_vals)
-            .map(move |idx| self.params.bit_unpacker.get(idx as u64, &self.data) as u64)
+            .map(move |idx| self.params.bit_unpacker.get(idx, &self.data) as u64)
     }
 
     #[inline]
@@ -439,7 +439,7 @@ impl CompactSpaceDecompressor {
     }
 
     #[inline]
-    pub fn get(&self, idx: u64) -> u128 {
+    pub fn get(&self, idx: u32) -> u128 {
         let compact = self.params.bit_unpacker.get(idx, &self.data);
         self.compact_to_u128(compact)
     }
@@ -505,7 +505,7 @@ mod tests {
     fn test_all(data: OwnedBytes, expected: &[u128]) {
         let decompressor = CompactSpaceDecompressor::open(data).unwrap();
         for (idx, expected_val) in expected.iter().cloned().enumerate() {
-            let val = decompressor.get(idx as u64);
+            let val = decompressor.get(idx as u32);
             assert_eq!(val, expected_val);
 
             let test_range = |range: RangeInclusive<u128>| {

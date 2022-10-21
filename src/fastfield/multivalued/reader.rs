@@ -33,19 +33,19 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     /// Returns `[start, end)`, such that the values associated with
     /// the given document are `start..end`.
     #[inline]
-    fn range(&self, doc: DocId) -> Range<u64> {
-        let idx = doc as u64;
-        let start = self.idx_reader.get_val(idx);
-        let end = self.idx_reader.get_val(idx + 1);
+    fn range(&self, doc: DocId) -> Range<u32> {
+        let start = self.idx_reader.get_val(doc) as u32;
+        let end = self.idx_reader.get_val(doc + 1) as u32;
         start..end
     }
 
     /// Returns the array of values associated with the given `doc`.
     #[inline]
-    fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<Item>) {
+    fn get_vals_for_range(&self, range: Range<u32>, vals: &mut Vec<Item>) {
         let len = (range.end - range.start) as usize;
         vals.resize(len, Item::make_zero());
-        self.vals_reader.get_range(range.start, &mut vals[..]);
+        self.vals_reader
+            .get_range(range.start as u64, &mut vals[..]);
     }
 
     /// Returns the array of values associated with the given `doc`.
@@ -88,7 +88,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 }
 
 impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
-    fn get_range(&self, doc_id: DocId) -> Range<u64> {
+    fn get_range(&self, doc_id: DocId) -> Range<u32> {
         self.range(doc_id)
     }
     fn get_len(&self, doc_id: DocId) -> u64 {
@@ -127,9 +127,9 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
     /// Returns `[start, end)`, such that the values associated
     /// to the given document are `start..end`.
     #[inline]
-    fn range(&self, doc: DocId) -> Range<u64> {
-        let start = self.idx_reader.get_val(doc as u64);
-        let end = self.idx_reader.get_val(doc as u64 + 1);
+    fn range(&self, doc: DocId) -> Range<u32> {
+        let start = self.idx_reader.get_val(doc) as u32;
+        let end = self.idx_reader.get_val(doc + 1) as u32;
         start..end
     }
 
@@ -145,10 +145,11 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
 
     /// Returns the array of values associated to the given `doc`.
     #[inline]
-    fn get_vals_for_range(&self, range: Range<u64>, vals: &mut Vec<T>) {
+    fn get_vals_for_range(&self, range: Range<u32>, vals: &mut Vec<T>) {
         let len = (range.end - range.start) as usize;
         vals.resize(len, T::from_u128(0));
-        self.vals_reader.get_range(range.start, &mut vals[..]);
+        self.vals_reader
+            .get_range(range.start as u64, &mut vals[..]);
     }
 
     /// Returns the array of values associated to the given `doc`.
@@ -209,7 +210,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
 }
 
 impl<T: MonotonicallyMappableToU128> MultiValueLength for MultiValuedU128FastFieldReader<T> {
-    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64> {
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u32> {
         self.range(doc_id)
     }
     fn get_len(&self, doc_id: DocId) -> u64 {
@@ -236,7 +237,7 @@ fn positions_to_docids<C: Column + ?Sized>(positions: &[u32], idx_reader: &C) ->
 
     for pos in positions {
         loop {
-            let end = idx_reader.get_val(cur_doc as u64 + 1) as u32;
+            let end = idx_reader.get_val(cur_doc + 1) as u32;
             if end > *pos {
                 // avoid duplicates
                 if Some(cur_doc) == last_doc {

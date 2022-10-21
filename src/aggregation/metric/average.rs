@@ -60,10 +60,10 @@ impl SegmentAverageCollector {
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val1 = field.get_val(docs[0] as u64);
-            let val2 = field.get_val(docs[1] as u64);
-            let val3 = field.get_val(docs[2] as u64);
-            let val4 = field.get_val(docs[3] as u64);
+            let val1 = field.get_val(docs[0]);
+            let val2 = field.get_val(docs[1]);
+            let val3 = field.get_val(docs[2]);
+            let val4 = field.get_val(docs[3]);
             let val1 = f64_from_fastfield_u64(val1, &self.field_type);
             let val2 = f64_from_fastfield_u64(val2, &self.field_type);
             let val3 = f64_from_fastfield_u64(val3, &self.field_type);
@@ -74,7 +74,7 @@ impl SegmentAverageCollector {
             self.data.collect(val4);
         }
         for &doc in iter.remainder() {
-            let val = field.get_val(doc as u64);
+            let val = field.get_val(doc);
             let val = f64_from_fastfield_u64(val, &self.field_type);
             self.data.collect(val);
         }

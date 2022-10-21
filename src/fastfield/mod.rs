@@ -51,7 +51,7 @@ mod writer;
 /// for a doc_id
 pub trait MultiValueLength {
     /// returns the positions for a docid
-    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64>;
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u32>;
     /// returns the num of values associated with a doc_id
     fn get_len(&self, doc_id: DocId) -> u64;
     /// returns the sum of num values for all doc_ids
@@ -184,9 +184,9 @@ mod tests {
     #[test]
     pub fn test_fastfield() {
         let test_fastfield = fastfield_codecs::serialize_and_load(&[100u64, 200u64, 300u64][..]);
-        assert_eq!(test_fastfield.get_val(0u64), 100);
-        assert_eq!(test_fastfield.get_val(1u64), 200);
-        assert_eq!(test_fastfield.get_val(2u64), 300);
+        assert_eq!(test_fastfield.get_val(0), 100);
+        assert_eq!(test_fastfield.get_val(1), 200);
+        assert_eq!(test_fastfield.get_val(2), 300);
     }
 
     #[test]
@@ -402,7 +402,7 @@ mod tests {
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
-                assert_eq!(fast_field_reader.get_val(doc as u64), i);
+                assert_eq!(fast_field_reader.get_val(doc as u32), i);
             }
             let mut buffer = vec![0i64; 100];
             fast_field_reader.get_range(53, &mut buffer[..]);
@@ -484,7 +484,7 @@ mod tests {
             let fast_field_reader = open::<u64>(data)?;
 
             for a in 0..n {
-                assert_eq!(fast_field_reader.get_val(a as u64), permutation[a as usize]);
+                assert_eq!(fast_field_reader.get_val(a as u32), permutation[a as usize]);
             }
         }
         Ok(())
@@ -976,7 +976,7 @@ mod tests {
         let test_fastfield = open::<DateTime>(file.read_bytes()?)?;
 
         for (i, time) in times.iter().enumerate() {
-            assert_eq!(test_fastfield.get_val(i as u64), time.truncate(precision));
+            assert_eq!(test_fastfield.get_val(i as u32), time.truncate(precision));
         }
         Ok(len)
     }

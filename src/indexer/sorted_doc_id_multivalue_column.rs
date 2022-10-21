@@ -67,7 +67,7 @@ impl<'a> RemappedDocIdMultiValueColumn<'a> {
 }
 
 impl<'a> Column for RemappedDocIdMultiValueColumn<'a> {
-    fn get_val(&self, _pos: u64) -> u64 {
+    fn get_val(&self, _pos: u32) -> u64 {
         unimplemented!()
     }
 
@@ -137,7 +137,7 @@ impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
 }
 
 impl<'a, T: MultiValueLength + Send + Sync> Column for RemappedDocIdMultiValueIndexColumn<'a, T> {
-    fn get_val(&self, _pos: u64) -> u64 {
+    fn get_val(&self, _pos: u32) -> u64 {
         unimplemented!()
     }
 

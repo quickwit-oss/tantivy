@@ -201,7 +201,7 @@ mod tests {
         let reader = crate::open::<u64>(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u32);
         for (doc, orig_val) in data.iter().copied().enumerate() {
-            let val = reader.get_val(doc as u64);
+            let val = reader.get_val(doc as u32);
             assert_eq!(
                 val, orig_val,
                 "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
@@ -432,7 +432,7 @@ mod bench {
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
-                let val = col.get_val(pos as u64);
+                let val = col.get_val(pos as u32);
                 sum = sum.wrapping_add(val);
             }
             sum
@@ -444,7 +444,7 @@ mod bench {
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
-                let val = col.get_val(pos as u64);
+                let val = col.get_val(pos as u32);
                 sum = sum.wrapping_add(val);
             }
             sum

@@ -105,7 +105,7 @@ impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
     fn collect(&mut self, doc: u32, _score: Score) {
-        let value = self.fast_field_reader.get_val(doc as u64) as f64;
+        let value = self.fast_field_reader.get_val(doc) as f64;
         self.stats.count += 1;
         self.stats.sum += value;
         self.stats.squared_sum += value * value;

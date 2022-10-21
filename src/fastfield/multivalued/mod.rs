@@ -515,7 +515,7 @@ mod bench {
                 for val in block {
                     doc.add_u64(field, *val);
                 }
-                fast_field_writers.add_document(&doc);
+                fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -573,7 +573,7 @@ mod bench {
                 for val in block {
                     doc.add_u64(field, *val);
                 }
-                fast_field_writers.add_document(&doc);
+                fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), None)
@@ -606,7 +606,7 @@ mod bench {
                 for val in block {
                     doc.add_u64(field, *val);
                 }
-                fast_field_writers.add_document(&doc);
+                fast_field_writers.add_document(&doc).unwrap();
             }
             fast_field_writers
                 .serialize(&mut serializer, &HashMap::new(), Some(&doc_id_mapping))
