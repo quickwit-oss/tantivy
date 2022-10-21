@@ -70,7 +70,7 @@ impl Weight for IPFastFieldRangeWeight {
 fn bound_to_value_range(
     left_bound: &Bound<Ipv6Addr>,
     right_bound: &Bound<Ipv6Addr>,
-    column: &Arc<dyn Column<Ipv6Addr>>,
+    column: &dyn Column<Ipv6Addr>,
 ) -> RangeInclusive<Ipv6Addr> {
     let start_value = match left_bound {
         Bound::Included(ip_addr) => *ip_addr,
@@ -102,6 +102,7 @@ impl VecCursor {
         self.pos_in_data += 1;
         self.current()
     }
+    #[inline]
     fn current(&self) -> Option<u32> {
         self.data.get(self.pos_in_data).map(|el| *el as u32)
     }
@@ -165,7 +166,7 @@ impl IpRangeDocSet {
             .ip_addr_fast_field
             .get_positions_for_value_range(self.value_range.clone(), self.fetched_until_doc..end);
         self.loaded_docs.set_data(data);
-        self.fetched_until_doc += horizon as u32;
+        self.fetched_until_doc = end;
         finished_to_end
     }
 }
