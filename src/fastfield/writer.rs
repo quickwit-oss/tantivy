@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::io;
 
 use common;
-use fastfield_codecs::{Column, MonotonicallyMappableToU64};
+use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use fnv::FnvHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
-use super::multivalued::MultiValuedFastFieldWriter;
-use super::serializer::FastFieldStats;
+use super::multivalued::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
 use super::FastFieldType;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -20,8 +19,17 @@ use crate::DatePrecision;
 pub struct FastFieldsWriter {
     term_id_writers: Vec<MultiValuedFastFieldWriter>,
     single_value_writers: Vec<IntFastFieldWriter>,
+    u128_value_writers: Vec<U128FastFieldWriter>,
+    u128_multi_value_writers: Vec<MultiValueU128FastFieldWriter>,
     multi_values_writers: Vec<MultiValuedFastFieldWriter>,
     bytes_value_writers: Vec<BytesFastFieldWriter>,
+}
+
+pub(crate) fn unexpected_value(expected: &str, actual: &Value) -> crate::TantivyError {
+    crate::TantivyError::SchemaError(format!(
+        "Expected a {:?} in fast field, but got {:?}",
+        expected, actual
+    ))
 }
 
 fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
@@ -35,6 +43,8 @@ fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
+        let mut u128_value_writers = Vec::new();
+        let mut u128_multi_value_writers = Vec::new();
         let mut single_value_writers = Vec::new();
         let mut term_id_writers = Vec::new();
         let mut multi_values_writers = Vec::new();
@@ -98,10 +108,27 @@ impl FastFieldsWriter {
                         bytes_value_writers.push(fast_field_writer);
                     }
                 }
+                FieldType::IpAddr(opt) => {
+                    if opt.is_fast() {
+                        match opt.get_fastfield_cardinality() {
+                            Some(Cardinality::SingleValue) => {
+                                let fast_field_writer = U128FastFieldWriter::new(field);
+                                u128_value_writers.push(fast_field_writer);
+                            }
+                            Some(Cardinality::MultiValues) => {
+                                let fast_field_writer = MultiValueU128FastFieldWriter::new(field);
+                                u128_multi_value_writers.push(fast_field_writer);
+                            }
+                            None => {}
+                        }
+                    }
+                }
                 FieldType::Str(_) | FieldType::JsonObject(_) => {}
             }
         }
         FastFieldsWriter {
+            u128_value_writers,
+            u128_multi_value_writers,
             term_id_writers,
             single_value_writers,
             multi_values_writers,
@@ -130,9 +157,19 @@ impl FastFieldsWriter {
                 .iter()
                 .map(|w| w.mem_usage())
                 .sum::<usize>()
+            + self
+                .u128_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
+            + self
+                .u128_multi_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_term_id_writer(&self, field: Field) -> Option<&MultiValuedFastFieldWriter> {
         // TODO optimize
         self.term_id_writers
@@ -140,7 +177,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_field_writer(&self, field: Field) -> Option<&IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
@@ -148,7 +185,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
@@ -156,7 +193,7 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field() == field)
     }
 
-    /// Get the `FastFieldWriter` associated to a field.
+    /// Get the `FastFieldWriter` associated with a field.
     pub fn get_term_id_writer_mut(
         &mut self,
         field: Field,
@@ -169,7 +206,7 @@ impl FastFieldsWriter {
 
     /// Returns the fast field multi-value writer for the given field.
     ///
-    /// Returns None if the field does not exist, or is not
+    /// Returns `None` if the field does not exist, or is not
     /// configured as a multivalued fastfield in the schema.
     pub fn get_multivalue_writer_mut(
         &mut self,
@@ -183,7 +220,7 @@ impl FastFieldsWriter {
 
     /// Returns the bytes fast field writer for the given field.
     ///
-    /// Returns None if the field does not exist, or is not
+    /// Returns `None` if the field does not exist, or is not
     /// configured as a bytes fastfield in the schema.
     pub fn get_bytes_writer_mut(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
         // TODO optimize
@@ -191,32 +228,38 @@ impl FastFieldsWriter {
             .iter_mut()
             .find(|field_writer| field_writer.field() == field)
     }
-
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         for field_writer in &mut self.term_id_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.single_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.multi_values_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
         for field_writer in &mut self.bytes_value_writers {
-            field_writer.add_document(doc);
+            field_writer.add_document(doc)?;
         }
+        for field_writer in &mut self.u128_value_writers {
+            field_writer.add_document(doc)?;
+        }
+        for field_writer in &mut self.u128_multi_value_writers {
+            field_writer.add_document(doc)?;
+        }
+        Ok(())
     }
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
     pub fn serialize(
-        &self,
+        self,
         serializer: &mut CompositeFastFieldSerializer,
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        for field_writer in &self.term_id_writers {
+        for field_writer in self.term_id_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
         }
@@ -224,13 +267,115 @@ impl FastFieldsWriter {
             field_writer.serialize(serializer, doc_id_map)?;
         }
 
-        for field_writer in &self.multi_values_writers {
+        for field_writer in self.multi_values_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
         }
-        for field_writer in &self.bytes_value_writers {
+        for field_writer in self.bytes_value_writers {
             field_writer.serialize(serializer, doc_id_map)?;
         }
+        for field_writer in self.u128_value_writers {
+            field_writer.serialize(serializer, doc_id_map)?;
+        }
+        for field_writer in self.u128_multi_value_writers {
+            field_writer.serialize(serializer, doc_id_map)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Fast field writer for u128 values.
+/// The fast field writer just keeps the values in memory.
+///
+/// Only when the segment writer can be closed and
+/// persisted on disk, the fast field writer is
+/// sent to a `FastFieldSerializer` via the `.serialize(...)`
+/// method.
+///
+/// We cannot serialize earlier as the values are
+/// compressed to a compact number space and the number of
+/// bits required for bitpacking can only been known once
+/// we have seen all of the values.
+pub struct U128FastFieldWriter {
+    field: Field,
+    vals: Vec<u128>,
+    val_count: u32,
+}
+
+impl U128FastFieldWriter {
+    /// Creates a new `IntFastFieldWriter`
+    pub fn new(field: Field) -> Self {
+        Self {
+            field,
+            vals: vec![],
+            val_count: 0,
+        }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.len() * 16
+    }
+
+    /// Records a new value.
+    ///
+    /// The n-th value being recorded is implicitely
+    /// associated to the document with the `DocId` n.
+    /// (Well, `n-1` actually because of 0-indexing)
+    pub fn add_val(&mut self, val: u128) {
+        self.vals.push(val);
+    }
+
+    /// Extract the fast field value from the document
+    /// (or use the default value) and records it.
+    ///
+    /// Extract the value associated to the fast field for
+    /// this document.
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
+        match doc.get_first(self.field) {
+            Some(v) => {
+                let ip_addr = v.as_ip_addr().ok_or_else(|| unexpected_value("ip", v))?;
+                let value = ip_addr.to_u128();
+                self.add_val(value);
+            }
+            None => {
+                self.add_val(0); // TODO fix null handling
+            }
+        };
+        self.val_count += 1;
+        Ok(())
+    }
+
+    /// Push the fast fields value to the `FastFieldWriter`.
+    pub fn serialize(
+        &self,
+        serializer: &mut CompositeFastFieldSerializer,
+        doc_id_map: Option<&DocIdMapping>,
+    ) -> io::Result<()> {
+        if let Some(doc_id_map) = doc_id_map {
+            let iter_gen = || {
+                doc_id_map
+                    .iter_old_doc_ids()
+                    .map(|idx| self.vals[idx as usize])
+            };
+
+            serializer.create_u128_fast_field_with_idx(
+                self.field,
+                iter_gen,
+                self.val_count as u32,
+                0,
+            )?;
+        } else {
+            let iter_gen = || self.vals.iter().cloned();
+            serializer.create_u128_fast_field_with_idx(
+                self.field,
+                iter_gen,
+                self.val_count as u32,
+                0,
+            )?;
+        }
+
         Ok(())
     }
 }
@@ -239,7 +384,7 @@ impl FastFieldsWriter {
 /// The fast field writer just keeps the values in memory.
 ///
 /// Only when the segment writer can be closed and
-/// persisted on disc, the fast field writer is
+/// persisted on disk, the fast field writer is
 /// sent to a `FastFieldSerializer` via the `.serialize(...)`
 /// method.
 ///
@@ -295,7 +440,7 @@ impl IntFastFieldWriter {
     /// Records a new value.
     ///
     /// The n-th value being recorded is implicitly
-    /// associated to the document with the `DocId` n.
+    /// associated with the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
         self.vals.add(val);
@@ -314,7 +459,7 @@ impl IntFastFieldWriter {
     /// (or use the default value) and records it.
     ///
     ///
-    /// Extract the value associated to the fast field for
+    /// Extract the value associated with the fast field for
     /// this document.
     ///
     /// i64 and f64 are remapped to u64 using the logic
@@ -326,14 +471,14 @@ impl IntFastFieldWriter {
     /// only the first one is taken in account.
     ///
     /// Values on text fast fields are skipped.
-    pub fn add_document(&mut self, doc: &Document) {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         match doc.get_first(self.field) {
             Some(v) => {
                 let value = match (self.precision_opt, v) {
                     (Some(precision), Value::Date(date_val)) => {
                         date_val.truncate(precision).to_u64()
                     }
-                    _ => super::value_to_u64(v),
+                    _ => super::value_to_u64(v)?,
                 };
                 self.add_val(value);
             }
@@ -341,6 +486,7 @@ impl IntFastFieldWriter {
                 self.add_val(self.val_if_missing);
             }
         };
+        Ok(())
     }
 
     /// get iterator over the data
@@ -360,16 +506,12 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        let stats = FastFieldStats {
-            min_value: min,
-            max_value: max,
-            num_vals: self.val_count as u64,
-        };
-
         let fastfield_accessor = WriterFastFieldAccessProvider {
             doc_id_map,
             vals: &self.vals,
-            stats,
+            min_value: min,
+            max_value: max,
+            num_vals: self.val_count as u32,
         };
 
         serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
@@ -382,10 +524,13 @@ impl IntFastFieldWriter {
 struct WriterFastFieldAccessProvider<'map, 'bitp> {
     doc_id_map: Option<&'map DocIdMapping>,
     vals: &'bitp BlockedBitpacker,
-    stats: FastFieldStats,
+    min_value: u64,
+    max_value: u64,
+    num_vals: u32,
 }
+
 impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
-    /// Return the value associated to the given doc.
+    /// Return the value associated with the given doc.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
     /// reasons.
@@ -393,15 +538,8 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// # Panics
     ///
     /// May panic if `doc` is greater than the index.
-    fn get_val(&self, doc: u64) -> u64 {
-        if let Some(doc_id_map) = self.doc_id_map {
-            self.vals
-                .get(doc_id_map.get_old_doc_id(doc as u32) as usize) // consider extra
-                                                                     // FastFieldReader wrapper for
-                                                                     // non doc_id_map
-        } else {
-            self.vals.get(doc as usize)
-        }
+    fn get_val(&self, _doc: u64) -> u64 {
+        unimplemented!()
     }
 
     fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
@@ -417,14 +555,14 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     }
 
     fn min_value(&self) -> u64 {
-        self.stats.min_value
+        self.min_value
     }
 
     fn max_value(&self) -> u64 {
-        self.stats.max_value
+        self.max_value
     }
 
-    fn num_vals(&self) -> u64 {
-        self.stats.num_vals
+    fn num_vals(&self) -> u32 {
+        self.num_vals
     }
 }

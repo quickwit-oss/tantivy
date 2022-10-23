@@ -17,7 +17,11 @@ use crate::fastfield::MultiValuedFastFieldReader;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
-/// Creates a bucket for every unique term
+/// Creates a bucket for every unique term and counts the number of occurences.
+/// Note that doc_count in the response buckets equals term count here.
+///
+/// If the text is untokenized and single value, that means one term per document and therefore it
+/// is in fact doc count.
 ///
 /// ### Terminology
 /// Shard parameters are supposed to be equivalent to elasticsearch shard parameter.
@@ -31,7 +35,7 @@ use crate::{DocId, TantivyError};
 ///
 /// Even with a larger `segment_size` value, doc_count values for a terms aggregation may be
 /// approximate. As a result, any sub-aggregations on the terms aggregation may also be approximate.
-/// `sum_other_doc_count` is the number of documents that didn’t make it into the the top size
+/// `sum_other_doc_count` is the number of documents that didn’t make it into the top size
 /// terms. If this is greater than 0, you can be sure that the terms agg had to throw away some
 /// buckets, either because they didn’t fit into size on the root node or they didn’t fit into
 /// `segment_size` on the segment node.
@@ -42,14 +46,14 @@ use crate::{DocId, TantivyError};
 /// each segment. It’s the sum of the size of the largest bucket on each segment that didn’t fit
 /// into segment_size.
 ///
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [TermBucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`TermBucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry] on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateTermBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateTermBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 ///
@@ -64,6 +68,25 @@ use crate::{DocId, TantivyError};
 ///     }
 /// }
 /// ```
+///
+/// /// # Response JSON Format
+/// ```json
+/// {
+///     ...
+///     "aggregations": {
+///         "genres": {
+///             "doc_count_error_upper_bound": 0,   
+///             "sum_other_doc_count": 0,           
+///             "buckets": [                        
+///                 { "key": "drumnbass", "doc_count": 6 },
+///                 { "key": "raggae", "doc_count": 4 },
+///                 { "key": "jazz", "doc_count": 2 }
+///             ]
+///         }
+///     }
+/// }
+/// ```
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TermsAggregation {
     /// The field to aggregate on.
@@ -1206,7 +1229,39 @@ mod tests {
         .collect();
 
         let res = exec_request_with_query(agg_req, &index, None);
+
         assert!(res.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_multi_token_per_doc() -> crate::Result<()> {
+        let terms = vec!["Hello Hello", "Hallo Hallo"];
+
+        let index = get_test_index_from_terms(true, &[terms])?;
+
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "text_id".to_string(),
+                    min_doc_count: Some(0),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None).unwrap();
+
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "hello");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
+
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "hallo");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
 
         Ok(())
     }

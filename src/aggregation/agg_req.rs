@@ -1,7 +1,7 @@
 //! Contains the aggregation request tree. Used to build an
-//! [AggregationCollector](super::AggregationCollector).
+//! [`AggregationCollector`](super::AggregationCollector).
 //!
-//! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
+//! [`Aggregations`] is the top level entry point to create a request, which is a `HashMap<String,
 //! Aggregation>`.
 //!
 //! Requests are compatible with the json format of elasticsearch.
@@ -54,8 +54,8 @@ use super::bucket::{HistogramAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::VecWithNames;
 
-/// The top-level aggregation request structure, which contains [Aggregation] and their user defined
-/// names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
+/// The top-level aggregation request structure, which contains [`Aggregation`] and their user
+/// defined names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
@@ -139,15 +139,15 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
-/// Aggregation request of [BucketAggregation] or [MetricAggregation].
+/// Aggregation request of [`BucketAggregation`] or [`MetricAggregation`].
 ///
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Aggregation {
-    /// Bucket aggregation, see [BucketAggregation] for details.
+    /// Bucket aggregation, see [`BucketAggregation`] for details.
     Bucket(BucketAggregation),
-    /// Metric aggregation, see [MetricAggregation] for details.
+    /// Metric aggregation, see [`MetricAggregation`] for details.
     Metric(MetricAggregation),
 }
 

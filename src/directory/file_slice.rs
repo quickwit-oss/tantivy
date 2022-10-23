@@ -1,5 +1,5 @@
 use std::ops::{Deref, Range};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
@@ -8,16 +8,13 @@ use stable_deref_trait::StableDeref;
 
 use crate::directory::OwnedBytes;
 
-pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-
 /// Objects that represents files sections in tantivy.
 ///
 /// By contract, whatever happens to the directory file, as long as a FileHandle
 /// is alive, the data associated with it cannot be altered or destroyed.
 ///
-/// The underlying behavior is therefore specific to the `Directory` that created it.
-/// Despite its name, a `FileSlice` may or may not directly map to an actual file
+/// The underlying behavior is therefore specific to the [`Directory`](crate::Directory) that
+/// created it. Despite its name, a [`FileSlice`] may or may not directly map to an actual file
 /// on the filesystem.
 
 #[async_trait]

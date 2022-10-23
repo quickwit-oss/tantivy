@@ -54,7 +54,7 @@ impl Language {
     }
 }
 
-/// `Stemmer` token filter. Several languages are supported, see [Language] for the available
+/// `Stemmer` token filter. Several languages are supported, see [`Language`] for the available
 /// languages.
 /// Tokens are expected to be lowercased beforehand.
 #[derive(Clone)]
@@ -63,7 +63,7 @@ pub struct Stemmer {
 }
 
 impl Stemmer {
-    /// Creates a new Stemmer `TokenFilter` for a given language algorithm.
+    /// Creates a new `Stemmer` [`TokenFilter`] for a given language algorithm.
     pub fn new(language: Language) -> Stemmer {
         Stemmer {
             stemmer_algorithm: language.algorithm(),
@@ -72,7 +72,7 @@ impl Stemmer {
 }
 
 impl Default for Stemmer {
-    /// Creates a new Stemmer `TokenFilter` for English.
+    /// Creates a new `Stemmer` [`TokenFilter`] for [`Language::English`].
     fn default() -> Self {
         Stemmer::new(Language::English)
     }

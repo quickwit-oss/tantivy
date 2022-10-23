@@ -58,7 +58,7 @@ Distributed search is out of the scope of Tantivy, but if you are looking for th
 
 # Getting started
 
-Tantivy works on stable Rust (>= 1.27) and supports Linux, macOS, and Windows.
+Tantivy works on stable Rust and supports Linux, macOS, and Windows.
 
 - [Tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
 - [tantivy-cli and its tutorial](https://github.com/quickwit-oss/tantivy-cli) - `tantivy-cli` is an actual command-line interface that makes it easy for you to create a search engine,
@@ -81,9 +81,13 @@ There are many ways to support this project.
 
 We use the GitHub Pull Request workflow: reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
 
+## Minimum supported Rust version
+
+Tantivy currently requires at least Rust 1.62 or later to compile.
+
 ## Clone and build locally
 
-Tantivy compiles on stable Rust but requires `Rust >= 1.27`.
+Tantivy compiles on stable Rust.
 To check out and run tests, you can simply run:
 
 ```bash
@@ -127,7 +131,7 @@ $ gdb run
 # Companies Using Tantivy
 
 <p align="left">
-<img align="center" src="doc/assets/images/Etsy.png" alt="Nuclia" height="25" width="auto" />&nbsp;
+<img align="center" src="doc/assets/images/etsy.png" alt="Etsy" height="25" width="auto" />&nbsp;
 <img align="center" src="doc/assets/images/Nuclia.png#gh-light-mode-only" alt="Nuclia" height="25" width="auto" /> &nbsp;
 <img align="center" src="doc/assets/images/humanfirst.png#gh-light-mode-only" alt="Humanfirst.ai" height="30" width="auto" />
 <img align="center" src="doc/assets/images/element.io.svg#gh-light-mode-only" alt="Element.io" height="25" width="auto" />

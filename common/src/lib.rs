@@ -11,7 +11,10 @@ mod writer;
 
 pub use bitset::*;
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
-pub use vint::{read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt};
+pub use vint::{
+    deserialize_vint_u128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u128,
+    serialize_vint_u32, write_u32_vint, VInt, VIntU128,
+};
 pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
 
 /// Has length trait
@@ -52,13 +55,13 @@ const HIGHEST_BIT: u64 = 1 << 63;
 /// to values over 2^63, and all values end up requiring 64 bits.
 ///
 /// # See also
-/// The [reverse mapping is `u64_to_i64`](./fn.u64_to_i64.html).
+/// The reverse mapping is [`u64_to_i64()`].
 #[inline]
 pub fn i64_to_u64(val: i64) -> u64 {
     (val as u64) ^ HIGHEST_BIT
 }
 
-/// Reverse the mapping given by [`i64_to_u64`](./fn.i64_to_u64.html).
+/// Reverse the mapping given by [`i64_to_u64()`].
 #[inline]
 pub fn u64_to_i64(val: u64) -> i64 {
     (val ^ HIGHEST_BIT) as i64
@@ -80,7 +83,7 @@ pub fn u64_to_i64(val: u64) -> i64 {
 /// explains the mapping in a clear manner.
 ///
 /// # See also
-/// The [reverse mapping is `u64_to_f64`](./fn.u64_to_f64.html).
+/// The reverse mapping is [`u64_to_f64()`].
 #[inline]
 pub fn f64_to_u64(val: f64) -> u64 {
     let bits = val.to_bits();
@@ -91,7 +94,7 @@ pub fn f64_to_u64(val: f64) -> u64 {
     }
 }
 
-/// Reverse the mapping given by [`i64_to_u64`](./fn.i64_to_u64.html).
+/// Reverse the mapping given by [`f64_to_u64()`].
 #[inline]
 pub fn u64_to_f64(val: u64) -> f64 {
     f64::from_bits(if val & HIGHEST_BIT != 0 {

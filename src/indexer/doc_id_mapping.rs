@@ -24,7 +24,7 @@ impl SegmentDocIdMapping {
 
     /// Returns an iterator over the old document addresses, ordered by the new document ids.
     ///
-    /// In the returned `DocAddress`, the `segment_ord` is the ordinal of targetted segment
+    /// In the returned `DocAddress`, the `segment_ord` is the ordinal of targeted segment
     /// in the list of merged segments.
     pub(crate) fn iter_old_doc_addrs(&self) -> impl Iterator<Item = DocAddress> + '_ {
         self.new_doc_id_to_old_doc_addr.iter().copied()
@@ -32,10 +32,6 @@ impl SegmentDocIdMapping {
 
     pub(crate) fn len(&self) -> usize {
         self.new_doc_id_to_old_doc_addr.len()
-    }
-
-    pub(crate) fn get_old_doc_addr(&self, new_doc_id: DocId) -> DocAddress {
-        self.new_doc_id_to_old_doc_addr[new_doc_id as usize]
     }
 
     /// This flags means the segments are simply stacked in the order of their ordinal.
@@ -90,6 +86,12 @@ impl DocIdMapping {
             .iter()
             .map(|old_doc| els[*old_doc as usize])
             .collect()
+    }
+    pub fn num_new_doc_ids(&self) -> usize {
+        self.new_doc_id_to_old.len()
+    }
+    pub fn num_old_doc_ids(&self) -> usize {
+        self.old_doc_id_to_new.len()
     }
 }
 

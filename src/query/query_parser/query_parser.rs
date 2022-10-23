@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
@@ -15,7 +16,7 @@ use crate::query::{
     TermQuery,
 };
 use crate::schema::{
-    Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term, Type,
+    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, Schema, Term, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -84,6 +85,9 @@ pub enum QueryParserError {
     /// The format for the facet field is invalid.
     #[error("The facet field is malformed: {0}")]
     FacetFormatError(#[from] FacetParseError),
+    /// The format for the ip field is invalid.
+    #[error("The ip field is malformed: {0}")]
+    IpFormatError(#[from] AddrParseError),
 }
 
 /// Recursively remove empty clause from the AST
@@ -113,8 +117,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// The language covered by the current parser is extremely simple.
 ///
 /// * simple terms: "e.g.: `Barack Obama` are simply tokenized using tantivy's
-///   [`SimpleTokenizer`](../tokenizer/struct.SimpleTokenizer.html), hence becoming `["barack",
-///   "obama"]`. The terms are then searched within the default terms of the query parser.
+///   [`SimpleTokenizer`](crate::tokenizer::SimpleTokenizer), hence becoming `["barack", "obama"]`.
+///   The terms are then searched within the default terms of the query parser.
 ///
 ///   e.g. If `body` and `title` are default fields, our example terms are
 ///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
@@ -166,8 +170,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// devops. Negative boosts are not allowed.
 ///
 /// It is also possible to define a boost for a some specific field, at the query parser level.
-/// (See [`set_boost(...)`](#method.set_field_boost) ). Typically you may want to boost a title
-/// field.
+/// (See [`set_field_boost(...)`](QueryParser::set_field_boost)). Typically you may want to boost a
+/// title field.
 ///
 /// Phrase terms support the `~` slop operator which allows to set the phrase's matching
 /// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
@@ -400,6 +404,10 @@ impl QueryParser {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 Ok(Term::from_field_bytes(field, &bytes))
             }
+            FieldType::IpAddr(_) => {
+                let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
+                Ok(Term::from_field_ip_addr(field, ip_v6))
+            }
         }
     }
 
@@ -506,6 +514,11 @@ impl QueryParser {
                 let bytes_term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![LogicalLiteral::Term(bytes_term)])
             }
+            FieldType::IpAddr(_) => {
+                let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
+                let term = Term::from_field_ip_addr(field, ip_v6);
+                Ok(vec![LogicalLiteral::Term(term)])
+            }
         }
     }
 
@@ -610,7 +623,7 @@ impl QueryParser {
         if let Some((field, path)) = self.split_full_path(full_path) {
             return Ok(vec![(field, path, literal.phrase.as_str())]);
         }
-        // We need to add terms associated to json default fields.
+        // We need to add terms associated with json default fields.
         let triplets: Vec<(Field, &str, &str)> = self
             .default_indexed_json_fields()
             .map(|json_field| (json_field, full_path.as_str(), literal.phrase.as_str()))
@@ -730,7 +743,7 @@ fn generate_literals_for_json_object(
     index_record_option: IndexRecordOption,
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
     let mut logical_literals = Vec::new();
-    let mut term = Term::new();
+    let mut term = Term::with_capacity(100);
     let mut json_term_writer =
         JsonTermWriter::from_field_and_json_path(field, json_path, &mut term);
     if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {

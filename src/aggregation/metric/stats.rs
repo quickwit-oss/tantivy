@@ -7,8 +7,8 @@ use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes stats of numeric values that are
 /// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
-/// See [Stats] for returned statistics.
+/// Supported field types are `u64`, `i64`, and `f64`.
+/// See [`Stats`] for returned statistics.
 ///
 /// # JSON Format
 /// ```json
@@ -43,13 +43,13 @@ pub struct Stats {
     pub count: usize,
     /// The sum of the fast field values.
     pub sum: f64,
-    /// The standard deviation of the fast field values. None for count == 0.
+    /// The standard deviation of the fast field values. `None` for count == 0.
     pub standard_deviation: Option<f64>,
     /// The min value of the fast field values.
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
-    /// The average of the values. None for count == 0.
+    /// The average of the values. `None` for count == 0.
     pub avg: Option<f64>,
 }
 
@@ -70,7 +70,7 @@ impl Stats {
     }
 }
 
-/// IntermediateStats contains the mergeable version for stats.
+/// `IntermediateStats` contains the mergeable version for stats.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     count: usize,

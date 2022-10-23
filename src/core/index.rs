@@ -19,7 +19,7 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
 
@@ -78,8 +78,8 @@ fn save_new_metas(
 
 /// IndexBuilder can be used to create an index.
 ///
-/// Use in conjunction with `SchemaBuilder`. Global index settings
-/// can be configured with `IndexSettings`
+/// Use in conjunction with [`SchemaBuilder`][crate::schema::SchemaBuilder].
+/// Global index settings can be configured with [`IndexSettings`].
 ///
 /// # Examples
 ///
@@ -97,7 +97,13 @@ fn save_new_metas(
 /// );
 ///
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc}), ..Default::default()};
+/// let settings = IndexSettings{
+///     sort_by_field: Some(IndexSortByField{
+///         field: "number".to_string(),
+///         order: Order::Asc
+///     }),
+///     ..Default::default()
+/// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 /// ```
 pub struct IndexBuilder {
@@ -140,21 +146,20 @@ impl IndexBuilder {
         self
     }
 
-    /// Creates a new index using the `RAMDirectory`.
+    /// Creates a new index using the [`RamDirectory`].
     ///
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(self) -> Result<Index, TantivyError> {
         let ram_directory = RamDirectory::create();
-        Ok(self
-            .create(ram_directory)
-            .expect("Creating a RAMDirectory should never fail"))
+        self.create(ram_directory)
     }
 
     /// Creates a new index in a given filepath.
-    /// The index will use the `MMapDirectory`.
+    /// The index will use the [`MmapDirectory`].
     ///
-    /// If a previous index was in this directory, it returns an `IndexAlreadyExists` error.
+    /// If a previous index was in this directory, it returns an
+    /// [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
@@ -185,12 +190,13 @@ impl IndexBuilder {
 
     /// Creates a new index in a temp directory.
     ///
-    /// The index will use the `MMapDirectory` in a newly created directory.
-    /// The temp directory will be destroyed automatically when the `Index` object
+    /// The index will use the [`MmapDirectory`] in a newly created directory.
+    /// The temp directory will be destroyed automatically when the [`Index`] object
     /// is destroyed.
     ///
-    /// The temp directory is only used for testing the `MmapDirectory`.
-    /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
+    /// The temp directory is only used for testing the [`MmapDirectory`].
+    /// For other unit tests, prefer the [`RamDirectory`], see:
+    /// [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(self) -> crate::Result<Index> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
@@ -220,10 +226,44 @@ impl IndexBuilder {
             ))
         }
     }
+
+    fn validate(&self) -> crate::Result<()> {
+        if let Some(schema) = self.schema.as_ref() {
+            if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref() {
+                let schema_field = schema.get_field(&sort_by_field.field).ok_or_else(|| {
+                    TantivyError::InvalidArgument(format!(
+                        "Field to sort index {} not found in schema",
+                        sort_by_field.field
+                    ))
+                })?;
+                let entry = schema.get_field_entry(schema_field);
+                if !entry.is_fast() {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Field {} is no fast field. Field needs to be a single value fast field \
+                         to be used to sort an index",
+                        sort_by_field.field
+                    )));
+                }
+                if entry.field_type().fastfield_cardinality() != Some(Cardinality::SingleValue) {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Only single value fast field Cardinality supported for sorting index {}",
+                        sort_by_field.field
+                    )));
+                }
+            }
+            Ok(())
+        } else {
+            Err(TantivyError::InvalidArgument(
+                "no schema passed".to_string(),
+            ))
+        }
+    }
+
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
     fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        self.validate()?;
         let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
@@ -286,7 +326,7 @@ impl Index {
         self.set_multithread_executor(default_num_threads)
     }
 
-    /// Creates a new index using the `RamDirectory`.
+    /// Creates a new index using the [`RamDirectory`].
     ///
     /// The index will be allocated in anonymous memory.
     /// This is useful for indexing small set of documents
@@ -296,9 +336,10 @@ impl Index {
     }
 
     /// Creates a new index in a given filepath.
-    /// The index will use the `MMapDirectory`.
+    /// The index will use the [`MmapDirectory`].
     ///
-    /// If a previous index was in this directory, then it returns  an `IndexAlreadyExists` error.
+    /// If a previous index was in this directory, then it returns
+    /// a [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(
         directory_path: P,
@@ -320,12 +361,13 @@ impl Index {
 
     /// Creates a new index in a temp directory.
     ///
-    /// The index will use the `MMapDirectory` in a newly created directory.
-    /// The temp directory will be destroyed automatically when the `Index` object
+    /// The index will use the [`MmapDirectory`] in a newly created directory.
+    /// The temp directory will be destroyed automatically when the [`Index`] object
     /// is destroyed.
     ///
-    /// The temp directory is only used for testing the `MmapDirectory`.
-    /// For other unit tests, prefer the `RamDirectory`, see: `create_in_ram`.
+    /// The temp directory is only used for testing the [`MmapDirectory`].
+    /// For other unit tests, prefer the [`RamDirectory`],
+    /// see: [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
         IndexBuilder::new().schema(schema).create_from_tempdir()
@@ -345,7 +387,7 @@ impl Index {
         builder.create(dir)
     }
 
-    /// Creates a new index given a directory and an `IndexMeta`.
+    /// Creates a new index given a directory and an [`IndexMeta`].
     fn open_from_metas(
         directory: ManagedDirectory,
         metas: &IndexMeta,
@@ -372,7 +414,7 @@ impl Index {
         &self.tokenizers
     }
 
-    /// Helper to access the tokenizer associated to a specific field.
+    /// Get the tokenizer associated with a specific field.
     pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -404,14 +446,14 @@ impl Index {
             })
     }
 
-    /// Create a default `IndexReader` for the given index.
+    /// Create a default [`IndexReader`] for the given index.
     ///
-    /// See [`Index.reader_builder()`](#method.reader_builder).
+    /// See [`Index.reader_builder()`].
     pub fn reader(&self) -> crate::Result<IndexReader> {
         self.reader_builder().try_into()
     }
 
-    /// Create a `IndexReader` for the given index.
+    /// Create a [`IndexReader`] for the given index.
     ///
     /// Most project should create at most one reader for a given index.
     /// This method is typically called only once per `Index` instance.

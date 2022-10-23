@@ -89,6 +89,7 @@ pub(crate) fn serialize_postings(
             | FieldType::Bool(_) => {}
             FieldType::Bytes(_) => {}
             FieldType::JsonObject(_) => {}
+            FieldType::IpAddr(_) => {}
         }
 
         let postings_writer = per_field_postings_writers.get_for_field(field);
@@ -152,9 +153,9 @@ pub(crate) trait PostingsWriter: Send + Sync {
         indexing_position: &mut IndexingPosition,
         mut term_id_fast_field_writer_opt: Option<&mut MultiValuedFastFieldWriter>,
     ) {
-        let end_of_path_idx = term_buffer.as_slice().len();
+        let end_of_path_idx = term_buffer.len_bytes();
         let mut num_tokens = 0;
-        let mut end_position = 0;
+        let mut end_position = indexing_position.end_position;
         token_stream.process(&mut |token: &Token| {
             // We skip all tokens with a len greater than u16.
             if token.text.len() > MAX_TOKEN_LEN {
@@ -166,10 +167,10 @@ pub(crate) trait PostingsWriter: Send + Sync {
                 );
                 return;
             }
-            term_buffer.truncate(end_of_path_idx);
+            term_buffer.truncate_value_bytes(end_of_path_idx);
             term_buffer.append_bytes(token.text.as_bytes());
             let start_position = indexing_position.end_position + token.position as u32;
-            end_position = start_position + token.position_length as u32;
+            end_position = end_position.max(start_position + token.position_length as u32);
             let unordered_term_id = self.subscribe(doc_id, start_position, term_buffer, ctx);
             if let Some(term_id_fast_field_writer) = term_id_fast_field_writer_opt.as_mut() {
                 term_id_fast_field_writer.add_val(unordered_term_id);
@@ -180,7 +181,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
 
         indexing_position.end_position = end_position + POSITION_GAP;
         indexing_position.num_tokens += num_tokens;
-        term_buffer.truncate(end_of_path_idx);
+        term_buffer.truncate_value_bytes(end_of_path_idx);
     }
 
     fn total_num_tokens(&self) -> u64;

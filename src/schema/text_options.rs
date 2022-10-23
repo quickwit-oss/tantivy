@@ -47,7 +47,9 @@ impl TextOptions {
     /// unchanged. The "default" tokenizer will store the terms as lower case and this will be
     /// reflected in the dictionary.
     ///
-    /// The original text can be retrieved via `ord_to_term` from the dictionary.
+    /// The original text can be retrieved via
+    /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
+    /// from the dictionary.
     #[must_use]
     pub fn set_fast(mut self) -> TextOptions {
         self.fast = true;
@@ -99,7 +101,7 @@ impl TokenizerName {
 /// It defines
 /// - The amount of information that should be stored about the presence of a term in a document.
 /// Essentially, should we store the term frequency and/or the positions (See
-/// [`IndexRecordOption`](./enum.IndexRecordOption.html)).
+/// [`IndexRecordOption`]).
 /// - The name of the `Tokenizer` that should be used to process the field.
 /// - Flag indicating, if fieldnorms should be stored (See [fieldnorm](crate::fieldnorm)). Defaults
 ///   to `true`.
@@ -147,23 +149,23 @@ impl TextFieldIndexing {
         self
     }
 
-    /// Returns true if and only if [fieldnorms](crate::fieldnorm)are stored.
+    /// Returns true if and only if [fieldnorms](crate::fieldnorm) are stored.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }
 
     /// Sets which information should be indexed with the tokens.
     ///
-    /// See [IndexRecordOption](./enum.IndexRecordOption.html) for more detail.
+    /// See [`IndexRecordOption`] for more detail.
     #[must_use]
     pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
         self.record = index_option;
         self
     }
 
-    /// Returns the indexing options associated to this field.
+    /// Returns the indexing options associated with this field.
     ///
-    /// See [IndexRecordOption](./enum.IndexRecordOption.html) for more detail.
+    /// See [`IndexRecordOption`] for more detail.
     pub fn index_option(&self) -> IndexRecordOption {
         self.record
     }

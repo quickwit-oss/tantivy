@@ -4,13 +4,13 @@
 //! In tantivy jargon, we call this information your search "fruit".
 //!
 //! Your fruit could for instance be :
-//! - [the count of matching documents](./struct.Count.html)
-//! - [the top 10 documents, by relevancy or by a fast field](./struct.TopDocs.html)
-//! - [facet counts](./struct.FacetCollector.html)
+//! - [the count of matching documents](crate::collector::Count)
+//! - [the top 10 documents, by relevancy or by a fast field](crate::collector::TopDocs)
+//! - [facet counts](FacetCollector)
 //!
-//! At one point in your code, you will trigger the actual search operation by calling
-//! [the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).
-//! This call will look like this.
+//! At some point in your code, you will trigger the actual search operation by calling
+//! [`Searcher::search()`](crate::Searcher::search).
+//! This call will look like this:
 //!
 //! ```verbatim
 //! let fruit = searcher.search(&query, &collector)?;
@@ -64,7 +64,7 @@
 //!
 //! The `Collector` trait is implemented for up to 4 collectors.
 //! If you have more than 4 collectors, you can either group them into
-//! tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
+//! tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`].
 //!
 //! # Combining several collectors dynamically
 //!
@@ -74,7 +74,7 @@
 //!
 //! Unfortunately it requires you to know at compile time your collector types.
 //! If on the other hand, the collectors depend on some query parameter,
-//! you can rely on `MultiCollector`'s.
+//! you can rely on [`MultiCollector`]'s.
 //!
 //!
 //! # Implementing your own collectors.
@@ -142,7 +142,7 @@ pub trait Collector: Sync + Send {
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
-    /// Type of the `SegmentCollector` associated to this collector.
+    /// Type of the `SegmentCollector` associated with this collector.
     type Child: SegmentCollector;
 
     /// `set_segment` is called before beginning to enumerate
@@ -156,7 +156,7 @@ pub trait Collector: Sync + Send {
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
-    /// Combines the fruit associated to the collection of each segments
+    /// Combines the fruit associated with the collection of each segments
     /// into one fruit.
     fn merge_fruits(
         &self,

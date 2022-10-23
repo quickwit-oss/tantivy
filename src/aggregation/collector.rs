@@ -131,7 +131,7 @@ fn merge_fruits(
     }
 }
 
-/// AggregationSegmentCollector does the aggregation collection on a segment.
+/// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
     result: SegmentAggregationResultsCollector,
@@ -139,8 +139,8 @@ pub struct AggregationSegmentCollector {
 }
 
 impl AggregationSegmentCollector {
-    /// Creates an AggregationSegmentCollector from an [Aggregations] request and a segment reader.
-    /// Also includes validation, e.g. checking field types and existence.
+    /// Creates an `AggregationSegmentCollector from` an [`Aggregations`] request and a segment
+    /// reader. Also includes validation, e.g. checking field types and existence.
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
         reader: &SegmentReader,

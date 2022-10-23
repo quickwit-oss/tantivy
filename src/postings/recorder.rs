@@ -47,11 +47,11 @@ impl<'a> Iterator for VInt32Reader<'a> {
     }
 }
 
-/// Recorder is in charge of recording relevant information about
+/// `Recorder` is in charge of recording relevant information about
 /// the presence of a term in a document.
 ///
-/// Depending on the `TextIndexingOptions` associated to the
-/// field, the recorder may records
+/// Depending on the [`TextOptions`](crate::schema::TextOptions) associated
+/// with the field, the recorder may record:
 ///   * the document frequency
 ///   * the document id
 ///   * the term frequency
@@ -83,21 +83,21 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
 
 /// Only records the doc ids
 #[derive(Clone, Copy)]
-pub struct NothingRecorder {
+pub struct DocIdRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
 }
 
-impl Default for NothingRecorder {
+impl Default for DocIdRecorder {
     fn default() -> Self {
-        NothingRecorder {
+        DocIdRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::MAX,
         }
     }
 }
 
-impl Recorder for NothingRecorder {
+impl Recorder for DocIdRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }

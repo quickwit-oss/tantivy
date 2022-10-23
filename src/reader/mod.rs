@@ -23,7 +23,7 @@ pub enum ReloadPolicy {
     /// The index is entirely reloaded manually.
     /// All updates of the index should be manual.
     ///
-    /// No change is reflected automatically. You are required to call `IndexReader::reload()`
+    /// No change is reflected automatically. You are required to call [`IndexReader::reload()`]
     /// manually.
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
@@ -31,11 +31,11 @@ pub enum ReloadPolicy {
     OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
-/// [IndexReader] builder
+/// [`IndexReader`] builder
 ///
 /// It makes it possible to configure:
-/// - [ReloadPolicy] defining when new index versions are detected
-/// - [Warmer] implementations
+/// - [`ReloadPolicy`] defining when new index versions are detected
+/// - [`Warmer`] implementations
 /// - number of warming threads, for parallelizing warming work
 /// - The cache size of the underlying doc store readers.
 #[derive(Clone)]
@@ -108,7 +108,7 @@ impl IndexReaderBuilder {
 
     /// Sets the reload_policy.
     ///
-    /// See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
+    /// See [`ReloadPolicy`] for more details.
     #[must_use]
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
@@ -124,7 +124,7 @@ impl IndexReaderBuilder {
         self
     }
 
-    /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    /// Set the [`Warmer`]s that are invoked when reloading searchable segments.
     #[must_use]
     pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
         self.warmers = warmers;
@@ -133,8 +133,8 @@ impl IndexReaderBuilder {
 
     /// Sets the number of warming threads.
     ///
-    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the
-    /// [IndexReader].
+    /// This allows parallelizing warming work when there are multiple [`Warmer`] registered with
+    /// the [`IndexReader`].
     #[must_use]
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
@@ -186,7 +186,7 @@ impl InnerIndexReader {
             searcher_generation_inventory,
         })
     }
-    /// Opens the freshest segments `SegmentReader`.
+    /// Opens the freshest segments [`SegmentReader`].
     ///
     /// This function acquires a lot to prevent GC from removing files
     /// as we are opening our index.
@@ -263,8 +263,7 @@ impl InnerIndexReader {
 /// It controls when a new version of the index should be loaded and lends
 /// you instances of `Searcher` for the last loaded version.
 ///
-/// `Clone` does not clone the different pool of searcher. `IndexReader`
-/// just wraps and `Arc`.
+/// `IndexReader` just wraps an `Arc`.
 #[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
@@ -280,7 +279,7 @@ impl IndexReader {
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///
-    /// If you set up the `OnCommit` `ReloadPolicy` (which is the default)
+    /// If you set up the [`ReloadPolicy::OnCommit`] (which is the default)
     /// every commit should be rapidly reflected on your `IndexReader` and you should
     /// not need to call `reload()` at all.
     ///
@@ -294,9 +293,6 @@ impl IndexReader {
     ///
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
     ///
     /// The same searcher must be used for a given query, as it ensures
     /// the use of a consistent segment set.

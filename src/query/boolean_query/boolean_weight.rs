@@ -174,9 +174,9 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn)
                 })
         } else {
-            self.complex_scorer(reader, boost, &DoNothingCombiner::default)
+            self.complex_scorer(reader, boost, DoNothingCombiner::default)
                 .map(|specialized_scorer| {
-                    into_box_scorer(specialized_scorer, &DoNothingCombiner::default)
+                    into_box_scorer(specialized_scorer, DoNothingCombiner::default)
                 })
         }
     }

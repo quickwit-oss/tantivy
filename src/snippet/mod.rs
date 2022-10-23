@@ -356,7 +356,7 @@ impl SnippetGenerator {
 
     /// Generates a snippet for the given `Document`.
     ///
-    /// This method extract the text associated to the `SnippetGenerator`'s field
+    /// This method extract the text associated with the `SnippetGenerator`'s field
     /// and computes a snippet.
     pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
         let text: String = doc

@@ -3,6 +3,7 @@ pub mod delete_queue;
 pub mod demuxer;
 pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
+mod flat_map_with_buffer;
 pub mod index_writer;
 mod index_writer_status;
 mod json_term_writer;
@@ -19,6 +20,8 @@ mod segment_register;
 pub mod segment_serializer;
 pub mod segment_updater;
 mod segment_writer;
+mod sorted_doc_id_column;
+mod sorted_doc_id_multivalue_column;
 mod stamper;
 
 use crossbeam_channel as channel;

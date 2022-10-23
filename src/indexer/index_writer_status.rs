@@ -15,7 +15,7 @@ impl IndexWriterStatus {
     }
 
     /// Returns a copy of the operation receiver.
-    /// If the index writer was killed, returns None.
+    /// If the index writer was killed, returns `None`.
     pub fn operation_receiver(&self) -> Option<AddBatchReceiver> {
         let rlock = self
             .inner

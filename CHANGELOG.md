@@ -1,10 +1,31 @@
 Tantivy 0.19
 ================================
 
+- Major bugfix: Fix missing fieldnorms for u64, i64, f64, bool, bytes and date [#1620](https://github.com/quickwit-oss/tantivy/pull/1620) (@PSeitz)
 - Updated [Date Field Type](https://github.com/quickwit-oss/tantivy/pull/1396)
   The `DateTime` type has been updated to hold timestamps with microseconds precision.
-  `DateOptions` and `DatePrecision` have been added to configure Date fields. The precision is used to hint on fast values compression. Otherwise, seconds precision is used everywhere else (i.e terms, indexing).
-- Remove Searcher pool and make `Searcher` cloneable.
+  `DateOptions` and `DatePrecision` have been added to configure Date fields. The precision is used to hint on fast values compression. Otherwise, seconds precision is used everywhere else (i.e terms, indexing). (@evanxg852000)
+- Add IP address field type [#1553](https://github.com/quickwit-oss/tantivy/pull/1553) (@PSeitz)
+- Add boolean field type [#1382](https://github.com/quickwit-oss/tantivy/pull/1382) (@boraarslan)
+- Remove Searcher pool and make `Searcher` cloneable. (@PSeitz)
+- Validate settings on create [#1570](https://github.com/quickwit-oss/tantivy/pull/1570 (@PSeitz)
+- Fix interpolation overflow in linear interpolation fastfield codec [#1480](https://github.com/quickwit-oss/tantivy/pull/1480 (@PSeitz @fulmicoton)
+- Detect and apply gcd on fastfield codecs [#1418](https://github.com/quickwit-oss/tantivy/pull/1418) (@PSeitz)
+- Doc store
+  - use separate thread to compress block store [#1389](https://github.com/quickwit-oss/tantivy/pull/1389) [#1510](https://github.com/quickwit-oss/tantivy/pull/1510 (@PSeitz @fulmicoton)
+  - Expose doc store cache size [#1403](https://github.com/quickwit-oss/tantivy/pull/1403) (@PSeitz)
+  - Enable compression levels for doc store [#1378](https://github.com/quickwit-oss/tantivy/pull/1378) (@PSeitz)
+  - Make block size configurable [#1374](https://github.com/quickwit-oss/tantivy/pull/1374) (@kryesh)
+- Make `tantivy::TantivyError` cloneable [#1402](https://github.com/quickwit-oss/tantivy/pull/1402) (@PSeitz)
+- Add support for phrase slop in query language [#1393](https://github.com/quickwit-oss/tantivy/pull/1393) (@saroh)
+- Aggregation
+  - Add support for keyed parameter in range and histgram aggregations [#1424](https://github.com/quickwit-oss/tantivy/pull/1424) (@k-yomo)
+  - Add aggregation bucket limit [#1363](https://github.com/quickwit-oss/tantivy/pull/1363) (@PSeitz)
+- Faster indexing
+  - [#1610](https://github.com/quickwit-oss/tantivy/pull/1610 (@PSeitz)
+  - [#1594](https://github.com/quickwit-oss/tantivy/pull/1594 (@PSeitz)
+  - [#1582](https://github.com/quickwit-oss/tantivy/pull/1582 (@PSeitz)
+  - [#1611](https://github.com/quickwit-oss/tantivy/pull/1611 (@PSeitz)
 
 Tantivy 0.18
 ================================
@@ -21,6 +42,10 @@ Tantivy 0.18
 - Add support for fastfield on text fields (@PSeitz)
 - Add terms aggregation (@PSeitz)
 - Add support for zstd compression (@kryesh)
+
+Tantivy 0.18.1
+================================
+- Hotfix: positions computation.  #1629 (@fmassot, @fulmicoton, @PSeitz)
 
 Tantivy 0.17
 ================================

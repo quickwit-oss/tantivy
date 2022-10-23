@@ -91,7 +91,15 @@ fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
-) -> crate::Result<SegmentEntry> {
+) -> crate::Result<Option<SegmentEntry>> {
+    let num_docs = segment_entries
+        .iter()
+        .map(|segment| segment.meta().num_docs() as u64)
+        .sum::<u64>();
+    if num_docs == 0 {
+        return Ok(None);
+    }
+
     // first we need to apply deletes to our segment.
     let merged_segment = index.new_segment();
 
@@ -120,20 +128,20 @@ fn merge(
     let merged_segment_id = merged_segment.id();
 
     let segment_meta = index.new_segment_meta(merged_segment_id, num_docs);
-    Ok(SegmentEntry::new(segment_meta, delete_cursor, None))
+    Ok(Some(SegmentEntry::new(segment_meta, delete_cursor, None)))
 }
 
 /// Advanced: Merges a list of segments from different indices in a new index.
 ///
-/// Returns `TantivyError` if the the indices list is empty or their
+/// Returns `TantivyError` if the indices list is empty or their
 /// schemas don't match.
 ///
 /// `output_directory`: is assumed to be empty.
 ///
 /// # Warning
 /// This function does NOT check or take the `IndexWriter` is running. It is not
-/// meant to work if you have an IndexWriter running for the origin indices, or
-/// the destination Index.
+/// meant to work if you have an `IndexWriter` running for the origin indices, or
+/// the destination `Index`.
 #[doc(hidden)]
 pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
@@ -171,15 +179,15 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
 /// Advanced: Merges a list of segments from different indices in a new index.
 /// Additional you can provide a delete bitset for each segment to ignore doc_ids.
 ///
-/// Returns `TantivyError` if the the indices list is empty or their
+/// Returns `TantivyError` if the indices list is empty or their
 /// schemas don't match.
 ///
 /// `output_directory`: is assumed to be empty.
 ///
 /// # Warning
 /// This function does NOT check or take the `IndexWriter` is running. It is not
-/// meant to work if you have an IndexWriter running for the origin indices, or
-/// the destination Index.
+/// meant to work if you have an `IndexWriter` running for the origin indices, or
+/// the destination `Index`.
 #[doc(hidden)]
 pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     segments: &[Segment],
@@ -475,7 +483,10 @@ impl SegmentUpdater {
     // suggested and the moment when it ended up being executed.)
     //
     // `segment_ids` is required to be non-empty.
-    pub fn start_merge(&self, merge_operation: MergeOperation) -> FutureResult<SegmentMeta> {
+    pub fn start_merge(
+        &self,
+        merge_operation: MergeOperation,
+    ) -> FutureResult<Option<SegmentMeta>> {
         assert!(
             !merge_operation.segment_ids().is_empty(),
             "Segment_ids cannot be empty."
@@ -512,9 +523,8 @@ impl SegmentUpdater {
                 merge_operation.target_opstamp(),
             ) {
                 Ok(after_merge_segment_entry) => {
-                    let segment_meta_res =
-                        segment_updater.end_merge(merge_operation, after_merge_segment_entry);
-                    let _send_result = merging_future_send.send(segment_meta_res);
+                    let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
+                    let _send_result = merging_future_send.send(res);
                 }
                 Err(merge_error) => {
                     warn!(
@@ -522,8 +532,10 @@ impl SegmentUpdater {
                         merge_operation.segment_ids().to_vec(),
                         merge_error
                     );
+                    if cfg!(test) {
+                        panic!("{:?}", merge_error);
+                    }
                     let _send_result = merging_future_send.send(Err(merge_error));
-                    assert!(!cfg!(test), "Merge failed.");
                 }
             }
         });
@@ -573,35 +585,42 @@ impl SegmentUpdater {
     fn end_merge(
         &self,
         merge_operation: MergeOperation,
-        mut after_merge_segment_entry: SegmentEntry,
-    ) -> crate::Result<SegmentMeta> {
+        mut after_merge_segment_entry: Option<SegmentEntry>,
+    ) -> crate::Result<Option<SegmentMeta>> {
         let segment_updater = self.clone();
-        let after_merge_segment_meta = after_merge_segment_entry.meta().clone();
+        let after_merge_segment_meta = after_merge_segment_entry
+            .as_ref()
+            .map(|after_merge_segment_entry| after_merge_segment_entry.meta().clone());
         self.schedule_task(move || {
-            info!("End merge {:?}", after_merge_segment_entry.meta());
+            info!(
+                "End merge {:?}",
+                after_merge_segment_entry.as_ref().map(|entry| entry.meta())
+            );
             {
-                let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
-                if let Some(delete_operation) = delete_cursor.get() {
-                    let committed_opstamp = segment_updater.load_meta().opstamp;
-                    if delete_operation.opstamp < committed_opstamp {
-                        let index = &segment_updater.index;
-                        let segment = index.segment(after_merge_segment_entry.meta().clone());
-                        if let Err(advance_deletes_err) = advance_deletes(
-                            segment,
-                            &mut after_merge_segment_entry,
-                            committed_opstamp,
-                        ) {
-                            error!(
-                                "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
-                                merge_operation.segment_ids(),
-                                advance_deletes_err
-                            );
-                            assert!(!cfg!(test), "Merge failed.");
+                if let Some(after_merge_segment_entry) = after_merge_segment_entry.as_mut() {
+                    let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+                    if let Some(delete_operation) = delete_cursor.get() {
+                        let committed_opstamp = segment_updater.load_meta().opstamp;
+                        if delete_operation.opstamp < committed_opstamp {
+                            let index = &segment_updater.index;
+                            let segment = index.segment(after_merge_segment_entry.meta().clone());
+                            if let Err(advance_deletes_err) = advance_deletes(
+                                segment,
+                                after_merge_segment_entry,
+                                committed_opstamp,
+                            ) {
+                                error!(
+                                    "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
+                                    merge_operation.segment_ids(),
+                                    advance_deletes_err
+                                );
+                                assert!(!cfg!(test), "Merge failed.");
 
-                            // ... cancel merge
-                            // `merge_operations` are tracked. As it is dropped, the
-                            // the segment_ids will be available again for merge.
-                            return Err(advance_deletes_err);
+                                // ... cancel merge
+                                // `merge_operations` are tracked. As it is dropped, the
+                                // the segment_ids will be available again for merge.
+                                return Err(advance_deletes_err);
+                            }
                         }
                     }
                 }

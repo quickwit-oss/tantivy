@@ -37,14 +37,14 @@ use crate::{DocId, TantivyError};
 /// [hard_bounds](HistogramAggregation::hard_bounds).
 ///
 /// # Result
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [BucketEntry](crate::aggregation::agg_result::BucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`BucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry] on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateHistogramBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateHistogramBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 ///
@@ -61,7 +61,7 @@ use crate::{DocId, TantivyError};
 /// ```
 ///
 /// Response
-/// See [BucketEntry](crate::aggregation::agg_result::BucketEntry)
+/// See [`BucketEntry`](crate::aggregation::agg_result::BucketEntry)
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HistogramAggregation {
@@ -425,7 +425,7 @@ impl SegmentHistogramCollector {
         let bucket = &mut self.buckets[bucket_pos];
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
-            (&mut sub_aggregation[bucket_pos]).collect(doc, bucket_with_accessor)?;
+            sub_aggregation[bucket_pos].collect(doc, bucket_with_accessor)?;
         }
         Ok(())
     }
@@ -452,7 +452,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
 ) -> crate::Result<Vec<BucketEntry>> {
-    // Generate the the full list of buckets without gaps.
+    // Generate the full list of buckets without gaps.
     //
     // The bounds are the min max from the current buckets, optionally extended by
     // extended_bounds from the request
@@ -518,7 +518,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
 
 /// Applies req extended_bounds/hard_bounds on the min_max value
 ///
-/// May return (f64::MAX, f64::MIN), if there is no range.
+/// May return `(f64::MAX, f64::MIN)`, if there is no range.
 fn get_req_min_max(req: &HistogramAggregation, min_max: Option<(f64, f64)>) -> (f64, f64) {
     let (mut min, mut max) = min_max.unwrap_or((f64::MAX, f64::MIN));
 

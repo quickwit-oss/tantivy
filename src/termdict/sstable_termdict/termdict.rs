@@ -24,6 +24,8 @@ impl SSTable for TermInfoSSTable {
     type Reader = TermInfoReader;
     type Writer = TermInfoWriter;
 }
+
+/// Builder for the new term dictionary.
 pub struct TermDictionaryBuilder<W: io::Write> {
     sstable_writer: Writer<W, TermInfoWriter>,
 }
@@ -52,7 +54,7 @@ impl<W: io::Write> TermDictionaryBuilder<W> {
     /// to insert_key and insert_value.
     ///
     /// Prefer using `.insert(key, value)`
-    #[allow(clippy::clippy::clippy::unnecessary_wraps)]
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.sstable_writer.write_key(key);
         Ok(())
@@ -138,6 +140,7 @@ impl TermDictionary {
         })
     }
 
+    /// Creates a term dictionary from the supplied bytes.
     pub fn from_bytes(owned_bytes: OwnedBytes) -> crate::Result<TermDictionary> {
         TermDictionary::open(FileSlice::new(Arc::new(owned_bytes)))
     }
@@ -153,7 +156,7 @@ impl TermDictionary {
         self.num_terms as usize
     }
 
-    /// Returns the ordinal associated to a given term.
+    /// Returns the ordinal associated with a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
         let mut term_ord = 0u64;
         let key_bytes = key.as_ref();
@@ -167,7 +170,7 @@ impl TermDictionary {
         Ok(None)
     }
 
-    /// Returns the term associated to a given term ordinal.
+    /// Returns the term associated with a given term ordinal.
     ///
     /// Term ordinals are defined as the position of the term in
     /// the sorted list of terms.
@@ -229,19 +232,19 @@ impl TermDictionary {
         Ok(None)
     }
 
-    // Returns a range builder, to stream all of the terms
-    // within an interval.
+    /// Returns a range builder, to stream all of the terms
+    /// within an interval.
     pub fn range(&self) -> TermStreamerBuilder<'_> {
         TermStreamerBuilder::new(self, AlwaysMatch)
     }
 
-    // A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
+    /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
         self.range().into_stream()
     }
 
-    // Returns a search builder, to stream all of the terms
-    // within the Automaton
+    /// Returns a search builder, to stream all of the terms
+    /// within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
     where A::State: Clone {
         TermStreamerBuilder::<A>::new(self, automaton)

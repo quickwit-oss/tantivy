@@ -7,7 +7,7 @@ use crate::Score;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
-/// See [`Query`](./trait.Query.html).
+/// See [`Query`](crate::query::Query).
 pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     /// Returns the score.
     ///

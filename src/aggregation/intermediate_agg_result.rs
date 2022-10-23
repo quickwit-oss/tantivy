@@ -108,10 +108,10 @@ impl IntermediateAggregationResults {
         Self { metrics, buckets }
     }
 
-    /// Merge an other intermediate aggregation result into this result.
+    /// Merge another intermediate aggregation result into this result.
     ///
     /// The order of the values need to be the same on both results. This is ensured when the same
-    /// (key values) are present on the underlying VecWithNames struct.
+    /// (key values) are present on the underlying `VecWithNames` struct.
     pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) {
         if let (Some(buckets_left), Some(buckets_right)) = (&mut self.buckets, other.buckets) {
             for (bucket_left, bucket_right) in
@@ -560,10 +560,10 @@ pub struct IntermediateRangeBucketEntry {
     pub doc_count: u64,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
-    /// The from range of the bucket. Equals f64::MIN when None.
+    /// The from range of the bucket. Equals `f64::MIN` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None.
+    /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
 }

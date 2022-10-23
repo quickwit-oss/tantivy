@@ -33,9 +33,9 @@ impl Ord for ScoreTerm {
     }
 }
 
-/// A struct used as helper to build [`MoreLikeThisQuery`]
-/// This more-like-this implementation is inspired by the Appache Lucene
-/// amd closely follows the same implementation with adaptabtion to Tantivy vocabulary and API.
+/// A struct used as helper to build [`MoreLikeThisQuery`](crate::query::MoreLikeThisQuery)
+/// This more-like-this implementation is inspired by the Apache Lucene
+/// and closely follows the same implementation with adaptation to Tantivy vocabulary and API.
 ///
 /// [MoreLikeThis](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThis.java#L147)
 /// [MoreLikeThisQuery](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThisQuery.java#L36)

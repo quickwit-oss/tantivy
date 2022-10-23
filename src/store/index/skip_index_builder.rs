@@ -28,7 +28,7 @@ impl LayerBuilder {
     /// Serializes the block, and return a checkpoint representing
     /// the entire block.
     ///
-    /// If the block was empty to begin with, simply return None.
+    /// If the block was empty to begin with, simply return `None`.
     fn flush_block(&mut self) -> Option<Checkpoint> {
         if let Some(doc_range) = self.block.doc_interval() {
             let start_offset = self.buffer.len();

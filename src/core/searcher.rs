@@ -10,12 +10,12 @@ use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
 use crate::{DocAddress, Index, Opstamp, SegmentId, TrackedObject};
 
-/// Identifies the searcher generation accessed by a [Searcher].
+/// Identifies the searcher generation accessed by a [`Searcher`].
 ///
-/// While this might seem redundant, a [SearcherGeneration] contains
+/// While this might seem redundant, a [`SearcherGeneration`] contains
 /// both a `generation_id` AND a list of `(SegmentId, DeleteOpstamp)`.
 ///
-/// This is on purpose. This object is used by the `Warmer` API.
+/// This is on purpose. This object is used by the [`Warmer`](crate::reader::Warmer) API.
 /// Having both information makes it possible to identify which
 /// artifact should be refreshed or garbage collected.
 ///
@@ -69,20 +69,20 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Returns the `Index` associated to the `Searcher`
+    /// Returns the `Index` associated with the `Searcher`
     pub fn index(&self) -> &Index {
         &self.inner.index
     }
 
-    /// [SearcherGeneration] which identifies the version of the snapshot held by this `Searcher`.
+    /// [`SearcherGeneration`] which identifies the version of the snapshot held by this `Searcher`.
     pub fn generation(&self) -> &SearcherGeneration {
         self.inner.generation.as_ref()
     }
 
-    /// Fetches a document from tantivy's store given a `DocAddress`.
+    /// Fetches a document from tantivy's store given a [`DocAddress`].
     ///
     /// The searcher uses the segment ordinal to route the
-    /// the request to the right `Segment`.
+    /// request to the right `Segment`.
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
@@ -108,7 +108,7 @@ impl Searcher {
         store_reader.get_async(doc_address.doc_id).await
     }
 
-    /// Access the schema associated to the index of this searcher.
+    /// Access the schema associated with the index of this searcher.
     pub fn schema(&self) -> &Schema {
         &self.inner.schema
     }
@@ -161,11 +161,11 @@ impl Searcher {
     ///
     /// Search works as follows :
     ///
-    ///  First the weight object associated to the query is created.
+    ///  First the weight object associated with the query is created.
     ///
     ///  Then, the query loops over the segments and for each segment :
     ///  - setup the collector and informs it that the segment being processed has changed.
-    ///  - creates a SegmentCollector for collecting documents associated to the segment
+    ///  - creates a SegmentCollector for collecting documents associated with the segment
     ///  - creates a `Scorer` object associated for this segment
     ///  - iterate through the matched documents and push them to the segment collector.
     ///
@@ -180,7 +180,7 @@ impl Searcher {
         self.search_with_executor(query, collector, executor)
     }
 
-    /// Same as [`search(...)`](#method.search) but multithreaded.
+    /// Same as [`search(...)`](Searcher::search) but multithreaded.
     ///
     /// The current implementation is rather naive :
     /// multithreading is by splitting search into as many task

@@ -3,7 +3,7 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
-/// Define how an a bytes field should be handled by tantivy.
+/// Define how a bytes field should be handled by tantivy.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "BytesOptionsDeser")]
 pub struct BytesOptions {
@@ -83,7 +83,7 @@ impl BytesOptions {
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
-    /// If more than one value is associated to a fast field, only the last one is
+    /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
     pub fn set_fast(mut self) -> BytesOptions {

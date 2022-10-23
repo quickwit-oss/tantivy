@@ -27,8 +27,7 @@
 //!
 //! - at the segment level, the
 //! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
-//! - at the index level, the
-//! [`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
+//! - at the index level, the [`Searcher::doc()`](crate::Searcher::doc) method
 //!
 //! !
 
@@ -43,6 +42,7 @@ pub use self::decompressors::Decompressor;
 pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
 pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
+mod store_compressor;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
@@ -82,6 +82,7 @@ pub mod tests {
         num_docs: usize,
         compressor: Compressor,
         blocksize: usize,
+        separate_thread: bool,
     ) -> Schema {
         let mut schema_builder = Schema::builder();
         let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
@@ -89,12 +90,13 @@ pub mod tests {
             schema_builder.add_text_field("title", TextOptions::default().set_stored());
         let schema = schema_builder.build();
         {
-            let mut store_writer = StoreWriter::new(writer, compressor, blocksize).unwrap();
+            let mut store_writer =
+                StoreWriter::new(writer, compressor, blocksize, separate_thread).unwrap();
             for i in 0..num_docs {
                 let mut doc = Document::default();
                 doc.add_field_value(field_body, LOREM.to_string());
                 doc.add_field_value(field_title, format!("Doc {i}"));
-                store_writer.store(&doc).unwrap();
+                store_writer.store(&doc, &schema).unwrap();
             }
             store_writer.close().unwrap();
         }
@@ -112,7 +114,8 @@ pub mod tests {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4, BLOCK_SIZE);
+        let schema =
+            write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4, BLOCK_SIZE, true);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file, 10)?;
@@ -148,11 +151,16 @@ pub mod tests {
         Ok(())
     }
 
-    fn test_store(compressor: Compressor, blocksize: usize) -> crate::Result<()> {
+    fn test_store(
+        compressor: Compressor,
+        blocksize: usize,
+        separate_thread: bool,
+    ) -> crate::Result<()> {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor, blocksize);
+        let schema =
+            write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor, blocksize, separate_thread);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file, 10)?;
@@ -177,29 +185,39 @@ pub mod tests {
     }
 
     #[test]
-    fn test_store_noop() -> crate::Result<()> {
-        test_store(Compressor::None, BLOCK_SIZE)
+    fn test_store_no_compression_same_thread() -> crate::Result<()> {
+        test_store(Compressor::None, BLOCK_SIZE, false)
     }
+
+    #[test]
+    fn test_store_no_compression() -> crate::Result<()> {
+        test_store(Compressor::None, BLOCK_SIZE, true)
+    }
+
     #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_store_lz4_block() -> crate::Result<()> {
-        test_store(Compressor::Lz4, BLOCK_SIZE)
+        test_store(Compressor::Lz4, BLOCK_SIZE, true)
     }
     #[cfg(feature = "snappy-compression")]
     #[test]
     fn test_store_snap() -> crate::Result<()> {
-        test_store(Compressor::Snappy, BLOCK_SIZE)
+        test_store(Compressor::Snappy, BLOCK_SIZE, true)
     }
     #[cfg(feature = "brotli-compression")]
     #[test]
     fn test_store_brotli() -> crate::Result<()> {
-        test_store(Compressor::Brotli, BLOCK_SIZE)
+        test_store(Compressor::Brotli, BLOCK_SIZE, true)
     }
 
     #[cfg(feature = "zstd-compression")]
     #[test]
     fn test_store_zstd() -> crate::Result<()> {
-        test_store(Compressor::Zstd(ZstdCompressor::default()), BLOCK_SIZE)
+        test_store(
+            Compressor::Zstd(ZstdCompressor::default()),
+            BLOCK_SIZE,
+            true,
+        )
     }
 
     #[test]
@@ -364,6 +382,7 @@ mod bench {
                 1_000,
                 Compressor::default(),
                 16_384,
+                true,
             );
             directory.delete(path).unwrap();
         });
@@ -378,6 +397,7 @@ mod bench {
             1_000,
             Compressor::default(),
             16_384,
+            true,
         );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file, 10).unwrap();

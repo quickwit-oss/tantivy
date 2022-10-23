@@ -1,4 +1,11 @@
+#![warn(missing_docs)]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
+
+//! # `fastfield_codecs`
+//!
+//! - Columnar storage of data for tantivy [`Column`].
+//! - Encode data in different codecs.
+//! - Monotonically map values to u64/u128
 
 #[cfg(test)]
 #[macro_use]
@@ -9,28 +16,52 @@ extern crate test;
 
 use std::io;
 use std::io::Write;
+use std::sync::Arc;
 
 use common::BinarySerializable;
+use compact_space::CompactSpaceDecompressor;
+use monotonic_mapping::{
+    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
+    StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
+};
 use ownedbytes::OwnedBytes;
+use serialize::Header;
 
-pub mod bitpacked;
-pub mod blockwise_linear;
-pub mod linear;
+mod bitpacked;
+mod blockwise_linear;
+mod compact_space;
+mod line;
+mod linear;
+mod monotonic_mapping;
+mod monotonic_mapping_u128;
 
 mod column;
 mod gcd;
 mod serialize;
 
+use self::bitpacked::BitpackedCodec;
+use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, VecColumn};
-pub use self::serialize::{open, serialize, serialize_and_load};
+use self::linear::LinearCodec;
+pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
+pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
+pub use self::serialize::{
+    estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
+};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
+/// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
 pub enum FastFieldCodecType {
+    /// Bitpack all values in the value range. The number of bits is defined by the amplitude
+    /// `column.max_value() - column.min_value()`
     Bitpacked = 1,
+    /// Linear interpolation puts a line between the first and last value and then bitpacks the
+    /// values by the offset from the line. The number of bits is defined by the max deviation from
+    /// the line.
     Linear = 2,
+    /// Same as [`FastFieldCodecType::Linear`], but encodes in blocks of 512 elements.
     BlockwiseLinear = 3,
-    Gcd = 4,
 }
 
 impl BinarySerializable for FastFieldCodecType {
@@ -47,85 +78,67 @@ impl BinarySerializable for FastFieldCodecType {
 }
 
 impl FastFieldCodecType {
-    pub fn to_code(self) -> u8 {
+    pub(crate) fn to_code(self) -> u8 {
         self as u8
     }
 
-    pub fn from_code(code: u8) -> Option<Self> {
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
         match code {
             1 => Some(Self::Bitpacked),
             2 => Some(Self::Linear),
             3 => Some(Self::BlockwiseLinear),
-            4 => Some(Self::Gcd),
             _ => None,
         }
     }
 }
 
-pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy {
-    /// Converts a value to u64.
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn to_u64(self) -> u64;
-
-    /// Converts a value from u64
-    ///
-    /// Internally all fast field values are encoded as u64.
-    /// **Note: To be used for converting encoded Term, Posting values.**
-    fn from_u64(val: u64) -> Self;
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_u128<Item: MonotonicallyMappableToU128>(
+    bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let reader = CompactSpaceDecompressor::open(bytes)?;
+    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
+        StrictlyMonotonicMappingToInternal::<Item>::new().into();
+    Ok(Arc::new(monotonic_map_column(reader, inverted)))
 }
 
-impl MonotonicallyMappableToU64 for u64 {
-    fn to_u64(self) -> u64 {
-        self
-    }
-
-    fn from_u64(val: u64) -> Self {
-        val
-    }
-}
-
-impl MonotonicallyMappableToU64 for i64 {
-    #[inline(always)]
-    fn to_u64(self) -> u64 {
-        common::i64_to_u64(self)
-    }
-
-    #[inline(always)]
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_i64(val)
-    }
-}
-
-impl MonotonicallyMappableToU64 for bool {
-    #[inline(always)]
-    fn to_u64(self) -> u64 {
-        if self {
-            1
-        } else {
-            0
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open<T: MonotonicallyMappableToU64>(
+    mut bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<T>>> {
+    let header = Header::deserialize(&mut bytes)?;
+    match header.codec_type {
+        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
+        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
+        FastFieldCodecType::BlockwiseLinear => {
+            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
         }
     }
-
-    #[inline(always)]
-    fn from_u64(val: u64) -> Self {
-        val > 0
-    }
 }
 
-impl MonotonicallyMappableToU64 for f64 {
-    fn to_u64(self) -> u64 {
-        common::f64_to_u64(self)
-    }
-
-    fn from_u64(val: u64) -> Self {
-        common::u64_to_f64(val)
+fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+    bytes: OwnedBytes,
+    header: &Header,
+) -> io::Result<Arc<dyn Column<Item>>> {
+    let normalized_header = header.normalized();
+    let reader = C::open_from_bytes(bytes, normalized_header)?;
+    let min_value = header.min_value;
+    if let Some(gcd) = header.gcd {
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
+    } else {
+        let mapping = StrictlyMonotonicMappingInverter::from(
+            StrictlyMonotonicMappingToInternalBaseval::new(min_value),
+        );
+        Ok(Arc::new(monotonic_map_column(reader, mapping)))
     }
 }
 
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
-pub trait FastFieldCodec: 'static {
+trait FastFieldCodec: 'static {
     /// A codex needs to provide a unique name and id, which is
     /// used for debugging and de/serialization.
     const CODEC_TYPE: FastFieldCodecType;
@@ -133,13 +146,13 @@ pub trait FastFieldCodec: 'static {
     type Reader: Column<u64> + 'static;
 
     /// Reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes) -> io::Result<Self::Reader>;
+    fn open_from_bytes(bytes: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader>;
 
     /// Serializes the data using the serializer into write.
     ///
-    /// The fastfield_accessor iterator should be preferred over using fastfield_accessor for
+    /// The column iterator should be preferred over using column `get_val` method for
     /// performance reasons.
-    fn serialize(write: &mut impl Write, fastfield_accessor: &dyn Column<u64>) -> io::Result<()>;
+    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()>;
 
     /// Returns an estimate of the compression ratio.
     /// If the codec is not applicable, returns `None`.
@@ -148,26 +161,19 @@ pub trait FastFieldCodec: 'static {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(fastfield_accessor: &impl Column) -> Option<f32>;
+    fn estimate(column: &dyn Column) -> Option<f32>;
 }
 
-pub const ALL_CODEC_TYPES: [FastFieldCodecType; 4] = [
+/// The list of all available codecs for u64 convertible data.
+pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
     FastFieldCodecType::Bitpacked,
     FastFieldCodecType::BlockwiseLinear,
-    FastFieldCodecType::Gcd,
     FastFieldCodecType::Linear,
 ];
 
-#[derive(Debug, Clone)]
-/// Statistics are used in codec detection and stored in the fast field footer.
-pub struct FastFieldStats {
-    pub min_value: u64,
-    pub max_value: u64,
-    pub num_vals: u64,
-}
-
 #[cfg(test)]
 mod tests {
+
     use proptest::prelude::*;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
@@ -175,20 +181,25 @@ mod tests {
     use crate::bitpacked::BitpackedCodec;
     use crate::blockwise_linear::BlockwiseLinearCodec;
     use crate::linear::LinearCodec;
+    use crate::serialize::Header;
 
-    pub fn create_and_validate<Codec: FastFieldCodec>(
+    pub(crate) fn create_and_validate<Codec: FastFieldCodec>(
         data: &[u64],
         name: &str,
     ) -> Option<(f32, f32)> {
-        let estimation = Codec::estimate(&VecColumn::from(data))?;
+        let col = &VecColumn::from(data);
+        let header = Header::compute_header(col, &[Codec::CODEC_TYPE])?;
+        let normalized_col = header.normalize_column(col);
+        let estimation = Codec::estimate(&normalized_col)?;
 
-        let mut out: Vec<u8> = Vec::new();
-        Codec::serialize(&mut out, &VecColumn::from(data)).unwrap();
+        let mut out = Vec::new();
+        let col = VecColumn::from(data);
+        serialize(col, &mut out, &[Codec::CODEC_TYPE]).unwrap();
 
         let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
 
-        let reader = Codec::open_from_bytes(OwnedBytes::new(out)).unwrap();
-        assert_eq!(reader.num_vals(), data.len() as u64);
+        let reader = crate::open::<u64>(OwnedBytes::new(out)).unwrap();
+        assert_eq!(reader.num_vals(), data.len() as u32);
         for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u64);
             assert_eq!(
@@ -197,29 +208,59 @@ mod tests {
                  `{data:?}`",
             );
         }
+
+        if !data.is_empty() {
+            let test_rand_idx = rand::thread_rng().gen_range(0..=data.len() - 1);
+            let expected_positions: Vec<u64> = data
+                .iter()
+                .enumerate()
+                .filter(|(_, el)| **el == data[test_rand_idx])
+                .map(|(pos, _)| pos as u64)
+                .collect();
+            let positions = reader.get_between_vals(data[test_rand_idx]..=data[test_rand_idx]);
+            assert_eq!(expected_positions, positions);
+        }
         Some((estimation, actual_compression))
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
-        fn test_proptest_small(data in proptest::collection::vec(num_strategy(), 1..10)) {
-            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        fn test_proptest_small_bitpacked(data in proptest::collection::vec(num_strategy(), 1..10)) {
             create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
+        }
+
+        #[test]
+        fn test_proptest_small_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+        }
+
+        #[test]
+        fn test_proptest_small_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
         }
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
+
         #[test]
-        fn test_proptest_large(data in proptest::collection::vec(num_strategy(), 1..6000)) {
-            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
-            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        fn test_proptest_large_bitpacked(data in proptest::collection::vec(num_strategy(), 1..6000)) {
             create_and_validate::<BitpackedCodec>(&data, "proptest bitpacked");
         }
 
+        #[test]
+        fn test_proptest_large_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+            create_and_validate::<LinearCodec>(&data, "proptest linearinterpol");
+        }
+
+        #[test]
+        fn test_proptest_large_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+            create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+        }
     }
+
     fn num_strategy() -> impl Strategy<Value = u64> {
         prop_oneof![
             1 => prop::num::u64::ANY.prop_map(|num| u64::MAX - (num % 10) ),
@@ -287,10 +328,10 @@ mod tests {
 
         let multi_linear_interpol_estimation = BlockwiseLinearCodec::estimate(&data).unwrap();
         assert_le!(multi_linear_interpol_estimation, 0.2);
-        assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
+        assert_lt!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
         let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
-        assert_le!(linear_interpol_estimation, bitpacked_estimation);
+        assert_lt!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
@@ -298,14 +339,23 @@ mod tests {
 
         let data: VecColumn = data.into();
         let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
-        assert_le!(linear_interpol_estimation, 0.32);
+        assert_le!(linear_interpol_estimation, 0.34);
 
         let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
-        assert_le!(bitpacked_estimation, linear_interpol_estimation);
+        assert_lt!(bitpacked_estimation, linear_interpol_estimation);
     }
+
+    #[test]
+    fn estimation_prefer_bitpacked() {
+        let data = VecColumn::from(&[10, 10, 10, 10]);
+        let linear_interpol_estimation = LinearCodec::estimate(&data).unwrap();
+        let bitpacked_estimation = BitpackedCodec::estimate(&data).unwrap();
+        assert_lt!(bitpacked_estimation, linear_interpol_estimation);
+    }
+
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
-        let mut data: Vec<u64> = (200..=20000_u64).collect();
+        let mut data: Vec<u64> = (201..=20000_u64).collect();
         data.push(1_000_000);
         let data: VecColumn = data.as_slice().into();
 
@@ -328,7 +378,7 @@ mod tests {
                 count_codec += 1;
             }
         }
-        assert_eq!(count_codec, 4);
+        assert_eq!(count_codec, 3);
     }
 }
 
@@ -336,116 +386,126 @@ mod tests {
 mod bench {
     use std::sync::Arc;
 
-    use rand::prelude::*;
+    use ownedbytes::OwnedBytes;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test::{self, Bencher};
 
+    use super::*;
     use crate::Column;
 
-    // Warning: this generates the same permutation at each call
-    fn generate_permutation() -> Vec<u64> {
-        let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
-        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        permutation
+    fn get_data() -> Vec<u64> {
+        let mut rng = StdRng::seed_from_u64(2u64);
+        let mut data: Vec<_> = (100..55000_u64)
+            .map(|num| num + rng.gen::<u8>() as u64)
+            .collect();
+        data.push(99_000);
+        data.insert(1000, 2000);
+        data.insert(2000, 100);
+        data.insert(3000, 4100);
+        data.insert(4000, 100);
+        data.insert(5000, 800);
+        data
     }
 
-    // Warning: this generates the same permutation at each call
-    fn generate_permutation_gcd() -> Vec<u64> {
-        let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();
-        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        permutation
+    #[inline(never)]
+    fn value_iter() -> impl Iterator<Item = u64> {
+        0..20_000
     }
-
-    #[bench]
-    fn bench_intfastfield_jumpy_veclookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
+    fn get_reader_for_bench<Codec: FastFieldCodec>(data: &[u64]) -> Codec::Reader {
+        let mut bytes = Vec::new();
+        let min_value = *data.iter().min().unwrap();
+        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
+        let col = VecColumn::from(&data);
+        let normalized_header = crate::NormalizedHeader {
+            num_vals: col.num_vals(),
+            max_value: col.max_value(),
+        };
+        Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
+        Codec::open_from_bytes(OwnedBytes::new(bytes), normalized_header).unwrap()
+    }
+    fn bench_get<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+        let col = get_reader_for_bench::<Codec>(data);
         b.iter(|| {
-            let mut a = 0u64;
-            for _ in 0..n {
-                a = permutation[a as usize];
+            let mut sum = 0u64;
+            for pos in value_iter() {
+                let val = col.get_val(pos as u64);
+                sum = sum.wrapping_add(val);
             }
-            a
+            sum
+        });
+    }
+
+    #[inline(never)]
+    fn bench_get_dynamic_helper(b: &mut Bencher, col: Arc<dyn Column>) {
+        b.iter(|| {
+            let mut sum = 0u64;
+            for pos in value_iter() {
+                let val = col.get_val(pos as u64);
+                sum = sum.wrapping_add(val);
+            }
+            sum
+        });
+    }
+
+    fn bench_get_dynamic<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+        let col = Arc::new(get_reader_for_bench::<Codec>(data));
+        bench_get_dynamic_helper(b, col);
+    }
+    fn bench_create<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+        let min_value = *data.iter().min().unwrap();
+        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
+
+        let mut bytes = Vec::new();
+        b.iter(|| {
+            bytes.clear();
+            Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
         });
     }
 
     #[bench]
-    fn bench_intfastfield_jumpy_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for _ in 0..n {
-                a = column.get_val(a as u64);
-            }
-            a
-        });
+    fn bench_fastfield_bitpack_create(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_create::<BitpackedCodec>(b, &data);
     }
-
     #[bench]
-    fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in (0..n / 7).map(|val| val * 7) {
-                a += permutation[i as usize];
-            }
-            a
-        });
+    fn bench_fastfield_linearinterpol_create(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_create::<LinearCodec>(b, &data);
     }
-
     #[bench]
-    fn bench_intfastfield_stride7_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in (0..n / 7).map(|val| val * 7) {
-                a += column.get_val(i as u64);
-            }
-            a
-        });
+    fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_create::<BlockwiseLinearCodec>(b, &data);
     }
-
     #[bench]
-    fn bench_intfastfield_scan_all_fflookup(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0u64..n as u64 {
-                a += column.get_val(i);
-            }
-            a
-        });
+    fn bench_fastfield_bitpack_get(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get::<BitpackedCodec>(b, &data);
     }
-
     #[bench]
-    fn bench_intfastfield_scan_all_fflookup_gcd(b: &mut Bencher) {
-        let permutation = generate_permutation_gcd();
-        let n = permutation.len();
-        let column: Arc<dyn Column<u64>> = crate::serialize_and_load(&permutation);
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0..n as u64 {
-                a += column.get_val(i);
-            }
-            a
-        });
+    fn bench_fastfield_bitpack_get_dynamic(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get_dynamic::<BitpackedCodec>(b, &data);
     }
-
     #[bench]
-    fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
-        let permutation = generate_permutation();
-        b.iter(|| {
-            let mut a = 0u64;
-            for i in 0..permutation.len() {
-                a += permutation[i as usize] as u64;
-            }
-            a
-        });
+    fn bench_fastfield_linearinterpol_get(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get::<LinearCodec>(b, &data);
+    }
+    #[bench]
+    fn bench_fastfield_linearinterpol_get_dynamic(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get_dynamic::<LinearCodec>(b, &data);
+    }
+    #[bench]
+    fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get::<BlockwiseLinearCodec>(b, &data);
+    }
+    #[bench]
+    fn bench_fastfield_multilinearinterpol_get_dynamic(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        bench_get_dynamic::<BlockwiseLinearCodec>(b, &data);
     }
 }

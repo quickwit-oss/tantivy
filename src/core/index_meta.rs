@@ -130,7 +130,7 @@ impl SegmentMeta {
     /// Returns the relative path of a component of our segment.
     ///
     /// It just joins the segment id with the extension
-    /// associated to a segment component.
+    /// associated with a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
@@ -235,6 +235,14 @@ impl InnerSegmentMeta {
     }
 }
 
+fn return_true() -> bool {
+    true
+}
+
+fn is_true(val: &bool) -> bool {
+    *val
+}
+
 /// Search Index Settings.
 ///
 /// Contains settings which are applied on the whole
@@ -248,6 +256,12 @@ pub struct IndexSettings {
     /// The `Compressor` used to compress the doc store.
     #[serde(default)]
     pub docstore_compression: Compressor,
+    /// If set to true, docstore compression will happen on a dedicated thread.
+    /// (defaults: true)
+    #[doc(hidden)]
+    #[serde(default = "return_true")]
+    #[serde(skip_serializing_if = "is_true")]
+    pub docstore_compress_dedicated_thread: bool,
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
@@ -264,6 +278,7 @@ impl Default for IndexSettings {
             sort_by_field: None,
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
+            docstore_compress_dedicated_thread: true,
         }
     }
 }
@@ -311,13 +326,13 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
-    /// List of `SegmentMeta` information associated to each finalized segment of the index.
+    /// List of `SegmentMeta` information associated with each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
     pub schema: Schema,
-    /// Opstamp associated to the last `commit` operation.
+    /// Opstamp associated with the last `commit` operation.
     pub opstamp: Opstamp,
-    /// Payload associated to the last commit.
+    /// Payload associated with the last commit.
     ///
     /// Upon commit, clients can optionally add a small `String` payload to their commit
     /// to help identify this commit.
@@ -395,7 +410,7 @@ mod tests {
     use super::IndexMeta;
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
-    use crate::store::ZstdCompressor;
+    use crate::store::{Compressor, ZstdCompressor};
     use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
@@ -447,6 +462,7 @@ mod tests {
                     compression_level: Some(4),
                 }),
                 docstore_blocksize: 1_000_000,
+                docstore_compress_dedicated_thread: true,
             },
             segments: Vec::new(),
             schema,
@@ -484,5 +500,48 @@ mod tests {
             err.to_string(),
             "unknown zstd option \"bla\" at line 1 column 103".to_string()
         );
+    }
+
+    #[test]
+    #[cfg(feature = "lz4-compression")]
+    fn test_index_settings_default() {
+        let mut index_settings = IndexSettings::default();
+        assert_eq!(
+            index_settings,
+            IndexSettings {
+                sort_by_field: None,
+                docstore_compression: Compressor::default(),
+                docstore_compress_dedicated_thread: true,
+                docstore_blocksize: 16_384
+            }
+        );
+        {
+            let index_settings_json = serde_json::to_value(&index_settings).unwrap();
+            assert_eq!(
+                index_settings_json,
+                serde_json::json!({
+                    "docstore_compression": "lz4",
+                    "docstore_blocksize": 16384
+                })
+            );
+            let index_settings_deser: IndexSettings =
+                serde_json::from_value(index_settings_json).unwrap();
+            assert_eq!(index_settings_deser, index_settings);
+        }
+        {
+            index_settings.docstore_compress_dedicated_thread = false;
+            let index_settings_json = serde_json::to_value(&index_settings).unwrap();
+            assert_eq!(
+                index_settings_json,
+                serde_json::json!({
+                    "docstore_compression": "lz4",
+                    "docstore_blocksize": 16384,
+                    "docstore_compress_dedicated_thread": false,
+                })
+            );
+            let index_settings_deser: IndexSettings =
+                serde_json::from_value(index_settings_json).unwrap();
+            assert_eq!(index_settings_deser, index_settings);
+        }
     }
 }

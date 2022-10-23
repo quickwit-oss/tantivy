@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::mem;
+use std::net::Ipv6Addr;
 
 use common::{BinarySerializable, VInt};
 
@@ -97,6 +98,11 @@ impl Document {
         self.add_field_value(field, value);
     }
 
+    /// Add a IP address field. Internally only Ipv6Addr is used.
+    pub fn add_ip_addr(&mut self, field: Field, value: Ipv6Addr) {
+        self.add_field_value(field, value);
+    }
+
     /// Add a i64 field
     pub fn add_i64(&mut self, field: Field, value: i64) {
         self.add_field_value(field, value);
@@ -190,6 +196,34 @@ impl Document {
     /// Returns the first `FieldValue` associated the given field
     pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.get_all(field).next()
+    }
+
+    /// Serializes stored field values.
+    pub fn serialize_stored<W: Write>(&self, schema: &Schema, writer: &mut W) -> io::Result<()> {
+        let stored_field_values = || {
+            self.field_values()
+                .iter()
+                .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
+        };
+        let num_field_values = stored_field_values().count();
+
+        VInt(num_field_values as u64).serialize(writer)?;
+        for field_value in stored_field_values() {
+            match field_value {
+                FieldValue {
+                    field,
+                    value: Value::PreTokStr(pre_tokenized_text),
+                } => {
+                    let field_value = FieldValue {
+                        field: *field,
+                        value: Value::Str(pre_tokenized_text.text.to_string()),
+                    };
+                    field_value.serialize(writer)?;
+                }
+                field_value => field_value.serialize(writer)?,
+            };
+        }
+        Ok(())
     }
 }
 

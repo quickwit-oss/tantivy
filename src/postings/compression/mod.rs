@@ -106,7 +106,7 @@ impl BlockDecoder {
 
 pub trait VIntEncoder {
     /// Compresses an array of `u32` integers,
-    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_ encoding)
+    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_encoding)
     /// and variable bytes encoding.
     ///
     /// The method takes an array of ints to compress, and returns

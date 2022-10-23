@@ -1,35 +1,6 @@
-use std::io::{self, Write};
 use std::num::NonZeroU64;
 
-use common::BinarySerializable;
 use fastdivide::DividerU64;
-
-#[derive(Debug, Clone, Copy)]
-pub struct GCDParams {
-    pub gcd: u64,
-    pub min_value: u64,
-    pub num_vals: u64,
-}
-
-impl BinarySerializable for GCDParams {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        self.gcd.serialize(writer)?;
-        self.min_value.serialize(writer)?;
-        self.num_vals.serialize(writer)?;
-        Ok(())
-    }
-
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let gcd: u64 = u64::deserialize(reader)?;
-        let min_value: u64 = u64::deserialize(reader)?;
-        let num_vals: u64 = u64::deserialize(reader)?;
-        Ok(Self {
-            gcd,
-            min_value,
-            num_vals,
-        })
-    }
-}
 
 /// Compute the gcd of two non null numbers.
 ///
@@ -85,11 +56,7 @@ mod tests {
     ) -> io::Result<()> {
         let mut vals: Vec<i64> = (-4..=(num_vals as i64) - 5).map(|val| val * 1000).collect();
         let mut buffer: Vec<u8> = Vec::new();
-        crate::serialize(
-            VecColumn::from(&vals),
-            &mut buffer,
-            &[codec_type, FastFieldCodecType::Gcd],
-        )?;
+        crate::serialize(VecColumn::from(&vals), &mut buffer, &[codec_type])?;
         let buffer = OwnedBytes::new(buffer);
         let column = crate::open::<i64>(buffer.clone())?;
         assert_eq!(column.get_val(0), -4000i64);
@@ -131,11 +98,7 @@ mod tests {
     ) -> io::Result<()> {
         let mut vals: Vec<u64> = (1..=num_vals).map(|i| i as u64 * 1000u64).collect();
         let mut buffer: Vec<u8> = Vec::new();
-        crate::serialize(
-            VecColumn::from(&vals),
-            &mut buffer,
-            &[codec_type, FastFieldCodecType::Gcd],
-        )?;
+        crate::serialize(VecColumn::from(&vals), &mut buffer, &[codec_type])?;
         let buffer = OwnedBytes::new(buffer);
         let column = crate::open::<u64>(buffer.clone())?;
         assert_eq!(column.get_val(0), 1000u64);

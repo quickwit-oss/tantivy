@@ -13,7 +13,7 @@ pub struct SSTableIndex {
 
 impl SSTableIndex {
     pub(crate) fn load(data: &[u8]) -> Result<SSTableIndex, DataCorruption> {
-        serde_cbor::de::from_slice(data)
+        ciborium::de::from_reader(data)
             .map_err(|_| DataCorruption::comment_only("SSTable index is corrupted"))
     }
 
@@ -85,9 +85,9 @@ impl SSTableIndexBuilder {
         })
     }
 
-    pub fn serialize(&self, wrt: &mut dyn io::Write) -> io::Result<()> {
-        serde_cbor::ser::to_writer(wrt, &self.index).unwrap();
-        Ok(())
+    pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
+        ciborium::ser::into_writer(&self.index, wrt)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 }
 
