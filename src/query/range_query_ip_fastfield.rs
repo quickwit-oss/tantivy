@@ -262,6 +262,12 @@ mod tests {
         assert!(test_ip_range_for_docs(ops).is_ok());
     }
 
+    #[test]
+    fn ip_range_regression2_test() {
+        let ops = vec![doc_from_id_1(0)];
+        assert!(test_ip_range_for_docs(ops).is_ok());
+    }
+
     fn test_ip_range_for_docs(docs: Vec<Doc>) -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED | FAST);
@@ -318,9 +324,13 @@ mod tests {
         };
 
         test_sample(vec![docs[0].clone(), docs[0].clone()]);
-        test_sample(vec![docs[0].clone(), docs[1].clone()]);
-        test_sample(vec![docs[1].clone(), docs[1].clone()]);
-        test_sample(vec![docs[1].clone(), docs[2].clone()]);
+        if docs.len() > 1 {
+            test_sample(vec![docs[0].clone(), docs[1].clone()]);
+            test_sample(vec![docs[1].clone(), docs[1].clone()]);
+        }
+        if docs.len() > 2 {
+            test_sample(vec![docs[1].clone(), docs[2].clone()]);
+        }
 
         Ok(())
     }
