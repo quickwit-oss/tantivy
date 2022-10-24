@@ -263,10 +263,10 @@ impl SegmentRangeCollector {
             .as_single()
             .expect("unexpected fast field cardinality");
         for docs in iter.by_ref() {
-            let val1 = accessor.get_val(docs[0] as u64);
-            let val2 = accessor.get_val(docs[1] as u64);
-            let val3 = accessor.get_val(docs[2] as u64);
-            let val4 = accessor.get_val(docs[3] as u64);
+            let val1 = accessor.get_val(docs[0]);
+            let val2 = accessor.get_val(docs[1]);
+            let val3 = accessor.get_val(docs[2]);
+            let val4 = accessor.get_val(docs[3]);
             let bucket_pos1 = self.get_bucket_pos(val1);
             let bucket_pos2 = self.get_bucket_pos(val2);
             let bucket_pos3 = self.get_bucket_pos(val3);
@@ -278,7 +278,7 @@ impl SegmentRangeCollector {
             self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
         }
         for &doc in iter.remainder() {
-            let val = accessor.get_val(doc as u64);
+            let val = accessor.get_val(doc);
             let bucket_pos = self.get_bucket_pos(val);
             self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }

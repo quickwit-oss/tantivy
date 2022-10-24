@@ -62,8 +62,8 @@ fn compute_slope(y0: u64, y1: u64, num_vals: NonZeroU32) -> u64 {
 
 impl Line {
     #[inline(always)]
-    pub fn eval(&self, x: u64) -> u64 {
-        let linear_part = (x.wrapping_mul(self.slope) >> 32) as i32 as u64;
+    pub fn eval(&self, x: u32) -> u64 {
+        let linear_part = ((x as u64).wrapping_mul(self.slope) >> 32) as i32 as u64;
         self.intercept.wrapping_add(linear_part)
     }
 
@@ -129,7 +129,7 @@ impl Line {
         };
         let heuristic_shift = y0.wrapping_sub(MID_POINT);
         line.intercept = positions_and_values
-            .map(|(pos, y)| y.wrapping_sub(line.eval(pos)))
+            .map(|(pos, y)| y.wrapping_sub(line.eval(pos as u32)))
             .min_by_key(|&val| val.wrapping_sub(heuristic_shift))
             .unwrap_or(0u64); //< Never happens.
         line
@@ -199,7 +199,7 @@ mod tests {
         let line = Line::train(&VecColumn::from(&ys));
         ys.iter()
             .enumerate()
-            .map(|(x, y)| y.wrapping_sub(line.eval(x as u64)))
+            .map(|(x, y)| y.wrapping_sub(line.eval(x as u32)))
             .max()
     }
 

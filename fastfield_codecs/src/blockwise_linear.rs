@@ -78,7 +78,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         let mut first_chunk: Vec<u64> = column.iter().take(CHUNK_SIZE as usize).collect();
         let line = Line::train(&VecColumn::from(&first_chunk));
         for (i, buffer_val) in first_chunk.iter_mut().enumerate() {
-            let interpolated_val = line.eval(i as u64);
+            let interpolated_val = line.eval(i as u32);
             *buffer_val = buffer_val.wrapping_sub(interpolated_val);
         }
         let estimated_bit_width = first_chunk
@@ -121,7 +121,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
             assert!(!buffer.is_empty());
 
             for (i, buffer_val) in buffer.iter_mut().enumerate() {
-                let interpolated_val = line.eval(i as u64);
+                let interpolated_val = line.eval(i as u32);
                 *buffer_val = buffer_val.wrapping_sub(interpolated_val);
             }
             let bit_width = buffer.iter().copied().map(compute_num_bits).max().unwrap();
@@ -161,9 +161,9 @@ pub struct BlockwiseLinearReader {
 
 impl Column for BlockwiseLinearReader {
     #[inline(always)]
-    fn get_val(&self, idx: u64) -> u64 {
-        let block_id = (idx / CHUNK_SIZE as u64) as usize;
-        let idx_within_block = idx % (CHUNK_SIZE as u64);
+    fn get_val(&self, idx: u32) -> u64 {
+        let block_id = (idx / CHUNK_SIZE as u32) as usize;
+        let idx_within_block = idx % (CHUNK_SIZE as u32);
         let block = &self.blocks[block_id];
         let interpoled_val: u64 = block.line.eval(idx_within_block);
         let block_bytes = &self.data[block.data_start_offset..];

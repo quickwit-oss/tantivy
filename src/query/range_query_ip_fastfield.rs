@@ -222,8 +222,8 @@ mod tests {
 
     fn operation_strategy() -> impl Strategy<Value = Doc> {
         prop_oneof![
-            (0u64..100u64).prop_map(|id| doc_from_id_1(id)),
-            (1u64..100u64).prop_map(|id| doc_from_id_2(id)),
+            (0u64..100u64).prop_map(doc_from_id_1),
+            (1u64..100u64).prop_map(doc_from_id_2),
         ]
     }
 

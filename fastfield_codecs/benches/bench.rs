@@ -65,7 +65,7 @@ mod tests {
         b.iter(|| {
             let mut a = 0u64;
             for _ in 0..n {
-                a = column.get_val(a as u64);
+                a = column.get_val(a as u32);
             }
             a
         });
@@ -141,7 +141,7 @@ mod tests {
         b.iter(|| {
             let mut a = 0u128;
             for i in 0u64..column.num_vals() as u64 {
-                a += column.get_val(i);
+                a += column.get_val(i as u32);
             }
             a
         });
@@ -155,7 +155,7 @@ mod tests {
             let n = column.num_vals();
             let mut a = 0u128;
             for i in (0..n / 5).map(|val| val * 5) {
-                a += column.get_val(i as u64);
+                a += column.get_val(i);
             }
             a
         });
@@ -180,9 +180,9 @@ mod tests {
         let n = permutation.len();
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
-            let mut a = 0u64;
+            let mut a = 0;
             for i in (0..n / 7).map(|val| val * 7) {
-                a += column.get_val(i as u64);
+                a += column.get_val(i as u32);
             }
             a
         });
@@ -195,7 +195,7 @@ mod tests {
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
             let mut a = 0u64;
-            for i in 0u64..n as u64 {
+            for i in 0u32..n as u32 {
                 a += column.get_val(i);
             }
             a
@@ -209,8 +209,8 @@ mod tests {
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
             let mut a = 0u64;
-            for i in 0..n as u64 {
-                a += column.get_val(i);
+            for i in 0..n {
+                a += column.get_val(i as u32);
             }
             a
         });

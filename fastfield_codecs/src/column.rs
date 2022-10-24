@@ -14,7 +14,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// # Panics
     ///
     /// May panic if `idx` is greater than the column length.
-    fn get_val(&self, idx: u64) -> T;
+    fn get_val(&self, idx: u32) -> T;
 
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
@@ -27,7 +27,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     #[inline]
     fn get_range(&self, start: u64, output: &mut [T]) {
         for (out, idx) in output.iter_mut().zip(start..) {
-            *out = self.get_val(idx);
+            *out = self.get_val(idx as u32);
         }
     }
 
@@ -44,7 +44,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
 
         for idx in doc_id_range.start..doc_id_range.end {
-            let val = self.get_val(idx as u64);
+            let val = self.get_val(idx);
             if value_range.contains(&val) {
                 vals.push(idx);
             }
@@ -73,7 +73,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
 
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
-        Box::new((0..self.num_vals() as u64).map(|idx| self.get_val(idx)))
+        Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
 }
 
@@ -85,7 +85,7 @@ pub struct VecColumn<'a, T = u64> {
 }
 
 impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
-    fn get_val(&self, idx: u64) -> T {
+    fn get_val(&self, idx: u32) -> T {
         (*self).get_val(idx)
     }
 
@@ -111,7 +111,7 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
 }
 
 impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
-    fn get_val(&self, position: u64) -> T {
+    fn get_val(&self, position: u32) -> T {
         self.values[position as usize]
     }
 
@@ -196,7 +196,7 @@ where
     Output: PartialOrd + Send + Sync + Clone,
 {
     #[inline]
-    fn get_val(&self, idx: u64) -> Output {
+    fn get_val(&self, idx: u32) -> Output {
         let from_val = self.from_column.get_val(idx);
         self.monotonic_mapping.mapping(from_val)
     }
@@ -254,7 +254,7 @@ where
     T: Iterator + Clone + ExactSizeIterator + Send + Sync,
     T::Item: PartialOrd,
 {
-    fn get_val(&self, idx: u64) -> T::Item {
+    fn get_val(&self, idx: u32) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()
     }
 

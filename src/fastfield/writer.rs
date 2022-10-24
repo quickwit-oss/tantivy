@@ -538,7 +538,7 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// # Panics
     ///
     /// May panic if `doc` is greater than the index.
-    fn get_val(&self, _doc: u64) -> u64 {
+    fn get_val(&self, _doc: u32) -> u64 {
         unimplemented!()
     }
 

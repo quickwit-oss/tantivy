@@ -17,7 +17,7 @@ pub struct BitpackedReader {
 
 impl Column for BitpackedReader {
     #[inline]
-    fn get_val(&self, doc: u64) -> u64 {
+    fn get_val(&self, doc: u32) -> u64 {
         self.bit_unpacker.get(doc, &self.data)
     }
     #[inline]

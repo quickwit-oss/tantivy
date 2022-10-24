@@ -232,7 +232,7 @@ impl<'a, C: Column> MultivalueStartIndex<'a, C> {
     }
 }
 impl<'a, C: Column> Column for MultivalueStartIndex<'a, C> {
-    fn get_val(&self, _idx: u64) -> u64 {
+    fn get_val(&self, _idx: u32) -> u64 {
         unimplemented!()
     }
 
@@ -262,7 +262,7 @@ fn iter_remapped_multivalue_index<'a, C: Column>(
 ) -> impl Iterator<Item = u64> + 'a {
     let mut offset = 0;
     std::iter::once(0).chain(doc_id_map.iter_old_doc_ids().map(move |old_doc| {
-        let num_vals_for_doc = column.get_val(old_doc as u64 + 1) - column.get_val(old_doc as u64);
+        let num_vals_for_doc = column.get_val(old_doc + 1) - column.get_val(old_doc);
         offset += num_vals_for_doc;
         offset as u64
     }))
