@@ -86,10 +86,7 @@ impl DocSet for BitSetDocSet {
         self.doc
     }
 
-    /// Returns half of the `max_doc`
-    /// This is quite a terrible heuristic,
-    /// but we don't have access to any better
-    /// value.
+    /// Returns the number of values set in the underlying bitset.
     fn size_hint(&self) -> u32 {
         self.docs.len() as u32
     }

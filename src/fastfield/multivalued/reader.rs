@@ -159,8 +159,14 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
     }
 
     /// Returns all docids which are in the provided value range
-    pub fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<DocId> {
-        let positions = self.vals_reader.get_between_vals(range);
+    pub fn get_positions_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<DocId> {
+        let positions = self
+            .vals_reader
+            .get_positions_for_value_range(value_range, doc_id_range);
 
         positions_to_docids(&positions, self.idx_reader.as_ref())
     }
@@ -223,14 +229,14 @@ impl<T: MonotonicallyMappableToU128> MultiValueLength for MultiValuedU128FastFie
 ///
 /// TODO: Instead of a linear scan we can employ a expotential search into binary search to match a
 /// docid to its value position.
-fn positions_to_docids<C: Column + ?Sized>(positions: &[u64], idx_reader: &C) -> Vec<DocId> {
+fn positions_to_docids<C: Column + ?Sized>(positions: &[u32], idx_reader: &C) -> Vec<DocId> {
     let mut docs = vec![];
     let mut cur_doc = 0u32;
     let mut last_doc = None;
 
     for pos in positions {
         loop {
-            let end = idx_reader.get_val(cur_doc as u64 + 1);
+            let end = idx_reader.get_val(cur_doc as u64 + 1) as u32;
             if end > *pos {
                 // avoid duplicates
                 if Some(cur_doc) == last_doc {
@@ -258,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_positions_to_docid() {
-        let positions = vec![10u64, 11, 15, 20, 21, 22];
+        let positions = vec![10u32, 11, 15, 20, 21, 22];
 
         let offsets = vec![0, 10, 12, 15, 22, 23];
         {

@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::ops::RangeInclusive;
+use std::ops::{Range, RangeInclusive};
 
 use tantivy_bitpacker::minmax;
 
@@ -31,13 +31,21 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
         }
     }
 
-    /// Return the positions of values which are in the provided range.
+    /// Get the positions of values which are in the provided value range.
+    ///
+    /// Note that position == docid for single value fast fields
     #[inline]
-    fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> {
+    fn get_positions_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
         let mut vals = Vec::new();
-        for idx in 0..self.num_vals() as u64 {
-            let val = self.get_val(idx);
-            if range.contains(&val) {
+        let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
+
+        for idx in doc_id_range.start..doc_id_range.end {
+            let val = self.get_val(idx as u64);
+            if value_range.contains(&val) {
                 vals.push(idx);
             }
         }
@@ -156,7 +164,7 @@ struct MonotonicMappingColumn<C, T, Input> {
 /// monotonic_mapping.inverse(monotonic_mapping.mapping(el)) == el
 ///
 /// The inverse of the mapping is required for:
-/// `fn get_between_vals(&self, range: RangeInclusive<T>) -> Vec<u64> `
+/// `fn get_positions_for_value_range(&self, range: RangeInclusive<T>) -> Vec<u64> `
 /// The user provides the original value range and we need to monotonic map them in the same way the
 /// serialization does before calling the underlying column.
 ///
@@ -215,10 +223,15 @@ where
         )
     }
 
-    fn get_between_vals(&self, range: RangeInclusive<Output>) -> Vec<u64> {
-        self.from_column.get_between_vals(
+    fn get_positions_for_value_range(
+        &self,
+        range: RangeInclusive<Output>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
+        self.from_column.get_positions_for_value_range(
             self.monotonic_mapping.inverse(range.start().clone())
                 ..=self.monotonic_mapping.inverse(range.end().clone()),
+            doc_id_range,
         )
     }
 
