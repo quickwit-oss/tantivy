@@ -89,40 +89,43 @@ fn bound_to_value_range(
     start_value..=end_value
 }
 
-/// Helper to have a cursor over a vec
+/// Helper to have a cursor over a vec of docids
 struct VecCursor {
-    data: Vec<u32>,
-    pos_in_data: usize,
+    docs: Vec<u32>,
+    current_pos: usize,
 }
 impl VecCursor {
     fn new() -> Self {
         Self {
-            data: Vec::with_capacity(32),
-            pos_in_data: 0,
+            docs: Vec::with_capacity(32),
+            current_pos: 0,
         }
     }
     fn next(&mut self) -> Option<u32> {
-        self.pos_in_data += 1;
+        self.current_pos += 1;
         self.current()
     }
     #[inline]
     fn current(&self) -> Option<u32> {
-        self.data.get(self.pos_in_data).map(|el| *el as u32)
+        self.docs.get(self.current_pos).map(|el| *el as u32)
     }
 
     fn set_data(&mut self, data: Vec<u32>) {
-        self.data = data;
-        self.pos_in_data = 0;
+        self.docs = data;
+        self.current_pos = 0;
     }
     fn is_empty(&self) -> bool {
-        self.pos_in_data >= self.data.len()
+        self.current_pos >= self.docs.len()
     }
 }
 
 struct IpRangeDocSet {
+    /// The range filter on the values.
     value_range: RangeInclusive<Ipv6Addr>,
     ip_addr_fast_field: Arc<dyn Column<Ipv6Addr>>,
+    /// The last docid (exclusive) that has been fetched.
     fetched_until_doc: u32,
+    /// Current batch of loaded docs.
     loaded_docs: VecCursor,
 }
 impl IpRangeDocSet {
