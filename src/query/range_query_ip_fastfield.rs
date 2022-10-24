@@ -44,8 +44,11 @@ impl Weight for IPFastFieldRangeWeight {
         match field_type.fastfield_cardinality().unwrap() {
             Cardinality::SingleValue => {
                 let ip_addr_fast_field = reader.fast_fields().ip_addr(self.field)?;
-                let value_range =
-                    bound_to_value_range(&self.left_bound, &self.right_bound, &ip_addr_fast_field);
+                let value_range = bound_to_value_range(
+                    &self.left_bound,
+                    &self.right_bound,
+                    ip_addr_fast_field.as_ref(),
+                );
                 let docset = IpRangeDocSet::new(value_range, ip_addr_fast_field);
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
@@ -193,5 +196,129 @@ impl DocSet for IpRangeDocSet {
 
     fn size_hint(&self) -> u32 {
         0 // heuristic possible by checking number of hits when fetching a block
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::ProptestConfig;
+    use proptest::strategy::Strategy;
+    use proptest::{prop_oneof, proptest};
+
+    use super::*;
+    use crate::collector::Count;
+    use crate::query::QueryParser;
+    use crate::schema::{Schema, FAST, INDEXED, STORED, TEXT};
+    use crate::Index;
+
+    #[derive(Clone, Debug)]
+    struct Doc {
+        id: String,
+        ip: Ipv6Addr,
+    }
+
+    fn operation_strategy() -> impl Strategy<Value = Doc> {
+        prop_oneof![
+            (0u64..100u64).prop_map(|id| doc_from_id_1(id)),
+            (1u64..100u64).prop_map(|id| doc_from_id_2(id)),
+        ]
+    }
+
+    fn doc_from_id_1(id: u64) -> Doc {
+        Doc {
+            // ip != id
+            id: id.to_string(),
+            ip: Ipv6Addr::from_u128(id as u128),
+        }
+    }
+    fn doc_from_id_2(id: u64) -> Doc {
+        Doc {
+            // ip != id
+            id: (id - 1).to_string(),
+            ip: Ipv6Addr::from_u128(id as u128),
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        #[test]
+        fn test_ip_range_for_docs_prop(ops in proptest::collection::vec(operation_strategy(), 1..100)) {
+            assert!(test_ip_range_for_docs(ops).is_ok());
+        }
+    }
+
+    #[test]
+    fn ip_range_regression1_test() {
+        let ops = vec![
+            doc_from_id_1(52),
+            doc_from_id_1(63),
+            doc_from_id_1(12),
+            doc_from_id_2(91),
+            doc_from_id_2(33),
+        ];
+        assert!(test_ip_range_for_docs(ops).is_ok());
+    }
+
+    fn test_ip_range_for_docs(docs: Vec<Doc>) -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED | FAST);
+        let text_field = schema_builder.add_text_field("id", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            let mut index_writer = index.writer(3_000_000).unwrap();
+            for doc in &docs {
+                index_writer
+                    .add_document(doc!(
+                        ip_field => doc.ip,
+                        text_field => doc.id.to_string()
+                    ))
+                    .unwrap();
+            }
+
+            index_writer.commit().unwrap();
+        }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        let get_num_hits = |query| searcher.search(&query, &(Count)).unwrap();
+        let query_from_text = |text: &str| {
+            QueryParser::for_index(&index, vec![])
+                .parse_query(text)
+                .unwrap()
+        };
+
+        let gen_query_inclusive = |from: Ipv6Addr, to: Ipv6Addr| {
+            format!("ip:[{} TO {}]", &from.to_string(), &to.to_string())
+        };
+
+        let test_sample = |sample_docs: Vec<Doc>| {
+            let mut ips: Vec<Ipv6Addr> = sample_docs.iter().map(|doc| doc.ip).collect();
+            ips.sort();
+            let expected_num_hits = docs
+                .iter()
+                .filter(|doc| (ips[0]..=ips[1]).contains(&doc.ip))
+                .count();
+
+            let query = gen_query_inclusive(ips[0], ips[1]);
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            // Intersection search
+            let id_filter = sample_docs[0].id.to_string();
+            let expected_num_hits = docs
+                .iter()
+                .filter(|doc| (ips[0]..=ips[1]).contains(&doc.ip) && doc.id == id_filter)
+                .count();
+            let query = format!("{} AND id:{}", query, &id_filter);
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+        };
+
+        test_sample(vec![docs[0].clone(), docs[0].clone()]);
+        test_sample(vec![docs[0].clone(), docs[1].clone()]);
+        test_sample(vec![docs[1].clone(), docs[1].clone()]);
+        test_sample(vec![docs[1].clone(), docs[2].clone()]);
+
+        Ok(())
     }
 }
