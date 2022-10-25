@@ -310,8 +310,9 @@ impl Column<u128> for CompactSpaceDecompressor {
         &self,
         value_range: RangeInclusive<u128>,
         doc_id_range: Range<u32>,
-    ) -> Vec<u32> {
-        self.get_positions_for_value_range(value_range, doc_id_range)
+        positions: &mut Vec<u32>,
+    ) {
+        self.get_positions_for_value_range(value_range, doc_id_range, positions)
     }
 }
 
@@ -351,9 +352,10 @@ impl CompactSpaceDecompressor {
         &self,
         value_range: RangeInclusive<u128>,
         doc_id_range: Range<u32>,
-    ) -> Vec<u32> {
+        positions: &mut Vec<u32>,
+    ) {
         if value_range.start() > value_range.end() {
-            return Vec::new();
+            return;
         }
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
         let from_value = *value_range.start();
@@ -365,7 +367,7 @@ impl CompactSpaceDecompressor {
         // Quick return, if both ranges fall into the same non-mapped space, the range can't cover
         // any values, so we can early exit
         match (compact_to, compact_from) {
-            (Err(pos1), Err(pos2)) if pos1 == pos2 => return Vec::new(),
+            (Err(pos1), Err(pos2)) if pos1 == pos2 => return,
             _ => {}
         }
 
@@ -387,7 +389,6 @@ impl CompactSpaceDecompressor {
         });
 
         let range = compact_from..=compact_to;
-        let mut positions = Vec::new();
 
         let scan_num_docs = doc_id_range.end - doc_id_range.start;
 
@@ -420,8 +421,6 @@ impl CompactSpaceDecompressor {
         for idx in cutoff..doc_id_range.end {
             push_if_in_range(idx, get_val(idx as u32));
         }
-
-        positions
     }
 
     #[inline]
@@ -514,8 +513,12 @@ mod tests {
                     .positions(|val| range.contains(val))
                     .map(|pos| pos as u32)
                     .collect::<Vec<_>>();
-                let positions =
-                    decompressor.get_positions_for_value_range(range, 0..decompressor.num_vals());
+                let mut positions = Vec::new();
+                decompressor.get_positions_for_value_range(
+                    range,
+                    0..decompressor.num_vals(),
+                    &mut positions,
+                );
                 assert_eq!(positions, expected_positions);
             };
 
@@ -559,59 +562,100 @@ mod tests {
         for (pos, val) in vals.iter().enumerate() {
             let val = *val as u128;
             let pos = pos as u32;
-            let positions = decomp.get_positions_for_value_range(val..=val, pos..pos + 1);
+            let mut positions = Vec::new();
+            decomp.get_positions_for_value_range(val..=val, pos..pos + 1, &mut positions);
             assert_eq!(positions, vec![pos]);
         }
 
         // handle docid range out of bounds
-        let positions = decomp.get_positions_for_value_range(0..=1, 1..u32::MAX);
+        let positions = get_positions_for_value_range_helper(&decomp, 0..=1, 1..u32::MAX);
         assert_eq!(positions, vec![]);
 
-        let positions = decomp.get_positions_for_value_range(0..=1, complete_range.clone());
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=1, complete_range.clone());
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_positions_for_value_range(0..=2, complete_range.clone());
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=2, complete_range.clone());
         assert_eq!(positions, vec![0]);
-        let positions = decomp.get_positions_for_value_range(0..=3, complete_range.clone());
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=3, complete_range.clone());
         assert_eq!(positions, vec![0, 2]);
         assert_eq!(
-            decomp.get_positions_for_value_range(99999u128..=99999u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                99999u128..=99999u128,
+                complete_range.clone()
+            ),
             vec![3]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(99999u128..=100000u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                99999u128..=100000u128,
+                complete_range.clone()
+            ),
             vec![3, 4]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(99998u128..=100000u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=100000u128,
+                complete_range.clone()
+            ),
             vec![3, 4]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(99998u128..=99999u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=99999u128,
+                complete_range.clone()
+            ),
             vec![3]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(99998u128..=99998u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=99998u128,
+                complete_range.clone()
+            ),
             vec![]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(333u128..=333u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                333u128..=333u128,
+                complete_range.clone()
+            ),
             vec![8]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(332u128..=333u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                332u128..=333u128,
+                complete_range.clone()
+            ),
             vec![8]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(332u128..=334u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                332u128..=334u128,
+                complete_range.clone()
+            ),
             vec![8]
         );
         assert_eq!(
-            decomp.get_positions_for_value_range(333u128..=334u128, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &decomp,
+                333u128..=334u128,
+                complete_range.clone()
+            ),
             vec![8]
         );
 
         assert_eq!(
-            decomp.get_positions_for_value_range(
+            get_positions_for_value_range_helper(
+                &decomp,
                 4_000_211_221u128..=5_000_000_000u128,
                 complete_range.clone()
             ),
@@ -640,12 +684,28 @@ mod tests {
         let data = test_aux_vals(vals);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
         let complete_range = 0..vals.len() as u32;
-        let positions = decomp.get_positions_for_value_range(0..=5, complete_range.clone());
-        assert_eq!(positions, vec![]);
-        let positions = decomp.get_positions_for_value_range(0..=100, complete_range.clone());
-        assert_eq!(positions, vec![0]);
-        let positions = decomp.get_positions_for_value_range(0..=105, complete_range.clone());
-        assert_eq!(positions, vec![0]);
+        assert_eq!(
+            get_positions_for_value_range_helper(&decomp, 0..=5, complete_range.clone()),
+            vec![]
+        );
+        assert_eq!(
+            get_positions_for_value_range_helper(&decomp, 0..=100, complete_range.clone()),
+            vec![0]
+        );
+        assert_eq!(
+            get_positions_for_value_range_helper(&decomp, 0..=105, complete_range.clone()),
+            vec![0]
+        );
+    }
+
+    fn get_positions_for_value_range_helper<C: Column<T> + ?Sized, T: PartialOrd>(
+        column: &C,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
+        let mut positions = Vec::new();
+        column.get_positions_for_value_range(value_range, doc_id_range, &mut positions);
+        positions
     }
 
     #[test]
@@ -671,19 +731,26 @@ mod tests {
         let complete_range = 0..vals.len() as u32;
 
         assert_eq!(
-            decomp.get_positions_for_value_range(199..=200, complete_range.clone()),
+            get_positions_for_value_range_helper(&*decomp, 199..=200, complete_range.clone()),
             vec![0]
         );
+
         assert_eq!(
-            decomp.get_positions_for_value_range(199..=201, complete_range.clone()),
+            get_positions_for_value_range_helper(&*decomp, 199..=201, complete_range.clone()),
             vec![0, 1]
         );
+
         assert_eq!(
-            decomp.get_positions_for_value_range(200..=200, complete_range.clone()),
+            get_positions_for_value_range_helper(&*decomp, 200..=200, complete_range.clone()),
             vec![0]
         );
+
         assert_eq!(
-            decomp.get_positions_for_value_range(1_000_000..=1_000_000, complete_range.clone()),
+            get_positions_for_value_range_helper(
+                &*decomp,
+                1_000_000..=1_000_000,
+                complete_range.clone()
+            ),
             vec![11]
         );
     }

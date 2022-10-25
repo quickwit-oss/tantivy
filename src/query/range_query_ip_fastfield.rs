@@ -110,10 +110,12 @@ impl VecCursor {
         self.docs.get(self.current_pos).map(|el| *el as u32)
     }
 
-    fn set_data(&mut self, data: Vec<u32>) {
-        self.docs = data;
+    fn get_cleared_data(&mut self) -> &mut Vec<u32> {
+        self.docs.clear();
         self.current_pos = 0;
+        &mut self.docs
     }
+
     fn is_empty(&self) -> bool {
         self.current_pos >= self.docs.len()
     }
@@ -131,7 +133,8 @@ struct IpRangeDocSet {
     /// - We do a full scan. => We can load large chunks. We don't know in advance if seek call
     /// will come, so we start with small chunks
     /// - We load docs, interspersed with seek calls. When there are big jumps in the seek, we
-    /// should load small chunks.
+    /// should load small chunks. When the seeks are small, we can employ the same strategy as on a
+    /// full scan.
     fetch_horizon: u32,
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,
@@ -194,10 +197,12 @@ impl IpRangeDocSet {
             finished_to_end = true;
         }
 
-        let data = self
-            .ip_addr_fast_field
-            .get_positions_for_value_range(self.value_range.clone(), self.next_fetch_start..end);
-        self.loaded_docs.set_data(data);
+        let data = self.loaded_docs.get_cleared_data();
+        self.ip_addr_fast_field.get_positions_for_value_range(
+            self.value_range.clone(),
+            self.next_fetch_start..end,
+            data,
+        );
         self.next_fetch_start = end;
         finished_to_end
     }

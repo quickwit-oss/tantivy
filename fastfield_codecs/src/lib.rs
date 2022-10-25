@@ -217,9 +217,11 @@ mod tests {
                 .filter(|(_, el)| **el == data[test_rand_idx])
                 .map(|(pos, _)| pos as u32)
                 .collect();
-            let positions = reader.get_positions_for_value_range(
+            let mut positions = Vec::new();
+            reader.get_positions_for_value_range(
                 data[test_rand_idx]..=data[test_rand_idx],
                 0..data.len() as u32,
+                &mut positions,
             );
             assert_eq!(expected_positions, positions);
         }
