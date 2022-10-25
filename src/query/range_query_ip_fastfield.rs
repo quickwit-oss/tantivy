@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{Schema, FAST, INDEXED, STORED, TEXT};
+    use crate::schema::{Schema, FAST, INDEXED, STORED, STRING};
     use crate::Index;
 
     #[derive(Clone, Debug)]
@@ -329,7 +329,7 @@ mod tests {
     pub fn create_index_from_docs(docs: &[Doc]) -> Index {
         let mut schema_builder = Schema::builder();
         let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED | FAST);
-        let text_field = schema_builder.add_text_field("id", TEXT | STORED);
+        let text_field = schema_builder.add_text_field("id", STRING | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -425,7 +425,8 @@ mod bench {
                 };
                 Doc {
                     id: id,
-                    ip: Ipv6Addr::from_u128(rng.gen_range(0..100)),
+                    // Multiply by 1000, so that we create many buckets in the compact space
+                    ip: Ipv6Addr::from_u128(rng.gen_range(0..100) * 1000),
                 }
             })
             .collect();
@@ -466,7 +467,7 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90);
+            let end = Ipv6Addr::from_u128(90 * 1000);
 
             excute_query(start, end, "", &index)
         });
@@ -478,7 +479,7 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "", &index)
         });
@@ -489,8 +490,8 @@ mod bench {
         let index = get_index_0_to_100();
 
         bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(0);
+            let start = Ipv6Addr::from_u128(10 * 1000);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "", &index)
         });
@@ -502,7 +503,7 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "AND id:few", &index)
         });
@@ -513,8 +514,8 @@ mod bench {
         let index = get_index_0_to_100();
 
         bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(0);
+            let start = Ipv6Addr::from_u128(10 * 1000);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "AND id:few", &index)
         });
@@ -525,8 +526,8 @@ mod bench {
         let index = get_index_0_to_100();
 
         bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(0);
+            let start = Ipv6Addr::from_u128(10 * 1000);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "AND id:many", &index)
         });
@@ -537,8 +538,8 @@ mod bench {
         let index = get_index_0_to_100();
 
         bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(0);
+            let start = Ipv6Addr::from_u128(10 * 1000);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "AND id:veryfew", &index)
         });
@@ -550,7 +551,7 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10);
+            let end = Ipv6Addr::from_u128(10 * 1000);
 
             excute_query(start, end, "AND id:many", &index)
         });
@@ -562,7 +563,7 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90);
+            let end = Ipv6Addr::from_u128(90 * 1000);
 
             excute_query(start, end, "AND id:many", &index)
         });
@@ -574,9 +575,21 @@ mod bench {
 
         bench.iter(|| {
             let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90);
+            let end = Ipv6Addr::from_u128(90 * 1000);
 
             excute_query(start, end, "AND id:few", &index)
+        });
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| {
+            let start = Ipv6Addr::from_u128(0);
+            let end = Ipv6Addr::from_u128(90 * 1000);
+
+            excute_query(start, end, "AND id:veryfew", &index)
         });
     }
 }
