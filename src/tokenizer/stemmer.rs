@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+use std::mem;
+
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
 
@@ -84,6 +87,7 @@ impl TokenFilter for Stemmer {
         BoxTokenStream::from(StemmerTokenStream {
             tail: token_stream,
             stemmer: inner_stemmer,
+            buffer: String::new(),
         })
     }
 }
@@ -91,6 +95,7 @@ impl TokenFilter for Stemmer {
 pub struct StemmerTokenStream<'a> {
     tail: BoxTokenStream<'a>,
     stemmer: rust_stemmers::Stemmer,
+    buffer: String,
 }
 
 impl<'a> TokenStream for StemmerTokenStream<'a> {
@@ -98,10 +103,16 @@ impl<'a> TokenStream for StemmerTokenStream<'a> {
         if !self.tail.advance() {
             return false;
         }
-        // TODO remove allocation
-        let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
-        self.token_mut().text.clear();
-        self.token_mut().text.push_str(&stemmed_str);
+        let token = self.tail.token_mut();
+        let stemmed_str = self.stemmer.stem(&token.text);
+        match stemmed_str {
+            Cow::Owned(stemmed_str) => token.text = stemmed_str,
+            Cow::Borrowed(stemmed_str) => {
+                self.buffer.clear();
+                self.buffer.push_str(stemmed_str);
+                mem::swap(&mut token.text, &mut self.buffer);
+            }
+        }
         true
     }
 
