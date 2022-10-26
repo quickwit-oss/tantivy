@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
@@ -176,7 +176,7 @@ impl SegmentRangeCollector {
     ) -> crate::Result<IntermediateBucketResult> {
         let field_type = self.field_type;
 
-        let buckets: FnvHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
+        let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {

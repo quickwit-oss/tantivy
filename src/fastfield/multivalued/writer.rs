@@ -3,7 +3,7 @@ use std::io;
 use fastfield_codecs::{
     Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
 };
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 
 use super::get_fastfield_codecs_for_multivalue;
 use crate::fastfield::writer::unexpected_value;
@@ -144,7 +144,7 @@ impl MultiValuedFastFieldWriter {
     pub fn serialize(
         mut self,
         serializer: &mut CompositeFastFieldSerializer,
-        term_mapping_opt: Option<&FnvHashMap<UnorderedTermId, TermOrdinal>>,
+        term_mapping_opt: Option<&FxHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         {

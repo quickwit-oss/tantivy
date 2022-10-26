@@ -45,7 +45,7 @@ rust-stemmers = "1.2.0"
 downcast-rs = "1.2.0"
 bitpacking = { version = "0.8.4", default-features = false, features = ["bitpacker4x"] }
 census = "0.4.0"
-fnv = "1.0.7"
+rustc-hash = "1.1.0"
 thiserror = "1.0.30"
 htmlescape = "0.3.1"
 fail = "0.5.0"

@@ -1,6 +1,6 @@
 use fastfield_codecs::MonotonicallyMappableToU64;
-use fnv::FnvHashMap;
 use murmurhash32::murmurhash2;
+use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
@@ -52,7 +52,7 @@ use crate::{DatePrecision, DateTime, DocId, Term};
 /// path map to the same index position as long as the probability is relatively low.
 #[derive(Default)]
 struct IndexingPositionsPerPath {
-    positions_per_path: FnvHashMap<u32, IndexingPosition>,
+    positions_per_path: FxHashMap<u32, IndexingPosition>,
 }
 
 impl IndexingPositionsPerPath {
