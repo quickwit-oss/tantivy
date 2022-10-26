@@ -204,16 +204,17 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     fn for_each(
         &self,
         reader: &SegmentReader,
+        requires_scoring: bool,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 let mut union_scorer = Union::build(term_scorers, &self.score_combiner_fn);
-                for_each_scorer(&mut union_scorer, callback);
+                for_each_scorer(&mut union_scorer, requires_scoring, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
-                for_each_scorer(scorer.as_mut(), callback);
+                for_each_scorer(scorer.as_mut(), requires_scoring, callback);
             }
         }
         Ok(())

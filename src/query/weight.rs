@@ -7,12 +7,21 @@ use crate::{DocId, Score, TERMINATED};
 /// `DocSet` and push the scored documents to the collector.
 pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
+    requires_scoring: bool,
     callback: &mut dyn FnMut(DocId, Score),
 ) {
     let mut doc = scorer.doc();
-    while doc != TERMINATED {
-        callback(doc, scorer.score());
-        doc = scorer.advance();
+
+    if requires_scoring {
+        while doc != TERMINATED {
+            callback(doc, scorer.score());
+            doc = scorer.advance();
+        }
+    } else {
+        while doc != TERMINATED {
+            callback(doc, 0.0);
+            doc = scorer.advance();
+        }
     }
 }
 
@@ -71,10 +80,11 @@ pub trait Weight: Send + Sync + 'static {
     fn for_each(
         &self,
         reader: &SegmentReader,
+        requires_scoring: bool,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let mut scorer = self.scorer(reader, 1.0)?;
-        for_each_scorer(scorer.as_mut(), callback);
+        for_each_scorer(scorer.as_mut(), requires_scoring, callback);
         Ok(())
     }
 

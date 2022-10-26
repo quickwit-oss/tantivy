@@ -173,13 +173,13 @@ pub trait Collector: Sync + Send {
         let mut segment_collector = self.for_segment(segment_ord as u32, reader)?;
 
         if let Some(alive_bitset) = reader.alive_bitset() {
-            weight.for_each(reader, &mut |doc, score| {
+            weight.for_each(reader, self.requires_scoring(), &mut |doc, score| {
                 if alive_bitset.is_alive(doc) {
                     segment_collector.collect(doc, score);
                 }
             })?;
         } else {
-            weight.for_each(reader, &mut |doc, score| {
+            weight.for_each(reader, self.requires_scoring(), &mut |doc, score| {
                 segment_collector.collect(doc, score);
             })?;
         }
