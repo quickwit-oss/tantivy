@@ -10,6 +10,8 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
+use std::sync::Arc;
+
 use rustc_hash::FxHashSet;
 
 use super::{Token, TokenFilter, TokenStream};
@@ -18,7 +20,7 @@ use crate::tokenizer::BoxTokenStream;
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
 pub struct StopWordFilter {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
 }
 
 impl StopWordFilter {
@@ -30,7 +32,9 @@ impl StopWordFilter {
             set.insert(word);
         }
 
-        StopWordFilter { words: set }
+        StopWordFilter {
+            words: Arc::new(set),
+        }
     }
 
     fn english() -> StopWordFilter {
@@ -45,7 +49,7 @@ impl StopWordFilter {
 }
 
 pub struct StopWordFilterStream<'a> {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
     tail: BoxTokenStream<'a>,
 }
 
