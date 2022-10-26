@@ -93,16 +93,14 @@ fn compute_deleted_bitset(
 
         // A delete operation should only affect
         // document that were inserted before it.
-        delete_op.target.for_each(
-            segment_reader,
-            false, // requires_scoring
-            &mut |doc_matching_delete_query, _| {
+        delete_op
+            .target
+            .for_each_no_score(segment_reader, &mut |doc_matching_delete_query| {
                 if doc_opstamps.is_deleted(doc_matching_delete_query, delete_op.opstamp) {
                     alive_bitset.remove(doc_matching_delete_query);
                     might_have_changed = true;
                 }
-            },
-        )?;
+            })?;
         delete_cursor.advance();
     }
     Ok(might_have_changed)
