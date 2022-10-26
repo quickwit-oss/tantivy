@@ -104,6 +104,11 @@ unstable = [] # useful for benches.
 
 quickwit = ["ciborium"]
 
+stopwords-iso = []
+
+[package.metadata.docs.rs]
+features = ["stopwords-iso"]
+
 [workspace]
 members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes"]
 
