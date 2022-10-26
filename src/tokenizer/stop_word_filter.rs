@@ -25,15 +25,9 @@ pub struct StopWordFilter {
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn remove(words: Vec<String>) -> StopWordFilter {
-        let mut set = FxHashSet::default();
-
-        for word in words {
-            set.insert(word);
-        }
-
+    pub fn remove<W: IntoIterator<Item = String>>(words: W) -> StopWordFilter {
         StopWordFilter {
-            words: Arc::new(set),
+            words: Arc::new(words.into_iter().collect()),
         }
     }
 
@@ -44,7 +38,7 @@ impl StopWordFilter {
             "there", "these", "they", "this", "to", "was", "will", "with",
         ];
 
-        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
+        StopWordFilter::remove(words.iter().map(|&s| s.to_string()))
     }
 }
 
