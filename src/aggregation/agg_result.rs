@@ -4,8 +4,6 @@
 //! intermediate average results, which is the sum and the number of values. The actual average is
 //! calculated on the step from intermediate to final aggregation result tree.
 
-use std::collections::HashMap;
-
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +16,7 @@ use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
-pub struct AggregationResults(pub HashMap<String, AggregationResult>);
+pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
     pub(crate) fn get_value_from_aggregation(
