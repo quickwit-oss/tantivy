@@ -18,11 +18,11 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 
 /// Iterates through all of the documents matched by the DocSet
 /// `DocSet`.
-pub(crate) fn for_each_docset<T: DocSet + ?Sized>(scorer: &mut T, callback: &mut dyn FnMut(DocId)) {
-    let mut doc = scorer.doc();
+pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, callback: &mut dyn FnMut(DocId)) {
+    let mut doc = docset.doc();
     while doc != TERMINATED {
         callback(doc);
-        doc = scorer.advance();
+        doc = docset.advance();
     }
 }
 
@@ -95,8 +95,8 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId),
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        for_each_docset(scorer.as_mut(), callback);
+        let mut docset = self.scorer(reader, 1.0)?;
+        for_each_docset(docset.as_mut(), callback);
         Ok(())
     }
 
