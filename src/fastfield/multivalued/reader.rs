@@ -165,9 +165,9 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,
     ) -> Vec<DocId> {
-        let positions = self
-            .vals_reader
-            .get_positions_for_value_range(value_range, doc_id_range);
+        let mut positions = Vec::new(); // TODO replace
+        self.vals_reader
+            .get_positions_for_value_range(value_range, doc_id_range, &mut positions);
 
         positions_to_docids(&positions, self.idx_reader.as_ref())
     }

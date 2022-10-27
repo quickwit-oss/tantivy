@@ -112,7 +112,13 @@ mod tests {
         let column = get_u128_column_from_data(&data);
 
         b.iter(|| {
-            column.get_positions_for_value_range(major_item..=major_item, 0..data.len() as u32)
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                major_item..=major_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
         });
     }
 
@@ -122,7 +128,13 @@ mod tests {
         let column = get_u128_column_from_data(&data);
 
         b.iter(|| {
-            column.get_positions_for_value_range(minor_item..=minor_item, 0..data.len() as u32)
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                minor_item..=minor_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
         });
     }
 
@@ -131,7 +143,15 @@ mod tests {
         let (_major_item, _minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_positions_for_value_range(0..=u128::MAX, 0..data.len() as u32));
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                0..=u128::MAX,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
     }
 
     #[bench]

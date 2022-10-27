@@ -39,17 +39,16 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
         &self,
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,
-    ) -> Vec<u32> {
-        let mut vals = Vec::new();
+        positions: &mut Vec<u32>,
+    ) {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
 
         for idx in doc_id_range.start..doc_id_range.end {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
-                vals.push(idx);
+                positions.push(idx);
             }
         }
-        vals
     }
 
     /// Returns the minimum value for this fast field.
@@ -227,11 +226,13 @@ where
         &self,
         range: RangeInclusive<Output>,
         doc_id_range: Range<u32>,
-    ) -> Vec<u32> {
+        positions: &mut Vec<u32>,
+    ) {
         self.from_column.get_positions_for_value_range(
             self.monotonic_mapping.inverse(range.start().clone())
                 ..=self.monotonic_mapping.inverse(range.end().clone()),
             doc_id_range,
+            positions,
         )
     }
 
