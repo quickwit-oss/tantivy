@@ -5,8 +5,8 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use fnv::FnvHashMap;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::agg_req::{
@@ -288,7 +288,7 @@ impl IntermediateBucketResult {
                     .keyed;
                 let buckets = if is_keyed {
                     let mut bucket_map =
-                        FnvHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
+                        FxHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
                     for bucket in buckets {
                         bucket_map.insert(bucket.key.to_string(), bucket);
                     }
@@ -308,7 +308,7 @@ impl IntermediateBucketResult {
 
                 let buckets = if req.as_histogram().unwrap().keyed {
                     let mut bucket_map =
-                        FnvHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
+                        FxHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
                     for bucket in buckets {
                         bucket_map.insert(bucket.key.to_string(), bucket);
                     }
@@ -396,13 +396,13 @@ impl IntermediateBucketResult {
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Range aggregation including error counts
 pub struct IntermediateRangeBucketResult {
-    pub(crate) buckets: FnvHashMap<SerializedKey, IntermediateRangeBucketEntry>,
+    pub(crate) buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry>,
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
-    pub(crate) entries: FnvHashMap<String, IntermediateTermBucketEntry>,
+    pub(crate) entries: FxHashMap<String, IntermediateTermBucketEntry>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
 }
@@ -499,8 +499,8 @@ trait MergeFruits {
 }
 
 fn merge_maps<V: MergeFruits + Clone>(
-    entries_left: &mut FnvHashMap<SerializedKey, V>,
-    mut entries_right: FnvHashMap<SerializedKey, V>,
+    entries_left: &mut FxHashMap<SerializedKey, V>,
+    mut entries_right: FxHashMap<SerializedKey, V>,
 ) {
     for (name, entry_left) in entries_left.iter_mut() {
         if let Some(entry_right) = entries_right.remove(name) {
@@ -626,7 +626,7 @@ mod tests {
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> IntermediateAggregationResults {
         let mut map = HashMap::new();
-        let mut buckets = FnvHashMap::default();
+        let mut buckets = FxHashMap::default();
         for (key, doc_count) in data {
             buckets.insert(
                 key.to_string(),
@@ -653,7 +653,7 @@ mod tests {
         data: &[(String, u64, String, u64)],
     ) -> IntermediateAggregationResults {
         let mut map = HashMap::new();
-        let mut buckets: FnvHashMap<_, _> = Default::default();
+        let mut buckets: FxHashMap<_, _> = Default::default();
         for (key, doc_count, sub_aggregation_key, sub_aggregation_count) in data {
             buckets.insert(
                 key.to_string(),
