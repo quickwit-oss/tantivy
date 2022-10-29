@@ -4,6 +4,7 @@ use tantivy::schema::{INDEXED, STORED, STRING, TEXT};
 use tantivy::Index;
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
+const HDFS_LOGS_WITH_ARRAY: &str = include_str!("hdfs_with_array.json");
 const NUM_REPEATS: usize = 2;
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
@@ -35,6 +36,18 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
             for _ in 0..NUM_REPEATS {
                 for doc_json in HDFS_LOGS.trim().split("\n") {
+                    let doc = schema.parse_document(doc_json).unwrap();
+                    index_writer.add_document(doc).unwrap();
+                }
+            }
+        })
+    });
+    group.bench_function("index-hdfs-with-array-no-commit", |b| {
+        b.iter(|| {
+            let index = Index::create_in_ram(schema.clone());
+            let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for _ in 0..NUM_REPEATS {
+                for doc_json in HDFS_LOGS_WITH_ARRAY.trim().split("\n") {
                     let doc = schema.parse_document(doc_json).unwrap();
                     index_writer.add_document(doc).unwrap();
                 }
