@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
@@ -176,7 +176,7 @@ impl SegmentRangeCollector {
     ) -> crate::Result<IntermediateBucketResult> {
         let field_type = self.field_type;
 
-        let buckets: FnvHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
+        let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {
@@ -263,10 +263,10 @@ impl SegmentRangeCollector {
             .as_single()
             .expect("unexpected fast field cardinality");
         for docs in iter.by_ref() {
-            let val1 = accessor.get_val(docs[0] as u64);
-            let val2 = accessor.get_val(docs[1] as u64);
-            let val3 = accessor.get_val(docs[2] as u64);
-            let val4 = accessor.get_val(docs[3] as u64);
+            let val1 = accessor.get_val(docs[0]);
+            let val2 = accessor.get_val(docs[1]);
+            let val3 = accessor.get_val(docs[2]);
+            let val4 = accessor.get_val(docs[3]);
             let bucket_pos1 = self.get_bucket_pos(val1);
             let bucket_pos2 = self.get_bucket_pos(val2);
             let bucket_pos3 = self.get_bucket_pos(val3);
@@ -278,7 +278,7 @@ impl SegmentRangeCollector {
             self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
         }
         for &doc in iter.remainder() {
-            let val = accessor.get_val(doc as u64);
+            let val = accessor.get_val(doc);
             let bucket_pos = self.get_bucket_pos(val);
             self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }

@@ -62,6 +62,20 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
         })
 }
 
+// word variant that allows more characters, e.g. for range queries that don't allow field
+// specifier
+fn relaxed_word<'a>() -> impl Parser<&'a str, Output = String> {
+    (
+        satisfy(|c: char| {
+            !c.is_whitespace() && !['`', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        }),
+        many(satisfy(|c: char| {
+            !c.is_whitespace() && !['{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        })),
+    )
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+}
+
 /// Parses a date time according to rfc3339
 /// 2015-08-02T18:54:42+02
 /// 2021-04-13T19:46:26.266051969+00:00
@@ -181,8 +195,8 @@ fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
 fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let range_term_val = || {
         attempt(date_time())
-            .or(word())
             .or(negative_number())
+            .or(relaxed_word())
             .or(char('*').with(value("*".to_string())))
     };
 
@@ -649,6 +663,34 @@ mod test {
             .expect("Cannot parse date range")
             .0;
         assert_eq!(res6, expected_flexible_dates);
+        // IP Range Unbounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::1".to_string()),
+            upper: UserInputBound::Unbounded,
+        };
+        let res1 = range()
+            .parse("ip: >=::1")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        let res2 = range()
+            .parse("ip:[::1 TO *}")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+
+        // IP Range Bounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
+        };
+        let res1 = range()
+            .parse("ip:[::0.0.0.50 TO ::0.0.0.52}")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        assert_eq!(res1, expected_weight);
     }
 
     #[test]

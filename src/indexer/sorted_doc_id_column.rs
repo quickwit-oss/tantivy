@@ -32,7 +32,7 @@ fn compute_min_max_val(
     // we need to recompute the max / min
     segment_reader
         .doc_ids_alive()
-        .map(|doc_id| u64_reader.get_val(doc_id as u64))
+        .map(|doc_id| u64_reader.get_val(doc_id))
         .minmax()
         .into_option()
 }
@@ -79,7 +79,7 @@ impl<'a> RemappedDocIdColumn<'a> {
 }
 
 impl<'a> Column for RemappedDocIdColumn<'a> {
-    fn get_val(&self, _doc: u64) -> u64 {
+    fn get_val(&self, _doc: u32) -> u64 {
         unimplemented!()
     }
 
@@ -90,7 +90,7 @@ impl<'a> Column for RemappedDocIdColumn<'a> {
                 .map(|old_doc_addr| {
                     let fast_field_reader =
                         &self.fast_field_readers[old_doc_addr.segment_ord as usize];
-                    fast_field_reader.get_val(old_doc_addr.doc_id as u64)
+                    fast_field_reader.get_val(old_doc_addr.doc_id)
                 }),
         )
     }

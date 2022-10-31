@@ -130,7 +130,7 @@ impl BlockedBitpacker {
         let pos_in_block = idx % BLOCK_SIZE as usize;
         if let Some(metadata) = self.offset_and_bits.get(metadata_pos) {
             let unpacked = BitUnpacker::new(metadata.num_bits()).get(
-                pos_in_block as u64,
+                pos_in_block as u32,
                 &self.compressed_blocks[metadata.offset() as usize..],
             );
             unpacked + metadata.base_value()

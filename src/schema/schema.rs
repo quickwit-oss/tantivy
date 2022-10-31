@@ -46,13 +46,9 @@ impl SchemaBuilder {
     /// Adds a new u64 field.
     /// Returns the associated field handle
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_u64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
@@ -66,13 +62,9 @@ impl SchemaBuilder {
     /// Adds a new i64 field.
     /// Returns the associated field handle
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_i64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
@@ -86,13 +78,9 @@ impl SchemaBuilder {
     /// Adds a new f64 field.
     /// Returns the associated field handle
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_f64_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
@@ -106,13 +94,9 @@ impl SchemaBuilder {
     /// Adds a new bool field.
     /// Returns the associated field handle
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_bool_field<T: Into<NumericOptions>>(
         &mut self,
         field_name_str: &str,
@@ -128,13 +112,9 @@ impl SchemaBuilder {
     /// Internally, Tantivy simply stores dates as i64 UTC timestamps,
     /// while the user supplies DateTime values for convenience.
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_date_field<T: Into<DateOptions>>(
         &mut self,
         field_name_str: &str,
@@ -148,13 +128,9 @@ impl SchemaBuilder {
     /// Adds a ip field.
     /// Returns the associated field handle.
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_ip_addr_field<T: Into<IpAddrOptions>>(
         &mut self,
         field_name_str: &str,
@@ -168,13 +144,9 @@ impl SchemaBuilder {
     /// Adds a new text field.
     /// Returns the associated field handle
     ///
-    /// # Caution
+    /// # Panics
     ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
+    /// Panics when field already exists.
     pub fn add_text_field<T: Into<TextOptions>>(
         &mut self,
         field_name_str: &str,
@@ -228,8 +200,10 @@ impl SchemaBuilder {
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);
         let field_name = field_entry.name().to_string();
+        if let Some(_previous_value) = self.fields_map.insert(field_name, field) {
+            panic!("Field already exists in schema {}", field_entry.name());
+        };
         self.fields.push(field_entry);
-        self.fields_map.insert(field_name, field);
         field
     }
 

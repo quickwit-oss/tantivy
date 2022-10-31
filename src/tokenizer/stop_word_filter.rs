@@ -10,28 +10,21 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
-use std::collections::HashSet;
-use std::hash::BuildHasherDefault;
-
-use fnv::FnvHasher;
+use rustc_hash::FxHashSet;
 
 use super::{Token, TokenFilter, TokenStream};
 use crate::tokenizer::BoxTokenStream;
 
-// configure our hashers for SPEED
-type StopWordHasher = BuildHasherDefault<FnvHasher>;
-type StopWordHashSet = HashSet<String, StopWordHasher>;
-
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
 pub struct StopWordFilter {
-    words: StopWordHashSet,
+    words: FxHashSet<String>,
 }
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
     pub fn remove(words: Vec<String>) -> StopWordFilter {
-        let mut set = StopWordHashSet::default();
+        let mut set = FxHashSet::default();
 
         for word in words {
             set.insert(word);
@@ -52,7 +45,7 @@ impl StopWordFilter {
 }
 
 pub struct StopWordFilterStream<'a> {
-    words: StopWordHashSet,
+    words: FxHashSet<String>,
     tail: BoxTokenStream<'a>,
 }
 

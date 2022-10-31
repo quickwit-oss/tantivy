@@ -6,12 +6,13 @@ use common::BitSet;
 use crate::core::{Searcher, SegmentReader};
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
+use crate::query::range_query_ip_fastfield::IPFastFieldRangeWeight;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
 
-fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
+pub(crate) fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
     transform: &Transform,
 ) -> Bound<TTo> {
@@ -29,8 +30,17 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 ///
 /// # Implementation
 ///
-/// The current implement will iterate over the terms within the range
-/// and append all of the document cross into a `BitSet`.
+/// ## Default
+/// The default implementation collects all documents _upfront_ into a `BitSet`.
+/// This is done by iterating over the terms within the range and loading all docs for each
+/// `TermInfo` from the inverted index (posting list) and put them into a `BitSet`.
+/// Depending on the number of terms matched, this is a potentially expensive operation.
+///
+/// ## IP fast field
+/// For IP fast fields a custom variant is used, by scanning the fast field. Unlike the default
+/// variant we can walk in a lazy fashion over it, since the fastfield is implicit orderered by
+/// DocId.
+///
 ///
 /// # Example
 ///
@@ -249,7 +259,8 @@ impl Query for RangeQuery {
         _scoring_enabled: bool,
     ) -> crate::Result<Box<dyn Weight>> {
         let schema = searcher.schema();
-        let value_type = schema.get_field_entry(self.field).field_type().value_type();
+        let field_type = schema.get_field_entry(self.field).field_type();
+        let value_type = field_type.value_type();
         if value_type != self.value_type {
             let err_msg = format!(
                 "Create a range query of the type {:?}, when the field given was of type {:?}",
@@ -257,11 +268,20 @@ impl Query for RangeQuery {
             );
             return Err(TantivyError::SchemaError(err_msg));
         }
-        Ok(Box::new(RangeWeight {
-            field: self.field,
-            left_bound: self.left_bound.clone(),
-            right_bound: self.right_bound.clone(),
-        }))
+
+        if field_type.is_ip_addr() && field_type.is_fast() {
+            Ok(Box::new(IPFastFieldRangeWeight::new(
+                self.field,
+                &self.left_bound,
+                &self.right_bound,
+            )))
+        } else {
+            Ok(Box::new(RangeWeight {
+                field: self.field,
+                left_bound: self.left_bound.clone(),
+                right_bound: self.right_bound.clone(),
+            }))
+        }
     }
 }
 
@@ -335,7 +355,7 @@ mod tests {
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
     use crate::query::QueryParser;
-    use crate::schema::{Document, Field, IntoIpv6Addr, Schema, INDEXED, STORED, TEXT};
+    use crate::schema::{Document, Field, IntoIpv6Addr, Schema, FAST, INDEXED, STORED, TEXT};
     use crate::{doc, Index};
 
     #[test]
@@ -510,9 +530,23 @@ mod tests {
     }
 
     #[test]
+    fn search_ip_range_test_posting_list() {
+        search_ip_range_test_opt(false);
+    }
+
+    #[test]
     fn search_ip_range_test() {
+        search_ip_range_test_opt(true);
+    }
+
+    fn search_ip_range_test_opt(with_fast_field: bool) {
         let mut schema_builder = Schema::builder();
-        let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED);
+        let ip_field = if with_fast_field {
+            schema_builder.add_ip_addr_field("ip", INDEXED | STORED | FAST)
+        } else {
+            schema_builder.add_ip_addr_field("ip", INDEXED | STORED)
+        };
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let ip_addr_1 = IpAddr::from_str("127.0.0.10").unwrap().into_ipv6_addr();
@@ -520,16 +554,22 @@ mod tests {
 
         {
             let mut index_writer = index.writer(3_000_000).unwrap();
-            index_writer
-                .add_document(doc!(
-                    ip_field => ip_addr_1
-                ))
-                .unwrap();
-            index_writer
-                .add_document(doc!(
-                    ip_field => ip_addr_2
-                ))
-                .unwrap();
+            for _ in 0..1_000 {
+                index_writer
+                    .add_document(doc!(
+                        ip_field => ip_addr_1,
+                        text_field => "BLUBBER"
+                    ))
+                    .unwrap();
+            }
+            for _ in 0..1_000 {
+                index_writer
+                    .add_document(doc!(
+                        ip_field => ip_addr_2,
+                        text_field => "BLOBBER"
+                    ))
+                    .unwrap();
+            }
 
             index_writer.commit().unwrap();
         }
@@ -543,24 +583,25 @@ mod tests {
             count
         };
         let query_from_text = |text: &str| {
-            QueryParser::for_index(&index, vec![ip_field])
+            QueryParser::for_index(&index, vec![])
                 .parse_query(text)
                 .unwrap()
         };
 
+        // Inclusive range
         assert_eq!(
             get_num_hits(query_from_text("ip:[127.0.0.1 TO 127.0.0.20]")),
-            2
+            2000
         );
 
         assert_eq!(
             get_num_hits(query_from_text("ip:[127.0.0.10 TO 127.0.0.20]")),
-            2
+            2000
         );
 
         assert_eq!(
             get_num_hits(query_from_text("ip:[127.0.0.11 TO 127.0.0.20]")),
-            1
+            1000
         );
 
         assert_eq!(
@@ -568,9 +609,84 @@ mod tests {
             0
         );
 
-        assert_eq!(get_num_hits(query_from_text("ip:[127.0.0.11 TO *]")), 1);
+        assert_eq!(get_num_hits(query_from_text("ip:[127.0.0.11 TO *]")), 1000);
         assert_eq!(get_num_hits(query_from_text("ip:[127.0.0.21 TO *]")), 0);
         assert_eq!(get_num_hits(query_from_text("ip:[* TO 127.0.0.9]")), 0);
-        assert_eq!(get_num_hits(query_from_text("ip:[* TO 127.0.0.10]")), 1);
+        assert_eq!(get_num_hits(query_from_text("ip:[* TO 127.0.0.10]")), 1000);
+
+        // Exclusive range
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.1 TO 127.0.0.20}")),
+            1000
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.1 TO 127.0.0.21}")),
+            2000
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.10 TO 127.0.0.20}")),
+            0
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.11 TO 127.0.0.20}")),
+            0
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.11 TO 127.0.0.19}")),
+            0
+        );
+
+        assert_eq!(get_num_hits(query_from_text("ip:{127.0.0.11 TO *}")), 1000);
+        assert_eq!(get_num_hits(query_from_text("ip:{127.0.0.10 TO *}")), 1000);
+        assert_eq!(get_num_hits(query_from_text("ip:{127.0.0.21 TO *}")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:{127.0.0.20 TO *}")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:{127.0.0.19 TO *}")), 1000);
+        assert_eq!(get_num_hits(query_from_text("ip:{* TO 127.0.0.9}")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:{* TO 127.0.0.10}")), 0);
+        assert_eq!(get_num_hits(query_from_text("ip:{* TO 127.0.0.11}")), 1000);
+
+        // Inclusive/Exclusive range
+        assert_eq!(
+            get_num_hits(query_from_text("ip:[127.0.0.1 TO 127.0.0.20}")),
+            1000
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text("ip:{127.0.0.1 TO 127.0.0.20]")),
+            2000
+        );
+
+        // Intersection
+        assert_eq!(
+            get_num_hits(query_from_text(
+                "text:BLUBBER AND ip:[127.0.0.10 TO 127.0.0.10]"
+            )),
+            1000
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text(
+                "text:BLOBBER AND ip:[127.0.0.10 TO 127.0.0.10]"
+            )),
+            0
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text(
+                "text:BLOBBER AND ip:[127.0.0.20 TO 127.0.0.20]"
+            )),
+            1000
+        );
+
+        assert_eq!(
+            get_num_hits(query_from_text(
+                "text:BLUBBER AND ip:[127.0.0.20 TO 127.0.0.20]"
+            )),
+            0
+        );
     }
 }

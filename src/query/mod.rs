@@ -18,6 +18,7 @@ mod phrase_query;
 mod query;
 mod query_parser;
 mod range_query;
+mod range_query_ip_fastfield;
 mod regex_query;
 mod reqopt_scorer;
 mod scorer;

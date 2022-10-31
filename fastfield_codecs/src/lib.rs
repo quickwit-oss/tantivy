@@ -201,7 +201,7 @@ mod tests {
         let reader = crate::open::<u64>(OwnedBytes::new(out)).unwrap();
         assert_eq!(reader.num_vals(), data.len() as u32);
         for (doc, orig_val) in data.iter().copied().enumerate() {
-            let val = reader.get_val(doc as u64);
+            let val = reader.get_val(doc as u32);
             assert_eq!(
                 val, orig_val,
                 "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
@@ -211,13 +211,18 @@ mod tests {
 
         if !data.is_empty() {
             let test_rand_idx = rand::thread_rng().gen_range(0..=data.len() - 1);
-            let expected_positions: Vec<u64> = data
+            let expected_positions: Vec<u32> = data
                 .iter()
                 .enumerate()
                 .filter(|(_, el)| **el == data[test_rand_idx])
-                .map(|(pos, _)| pos as u64)
+                .map(|(pos, _)| pos as u32)
                 .collect();
-            let positions = reader.get_between_vals(data[test_rand_idx]..=data[test_rand_idx]);
+            let mut positions = Vec::new();
+            reader.get_positions_for_value_range(
+                data[test_rand_idx]..=data[test_rand_idx],
+                0..data.len() as u32,
+                &mut positions,
+            );
             assert_eq!(expected_positions, positions);
         }
         Some((estimation, actual_compression))
@@ -429,7 +434,7 @@ mod bench {
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
-                let val = col.get_val(pos as u64);
+                let val = col.get_val(pos as u32);
                 sum = sum.wrapping_add(val);
             }
             sum
@@ -441,7 +446,7 @@ mod bench {
         b.iter(|| {
             let mut sum = 0u64;
             for pos in value_iter() {
-                let val = col.get_val(pos as u64);
+                let val = col.get_val(pos as u32);
                 sum = sum.wrapping_add(val);
             }
             sum

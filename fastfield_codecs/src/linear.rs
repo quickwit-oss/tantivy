@@ -19,7 +19,7 @@ pub struct LinearReader {
 
 impl Column for LinearReader {
     #[inline]
-    fn get_val(&self, doc: u64) -> u64 {
+    fn get_val(&self, doc: u32) -> u64 {
         let interpoled_val: u64 = self.linear_params.line.eval(doc);
         let bitpacked_diff = self.linear_params.bit_unpacker.get(doc, &self.data);
         interpoled_val.wrapping_add(bitpacked_diff)
@@ -93,7 +93,7 @@ impl FastFieldCodec for LinearCodec {
             .iter()
             .enumerate()
             .map(|(pos, actual_value)| {
-                let calculated_value = line.eval(pos as u64);
+                let calculated_value = line.eval(pos as u32);
                 actual_value.wrapping_sub(calculated_value)
             })
             .max()
@@ -108,7 +108,7 @@ impl FastFieldCodec for LinearCodec {
 
         let mut bit_packer = BitPacker::new();
         for (pos, actual_value) in column.iter().enumerate() {
-            let calculated_value = line.eval(pos as u64);
+            let calculated_value = line.eval(pos as u32);
             let offset = actual_value.wrapping_sub(calculated_value);
             bit_packer.write(offset, num_bits, write)?;
         }
@@ -140,7 +140,7 @@ impl FastFieldCodec for LinearCodec {
         let estimated_bit_width = sample_positions_and_values
             .into_iter()
             .map(|(pos, actual_value)| {
-                let interpolated_val = line.eval(pos as u64);
+                let interpolated_val = line.eval(pos as u32);
                 actual_value.wrapping_sub(interpolated_val)
             })
             .map(|diff| ((diff as f32 * 1.5) * 2.0) as u64)

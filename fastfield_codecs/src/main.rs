@@ -115,9 +115,15 @@ fn bench_ip() {
 
     let decompressor = open_u128::<u128>(OwnedBytes::new(data)).unwrap();
     // Sample some ranges
+    let mut doc_values = Vec::new();
     for value in dataset.iter().take(1110).skip(1100).cloned() {
+        doc_values.clear();
         print_time!("get range");
-        let doc_values = decompressor.get_between_vals(value..=value);
+        decompressor.get_positions_for_value_range(
+            value..=value,
+            0..decompressor.num_vals(),
+            &mut doc_values,
+        );
         println!("{:?}", doc_values.len());
     }
 }

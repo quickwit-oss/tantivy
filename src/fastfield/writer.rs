@@ -3,7 +3,7 @@ use std::io;
 
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::multivalued::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
@@ -256,7 +256,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         self,
         serializer: &mut CompositeFastFieldSerializer,
-        mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
+        mapping: &HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         for field_writer in self.term_id_writers {
@@ -538,7 +538,7 @@ impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
     /// # Panics
     ///
     /// May panic if `doc` is greater than the index.
-    fn get_val(&self, _doc: u64) -> u64 {
+    fn get_val(&self, _doc: u32) -> u64 {
         unimplemented!()
     }
 

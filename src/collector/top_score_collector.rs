@@ -137,7 +137,7 @@ struct ScorerByFastFieldReader {
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
     fn score(&mut self, doc: DocId) -> u64 {
-        self.ff_reader.get_val(doc as u64)
+        self.ff_reader.get_val(doc)
     }
 }
 
@@ -458,7 +458,7 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
-    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc);
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
     ///                 let popularity_boost_score = ((2u64 + popularity) as Score).log2();
@@ -567,8 +567,8 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {
-    ///                 let popularity: u64 = popularity_reader.get_val(doc as u64);
-    ///                 let boosted: u64 = boosted_reader.get_val(doc as u64);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc);
+    ///                 let boosted: u64 = boosted_reader.get_val(doc);
     ///                 // Score do not have to be `f64` in tantivy.
     ///                 // Here we return a couple to get lexicographical order
     ///                 // for free.

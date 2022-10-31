@@ -94,7 +94,7 @@ impl SegmentCollector for SegmentHistogramCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let value = self.ff_reader.get_val(doc as u64);
+        let value = self.ff_reader.get_val(doc);
         self.histogram_computer.add_value(value);
     }
 

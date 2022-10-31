@@ -3,7 +3,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::ops::Range;
 
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 
 use super::stacker::Addr;
 use crate::fastfield::MultiValuedFastFieldWriter;
@@ -56,12 +56,12 @@ pub(crate) fn serialize_postings(
     doc_id_map: Option<&DocIdMapping>,
     schema: &Schema,
     serializer: &mut InvertedIndexSerializer,
-) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
+) -> crate::Result<HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>> {
     let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
         Vec::with_capacity(ctx.term_index.len());
     term_offsets.extend(ctx.term_index.iter());
     term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
-    let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
+    let mut unordered_term_mappings: HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>> =
         HashMap::new();
 
     let field_offsets = make_field_partition(&term_offsets);
@@ -74,7 +74,7 @@ pub(crate) fn serialize_postings(
                 let unordered_term_ids = term_offsets[byte_offsets.clone()]
                     .iter()
                     .map(|&(_, _, bucket)| bucket);
-                let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
+                let mapping: FxHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
                     .enumerate()
                     .map(|(term_ord, unord_term_id)| {
                         (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)

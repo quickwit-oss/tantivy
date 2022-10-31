@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use fnv::FnvHashMap;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{CustomOrder, Order, OrderTarget};
@@ -199,7 +199,7 @@ impl TermsAggregationInternal {
 #[derive(Clone, Debug, PartialEq)]
 /// Container to store term_ids and their buckets.
 struct TermBuckets {
-    pub(crate) entries: FnvHashMap<u32, TermBucketEntry>,
+    pub(crate) entries: FxHashMap<u32, TermBucketEntry>,
     blueprint: Option<SegmentAggregationResultsCollector>,
 }
 
@@ -397,7 +397,7 @@ impl SegmentTermCollector {
             .expect("internal error: inverted index not loaded for term aggregation");
         let term_dict = inverted_index.terms();
 
-        let mut dict: FnvHashMap<String, IntermediateTermBucketEntry> = Default::default();
+        let mut dict: FxHashMap<String, IntermediateTermBucketEntry> = Default::default();
         let mut buffer = vec![];
         for (term_id, entry) in entries {
             term_dict
@@ -1129,9 +1129,9 @@ mod tests {
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
-        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);

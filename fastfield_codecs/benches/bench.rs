@@ -65,7 +65,7 @@ mod tests {
         b.iter(|| {
             let mut a = 0u64;
             for _ in 0..n {
-                a = column.get_val(a as u64);
+                a = column.get_val(a as u32);
             }
             a
         });
@@ -111,7 +111,15 @@ mod tests {
         let (major_item, _minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(major_item..=major_item));
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                major_item..=major_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
     }
 
     #[bench]
@@ -119,7 +127,15 @@ mod tests {
         let (_major_item, minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(minor_item..=minor_item));
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                minor_item..=minor_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
     }
 
     #[bench]
@@ -127,7 +143,15 @@ mod tests {
         let (_major_item, _minor_item, data) = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
-        b.iter(|| column.get_between_vals(0..=u128::MAX));
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_positions_for_value_range(
+                0..=u128::MAX,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
     }
 
     #[bench]
@@ -137,7 +161,7 @@ mod tests {
         b.iter(|| {
             let mut a = 0u128;
             for i in 0u64..column.num_vals() as u64 {
-                a += column.get_val(i);
+                a += column.get_val(i as u32);
             }
             a
         });
@@ -151,7 +175,7 @@ mod tests {
             let n = column.num_vals();
             let mut a = 0u128;
             for i in (0..n / 5).map(|val| val * 5) {
-                a += column.get_val(i as u64);
+                a += column.get_val(i);
             }
             a
         });
@@ -176,9 +200,9 @@ mod tests {
         let n = permutation.len();
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
-            let mut a = 0u64;
+            let mut a = 0;
             for i in (0..n / 7).map(|val| val * 7) {
-                a += column.get_val(i as u64);
+                a += column.get_val(i as u32);
             }
             a
         });
@@ -191,7 +215,7 @@ mod tests {
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
             let mut a = 0u64;
-            for i in 0u64..n as u64 {
+            for i in 0u32..n as u32 {
                 a += column.get_val(i);
             }
             a
@@ -205,8 +229,8 @@ mod tests {
         let column: Arc<dyn Column<u64>> = serialize_and_load(&permutation);
         b.iter(|| {
             let mut a = 0u64;
-            for i in 0..n as u64 {
-                a += column.get_val(i);
+            for i in 0..n {
+                a += column.get_val(i as u32);
             }
             a
         });

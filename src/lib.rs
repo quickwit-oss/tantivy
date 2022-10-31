@@ -819,7 +819,7 @@ pub mod tests {
     fn test_indexedfield_not_in_documents() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
-        let absent_field = schema_builder.add_text_field("text", TEXT);
+        let absent_field = schema_builder.add_text_field("absent_text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -1001,7 +1001,7 @@ pub mod tests {
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
         let fast_field_float = schema_builder.add_f64_field("float", FAST);
         let text_field = schema_builder.add_text_field("text", TEXT);
-        let stored_int_field = schema_builder.add_u64_field("text", STORED);
+        let stored_int_field = schema_builder.add_u64_field("stored_int", STORED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);

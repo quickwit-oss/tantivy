@@ -115,7 +115,7 @@ mod tests {
     pub fn test_term_set_query() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field1 = schema_builder.add_text_field("field1", TEXT);
-        let field2 = schema_builder.add_text_field("field1", TEXT);
+        let field2 = schema_builder.add_text_field("field2", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {

@@ -32,10 +32,9 @@ impl BytesFastFieldReader {
         Ok(BytesFastFieldReader { idx_reader, values })
     }
 
-    fn range(&self, doc: DocId) -> Range<u64> {
-        let idx = doc as u64;
-        let start = self.idx_reader.get_val(idx);
-        let end = self.idx_reader.get_val(idx + 1);
+    fn range(&self, doc: DocId) -> Range<u32> {
+        let start = self.idx_reader.get_val(doc) as u32;
+        let end = self.idx_reader.get_val(doc + 1) as u32;
         start..end
     }
 
@@ -48,7 +47,7 @@ impl BytesFastFieldReader {
     /// Returns the length of the bytes associated with the given `doc`
     pub fn num_bytes(&self, doc: DocId) -> u64 {
         let range = self.range(doc);
-        range.end - range.start
+        (range.end - range.start) as u64
     }
 
     /// Returns the overall number of bytes in this bytes fast field.
@@ -58,7 +57,7 @@ impl BytesFastFieldReader {
 }
 
 impl MultiValueLength for BytesFastFieldReader {
-    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u64> {
+    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u32> {
         self.range(doc_id)
     }
     fn get_len(&self, doc_id: DocId) -> u64 {
