@@ -10,6 +10,8 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
+use std::sync::Arc;
+
 use rustc_hash::FxHashSet;
 
 use super::{Token, TokenFilter, TokenStream};
@@ -18,34 +20,38 @@ use crate::tokenizer::BoxTokenStream;
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
 pub struct StopWordFilter {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
+}
+
+macro_rules! language {
+    ($method:ident, $code:literal) => {
+        #[cfg(feature = "stopwords-iso")]
+        /// Create a `StopWorldFilter` for the named language
+        pub fn $method() -> Self {
+            Self::remove(
+                include_str!(concat!("stopwords/", $code, ".txt"))
+                    .lines()
+                    .map(ToOwned::to_owned),
+            )
+        }
+    };
 }
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn remove(words: Vec<String>) -> StopWordFilter {
-        let mut set = FxHashSet::default();
-
-        for word in words {
-            set.insert(word);
+    pub fn remove<W: IntoIterator<Item = String>>(words: W) -> StopWordFilter {
+        StopWordFilter {
+            words: Arc::new(words.into_iter().collect()),
         }
-
-        StopWordFilter { words: set }
     }
 
-    fn english() -> StopWordFilter {
-        let words: [&'static str; 33] = [
-            "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into",
-            "is", "it", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then",
-            "there", "these", "they", "this", "to", "was", "will", "with",
-        ];
-
-        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
-    }
+    language!(english, "en");
+    language!(french, "fr");
+    language!(german, "de");
 }
 
 pub struct StopWordFilterStream<'a> {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
     tail: BoxTokenStream<'a>,
 }
 
@@ -83,12 +89,6 @@ impl<'a> TokenStream for StopWordFilterStream<'a> {
     }
 }
 
-impl Default for StopWordFilter {
-    fn default() -> StopWordFilter {
-        StopWordFilter::english()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::tokenizer::tests::assert_token;
@@ -120,5 +120,15 @@ mod tests {
         };
         token_stream.process(&mut add_token);
         tokens
+    }
+
+    #[cfg(feature = "stopwords-iso")]
+    #[test]
+    fn test_builtin_stop_word_filter() {
+        let tokenizer = TextAnalyzer::from(SimpleTokenizer).filter(StopWordFilter::english());
+
+        let mut stream = tokenizer.token_stream("i am a cat. as yet i have no name.");
+        assert_eq!(stream.next().unwrap().text, "cat");
+        assert_eq!(stream.next(), None);
     }
 }
