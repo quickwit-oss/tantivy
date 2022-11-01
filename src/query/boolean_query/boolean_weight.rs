@@ -224,7 +224,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 let mut union_scorer = Union::build(term_scorers, &self.score_combiner_fn);
