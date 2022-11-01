@@ -3,7 +3,6 @@
 //! indices.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -51,7 +50,7 @@ impl IntermediateAggregationResults {
         // Important assumption:
         // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
         // request
-        let mut results: HashMap<String, AggregationResult> = HashMap::new();
+        let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
 
         if let Some(buckets) = self.buckets {
             convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets)?
@@ -132,7 +131,7 @@ impl IntermediateAggregationResults {
 }
 
 fn convert_and_add_final_metrics_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     metrics: VecWithNames<IntermediateMetricResult>,
 ) {
     results.extend(
@@ -143,7 +142,7 @@ fn convert_and_add_final_metrics_to_result(
 }
 
 fn add_empty_final_metrics_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     req_metrics: &VecWithNames<MetricAggregation>,
 ) -> crate::Result<()> {
     results.extend(req_metrics.iter().map(|(key, req)| {
@@ -157,7 +156,7 @@ fn add_empty_final_metrics_to_result(
 }
 
 fn add_empty_final_buckets_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
 ) -> crate::Result<()> {
     let requested_buckets = req_buckets.iter();
@@ -169,7 +168,7 @@ fn add_empty_final_buckets_to_result(
 }
 
 fn convert_and_add_final_buckets_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     buckets: VecWithNames<IntermediateBucketResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
 ) -> crate::Result<()> {
