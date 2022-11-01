@@ -1,6 +1,7 @@
 Tantivy 0.19
 ================================
 
+- Skip score calculation, when no scoring is required [#1646](https://github.com/quickwit-oss/tantivy/pull/1646) (@PSeitz)
 - Limit fast fields to u32 (`get_val(u32)`) [#1644](https://github.com/quickwit-oss/tantivy/pull/1644) (@PSeitz)
 - Major bugfix: Fix missing fieldnorms for u64, i64, f64, bool, bytes and date [#1620](https://github.com/quickwit-oss/tantivy/pull/1620) (@PSeitz)
 - Updated [Date Field Type](https://github.com/quickwit-oss/tantivy/pull/1396)

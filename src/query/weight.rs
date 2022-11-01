@@ -1,10 +1,10 @@
 use super::Scorer;
 use crate::core::SegmentReader;
 use crate::query::Explanation;
-use crate::{DocId, Score, TERMINATED};
+use crate::{DocId, DocSet, Score, TERMINATED};
 
-/// Iterates through all of the document matched by the DocSet
-/// `DocSet` and push the scored documents to the collector.
+/// Iterates through all of the documents and scores matched by the DocSet
+/// `DocSet`.
 pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
     callback: &mut dyn FnMut(DocId, Score),
@@ -13,6 +13,16 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     while doc != TERMINATED {
         callback(doc, scorer.score());
         doc = scorer.advance();
+    }
+}
+
+/// Iterates through all of the documents matched by the DocSet
+/// `DocSet`.
+pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, callback: &mut dyn FnMut(DocId)) {
+    let mut doc = docset.doc();
+    while doc != TERMINATED {
+        callback(doc);
+        doc = docset.advance();
     }
 }
 
@@ -75,6 +85,18 @@ pub trait Weight: Send + Sync + 'static {
     ) -> crate::Result<()> {
         let mut scorer = self.scorer(reader, 1.0)?;
         for_each_scorer(scorer.as_mut(), callback);
+        Ok(())
+    }
+
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
+    fn for_each_no_score(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId),
+    ) -> crate::Result<()> {
+        let mut docset = self.scorer(reader, 1.0)?;
+        for_each_docset(docset.as_mut(), callback);
         Ok(())
     }
 
