@@ -10,6 +10,8 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
+use std::sync::Arc;
+
 use rustc_hash::FxHashSet;
 
 use super::{Token, TokenFilter, TokenStream};
@@ -18,19 +20,15 @@ use crate::tokenizer::BoxTokenStream;
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
 pub struct StopWordFilter {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
 }
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn remove(words: Vec<String>) -> StopWordFilter {
-        let mut set = FxHashSet::default();
-
-        for word in words {
-            set.insert(word);
+    pub fn remove<W: IntoIterator<Item = String>>(words: W) -> StopWordFilter {
+        StopWordFilter {
+            words: Arc::new(words.into_iter().collect()),
         }
-
-        StopWordFilter { words: set }
     }
 
     fn english() -> StopWordFilter {
@@ -40,12 +38,12 @@ impl StopWordFilter {
             "there", "these", "they", "this", "to", "was", "will", "with",
         ];
 
-        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
+        StopWordFilter::remove(words.iter().map(|&s| s.to_string()))
     }
 }
 
 pub struct StopWordFilterStream<'a> {
-    words: FxHashSet<String>,
+    words: Arc<FxHashSet<String>>,
     tail: BoxTokenStream<'a>,
 }
 
