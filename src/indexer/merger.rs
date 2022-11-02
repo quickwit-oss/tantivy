@@ -13,7 +13,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
     get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer,
-    MultiValueLength, MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
+    MultiValueIndex, MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -348,7 +348,12 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &segment_and_ff_readers,
+            &segment_and_ff_readers
+                .iter()
+                .map(|(segment_reader, u64s_reader)| {
+                    (*segment_reader, u64s_reader.get_index_reader())
+                })
+                .collect::<Vec<_>>(),
         )?;
 
         let fast_field_readers = segment_and_ff_readers
@@ -529,11 +534,11 @@ impl IndexMerger {
     // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
     // `MultiValuedFastFieldReader`
     //
-    fn write_1_n_fast_field_idx_generic<T: MultiValueLength + Send + Sync>(
+    fn write_1_n_fast_field_idx_generic(
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
-        segment_and_ff_readers: &[(&SegmentReader, T)],
+        segment_and_ff_readers: &[(&SegmentReader, &MultiValueIndex)],
     ) -> crate::Result<()> {
         let column =
             RemappedDocIdMultiValueIndexColumn::new(segment_and_ff_readers, doc_id_mapping);
@@ -567,7 +572,12 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &segment_and_ff_readers,
+            &segment_and_ff_readers
+                .iter()
+                .map(|(segment_reader, u64s_reader)| {
+                    (*segment_reader, u64s_reader.get_index_reader())
+                })
+                .collect::<Vec<_>>(),
         )
     }
 
@@ -697,7 +707,12 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &segment_and_ff_readers,
+            &segment_and_ff_readers
+                .iter()
+                .map(|(segment_reader, u64s_reader)| {
+                    (*segment_reader, u64s_reader.get_index_reader())
+                })
+                .collect::<Vec<_>>(),
         )?;
 
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field(field);

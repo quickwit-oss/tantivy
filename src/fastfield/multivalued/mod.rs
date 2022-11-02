@@ -1,7 +1,9 @@
+mod index;
 mod reader;
 mod writer;
 
 use fastfield_codecs::FastFieldCodecType;
+pub use index::MultiValueIndex;
 
 pub use self::reader::{MultiValuedFastFieldReader, MultiValuedU128FastFieldReader};
 pub(crate) use self::writer::MultivalueStartIndex;

@@ -27,8 +27,8 @@ pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub(crate) use self::multivalued::{get_fastfield_codecs_for_multivalue, MultivalueStartIndex};
 pub use self::multivalued::{
-    MultiValueU128FastFieldWriter, MultiValuedFastFieldReader, MultiValuedFastFieldWriter,
-    MultiValuedU128FastFieldReader,
+    MultiValueIndex, MultiValueU128FastFieldWriter, MultiValuedFastFieldReader,
+    MultiValuedFastFieldWriter, MultiValuedU128FastFieldReader,
 };
 pub use self::readers::FastFieldReaders;
 pub(crate) use self::readers::{type_and_cardinality, FastType};
@@ -36,7 +36,7 @@ pub use self::serializer::{Column, CompositeFastFieldSerializer};
 use self::writer::unexpected_value;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Type, Value};
-use crate::{DateTime, DocId};
+use crate::DateTime;
 
 mod alive_bitset;
 mod bytes;
@@ -46,17 +46,6 @@ mod multivalued;
 mod readers;
 mod serializer;
 mod writer;
-
-/// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
-/// for a doc_id
-pub trait MultiValueLength {
-    /// returns the positions for a docid
-    fn get_range(&self, doc_id: DocId) -> std::ops::Range<u32>;
-    /// returns the num of values associated with a doc_id
-    fn get_len(&self, doc_id: DocId) -> u64;
-    /// returns the sum of num values for all doc_ids
-    fn get_total_len(&self) -> u64;
-}
 
 /// Trait for types that are allowed for fast fields:
 /// (u64, i64 and f64, bool, DateTime).

@@ -3,7 +3,7 @@ use std::cmp;
 use fastfield_codecs::Column;
 
 use super::flat_map_with_buffer::FlatMapWithBufferIter;
-use crate::fastfield::{MultiValueLength, MultiValuedFastFieldReader};
+use crate::fastfield::{MultiValueIndex, MultiValuedFastFieldReader};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::schema::Field;
 use crate::{DocAddress, SegmentReader};
@@ -94,17 +94,17 @@ impl<'a> Column for RemappedDocIdMultiValueColumn<'a> {
     }
 }
 
-pub(crate) struct RemappedDocIdMultiValueIndexColumn<'a, T: MultiValueLength> {
+pub(crate) struct RemappedDocIdMultiValueIndexColumn<'a> {
     doc_id_mapping: &'a SegmentDocIdMapping,
-    multi_value_length_readers: Vec<&'a T>,
+    multi_value_length_readers: Vec<&'a MultiValueIndex>,
     min_value: u64,
     max_value: u64,
     num_vals: u32,
 }
 
-impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
+impl<'a> RemappedDocIdMultiValueIndexColumn<'a> {
     pub(crate) fn new(
-        segment_and_ff_readers: &'a [(&'a SegmentReader, T)],
+        segment_and_ff_readers: &'a [(&'a SegmentReader, &'a MultiValueIndex)],
         doc_id_mapping: &'a SegmentDocIdMapping,
     ) -> Self {
         // We go through a complete first pass to compute the minimum and the
@@ -115,12 +115,12 @@ impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
         let mut multi_value_length_readers = Vec::with_capacity(segment_and_ff_readers.len());
         for segment_and_ff_reader in segment_and_ff_readers {
             let segment_reader = segment_and_ff_reader.0;
-            let multi_value_length_reader = &segment_and_ff_reader.1;
+            let multi_value_length_reader = segment_and_ff_reader.1;
             if !segment_reader.has_deletes() {
-                max_value += multi_value_length_reader.get_total_len();
+                max_value += multi_value_length_reader.total_num_vals();
             } else {
                 for doc in segment_reader.doc_ids_alive() {
-                    max_value += multi_value_length_reader.get_len(doc);
+                    max_value += multi_value_length_reader.num_vals_for_doc(doc) as u64;
                 }
             }
             num_vals += segment_reader.num_docs();
@@ -136,7 +136,7 @@ impl<'a, T: MultiValueLength> RemappedDocIdMultiValueIndexColumn<'a, T> {
     }
 }
 
-impl<'a, T: MultiValueLength + Send + Sync> Column for RemappedDocIdMultiValueIndexColumn<'a, T> {
+impl<'a> Column for RemappedDocIdMultiValueIndexColumn<'a> {
     fn get_val(&self, _pos: u32) -> u64 {
         unimplemented!()
     }
@@ -148,8 +148,8 @@ impl<'a, T: MultiValueLength + Send + Sync> Column for RemappedDocIdMultiValueIn
                 move |old_doc_addr| {
                     let ff_reader =
                         &self.multi_value_length_readers[old_doc_addr.segment_ord as usize];
-                    offset += ff_reader.get_len(old_doc_addr.doc_id);
-                    offset
+                    offset += ff_reader.num_vals_for_doc(old_doc_addr.doc_id);
+                    offset as u64
                 },
             )),
         )

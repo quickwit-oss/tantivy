@@ -240,6 +240,7 @@ where
     // and we do not have any specialized implementation anyway.
 }
 
+/// Wraps an iterator into a `Column`.
 pub struct IterColumn<T>(T);
 
 impl<T> From<T> for IterColumn<T>
