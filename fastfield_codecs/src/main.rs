@@ -119,7 +119,7 @@ fn bench_ip() {
     for value in dataset.iter().take(1110).skip(1100).cloned() {
         doc_values.clear();
         print_time!("get range");
-        decompressor.get_positions_for_value_range(
+        decompressor.get_docids_for_value_range(
             value..=value,
             0..decompressor.num_vals(),
             &mut doc_values,

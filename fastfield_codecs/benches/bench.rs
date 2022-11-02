@@ -113,7 +113,7 @@ mod tests {
 
         b.iter(|| {
             let mut positions = Vec::new();
-            column.get_positions_for_value_range(
+            column.get_docids_for_value_range(
                 major_item..=major_item,
                 0..data.len() as u32,
                 &mut positions,
@@ -129,7 +129,7 @@ mod tests {
 
         b.iter(|| {
             let mut positions = Vec::new();
-            column.get_positions_for_value_range(
+            column.get_docids_for_value_range(
                 minor_item..=minor_item,
                 0..data.len() as u32,
                 &mut positions,
@@ -145,11 +145,7 @@ mod tests {
 
         b.iter(|| {
             let mut positions = Vec::new();
-            column.get_positions_for_value_range(
-                0..=u128::MAX,
-                0..data.len() as u32,
-                &mut positions,
-            );
+            column.get_docids_for_value_range(0..=u128::MAX, 0..data.len() as u32, &mut positions);
             positions
         });
     }

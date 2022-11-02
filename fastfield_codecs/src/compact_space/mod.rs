@@ -306,13 +306,13 @@ impl Column<u128> for CompactSpaceDecompressor {
     }
 
     #[inline]
-    fn get_positions_for_value_range(
+    fn get_docids_for_value_range(
         &self,
         value_range: RangeInclusive<u128>,
-        doc_id_range: Range<u32>,
+        positions_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        self.get_positions_for_value_range(value_range, doc_id_range, positions)
+        self.get_positions_for_value_range(value_range, positions_range, positions)
     }
 }
 
@@ -351,13 +351,13 @@ impl CompactSpaceDecompressor {
     pub fn get_positions_for_value_range(
         &self,
         value_range: RangeInclusive<u128>,
-        doc_id_range: Range<u32>,
+        position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
         if value_range.start() > value_range.end() {
             return;
         }
-        let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
+        let position_range = position_range.start..position_range.end.min(self.num_vals());
         let from_value = *value_range.start();
         let to_value = *value_range.end();
         assert!(to_value >= from_value);
@@ -390,10 +390,10 @@ impl CompactSpaceDecompressor {
 
         let range = compact_from..=compact_to;
 
-        let scan_num_docs = doc_id_range.end - doc_id_range.start;
+        let scan_num_docs = position_range.end - position_range.start;
 
         let step_size = 4;
-        let cutoff = doc_id_range.start + scan_num_docs - scan_num_docs % step_size;
+        let cutoff = position_range.start + scan_num_docs - scan_num_docs % step_size;
 
         let mut push_if_in_range = |idx, val| {
             if range.contains(&val) {
@@ -402,7 +402,7 @@ impl CompactSpaceDecompressor {
         };
         let get_val = |idx| self.params.bit_unpacker.get(idx, &self.data);
         // unrolled loop
-        for idx in (doc_id_range.start..cutoff).step_by(step_size as usize) {
+        for idx in (position_range.start..cutoff).step_by(step_size as usize) {
             let idx1 = idx;
             let idx2 = idx + 1;
             let idx3 = idx + 2;
@@ -418,7 +418,7 @@ impl CompactSpaceDecompressor {
         }
 
         // handle rest
-        for idx in cutoff..doc_id_range.end {
+        for idx in cutoff..position_range.end {
             push_if_in_range(idx, get_val(idx as u32));
         }
     }
@@ -708,7 +708,7 @@ mod tests {
         doc_id_range: Range<u32>,
     ) -> Vec<u32> {
         let mut positions = Vec::new();
-        column.get_positions_for_value_range(value_range, doc_id_range, &mut positions);
+        column.get_docids_for_value_range(value_range, doc_id_range, &mut positions);
         positions
     }
 
