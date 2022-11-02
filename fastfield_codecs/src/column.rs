@@ -35,7 +35,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     ///
     /// Note that position == docid for single value fast fields
     #[inline]
-    fn get_positions_for_value_range(
+    fn get_docids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,
@@ -69,6 +69,11 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
 
     /// The number of values in the column.
     fn num_vals(&self) -> u32;
+
+    /// The number of docs in the column. For single value columns this equals num_vals.
+    fn num_docs(&self) -> u32 {
+        self.num_vals()
+    }
 
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
@@ -222,13 +227,13 @@ where
         )
     }
 
-    fn get_positions_for_value_range(
+    fn get_docids_for_value_range(
         &self,
         range: RangeInclusive<Output>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        self.from_column.get_positions_for_value_range(
+        self.from_column.get_docids_for_value_range(
             self.monotonic_mapping.inverse(range.start().clone())
                 ..=self.monotonic_mapping.inverse(range.end().clone()),
             doc_id_range,
