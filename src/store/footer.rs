@@ -2,7 +2,7 @@ use std::io;
 
 use common::{BinarySerializable, FixedSize, HasLen};
 
-use super::Decompressor;
+use super::{Decompressor, DOC_STORE_VERSION};
 use crate::directory::FileSlice;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +17,7 @@ pub struct DocStoreFooter {
 /// - reserved for future use: 15 bytes
 impl BinarySerializable for DocStoreFooter {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        BinarySerializable::serialize(&DOC_STORE_VERSION, writer)?;
         BinarySerializable::serialize(&self.offset, writer)?;
         BinarySerializable::serialize(&self.decompressor.get_id(), writer)?;
         writer.write_all(&[0; 15])?;
@@ -24,6 +25,13 @@ impl BinarySerializable for DocStoreFooter {
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let doc_store_version = u32::deserialize(reader)?;
+        if doc_store_version != DOC_STORE_VERSION {
+            panic!(
+                "actual doc store version: {}, expected: {}",
+                doc_store_version, DOC_STORE_VERSION
+            );
+        }
         let offset = u64::deserialize(reader)?;
         let compressor_id = u8::deserialize(reader)?;
         let mut skip_buf = [0; 15];
@@ -36,7 +44,7 @@ impl BinarySerializable for DocStoreFooter {
 }
 
 impl FixedSize for DocStoreFooter {
-    const SIZE_IN_BYTES: usize = 24;
+    const SIZE_IN_BYTES: usize = 28;
 }
 
 impl DocStoreFooter {

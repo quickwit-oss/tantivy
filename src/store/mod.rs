@@ -44,6 +44,9 @@ pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
 mod store_compressor;
 
+/// Doc store version in footer to handle format changes.
+pub(crate) const DOC_STORE_VERSION: u32 = 1;
+
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
 
