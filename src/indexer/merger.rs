@@ -356,6 +356,21 @@ impl IndexMerger {
                 .collect::<Vec<_>>(),
         )?;
 
+        let num_vals = segment_and_ff_readers
+            .iter()
+            .map(|(segment_reader, reader)| {
+                // TODO implement generic version, implement reverse scan, all - deletes
+                if let Some(alive_bitset) = segment_reader.alive_bitset() {
+                    alive_bitset
+                        .iter_alive()
+                        .map(|doc| reader.num_vals(doc))
+                        .sum()
+                } else {
+                    reader.total_num_vals() as u32
+                }
+            })
+            .sum();
+
         let fast_field_readers = segment_and_ff_readers
             .into_iter()
             .map(|(_, ff_reader)| ff_reader)
@@ -370,12 +385,7 @@ impl IndexMerger {
                 })
         };
 
-        fast_field_serializer.create_u128_fast_field_with_idx(
-            field,
-            iter_gen,
-            doc_id_mapping.len() as u32,
-            1,
-        )?;
+        fast_field_serializer.create_u128_fast_field_with_idx(field, iter_gen, num_vals, 1)?;
 
         Ok(())
     }
