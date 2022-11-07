@@ -308,12 +308,13 @@ mod tests {
 
     fn operation_strategy() -> impl Strategy<Value = Doc> {
         prop_oneof![
-            (0u64..100u64).prop_map(doc_from_id_1),
-            (1u64..100u64).prop_map(doc_from_id_2),
+            (0u64..10_000u64).prop_map(doc_from_id_1),
+            (1u64..10_000u64).prop_map(doc_from_id_2),
         ]
     }
 
     pub fn doc_from_id_1(id: u64) -> Doc {
+        let id = id * 1000;
         Doc {
             // ip != id
             id: id.to_string(),
@@ -321,6 +322,7 @@ mod tests {
         }
     }
     fn doc_from_id_2(id: u64) -> Doc {
+        let id = id * 1000;
         Doc {
             // ip != id
             id: (id - 1).to_string(),
@@ -460,7 +462,8 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use rand::{thread_rng, Rng};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test::Bencher;
 
     use super::tests::*;
@@ -470,7 +473,7 @@ mod bench {
     use crate::Index;
 
     fn get_index_0_to_100() -> Index {
-        let mut rng = thread_rng();
+        let mut rng = StdRng::from_seed([1u8; 32]);
         let num_vals = 100_000;
         let docs: Vec<_> = (0..num_vals)
             .map(|_i| {
@@ -482,8 +485,10 @@ mod bench {
                     "many".to_string() // 90%
                 };
                 Doc {
-                    id: id,
+                    id,
                     // Multiply by 1000, so that we create many buckets in the compact space
+                    // The benches depend on this range to select n-percent of elements with the
+                    // methods below.
                     ip: Ipv6Addr::from_u128(rng.gen_range(0..100) * 1000),
                 }
             })
@@ -492,14 +497,32 @@ mod bench {
         let index = create_index_from_docs(&docs);
         index
     }
+
+    fn get_90_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(0);
+        let end = Ipv6Addr::from_u128(90 * 1000);
+        start..=end
+    }
+
+    fn get_10_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(0);
+        let end = Ipv6Addr::from_u128(10 * 1000);
+        start..=end
+    }
+
+    fn get_1_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(10 * 1000);
+        let end = Ipv6Addr::from_u128(10 * 1000);
+        start..=end
+    }
+
     fn excute_query(
         field: &str,
-        start_inclusive: Ipv6Addr,
-        end_inclusive: Ipv6Addr,
+        ip_range: RangeInclusive<Ipv6Addr>,
         suffix: &str,
         index: &Index,
     ) -> usize {
-        let gen_query_inclusive = |from: Ipv6Addr, to: Ipv6Addr| {
+        let gen_query_inclusive = |from: &Ipv6Addr, to: &Ipv6Addr| {
             format!(
                 "{}:[{} TO {}] {}",
                 field,
@@ -509,7 +532,7 @@ mod bench {
             )
         };
 
-        let query = gen_query_inclusive(start_inclusive, end_inclusive);
+        let query = gen_query_inclusive(ip_range.start(), ip_range.end());
         let query_from_text = |text: &str| {
             QueryParser::for_index(&index, vec![])
                 .parse_query(text)
@@ -525,263 +548,153 @@ mod bench {
     fn bench_ip_range_hit_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ip", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "AND id:veryfew", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ip", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ip", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ip", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ip", start, end, "AND id:veryfew", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ips", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ips", get_90_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ips", get_10_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ips", get_1_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "AND id:veryfew", &index)
-        });
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query("ips", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ips", start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ips", start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query("ips", start, end, "AND id:veryfew", &index)
-        });
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:veryfew", &index));
     }
 }
