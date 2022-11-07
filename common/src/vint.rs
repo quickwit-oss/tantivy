@@ -157,7 +157,7 @@ fn vint_len(data: &[u8]) -> usize {
 /// If the buffer does not start by a valid
 /// vint payload
 pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
-    let (result, vlen) = read_u32_vint_no_advance(*data);
+    let (result, vlen) = read_u32_vint_no_advance(data);
     *data = &data[vlen..];
     result
 }
