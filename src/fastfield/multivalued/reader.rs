@@ -168,7 +168,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         self.idx_reader.num_vals_for_doc(doc)
     }
 
-    /// Returns the overall number of values in this field.
+    /// Returns the overall number of values in this field. It does not include deletes.
     #[inline]
     pub fn total_num_vals(&self) -> u32 {
         assert_eq!(

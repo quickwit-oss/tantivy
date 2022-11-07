@@ -32,11 +32,12 @@ impl MultiValueIndex {
     /// The passed end range is allowed to be out of bounds.
     #[inline]
     pub(crate) fn docid_range_to_position_range(&self, range: Range<DocId>) -> Range<u32> {
-        let end_docid = range.end.min(self.num_docs() - 1);
+        let end_docid = range.end.min(self.num_docs() - 1) + 1;
         let start_docid = range.start.min(end_docid);
 
         let start = self.idx.get_val(start_docid) as u32;
-        let end = self.idx.get_val(end_docid + 1) as u32;
+        let end = self.idx.get_val(end_docid) as u32;
+        assert!(start <= end);
 
         start..end
     }
@@ -68,11 +69,17 @@ impl MultiValueIndex {
     /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
     /// increasing positions.
     ///
+    ///
     /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
     /// match a docid to its value position.
     pub(crate) fn positions_to_docids(&self, doc_id_range: Range<u32>, positions: &mut Vec<u32>) {
+        if positions.is_empty() {
+            return;
+        }
         let mut cur_doc = doc_id_range.start;
         let mut last_doc = None;
+
+        assert!(self.idx.get_val(doc_id_range.start) as u32 <= positions[0]);
 
         let mut write_doc_pos = 0;
         for i in 0..positions.len() {
@@ -80,13 +87,8 @@ impl MultiValueIndex {
             loop {
                 let end = self.idx.get_val(cur_doc + 1) as u32;
                 if end > pos {
-                    // avoid duplicates
-                    if Some(cur_doc) == last_doc {
-                        break;
-                    }
                     positions[write_doc_pos] = cur_doc;
-                    write_doc_pos += 1;
-
+                    write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };
                     last_doc = Some(cur_doc);
                     break;
                 }
