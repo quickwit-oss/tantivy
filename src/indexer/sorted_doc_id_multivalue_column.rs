@@ -126,6 +126,8 @@ impl<'a> RemappedDocIdMultiValueIndexColumn<'a> {
             num_vals += segment_reader.num_docs();
             multi_value_length_readers.push(multi_value_length_reader);
         }
+        // The value range is always get_val(doc)..get_val(doc + 1)
+        num_vals += 1;
         Self {
             doc_id_mapping,
             multi_value_length_readers,
