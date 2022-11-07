@@ -1,10 +1,14 @@
+mod exact_phrase_scorer;
 mod phrase_query;
 mod phrase_scorer;
 mod phrase_weight;
+mod slop_phrase_scorer;
 
+pub use self::exact_phrase_scorer::ExactPhraseScorer;
 pub use self::phrase_query::PhraseQuery;
 pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
+pub use self::slop_phrase_scorer::SlopPhraseScorer;
 
 #[cfg(test)]
 pub mod tests {
@@ -225,20 +229,24 @@ pub mod tests {
                 .to_vec()
         };
         let scores = test_query(vec!["a", "c"]);
-        assert_nearly_equals!(scores[0], 0.29086056);
-        assert_nearly_equals!(scores[1], 0.26706287);
+        assert_nearly_equals!(scores[0], 0.14543028);
+        assert_nearly_equals!(scores[1], 0.06676572);
         Ok(())
     }
 
     #[test]
     pub fn test_phrase_score_with_slop_ordering() -> crate::Result<()> {
         let index = create_index(&[
-            "a e b e c",
+            "a e b e c", // matches
             "a e e e e e b e e e e c",
             "a c b",
             "a c e b e",
             "a e c b",
-            "a e b c",
+            "a e b c",         // matches
+            "a e b c a e b c", // matches
+            "e a b c e",       // matches
+            "a b c",           // matches
+            "a b c a b c",     // matches
         ])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
@@ -257,9 +265,12 @@ pub mod tests {
                 .to_vec()
         };
         let scores = test_query(vec!["a", "b", "c"]);
-        // The first and last matches.
-        assert_nearly_equals!(scores[0], 0.23091172);
-        assert_nearly_equals!(scores[1], 0.25024384);
+        assert_nearly_equals!(scores[0], 0.07247548);
+        assert_nearly_equals!(scores[1], 0.11781478);
+        assert_nearly_equals!(scores[2], 0.12760794);
+        assert_nearly_equals!(scores[3], 0.14495096);
+        assert_nearly_equals!(scores[4], 0.17143945);
+        assert_nearly_equals!(scores[5], 0.1871112);
         Ok(())
     }
 
