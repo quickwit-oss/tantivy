@@ -94,8 +94,8 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
             self.doc = min_doc;
             refill(
                 &mut self.docsets,
-                &mut *self.bitsets,
-                &mut *self.scores,
+                &mut self.bitsets,
+                &mut self.scores,
                 min_doc,
             );
             true

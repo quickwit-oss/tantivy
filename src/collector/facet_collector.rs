@@ -616,7 +616,7 @@ mod tests {
             .map(|mut doc| {
                 doc.add_facet(
                     facet_field,
-                    &format!("/facet/{}", thread_rng().sample(&uniform)),
+                    &format!("/facet/{}", thread_rng().sample(uniform)),
                 );
                 doc
             })

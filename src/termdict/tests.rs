@@ -229,10 +229,10 @@ fn test_empty_string() -> crate::Result<()> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
         term_dictionary_builder
-            .insert(&[], &make_term_info(1_u64))
+            .insert([], &make_term_info(1_u64))
             .unwrap();
         term_dictionary_builder
-            .insert(&[1u8], &make_term_info(2_u64))
+            .insert([1u8], &make_term_info(2_u64))
             .unwrap();
         term_dictionary_builder.finish()?
     };
@@ -252,7 +252,7 @@ fn stream_range_test_dict() -> crate::Result<TermDictionary> {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
         for i in 0u8..10u8 {
             let number_arr = [i; 1];
-            term_dictionary_builder.insert(&number_arr, &make_term_info(i as u64))?;
+            term_dictionary_builder.insert(number_arr, &make_term_info(i as u64))?;
         }
         term_dictionary_builder.finish()?
     };
