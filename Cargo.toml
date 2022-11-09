@@ -91,8 +91,9 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap", "lz4-compression" ]
+default = ["mmap", "stopwords", "lz4-compression"]
 mmap = ["fs2", "tempfile", "memmap2"]
+stopwords = []
 
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4_flex"]
