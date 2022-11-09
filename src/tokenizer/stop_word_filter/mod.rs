@@ -18,8 +18,7 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashSet;
 
-use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::BoxTokenStream;
+use super::{BoxTokenStream, Language, Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
@@ -28,94 +27,43 @@ pub struct StopWordFilter {
 }
 
 impl StopWordFilter {
+    /// Creates a new [`StopWordFilter`] for the given [`Language`]
+    ///
+    /// Returns `Some` if a list of stop words is available and `None` otherwise.
+    #[cfg(feature = "stopwords")]
+    pub fn new(language: Language) -> Option<Self> {
+        let words = match language {
+            Language::Danish => stopwords::DANISH,
+            Language::Dutch => stopwords::DUTCH,
+            Language::English => {
+                // This is the same list of words used by the Apache-licensed Lucene project,
+                // c.f. https://github.com/apache/lucene/blob/d5d6dc079395c47cd6d12dcce3bcfdd2c7d9dc63/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L46
+                &[
+                    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in",
+                    "into", "is", "it", "no", "not", "of", "on", "or", "such", "that", "the",
+                    "their", "then", "there", "these", "they", "this", "to", "was", "will", "with",
+                ]
+            }
+            Language::Finnish => stopwords::FINNISH,
+            Language::French => stopwords::FRENCH,
+            Language::German => stopwords::GERMAN,
+            Language::Italian => stopwords::ITALIAN,
+            Language::Norwegian => stopwords::NORWEGIAN,
+            Language::Portuguese => stopwords::PORTUGUESE,
+            Language::Russian => stopwords::RUSSIAN,
+            Language::Spanish => stopwords::SPANISH,
+            Language::Swedish => stopwords::SWEDISH,
+            _ => return None,
+        };
+
+        Some(Self::remove(words.iter().map(|&word| word.to_owned())))
+    }
+
     /// Creates a `StopWordFilter` given a list of words to remove
     pub fn remove<W: IntoIterator<Item = String>>(words: W) -> StopWordFilter {
         StopWordFilter {
             words: Arc::new(words.into_iter().collect()),
         }
-    }
-
-    fn from_word_list(words: &[&str]) -> Self {
-        Self::remove(words.iter().map(|&word| word.to_owned()))
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Danish language
-    pub fn danish() -> Self {
-        Self::from_word_list(stopwords::DANISH)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Dutch language
-    pub fn dutch() -> Self {
-        Self::from_word_list(stopwords::DUTCH)
-    }
-
-    /// Create a `StopWorldFilter` for the English language
-    pub fn english() -> Self {
-        // This is the same list of words used by the Apache-licensed Lucene project,
-        // c.f. https://github.com/apache/lucene/blob/d5d6dc079395c47cd6d12dcce3bcfdd2c7d9dc63/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L46
-        const WORDS: &[&str] = &[
-            "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into",
-            "is", "it", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then",
-            "there", "these", "they", "this", "to", "was", "will", "with",
-        ];
-
-        Self::from_word_list(WORDS)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Finnish language
-    pub fn finnish() -> Self {
-        Self::from_word_list(stopwords::FINNISH)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the French language
-    pub fn french() -> Self {
-        Self::from_word_list(stopwords::FRENCH)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the German language
-    pub fn german() -> Self {
-        Self::from_word_list(stopwords::GERMAN)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Italian language
-    pub fn italian() -> Self {
-        Self::from_word_list(stopwords::ITALIAN)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Norwegian language
-    pub fn norwegian() -> Self {
-        Self::from_word_list(stopwords::NORWEGIAN)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Portuguese language
-    pub fn portuguese() -> Self {
-        Self::from_word_list(stopwords::PORTUGUESE)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Russian language
-    pub fn russian() -> Self {
-        Self::from_word_list(stopwords::RUSSIAN)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Spanish language
-    pub fn spanish() -> Self {
-        Self::from_word_list(stopwords::SPANISH)
-    }
-
-    #[cfg(feature = "stopwords")]
-    /// Create a `StopWorldFilter` for the Swedish language
-    pub fn swedish() -> Self {
-        Self::from_word_list(stopwords::SWEDISH)
     }
 }
 
@@ -155,12 +103,6 @@ impl<'a> TokenStream for StopWordFilterStream<'a> {
 
     fn token_mut(&mut self) -> &mut Token {
         self.tail.token_mut()
-    }
-}
-
-impl Default for StopWordFilter {
-    fn default() -> StopWordFilter {
-        StopWordFilter::english()
     }
 }
 
