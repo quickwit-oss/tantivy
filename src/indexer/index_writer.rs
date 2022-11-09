@@ -19,9 +19,9 @@ use crate::indexer::index_writer_status::IndexWriterStatus;
 use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
-use crate::query::{Query, TermQuery};
+use crate::query::{EnableScoring, Query, TermQuery};
 use crate::schema::{Document, IndexRecordOption, Term};
-use crate::{FutureResult, IndexReader, Opstamp};
+use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
 // in the `memory_arena` goes below MARGIN_IN_BYTES.
@@ -57,7 +57,6 @@ pub struct IndexWriter {
     _directory_lock: Option<DirectoryLock>,
 
     index: Index,
-    index_reader: IndexReader,
 
     memory_arena_in_bytes_per_thread: usize,
 
@@ -298,8 +297,6 @@ impl IndexWriter {
 
             memory_arena_in_bytes_per_thread,
             index: index.clone(),
-            index_reader: index.reader()?,
-
             index_writer_status: IndexWriterStatus::from(document_receiver),
             operation_sender: document_sender,
 
@@ -681,8 +678,7 @@ impl IndexWriter {
     /// only after calling `commit()`.
     #[doc(hidden)]
     pub fn delete_query(&self, query: Box<dyn Query>) -> crate::Result<Opstamp> {
-        let weight = query.weight(&self.index_reader.searcher(), false)?;
-
+        let weight = query.weight(EnableScoring::Disabled(&self.index.schema()))?;
         let opstamp = self.stamper.stamp();
         let delete_operation = DeleteOperation {
             opstamp,
@@ -763,8 +759,7 @@ impl IndexWriter {
             match user_op {
                 UserOperation::Delete(term) => {
                     let query = TermQuery::new(term, IndexRecordOption::Basic);
-                    let weight = query.weight(&self.index_reader.searcher(), false)?;
-
+                    let weight = query.weight(EnableScoring::Disabled(&self.index.schema()))?;
                     let delete_operation = DeleteOperation {
                         opstamp,
                         target: weight,

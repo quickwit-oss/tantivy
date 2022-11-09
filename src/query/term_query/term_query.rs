@@ -2,9 +2,9 @@ use std::fmt;
 
 use super::term_weight::TermWeight;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{Explanation, Query, Weight};
+use crate::query::{EnableScoring, Explanation, Query, Weight};
 use crate::schema::IndexRecordOption;
-use crate::{Searcher, Term};
+use crate::Term;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -87,19 +87,23 @@ impl TermQuery {
     /// This is useful for optimization purpose.
     pub fn specialized_weight(
         &self,
-        searcher: &Searcher,
-        scoring_enabled: bool,
+        enable_scoring: EnableScoring<'_>,
     ) -> crate::Result<TermWeight> {
-        let field_entry = searcher.schema().get_field_entry(self.term.field());
+        let schema = enable_scoring.schema();
+        let field_entry = schema.get_field_entry(self.term.field());
         if !field_entry.is_indexed() {
             let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
             return Err(crate::TantivyError::SchemaError(error_msg));
         }
-        let bm25_weight = if scoring_enabled {
-            Bm25Weight::for_terms(searcher, &[self.term.clone()])?
-        } else {
-            Bm25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32)
+        let bm25_weight = match enable_scoring {
+            EnableScoring::Enabled(searcher) => {
+                Bm25Weight::for_terms(searcher, &[self.term.clone()])?
+            }
+            EnableScoring::Disabled(_schema) => {
+                Bm25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32)
+            }
         };
+        let scoring_enabled = enable_scoring.is_scoring_enabled();
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {
@@ -115,10 +119,8 @@ impl TermQuery {
 }
 
 impl Query for TermQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        Ok(Box::new(
-            self.specialized_weight(searcher, scoring_enabled)?,
-        ))
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        Ok(Box::new(self.specialized_weight(enable_scoring)?))
     }
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         visitor(&self.term, false);

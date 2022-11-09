@@ -5,7 +5,36 @@ use downcast_rs::impl_downcast;
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
+use crate::schema::Schema;
 use crate::{DocAddress, Term};
+
+/// Argument used in `Query::weight(..)`
+#[derive(Copy, Clone)]
+pub enum EnableScoring<'a> {
+    /// Pass this to enable scoring.
+    Enabled(&'a Searcher),
+    /// Pass this to disable scoring.
+    /// This can improve performance.
+    Disabled(&'a Schema),
+}
+
+impl<'a> EnableScoring<'a> {
+    /// Returns the schema.
+    pub fn schema(&self) -> &Schema {
+        match self {
+            EnableScoring::Enabled(searcher) => searcher.schema(),
+            EnableScoring::Disabled(schema) => schema,
+        }
+    }
+
+    /// Returns true if the scoring is enabled.
+    pub fn is_scoring_enabled(&self) -> bool {
+        match self {
+            EnableScoring::Enabled(_) => true,
+            EnableScoring::Disabled(_) => false,
+        }
+    }
+}
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -48,18 +77,18 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     /// can increase performances.
     ///
     /// See [`Weight`].
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>>;
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>>;
 
     /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> crate::Result<Explanation> {
+        let weight = self.weight(EnableScoring::Enabled(searcher))?;
         let reader = searcher.segment_reader(doc_address.segment_ord);
-        let weight = self.weight(searcher, true)?;
         weight.explain(reader, doc_address.doc_id)
     }
 
     /// Returns the number of documents matching the query.
     fn count(&self, searcher: &Searcher) -> crate::Result<usize> {
-        let weight = self.weight(searcher, false)?;
+        let weight = self.weight(EnableScoring::Disabled(searcher.schema()))?;
         let mut result = 0;
         for reader in searcher.segment_readers() {
             result += weight.count(reader)? as usize;
@@ -93,8 +122,8 @@ where T: 'static + Query + Clone
 }
 
 impl Query for Box<dyn Query> {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        self.as_ref().weight(searcher, scoring_enabled)
+    fn weight(&self, enabled_scoring: EnableScoring) -> crate::Result<Box<dyn Weight>> {
+        self.as_ref().weight(enabled_scoring)
     }
 
     fn count(&self, searcher: &Searcher) -> crate::Result<usize> {

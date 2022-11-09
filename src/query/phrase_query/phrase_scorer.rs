@@ -50,8 +50,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     right: Vec<u32>,
     phrase_count: u32,
     fieldnorm_reader: FieldNormReader,
-    similarity_weight: Bm25Weight,
-    scoring_enabled: bool,
+    similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
 }
 
@@ -245,11 +244,11 @@ fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool
 }
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
+    // If similarity_weight is None, then scoring is disabled.
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
-        similarity_weight: Bm25Weight,
+        similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
-        scoring_enabled: bool,
         slop: u32,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
@@ -270,9 +269,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             left: Vec::with_capacity(100),
             right: Vec::with_capacity(100),
             phrase_count: 0u32,
-            similarity_weight,
+            similarity_weight_opt,
             fieldnorm_reader,
-            scoring_enabled,
             slop,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
@@ -286,7 +284,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
-        if self.scoring_enabled {
+        if self.similarity_weight_opt.is_some() {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
             count > 0u32
@@ -388,8 +386,11 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-        self.similarity_weight
-            .score(fieldnorm_id, self.phrase_count)
+        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+            similarity_weight.score(fieldnorm_id, self.phrase_count)
+        } else {
+            1.0f32
+        }
     }
 }
 

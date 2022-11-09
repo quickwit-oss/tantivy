@@ -34,7 +34,7 @@ mod tests {
 
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::fieldnorm::{FieldNormReader, FieldNormsSerializer, FieldNormsWriter};
-    use crate::query::{Query, TermQuery};
+    use crate::query::{EnableScoring, Query, TermQuery};
     use crate::schema::{
         Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
     };
@@ -112,7 +112,7 @@ mod tests {
             Term::from_field_text(text, "hello"),
             IndexRecordOption::WithFreqs,
         );
-        let weight = query.weight(&searcher, true)?;
+        let weight = query.weight(EnableScoring::Enabled(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
@@ -141,7 +141,7 @@ mod tests {
             Term::from_field_text(text, "hello"),
             IndexRecordOption::WithFreqs,
         );
-        let weight = query.weight(&searcher, true)?;
+        let weight = query.weight(EnableScoring::Enabled(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);

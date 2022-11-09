@@ -3,11 +3,11 @@ use std::ops::{Bound, Range};
 
 use common::BitSet;
 
-use crate::core::{Searcher, SegmentReader};
+use crate::core::SegmentReader;
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
 use crate::query::range_query_ip_fastfield::IPFastFieldRangeWeight;
-use crate::query::{BitSetDocSet, ConstScorer, Explanation, Query, Scorer, Weight};
+use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
@@ -253,12 +253,8 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn weight(
-        &self,
-        searcher: &Searcher,
-        _scoring_enabled: bool,
-    ) -> crate::Result<Box<dyn Weight>> {
-        let schema = searcher.schema();
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let schema = enable_scoring.schema();
         let field_type = schema.get_field_entry(self.field).field_type();
         let value_type = field_type.value_type();
         if value_type != self.value_type {
