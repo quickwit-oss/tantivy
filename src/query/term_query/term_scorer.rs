@@ -130,7 +130,7 @@ mod tests {
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
-    use crate::query::{Bm25Weight, Scorer, TermQuery};
+    use crate::query::{Bm25Weight, EnableScoring, Scorer, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
     use crate::{
         assert_nearly_equals, DocId, DocSet, Index, Score, Searcher, SegmentId, Term, TERMINATED,
@@ -250,7 +250,7 @@ mod tests {
     }
 
     fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) -> crate::Result<()> {
-        let term_weight = term_query.specialized_weight(searcher, true)?;
+        let term_weight = term_query.specialized_weight(EnableScoring::Enabled(searcher))?;
         for reader in searcher.segment_readers() {
             let mut block_max_scores = vec![];
             let mut block_max_scores_b = vec![];

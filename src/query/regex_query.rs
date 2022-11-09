@@ -4,9 +4,8 @@ use std::sync::Arc;
 use tantivy_fst::Regex;
 
 use crate::error::TantivyError;
-use crate::query::{AutomatonWeight, Query, Weight};
+use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
 use crate::schema::Field;
-use crate::Searcher;
 
 /// A Regex Query matches all of the documents
 /// containing a specific term that matches
@@ -82,11 +81,7 @@ impl RegexQuery {
 }
 
 impl Query for RegexQuery {
-    fn weight(
-        &self,
-        _searcher: &Searcher,
-        _scoring_enabled: bool,
-    ) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, _enabled_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()))
     }
 }

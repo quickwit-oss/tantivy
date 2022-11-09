@@ -5,9 +5,8 @@ use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use tantivy_fst::Automaton;
 
-use crate::query::{AutomatonWeight, Query, Weight};
+use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
 use crate::schema::Term;
-use crate::Searcher;
 use crate::TantivyError::InvalidArgument;
 
 pub(crate) struct DfaWrapper(pub DFA);
@@ -158,11 +157,7 @@ impl FuzzyTermQuery {
 }
 
 impl Query for FuzzyTermQuery {
-    fn weight(
-        &self,
-        _searcher: &Searcher,
-        _scoring_enabled: bool,
-    ) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, _enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()?))
     }
 }

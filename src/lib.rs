@@ -277,6 +277,8 @@ pub mod fastfield;
 pub mod fieldnorm;
 pub mod positions;
 pub mod postings;
+
+/// Module containing the different query implementations.
 pub mod query;
 pub mod schema;
 pub mod space_usage;

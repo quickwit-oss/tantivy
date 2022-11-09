@@ -15,7 +15,8 @@ mod tests {
     use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        Intersection, Occur, Query, QueryParser, RequiredOptionalScorer, Scorer, TermQuery,
+        EnableScoring, Intersection, Occur, Query, QueryParser, RequiredOptionalScorer, Scorer,
+        TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, Score};
@@ -54,7 +55,7 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("+a")?;
         let searcher = index.reader()?.searcher();
-        let weight = query.weight(&searcher, true)?;
+        let weight = query.weight(EnableScoring::Enabled(&searcher))?;
         let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert!(scorer.is::<TermScorer>());
         Ok(())
@@ -67,13 +68,13 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let query = query_parser.parse_query("+a +b +c")?;
-            let weight = query.weight(&searcher, true)?;
+            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<Intersection<TermScorer>>());
         }
         {
             let query = query_parser.parse_query("+a +(b c)")?;
-            let weight = query.weight(&searcher, true)?;
+            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<Intersection<Box<dyn Scorer>>>());
         }
@@ -87,7 +88,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let query = query_parser.parse_query("+a b")?;
-            let weight = query.weight(&searcher, true)?;
+            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<RequiredOptionalScorer<
                 Box<dyn Scorer>,
@@ -97,7 +98,7 @@ mod tests {
         }
         {
             let query = query_parser.parse_query("+a b")?;
-            let weight = query.weight(&searcher, false)?;
+            let weight = query.weight(EnableScoring::Disabled(searcher.schema()))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<TermScorer>());
         }
@@ -241,7 +242,9 @@ mod tests {
         let searcher = reader.searcher();
         let boolean_query =
             BooleanQuery::new(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
-        let boolean_weight = boolean_query.weight(&searcher, true).unwrap();
+        let boolean_weight = boolean_query
+            .weight(EnableScoring::Enabled(&searcher))
+            .unwrap();
         {
             let mut boolean_scorer = boolean_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert_eq!(boolean_scorer.doc(), 0u32);

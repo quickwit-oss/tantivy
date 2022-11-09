@@ -1,5 +1,3 @@
-//! Query Module
-
 mod all_query;
 mod automaton_weight;
 mod bitset;
@@ -51,7 +49,7 @@ pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_query::PhraseQuery;
-pub use self::query::{Query, QueryClone};
+pub use self::query::{EnableScoring, Query, QueryClone};
 pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;

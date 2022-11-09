@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use crate::collector::Collector;
 use crate::core::{Executor, SegmentReader};
-use crate::query::Query;
+use crate::query::{EnableScoring, Query};
 use crate::schema::{Document, Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
@@ -199,7 +199,12 @@ impl Searcher {
         executor: &Executor,
     ) -> crate::Result<C::Fruit> {
         let scoring_enabled = collector.requires_scoring();
-        let weight = query.weight(self, scoring_enabled)?;
+        let enabled_scoring = if scoring_enabled {
+            EnableScoring::Enabled(self)
+        } else {
+            EnableScoring::Disabled(self.schema())
+        };
+        let weight = query.weight(enabled_scoring)?;
         let segment_readers = self.segment_readers();
         let fruits = executor.map(
             |(segment_ord, segment_reader)| {
