@@ -24,10 +24,11 @@ Tantivy 0.19
   - Add support for keyed parameter in range and histgram aggregations [#1424](https://github.com/quickwit-oss/tantivy/pull/1424) (@k-yomo)
   - Add aggregation bucket limit [#1363](https://github.com/quickwit-oss/tantivy/pull/1363) (@PSeitz)
 - Faster indexing
-  - [#1610](https://github.com/quickwit-oss/tantivy/pull/1610 (@PSeitz)
-  - [#1594](https://github.com/quickwit-oss/tantivy/pull/1594 (@PSeitz)
-  - [#1582](https://github.com/quickwit-oss/tantivy/pull/1582 (@PSeitz)
-  - [#1611](https://github.com/quickwit-oss/tantivy/pull/1611 (@PSeitz)
+  - [#1610](https://github.com/quickwit-oss/tantivy/pull/1610) (@PSeitz)
+  - [#1594](https://github.com/quickwit-oss/tantivy/pull/1594) (@PSeitz)
+  - [#1582](https://github.com/quickwit-oss/tantivy/pull/1582) (@PSeitz)
+  - [#1611](https://github.com/quickwit-oss/tantivy/pull/1611) (@PSeitz)
+  - Added a pre-configured stop word filter for various language [#1666](https://github.com/quickwit-oss/tantivy/pull/1666) (@adamreichold)
 
 Tantivy 0.18
 ================================
