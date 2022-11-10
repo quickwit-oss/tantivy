@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{Schema, FAST, INDEXED, STORED, STRING};
+    use crate::schema::{Schema, FAST, STORED, STRING};
     use crate::Index;
 
     #[derive(Clone, Debug)]
@@ -328,7 +328,7 @@ mod tests {
 
     pub fn create_index_from_docs(docs: &[Doc]) -> Index {
         let mut schema_builder = Schema::builder();
-        let ip_field = schema_builder.add_ip_addr_field("ip", INDEXED | STORED | FAST);
+        let ip_field = schema_builder.add_ip_addr_field("ip", STORED | FAST);
         let text_field = schema_builder.add_text_field("id", STRING | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

@@ -333,7 +333,9 @@ impl QueryParser {
     ) -> Result<Term, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
-        if !field_type.is_indexed() {
+
+        let is_ip_and_fast = field_type.is_ip_addr() && field_type.is_fast();
+        if !field_type.is_indexed() && !is_ip_and_fast {
             return Err(QueryParserError::FieldNotIndexed(
                 field_entry.name().to_string(),
             ));
