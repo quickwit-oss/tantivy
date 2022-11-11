@@ -78,7 +78,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 
     /// Returns the overall number of values in this field.
     #[inline]
-    pub fn total_num_vals(&self) -> u64 {
+    pub fn total_num_vals(&self) -> u32 {
         self.idx_reader.total_num_vals()
     }
 }
@@ -182,9 +182,9 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
 
     /// Returns the overall number of values in this field.
     #[inline]
-    pub fn total_num_vals(&self) -> u64 {
+    pub fn total_num_vals(&self) -> u32 {
         assert_eq!(
-            self.vals_reader.num_vals() as u64,
+            self.vals_reader.num_vals(),
             self.get_index_reader().total_num_vals()
         );
         self.idx_reader.total_num_vals()
