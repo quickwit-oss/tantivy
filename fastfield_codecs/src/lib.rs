@@ -25,7 +25,7 @@ use monotonic_mapping::{
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
 };
 use ownedbytes::OwnedBytes;
-use serialize::Header;
+use serialize::{Header, U128Header};
 
 mod bitpacked;
 mod blockwise_linear;
@@ -92,10 +92,47 @@ impl FastFieldCodecType {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[repr(u8)]
+/// Available codecs to use to encode the u128 (via [`MonotonicallyMappableToU128`]) converted data.
+pub enum U128FastFieldCodecType {
+    /// This codec takes a large number space (u128) and reduces it to a compact number space, by
+    /// removing the holes.
+    CompactSpace = 1,
+}
+
+impl BinarySerializable for U128FastFieldCodecType {
+    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+        self.to_code().serialize(wrt)
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let code = u8::deserialize(reader)?;
+        let codec_type: Self = Self::from_code(code)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
+        Ok(codec_type)
+    }
+}
+
+impl U128FastFieldCodecType {
+    pub(crate) fn to_code(self) -> u8 {
+        self as u8
+    }
+
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
+        match code {
+            1 => Some(Self::CompactSpace),
+            _ => None,
+        }
+    }
+}
+
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open_u128<Item: MonotonicallyMappableToU128>(
-    bytes: OwnedBytes,
+    mut bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
+    let header = U128Header::deserialize(&mut bytes)?;
+    assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
     let reader = CompactSpaceDecompressor::open(bytes)?;
     let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
         StrictlyMonotonicMappingToInternal::<Item>::new().into();

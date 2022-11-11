@@ -35,7 +35,7 @@ use crate::monotonic_mapping::{
 };
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
-    VecColumn, ALL_CODEC_TYPES,
+    U128FastFieldCodecType, VecColumn, ALL_CODEC_TYPES,
 };
 
 /// The normalized header gives some parameters after applying the following
@@ -93,6 +93,29 @@ impl Header {
             min_value,
             max_value,
             gcd,
+            codec_type,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) struct U128Header {
+    pub num_vals: u32,
+    pub codec_type: U128FastFieldCodecType,
+}
+
+impl BinarySerializable for U128Header {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        VInt(self.num_vals as u64).serialize(writer)?;
+        self.codec_type.serialize(writer)?;
+        Ok(())
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let num_vals = VInt::deserialize(reader)?.0 as u32;
+        let codec_type = U128FastFieldCodecType::deserialize(reader)?;
+        Ok(U128Header {
+            num_vals,
             codec_type,
         })
     }
@@ -167,7 +190,11 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     num_vals: u32,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
-    // TODO write header, to later support more codecs
+    let header = U128Header {
+        num_vals,
+        codec_type: U128FastFieldCodecType::CompactSpace,
+    };
+    header.serialize(output)?;
     let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
     compressor.compress_into(iter_gen(), output).unwrap();
 
@@ -257,6 +284,18 @@ pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_serialize_deserialize_u128_header() {
+        let original = U128Header {
+            num_vals: 11,
+            codec_type: U128FastFieldCodecType::CompactSpace,
+        };
+        let mut out = Vec::new();
+        original.serialize(&mut out).unwrap();
+        let restored = U128Header::deserialize(&mut &out[..]).unwrap();
+        assert_eq!(restored, original);
+    }
 
     #[test]
     fn test_serialize_deserialize() {
