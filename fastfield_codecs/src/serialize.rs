@@ -98,7 +98,7 @@ impl Header {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) struct U128Header {
     pub num_vals: u32,
     pub codec_type: U128FastFieldCodecType,
@@ -284,6 +284,18 @@ pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_serialize_deserialize_u128_header() {
+        let original = U128Header {
+            num_vals: 11,
+            codec_type: U128FastFieldCodecType::CompactSpace,
+        };
+        let mut out = Vec::new();
+        original.serialize(&mut out).unwrap();
+        let restored = U128Header::deserialize(&mut &out[..]).unwrap();
+        assert_eq!(restored, original);
+    }
 
     #[test]
     fn test_serialize_deserialize() {
