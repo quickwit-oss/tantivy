@@ -800,7 +800,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::net::Ipv6Addr;
 
-    use fastfield_codecs::MonotonicallyMappableToU128;
+    use fastfield_codecs::{Column, MonotonicallyMappableToU128};
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -1586,6 +1586,25 @@ mod tests {
         (existing_ids, deleted_ids)
     }
 
+    fn get_id_list(ops: &[IndexingOp]) -> Vec<u64> {
+        let mut id_list = Vec::new();
+        for &op in ops {
+            match op {
+                IndexingOp::AddDoc { id } => {
+                    id_list.push(id);
+                }
+                IndexingOp::DeleteDoc { id } => {
+                    id_list.retain(|el| *el != id);
+                }
+                IndexingOp::DeleteDocQuery { id } => {
+                    id_list.retain(|el| *el != id);
+                }
+                _ => {}
+            }
+        }
+        id_list
+    }
+
     fn test_operation_strategy(
         ops: &[IndexingOp],
         sort_index: bool,
@@ -1595,7 +1614,9 @@ mod tests {
         let ip_field = schema_builder.add_ip_addr_field("ip", FAST | INDEXED | STORED);
         let ips_field = schema_builder.add_ip_addr_field(
             "ips",
-            IpAddrOptions::default().set_fast(Cardinality::MultiValues),
+            IpAddrOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_indexed(),
         );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let i64_field = schema_builder.add_i64_field("i64", INDEXED);
@@ -1660,11 +1681,13 @@ mod tests {
         // rotate right
         let multi_text_field_text3 = "test3 test1 test2 test3 test1 test2";
 
+        let ip_from_id = |id| Ipv6Addr::from_u128(id as u128);
+
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
-                    let ip_from_id = Ipv6Addr::from_u128(id as u128);
+                    let ip = ip_from_id(id);
 
                     if !ip_exists(id) {
                         // every 3rd doc has no ip field
@@ -1688,9 +1711,9 @@ mod tests {
                     } else {
                         index_writer.add_document(doc!(id_field=>id,
                                 bytes_field => id.to_le_bytes().as_slice(),
-                                ip_field => ip_from_id,
-                                ips_field => ip_from_id,
-                                ips_field => ip_from_id,
+                                ip_field => ip,
+                                ips_field => ip,
+                                ips_field => ip,
                                 multi_numbers=> id,
                                 multi_numbers => id,
                                 bool_field => (id % 2u64) != 0,
@@ -1733,6 +1756,7 @@ mod tests {
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
+        let num_segments_before_merge = searcher.segment_readers().len();
         if force_end_merge {
             index_writer.wait_merging_threads()?;
             let mut index_writer = index.writer_for_tests()?;
@@ -1744,6 +1768,7 @@ mod tests {
                 assert!(index_writer.wait_merging_threads().is_ok());
             }
         }
+        let num_segments_after_merge = searcher.segment_readers().len();
 
         old_reader.reload()?;
         let old_searcher = old_reader.searcher();
@@ -1771,6 +1796,22 @@ mod tests {
             .collect();
 
         let (expected_ids_and_num_occurrences, deleted_ids) = expected_ids(ops);
+
+        let id_list = get_id_list(ops);
+
+        // multivalue fast field content
+        let mut all_ips = Vec::new();
+        let mut num_ips = 0;
+        for segment_reader in searcher.segment_readers().iter() {
+            let ip_reader = segment_reader.fast_fields().ip_addrs(ips_field).unwrap();
+            for doc in segment_reader.doc_ids_alive() {
+                let mut vals = vec![];
+                ip_reader.get_vals(doc, &mut vals);
+                all_ips.extend_from_slice(&vals);
+            }
+            num_ips += ip_reader.total_num_vals();
+        }
+
         let num_docs_expected = expected_ids_and_num_occurrences
             .iter()
             .map(|(_, id_occurrences)| *id_occurrences as usize)
@@ -1791,6 +1832,30 @@ mod tests {
                 .cloned()
                 .collect::<HashSet<_>>()
         );
+
+        if force_end_merge && num_segments_before_merge > 1 && num_segments_after_merge == 1 {
+            let mut expected_multi_ips: Vec<_> = id_list
+                .iter()
+                .filter(|id| ip_exists(**id))
+                .flat_map(|id| vec![ip_from_id(*id), ip_from_id(*id)])
+                .collect();
+            assert_eq!(num_ips, expected_multi_ips.len() as u32);
+
+            expected_multi_ips.sort();
+            all_ips.sort();
+            assert_eq!(expected_multi_ips, all_ips);
+
+            // Test fastfield num_docs
+            let num_docs: usize = searcher
+                .segment_readers()
+                .iter()
+                .map(|segment_reader| {
+                    let ff_reader = segment_reader.fast_fields().ip_addrs(ips_field).unwrap();
+                    ff_reader.num_docs() as usize
+                })
+                .sum();
+            assert_eq!(num_docs, num_docs_expected);
+        }
 
         // Load all ips addr
         let ips: HashSet<Ipv6Addr> = searcher
@@ -1995,6 +2060,51 @@ mod tests {
                 assert_eq!(do_search_ip_field(&format!("\"{}\"", ip_addr)), count);
             }
         }
+
+        // assert data is like expected
+        //
+        for (existing_id, count) in expected_ids_and_num_occurrences.iter().take(10) {
+            let (existing_id, count) = (*existing_id, *count);
+            if !ip_exists(existing_id) {
+                continue;
+            }
+            let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
+                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+            };
+            let ip = ip_from_id(existing_id);
+
+            let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
+            // Range query on single value field
+            // let query = gen_query_inclusive("ip", ip, ip);
+            // assert_eq!(do_search_ip_field(&query), count);
+
+            // Range query on multi value field
+            let query = gen_query_inclusive("ips", ip, ip);
+            assert_eq!(do_search_ip_field(&query), count);
+        }
+
+        // ip range query on fast field
+        //
+        for (existing_id, count) in expected_ids_and_num_occurrences.iter().take(10) {
+            let (existing_id, count) = (*existing_id, *count);
+            if !ip_exists(existing_id) {
+                continue;
+            }
+            let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
+                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+            };
+            let ip = ip_from_id(existing_id);
+
+            let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
+            // Range query on single value field
+            // let query = gen_query_inclusive("ip", ip, ip);
+            // assert_eq!(do_search_ip_field(&query), count);
+
+            // Range query on multi value field
+            let query = gen_query_inclusive("ips", ip, ip);
+            assert_eq!(do_search_ip_field(&query), count);
+        }
+
         // test facets
         for segment_reader in searcher.segment_readers().iter() {
             let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
@@ -2017,6 +2127,40 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_range_query_multivalue_bug() {
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::AddDoc { id: 2 },
+                IndexingOp::Commit,
+                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::Commit,
+                IndexingOp::Merge
+            ],
+            true,
+            false
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_ff_num_ips_regression() {
+        assert!(test_operation_strategy(
+            &[
+                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::Commit,
+                IndexingOp::DeleteDocQuery { id: 13 },
+                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::Commit,
+            ],
+            false,
+            true
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn test_minimal() {
         assert!(test_operation_strategy(
             &[
@@ -2025,7 +2169,7 @@ mod tests {
                 IndexingOp::DeleteDoc { id: 13 }
             ],
             true,
-            false
+            true
         )
         .is_ok());
 

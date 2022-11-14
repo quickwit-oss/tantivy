@@ -255,7 +255,7 @@ mod tests {
                 .map(|(pos, _)| pos as u32)
                 .collect();
             let mut positions = Vec::new();
-            reader.get_positions_for_value_range(
+            reader.get_docids_for_value_range(
                 data[test_rand_idx]..=data[test_rand_idx],
                 0..data.len() as u32,
                 &mut positions,

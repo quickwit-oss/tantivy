@@ -47,12 +47,23 @@ impl Weight for IPFastFieldRangeWeight {
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
-                    ip_addr_fast_field.as_ref(),
+                    ip_addr_fast_field.min_value(),
+                    ip_addr_fast_field.max_value(),
                 );
-                let docset = IpRangeDocSet::new(value_range, ip_addr_fast_field);
+                let docset = IpRangeDocSet::new(value_range, ip_addr_fast_field, false);
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
-            Cardinality::MultiValues => unimplemented!(),
+            Cardinality::MultiValues => {
+                let ip_addr_fast_field = reader.fast_fields().ip_addrs(self.field)?;
+                let value_range = bound_to_value_range(
+                    &self.left_bound,
+                    &self.right_bound,
+                    ip_addr_fast_field.min_value(),
+                    ip_addr_fast_field.max_value(),
+                );
+                let docset = IpRangeDocSet::new(value_range, Arc::new(ip_addr_fast_field), true);
+                Ok(Box::new(ConstScorer::new(docset, boost)))
+            }
         }
     }
 
@@ -73,18 +84,19 @@ impl Weight for IPFastFieldRangeWeight {
 fn bound_to_value_range(
     left_bound: &Bound<Ipv6Addr>,
     right_bound: &Bound<Ipv6Addr>,
-    column: &dyn Column<Ipv6Addr>,
+    min_value: Ipv6Addr,
+    max_value: Ipv6Addr,
 ) -> RangeInclusive<Ipv6Addr> {
     let start_value = match left_bound {
         Bound::Included(ip_addr) => *ip_addr,
         Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() + 1),
-        Bound::Unbounded => column.min_value(),
+        Bound::Unbounded => min_value,
     };
 
     let end_value = match right_bound {
         Bound::Included(ip_addr) => *ip_addr,
         Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() - 1),
-        Bound::Unbounded => column.max_value(),
+        Bound::Unbounded => max_value,
     };
     start_value..=end_value
 }
@@ -109,13 +121,14 @@ impl VecCursor {
     fn current(&self) -> Option<u32> {
         self.docs.get(self.current_pos).map(|el| *el as u32)
     }
-
     fn get_cleared_data(&mut self) -> &mut Vec<u32> {
         self.docs.clear();
         self.current_pos = 0;
         &mut self.docs
     }
-
+    fn last_value(&self) -> Option<u32> {
+        self.docs.iter().last().cloned()
+    }
     fn is_empty(&self) -> bool {
         self.current_pos >= self.docs.len()
     }
@@ -139,21 +152,25 @@ struct IpRangeDocSet {
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,
     last_seek_pos_opt: Option<u32>,
+    /// If fast field is multivalue.
+    is_multivalue: bool,
 }
 
-const DEFALT_FETCH_HORIZON: u32 = 128;
+const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl IpRangeDocSet {
     fn new(
         value_range: RangeInclusive<Ipv6Addr>,
         ip_addr_fast_field: Arc<dyn Column<Ipv6Addr>>,
+        is_multivalue: bool,
     ) -> Self {
         let mut ip_range_docset = Self {
             value_range,
             ip_addr_fast_field,
             loaded_docs: VecCursor::new(),
             next_fetch_start: 0,
-            fetch_horizon: DEFALT_FETCH_HORIZON,
+            fetch_horizon: DEFAULT_FETCH_HORIZON,
             last_seek_pos_opt: None,
+            is_multivalue,
         };
         ip_range_docset.reset_fetch_range();
         ip_range_docset.fetch_block();
@@ -161,7 +178,7 @@ impl IpRangeDocSet {
     }
 
     fn reset_fetch_range(&mut self) {
-        self.fetch_horizon = DEFALT_FETCH_HORIZON;
+        self.fetch_horizon = DEFAULT_FETCH_HORIZON;
     }
 
     /// Returns true if more data could be fetched
@@ -190,19 +207,30 @@ impl IpRangeDocSet {
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.ip_addr_fast_field.num_vals();
+        let limit = self.ip_addr_fast_field.num_docs();
         let mut end = self.next_fetch_start + horizon;
         if end >= limit {
             end = limit;
             finished_to_end = true;
         }
 
-        let data = self.loaded_docs.get_cleared_data();
-        self.ip_addr_fast_field.get_positions_for_value_range(
+        let last_loaded_docs_val = self
+            .is_multivalue
+            .then(|| self.loaded_docs.last_value())
+            .flatten();
+
+        let loaded_docs_data = self.loaded_docs.get_cleared_data();
+        self.ip_addr_fast_field.get_docids_for_value_range(
             self.value_range.clone(),
             self.next_fetch_start..end,
-            data,
+            loaded_docs_data,
         );
+        // In case of multivalues, we may have an overlap of the same docid between fetching blocks
+        if let Some(last_value) = last_loaded_docs_val {
+            while self.loaded_docs.current() == Some(last_value) {
+                self.loaded_docs.next();
+            }
+        }
         self.next_fetch_start = end;
         finished_to_end
     }
@@ -214,7 +242,7 @@ impl DocSet for IpRangeDocSet {
         if let Some(docid) = self.loaded_docs.next() {
             docid as u32
         } else {
-            if self.next_fetch_start >= self.ip_addr_fast_field.num_vals() as u32 {
+            if self.next_fetch_start >= self.ip_addr_fast_field.num_docs() as u32 {
                 return TERMINATED;
             }
             self.fetch_block();
@@ -269,7 +297,7 @@ mod tests {
     use super::*;
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{Schema, FAST, STORED, STRING};
+    use crate::schema::{IpAddrOptions, Schema, FAST, STORED, STRING};
     use crate::Index;
 
     #[derive(Clone, Debug)]
@@ -280,12 +308,13 @@ mod tests {
 
     fn operation_strategy() -> impl Strategy<Value = Doc> {
         prop_oneof![
-            (0u64..100u64).prop_map(doc_from_id_1),
-            (1u64..100u64).prop_map(doc_from_id_2),
+            (0u64..10_000u64).prop_map(doc_from_id_1),
+            (1u64..10_000u64).prop_map(doc_from_id_2),
         ]
     }
 
     pub fn doc_from_id_1(id: u64) -> Doc {
+        let id = id * 1000;
         Doc {
             // ip != id
             id: id.to_string(),
@@ -293,6 +322,7 @@ mod tests {
         }
     }
     fn doc_from_id_2(id: u64) -> Doc {
+        let id = id * 1000;
         Doc {
             // ip != id
             id: (id - 1).to_string(),
@@ -310,6 +340,12 @@ mod tests {
 
     #[test]
     fn ip_range_regression1_test() {
+        let ops = vec![doc_from_id_1(0)];
+        assert!(test_ip_range_for_docs(ops).is_ok());
+    }
+
+    #[test]
+    fn ip_range_regression2_test() {
         let ops = vec![
             doc_from_id_1(52),
             doc_from_id_1(63),
@@ -321,14 +357,20 @@ mod tests {
     }
 
     #[test]
-    fn ip_range_regression2_test() {
-        let ops = vec![doc_from_id_1(0)];
+    fn ip_range_regression3_test() {
+        let ops = vec![doc_from_id_1(1), doc_from_id_1(2), doc_from_id_1(3)];
         assert!(test_ip_range_for_docs(ops).is_ok());
     }
 
     pub fn create_index_from_docs(docs: &[Doc]) -> Index {
         let mut schema_builder = Schema::builder();
         let ip_field = schema_builder.add_ip_addr_field("ip", STORED | FAST);
+        let ips_field = schema_builder.add_ip_addr_field(
+            "ips",
+            IpAddrOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_indexed(),
+        );
         let text_field = schema_builder.add_text_field("id", STRING | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -338,6 +380,8 @@ mod tests {
             for doc in docs.iter() {
                 index_writer
                     .add_document(doc!(
+                        ips_field => doc.ip,
+                        ips_field => doc.ip,
                         ip_field => doc.ip,
                         text_field => doc.id.to_string(),
                     ))
@@ -361,8 +405,8 @@ mod tests {
                 .unwrap()
         };
 
-        let gen_query_inclusive = |from: Ipv6Addr, to: Ipv6Addr| {
-            format!("ip:[{} TO {}]", &from.to_string(), &to.to_string())
+        let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
+            format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
         };
 
         let test_sample = |sample_docs: Vec<Doc>| {
@@ -373,7 +417,10 @@ mod tests {
                 .filter(|doc| (ips[0]..=ips[1]).contains(&doc.ip))
                 .count();
 
-            let query = gen_query_inclusive(ips[0], ips[1]);
+            let query = gen_query_inclusive("ip", ips[0], ips[1]);
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            let query = gen_query_inclusive("ips", ips[0], ips[1]);
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
             // Intersection search
@@ -382,7 +429,20 @@ mod tests {
                 .iter()
                 .filter(|doc| (ips[0]..=ips[1]).contains(&doc.ip) && doc.id == id_filter)
                 .count();
-            let query = format!("{} AND id:{}", query, &id_filter);
+            let query = format!(
+                "{} AND id:{}",
+                gen_query_inclusive("ip", ips[0], ips[1]),
+                &id_filter
+            );
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            // Intersection search on multivalue ip field
+            let id_filter = sample_docs[0].id.to_string();
+            let query = format!(
+                "{} AND id:{}",
+                gen_query_inclusive("ips", ips[0], ips[1]),
+                &id_filter
+            );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
         };
 
@@ -402,7 +462,8 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use rand::{thread_rng, Rng};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test::Bencher;
 
     use super::tests::*;
@@ -412,7 +473,7 @@ mod bench {
     use crate::Index;
 
     fn get_index_0_to_100() -> Index {
-        let mut rng = thread_rng();
+        let mut rng = StdRng::from_seed([1u8; 32]);
         let num_vals = 100_000;
         let docs: Vec<_> = (0..num_vals)
             .map(|_i| {
@@ -424,8 +485,10 @@ mod bench {
                     "many".to_string() // 90%
                 };
                 Doc {
-                    id: id,
+                    id,
                     // Multiply by 1000, so that we create many buckets in the compact space
+                    // The benches depend on this range to select n-percent of elements with the
+                    // methods below.
                     ip: Ipv6Addr::from_u128(rng.gen_range(0..100) * 1000),
                 }
             })
@@ -434,22 +497,42 @@ mod bench {
         let index = create_index_from_docs(&docs);
         index
     }
+
+    fn get_90_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(0);
+        let end = Ipv6Addr::from_u128(90 * 1000);
+        start..=end
+    }
+
+    fn get_10_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(0);
+        let end = Ipv6Addr::from_u128(10 * 1000);
+        start..=end
+    }
+
+    fn get_1_percent() -> RangeInclusive<Ipv6Addr> {
+        let start = Ipv6Addr::from_u128(10 * 1000);
+        let end = Ipv6Addr::from_u128(10 * 1000);
+        start..=end
+    }
+
     fn excute_query(
-        start_inclusive: Ipv6Addr,
-        end_inclusive: Ipv6Addr,
+        field: &str,
+        ip_range: RangeInclusive<Ipv6Addr>,
         suffix: &str,
         index: &Index,
     ) -> usize {
-        let gen_query_inclusive = |from: Ipv6Addr, to: Ipv6Addr| {
+        let gen_query_inclusive = |from: &Ipv6Addr, to: &Ipv6Addr| {
             format!(
-                "ip:[{} TO {}] {}",
+                "{}:[{} TO {}] {}",
+                field,
                 &from.to_string(),
                 &to.to_string(),
                 suffix
             )
         };
 
-        let query = gen_query_inclusive(start_inclusive, end_inclusive);
+        let query = gen_query_inclusive(ip_range.start(), ip_range.end());
         let query_from_text = |text: &str| {
             QueryParser::for_index(&index, vec![])
                 .parse_query(text)
@@ -465,131 +548,153 @@ mod bench {
     fn bench_ip_range_hit_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query(start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(10 * 1000);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "AND id:veryfew", &index)
-        });
+        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(10 * 1000);
-
-            excute_query(start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query(start, end, "AND id:many", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
-
-            excute_query(start, end, "AND id:few", &index)
-        });
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| {
-            let start = Ipv6Addr::from_u128(0);
-            let end = Ipv6Addr::from_u128(90 * 1000);
+        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:veryfew", &index));
+    }
 
-            excute_query(start, end, "AND id:veryfew", &index)
-        });
+    #[bench]
+    fn bench_ip_range_hit_90_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_90_percent(), "", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_10_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_10_percent(), "", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_1_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_1_percent(), "", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_10_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:few", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_1_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:few", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:many", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_1_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:veryfew", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_10_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:many", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_90_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:many", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_90_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:few", &index));
+    }
+
+    #[bench]
+    fn bench_ip_range_hit_90_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
+        let index = get_index_0_to_100();
+
+        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:veryfew", &index));
     }
 }

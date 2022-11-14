@@ -14,6 +14,7 @@ use crate::DocId;
 /// The `vals_reader` will access the concatenated list of all
 /// values for all reader.
 /// The `idx_reader` associated, for each document, the index of its first value.
+/// Stores the start position for each document.
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
     idx_reader: MultiValueIndex,
@@ -138,19 +139,6 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         self.get_vals_for_range(range, vals);
     }
 
-    /// Returns all docids which are in the provided value range
-    pub fn get_positions_for_value_range(
-        &self,
-        value_range: RangeInclusive<T>,
-        doc_id_range: Range<u32>,
-    ) -> Vec<DocId> {
-        let mut positions = Vec::new();
-        self.vals_reader
-            .get_positions_for_value_range(value_range, doc_id_range, &mut positions);
-
-        self.idx_reader.positions_to_docids(0, &positions)
-    }
-
     /// Iterates over all elements in the fast field
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         self.vals_reader.iter()
@@ -180,7 +168,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         self.idx_reader.num_vals_for_doc(doc)
     }
 
-    /// Returns the overall number of values in this field.
+    /// Returns the overall number of values in this field. It does not include deletes.
     #[inline]
     pub fn total_num_vals(&self) -> u32 {
         assert_eq!(
@@ -188,6 +176,46 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
             self.get_index_reader().total_num_vals()
         );
         self.idx_reader.total_num_vals()
+    }
+}
+
+// TODO having something that looks like MultiColumn trait.
+// See discussion in #1679
+impl<T: MonotonicallyMappableToU128> Column<T> for MultiValuedU128FastFieldReader<T> {
+    fn get_val(&self, _idx: u32) -> T {
+        panic!("calling get_val on a multivalue field indicates a bug")
+    }
+
+    fn min_value(&self) -> T {
+        (self as &MultiValuedU128FastFieldReader<T>).min_value()
+    }
+
+    fn max_value(&self) -> T {
+        (self as &MultiValuedU128FastFieldReader<T>).max_value()
+    }
+
+    fn num_vals(&self) -> u32 {
+        self.total_num_vals() as u32
+    }
+
+    fn num_docs(&self) -> u32 {
+        self.get_index_reader().num_docs()
+    }
+
+    #[inline]
+    fn get_docids_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        let position_range = self
+            .get_index_reader()
+            .docid_range_to_position_range(doc_id_range.clone());
+        self.vals_reader
+            .get_docids_for_value_range(value_range, position_range, positions);
+
+        self.idx_reader.positions_to_docids(doc_id_range, positions);
     }
 }
 
