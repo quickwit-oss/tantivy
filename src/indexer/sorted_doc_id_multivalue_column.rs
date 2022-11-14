@@ -117,7 +117,7 @@ impl<'a> RemappedDocIdMultiValueIndexColumn<'a> {
             let segment_reader = segment_and_ff_reader.0;
             let multi_value_length_reader = segment_and_ff_reader.1;
             if !segment_reader.has_deletes() {
-                max_value += multi_value_length_reader.total_num_vals();
+                max_value += multi_value_length_reader.total_num_vals() as u64;
             } else {
                 for doc in segment_reader.doc_ids_alive() {
                     max_value += multi_value_length_reader.num_vals_for_doc(doc) as u64;

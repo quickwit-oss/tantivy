@@ -34,8 +34,8 @@ impl MultiValueIndex {
 
     /// Returns the overall number of values in this field.
     #[inline]
-    pub fn total_num_vals(&self) -> u64 {
-        self.idx.max_value()
+    pub fn total_num_vals(&self) -> u32 {
+        self.idx.max_value() as u32
     }
 
     /// Returns the number of documents in the index.

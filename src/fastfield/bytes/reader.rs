@@ -52,7 +52,7 @@ impl BytesFastFieldReader {
     }
 
     /// Returns the overall number of bytes in this bytes fast field.
-    pub fn total_num_bytes(&self) -> u64 {
-        self.values.len() as u64
+    pub fn total_num_bytes(&self) -> u32 {
+        self.values.len() as u32
     }
 }
