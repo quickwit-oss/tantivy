@@ -230,6 +230,18 @@ impl InvertedIndexReader {
         Ok(())
     }
 
+    /// Read the block postings for all terms.
+    /// This method is for an advanced usage only.
+    ///
+    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] instead.
+    pub async fn warm_postings_full(&self, with_positions: bool) -> crate::AsyncIoResult<()> {
+        self.postings_file_slice.read_bytes_async().await?;
+        if with_positions {
+            self.positions_file_slice.read_bytes_async().await?;
+        }
+        Ok(())
+    }
+
     /// Returns the number of documents containing the term asynchronously.
     pub async fn doc_freq_async(&self, term: &Term) -> crate::AsyncIoResult<u32> {
         Ok(self
