@@ -108,6 +108,22 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         }
     }
 
+    #[inline]
+    fn get_docids_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        let position_range = self
+            .get_index_reader()
+            .docid_range_to_position_range(doc_id_range.clone());
+        self.vals_reader
+            .get_docids_for_value_range(value_range, position_range, positions);
+
+        self.idx_reader.positions_to_docids(doc_id_range, positions);
+    }
+
     /// Returns the array of values associated to the given `doc`.
     #[inline]
     pub fn get_first_val(&self, doc: DocId) -> Option<T> {
@@ -176,44 +192,6 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
             self.get_index_reader().total_num_vals()
         );
         self.idx_reader.total_num_vals()
-    }
-}
-
-impl<T: MonotonicallyMappableToU128> Column<T> for MultiValuedU128FastFieldReader<T> {
-    fn get_val(&self, _idx: u32) -> T {
-        panic!("calling get_val on a multivalue field indicates a bug")
-    }
-
-    fn min_value(&self) -> T {
-        (self as &MultiValuedU128FastFieldReader<T>).min_value()
-    }
-
-    fn max_value(&self) -> T {
-        (self as &MultiValuedU128FastFieldReader<T>).max_value()
-    }
-
-    fn num_vals(&self) -> u32 {
-        self.total_num_vals() as u32
-    }
-
-    fn num_docs(&self) -> u32 {
-        self.get_index_reader().num_docs()
-    }
-
-    #[inline]
-    fn get_docids_for_value_range(
-        &self,
-        value_range: RangeInclusive<T>,
-        doc_id_range: Range<u32>,
-        positions: &mut Vec<u32>,
-    ) {
-        let position_range = self
-            .get_index_reader()
-            .docid_range_to_position_range(doc_id_range.clone());
-        self.vals_reader
-            .get_docids_for_value_range(value_range, position_range, positions);
-
-        self.idx_reader.positions_to_docids(doc_id_range, positions);
     }
 }
 
