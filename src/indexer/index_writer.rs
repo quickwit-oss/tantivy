@@ -1839,7 +1839,7 @@ mod tests {
                 .filter(|id| ip_exists(**id))
                 .flat_map(|id| vec![ip_from_id(*id), ip_from_id(*id)])
                 .collect();
-            assert_eq!(num_ips, expected_multi_ips.len() as u64);
+            assert_eq!(num_ips, expected_multi_ips.len() as u32);
 
             expected_multi_ips.sort();
             all_ips.sort();

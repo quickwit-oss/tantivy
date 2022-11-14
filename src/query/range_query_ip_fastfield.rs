@@ -297,7 +297,7 @@ mod tests {
     use super::*;
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{Schema, FAST, STORED, STRING};
+    use crate::schema::{IpAddrOptions, Schema, FAST, STORED, STRING};
     use crate::Index;
 
     #[derive(Clone, Debug)]

@@ -179,7 +179,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
     }
 }
 
-// TODO having something that looks like MultiColumn trait. 
+// TODO having something that looks like MultiColumn trait.
 // See discussion in #1679
 impl<T: MonotonicallyMappableToU128> Column<T> for MultiValuedU128FastFieldReader<T> {
     fn get_val(&self, _idx: u32) -> T {

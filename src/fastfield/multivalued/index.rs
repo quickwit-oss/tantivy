@@ -34,9 +34,9 @@ impl MultiValueIndex {
     /// have values, this function returns `start..end`
     /// such that `value_column.get(start_doc)` is the first value of
     /// `start_doc` (well, if there is one), and `value_column.get(end_doc - 1)`
-    /// is the last value of `end_doc`. 
+    /// is the last value of `end_doc`.
     ///
-    /// The passed end range is allowed to be out of bounds, in which case 
+    /// The passed end range is allowed to be out of bounds, in which case
     /// it will be clipped to make it valid.
     #[inline]
     pub(crate) fn docid_range_to_position_range(&self, range: Range<DocId>) -> Range<u32> {
