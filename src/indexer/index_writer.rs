@@ -800,7 +800,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::net::Ipv6Addr;
 
-    use fastfield_codecs::{Column, MonotonicallyMappableToU128};
+    use fastfield_codecs::MonotonicallyMappableToU128;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -1851,7 +1851,7 @@ mod tests {
                 .iter()
                 .map(|segment_reader| {
                     let ff_reader = segment_reader.fast_fields().ip_addrs(ips_field).unwrap();
-                    ff_reader.num_docs() as usize
+                    ff_reader.get_index_reader().num_docs() as usize
                 })
                 .sum();
             assert_eq!(num_docs, num_docs_expected);
