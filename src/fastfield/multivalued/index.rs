@@ -26,10 +26,18 @@ impl MultiValueIndex {
         start..end
     }
 
-    /// Returns `[start, end)`, such that the values associated with
-    /// the given documents are `start..end`.
+    /// Given a range of documents, returns the Range of value offsets fo
+    /// these documents.
     ///
-    /// The passed end range is allowed to be out of bounds.
+    /// For instance, `given start_doc..end_doc`,
+    /// if we assume Document #start_doc end #end_doc both
+    /// have values, this function returns `start..end`
+    /// such that `value_column.get(start_doc)` is the first value of
+    /// `start_doc` (well, if there is one), and `value_column.get(end_doc - 1)`
+    /// is the last value of `end_doc`. 
+    ///
+    /// The passed end range is allowed to be out of bounds, in which case 
+    /// it will be clipped to make it valid.
     #[inline]
     pub(crate) fn docid_range_to_position_range(&self, range: Range<DocId>) -> Range<u32> {
         let end_docid = range.end.min(self.num_docs() - 1) + 1;
