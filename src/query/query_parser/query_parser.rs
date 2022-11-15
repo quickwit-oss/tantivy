@@ -1062,6 +1062,28 @@ mod test {
         );
     }
 
+    fn extract_query_term_json_path(query: &str) -> String {
+        let LogicalAst::Leaf(literal) = parse_query_to_logical_ast(query, false).unwrap() else {
+            panic!();
+        };
+        let LogicalLiteral::Term(term) = *literal else {
+            panic!();
+        };
+        std::str::from_utf8(term.value_bytes()).unwrap().to_string()
+    }
+
+    #[test]
+    fn test_json_field_query_with_espaced_dot() {
+        assert_eq!(
+            extract_query_term_json_path(r#"json.k8s.node.name:hello"#),
+            "k8s\u{1}node\u{1}name\0shello"
+        );
+        assert_eq!(
+            extract_query_term_json_path(r#"json.k8s\.node\.name:hello"#),
+            "k8s.node.name\0shello"
+        );
+    }
+
     #[test]
     fn test_json_field_possibly_a_number() {
         test_parse_query_to_logical_ast_helper(

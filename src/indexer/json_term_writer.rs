@@ -261,6 +261,39 @@ pub struct JsonTermWriter<'a> {
     path_stack: Vec<usize>,
 }
 
+/// Splits a json path supplied to the query parser in such a way that
+/// `.` can be escaped.
+///
+/// In other words,
+/// - `k8s.node` ends up as `["k8s", "node"]`.
+/// - `k8s\.node` ends up as `["k8s.node"]`.
+fn split_json_path(json_path: &str) -> Vec<String> {
+    let mut escaped_state: bool = false;
+    let mut json_path_segments = Vec::new();
+    let mut buffer = String::new();
+    for ch in json_path.chars() {
+        if escaped_state {
+            buffer.push(ch);
+            escaped_state = false;
+            continue;
+        }
+        match ch {
+            '\\' => {
+                escaped_state = true;
+            }
+            '.' => {
+                let new_segment = std::mem::take(&mut buffer);
+                json_path_segments.push(new_segment);
+            }
+            _ => {
+                buffer.push(ch);
+            }
+        }
+    }
+    json_path_segments.push(buffer);
+    json_path_segments
+}
+
 impl<'a> JsonTermWriter<'a> {
     pub fn from_field_and_json_path(
         field: Field,
@@ -269,8 +302,8 @@ impl<'a> JsonTermWriter<'a> {
     ) -> Self {
         term_buffer.set_field_and_type(field, Type::Json);
         let mut json_term_writer = Self::wrap(term_buffer);
-        for segment in json_path.split('.') {
-            json_term_writer.push_path_segment(segment);
+        for segment in split_json_path(json_path) {
+            json_term_writer.push_path_segment(&segment);
         }
         json_term_writer
     }
@@ -350,7 +383,7 @@ impl<'a> JsonTermWriter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::JsonTermWriter;
+    use super::{split_json_path, JsonTermWriter};
     use crate::schema::{Field, Type};
     use crate::Term;
 
@@ -494,5 +527,49 @@ mod tests {
         assert_eq!(json_writer.path(), b"color\x01hue");
         json_writer.set_str("pink");
         assert_eq!(json_writer.path(), b"color\x01hue");
+    }
+
+    #[test]
+    fn test_split_json_path_simple() {
+        let json_path = split_json_path("titi.toto");
+        assert_eq!(&json_path, &["titi", "toto"]);
+    }
+
+    #[test]
+    fn test_split_json_path_single_segment() {
+        let json_path = split_json_path("toto");
+        assert_eq!(&json_path, &["toto"]);
+    }
+
+    #[test]
+    fn test_split_json_path_trailing_dot() {
+        let json_path = split_json_path("toto.");
+        assert_eq!(&json_path, &["toto", ""]);
+    }
+
+    #[test]
+    fn test_split_json_path_heading_dot() {
+        let json_path = split_json_path(".toto");
+        assert_eq!(&json_path, &["", "toto"]);
+    }
+
+    #[test]
+    fn test_split_json_path_escaped_dot() {
+        let json_path = split_json_path(r#"toto\.titi"#);
+        assert_eq!(&json_path, &["toto.titi"]);
+        let json_path_2 = split_json_path(r#"k8s\.container\.name"#);
+        assert_eq!(&json_path_2, &["k8s.container.name"]);
+    }
+
+    #[test]
+    fn test_split_json_path_escaped_backslash() {
+        let json_path = split_json_path(r#"toto\\titi"#);
+        assert_eq!(&json_path, &[r#"toto\titi"#]);
+    }
+
+    #[test]
+    fn test_split_json_path_escaped_normal_letter() {
+        let json_path = split_json_path(r#"toto\titi"#);
+        assert_eq!(&json_path, &[r#"tototiti"#]);
     }
 }
