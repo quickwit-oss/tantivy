@@ -11,6 +11,7 @@ use fastfield_codecs::{Column, MonotonicallyMappableToU128};
 
 use super::range_query::map_bound;
 use super::{ConstScorer, Explanation, Scorer, Weight};
+use crate::fastfield::MultiValuedU128FastFieldReader;
 use crate::schema::{Cardinality, Field};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, TERMINATED};
 
@@ -50,7 +51,10 @@ impl Weight for IPFastFieldRangeWeight {
                     ip_addr_fast_field.min_value(),
                     ip_addr_fast_field.max_value(),
                 );
-                let docset = IpRangeDocSet::new(value_range, ip_addr_fast_field, false);
+                let docset = IpRangeDocSet::new(
+                    value_range,
+                    IpFastFieldCardinality::SingleValue(ip_addr_fast_field),
+                );
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
             Cardinality::MultiValues => {
@@ -61,7 +65,10 @@ impl Weight for IPFastFieldRangeWeight {
                     ip_addr_fast_field.min_value(),
                     ip_addr_fast_field.max_value(),
                 );
-                let docset = IpRangeDocSet::new(value_range, Arc::new(ip_addr_fast_field), true);
+                let docset = IpRangeDocSet::new(
+                    value_range,
+                    IpFastFieldCardinality::MultiValue(ip_addr_fast_field),
+                );
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
         }
@@ -134,10 +141,26 @@ impl VecCursor {
     }
 }
 
+pub(crate) enum IpFastFieldCardinality {
+    SingleValue(Arc<dyn Column<Ipv6Addr>>),
+    MultiValue(MultiValuedU128FastFieldReader<Ipv6Addr>),
+}
+
+impl IpFastFieldCardinality {
+    fn num_docs(&self) -> u32 {
+        match self {
+            IpFastFieldCardinality::SingleValue(single_value) => single_value.num_vals(),
+            IpFastFieldCardinality::MultiValue(multi_value) => {
+                multi_value.get_index_reader().num_docs()
+            }
+        }
+    }
+}
+
 struct IpRangeDocSet {
     /// The range filter on the values.
     value_range: RangeInclusive<Ipv6Addr>,
-    ip_addr_fast_field: Arc<dyn Column<Ipv6Addr>>,
+    ip_addr_fast_field: IpFastFieldCardinality,
     /// The next docid start range to fetch (inclusive).
     next_fetch_start: u32,
     /// Number of docs range checked in a batch.
@@ -152,16 +175,13 @@ struct IpRangeDocSet {
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,
     last_seek_pos_opt: Option<u32>,
-    /// If fast field is multivalue.
-    is_multivalue: bool,
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl IpRangeDocSet {
     fn new(
         value_range: RangeInclusive<Ipv6Addr>,
-        ip_addr_fast_field: Arc<dyn Column<Ipv6Addr>>,
-        is_multivalue: bool,
+        ip_addr_fast_field: IpFastFieldCardinality,
     ) -> Self {
         let mut ip_range_docset = Self {
             value_range,
@@ -170,7 +190,6 @@ impl IpRangeDocSet {
             next_fetch_start: 0,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
             last_seek_pos_opt: None,
-            is_multivalue,
         };
         ip_range_docset.reset_fetch_range();
         ip_range_docset.fetch_block();
@@ -214,24 +233,33 @@ impl IpRangeDocSet {
             finished_to_end = true;
         }
 
-        let last_loaded_docs_val = self
-            .is_multivalue
-            .then(|| self.loaded_docs.last_value())
-            .flatten();
+        match &self.ip_addr_fast_field {
+            IpFastFieldCardinality::MultiValue(multi) => {
+                let last_value = self.loaded_docs.last_value();
 
-        let loaded_docs_data = self.loaded_docs.get_cleared_data();
-        self.ip_addr_fast_field.get_docids_for_value_range(
-            self.value_range.clone(),
-            self.next_fetch_start..end,
-            loaded_docs_data,
-        );
-        // In case of multivalues, we may have an overlap of the same docid between fetching blocks
-        if let Some(last_value) = last_loaded_docs_val {
-            while self.loaded_docs.current() == Some(last_value) {
-                self.loaded_docs.next();
+                multi.get_docids_for_value_range(
+                    self.value_range.clone(),
+                    self.next_fetch_start..end,
+                    self.loaded_docs.get_cleared_data(),
+                );
+                // In case of multivalues, we may have an overlap of the same docid between fetching
+                // blocks
+                if let Some(last_value) = last_value {
+                    while self.loaded_docs.current() == Some(last_value) {
+                        self.loaded_docs.next();
+                    }
+                }
+            }
+            IpFastFieldCardinality::SingleValue(single) => {
+                single.get_docids_for_value_range(
+                    self.value_range.clone(),
+                    self.next_fetch_start..end,
+                    self.loaded_docs.get_cleared_data(),
+                );
             }
         }
         self.next_fetch_start = end;
+
         finished_to_end
     }
 }

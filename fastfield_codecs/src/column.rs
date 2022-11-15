@@ -70,11 +70,6 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
     /// The number of values in the column.
     fn num_vals(&self) -> u32;
 
-    /// The number of docs in the column. For single value columns this equals num_vals.
-    fn num_docs(&self) -> u32 {
-        self.num_vals()
-    }
-
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))

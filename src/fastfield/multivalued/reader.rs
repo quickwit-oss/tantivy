@@ -177,33 +177,10 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
         );
         self.idx_reader.total_num_vals()
     }
-}
 
-// TODO having something that looks like MultiColumn trait.
-// See discussion in #1679
-impl<T: MonotonicallyMappableToU128> Column<T> for MultiValuedU128FastFieldReader<T> {
-    fn get_val(&self, _idx: u32) -> T {
-        panic!("calling get_val on a multivalue field indicates a bug")
-    }
-
-    fn min_value(&self) -> T {
-        (self as &MultiValuedU128FastFieldReader<T>).min_value()
-    }
-
-    fn max_value(&self) -> T {
-        (self as &MultiValuedU128FastFieldReader<T>).max_value()
-    }
-
-    fn num_vals(&self) -> u32 {
-        self.total_num_vals() as u32
-    }
-
-    fn num_docs(&self) -> u32 {
-        self.get_index_reader().num_docs()
-    }
-
+    /// Returns the docids matching given doc_id_range and value_range.
     #[inline]
-    fn get_docids_for_value_range(
+    pub fn get_docids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,
