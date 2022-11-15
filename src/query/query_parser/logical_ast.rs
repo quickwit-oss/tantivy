@@ -15,6 +15,11 @@ pub enum LogicalLiteral {
         lower: Bound<Term>,
         upper: Bound<Term>,
     },
+    Set {
+        field: Field,
+        value_type: Type,
+        elements: Vec<Term>,
+    },
     All,
 }
 
@@ -87,6 +92,27 @@ impl fmt::Debug for LogicalLiteral {
                 ref upper,
                 ..
             } => write!(formatter, "({:?} TO {:?})", lower, upper),
+            LogicalLiteral::Set { ref elements, .. } => {
+                const MAX_DISPLAYED: usize = 10;
+
+                write!(formatter, "IN [")?;
+                for (i, element) in elements.iter().enumerate() {
+                    if i == 0 {
+                        write!(formatter, "{:?}", element)?;
+                    } else if i == MAX_DISPLAYED - 1 {
+                        write!(
+                            formatter,
+                            ", {:?}, ... ({} more)",
+                            element,
+                            elements.len() - i - 1
+                        )?;
+                        break;
+                    } else {
+                        write!(formatter, ", {:?}", element)?;
+                    }
+                }
+                write!(formatter, "]")
+            }
             LogicalLiteral::All => write!(formatter, "*"),
         }
     }

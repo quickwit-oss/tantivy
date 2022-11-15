@@ -101,9 +101,8 @@ impl Automaton for SetDfaWrapper {
 
 #[cfg(test)]
 mod tests {
-
     use crate::collector::TopDocs;
-    use crate::query::TermSetQuery;
+    use crate::query::{QueryParser, TermSetQuery};
     use crate::schema::{Schema, TEXT};
     use crate::{assert_nearly_equals, Index, Term};
 
@@ -213,6 +212,33 @@ mod tests {
             assert_eq!(top_docs.len(), 2, "Expected 2 document");
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_set_query_parser() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("field", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests()?;
+        let field = schema.get_field("field").unwrap();
+        index_writer.add_document(doc!(
+          field => "val1",
+        ))?;
+        index_writer.add_document(doc!(
+          field => "val2",
+        ))?;
+        index_writer.add_document(doc!(
+          field => "val3",
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![]);
+        let query = query_parser.parse_query("field: IN [val1 val2]")?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(3))?;
+        assert_eq!(top_docs.len(), 2);
         Ok(())
     }
 }
