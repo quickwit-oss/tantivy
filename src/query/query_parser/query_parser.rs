@@ -686,9 +686,14 @@ impl QueryParser {
                 Ok(logical_ast)
             }
             UserInputLeaf::Set {
-                field: full_path,
+                field: full_field_opt,
                 elements,
             } => {
+                let full_path = full_field_opt.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Set query need to target a specific field.".to_string(),
+                    )
+                })?;
                 let (field, json_path) = self
                     .split_full_path(&full_path)
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone()))?;

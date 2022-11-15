@@ -266,17 +266,13 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
 }
 
 /// Function that parses a set out of a Stream
-/// Supports ranges like: `field: IN [val1, val2, val3]`
+/// Supports ranges like: `IN [val1 val2 val3]`
 fn set<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let comma_list = sep_by(term_val(), spaces());
+    let list = between(char('['), char(']'), sep_by(term_val(), spaces()));
 
-    let set_content = (
-        (string("IN"), spaces()),
-        between(char('['), char(']'), comma_list),
-    )
-        .map(|(_, elements)| elements);
+    let set_content = ((string("IN"), spaces()), list).map(|(_, elements)| elements);
 
-    (field_name().skip(spaces()), set_content)
+    (optional(attempt(field_name().skip(spaces()))), set_content)
         .map(|(field, elements)| UserInputLeaf::Set { field, elements })
 }
 
@@ -766,9 +762,10 @@ mod test {
 
     #[test]
     fn test_parse_test_query_set() {
-        test_parse_query_to_ast_helper("abc: IN [a b c]", r#""abc": IN ["a", "b", "c"]"#);
+        test_parse_query_to_ast_helper("abc: IN [a b c]", r#""abc": IN ["a" "b" "c"]"#);
         test_parse_query_to_ast_helper("abc: IN [1]", r#""abc": IN ["1"]"#);
         test_parse_query_to_ast_helper("abc: IN []", r#""abc": IN []"#);
+        test_parse_query_to_ast_helper("IN [1 2]", r#"IN ["1" "2"]"#);
     }
 
     #[test]
