@@ -268,9 +268,9 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
 /// Function that parses a set out of a Stream
 /// Supports ranges like: `IN [val1 val2 val3]`
 fn set<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let list = between(char('['), char(']'), sep_by(term_val(), spaces()));
+    let term_list = between(char('['), char(']'), sep_by(term_val(), spaces()));
 
-    let set_content = ((string("IN"), spaces()), list).map(|(_, elements)| elements);
+    let set_content = ((string("IN"), spaces()), term_list).map(|(_, elements)| elements);
 
     (optional(attempt(field_name().skip(spaces()))), set_content)
         .map(|(field, elements)| UserInputLeaf::Set { field, elements })

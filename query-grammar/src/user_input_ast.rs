@@ -37,16 +37,14 @@ impl Debug for UserInputLeaf {
             }
             UserInputLeaf::Set { field, elements } => {
                 if let Some(ref field) = field {
-                    write!(formatter, "\"{}\": IN [", field)?;
-                } else {
-                    write!(formatter, "IN [")?;
+                    write!(formatter, "\"{}\": ", field)?;
                 }
+                write!(formatter, "IN [")?;
                 for (i, element) in elements.iter().enumerate() {
-                    if i == 0 {
-                        write!(formatter, "\"{}\"", element)?;
-                    } else {
-                        write!(formatter, " \"{}\"", element)?;
+                    if i != 0 {
+                        write!(formatter, " ")?;
                     }
+                    write!(formatter, "\"{}\"", element)?;
                 }
                 write!(formatter, "]")
             }
