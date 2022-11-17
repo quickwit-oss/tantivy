@@ -59,11 +59,11 @@ mod tests {
         crate::serialize(VecColumn::from(&vals), &mut buffer, &[codec_type])?;
         let buffer = OwnedBytes::new(buffer);
         let column = crate::open::<i64>(buffer.clone())?;
-        assert_eq!(column.get_val(0), -4000i64);
-        assert_eq!(column.get_val(1), -3000i64);
-        assert_eq!(column.get_val(2), -2000i64);
-        assert_eq!(column.max_value(), (num_vals as i64 - 5) * 1000);
-        assert_eq!(column.min_value(), -4000i64);
+        assert_eq!(column.get_val(0), Some(-4000i64));
+        assert_eq!(column.get_val(1), Some(-3000i64));
+        assert_eq!(column.get_val(2), Some(-2000i64));
+        assert_eq!(column.max_value(), Some((num_vals as i64 - 5) * 1000));
+        assert_eq!(column.min_value(), Some(-4000i64));
 
         // Can't apply gcd
         let mut buffer_without_gcd = Vec::new();
@@ -101,11 +101,11 @@ mod tests {
         crate::serialize(VecColumn::from(&vals), &mut buffer, &[codec_type])?;
         let buffer = OwnedBytes::new(buffer);
         let column = crate::open::<u64>(buffer.clone())?;
-        assert_eq!(column.get_val(0), 1000u64);
-        assert_eq!(column.get_val(1), 2000u64);
-        assert_eq!(column.get_val(2), 3000u64);
-        assert_eq!(column.max_value(), num_vals as u64 * 1000);
-        assert_eq!(column.min_value(), 1000u64);
+        assert_eq!(column.get_val(0), Some(1000u64));
+        assert_eq!(column.get_val(1), Some(2000u64));
+        assert_eq!(column.get_val(2), Some(3000u64));
+        assert_eq!(column.max_value(), Some(num_vals as u64 * 1000));
+        assert_eq!(column.min_value(), Some(1000u64));
 
         // Can't apply gcd
         let mut buffer_without_gcd = Vec::new();

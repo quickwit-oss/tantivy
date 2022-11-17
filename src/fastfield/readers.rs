@@ -1,7 +1,7 @@
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
-use fastfield_codecs::{open, open_u128, Column};
+use fastfield_codecs::{open, open_u128, Column, OptionalColumn};
 
 use super::multivalued::MultiValuedU128FastFieldReader;
 use crate::directory::{CompositeFile, FileSlice};
@@ -118,7 +118,7 @@ impl FastFieldReaders {
         &self,
         field: Field,
         index: usize,
-    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
+    ) -> crate::Result<Arc<dyn OptionalColumn<TFastValue>>> {
         let fast_field_slice = self.fast_field_data(field, index)?;
         let bytes = fast_field_slice.read_bytes()?;
         let column = fastfield_codecs::open(bytes)?;
@@ -128,7 +128,7 @@ impl FastFieldReaders {
     pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
         &self,
         field: Field,
-    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
+    ) -> crate::Result<Arc<dyn OptionalColumn<TFastValue>>> {
         self.typed_fast_field_reader_with_idx(field, 0)
     }
 
@@ -138,7 +138,14 @@ impl FastFieldReaders {
     ) -> crate::Result<MultiValuedFastFieldReader<TFastValue>> {
         let idx_reader = self.typed_fast_field_reader(field)?;
         let vals_reader = self.typed_fast_field_reader_with_idx(field, 1)?;
-        Ok(MultiValuedFastFieldReader::open(idx_reader, vals_reader))
+        Ok(MultiValuedFastFieldReader::open(
+            idx_reader
+                .to_full()
+                .expect("multivalue fast field are always full"),
+            vals_reader
+                .to_full()
+                .expect("multivalue fast field are always full"),
+        ))
     }
 
     /// Returns the `u64` fast field reader reader associated with `field`.
@@ -146,7 +153,10 @@ impl FastFieldReaders {
     /// If `field` is not a u64 fast field, this method returns an Error.
     pub fn u64(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
         self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
-        self.typed_fast_field_reader(field)
+        Ok(self
+            .typed_fast_field_reader(field)?
+            .to_full()
+            .expect("temp migration solution"))
     }
 
     /// Returns the `ip` fast field reader reader associated to `field`.
@@ -166,7 +176,10 @@ impl FastFieldReaders {
         field: Field,
     ) -> crate::Result<MultiValuedU128FastFieldReader<Ipv6Addr>> {
         self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
-        let idx_reader: Arc<dyn Column<u64>> = self.typed_fast_field_reader(field)?;
+        let idx_reader: Arc<dyn Column<u64>> = self
+            .typed_fast_field_reader(field)?
+            .to_full()
+            .expect("multivalue fast fields are always full");
 
         let bytes = self.fast_field_data(field, 1)?.read_bytes()?;
         let vals_reader = open_u128::<Ipv6Addr>(bytes)?;
@@ -191,7 +204,10 @@ impl FastFieldReaders {
     /// If `field` is not a u128 multi-valued fast field, this method returns an Error.
     pub fn u128s(&self, field: Field) -> crate::Result<MultiValuedU128FastFieldReader<u128>> {
         self.check_type(field, FastType::U128, Cardinality::MultiValues)?;
-        let idx_reader: Arc<dyn Column<u64>> = self.typed_fast_field_reader(field)?;
+        let idx_reader: Arc<dyn Column<u64>> = self
+            .typed_fast_field_reader(field)?
+            .to_full()
+            .expect("multivalue fast fields are always full");
 
         let bytes = self.fast_field_data(field, 1)?.read_bytes()?;
         let vals_reader = open_u128::<u128>(bytes)?;
@@ -207,14 +223,14 @@ impl FastFieldReaders {
     ///
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
-    pub fn u64_lenient(&self, field: Field) -> crate::Result<Arc<dyn Column<u64>>> {
-        self.typed_fast_field_reader(field)
+    pub fn u64_lenient(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<u64>>> {
+        Ok(self.typed_fast_field_reader(field)?)
     }
 
     /// Returns the `i64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn i64(&self, field: Field) -> crate::Result<Arc<dyn Column<i64>>> {
+    pub fn i64(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<i64>>> {
         self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -222,7 +238,7 @@ impl FastFieldReaders {
     /// Returns the `date` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn date(&self, field: Field) -> crate::Result<Arc<dyn Column<DateTime>>> {
+    pub fn date(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<DateTime>>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -232,13 +248,16 @@ impl FastFieldReaders {
     /// If `field` is not a f64 fast field, this method returns an Error.
     pub fn f64(&self, field: Field) -> crate::Result<Arc<dyn Column<f64>>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
-        self.typed_fast_field_reader(field)
+        Ok(self
+            .typed_fast_field_reader(field)?
+            .to_full()
+            .expect("temp migration solution"))
     }
 
     /// Returns the `bool` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a bool fast field, this method returns an Error.
-    pub fn bool(&self, field: Field) -> crate::Result<Arc<dyn Column<bool>>> {
+    pub fn bool(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<bool>>> {
         self.check_type(field, FastType::Bool, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -309,7 +328,12 @@ impl FastFieldReaders {
             let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
             let idx_reader = open(fast_field_idx_bytes)?;
             let data = self.fast_field_data(field, 1)?;
-            BytesFastFieldReader::open(idx_reader, data)
+            BytesFastFieldReader::open(
+                idx_reader
+                    .to_full()
+                    .expect("multivalue fields are always full"),
+                data,
+            )
         } else {
             Err(FastFieldNotAvailableError::new(field_entry).into())
         }

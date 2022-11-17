@@ -6,6 +6,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::line::Line;
+use crate::optional_column::OptionalColumn;
 use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType, VecColumn};
 
@@ -180,6 +181,32 @@ impl Column for BlockwiseLinearReader {
         self.normalized_header.max_value
     }
 
+    fn num_vals(&self) -> u32 {
+        self.normalized_header.num_vals
+    }
+}
+
+impl OptionalColumn for BlockwiseLinearReader {
+    #[inline]
+    fn get_val(&self, idx: u32) -> Option<u64> {
+        let block_id = (idx / CHUNK_SIZE as u32) as usize;
+        let idx_within_block = idx % (CHUNK_SIZE as u32);
+        let block = &self.blocks[block_id];
+        let interpoled_val: u64 = block.line.eval(idx_within_block);
+        let block_bytes = &self.data[block.data_start_offset..];
+        let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
+        Some(interpoled_val.wrapping_add(bitpacked_diff))
+    }
+    #[inline]
+    fn min_value(&self) -> Option<u64> {
+        // The BitpackedReader assumes a normalized vector.
+        Some(0)
+    }
+    #[inline]
+    fn max_value(&self) -> Option<u64> {
+        Some(self.normalized_header.max_value)
+    }
+    #[inline]
     fn num_vals(&self) -> u32 {
         self.normalized_header.num_vals
     }

@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::OptionalColumn;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -263,13 +263,17 @@ impl SegmentHistogramCollector {
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
-        accessor: &dyn Column<u64>,
+        accessor: &dyn OptionalColumn<u64>,
     ) -> crate::Result<Self> {
         req.validate()?;
-        let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
-        let max = f64_from_fastfield_u64(accessor.max_value(), &field_type);
+        let min_max_u64 = accessor.min_value().zip(accessor.max_value());
+        let min_max_f64 = min_max_u64.map(|(min, max)| {
+            let min = f64_from_fastfield_u64(min, &field_type);
+            let max = f64_from_fastfield_u64(max, &field_type);
+            (min, max)
+        });
 
-        let (min, max) = get_req_min_max(req, Some((min, max)));
+        let (min, max) = get_req_min_max(req, min_max_f64);
 
         // We compute and generate the buckets range (min, max) based on the request and the min
         // max in the fast field, but this is likely not ideal when this is a subbucket, where many
@@ -331,47 +335,58 @@ impl SegmentHistogramCollector {
             .expect("unexpected fast field cardinatility");
         let mut iter = doc.chunks_exact(4);
         for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0]));
-            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1]));
-            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2]));
-            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3]));
+            if let Some(val) = accessor.get_val(docs[0]) {
+                let val = self.f64_from_fastfield_u64(val);
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    docs[0],
+                    &bucket_with_accessor.sub_aggregation,
+                )?;
+            }
 
-            let bucket_pos0 = get_bucket_num(val0);
-            let bucket_pos1 = get_bucket_num(val1);
-            let bucket_pos2 = get_bucket_num(val2);
-            let bucket_pos3 = get_bucket_num(val3);
+            if let Some(val) = accessor.get_val(docs[1]) {
+                let val = self.f64_from_fastfield_u64(val);
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    docs[1],
+                    &bucket_with_accessor.sub_aggregation,
+                )?;
+            }
 
-            self.increment_bucket_if_in_bounds(
-                val0,
-                &bounds,
-                bucket_pos0,
-                docs[0],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val1,
-                &bounds,
-                bucket_pos1,
-                docs[1],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val2,
-                &bounds,
-                bucket_pos2,
-                docs[2],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val3,
-                &bounds,
-                bucket_pos3,
-                docs[3],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
+            if let Some(val) = accessor.get_val(docs[2]) {
+                let val = self.f64_from_fastfield_u64(val);
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    docs[2],
+                    &bucket_with_accessor.sub_aggregation,
+                )?;
+            }
+
+            if let Some(val) = accessor.get_val(docs[3]) {
+                let val = self.f64_from_fastfield_u64(val);
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    docs[3],
+                    &bucket_with_accessor.sub_aggregation,
+                )?;
+            }
         }
         for &doc in iter.remainder() {
-            let val = f64_from_fastfield_u64(accessor.get_val(doc), &self.field_type);
+            let Some(val) = accessor.get_val(doc).map(|val|f64_from_fastfield_u64(val, &self.field_type)) else{
+                continue;
+            };
             if !bounds.contains(val) {
                 continue;
             }

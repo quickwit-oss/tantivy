@@ -1044,7 +1044,7 @@ pub mod tests {
             let fast_field_reader_res = segment_reader.fast_fields().i64(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get_val(0), 4i64)
+            assert_eq!(fast_field_reader.get_val(0), Some(4i64))
         }
 
         {

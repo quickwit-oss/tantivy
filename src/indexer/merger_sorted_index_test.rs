@@ -535,11 +535,15 @@ mod bench_sorted_index_merge {
         b.iter(|| {
             let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let reader = &merger.readers[doc_addr.segment_ord as usize];
-                let u64_reader: Arc<dyn Column<u64>> =
-                    reader.fast_fields().typed_fast_field_reader(field).expect(
+                let u64_reader: Arc<dyn Column<u64>> = reader
+                    .fast_fields()
+                    .typed_fast_field_reader(field)
+                    .expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
-                    );
+                    )
+                    .to_full()
+                    .unwrap();
                 (doc_addr.doc_id, reader, u64_reader)
             });
             // add values in order of the new doc_ids

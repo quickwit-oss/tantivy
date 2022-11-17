@@ -112,7 +112,11 @@ impl Collector for HistogramCollector {
         _segment_local_id: crate::SegmentOrdinal,
         segment: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let ff_reader = segment.fast_fields().u64_lenient(self.field)?;
+        let ff_reader = segment
+            .fast_fields()
+            .u64_lenient(self.field)?
+            .to_full()
+            .expect("temp migration solution");
         Ok(SegmentHistogramCollector {
             histogram_computer: HistogramComputer {
                 counts: vec![0; self.num_buckets],

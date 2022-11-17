@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::OptionalColumn;
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
@@ -37,16 +37,16 @@ impl AggregationsWithAccessor {
 #[derive(Clone)]
 pub(crate) enum FastFieldAccessor {
     Multi(MultiValuedFastFieldReader<u64>),
-    Single(Arc<dyn Column<u64>>),
+    Single(Arc<dyn OptionalColumn<u64>>),
 }
 impl FastFieldAccessor {
-    pub fn as_single(&self) -> Option<&dyn Column<u64>> {
+    pub fn as_single(&self) -> Option<&dyn OptionalColumn<u64>> {
         match self {
             FastFieldAccessor::Multi(_) => None,
             FastFieldAccessor::Single(reader) => Some(&**reader),
         }
     }
-    pub fn into_single(self) -> Option<Arc<dyn Column<u64>>> {
+    pub fn into_single(self) -> Option<Arc<dyn OptionalColumn<u64>>> {
         match self {
             FastFieldAccessor::Multi(_) => None,
             FastFieldAccessor::Single(reader) => Some(reader),
@@ -124,7 +124,7 @@ impl BucketAggregationWithAccessor {
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: Type,
-    pub accessor: Arc<dyn Column>,
+    pub accessor: Arc<dyn OptionalColumn>,
 }
 
 impl MetricAggregationWithAccessor {

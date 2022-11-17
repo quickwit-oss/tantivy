@@ -465,7 +465,11 @@ impl IndexMerger {
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Arc<dyn Column>> {
         let field_id = expect_field_id_for_sort_field(reader.schema(), sort_by_field)?; // for now expect fastfield, but not strictly required
-        let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
+        let value_accessor = reader
+            .fast_fields()
+            .u64_lenient(field_id)?
+            .to_full()
+            .expect("temp migration solution");
         Ok(value_accessor)
     }
     /// Collecting value_accessors into a vec to bind the lifetime.

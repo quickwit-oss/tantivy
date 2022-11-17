@@ -24,6 +24,8 @@ use monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
 };
+pub use optional_column::OptionalColumn;
+use optional_column::ToOptionalColumn;
 use ownedbytes::OwnedBytes;
 use serialize::{Header, U128Header};
 
@@ -34,6 +36,7 @@ mod line;
 mod linear;
 mod monotonic_mapping;
 mod monotonic_mapping_u128;
+mod optional_column;
 
 mod column;
 mod gcd;
@@ -142,7 +145,7 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open<T: MonotonicallyMappableToU64>(
     mut bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<T>>> {
+) -> io::Result<Arc<dyn OptionalColumn<T>>> {
     let header = Header::deserialize(&mut bytes)?;
     match header.codec_type {
         FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
@@ -156,7 +159,7 @@ pub fn open<T: MonotonicallyMappableToU64>(
 fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
     bytes: OwnedBytes,
     header: &Header,
-) -> io::Result<Arc<dyn Column<Item>>> {
+) -> io::Result<Arc<dyn OptionalColumn<Item>>> {
     let normalized_header = header.normalized();
     let reader = C::open_from_bytes(bytes, normalized_header)?;
     let min_value = header.min_value;
@@ -164,12 +167,16 @@ fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
         let mapping = StrictlyMonotonicMappingInverter::from(
             StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
         );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
+        Ok(Arc::new(ToOptionalColumn::new(Arc::new(
+            monotonic_map_column(reader, mapping),
+        ))))
     } else {
         let mapping = StrictlyMonotonicMappingInverter::from(
             StrictlyMonotonicMappingToInternalBaseval::new(min_value),
         );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
+        Ok(Arc::new(ToOptionalColumn::new(Arc::new(
+            monotonic_map_column(reader, mapping),
+        ))))
     }
 }
 
@@ -240,8 +247,9 @@ mod tests {
         for (doc, orig_val) in data.iter().copied().enumerate() {
             let val = reader.get_val(doc as u32);
             assert_eq!(
-                val, orig_val,
-                "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data \
+                val,
+                Some(orig_val),
+                "val `{val:?}` does not match orig_val {orig_val:?}, in data set {name}, data \
                  `{data:?}`",
             );
         }

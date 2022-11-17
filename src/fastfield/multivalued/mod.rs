@@ -533,14 +533,17 @@ mod bench {
                 .unwrap()
                 .read_bytes()
                 .unwrap();
-            let idx_reader = fastfield_codecs::open(data_idx).unwrap();
+            let idx_reader = fastfield_codecs::open(data_idx).unwrap().to_full().unwrap();
 
             let data_vals = fast_fields_composite
                 .open_read_with_idx(field, 1)
                 .unwrap()
                 .read_bytes()
                 .unwrap();
-            let vals_reader = fastfield_codecs::open(data_vals).unwrap();
+            let vals_reader = fastfield_codecs::open(data_vals)
+                .unwrap()
+                .to_full()
+                .unwrap();
             let fast_field_reader = MultiValuedFastFieldReader::open(idx_reader, vals_reader);
             b.iter(|| {
                 let mut sum = 0u64;

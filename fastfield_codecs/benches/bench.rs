@@ -41,7 +41,7 @@ mod tests {
     ) -> Arc<dyn Column<T>> {
         let mut buffer = Vec::new();
         serialize(VecColumn::from(&column), &mut buffer, &ALL_CODEC_TYPES).unwrap();
-        open(OwnedBytes::new(buffer)).unwrap()
+        open(OwnedBytes::new(buffer)).unwrap().to_full().unwrap()
     }
 
     #[bench]

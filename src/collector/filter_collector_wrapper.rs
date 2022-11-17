@@ -130,7 +130,9 @@ where
 
         let fast_field_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(self.field)?;
+            .typed_fast_field_reader(self.field)?
+            .to_full()
+            .expect("temp migration solution");
 
         let segment_collector = self
             .collector

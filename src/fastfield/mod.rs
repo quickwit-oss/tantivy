@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(file.len(), 25);
         let composite_file = CompositeFile::open(&file)?;
         let fast_field_bytes = composite_file.open_read(*FIELD).unwrap().read_bytes()?;
-        let fast_field_reader = open::<u64>(fast_field_bytes)?;
+        let fast_field_reader = open::<u64>(fast_field_bytes)?.to_full().unwrap();
         assert_eq!(fast_field_reader.get_val(0), 13u64);
         assert_eq!(fast_field_reader.get_val(1), 14u64);
         assert_eq!(fast_field_reader.get_val(2), 2u64);
@@ -263,7 +263,7 @@ mod tests {
                 .open_read(*FIELD)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
+            let fast_field_reader = open::<u64>(data)?.to_full().unwrap();
             assert_eq!(fast_field_reader.get_val(0), 4u64);
             assert_eq!(fast_field_reader.get_val(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get_val(2), 3_052u64);
@@ -304,7 +304,7 @@ mod tests {
                 .open_read(*FIELD)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
+            let fast_field_reader = open::<u64>(data)?.to_full().unwrap();
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
             }
@@ -343,7 +343,7 @@ mod tests {
                 .open_read(*FIELD)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
+            let fast_field_reader = open::<u64>(data)?.to_full().unwrap();
             assert_eq!(fast_field_reader.get_val(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(
@@ -386,7 +386,7 @@ mod tests {
                 .open_read(i64_field)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<i64>(data)?;
+            let fast_field_reader = open::<i64>(data)?.to_full().unwrap();
 
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
@@ -429,7 +429,7 @@ mod tests {
                 .open_read(i64_field)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<i64>(data)?;
+            let fast_field_reader = open::<i64>(data)?.to_full().unwrap();
             assert_eq!(fast_field_reader.get_val(0), 0i64);
         }
         Ok(())
@@ -470,7 +470,7 @@ mod tests {
                 .open_read(*FIELD)
                 .unwrap()
                 .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
+            let fast_field_reader = open::<u64>(data)?.to_full().unwrap();
 
             for a in 0..n {
                 assert_eq!(fast_field_reader.get_val(a as u32), permutation[a as usize]);
@@ -763,19 +763,28 @@ mod tests {
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
         let mut dates = vec![];
         {
-            assert_eq!(date_fast_field.get_val(0).into_timestamp_micros(), 1i64);
+            assert_eq!(
+                date_fast_field.get_val(0).unwrap().into_timestamp_micros(),
+                1i64
+            );
             dates_fast_field.get_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_micros(), 2i64);
             assert_eq!(dates[1].into_timestamp_micros(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get_val(1).into_timestamp_micros(), 4i64);
+            assert_eq!(
+                date_fast_field.get_val(1).unwrap().into_timestamp_micros(),
+                4i64
+            );
             dates_fast_field.get_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get_val(2).into_timestamp_micros(), 0i64);
+            assert_eq!(
+                date_fast_field.get_val(2).unwrap().into_timestamp_micros(),
+                0i64
+            );
             dates_fast_field.get_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_micros(), 5i64);
@@ -825,7 +834,7 @@ mod tests {
         assert_eq!(file.len(), 24);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
+        let fast_field_reader = open::<bool>(data)?.to_full().unwrap();
         assert_eq!(fast_field_reader.get_val(0), true);
         assert_eq!(fast_field_reader.get_val(1), false);
         assert_eq!(fast_field_reader.get_val(2), true);
@@ -863,7 +872,7 @@ mod tests {
         assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
+        let fast_field_reader = open::<bool>(data)?.to_full().unwrap();
         for i in 0..25 {
             assert_eq!(fast_field_reader.get_val(i * 2), true);
             assert_eq!(fast_field_reader.get_val(i * 2 + 1), false);
@@ -894,7 +903,7 @@ mod tests {
         let composite_file = CompositeFile::open(&file)?;
         assert_eq!(file.len(), 23);
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
+        let fast_field_reader = open::<bool>(data)?.to_full().unwrap();
         assert_eq!(fast_field_reader.get_val(0), false);
 
         Ok(())
@@ -962,7 +971,9 @@ mod tests {
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let len = file.len();
-        let test_fastfield = open::<DateTime>(file.read_bytes()?)?;
+        let test_fastfield = open::<DateTime>(file.read_bytes()?)?
+            .to_full()
+            .expect("temp migration solution");
 
         for (i, time) in times.iter().enumerate() {
             assert_eq!(test_fastfield.get_val(i as u32), time.truncate(precision));

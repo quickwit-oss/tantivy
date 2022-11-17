@@ -5,6 +5,7 @@ use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::line::Line;
+use crate::optional_column::OptionalColumn;
 use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
@@ -36,6 +37,28 @@ impl Column for LinearReader {
         self.header.max_value
     }
 
+    #[inline]
+    fn num_vals(&self) -> u32 {
+        self.header.num_vals
+    }
+}
+
+impl OptionalColumn for LinearReader {
+    #[inline]
+    fn get_val(&self, doc: u32) -> Option<u64> {
+        let interpoled_val: u64 = self.linear_params.line.eval(doc);
+        let bitpacked_diff = self.linear_params.bit_unpacker.get(doc, &self.data);
+        Some(interpoled_val.wrapping_add(bitpacked_diff))
+    }
+    #[inline]
+    fn min_value(&self) -> Option<u64> {
+        // The BitpackedReader assumes a normalized vector.
+        Some(0)
+    }
+    #[inline]
+    fn max_value(&self) -> Option<u64> {
+        Some(self.header.max_value)
+    }
     #[inline]
     fn num_vals(&self) -> u32 {
         self.header.num_vals

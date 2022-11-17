@@ -46,11 +46,15 @@ impl<'a> RemappedDocIdColumn<'a> {
         let (min_value, max_value) = readers
             .iter()
             .filter_map(|reader| {
-                let u64_reader: Arc<dyn Column<u64>> =
-                    reader.fast_fields().typed_fast_field_reader(field).expect(
+                let u64_reader: Arc<dyn Column<u64>> = reader
+                    .fast_fields()
+                    .typed_fast_field_reader(field)
+                    .expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
-                    );
+                    )
+                    .to_full()
+                    .expect("temp migration solution");
                 compute_min_max_val(&*u64_reader, reader)
             })
             .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
@@ -59,11 +63,15 @@ impl<'a> RemappedDocIdColumn<'a> {
         let fast_field_readers = readers
             .iter()
             .map(|reader| {
-                let u64_reader: Arc<dyn Column<u64>> =
-                    reader.fast_fields().typed_fast_field_reader(field).expect(
+                let u64_reader: Arc<dyn Column<u64>> = reader
+                    .fast_fields()
+                    .typed_fast_field_reader(field)
+                    .expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
-                    );
+                    )
+                    .to_full()
+                    .expect("temp migration solution");
                 u64_reader
             })
             .collect::<Vec<_>>();

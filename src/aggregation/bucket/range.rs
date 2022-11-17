@@ -267,20 +267,29 @@ impl SegmentRangeCollector {
             let val2 = accessor.get_val(docs[1]);
             let val3 = accessor.get_val(docs[2]);
             let val4 = accessor.get_val(docs[3]);
-            let bucket_pos1 = self.get_bucket_pos(val1);
-            let bucket_pos2 = self.get_bucket_pos(val2);
-            let bucket_pos3 = self.get_bucket_pos(val3);
-            let bucket_pos4 = self.get_bucket_pos(val4);
-
-            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
+            if let Some(val) = val1 {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, docs[0], &bucket_with_accessor.sub_aggregation)?;
+            }
+            if let Some(val) = val2 {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, docs[1], &bucket_with_accessor.sub_aggregation)?;
+            }
+            if let Some(val) = val3 {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, docs[2], &bucket_with_accessor.sub_aggregation)?;
+            }
+            if let Some(val) = val4 {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, docs[3], &bucket_with_accessor.sub_aggregation)?;
+            }
         }
         for &doc in iter.remainder() {
             let val = accessor.get_val(doc);
-            let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
+            if let Some(val) = val {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
+            }
         }
         if force_flush {
             for bucket in &mut self.buckets {

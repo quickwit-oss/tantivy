@@ -156,7 +156,9 @@ impl CustomScorer<u64> for ScorerByField {
         // The conversion will then happen only on the top-K docs.
         let ff_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(self.field)?;
+            .typed_fast_field_reader(self.field)?
+            .to_full()
+            .expect("temp migration solution");
         Ok(ScorerByFastFieldReader { ff_reader })
     }
 }
