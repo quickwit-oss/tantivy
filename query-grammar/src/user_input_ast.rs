@@ -12,6 +12,10 @@ pub enum UserInputLeaf {
         lower: UserInputBound,
         upper: UserInputBound,
     },
+    Set {
+        field: Option<String>,
+        elements: Vec<String>,
+    },
 }
 
 impl Debug for UserInputLeaf {
@@ -30,6 +34,19 @@ impl Debug for UserInputLeaf {
                 write!(formatter, " TO ")?;
                 upper.display_upper(formatter)?;
                 Ok(())
+            }
+            UserInputLeaf::Set { field, elements } => {
+                if let Some(ref field) = field {
+                    write!(formatter, "\"{}\": ", field)?;
+                }
+                write!(formatter, "IN [")?;
+                for (i, element) in elements.iter().enumerate() {
+                    if i != 0 {
+                        write!(formatter, " ")?;
+                    }
+                    write!(formatter, "\"{}\"", element)?;
+                }
+                write!(formatter, "]")
             }
             UserInputLeaf::All => write!(formatter, "*"),
         }

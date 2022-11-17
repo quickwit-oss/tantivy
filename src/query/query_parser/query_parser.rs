@@ -13,7 +13,7 @@ use crate::indexer::{
 };
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
-    TermQuery,
+    TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, Schema, Term, Type,
@@ -685,6 +685,31 @@ impl QueryParser {
                 }));
                 Ok(logical_ast)
             }
+            UserInputLeaf::Set {
+                field: full_field_opt,
+                elements,
+            } => {
+                let full_path = full_field_opt.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Set query need to target a specific field.".to_string(),
+                    )
+                })?;
+                let (field, json_path) = self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone()))?;
+                let field_entry = self.schema.get_field_entry(field);
+                let value_type = field_entry.field_type().value_type();
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set {
+                    elements: elements
+                        .into_iter()
+                        .map(|element| self.compute_boundary_term(field, json_path, &element))
+                        .collect::<Result<Vec<_>, _>>()?,
+
+                    field,
+                    value_type,
+                }));
+                Ok(logical_ast)
+            }
         }
     }
 }
@@ -703,6 +728,7 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
         } => Box::new(RangeQuery::new_term_bounds(
             field, value_type, &lower, &upper,
         )),
+        LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
     }
 }
@@ -1560,6 +1586,31 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "title:\"a b~4\"~2",
             r#""[(0, Term(type=Str, field=0, "a")), (1, Term(type=Str, field=0, "b")), (2, Term(type=Str, field=0, "4"))]"~2"#,
+            false,
+        );
+    }
+
+    #[test]
+    pub fn test_term_set_query() {
+        test_parse_query_to_logical_ast_helper(
+            "title: IN [a b cd]",
+            r#"IN [Term(type=Str, field=0, "a"), Term(type=Str, field=0, "b"), Term(type=Str, field=0, "cd")]"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "bytes: IN [AA== ABA= ABCD]",
+            r#"IN [Term(type=Bytes, field=12, [0]), Term(type=Bytes, field=12, [0, 16]), Term(type=Bytes, field=12, [0, 16, 131])]"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "signed: IN [1 2 -3]",
+            r#"IN [Term(type=I64, field=2, 1), Term(type=I64, field=2, 2), Term(type=I64, field=2, -3)]"#,
+            false,
+        );
+
+        test_parse_query_to_logical_ast_helper(
+            "float: IN [1.1 2.2 -3.3]",
+            r#"IN [Term(type=F64, field=10, 1.1), Term(type=F64, field=10, 2.2), Term(type=F64, field=10, -3.3)]"#,
             false,
         );
     }

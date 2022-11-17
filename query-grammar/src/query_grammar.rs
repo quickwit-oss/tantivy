@@ -5,7 +5,8 @@ use combine::parser::range::{take_while, take_while1};
 use combine::parser::repeat::escaped;
 use combine::parser::Parser;
 use combine::{
-    attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
+    attempt, between, choice, eof, many, many1, one_of, optional, parser, satisfy, sep_by,
+    skip_many1, value,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -264,6 +265,17 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     })
 }
 
+/// Function that parses a set out of a Stream
+/// Supports ranges like: `IN [val1 val2 val3]`
+fn set<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
+    let term_list = between(char('['), char(']'), sep_by(term_val(), spaces()));
+
+    let set_content = ((string("IN"), spaces()), term_list).map(|(_, elements)| elements);
+
+    (optional(attempt(field_name().skip(spaces()))), set_content)
+        .map(|(field, elements)| UserInputLeaf::Set { field, elements })
+}
+
 fn negate(expr: UserInputAst) -> UserInputAst {
     expr.unary(Occur::MustNot)
 }
@@ -278,6 +290,7 @@ fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
                 string("NOT").skip(spaces1()).with(leaf()).map(negate),
             ))
             .or(attempt(range().map(UserInputAst::from)))
+            .or(attempt(set().map(UserInputAst::from)))
             .or(literal().map(UserInputAst::from))
             .parse_stream(input)
             .into_result()
@@ -745,6 +758,14 @@ mod test {
     #[test]
     fn test_parse_test_query_plus_a_b_plus_d() {
         test_parse_query_to_ast_helper("+(a b) +d", "(+(*\"a\" *\"b\") +\"d\")");
+    }
+
+    #[test]
+    fn test_parse_test_query_set() {
+        test_parse_query_to_ast_helper("abc: IN [a b c]", r#""abc": IN ["a" "b" "c"]"#);
+        test_parse_query_to_ast_helper("abc: IN [1]", r#""abc": IN ["1"]"#);
+        test_parse_query_to_ast_helper("abc: IN []", r#""abc": IN []"#);
+        test_parse_query_to_ast_helper("IN [1 2]", r#"IN ["1" "2"]"#);
     }
 
     #[test]
