@@ -731,7 +731,10 @@ mod tests {
         ];
         let mut out = Vec::new();
         serialize_u128(|| vals.iter().cloned(), vals.len() as u32, &mut out).unwrap();
-        let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
+        let decomp = open_u128::<u128>(OwnedBytes::new(out))
+            .unwrap()
+            .to_full()
+            .unwrap();
         let complete_range = 0..vals.len() as u32;
 
         assert_eq!(

@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::OptionalColumn;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
@@ -97,7 +97,7 @@ impl Collector for StatsCollector {
 }
 
 struct StatsSegmentCollector {
-    fast_field_reader: Arc<dyn Column<u64>>,
+    fast_field_reader: Arc<dyn OptionalColumn<u64>>,
     stats: Stats,
 }
 
@@ -105,10 +105,12 @@ impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
     fn collect(&mut self, doc: u32, _score: Score) {
-        let value = self.fast_field_reader.get_val(doc) as f64;
-        self.stats.count += 1;
-        self.stats.sum += value;
-        self.stats.squared_sum += value * value;
+        if let Some(value) = self.fast_field_reader.get_val(doc) {
+            let value = value as f64;
+            self.stats.count += 1;
+            self.stats.sum += value;
+            self.stats.squared_sum += value * value;
+        }
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

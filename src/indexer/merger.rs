@@ -401,10 +401,15 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-                let u128_reader: Arc<dyn Column<u128>> = reader.fast_fields().u128(field).expect(
-                    "Failed to find a reader for single fast field. This is a tantivy bug and it \
-                     should never happen.",
-                );
+                let u128_reader: Arc<dyn Column<u128>> = reader
+                    .fast_fields()
+                    .u128(field)
+                    .expect(
+                        "Failed to find a reader for single fast field. This is a tantivy bug and \
+                         it should never happen.",
+                    )
+                    .to_full()
+                    .expect("temp migration solution");
                 u128_reader
             })
             .collect::<Vec<_>>();
@@ -1372,16 +1377,16 @@ mod tests {
                 .fast_fields()
                 .u64(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 4000);
-            assert_eq!(score_field_reader.max_value(), 7000);
+            assert_eq!(score_field_reader.min_value(), Some(4000));
+            assert_eq!(score_field_reader.max_value(), Some(7000));
 
             let score_field_reader = searcher
                 .segment_reader(1)
                 .fast_fields()
                 .u64(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 1);
-            assert_eq!(score_field_reader.max_value(), 3);
+            assert_eq!(score_field_reader.min_value(), Some(1));
+            assert_eq!(score_field_reader.max_value(), Some(3));
         }
         {
             // merging the segments
@@ -1426,8 +1431,8 @@ mod tests {
                 .fast_fields()
                 .u64(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 3);
-            assert_eq!(score_field_reader.max_value(), 7000);
+            assert_eq!(score_field_reader.min_value(), Some(3));
+            assert_eq!(score_field_reader.max_value(), Some(7000));
         }
         {
             // test a commit with only deletes
@@ -1473,8 +1478,8 @@ mod tests {
                 .fast_fields()
                 .u64(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 3);
-            assert_eq!(score_field_reader.max_value(), 7000);
+            assert_eq!(score_field_reader.min_value(), Some(3));
+            assert_eq!(score_field_reader.max_value(), Some(7000));
         }
         {
             // Test merging a single segment in order to remove deletes.
@@ -1520,8 +1525,8 @@ mod tests {
                 .fast_fields()
                 .u64(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 6000);
-            assert_eq!(score_field_reader.max_value(), 7000);
+            assert_eq!(score_field_reader.min_value(), Some(6000));
+            assert_eq!(score_field_reader.max_value(), Some(7000));
         }
 
         {

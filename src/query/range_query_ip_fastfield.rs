@@ -7,7 +7,7 @@ use std::ops::{Bound, RangeInclusive};
 use std::sync::Arc;
 
 use common::BinarySerializable;
-use fastfield_codecs::{Column, MonotonicallyMappableToU128};
+use fastfield_codecs::{MonotonicallyMappableToU128, OptionalColumn};
 
 use super::range_query::map_bound;
 use super::{ConstScorer, Explanation, Scorer, Weight};
@@ -45,12 +45,10 @@ impl Weight for IPFastFieldRangeWeight {
         match field_type.fastfield_cardinality().unwrap() {
             Cardinality::SingleValue => {
                 let ip_addr_fast_field = reader.fast_fields().ip_addr(self.field)?;
-                let value_range = bound_to_value_range(
-                    &self.left_bound,
-                    &self.right_bound,
-                    ip_addr_fast_field.min_value(),
-                    ip_addr_fast_field.max_value(),
-                );
+                let minmax = ip_addr_fast_field
+                    .min_value()
+                    .zip(ip_addr_fast_field.max_value());
+                let value_range = bound_to_value_range(&self.left_bound, &self.right_bound, minmax);
                 let docset = IpRangeDocSet::new(
                     value_range,
                     IpFastFieldCardinality::SingleValue(ip_addr_fast_field),
@@ -62,8 +60,10 @@ impl Weight for IPFastFieldRangeWeight {
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
-                    ip_addr_fast_field.min_value(),
-                    ip_addr_fast_field.max_value(),
+                    Some((
+                        ip_addr_fast_field.min_value(),
+                        ip_addr_fast_field.max_value(),
+                    )),
                 );
                 let docset = IpRangeDocSet::new(
                     value_range,
@@ -91,9 +91,10 @@ impl Weight for IPFastFieldRangeWeight {
 fn bound_to_value_range(
     left_bound: &Bound<Ipv6Addr>,
     right_bound: &Bound<Ipv6Addr>,
-    min_value: Ipv6Addr,
-    max_value: Ipv6Addr,
+    min_max: Option<(Ipv6Addr, Ipv6Addr)>,
 ) -> RangeInclusive<Ipv6Addr> {
+    let (min_value, max_value) =
+        min_max.unwrap_or((Ipv6Addr::from(u128::MIN), Ipv6Addr::from(u128::MAX)));
     let start_value = match left_bound {
         Bound::Included(ip_addr) => *ip_addr,
         Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() + 1),
@@ -142,7 +143,7 @@ impl VecCursor {
 }
 
 pub(crate) enum IpFastFieldCardinality {
-    SingleValue(Arc<dyn Column<Ipv6Addr>>),
+    SingleValue(Arc<dyn OptionalColumn<Ipv6Addr>>),
     MultiValue(MultiValuedU128FastFieldReader<Ipv6Addr>),
 }
 

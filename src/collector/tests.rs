@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use fastfield_codecs::OptionalColumn;
 
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
@@ -160,7 +160,7 @@ pub struct FastFieldTestCollector {
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: Arc<dyn Column<u64>>,
+    reader: Arc<dyn OptionalColumn<u64>>,
 }
 
 impl FastFieldTestCollector {
@@ -202,7 +202,9 @@ impl SegmentCollector for FastFieldSegmentCollector {
 
     fn collect(&mut self, doc: DocId, _score: Score) {
         let val = self.reader.get_val(doc);
-        self.vals.push(val);
+        if let Some(val) = val {
+            self.vals.push(val);
+        }
     }
 
     fn harvest(self) -> Vec<u64> {

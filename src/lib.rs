@@ -1037,7 +1037,7 @@ pub mod tests {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
             assert!(fast_field_reader_opt.is_ok());
             let fast_field_reader = fast_field_reader_opt.unwrap();
-            assert_eq!(fast_field_reader.get_val(0), 4u64)
+            assert_eq!(fast_field_reader.get_val(0), Some(4u64))
         }
 
         {
@@ -1051,7 +1051,7 @@ pub mod tests {
             let fast_field_reader_res = segment_reader.fast_fields().f64(fast_field_float);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get_val(0), 4f64)
+            assert_eq!(fast_field_reader.get_val(0), Some(4f64))
         }
         Ok(())
     }

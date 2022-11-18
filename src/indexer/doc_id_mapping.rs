@@ -465,9 +465,9 @@ mod tests_indexsorting {
         let my_number = index.schema().get_field("my_number").unwrap();
 
         let fast_field = fast_fields.u64(my_number).unwrap();
-        assert_eq!(fast_field.get_val(0), 10u64);
-        assert_eq!(fast_field.get_val(1), 20u64);
-        assert_eq!(fast_field.get_val(2), 30u64);
+        assert_eq!(fast_field.get_val(0), Some(10u64));
+        assert_eq!(fast_field.get_val(1), Some(20u64));
+        assert_eq!(fast_field.get_val(2), Some(30u64));
 
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
         let multifield = fast_fields.u64s(multi_numbers).unwrap();

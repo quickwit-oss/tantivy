@@ -1467,7 +1467,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64(id_field)?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get_val(doc))
+            .map(|doc| fast_field_reader.get_val(doc).unwrap())
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
@@ -1528,7 +1528,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64(id_field)?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get_val(doc))
+            .map(|doc| fast_field_reader.get_val(doc).unwrap())
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 2, 0]);
         Ok(())
@@ -1777,7 +1777,12 @@ mod tests {
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
-                let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+                let ff_reader = segment_reader
+                    .fast_fields()
+                    .u64(id_field)
+                    .unwrap()
+                    .to_full()
+                    .unwrap();
                 segment_reader
                     .doc_ids_alive()
                     .map(move |doc| ff_reader.get_val(doc))
@@ -1788,7 +1793,12 @@ mod tests {
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
-                let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+                let ff_reader = segment_reader
+                    .fast_fields()
+                    .u64(id_field)
+                    .unwrap()
+                    .to_full()
+                    .unwrap();
                 segment_reader
                     .doc_ids_alive()
                     .map(move |doc| ff_reader.get_val(doc))
@@ -1864,7 +1874,7 @@ mod tests {
             .flat_map(|segment_reader| {
                 let ff_reader = segment_reader.fast_fields().ip_addr(ip_field).unwrap();
                 segment_reader.doc_ids_alive().flat_map(move |doc| {
-                    let val = ff_reader.get_val(doc);
+                    let val = ff_reader.get_val(doc).unwrap(); // TODO handle null
                     if val == Ipv6Addr::from_u128(0) {
                         // TODO Fix null handling
                         None
@@ -1921,7 +1931,7 @@ mod tests {
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
-                assert_eq!(id_reader.get_val(doc), vals[0]);
+                assert_eq!(id_reader.get_val(doc).unwrap(), vals[0]);
 
                 let mut bool_vals = vec![];
                 bool_ff_reader.get_vals(doc, &mut bool_vals);
@@ -2117,7 +2127,7 @@ mod tests {
                 facet_reader
                     .facet_from_ord(facet_ords[0], &mut facet)
                     .unwrap();
-                let id = ff_reader.get_val(doc_id);
+                let id = ff_reader.get_val(doc_id).unwrap();
                 let facet_expected = Facet::from(&("/cola/".to_string() + &id.to_string()));
 
                 assert_eq!(facet, facet_expected);

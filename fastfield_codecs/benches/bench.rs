@@ -103,7 +103,7 @@ mod tests {
         let iter_gen = || data.iter().cloned();
         serialize_u128(iter_gen, data.len() as u32, &mut out).unwrap();
         let out = OwnedBytes::new(out);
-        open_u128::<u128>(out).unwrap()
+        open_u128::<u128>(out).unwrap().to_full().unwrap()
     }
 
     #[bench]

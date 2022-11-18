@@ -133,13 +133,16 @@ impl U128FastFieldCodecType {
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open_u128<Item: MonotonicallyMappableToU128>(
     mut bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<Item>>> {
+) -> io::Result<Arc<dyn OptionalColumn<Item>>> {
     let header = U128Header::deserialize(&mut bytes)?;
     assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
     let reader = CompactSpaceDecompressor::open(bytes)?;
     let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
         StrictlyMonotonicMappingToInternal::<Item>::new().into();
-    Ok(Arc::new(monotonic_map_column(reader, inverted)))
+
+    Ok(Arc::new(ToOptionalColumn::new(Arc::new(
+        monotonic_map_column(reader, inverted),
+    ))))
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.

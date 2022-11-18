@@ -460,7 +460,7 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
-    ///                 let popularity: u64 = popularity_reader.get_val(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc).unwrap();
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
     ///                 let popularity_boost_score = ((2u64 + popularity) as Score).log2();
@@ -569,8 +569,8 @@ impl TopDocs {
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {
-    ///                 let popularity: u64 = popularity_reader.get_val(doc);
-    ///                 let boosted: u64 = boosted_reader.get_val(doc);
+    ///                 let popularity: u64 = popularity_reader.get_val(doc).unwrap();
+    ///                 let boosted: u64 = boosted_reader.get_val(doc).unwrap();
     ///                 // Score do not have to be `f64` in tantivy.
     ///                 // Here we return a couple to get lexicographical order
     ///                 // for free.

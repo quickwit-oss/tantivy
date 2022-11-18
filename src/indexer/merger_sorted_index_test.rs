@@ -186,17 +186,17 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get_val(5), 1u64);
-        assert_eq!(fast_field.get_val(4), 2u64);
-        assert_eq!(fast_field.get_val(3), 3u64);
+        assert_eq!(fast_field.get_val(5), Some(1u64));
+        assert_eq!(fast_field.get_val(4), Some(2u64));
+        assert_eq!(fast_field.get_val(3), Some(3u64));
         if force_disjunct_segment_sort_values {
-            assert_eq!(fast_field.get_val(2), 20u64);
-            assert_eq!(fast_field.get_val(1), 100u64);
+            assert_eq!(fast_field.get_val(2), Some(20u64));
+            assert_eq!(fast_field.get_val(1), Some(100u64));
         } else {
-            assert_eq!(fast_field.get_val(2), 10u64);
-            assert_eq!(fast_field.get_val(1), 20u64);
+            assert_eq!(fast_field.get_val(2), Some(10u64));
+            assert_eq!(fast_field.get_val(1), Some(20u64));
         }
-        assert_eq!(fast_field.get_val(0), 1_000u64);
+        assert_eq!(fast_field.get_val(0), Some(1_000u64));
 
         // test new field norm mapping
         {
@@ -373,12 +373,12 @@ mod tests {
 
         let fast_fields = segment_reader.fast_fields();
         let fast_field = fast_fields.u64(int_field).unwrap();
-        assert_eq!(fast_field.get_val(0), 1u64);
-        assert_eq!(fast_field.get_val(1), 2u64);
-        assert_eq!(fast_field.get_val(2), 3u64);
-        assert_eq!(fast_field.get_val(3), 10u64);
-        assert_eq!(fast_field.get_val(4), 20u64);
-        assert_eq!(fast_field.get_val(5), 1_000u64);
+        assert_eq!(fast_field.get_val(0), Some(1u64));
+        assert_eq!(fast_field.get_val(1), Some(2u64));
+        assert_eq!(fast_field.get_val(2), Some(3u64));
+        assert_eq!(fast_field.get_val(3), Some(10u64));
+        assert_eq!(fast_field.get_val(4), Some(20u64));
+        assert_eq!(fast_field.get_val(5), Some(1_000u64));
 
         let get_vals = |fast_field: &MultiValuedFastFieldReader<u64>, doc_id: u32| -> Vec<u64> {
             let mut vals = vec![];

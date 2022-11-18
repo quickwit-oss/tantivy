@@ -51,7 +51,7 @@ impl Warmer for DynamicPriceColumn {
             let product_id_reader = segment.fast_fields().u64(self.field)?;
             let product_ids: Vec<ProductId> = segment
                 .doc_ids_alive()
-                .map(|doc| product_id_reader.get_val(doc))
+                .flat_map(|doc| product_id_reader.get_val(doc))
                 .collect();
             let mut prices_it = self.price_fetcher.fetch_prices(&product_ids).into_iter();
             let mut price_vals: Vec<Price> = Vec::new();
