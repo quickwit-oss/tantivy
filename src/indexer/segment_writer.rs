@@ -180,7 +180,7 @@ impl SegmentWriter {
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.clear_with_field_and_type(field_entry.field_type().value_type(), field);
 
-            match *field_entry.field_type() {
+            match field_entry.field_type() {
                 FieldType::Facet(_) => {
                     for value in values {
                         let facet = value.as_facet().ok_or_else(make_schema_error)?;
@@ -307,7 +307,7 @@ impl SegmentWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
-                FieldType::JsonObject(_) => {
+                FieldType::JsonObject(json_options) => {
                     let text_analyzer = &self.per_field_text_analyzers[field.field_id() as usize];
                     let json_values_it =
                         values.map(|value| value.as_json().ok_or_else(make_schema_error));
@@ -315,6 +315,7 @@ impl SegmentWriter {
                         doc_id,
                         json_values_it,
                         text_analyzer,
+                        json_options.is_expand_dots_enabled(),
                         term_buffer,
                         postings_writer,
                         ctx,
@@ -557,7 +558,7 @@ mod tests {
         let mut term = Term::with_type_and_field(Type::Json, json_field);
         let mut term_stream = term_dict.stream().unwrap();
 
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
 
         json_term_writer.push_path_segment("bool");
         json_term_writer.set_fast_value(true);
@@ -648,7 +649,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.set_str("token");
         let term_info = inv_index
@@ -692,7 +693,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.set_str("two tokens");
         let term_info = inv_index
@@ -737,7 +738,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.push_path_segment("field");
         json_term_writer.set_str("hello");

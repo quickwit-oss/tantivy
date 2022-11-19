@@ -13,6 +13,8 @@ pub struct JsonObjectOptions {
     // If set to some, int, date, f64 and text will be indexed.
     // Text will use the TextFieldIndexing setting for indexing.
     indexing: Option<TextFieldIndexing>,
+
+    expand_dots_enabled: bool,
 }
 
 impl JsonObjectOptions {
@@ -24,6 +26,29 @@ impl JsonObjectOptions {
     /// Returns `true` iff the json object should be indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexing.is_some()
+    }
+
+    /// Returns `true` iff dots in json keys should be expanded.
+    ///
+    /// When expand_dots is enabled, json object like
+    /// `{"k8s.node.id": 5}` is processed as if it was
+    /// `{"k8s": {"node": {"id": 5}}}`.
+    /// It option has the merit of allowing users to
+    /// write queries  like `k8s.node.id:5`.
+    /// On the other, enabling that feature can lead to
+    /// ambiguity.
+    ///
+    /// If disabled, the "." need to be escaped:
+    /// `k8s\.node\.id:5`.
+    pub fn is_expand_dots_enabled(&self) -> bool {
+        self.expand_dots_enabled
+    }
+
+    /// Sets `expands_dots` to true.
+    /// See `is_expand_dots_enabled` for more information.
+    pub fn set_expand_dots_enabled(mut self) -> Self {
+        self.expand_dots_enabled = true;
+        self
     }
 
     /// Returns the text indexing options.
@@ -55,6 +80,7 @@ impl From<StoredFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: true,
             indexing: None,
+            expand_dots_enabled: false,
         }
     }
 }
@@ -69,10 +95,11 @@ impl<T: Into<JsonObjectOptions>> BitOr<T> for JsonObjectOptions {
     type Output = JsonObjectOptions;
 
     fn bitor(self, other: T) -> Self {
-        let other = other.into();
+        let other: JsonObjectOptions = other.into();
         JsonObjectOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
+            expand_dots_enabled: self.expand_dots_enabled | other.expand_dots_enabled,
         }
     }
 }
@@ -93,6 +120,7 @@ impl From<TextOptions> for JsonObjectOptions {
         JsonObjectOptions {
             stored: text_options.is_stored(),
             indexing: text_options.get_indexing_options().cloned(),
+            expand_dots_enabled: false,
         }
     }
 }

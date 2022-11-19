@@ -67,11 +67,12 @@ pub(crate) fn index_json_values<'a>(
     doc: DocId,
     json_values: impl Iterator<Item = crate::Result<&'a serde_json::Map<String, serde_json::Value>>>,
     text_analyzer: &TextAnalyzer,
+    expand_dots_enabled: bool,
     term_buffer: &mut Term,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
 ) -> crate::Result<()> {
-    let mut json_term_writer = JsonTermWriter::wrap(term_buffer);
+    let mut json_term_writer = JsonTermWriter::wrap(term_buffer, expand_dots_enabled);
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
     for json_value_res in json_values {
         let json_value = json_value_res?;
@@ -259,6 +260,7 @@ pub(crate) fn set_string_and_get_terms(
 pub struct JsonTermWriter<'a> {
     term_buffer: &'a mut Term,
     path_stack: Vec<usize>,
+    expand_dots_enabled: bool,
 }
 
 /// Splits a json path supplied to the query parser in such a way that
@@ -298,23 +300,25 @@ impl<'a> JsonTermWriter<'a> {
     pub fn from_field_and_json_path(
         field: Field,
         json_path: &str,
+        expand_dots_enabled: bool,
         term_buffer: &'a mut Term,
     ) -> Self {
         term_buffer.set_field_and_type(field, Type::Json);
-        let mut json_term_writer = Self::wrap(term_buffer);
+        let mut json_term_writer = Self::wrap(term_buffer, expand_dots_enabled);
         for segment in split_json_path(json_path) {
             json_term_writer.push_path_segment(&segment);
         }
         json_term_writer
     }
 
-    pub fn wrap(term_buffer: &'a mut Term) -> Self {
+    pub fn wrap(term_buffer: &'a mut Term, expand_dots_enabled: bool) -> Self {
         term_buffer.clear_with_type(Type::Json);
         let mut path_stack = Vec::with_capacity(10);
         path_stack.push(0);
         Self {
             term_buffer,
             path_stack,
+            expand_dots_enabled,
         }
     }
 
@@ -336,11 +340,24 @@ impl<'a> JsonTermWriter<'a> {
         self.trim_to_end_of_path();
         let buffer = self.term_buffer.value_bytes_mut();
         let buffer_len = buffer.len();
+
         if self.path_stack.len() > 1 {
             buffer[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
         }
-        self.term_buffer.append_bytes(segment.as_bytes());
-        self.term_buffer.append_bytes(&[JSON_PATH_SEGMENT_SEP]);
+        if self.expand_dots_enabled && segment.as_bytes().contains(&b'.') {
+            // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
+            self.term_buffer
+                .append_bytes(segment.as_bytes())
+                .iter_mut()
+                .for_each(|byte| {
+                    if *byte == b'.' {
+                        *byte = JSON_PATH_SEGMENT_SEP;
+                    }
+                });
+        } else {
+            self.term_buffer.append_bytes(segment.as_bytes());
+        }
+        self.term_buffer.push_byte(JSON_PATH_SEGMENT_SEP);
         self.path_stack.push(self.term_buffer.len_bytes());
     }
 
@@ -391,7 +408,7 @@ mod tests {
     fn test_json_writer() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("attributes");
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
@@ -425,7 +442,7 @@ mod tests {
     fn test_string_term() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
         assert_eq!(
@@ -438,7 +455,7 @@ mod tests {
     fn test_i64_term() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(-4i64);
         assert_eq!(
@@ -451,7 +468,7 @@ mod tests {
     fn test_u64_term() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4u64);
         assert_eq!(
@@ -464,7 +481,7 @@ mod tests {
     fn test_f64_term() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4.0f64);
         assert_eq!(
@@ -477,7 +494,7 @@ mod tests {
     fn test_bool_term() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(true);
         assert_eq!(
@@ -490,7 +507,7 @@ mod tests {
     fn test_push_after_set_path_segment() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("attribute");
         json_writer.set_str("something");
         json_writer.push_path_segment("color");
@@ -505,7 +522,7 @@ mod tests {
     fn test_pop_segment() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         json_writer.push_path_segment("hue");
         json_writer.pop_path_segment();
@@ -520,13 +537,44 @@ mod tests {
     fn test_json_writer_path() {
         let field = Field::from_field_id(1);
         let mut term = Term::with_type_and_field(Type::Json, field);
-        let mut json_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
         json_writer.push_path_segment("color");
         assert_eq!(json_writer.path(), b"color");
         json_writer.push_path_segment("hue");
         assert_eq!(json_writer.path(), b"color\x01hue");
         json_writer.set_str("pink");
         assert_eq!(json_writer.path(), b"color\x01hue");
+    }
+
+    #[test]
+    fn test_json_path_expand_dots_disabled() {
+        let field = Field::from_field_id(1);
+        let mut term = Term::with_type_and_field(Type::Json, field);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, false);
+        json_writer.push_path_segment("color.hue");
+        assert_eq!(json_writer.path(), b"color.hue");
+    }
+
+    #[test]
+    fn test_json_path_expand_dots_enabled() {
+        let field = Field::from_field_id(1);
+        let mut term = Term::with_type_and_field(Type::Json, field);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, true);
+        json_writer.push_path_segment("color.hue");
+        assert_eq!(json_writer.path(), b"color\x01hue");
+    }
+
+    #[test]
+    fn test_json_path_expand_dots_enabled_pop_segment() {
+        let field = Field::from_field_id(1);
+        let mut term = Term::with_type_and_field(Type::Json, field);
+        let mut json_writer = JsonTermWriter::wrap(&mut term, true);
+        json_writer.push_path_segment("hello");
+        assert_eq!(json_writer.path(), b"hello");
+        json_writer.push_path_segment("color.hue");
+        assert_eq!(json_writer.path(), b"hello\x01color\x01hue");
+        json_writer.pop_path_segment();
+        assert_eq!(json_writer.path(), b"hello");
     }
 
     #[test]
