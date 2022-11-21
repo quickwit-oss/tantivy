@@ -226,7 +226,7 @@ impl FastFieldReaders {
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
     pub fn u64_lenient(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<u64>>> {
-        Ok(self.typed_fast_field_reader(field)?)
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns the `i64` fast field reader reader associated with `field`.
@@ -250,7 +250,7 @@ impl FastFieldReaders {
     /// If `field` is not a f64 fast field, this method returns an Error.
     pub fn f64(&self, field: Field) -> crate::Result<Arc<dyn OptionalColumn<f64>>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
-        Ok(self.typed_fast_field_reader(field)?)
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns the `bool` fast field reader reader associated with `field`.

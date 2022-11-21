@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use ownedbytes::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::optional_column::OptionalColumn;
 use crate::serialize::NormalizedHeader;
 use crate::{Column, FastFieldCodec, FastFieldCodecType};
 
@@ -29,26 +28,6 @@ impl Column for BitpackedReader {
     #[inline]
     fn max_value(&self) -> u64 {
         self.normalized_header.max_value
-    }
-    #[inline]
-    fn num_vals(&self) -> u32 {
-        self.normalized_header.num_vals
-    }
-}
-
-impl OptionalColumn for BitpackedReader {
-    #[inline]
-    fn get_val(&self, doc: u32) -> Option<u64> {
-        Some(self.bit_unpacker.get(doc, &self.data))
-    }
-    #[inline]
-    fn min_value(&self) -> Option<u64> {
-        // The BitpackedReader assumes a normalized vector.
-        Some(0)
-    }
-    #[inline]
-    fn max_value(&self) -> Option<u64> {
-        Some(self.normalized_header.max_value)
     }
     #[inline]
     fn num_vals(&self) -> u32 {

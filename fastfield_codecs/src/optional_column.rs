@@ -63,7 +63,7 @@ pub trait OptionalColumn<T: PartialOrd = u64>: Send + Sync {
     /// `.max_value()`.
     fn max_value(&self) -> Option<T>;
 
-    /// The number of values in the column.
+    /// The number of values including `None` in the column.
     fn num_vals(&self) -> u32;
 
     /// Returns a iterator over the data
