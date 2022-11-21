@@ -197,8 +197,19 @@ impl Term {
     }
 
     /// Appends value bytes to the Term.
-    pub fn append_bytes(&mut self, bytes: &[u8]) {
+    ///
+    /// This function returns the segment that has just been added.
+    #[inline]
+    pub fn append_bytes(&mut self, bytes: &[u8]) -> &mut [u8] {
+        let len_before = self.0.len();
         self.0.extend_from_slice(bytes);
+        &mut self.0[len_before..]
+    }
+
+    /// Appends a single byte to the term.
+    #[inline]
+    pub fn push_byte(&mut self, byte: u8) {
+        self.0.push(byte);
     }
 }
 

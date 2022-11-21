@@ -16,7 +16,8 @@ use crate::query::{
     TermQuery, TermSetQuery,
 };
 use crate::schema::{
-    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, Schema, Term, Type,
+    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
+    Schema, Term, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -482,28 +483,14 @@ impl QueryParser {
                 .into_iter()
                 .collect())
             }
-            FieldType::JsonObject(ref json_options) => {
-                let option = json_options.get_text_indexing_options().ok_or_else(|| {
-                    // This should have been seen earlier really.
-                    QueryParserError::FieldNotIndexed(field_name.to_string())
-                })?;
-                let text_analyzer =
-                    self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
-                            field: field_name.to_string(),
-                            tokenizer: option.tokenizer().to_string(),
-                        })?;
-                let index_record_option = option.index_option();
-                generate_literals_for_json_object(
-                    field_name,
-                    field,
-                    json_path,
-                    phrase,
-                    &text_analyzer,
-                    index_record_option,
-                )
-            }
+            FieldType::JsonObject(ref json_options) => generate_literals_for_json_object(
+                field_name,
+                field,
+                json_path,
+                phrase,
+                &self.tokenizer_manager,
+                json_options,
+            ),
             FieldType::Facet(_) => match Facet::from_text(phrase) {
                 Ok(facet) => {
                     let facet_term = Term::from_facet(field, &facet);
@@ -767,17 +754,32 @@ fn generate_literals_for_json_object(
     field: Field,
     json_path: &str,
     phrase: &str,
-    text_analyzer: &TextAnalyzer,
-    index_record_option: IndexRecordOption,
+    tokenizer_manager: &TokenizerManager,
+    json_options: &JsonObjectOptions,
 ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
+    let text_options = json_options.get_text_indexing_options().ok_or_else(|| {
+        // This should have been seen earlier really.
+        QueryParserError::FieldNotIndexed(field_name.to_string())
+    })?;
+    let text_analyzer = tokenizer_manager
+        .get(text_options.tokenizer())
+        .ok_or_else(|| QueryParserError::UnknownTokenizer {
+            field: field_name.to_string(),
+            tokenizer: text_options.tokenizer().to_string(),
+        })?;
+    let index_record_option = text_options.index_option();
     let mut logical_literals = Vec::new();
     let mut term = Term::with_capacity(100);
-    let mut json_term_writer =
-        JsonTermWriter::from_field_and_json_path(field, json_path, &mut term);
+    let mut json_term_writer = JsonTermWriter::from_field_and_json_path(
+        field,
+        json_path,
+        json_options.is_expand_dots_enabled(),
+        &mut term,
+    );
     if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
         logical_literals.push(LogicalLiteral::Term(term));
     }
-    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, text_analyzer);
+    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, &text_analyzer);
     drop(json_term_writer);
     if terms.len() <= 1 {
         for (_, term) in terms {
