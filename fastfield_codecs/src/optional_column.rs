@@ -22,7 +22,6 @@ pub trait OptionalColumn<T: PartialOrd = u64>: Send + Sync {
     ///
     /// Must panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-
     fn get_range(&self, start: u64, output: &mut [Option<T>]) {
         for (out, idx) in output.iter_mut().zip(start..) {
             *out = self.get_val(idx as u32);
@@ -38,7 +37,7 @@ pub trait OptionalColumn<T: PartialOrd = u64>: Send + Sync {
     ) {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
 
-        for idx in doc_id_range.start..doc_id_range.end {
+        for idx in doc_id_range {
             let val = self.get_val(idx);
             if let Some(val) = val {
                 if value_range.contains(&val) {
