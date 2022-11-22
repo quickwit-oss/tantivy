@@ -33,6 +33,7 @@ use crate::monotonic_mapping::{
     StrictlyMonotonicFn, StrictlyMonotonicMappingToInternal,
     StrictlyMonotonicMappingToInternalGCDBaseval,
 };
+use crate::null_index_footer::{FastFieldCardinality, NullIndexCodec, NullIndexFooter};
 use crate::{
     monotonic_map_column, Column, FastFieldCodec, FastFieldCodecType, MonotonicallyMappableToU64,
     U128FastFieldCodecType, VecColumn, ALL_CODEC_TYPES,
@@ -198,6 +199,13 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
     compressor.compress_into(iter_gen(), output).unwrap();
 
+    let null_index_footer = NullIndexFooter {
+        cardinality: FastFieldCardinality::Single,
+        null_index_codec: NullIndexCodec::Full,
+        null_index_byte_range: 0..0,
+    };
+    null_index_footer.serialize(output)?;
+
     Ok(())
 }
 
@@ -221,6 +229,14 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     let normalized_column = header.normalize_column(column);
     assert_eq!(normalized_column.min_value(), 0u64);
     serialize_given_codec(normalized_column, header.codec_type, output)?;
+
+    let null_index_footer = NullIndexFooter {
+        cardinality: FastFieldCardinality::Single,
+        null_index_codec: NullIndexCodec::Full,
+        null_index_byte_range: 0..0,
+    };
+    null_index_footer.serialize(output)?;
+
     Ok(())
 }
 
@@ -283,6 +299,8 @@ pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
 
 #[cfg(test)]
 mod tests {
+    use common::FixedSize;
+
     use super::*;
 
     #[test]
@@ -310,7 +328,7 @@ mod tests {
         let col = VecColumn::from(&[false, true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
         // 5 bytes of header, 1 byte of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 8);
+        assert_eq!(buffer.len(), 5 + 8 + NullIndexFooter::SIZE_IN_BYTES);
     }
 
     #[test]
@@ -319,7 +337,7 @@ mod tests {
         let col = VecColumn::from(&[true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
         // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 7);
+        assert_eq!(buffer.len(), 5 + 7 + NullIndexFooter::SIZE_IN_BYTES);
     }
 
     #[test]
@@ -329,6 +347,9 @@ mod tests {
         let col = VecColumn::from(&vals[..]);
         serialize(col, &mut buffer, &[FastFieldCodecType::Bitpacked]).unwrap();
         // Values are stored over 3 bits.
-        assert_eq!(buffer.len(), 7 + (3 * 80 / 8) + 7);
+        assert_eq!(
+            buffer.len(),
+            7 + (3 * 80 / 8) + 7 + NullIndexFooter::SIZE_IN_BYTES
+        );
     }
 }

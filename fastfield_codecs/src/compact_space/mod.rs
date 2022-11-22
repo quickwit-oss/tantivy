@@ -456,6 +456,7 @@ impl CompactSpaceDecompressor {
 mod tests {
 
     use super::*;
+    use crate::null_index_footer::NullIndexFooter;
     use crate::serialize::U128Header;
     use crate::{open_u128, serialize_u128};
 
@@ -541,7 +542,9 @@ mod tests {
         .unwrap();
 
         let data = OwnedBytes::new(out);
+        let data = data.slice(0..data.len() - NullIndexFooter::SIZE_IN_BYTES);
         test_all(data.clone(), u128_vals);
+
         data
     }
 
@@ -559,6 +562,7 @@ mod tests {
             333u128,
         ];
         let mut data = test_aux_vals(vals);
+
         let _header = U128Header::deserialize(&mut data);
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
         let complete_range = 0..vals.len() as u32;
@@ -788,6 +792,7 @@ mod tests {
         let vals = &[1_000_000_000u128; 100];
         let _data = test_aux_vals(vals);
     }
+    use common::FixedSize;
     use itertools::Itertools;
     use proptest::prelude::*;
 
