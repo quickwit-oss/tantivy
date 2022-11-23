@@ -384,8 +384,8 @@ impl Schema {
         Ok(doc)
     }
 
-    /// Splits a full_path, into a field name and a json path.
-    pub fn split_full_path<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
+    /// Searches for a full_path, returning the field name and a json path.
+    pub fn find_field<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
         if let Some(field) = self.0.fields_map.get(full_path) {
             return Some((*field, ""));
         }
