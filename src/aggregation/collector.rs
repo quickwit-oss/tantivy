@@ -7,6 +7,7 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationResultsCollector;
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
+use crate::schema::Schema;
 use crate::{SegmentReader, TantivyError};
 
 /// The default max bucket count, before the aggregation fails.
@@ -16,6 +17,7 @@ pub const MAX_BUCKET_COUNT: u32 = 65000;
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
 pub struct AggregationCollector {
+    schema: Schema,
     agg: Aggregations,
     max_bucket_count: u32,
 }
@@ -25,8 +27,9 @@ impl AggregationCollector {
     ///
     /// Aggregation fails when the total bucket count is higher than max_bucket_count.
     /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
-    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
+    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>, schema: Schema) -> Self {
         Self {
+            schema,
             agg,
             max_bucket_count: max_bucket_count.unwrap_or(MAX_BUCKET_COUNT),
         }
@@ -113,7 +116,7 @@ impl Collector for AggregationCollector {
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
         let res = merge_fruits(segment_fruits)?;
-        res.into_final_bucket_result(self.agg.clone())
+        res.into_final_bucket_result(self.agg.clone(), &self.schema)
     }
 }
 

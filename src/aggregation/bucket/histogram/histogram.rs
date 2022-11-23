@@ -4,6 +4,8 @@ use std::fmt::Display;
 use fastfield_codecs::Column;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::aggregation::agg_req::AggregationsInternal;
 use crate::aggregation::agg_req_with_accessor::{
@@ -15,7 +17,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
-use crate::schema::Type;
+use crate::schema::{Schema, Type};
 use crate::{DocId, TantivyError};
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -451,6 +453,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
+    schema: &Schema,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
     //
@@ -491,7 +494,9 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
                 sub_aggregation: empty_sub_aggregation.clone(),
             },
         })
-        .map(|intermediate_bucket| intermediate_bucket.into_final_bucket_entry(sub_aggregation))
+        .map(|intermediate_bucket| {
+            intermediate_bucket.into_final_bucket_entry(sub_aggregation, schema)
+        })
         .collect::<crate::Result<Vec<_>>>()
 }
 
@@ -500,20 +505,56 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
+    schema: &Schema,
 ) -> crate::Result<Vec<BucketEntry>> {
-    if histogram_req.min_doc_count() == 0 {
+    let mut buckets = if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
         // reduce serialization size).
 
-        intermediate_buckets_to_final_buckets_fill_gaps(buckets, histogram_req, sub_aggregation)
+        intermediate_buckets_to_final_buckets_fill_gaps(
+            buckets,
+            histogram_req,
+            sub_aggregation,
+            schema,
+        )?
     } else {
         buckets
             .into_iter()
             .filter(|histogram_bucket| histogram_bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|histogram_bucket| histogram_bucket.into_final_bucket_entry(sub_aggregation))
-            .collect::<crate::Result<Vec<_>>>()
+            .map(|histogram_bucket| {
+                histogram_bucket.into_final_bucket_entry(sub_aggregation, schema)
+            })
+            .collect::<crate::Result<Vec<_>>>()?
+    };
+
+    // If we have a date type on the histogram buckets, we add the `key_as_string` field as rfc339
+    let field = schema
+        .get_field(&histogram_req.field)
+        .ok_or_else(|| TantivyError::FieldNotFound(histogram_req.field.to_string()))?;
+    if schema.get_field_entry(field).field_type().is_date() {
+        for bucket in buckets.iter_mut() {
+            match bucket.key {
+                crate::aggregation::Key::F64(val) => {
+                    let datetime = OffsetDateTime::from_unix_timestamp_nanos(1_000 * (val as i128))
+                        .map_err(|err| {
+                            TantivyError::InvalidArgument(format!(
+                                "Could not convert {:?} to OffsetDateTime, err {:?}",
+                                val, err
+                            ))
+                        })?;
+                    let key_as_string = datetime.format(&Rfc3339).map_err(|_err| {
+                        TantivyError::InvalidArgument("Could not serialize date".to_string())
+                    })?;
+
+                    bucket.key_as_string = Some(key_as_string);
+                }
+                _ => {}
+            }
+        }
     }
+
+    Ok(buckets)
 }
 
 /// Applies req extended_bounds/hard_bounds on the min_max value
@@ -1404,13 +1445,25 @@ mod tests {
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
 
         assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000000.0);
+        assert_eq!(
+            res["histogram"]["buckets"][0]["key_as_string"],
+            "2019-01-01T00:00:00Z"
+        );
         assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
 
         assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000000.0);
+        assert_eq!(
+            res["histogram"]["buckets"][1]["key_as_string"],
+            "2019-01-02T00:00:00Z"
+        );
+
         assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 5);
 
         assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000.0);
-        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000.0);
+        assert_eq!(
+            res["histogram"]["buckets"][2]["key_as_string"],
+            "2019-01-03T00:00:00Z"
+        );
 
         assert_eq!(res["histogram"]["buckets"][3], Value::Null);
 
