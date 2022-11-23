@@ -183,7 +183,6 @@ pub struct QueryParser {
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
     boost: HashMap<Field, Score>,
-    field_names: HashMap<String, Field>,
 }
 
 fn all_negative(ast: &LogicalAst) -> bool {
@@ -196,31 +195,6 @@ fn all_negative(ast: &LogicalAst) -> bool {
     }
 }
 
-// Returns the position (in byte offsets) of the unescaped '.' in the `field_path`.
-//
-// This function operates directly on bytes (as opposed to codepoint), relying
-// on a encoding property of utf-8 for its correctness.
-fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
-    let mut splitting_dots_pos = Vec::new();
-    let mut escape_state = false;
-    for (pos, b) in field_path.bytes().enumerate() {
-        if escape_state {
-            escape_state = false;
-            continue;
-        }
-        match b {
-            b'\\' => {
-                escape_state = true;
-            }
-            b'.' => {
-                splitting_dots_pos.push(pos);
-            }
-            _ => {}
-        }
-    }
-    splitting_dots_pos
-}
-
 impl QueryParser {
     /// Creates a `QueryParser`, given
     /// * schema - index Schema
@@ -230,34 +204,19 @@ impl QueryParser {
         default_fields: Vec<Field>,
         tokenizer_manager: TokenizerManager,
     ) -> QueryParser {
-        let field_names = schema
-            .fields()
-            .map(|(field, field_entry)| (field_entry.name().to_string(), field))
-            .collect();
         QueryParser {
             schema,
             default_fields,
             tokenizer_manager,
             conjunction_by_default: false,
             boost: Default::default(),
-            field_names,
         }
     }
 
     // Splits a full_path as written in a query, into a field name and a
     // json path.
     pub(crate) fn split_full_path<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
-        if let Some(field) = self.field_names.get(full_path) {
-            return Some((*field, ""));
-        }
-        let mut splitting_period_pos: Vec<usize> = locate_splitting_dots(full_path);
-        while let Some(pos) = splitting_period_pos.pop() {
-            let (prefix, suffix) = full_path.split_at(pos);
-            if let Some(field) = self.field_names.get(prefix) {
-                return Some((*field, &suffix[1..]));
-            }
-        }
-        None
+        self.schema.split_full_path(full_path)
     }
 
     /// Creates a `QueryParser`, given
@@ -1564,13 +1523,6 @@ mod test {
         assert_eq!(query_parser.split_full_path("hello.toto"), None);
         assert_eq!(query_parser.split_full_path(""), None);
         assert_eq!(query_parser.split_full_path("firsty"), None);
-    }
-
-    #[test]
-    fn test_locate_splitting_dots() {
-        assert_eq!(&super::locate_splitting_dots("a.b.c"), &[1, 3]);
-        assert_eq!(&super::locate_splitting_dots(r#"a\.b.c"#), &[4]);
-        assert_eq!(&super::locate_splitting_dots(r#"a\..b.c"#), &[3, 5]);
     }
 
     #[test]

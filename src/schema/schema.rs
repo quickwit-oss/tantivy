@@ -252,6 +252,31 @@ impl Eq for InnerSchema {}
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Schema(Arc<InnerSchema>);
 
+// Returns the position (in byte offsets) of the unescaped '.' in the `field_path`.
+//
+// This function operates directly on bytes (as opposed to codepoint), relying
+// on a encoding property of utf-8 for its correctness.
+fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
+    let mut splitting_dots_pos = Vec::new();
+    let mut escape_state = false;
+    for (pos, b) in field_path.bytes().enumerate() {
+        if escape_state {
+            escape_state = false;
+            continue;
+        }
+        match b {
+            b'\\' => {
+                escape_state = true;
+            }
+            b'.' => {
+                splitting_dots_pos.push(pos);
+            }
+            _ => {}
+        }
+    }
+    splitting_dots_pos
+}
+
 impl Schema {
     /// Return the `FieldEntry` associated with a `Field`.
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
@@ -358,6 +383,21 @@ impl Schema {
         }
         Ok(doc)
     }
+
+    /// Splits a full_path, into a field name and a json path.
+    pub fn split_full_path<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
+        if let Some(field) = self.0.fields_map.get(full_path) {
+            return Some((*field, ""));
+        }
+        let mut splitting_period_pos: Vec<usize> = locate_splitting_dots(full_path);
+        while let Some(pos) = splitting_period_pos.pop() {
+            let (prefix, suffix) = full_path.split_at(pos);
+            if let Some(field) = self.0.fields_map.get(prefix) {
+                return Some((*field, &suffix[1..]));
+            }
+        }
+        None
+    }
 }
 
 impl Serialize for Schema {
@@ -435,6 +475,13 @@ mod tests {
     use crate::schema::numeric_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
+
+    #[test]
+    fn test_locate_splitting_dots() {
+        assert_eq!(&super::locate_splitting_dots("a.b.c"), &[1, 3]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\.b.c"#), &[4]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\..b.c"#), &[3, 5]);
+    }
 
     #[test]
     pub fn is_indexed_test() {
