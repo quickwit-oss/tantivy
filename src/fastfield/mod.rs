@@ -30,8 +30,8 @@ pub use self::multivalued::{
     MultiValueIndex, MultiValueU128FastFieldWriter, MultiValuedFastFieldReader,
     MultiValuedFastFieldWriter, MultiValuedU128FastFieldReader,
 };
+pub(crate) use self::readers::type_and_cardinality;
 pub use self::readers::FastFieldReaders;
-pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{Column, CompositeFastFieldSerializer};
 use self::writer::unexpected_value;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};

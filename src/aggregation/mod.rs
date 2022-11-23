@@ -288,6 +288,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
         Type::I64 => i64::from_u64(val) as f64,
+        Type::Date => i64::from_u64(val) as f64,
         Type::F64 => f64::from_u64(val),
         _ => {
             panic!("unexpected type {:?}. This should not happen", field_type)
@@ -317,6 +318,7 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
+    use time::OffsetDateTime;
 
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use super::bucket::RangeAggregation;
@@ -332,7 +334,7 @@ mod tests {
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
-    use crate::{Index, Term};
+    use crate::{DateTime, Index, Term};
 
     fn get_avg_req(field_name: &str) -> Aggregation {
         Aggregation::Metric(MetricAggregation::Average(
@@ -648,6 +650,7 @@ mod tests {
             .set_fast()
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let date_field = schema_builder.add_date_field("date", FAST);
         schema_builder.add_text_field("dummy_text", STRING);
         let score_fieldtype =
             crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
@@ -665,6 +668,7 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800).unwrap()),
                 score_field => 1u64,
                 score_field_f64 => 1f64,
                 score_field_i64 => 1i64,
@@ -673,6 +677,7 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 3u64,
                 score_field_f64 => 3f64,
                 score_field_i64 => 3i64,
@@ -681,18 +686,21 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 5u64,
                 score_field_f64 => 5f64,
                 score_field_i64 => 5i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 6u64,
                 score_field_f64 => 6f64,
                 score_field_i64 => 6i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 7u64,
                 score_field_f64 => 7f64,
                 score_field_i64 => 7i64,
@@ -700,12 +708,14 @@ mod tests {
             index_writer.commit()?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 11u64,
                 score_field_f64 => 11f64,
                 score_field_i64 => 11i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 14u64,
                 score_field_f64 => 14f64,
                 score_field_i64 => 14i64,
@@ -713,6 +723,7 @@ mod tests {
 
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,
@@ -723,6 +734,7 @@ mod tests {
             // no hits segment
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,

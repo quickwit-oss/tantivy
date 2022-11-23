@@ -174,6 +174,9 @@ pub enum BucketEntries<T> {
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The string representation of the bucket.
+    pub key_as_string: Option<String>,
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.

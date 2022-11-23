@@ -1373,6 +1373,51 @@ mod tests {
     }
 
     #[test]
+    fn histogram_date_test_single_segment() -> crate::Result<()> {
+        histogram_date_test_with_opt(true)
+    }
+
+    #[test]
+    fn histogram_date_test_multi_segment() -> crate::Result<()> {
+        histogram_date_test_with_opt(false)
+    }
+
+    fn histogram_date_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let index = get_test_index_2_segments(merge_segments)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "date".to_string(),
+                    interval: 86400000000.0, // one day in microseconds
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_res = exec_request(agg_req, &index)?;
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000000.0);
+        assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
+
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000000.0);
+        assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 5);
+
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000.0);
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000.0);
+
+        assert_eq!(res["histogram"]["buckets"][3], Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
     fn histogram_invalid_request() -> crate::Result<()> {
         let index = get_test_index_2_segments(true)?;
 

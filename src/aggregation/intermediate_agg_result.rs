@@ -419,6 +419,7 @@ impl IntermediateTermBucketResult {
             .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
             .map(|(key, entry)| {
                 Ok(BucketEntry {
+                    key_as_string: None,
                     key: Key::Str(key),
                     doc_count: entry.doc_count,
                     sub_aggregation: entry
@@ -530,6 +531,7 @@ impl IntermediateHistogramBucketEntry {
         req: &AggregationsInternal,
     ) -> crate::Result<BucketEntry> {
         Ok(BucketEntry {
+            key_as_string: None,
             key: Key::F64(self.key),
             doc_count: self.doc_count,
             sub_aggregation: self
