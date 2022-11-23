@@ -216,7 +216,7 @@ impl QueryParser {
     // Splits a full_path as written in a query, into a field name and a
     // json path.
     pub(crate) fn split_full_path<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
-        self.schema.split_full_path(full_path)
+        self.schema.find_field(full_path)
     }
 
     /// Creates a `QueryParser`, given
