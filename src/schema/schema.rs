@@ -384,7 +384,14 @@ impl Schema {
         Ok(doc)
     }
 
-    /// Searches for a full_path, returning the field name and a json path.
+    /// Searches for a full_path in the schema, returning the field name and a JSON path.
+    ///
+    /// This function works by checking if the field exists for the exact given full_path.
+    /// If it's not, it splits the full_path at non-escaped '.' chars and tries to match the
+    /// prefix with the field names, favoring the longest field names.
+    ///
+    /// This does not check if field is a JSON field. It is possible for this functions to
+    /// return a non-empty JSON path with a non-JSON field.
     pub fn find_field<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
         if let Some(field) = self.0.fields_map.get(full_path) {
             return Some((*field, ""));
@@ -402,7 +409,9 @@ impl Schema {
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for e in &self.0.fields {
             seq.serialize_element(e)?;
@@ -413,7 +422,9 @@ impl Serialize for Schema {
 
 impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         struct SchemaVisitor;
 
         impl<'de> Visitor<'de> for SchemaVisitor {
@@ -424,7 +435,9 @@ impl<'de> Deserialize<'de> for Schema {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where A: SeqAccess<'de> {
+            where
+                A: SeqAccess<'de>,
+            {
                 let mut schema = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
@@ -982,5 +995,47 @@ mod tests {
   }
 ]"#;
         assert_eq!(schema_json, expected);
+    }
+
+    #[test]
+    fn test_find_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_json_field("foo", STRING);
+
+        schema_builder.add_text_field("bar", STRING);
+        schema_builder.add_text_field("foo.bar", STRING);
+        schema_builder.add_text_field("foo.bar.baz", STRING);
+        schema_builder.add_text_field("bar.a.b.c", STRING);
+        let schema = schema_builder.build();
+
+        assert_eq!(
+            schema.find_field("foo.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), "bar"))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar.baz"),
+            Some((schema.get_field("foo.bar.baz").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("foo.toto"),
+            Some((schema.get_field("foo").unwrap(), "toto"))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("bar.toto.titi"),
+            Some((schema.get_field("bar").unwrap(), "toto.titi"))
+        );
+
+        assert_eq!(schema.find_field("hello"), None);
+        assert_eq!(schema.find_field(""), None);
+        assert_eq!(schema.find_field("thiswouldbeareallylongfieldname"), None);
+        assert_eq!(schema.find_field("baz.bar.foo"), None);
     }
 }
