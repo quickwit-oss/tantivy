@@ -12,7 +12,7 @@
 //!
 //! ## Prerequisite
 //! Currently aggregations work only on [fast fields](`crate::fastfield`). Single value fast fields
-//! of type `u64`, `f64`, `i64` and fast fields on text fields.
+//! of type `u64`, `f64`, `i64`, `date` and fast fields on text fields.
 //!
 //! ## Usage
 //! To use aggregations, build an aggregation request by constructing
