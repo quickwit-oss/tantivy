@@ -149,7 +149,8 @@ impl IndexBuilder {
     /// Creates a new index using the [`RamDirectory`].
     ///
     /// The index will be allocated in anonymous memory.
-    /// This should only be used for unit tests.
+    /// This is useful for indexing small set of documents
+    /// for instances like unit test or temporary in memory index.
     pub fn create_in_ram(self) -> Result<Index, TantivyError> {
         let ram_directory = RamDirectory::create();
         self.create(ram_directory)
