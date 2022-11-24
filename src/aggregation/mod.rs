@@ -158,6 +158,7 @@ mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
 mod collector;
+mod date;
 pub mod intermediate_agg_result;
 pub mod metric;
 mod segment_agg_result;
@@ -168,6 +169,7 @@ pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
     MAX_BUCKET_COUNT,
 };
+pub(crate) use date::format_date;
 use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -284,12 +286,11 @@ impl Display for Key {
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
-/// Only `u64`, `f64`, and `i64` are supported.
+/// Only `u64`, `f64`, `date`, and `i64` are supported.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
-        Type::I64 => i64::from_u64(val) as f64,
-        Type::Date => i64::from_u64(val) as f64,
+        Type::I64 | Type::Date => i64::from_u64(val) as f64,
         Type::F64 => f64::from_u64(val),
         _ => {
             panic!("unexpected type {:?}. This should not happen", field_type)
@@ -297,10 +298,9 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     }
 }
 
-/// Converts the `f64` value to fast field value space.
+/// Converts the `f64` value to fast field value space, which is always u64.
 ///
-/// If the fast field has `u64`, values are stored as `u64` in the fast field.
-/// A `f64` value of e.g. `2.0` therefore needs to be converted to `1u64`.
+/// If the fast field has `u64`, values are stored unchanged as `u64` in the fast field.
 ///
 /// If the fast field has `f64` values are converted and stored to `u64` using a
 /// monotonic mapping.
@@ -310,7 +310,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
 pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {
         Type::U64 => Some(val as u64),
-        Type::I64 => Some((val as i64).to_u64()),
+        Type::I64 | Type::Date => Some((val as i64).to_u64()),
         Type::F64 => Some(val.to_u64()),
         _ => None,
     }

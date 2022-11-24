@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::agg_req::{
     Aggregations, AggregationsInternal, BucketAggregationInternal, BucketAggregationType,
-    MetricAggregation,
+    MetricAggregation, RangeAggregation,
 };
 use super::agg_result::{AggregationResult, BucketResult, RangeBucketEntry};
 use super::bucket::{
@@ -19,10 +19,11 @@ use super::bucket::{
 };
 use super::metric::{IntermediateAverage, IntermediateStats};
 use super::segment_agg_result::SegmentMetricResultCollector;
-use super::{Key, SerializedKey, VecWithNames};
+use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::schema::Schema;
+use crate::TantivyError;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -282,7 +283,14 @@ impl IntermediateBucketResult {
                 let mut buckets: Vec<RangeBucketEntry> = range_res
                     .buckets
                     .into_iter()
-                    .map(|(_, bucket)| bucket.into_final_bucket_entry(&req.sub_aggregation, schema))
+                    .map(|(_, bucket)| {
+                        bucket.into_final_bucket_entry(
+                            &req.sub_aggregation,
+                            schema,
+                            req.as_range()
+                                .expect("unexpected aggregation, expected histogram aggregation"),
+                        )
+                    })
                     .collect::<crate::Result<Vec<_>>>()?;
 
                 buckets.sort_by(|left, right| {
@@ -588,8 +596,9 @@ impl IntermediateRangeBucketEntry {
         self,
         req: &AggregationsInternal,
         schema: &Schema,
+        range_req: &RangeAggregation,
     ) -> crate::Result<RangeBucketEntry> {
-        Ok(RangeBucketEntry {
+        let mut range_bucket_entry = RangeBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
             sub_aggregation: self
@@ -597,7 +606,27 @@ impl IntermediateRangeBucketEntry {
                 .into_final_bucket_result_internal(req, schema)?,
             to: self.to,
             from: self.from,
-        })
+            to_as_string: None,
+            from_as_string: None,
+        };
+
+        // If we have a date type on the histogram buckets, we add the `key_as_string` field as
+        // rfc339
+        let field = schema
+            .get_field(&range_req.field)
+            .ok_or_else(|| TantivyError::FieldNotFound(range_req.field.to_string()))?;
+        if schema.get_field_entry(field).field_type().is_date() {
+            if let Some(val) = range_bucket_entry.to {
+                let key_as_string = format_date(val as i64)?;
+                range_bucket_entry.to_as_string = Some(key_as_string);
+            }
+            if let Some(val) = range_bucket_entry.from {
+                let key_as_string = format_date(val as i64)?;
+                range_bucket_entry.from_as_string = Some(key_as_string);
+            }
+        }
+
+        Ok(range_bucket_entry)
     }
 }
 

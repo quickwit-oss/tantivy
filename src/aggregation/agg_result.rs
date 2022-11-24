@@ -245,4 +245,10 @@ pub struct RangeBucketEntry {
     /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
+    /// The optional string representation for the `from` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_as_string: Option<String>,
+    /// The optional string representation for the `to` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_as_string: Option<String>,
 }

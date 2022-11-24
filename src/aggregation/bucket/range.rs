@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
+use fastfield_codecs::MonotonicallyMappableToU64;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +12,9 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
-use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key, SerializedKey};
+use crate::aggregation::{
+    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
+};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -181,7 +184,7 @@ impl SegmentRangeCollector {
             .into_iter()
             .map(move |range_bucket| {
                 Ok((
-                    range_to_string(&range_bucket.range, &field_type),
+                    range_to_string(&range_bucket.range, &field_type)?,
                     range_bucket
                         .bucket
                         .into_intermediate_bucket_entry(&agg_with_accessor.sub_aggregation)?,
@@ -209,8 +212,8 @@ impl SegmentRangeCollector {
                 let key = range
                     .key
                     .clone()
-                    .map(Key::Str)
-                    .unwrap_or_else(|| range_to_key(&range.range, &field_type));
+                    .map(|key| Ok(Key::Str(key)))
+                    .unwrap_or_else(|| range_to_key(&range.range, &field_type))?;
                 let to = if range.range.end == u64::MAX {
                     None
                 } else {
@@ -228,6 +231,7 @@ impl SegmentRangeCollector {
                         sub_aggregation,
                     )?)
                 };
+
                 Ok(SegmentRangeAndBucketEntry {
                     range: range.range.clone(),
                     bucket: SegmentRangeBucketEntry {
@@ -402,34 +406,45 @@ fn extend_validate_ranges(
     Ok(converted_buckets)
 }
 
-pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
+pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> crate::Result<String> {
     // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
     // it should be rendered as "*-0" and not "*-*"
     let to_str = |val: u64, is_start: bool| {
         if (is_start && val == u64::MIN) || (!is_start && val == u64::MAX) {
-            "*".to_string()
+            Ok("*".to_string())
+        } else if *field_type == Type::Date {
+            let val = i64::from_u64(val);
+            format_date(val)
         } else {
-            f64_from_fastfield_u64(val, field_type).to_string()
+            Ok(f64_from_fastfield_u64(val, field_type).to_string())
         }
     };
 
-    format!("{}-{}", to_str(range.start, true), to_str(range.end, false))
+    Ok(format!(
+        "{}-{}",
+        to_str(range.start, true)?,
+        to_str(range.end, false)?
+    ))
 }
 
-pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
-    Key::Str(range_to_string(range, field_type))
+pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> crate::Result<Key> {
+    Ok(Key::Str(range_to_string(range, field_type)?))
 }
 
 #[cfg(test)]
 mod tests {
 
     use fastfield_codecs::MonotonicallyMappableToU64;
+    use serde_json::Value;
 
     use super::*;
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
     };
-    use crate::aggregation::tests::{exec_request_with_query, get_test_index_with_num_docs};
+    use crate::aggregation::tests::{
+        exec_request, exec_request_with_query, get_test_index_2_segments,
+        get_test_index_with_num_docs,
+    };
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
@@ -562,6 +577,77 @@ mod tests {
                     ]
                 }
             })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_date_test_single_segment() -> crate::Result<()> {
+        range_date_test_with_opt(true)
+    }
+
+    #[test]
+    fn range_date_test_multi_segment() -> crate::Result<()> {
+        range_date_test_with_opt(false)
+    }
+
+    fn range_date_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let index = get_test_index_2_segments(merge_segments)?;
+
+        let agg_req: Aggregations = vec![(
+            "date_ranges".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                    field: "date".to_string(),
+                    ranges: vec![
+                        RangeAggregationRange {
+                            key: None,
+                            from: None,
+                            to: Some(1546300800000000.0f64),
+                        },
+                        RangeAggregationRange {
+                            key: None,
+                            from: Some(1546300800000000.0f64),
+                            to: Some(1546387200000000.0f64),
+                        },
+                    ],
+                    keyed: false,
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_res = exec_request(agg_req, &index)?;
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(
+            res["date_ranges"]["buckets"][0]["from_as_string"],
+            Value::Null
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][0]["key"],
+            "*-2019-01-01T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][1]["from_as_string"],
+            "2019-01-01T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][1]["to_as_string"],
+            "2019-01-02T00:00:00Z"
+        );
+
+        assert_eq!(
+            res["date_ranges"]["buckets"][2]["from_as_string"],
+            "2019-01-02T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][2]["to_as_string"],
+            Value::Null
         );
 
         Ok(())

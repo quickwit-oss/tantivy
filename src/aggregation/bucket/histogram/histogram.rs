@@ -4,19 +4,17 @@ use std::fmt::Display;
 use fastfield_codecs::Column;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use crate::aggregation::agg_req::AggregationsInternal;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
 use crate::aggregation::agg_result::BucketEntry;
-use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::aggregation::{f64_from_fastfield_u64, format_date};
 use crate::schema::{Schema, Type};
 use crate::{DocId, TantivyError};
 
@@ -534,22 +532,9 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
         .ok_or_else(|| TantivyError::FieldNotFound(histogram_req.field.to_string()))?;
     if schema.get_field_entry(field).field_type().is_date() {
         for bucket in buckets.iter_mut() {
-            match bucket.key {
-                crate::aggregation::Key::F64(val) => {
-                    let datetime = OffsetDateTime::from_unix_timestamp_nanos(1_000 * (val as i128))
-                        .map_err(|err| {
-                            TantivyError::InvalidArgument(format!(
-                                "Could not convert {:?} to OffsetDateTime, err {:?}",
-                                val, err
-                            ))
-                        })?;
-                    let key_as_string = datetime.format(&Rfc3339).map_err(|_err| {
-                        TantivyError::InvalidArgument("Could not serialize date".to_string())
-                    })?;
-
-                    bucket.key_as_string = Some(key_as_string);
-                }
-                _ => {}
+            if let crate::aggregation::Key::F64(val) = bucket.key {
+                let key_as_string = format_date(val as i64)?;
+                bucket.key_as_string = Some(key_as_string);
             }
         }
     }
