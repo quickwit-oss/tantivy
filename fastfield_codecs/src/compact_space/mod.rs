@@ -373,7 +373,7 @@ impl CompactSpaceDecompressor {
 
         let compact_from = compact_from.unwrap_or_else(|pos| {
             // Correctness: Out of bounds, if this value is Err(last_index + 1), we early exit,
-            // since the to_value also mapps into the same non-mapped spacemich
+            // since the to_value also mapps into the same non-mapped space
             let range_mapping = self.params.compact_space.get_range_mapping(pos);
             range_mapping.compact_start
         });
