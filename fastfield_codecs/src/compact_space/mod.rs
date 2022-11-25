@@ -457,7 +457,7 @@ mod tests {
 
     use super::*;
     use crate::format_version::read_format_version;
-    use crate::null_index_footer::NullIndexFooter;
+    use crate::null_index_footer::read_null_index_footer;
     use crate::serialize::U128Header;
     use crate::{open_u128, serialize_u128};
 
@@ -544,7 +544,7 @@ mod tests {
 
         let data = OwnedBytes::new(out);
         let (data, _format_version) = read_format_version(data).unwrap();
-        let data = data.slice(0..data.len() - NullIndexFooter::SIZE_IN_BYTES);
+        let (data, _null_index_footer) = read_null_index_footer(data).unwrap();
         test_all(data.clone(), u128_vals);
 
         data
@@ -794,7 +794,6 @@ mod tests {
         let vals = &[1_000_000_000u128; 100];
         let _data = test_aux_vals(vals);
     }
-    use common::FixedSize;
     use itertools::Itertools;
     use proptest::prelude::*;
 

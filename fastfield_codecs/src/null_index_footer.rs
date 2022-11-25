@@ -1,7 +1,8 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
-use common::{BinarySerializable, FixedSize};
+use common::{BinarySerializable, CountingWriter, VInt};
+use ownedbytes::OwnedBytes;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum FastFieldCardinality {
@@ -73,28 +74,48 @@ pub(crate) struct NullIndexFooter {
     pub(crate) null_index_byte_range: Range<u64>,
 }
 
-impl FixedSize for NullIndexFooter {
-    const SIZE_IN_BYTES: usize = 18;
-}
-
 impl BinarySerializable for NullIndexFooter {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.cardinality.serialize(writer)?;
         self.null_index_codec.serialize(writer)?;
-        self.null_index_byte_range.start.serialize(writer)?;
-        self.null_index_byte_range.end.serialize(writer)?;
+        VInt(self.null_index_byte_range.start).serialize(writer)?;
+        VInt(self.null_index_byte_range.end).serialize(writer)?;
         Ok(())
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let cardinality = FastFieldCardinality::deserialize(reader)?;
         let null_index_codec = NullIndexCodec::deserialize(reader)?;
-        let null_index_byte_range_start = u64::deserialize(reader)?;
-        let null_index_byte_range_end = u64::deserialize(reader)?;
+        let null_index_byte_range_start = VInt::deserialize(reader)?.0;
+        let null_index_byte_range_end = VInt::deserialize(reader)?.0;
         Ok(Self {
             cardinality,
             null_index_codec,
             null_index_byte_range: null_index_byte_range_start..null_index_byte_range_end,
         })
     }
+}
+
+pub(crate) fn append_null_index_footer(
+    output: &mut impl io::Write,
+    null_index_footer: NullIndexFooter,
+) -> io::Result<()> {
+    let mut counting_write = CountingWriter::wrap(output);
+    null_index_footer.serialize(&mut counting_write)?;
+    let footer_payload_len = counting_write.written_bytes();
+    BinarySerializable::serialize(&(footer_payload_len as u16), &mut counting_write)?;
+
+    Ok(())
+}
+
+pub(crate) fn read_null_index_footer(
+    data: OwnedBytes,
+) -> io::Result<(OwnedBytes, NullIndexFooter)> {
+    let (data, null_footer_length_bytes) = data.rsplit(2);
+
+    let footer_length = u16::deserialize(&mut null_footer_length_bytes.as_slice())?;
+    let (data, null_index_footer_bytes) = data.rsplit(footer_length as usize);
+    let null_index_footer = NullIndexFooter::deserialize(&mut null_index_footer_bytes.as_ref())?;
+
+    Ok((data, null_index_footer))
 }

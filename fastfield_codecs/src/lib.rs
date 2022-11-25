@@ -18,13 +18,14 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
-use common::{BinarySerializable, FixedSize};
+use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
 use format_version::read_format_version;
 use monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
 };
+use null_index_footer::read_null_index_footer;
 use ownedbytes::OwnedBytes;
 use serialize::{Header, U128Header};
 
@@ -51,7 +52,6 @@ pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 pub use self::serialize::{
     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
 };
-use crate::null_index_footer::NullIndexFooter;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -136,7 +136,7 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
     let (bytes, _format_version) = read_format_version(bytes)?;
-    let mut bytes = bytes.slice(0..bytes.len() - NullIndexFooter::SIZE_IN_BYTES);
+    let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
     let header = U128Header::deserialize(&mut bytes)?;
     assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
     let reader = CompactSpaceDecompressor::open(bytes)?;
@@ -148,7 +148,7 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<T>>> {
     let (bytes, _format_version) = read_format_version(bytes)?;
-    let mut bytes = bytes.slice(0..bytes.len() - NullIndexFooter::SIZE_IN_BYTES);
+    let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
     let header = Header::deserialize(&mut bytes)?;
     match header.codec_type {
         FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
