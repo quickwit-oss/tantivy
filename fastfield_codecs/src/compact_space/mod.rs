@@ -373,7 +373,7 @@ impl CompactSpaceDecompressor {
 
         let compact_from = compact_from.unwrap_or_else(|pos| {
             // Correctness: Out of bounds, if this value is Err(last_index + 1), we early exit,
-            // since the to_value also mapps into the same non-mapped space
+            // since the to_value also mapps into the same non-mapped spacemich
             let range_mapping = self.params.compact_space.get_range_mapping(pos);
             range_mapping.compact_start
         });
@@ -456,6 +456,7 @@ impl CompactSpaceDecompressor {
 mod tests {
 
     use super::*;
+    use crate::format_version::read_format_version;
     use crate::null_index_footer::NullIndexFooter;
     use crate::serialize::U128Header;
     use crate::{open_u128, serialize_u128};
@@ -542,6 +543,7 @@ mod tests {
         .unwrap();
 
         let data = OwnedBytes::new(out);
+        let (data, _format_version) = read_format_version(data).unwrap();
         let data = data.slice(0..data.len() - NullIndexFooter::SIZE_IN_BYTES);
         test_all(data.clone(), u128_vals);
 

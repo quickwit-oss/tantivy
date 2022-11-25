@@ -207,7 +207,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 43);
+        assert_eq!(file.len(), 46);
         let composite_file = CompositeFile::open(&file)?;
         let fast_field_bytes = composite_file.open_read(*FIELD).unwrap().read_bytes()?;
         let fast_field_reader = open::<u64>(fast_field_bytes)?;
@@ -256,7 +256,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 71);
+        assert_eq!(file.len(), 74);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite
@@ -297,7 +297,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 44);
+        assert_eq!(file.len(), 47);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite
@@ -336,7 +336,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80058);
+        assert_eq!(file.len(), 80061);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite
@@ -378,7 +378,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 58_usize);
+        assert_eq!(file.len(), 61_usize);
 
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
@@ -822,7 +822,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 42);
+        assert_eq!(file.len(), 45);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
@@ -860,7 +860,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 54);
+        assert_eq!(file.len(), 57);
         let composite_file = CompositeFile::open(&file)?;
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
@@ -892,7 +892,7 @@ mod tests {
         }
         let file = directory.open_read(path).unwrap();
         let composite_file = CompositeFile::open(&file)?;
-        assert_eq!(file.len(), 41);
+        assert_eq!(file.len(), 44);
         let data = composite_file.open_read(field).unwrap().read_bytes()?;
         let fast_field_reader = open::<bool>(data)?;
         assert_eq!(fast_field_reader.get_val(0), false);
@@ -926,10 +926,10 @@ mod tests {
     pub fn test_gcd_date() -> crate::Result<()> {
         let size_prec_sec =
             test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds)?;
-        assert_eq!(size_prec_sec, 18 + 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
+        assert_eq!(size_prec_sec, 3 + 18 + 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
         let size_prec_micro =
             test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds)?;
-        assert_eq!(size_prec_micro, 18 + 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
+        assert_eq!(size_prec_micro, 3 + 18 + 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
         Ok(())
     }
 

@@ -80,6 +80,21 @@ impl OwnedBytes {
         (left, right)
     }
 
+    /// Splits the OwnedBytes into two OwnedBytes `(left, right)`.
+    ///
+    /// Right will hold `split_len` bytes.
+    ///
+    /// This operation is cheap and does not require to copy any memory.
+    /// On the other hand, both `left` and `right` retain a handle over
+    /// the entire slice of memory. In other words, the memory will only
+    /// be released when both left and right are dropped.
+    #[inline]
+    #[must_use]
+    pub fn rsplit(self, split_len: usize) -> (OwnedBytes, OwnedBytes) {
+        let data_len = self.data.len();
+        self.split(data_len - split_len)
+    }
+
     /// Splits the right part of the `OwnedBytes` at the given offset.
     ///
     /// `self` is truncated to `split_len`, left with the remaining bytes.

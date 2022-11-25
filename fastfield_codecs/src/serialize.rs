@@ -28,6 +28,7 @@ use ownedbytes::OwnedBytes;
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;
 use crate::compact_space::CompactSpaceCompressor;
+use crate::format_version::append_format_version;
 use crate::linear::LinearCodec;
 use crate::monotonic_mapping::{
     StrictlyMonotonicFn, StrictlyMonotonicMappingToInternal,
@@ -205,6 +206,7 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
         null_index_byte_range: 0..0,
     };
     null_index_footer.serialize(output)?;
+    append_format_version(output)?;
 
     Ok(())
 }
@@ -236,6 +238,7 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
         null_index_byte_range: 0..0,
     };
     null_index_footer.serialize(output)?;
+    append_format_version(output)?;
 
     Ok(())
 }
@@ -328,7 +331,7 @@ mod tests {
         let col = VecColumn::from(&[false, true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
         // 5 bytes of header, 1 byte of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 8 + NullIndexFooter::SIZE_IN_BYTES);
+        assert_eq!(buffer.len(), 3 + 5 + 8 + NullIndexFooter::SIZE_IN_BYTES);
     }
 
     #[test]
@@ -337,7 +340,7 @@ mod tests {
         let col = VecColumn::from(&[true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
         // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 7 + NullIndexFooter::SIZE_IN_BYTES);
+        assert_eq!(buffer.len(), 3 + 5 + 7 + NullIndexFooter::SIZE_IN_BYTES);
     }
 
     #[test]
@@ -349,7 +352,7 @@ mod tests {
         // Values are stored over 3 bits.
         assert_eq!(
             buffer.len(),
-            7 + (3 * 80 / 8) + 7 + NullIndexFooter::SIZE_IN_BYTES
+            3 + 7 + (3 * 80 / 8) + 7 + NullIndexFooter::SIZE_IN_BYTES
         );
     }
 }

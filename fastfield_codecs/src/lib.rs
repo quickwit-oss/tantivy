@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use common::{BinarySerializable, FixedSize};
 use compact_space::CompactSpaceDecompressor;
+use format_version::read_format_version;
 use monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
@@ -30,6 +31,7 @@ use serialize::{Header, U128Header};
 mod bitpacked;
 mod blockwise_linear;
 mod compact_space;
+mod format_version;
 mod line;
 mod linear;
 mod monotonic_mapping;
@@ -133,6 +135,7 @@ impl U128FastFieldCodecType {
 pub fn open_u128<Item: MonotonicallyMappableToU128>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
+    let (bytes, _format_version) = read_format_version(bytes)?;
     let mut bytes = bytes.slice(0..bytes.len() - NullIndexFooter::SIZE_IN_BYTES);
     let header = U128Header::deserialize(&mut bytes)?;
     assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
@@ -144,6 +147,7 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<T>>> {
+    let (bytes, _format_version) = read_format_version(bytes)?;
     let mut bytes = bytes.slice(0..bytes.len() - NullIndexFooter::SIZE_IN_BYTES);
     let header = Header::deserialize(&mut bytes)?;
     match header.codec_type {
