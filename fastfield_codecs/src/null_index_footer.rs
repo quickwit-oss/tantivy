@@ -4,7 +4,7 @@ use std::ops::Range;
 use common::{BinarySerializable, CountingWriter, VInt};
 use ownedbytes::OwnedBytes;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum FastFieldCardinality {
     Single = 1,
 }
@@ -35,7 +35,7 @@ impl FastFieldCardinality {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NullIndexCodec {
     Full = 1,
 }
@@ -66,7 +66,7 @@ impl NullIndexCodec {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) struct NullIndexFooter {
     pub(crate) cardinality: FastFieldCardinality,
     pub(crate) null_index_codec: NullIndexCodec,
@@ -79,7 +79,8 @@ impl BinarySerializable for NullIndexFooter {
         self.cardinality.serialize(writer)?;
         self.null_index_codec.serialize(writer)?;
         VInt(self.null_index_byte_range.start).serialize(writer)?;
-        VInt(self.null_index_byte_range.end).serialize(writer)?;
+        VInt(self.null_index_byte_range.end - self.null_index_byte_range.start)
+            .serialize(writer)?;
         Ok(())
     }
 
@@ -87,7 +88,7 @@ impl BinarySerializable for NullIndexFooter {
         let cardinality = FastFieldCardinality::deserialize(reader)?;
         let null_index_codec = NullIndexCodec::deserialize(reader)?;
         let null_index_byte_range_start = VInt::deserialize(reader)?.0;
-        let null_index_byte_range_end = VInt::deserialize(reader)?.0;
+        let null_index_byte_range_end = VInt::deserialize(reader)?.0 + null_index_byte_range_start;
         Ok(Self {
             cardinality,
             null_index_codec,
@@ -118,4 +119,26 @@ pub(crate) fn read_null_index_footer(
     let null_index_footer = NullIndexFooter::deserialize(&mut null_index_footer_bytes.as_ref())?;
 
     Ok((data, null_index_footer))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn null_index_footer_deser_test() {
+        let null_index_footer = NullIndexFooter {
+            cardinality: FastFieldCardinality::Single,
+            null_index_codec: NullIndexCodec::Full,
+            null_index_byte_range: 100..120,
+        };
+
+        let mut out = vec![];
+        null_index_footer.serialize(&mut out).unwrap();
+
+        assert_eq!(
+            null_index_footer,
+            NullIndexFooter::deserialize(&mut &out[..]).unwrap()
+        );
+    }
 }
