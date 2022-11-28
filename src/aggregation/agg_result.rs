@@ -12,6 +12,7 @@ use super::bucket::GetDocCount;
 use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
+use crate::schema::Schema;
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -129,9 +130,12 @@ pub enum BucketResult {
 }
 
 impl BucketResult {
-    pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
+    pub(crate) fn empty_from_req(
+        req: &BucketAggregationInternal,
+        schema: &Schema,
+    ) -> crate::Result<Self> {
         let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-        empty_bucket.into_final_bucket_result(req)
+        empty_bucket.into_final_bucket_result(req, schema)
     }
 }
 
@@ -174,6 +178,9 @@ pub enum BucketEntries<T> {
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The string representation of the bucket.
+    pub key_as_string: Option<String>,
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
@@ -238,4 +245,10 @@ pub struct RangeBucketEntry {
     /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
+    /// The optional string representation for the `from` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_as_string: Option<String>,
+    /// The optional string representation for the `to` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_as_string: Option<String>,
 }

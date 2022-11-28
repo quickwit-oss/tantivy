@@ -181,6 +181,11 @@ impl FieldType {
         matches!(self, FieldType::IpAddr(_))
     }
 
+    /// returns true if this is an date field
+    pub fn is_date(&self) -> bool {
+        matches!(self, FieldType::Date(_))
+    }
+
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {

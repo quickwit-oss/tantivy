@@ -12,7 +12,7 @@
 //!
 //! ## Prerequisite
 //! Currently aggregations work only on [fast fields](`crate::fastfield`). Single value fast fields
-//! of type `u64`, `f64`, `i64` and fast fields on text fields.
+//! of type `u64`, `f64`, `i64`, `date` and fast fields on text fields.
 //!
 //! ## Usage
 //! To use aggregations, build an aggregation request by constructing
@@ -53,9 +53,10 @@
 //! use tantivy::query::AllQuery;
 //! use tantivy::aggregation::agg_result::AggregationResults;
 //! use tantivy::IndexReader;
+//! use tantivy::schema::Schema;
 //!
 //! # #[allow(dead_code)]
-//! fn aggregate_on_index(reader: &IndexReader) {
+//! fn aggregate_on_index(reader: &IndexReader, schema: Schema) {
 //!     let agg_req: Aggregations = vec![
 //!     (
 //!             "average".to_string(),
@@ -67,7 +68,7 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req, None);
+//!     let collector = AggregationCollector::from_aggs(agg_req, None, schema);
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
@@ -157,6 +158,7 @@ mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
 mod collector;
+mod date;
 pub mod intermediate_agg_result;
 pub mod metric;
 mod segment_agg_result;
@@ -167,6 +169,7 @@ pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
     MAX_BUCKET_COUNT,
 };
+pub(crate) use date::format_date;
 use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -283,11 +286,11 @@ impl Display for Key {
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
-/// Only `u64`, `f64`, and `i64` are supported.
+/// Only `u64`, `f64`, `date`, and `i64` are supported.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     match field_type {
         Type::U64 => val as f64,
-        Type::I64 => i64::from_u64(val) as f64,
+        Type::I64 | Type::Date => i64::from_u64(val) as f64,
         Type::F64 => f64::from_u64(val),
         _ => {
             panic!("unexpected type {:?}. This should not happen", field_type)
@@ -295,10 +298,9 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
     }
 }
 
-/// Converts the `f64` value to fast field value space.
+/// Converts the `f64` value to fast field value space, which is always u64.
 ///
-/// If the fast field has `u64`, values are stored as `u64` in the fast field.
-/// A `f64` value of e.g. `2.0` therefore needs to be converted to `1u64`.
+/// If the fast field has `u64`, values are stored unchanged as `u64` in the fast field.
 ///
 /// If the fast field has `f64` values are converted and stored to `u64` using a
 /// monotonic mapping.
@@ -308,7 +310,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
 pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {
         Type::U64 => Some(val as u64),
-        Type::I64 => Some((val as i64).to_u64()),
+        Type::I64 | Type::Date => Some((val as i64).to_u64()),
         Type::F64 => Some(val.to_u64()),
         _ => None,
     }
@@ -317,6 +319,7 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
+    use time::OffsetDateTime;
 
     use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use super::bucket::RangeAggregation;
@@ -332,7 +335,7 @@ mod tests {
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
-    use crate::{Index, Term};
+    use crate::{DateTime, Index, Term};
 
     fn get_avg_req(field_name: &str) -> Aggregation {
         Aggregation::Metric(MetricAggregation::Average(
@@ -358,7 +361,7 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, None);
+        let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -552,10 +555,10 @@ mod tests {
             let searcher = reader.searcher();
             let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
             intermediate_agg_result
-                .into_final_bucket_result(agg_req)
+                .into_final_bucket_result(agg_req, &index.schema())
                 .unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req, None);
+            let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
             let searcher = reader.searcher();
             searcher.search(&AllQuery, &collector).unwrap()
@@ -648,6 +651,7 @@ mod tests {
             .set_fast()
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let date_field = schema_builder.add_date_field("date", FAST);
         schema_builder.add_text_field("dummy_text", STRING);
         let score_fieldtype =
             crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
@@ -665,6 +669,7 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800).unwrap()),
                 score_field => 1u64,
                 score_field_f64 => 1f64,
                 score_field_i64 => 1i64,
@@ -673,6 +678,7 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 3u64,
                 score_field_f64 => 3f64,
                 score_field_i64 => 3i64,
@@ -681,18 +687,21 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 5u64,
                 score_field_f64 => 5f64,
                 score_field_i64 => 5i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 6u64,
                 score_field_f64 => 6f64,
                 score_field_i64 => 6i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 7u64,
                 score_field_f64 => 7f64,
                 score_field_i64 => 7i64,
@@ -700,12 +709,14 @@ mod tests {
             index_writer.commit()?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 11u64,
                 score_field_f64 => 11f64,
                 score_field_i64 => 11i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 14u64,
                 score_field_f64 => 14f64,
                 score_field_i64 => 14i64,
@@ -713,6 +724,7 @@ mod tests {
 
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,
@@ -723,6 +735,7 @@ mod tests {
             // no hits segment
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,
@@ -795,7 +808,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1, None);
+        let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -995,9 +1008,10 @@ mod tests {
             // Test de/serialization roundtrip on intermediate_agg_result
             let res: IntermediateAggregationResults =
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            res.into_final_bucket_result(agg_req.clone()).unwrap()
+            res.into_final_bucket_result(agg_req.clone(), &index.schema())
+                .unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req.clone(), None);
+            let collector = AggregationCollector::from_aggs(agg_req.clone(), None, index.schema());
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
@@ -1055,7 +1069,7 @@ mod tests {
         );
 
         // Test empty result set
-        let collector = AggregationCollector::from_aggs(agg_req, None);
+        let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
         let searcher = reader.searcher();
         searcher.search(&query_with_no_hits, &collector).unwrap();
 
@@ -1120,7 +1134,7 @@ mod tests {
             .into_iter()
             .collect();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
+            let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
             let searcher = reader.searcher();
 
@@ -1233,7 +1247,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1264,7 +1278,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1295,7 +1309,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1334,7 +1348,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1363,7 +1377,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None);
+                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1392,7 +1406,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None);
+                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1429,7 +1443,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1464,7 +1478,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1503,7 +1517,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1533,7 +1547,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =
@@ -1590,7 +1604,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None);
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
                 let agg_res: AggregationResults =

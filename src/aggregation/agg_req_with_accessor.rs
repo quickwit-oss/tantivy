@@ -11,7 +11,7 @@ use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
 use super::metric::{AverageAggregation, StatsAggregation};
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::fastfield::{type_and_cardinality, FastType, MultiValuedFastFieldReader};
+use crate::fastfield::{type_and_cardinality, MultiValuedFastFieldReader};
 use crate::schema::{Cardinality, Type};
 use crate::{InvertedIndexReader, SegmentReader, TantivyError};
 
@@ -194,13 +194,7 @@ fn get_ff_reader_and_validate(
         .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
     let field_type = reader.schema().get_field_entry(field).field_type();
 
-    if let Some((ff_type, field_cardinality)) = type_and_cardinality(field_type) {
-        if ff_type == FastType::Date {
-            return Err(TantivyError::InvalidArgument(
-                "Unsupported field type date in aggregation".to_string(),
-            ));
-        }
-
+    if let Some((_ff_type, field_cardinality)) = type_and_cardinality(field_type) {
         if cardinality != field_cardinality {
             return Err(TantivyError::InvalidArgument(format!(
                 "Invalid field cardinality on field {} expected {:?}, but got {:?}",
