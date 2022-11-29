@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use super::segment::Segment;
 use super::IndexSettings;
-use crate::core::segment_attributes::SegmentAttributesMergerImpl;
 use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
 use crate::core::{
     Executor, IndexMeta, SegmentAttributesMerger, SegmentId, SegmentMeta, SegmentMetaInventory,
@@ -23,7 +22,7 @@ use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{IndexWriter, SegmentAttributes};
+use crate::IndexWriter;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -291,7 +290,7 @@ pub struct Index {
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
-    segment_attributes_merger: Option<Box<dyn SegmentAttributesMerger>>,
+    segment_attributes_merger: Option<Arc<dyn SegmentAttributesMerger>>,
 }
 
 impl Index {
@@ -410,14 +409,16 @@ impl Index {
     }
 
     /// Create and set an instance of SegmentAttributes
-    pub fn set_segment_attributes_merger<S: SegmentAttributes + 'static>(&mut self) {
-        let typed_segment_attributes_merger = SegmentAttributesMergerImpl::<S>::new();
-        self.segment_attributes_merger = Some(Box::new(typed_segment_attributes_merger));
+    pub fn set_segment_attributes_merger(
+        &mut self,
+        segment_attributes_merger: Arc<dyn SegmentAttributesMerger>,
+    ) {
+        self.segment_attributes_merger = Some(segment_attributes_merger);
     }
 
     /// Accessor for SegmentAttributes
-    pub fn segment_attributes_merger(&self) -> &Option<Box<dyn SegmentAttributesMerger>> {
-        &self.segment_attributes_merger
+    pub fn segment_attributes_merger(&self) -> Option<&dyn SegmentAttributesMerger> {
+        self.segment_attributes_merger.as_deref()
     }
 
     /// Setter for the tokenizer manager.

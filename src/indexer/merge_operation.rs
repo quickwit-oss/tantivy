@@ -46,7 +46,7 @@ pub struct MergeOperation {
 pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
-    segment_attributes: Option<serde_json::Value>,
+    merged_segment_attributes: Option<serde_json::Value>,
 }
 
 impl MergeOperation {
@@ -59,7 +59,7 @@ impl MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
             segment_ids,
-            segment_attributes,
+            merged_segment_attributes: segment_attributes,
         };
         MergeOperation {
             inner: inventory.track(inner_merge_operation),
@@ -75,6 +75,6 @@ impl MergeOperation {
     }
 
     pub fn segment_attributes(&self) -> &Option<serde_json::Value> {
-        &self.inner.segment_attributes
+        &self.inner.merged_segment_attributes
     }
 }

@@ -87,11 +87,13 @@ fn garbage_collect_files(
 
 /// Merges a list of segments the list of segment givens in the `segment_entries`.
 /// This function happens in the calling thread and is computationally expensive.
+/// Methods allows to override segment attributes by setting `override_segment_attributes`
+/// argument
 fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
-    segment_attributes: Option<serde_json::Value>,
+    override_segment_attributes: Option<serde_json::Value>,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -104,7 +106,7 @@ fn merge(
     // first we need to apply deletes to our segment.
     let merged_segment = index.new_segment();
 
-    let segment_attributes = segment_attributes.or_else(|| {
+    let segment_attributes = override_segment_attributes.or_else(|| {
         index
             .segment_attributes_merger()
             .as_ref()
