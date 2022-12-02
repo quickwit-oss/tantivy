@@ -5,6 +5,9 @@ authors = ["Pascal Seitz <pascal@quickwit.io>"]
 license = "MIT"
 edition = "2021"
 description = "Fast field codecs used by tantivy"
+documentation = "https://docs.rs/fastfield_codecs/"
+homepage = "https://github.com/quickwit-oss/tantivy"
+repository = "https://github.com/quickwit-oss/tantivy"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
