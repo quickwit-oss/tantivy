@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-bitpacker"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
