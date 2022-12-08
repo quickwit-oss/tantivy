@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::io::{self, Write};
 
 use common::BinarySerializable;
@@ -30,13 +31,28 @@ const BLOCK_BITVEC_SIZE: usize = 8;
 const BLOCK_OFFSET_SIZE: usize = 4;
 const SERIALIZED_BLOCK_SIZE: usize = BLOCK_BITVEC_SIZE + BLOCK_OFFSET_SIZE;
 
-fn count_ones(block: u64, pos_in_block: u32) -> u32 {
-    if pos_in_block == 63 {
-        block.count_ones()
+#[inline]
+fn count_ones(bitvec: u64, pos_in_bitvec: u32) -> u32 {
+    if pos_in_bitvec == 63 {
+        bitvec.count_ones()
     } else {
-        let mask = (1u64 << (pos_in_block + 1)) - 1;
-        let masked_block = block & mask;
-        masked_block.count_ones()
+        let mask = (1u64 << (pos_in_bitvec + 1)) - 1;
+        let masked_bitvec = bitvec & mask;
+        masked_bitvec.count_ones()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct DenseIndexBlock {
+    bitvec: u64,
+    offset: u32,
+}
+
+impl From<[u8; SERIALIZED_BLOCK_SIZE]> for DenseIndexBlock {
+    fn from(data: [u8; SERIALIZED_BLOCK_SIZE]) -> Self {
+        let bitvec = u64::from_le_bytes(data[..BLOCK_BITVEC_SIZE].try_into().unwrap());
+        let offset = u32::from_le_bytes(data[BLOCK_BITVEC_SIZE..].try_into().unwrap());
+        Self { bitvec, offset }
     }
 }
 
@@ -49,51 +65,33 @@ impl DenseCodec {
     /// Check if value at position is not null.
     pub fn exists(&self, idx: u32) -> bool {
         let block_pos = idx / ELEMENTS_PER_BLOCK;
-        let bitvec: u64 = self.block(block_pos as usize);
+        let bitvec = self.dense_index_block(block_pos).bitvec;
 
-        let pos_in_block = idx % ELEMENTS_PER_BLOCK;
+        let pos_in_bitvec = idx % ELEMENTS_PER_BLOCK;
 
-        get_bit_at(bitvec, pos_in_block)
+        get_bit_at(bitvec, pos_in_bitvec)
     }
     #[inline]
-    pub(crate) fn block(&self, block_pos: usize) -> u64 {
-        let data = &mut &self.data[block_pos as usize * SERIALIZED_BLOCK_SIZE..];
-
-        let block: u64 =
-            BinarySerializable::deserialize(data).expect("could not read block in null index");
-        block
-    }
-
-    #[inline]
-    /// Returns (bitvec, offset)
-    ///
-    /// offset is the start offset of actual docids in the block.
-    pub(crate) fn block_and_offset(&self, block_pos: u32) -> (u64, u32) {
-        let data = &mut &self.data[block_pos as usize * SERIALIZED_BLOCK_SIZE..];
-
-        let block: u64 =
-            BinarySerializable::deserialize(data).expect("could not read block in null index");
-        let offset: u32 =
-            BinarySerializable::deserialize(data).expect("could not read block in null index");
-        (block, offset)
+    pub(crate) fn dense_index_block(&self, block_pos: u32) -> DenseIndexBlock {
+        dense_index_block(&self.data, block_pos)
     }
 
     /// Return the number of non-null values in an index
     pub fn num_non_null_vals(&self) -> u32 {
         let last_block = (self.data.len() / SERIALIZED_BLOCK_SIZE) - 1;
-        self.block_and_offset(last_block as u32).1
+        self.dense_index_block(last_block as u32).offset
     }
 
     #[inline]
     /// Translate from the original index to the codec index.
     pub fn translate_to_codec_idx(&self, idx: u32) -> Option<u32> {
         let block_pos = idx / ELEMENTS_PER_BLOCK;
-        let (block, offset) = self.block_and_offset(block_pos);
-        let pos_in_block = idx % ELEMENTS_PER_BLOCK;
-        let ones_in_block = count_ones(block, pos_in_block);
-        if get_bit_at(block, pos_in_block) {
-            Some(offset + ones_in_block - 1) // -1 is ok, since idx does exist, so there's at least
-                                             // one
+        let index_block = self.dense_index_block(block_pos);
+        let pos_in_block_bit_vec = idx % ELEMENTS_PER_BLOCK;
+        let ones_in_block = count_ones(index_block.bitvec, pos_in_block_bit_vec);
+        if get_bit_at(index_block.bitvec, pos_in_block_bit_vec) {
+            // -1 is ok, since idx does exist, so there's at least one
+            Some(index_block.offset + ones_in_block - 1)
         } else {
             None
         }
@@ -112,23 +110,34 @@ impl DenseCodec {
         iter.map(move |dense_idx| {
             // update block_pos to limit search scope
             block_pos = find_block(dense_idx, block_pos, &self.data);
-            let (bitvec, offset) = self.block_and_offset(block_pos);
+            let index_block = self.dense_index_block(block_pos);
 
             // The next offset is higher than dense_idx and therefore:
             // dense_idx <= offset + num_set_bits in block
             let mut num_set_bits = 0;
-            for idx_in_block in 0..ELEMENTS_PER_BLOCK {
-                if get_bit_at(bitvec, idx_in_block) {
+            for idx_in_bitvec in 0..ELEMENTS_PER_BLOCK {
+                if get_bit_at(index_block.bitvec, idx_in_bitvec) {
                     num_set_bits += 1;
                 }
-                if num_set_bits == (dense_idx - offset + 1) {
-                    let orig_idx = block_pos * ELEMENTS_PER_BLOCK + idx_in_block as u32;
+                if num_set_bits == (dense_idx - index_block.offset + 1) {
+                    let orig_idx = block_pos * ELEMENTS_PER_BLOCK + idx_in_bitvec as u32;
                     return orig_idx;
                 }
             }
             panic!("Internal Error: Offset calculation in dense idx seems to be wrong.");
         })
     }
+}
+
+#[inline]
+pub(crate) fn dense_index_block(data: &[u8], block_pos: u32) -> DenseIndexBlock {
+    let data_start_pos = block_pos as usize * SERIALIZED_BLOCK_SIZE;
+    let block_data: [u8; SERIALIZED_BLOCK_SIZE] = data
+        [data_start_pos..data_start_pos + SERIALIZED_BLOCK_SIZE]
+        .try_into()
+        .unwrap();
+    let block = block_data.into();
+    block
 }
 
 #[inline]
@@ -140,11 +149,8 @@ impl DenseCodec {
 /// The last offset number is equal to the number of values in the index.
 fn find_block(dense_idx: u32, mut block_pos: u32, data: &[u8]) -> u32 {
     loop {
-        let data = &mut &data[BLOCK_BITVEC_SIZE + block_pos as usize * SERIALIZED_BLOCK_SIZE..];
-        let offset: u32 = BinarySerializable::deserialize(data)
-            .expect("could not read offset from block in null index");
+        let offset = dense_index_block(&data, block_pos).offset;
         if offset > dense_idx {
-            // offset
             return block_pos - 1;
         }
         block_pos += 1;
@@ -330,36 +336,76 @@ mod bench {
 
     use super::*;
 
-    fn gen_bools() -> DenseCodec {
+    const NUM_VALUES: u32 = 1_000_000;
+    fn gen_bools(fill_ratio: f64) -> DenseCodec {
         let mut out = Vec::new();
         let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
-        // 80% of values are set
-        let bools: Vec<_> = (0..100_000).map(|_| rng.gen_bool(8f64 / 10f64)).collect();
+        let bools: Vec<_> = (0..NUM_VALUES).map(|_| rng.gen_bool(fill_ratio)).collect();
         serialize_dense_codec(bools.into_iter(), &mut out).unwrap();
 
         let codec = DenseCodec::open(OwnedBytes::new(out));
         codec
     }
 
-    #[bench]
-    fn bench_dense_codec_translate_orig_to_dense(bench: &mut Bencher) {
-        let codec = gen_bools();
-        bench.iter(|| {
-            let mut dense_idx: Option<u32> = None;
-            for idx in 0..100_000 {
-                dense_idx = dense_idx.or(codec.translate_to_codec_idx(idx));
+    fn random_range_iterator(start: u32, end: u32, step_size: u32) -> impl Iterator<Item = u32> {
+        let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
+        let mut current = start;
+        std::iter::from_fn(move || {
+            current += rng.gen_range(1..step_size + 1);
+            if current >= end {
+                None
+            } else {
+                Some(current)
             }
-            dense_idx
-        });
+        })
+    }
+
+    fn walk_over_data(codec: &DenseCodec, max_step_size: u32) -> Option<u32> {
+        walk_over_data_from_positions(codec, random_range_iterator(0, NUM_VALUES, max_step_size))
+    }
+
+    fn walk_over_data_from_positions(
+        codec: &DenseCodec,
+        positions: impl Iterator<Item = u32>,
+    ) -> Option<u32> {
+        let mut dense_idx: Option<u32> = None;
+        for idx in positions {
+            dense_idx = dense_idx.or(codec.translate_to_codec_idx(idx));
+        }
+        dense_idx
     }
 
     #[bench]
-    fn bench_dense_codec_translate_dense_to_orig(bench: &mut Bencher) {
-        let codec = gen_bools();
+    fn bench_dense_codec_translate_orig_to_dense_80percent_filled_random_stride(
+        bench: &mut Bencher,
+    ) {
+        let codec = gen_bools(0.8f64);
+        bench.iter(|| walk_over_data(&codec, 100));
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_orig_to_dense_10percent_full_scan(bench: &mut Bencher) {
+        let codec = gen_bools(0.1f64);
+        bench.iter(|| walk_over_data_from_positions(&codec, 0..NUM_VALUES));
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_orig_to_dense_10percent_filled_random_stride(
+        bench: &mut Bencher,
+    ) {
+        let codec = gen_bools(0.1f64);
+        bench.iter(|| walk_over_data(&codec, 100));
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_dense_to_orig_80percent_filled_random_stride(
+        bench: &mut Bencher,
+    ) {
+        let codec = gen_bools(0.8f64);
         let num_vals = codec.num_non_null_vals();
         bench.iter(|| {
             codec
-                .translate_codec_idx_to_original_idx(0..num_vals)
+                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 100))
                 .last()
         });
     }
