@@ -90,8 +90,8 @@ impl DenseCodec {
         let block_pos = idx / ELEMENTS_PER_BLOCK;
         let (block, offset) = self.block_and_offset(block_pos);
         let pos_in_block = idx % ELEMENTS_PER_BLOCK;
+        let ones_in_block = count_ones(block, pos_in_block);
         if get_bit_at(block, pos_in_block) {
-            let ones_in_block = count_ones(block, pos_in_block);
             Some(offset + ones_in_block - 1) // -1 is ok, since idx does exist, so there's at least
                                              // one
         } else {
@@ -347,7 +347,7 @@ mod bench {
         bench.iter(|| {
             let mut dense_idx: Option<u32> = None;
             for idx in 0..100_000 {
-                dense_idx = codec.translate_to_codec_idx(idx);
+                dense_idx = dense_idx.or(codec.translate_to_codec_idx(idx));
             }
             dense_idx
         });
