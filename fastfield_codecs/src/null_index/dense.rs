@@ -43,7 +43,7 @@ fn count_ones(bitvec: u64, pos_in_bitvec: u32) -> u32 {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct DenseIndexBlock {
+struct DenseIndexBlock {
     bitvec: u64,
     offset: u32,
 }
