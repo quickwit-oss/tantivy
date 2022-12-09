@@ -130,14 +130,13 @@ impl DenseCodec {
 }
 
 #[inline]
-pub(crate) fn dense_index_block(data: &[u8], block_pos: u32) -> DenseIndexBlock {
+fn dense_index_block(data: &[u8], block_pos: u32) -> DenseIndexBlock {
     let data_start_pos = block_pos as usize * SERIALIZED_BLOCK_SIZE;
     let block_data: [u8; SERIALIZED_BLOCK_SIZE] = data
-        [data_start_pos..data_start_pos + SERIALIZED_BLOCK_SIZE]
+        [data_start_pos..][..SERIALIZED_BLOCK_SIZE]
         .try_into()
         .unwrap();
-    let block = block_data.into();
-    block
+    block_data.into()
 }
 
 #[inline]
@@ -149,7 +148,7 @@ pub(crate) fn dense_index_block(data: &[u8], block_pos: u32) -> DenseIndexBlock 
 /// The last offset number is equal to the number of values in the index.
 fn find_block(dense_idx: u32, mut block_pos: u32, data: &[u8]) -> u32 {
     loop {
-        let offset = dense_index_block(&data, block_pos).offset;
+        let offset = dense_index_block(data, block_pos).offset;
         if offset > dense_idx {
             return block_pos - 1;
         }
