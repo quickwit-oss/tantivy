@@ -72,7 +72,7 @@ impl DenseCodec {
         get_bit_at(bitvec, pos_in_bitvec)
     }
     #[inline]
-    pub(crate) fn dense_index_block(&self, block_pos: u32) -> DenseIndexBlock {
+    fn dense_index_block(&self, block_pos: u32) -> DenseIndexBlock {
         dense_index_block(&self.data, block_pos)
     }
 
@@ -132,8 +132,7 @@ impl DenseCodec {
 #[inline]
 fn dense_index_block(data: &[u8], block_pos: u32) -> DenseIndexBlock {
     let data_start_pos = block_pos as usize * SERIALIZED_BLOCK_SIZE;
-    let block_data: [u8; SERIALIZED_BLOCK_SIZE] = data
-        [data_start_pos..][..SERIALIZED_BLOCK_SIZE]
+    let block_data: [u8; SERIALIZED_BLOCK_SIZE] = data[data_start_pos..][..SERIALIZED_BLOCK_SIZE]
         .try_into()
         .unwrap();
     block_data.into()
@@ -335,11 +334,13 @@ mod bench {
 
     use super::*;
 
-    const NUM_VALUES: u32 = 1_000_000;
+    const TOTAL_NUM_VALUES: u32 = 1_000_000;
     fn gen_bools(fill_ratio: f64) -> DenseCodec {
         let mut out = Vec::new();
         let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
-        let bools: Vec<_> = (0..NUM_VALUES).map(|_| rng.gen_bool(fill_ratio)).collect();
+        let bools: Vec<_> = (0..TOTAL_NUM_VALUES)
+            .map(|_| rng.gen_bool(fill_ratio))
+            .collect();
         serialize_dense_codec(bools.into_iter(), &mut out).unwrap();
 
         let codec = DenseCodec::open(OwnedBytes::new(out));
@@ -360,7 +361,10 @@ mod bench {
     }
 
     fn walk_over_data(codec: &DenseCodec, max_step_size: u32) -> Option<u32> {
-        walk_over_data_from_positions(codec, random_range_iterator(0, NUM_VALUES, max_step_size))
+        walk_over_data_from_positions(
+            codec,
+            random_range_iterator(0, TOTAL_NUM_VALUES, max_step_size),
+        )
     }
 
     fn walk_over_data_from_positions(
@@ -375,17 +379,31 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_80percent_filled_random_stride(
+    fn bench_dense_codec_translate_orig_to_dense_90percent_filled_random_stride(
         bench: &mut Bencher,
     ) {
-        let codec = gen_bools(0.8f64);
+        let codec = gen_bools(0.9f64);
         bench.iter(|| walk_over_data(&codec, 100));
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_10percent_full_scan(bench: &mut Bencher) {
+    fn bench_dense_codec_translate_orig_to_dense_50percent_filled_random_stride(
+        bench: &mut Bencher,
+    ) {
+        let codec = gen_bools(0.5f64);
+        bench.iter(|| walk_over_data(&codec, 100));
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_orig_to_dense_full_scan_10percent(bench: &mut Bencher) {
         let codec = gen_bools(0.1f64);
-        bench.iter(|| walk_over_data_from_positions(&codec, 0..NUM_VALUES));
+        bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_orig_to_dense_full_scan_90percent(bench: &mut Bencher) {
+        let codec = gen_bools(0.9f64);
+        bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
     }
 
     #[bench]
@@ -397,14 +415,38 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_dense_to_orig_80percent_filled_random_stride(
+    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_random_stride_big_step(
         bench: &mut Bencher,
     ) {
-        let codec = gen_bools(0.8f64);
+        let codec = gen_bools(0.9f64);
+        let num_vals = codec.num_non_null_vals();
+        bench.iter(|| {
+            codec
+                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 50_000))
+                .last()
+        });
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_random_stride(
+        bench: &mut Bencher,
+    ) {
+        let codec = gen_bools(0.9f64);
         let num_vals = codec.num_non_null_vals();
         bench.iter(|| {
             codec
                 .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 100))
+                .last()
+        });
+    }
+
+    #[bench]
+    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_full_scan(bench: &mut Bencher) {
+        let codec = gen_bools(0.9f64);
+        let num_vals = codec.num_non_null_vals();
+        bench.iter(|| {
+            codec
+                .translate_codec_idx_to_original_idx(0..num_vals)
                 .last()
         });
     }

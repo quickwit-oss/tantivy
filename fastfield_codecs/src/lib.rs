@@ -44,6 +44,7 @@ mod column;
 mod gcd;
 mod serialize;
 
+/// TODO: remove when codec is used
 pub use null_index::*;
 
 use self::bitpacked::BitpackedCodec;
