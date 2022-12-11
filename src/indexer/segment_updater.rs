@@ -447,8 +447,8 @@ impl SegmentUpdater {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload)?;
-            let _ = garbage_collect_files(segment_updater.clone());
-            segment_updater.consider_merge_options();
+            // let _ = garbage_collect_files(segment_updater.clone());
+            // segment_updater.consider_merge_options();
             Ok(opstamp)
         })
     }
