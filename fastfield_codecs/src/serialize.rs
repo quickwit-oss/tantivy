@@ -194,6 +194,68 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     num_vals: u32,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
+    serialize_u128_new(ValueIndexInfo::default(), iter_gen, num_vals, output)
+}
+
+#[allow(dead_code)]
+pub enum ValueIndexInfo {
+    MultiValue(Box<dyn MultiValueIndexInfo>),
+    SingleValue(Box<dyn SingleValueIndexInfo>),
+}
+
+impl Default for ValueIndexInfo {
+    fn default() -> Self {
+        struct Dummy {}
+        impl SingleValueIndexInfo for Dummy {
+            fn num_vals(&self) -> u32 {
+                todo!()
+            }
+            fn num_nulls(&self) -> u32 {
+                todo!()
+            }
+            fn iter(&self) -> Box<dyn Iterator<Item = u32>> {
+                todo!()
+            }
+        }
+
+        Self::SingleValue(Box::new(Dummy {}))
+    }
+}
+
+impl ValueIndexInfo {
+    fn get_cardinality(&self) -> FastFieldCardinality {
+        match self {
+            ValueIndexInfo::MultiValue(_) => FastFieldCardinality::Multi,
+            ValueIndexInfo::SingleValue(_) => FastFieldCardinality::Single,
+        }
+    }
+}
+
+pub trait MultiValueIndexInfo {
+    /// The number of docs in the column.
+    fn num_docs(&self) -> u32;
+    /// The number of values in the column.
+    fn num_vals(&self) -> u32;
+    /// Return the start index of the values for each doc
+    fn iter(&self) -> Box<dyn Iterator<Item = u32>>;
+}
+
+pub trait SingleValueIndexInfo {
+    /// The number of values including nulls in the column.
+    fn num_vals(&self) -> u32;
+    /// The number of nulls in the column.
+    fn num_nulls(&self) -> u32;
+    /// Return a iterator of the positions of docs with a value
+    fn iter(&self) -> Box<dyn Iterator<Item = u32>>;
+}
+
+/// Serializes u128 values with the compact space codec.
+pub fn serialize_u128_new<F: Fn() -> I, I: Iterator<Item = u128>>(
+    value_index: ValueIndexInfo,
+    iter_gen: F,
+    num_vals: u32,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
     let header = U128Header {
         num_vals,
         codec_type: U128FastFieldCodecType::CompactSpace,
@@ -203,7 +265,7 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     compressor.compress_into(iter_gen(), output).unwrap();
 
     let null_index_footer = NullIndexFooter {
-        cardinality: FastFieldCardinality::Single,
+        cardinality: value_index.get_cardinality(),
         null_index_codec: NullIndexCodec::Full,
         null_index_byte_range: 0..0,
     };
@@ -215,6 +277,16 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
 
 /// Serializes the column with the codec with the best estimate on the data.
 pub fn serialize<T: MonotonicallyMappableToU64>(
+    typed_column: impl Column<T>,
+    output: &mut impl io::Write,
+    codecs: &[FastFieldCodecType],
+) -> io::Result<()> {
+    serialize_new(ValueIndexInfo::default(), typed_column, output, codecs)
+}
+
+/// Serializes the column with the codec with the best estimate on the data.
+pub fn serialize_new<T: MonotonicallyMappableToU64>(
+    value_index: ValueIndexInfo,
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
     codecs: &[FastFieldCodecType],
@@ -235,7 +307,7 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
     serialize_given_codec(normalized_column, header.codec_type, output)?;
 
     let null_index_footer = NullIndexFooter {
-        cardinality: FastFieldCardinality::Single,
+        cardinality: value_index.get_cardinality(),
         null_index_codec: NullIndexCodec::Full,
         null_index_byte_range: 0..0,
     };
