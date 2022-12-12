@@ -37,15 +37,13 @@ mod line;
 mod linear;
 mod monotonic_mapping;
 mod monotonic_mapping_u128;
+#[allow(dead_code)]
 mod null_index;
 mod null_index_footer;
 
 mod column;
 mod gcd;
 mod serialize;
-
-/// TODO: remove when codec is used
-pub use null_index::*;
 
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
