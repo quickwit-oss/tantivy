@@ -92,6 +92,7 @@ impl SSTableIndexBuilder {
 #[cfg(test)]
 mod tests {
     use super::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
+    use crate::SSTableDataCorruption;
 
     #[test]
     fn test_sstable_index() {
@@ -123,10 +124,7 @@ mod tests {
         sstable_builder.serialize(&mut buffer).unwrap();
         buffer[1] = 9u8;
         let data_corruption_err = SSTableIndex::load(&buffer[..]).err().unwrap();
-        assert_eq!(
-            format!("{data_corruption_err:?}"),
-            "Data corruption: SSTable index is corrupted."
-        );
+        assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 
     #[track_caller]
