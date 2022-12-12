@@ -217,25 +217,22 @@ impl SegmentHistogramCollector {
         agg_with_accessor: &BucketAggregationWithAccessor,
     ) -> crate::Result<IntermediateBucketResult> {
         // Compute the number of buckets to validate against max num buckets
-        // Note: We use min_doc_count here, but it's only an estimate here, since were are on the
-        // intermediate level and after merging min_doc_count could be different.
+        // Note: We use min_doc_count here, but it's only an lowerbound here, since were are on the
+        // intermediate level and after merging the number of documents of a bucket could exceed
+        // `min_doc_count`.
         {
             let cut_off_buckets_front = self
                 .buckets
                 .iter()
                 .take_while(|bucket| bucket.doc_count <= self.min_doc_count)
                 .count();
-            let cut_off_buckets_end = self
-                .buckets
+            let cut_off_buckets_back = self.buckets[cut_off_buckets_front..]
                 .iter()
                 .rev()
                 .take_while(|bucket| bucket.doc_count <= self.min_doc_count)
                 .count();
-            let estimate_num_buckets = self
-                .buckets
-                .len()
-                .saturating_sub(cut_off_buckets_front)
-                .saturating_sub(cut_off_buckets_end);
+            let estimate_num_buckets =
+                self.buckets.len() - cut_off_buckets_front - cut_off_buckets_back;
 
             agg_with_accessor
                 .bucket_count
