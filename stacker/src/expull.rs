@@ -2,8 +2,8 @@ use std::mem;
 
 use common::serialize_vint_u32;
 
-use super::{Addr, MemoryArena};
-use crate::postings::stacker::memory_arena::{load, store};
+use crate::memory_arena::{load, store};
+use crate::{Addr, MemoryArena};
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 const FIRST_BLOCK: usize = 16;
@@ -120,15 +120,17 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
     }
 }
 
-impl ExpUnrolledLinkedList {
-    pub fn new() -> ExpUnrolledLinkedList {
+impl Default for ExpUnrolledLinkedList {
+    fn default() -> ExpUnrolledLinkedList {
         ExpUnrolledLinkedList {
             len: 0u32,
             tail: Addr::null_pointer(),
             inlined_data: [0u8; INLINED_BLOCK_LEN as usize],
         }
     }
+}
 
+impl ExpUnrolledLinkedList {
     #[inline]
     pub fn writer<'a>(&'a mut self, arena: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
         ExpUnrolledLinkedListWriter { eull: self, arena }

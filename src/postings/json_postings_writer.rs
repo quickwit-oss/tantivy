@@ -1,10 +1,11 @@
 use std::io;
 
+use stacker::Addr;
+
 use crate::fastfield::MultiValuedFastFieldWriter;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
-use crate::postings::stacker::Addr;
 use crate::postings::{
     FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter, UnorderedTermId,
 };

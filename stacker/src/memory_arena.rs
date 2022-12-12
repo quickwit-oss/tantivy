@@ -86,15 +86,16 @@ pub struct MemoryArena {
     pages: Vec<Page>,
 }
 
-impl MemoryArena {
-    /// Creates a new memory arena.
-    pub fn new() -> MemoryArena {
+impl Default for MemoryArena {
+    fn default() -> MemoryArena {
         let first_page = Page::new(0);
         MemoryArena {
             pages: vec![first_page],
         }
     }
+}
 
+impl MemoryArena {
     fn add_page(&mut self) -> &mut Page {
         let new_page_id = self.pages.len();
         self.pages.push(Page::new(new_page_id));
@@ -197,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_arena_allocate_slice() {
-        let mut arena = MemoryArena::new();
+        let mut arena = MemoryArena::default();
         let a = b"hello";
         let b = b"happy tax payer";
 
@@ -220,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_store_object() {
-        let mut arena = MemoryArena::new();
+        let mut arena = MemoryArena::default();
         let a = MyTest {
             a: 143,
             b: 21,

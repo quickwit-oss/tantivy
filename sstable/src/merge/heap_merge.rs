@@ -4,7 +4,7 @@ use std::collections::BinaryHeap;
 use std::io;
 
 use super::{SingleValueMerger, ValueMerger};
-use crate::termdict::sstable_termdict::sstable::{Reader, SSTable, Writer};
+use crate::{Reader, SSTable, Writer};
 
 struct HeapItem<B: AsRef<[u8]>>(B);
 

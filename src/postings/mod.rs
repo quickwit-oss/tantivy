@@ -15,8 +15,9 @@ mod recorder;
 mod segment_postings;
 mod serializer;
 mod skip;
-mod stacker;
 mod term_info;
+
+pub(crate) use stacker::compute_table_size;
 
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub(crate) use self::indexing_context::IndexingContext;
@@ -26,10 +27,9 @@ pub(crate) use self::postings_writer::{serialize_postings, IndexingPosition, Pos
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
-pub(crate) use self::stacker::compute_table_size;
 pub use self::term_info::TermInfo;
 
-pub(crate) type UnorderedTermId = u64;
+pub(crate) type UnorderedTermId = stacker::UnorderedId;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]

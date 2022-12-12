@@ -53,10 +53,11 @@ lru = "0.7.5"
 fastdivide = "0.4.0"
 itertools = "0.10.3"
 measure_time = "0.8.2"
-ciborium = { version = "0.2", optional = true}
 async-trait = "0.1.53"
 arc-swap = "1.5.0"
 
+sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optional = true }
+stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
 tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
 tantivy-bitpacker = 		{ version= "0.3", path="./bitpacker" }
 common = 								{ version= "0.4", path = "./common/", package = "tantivy-common" }
@@ -104,10 +105,10 @@ zstd-compression = ["zstd"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 
-quickwit = ["ciborium"]
+quickwit = ["sstable"]
 
 [workspace]
-members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes"]
+members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "stacker", "sstable"]
 
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points

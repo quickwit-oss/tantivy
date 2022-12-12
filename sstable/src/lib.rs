@@ -7,27 +7,28 @@ mod delta;
 pub mod merge;
 pub mod value;
 
-pub(crate) mod sstable_index;
-
-pub(crate) use self::sstable_index::{SSTableIndex, SSTableIndexBuilder};
+mod sstable_index;
+pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
 pub(crate) mod vint;
 
 mod block_reader;
 pub use self::block_reader::BlockReader;
-pub use self::delta::DeltaReader;
-use self::delta::DeltaWriter;
+pub use self::delta::{DeltaReader, DeltaWriter};
 pub use self::merge::VoidMerge;
 use self::value::{U64MonotonicReader, U64MonotonicWriter, ValueReader, ValueWriter};
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
 
-pub(crate) fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
+fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
     left.iter()
         .cloned()
         .zip(right.iter().cloned())
         .take_while(|(left, right)| left == right)
         .count()
 }
+
+#[derive(Debug, Copy, Clone)]
+pub struct SSTableDataCorruption;
 
 pub trait SSTable: Sized {
     type Value;
