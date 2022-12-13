@@ -161,14 +161,14 @@ impl ArenaHashMap {
     #[inline]
     fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) -> UnorderedId {
         self.occupied.push(bucket);
-        let unordered_term_id = self.len as UnorderedId;
+        let unordered_id = self.len as UnorderedId;
         self.len += 1;
         self.table[bucket] = KeyValue {
             key_value_addr,
             hash,
-            unordered_id: unordered_term_id,
+            unordered_id,
         };
-        unordered_term_id
+        unordered_id
     }
 
     #[inline]
