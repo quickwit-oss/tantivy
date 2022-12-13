@@ -94,7 +94,7 @@ mod tests {
     use super::BlockReader;
     use crate::directory::OwnedBytes;
     use crate::postings::TermInfo;
-    use crate::termdict::sstable_termdict::sstable::value::{ValueReader, ValueWriter};
+    use sstable::value::{ValueReader, ValueWriter};
     use crate::termdict::sstable_termdict::TermInfoReader;
 
     #[test]
