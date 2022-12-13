@@ -37,6 +37,8 @@ mod line;
 mod linear;
 mod monotonic_mapping;
 mod monotonic_mapping_u128;
+#[allow(dead_code)]
+mod null_index;
 mod null_index_footer;
 
 mod column;
