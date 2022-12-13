@@ -5,7 +5,7 @@ use super::{vint, BlockReader};
 pub trait ValueReader: Default {
     type Value;
 
-    fn value(&self, idx: usize) -> &Self::Value;
+    fn value(&self, idx: usize) -> Self::Value;
 
     fn read(&mut self, reader: &mut BlockReader) -> io::Result<()>;
 }
@@ -24,9 +24,7 @@ pub struct VoidReader;
 impl ValueReader for VoidReader {
     type Value = ();
 
-    fn value(&self, _idx: usize) -> &() {
-        &()
-    }
+    fn value(&self, _idx: usize) {}
 
     fn read(&mut self, _reader: &mut BlockReader) -> io::Result<()> {
         Ok(())
@@ -76,8 +74,8 @@ pub struct U64MonotonicReader {
 impl ValueReader for U64MonotonicReader {
     type Value = u64;
 
-    fn value(&self, idx: usize) -> &Self::Value {
-        &self.vals[idx]
+    fn value(&self, idx: usize) -> Self::Value {
+        self.vals[idx]
     }
 
     fn read(&mut self, reader: &mut BlockReader) -> io::Result<()> {

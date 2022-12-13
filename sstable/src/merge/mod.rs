@@ -137,7 +137,7 @@ mod tests {
         for (k, v) in merged {
             assert!(reader.advance().unwrap());
             assert_eq!(reader.key(), k.as_bytes());
-            assert_eq!(reader.value(), &v);
+            assert_eq!(reader.value(), v);
         }
         assert!(!reader.advance().unwrap());
     }

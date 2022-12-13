@@ -176,7 +176,7 @@ where TValueReader: value::ValueReader
             .buffer_from_to(self.suffix_start, self.suffix_end)
     }
 
-    pub fn value(&self) -> &TValueReader::Value {
+    pub fn value(&self) -> TValueReader::Value {
         self.value_reader.value(self.idx)
     }
 }

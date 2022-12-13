@@ -115,7 +115,7 @@ where TValueReader: ValueReader
         &self.key
     }
 
-    pub fn value(&self) -> &TValueReader::Value {
+    pub fn value(&self) -> TValueReader::Value {
         self.delta_reader.value()
     }
 }
@@ -347,13 +347,13 @@ mod test {
         let mut reader = SSTableMonotonicU64::reader(&buffer[..]);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abcd");
-        assert_eq!(reader.value(), &1u64);
+        assert_eq!(reader.value(), 1u64);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abe");
-        assert_eq!(reader.value(), &4u64);
+        assert_eq!(reader.value(), 4u64);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"gogo");
-        assert_eq!(reader.value(), &4324234234234234u64);
+        assert_eq!(reader.value(), 4324234234234234u64);
         assert!(!reader.advance()?);
         Ok(())
     }
