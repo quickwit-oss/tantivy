@@ -7,6 +7,7 @@ use ownedbytes::OwnedBytes;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum FastFieldCardinality {
     Single = 1,
+    Multi = 2,
 }
 
 impl BinarySerializable for FastFieldCardinality {
@@ -30,6 +31,7 @@ impl FastFieldCardinality {
     pub(crate) fn from_code(code: u8) -> Option<Self> {
         match code {
             1 => Some(Self::Single),
+            2 => Some(Self::Multi),
             _ => None,
         }
     }
