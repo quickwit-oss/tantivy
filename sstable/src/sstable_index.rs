@@ -3,8 +3,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::DataCorruption;
-use crate::termdict::sstable_termdict::sstable::common_prefix_len;
+use crate::{common_prefix_len, SSTableDataCorruption};
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct SSTableIndex {
@@ -12,9 +11,8 @@ pub struct SSTableIndex {
 }
 
 impl SSTableIndex {
-    pub(crate) fn load(data: &[u8]) -> Result<SSTableIndex, DataCorruption> {
-        ciborium::de::from_reader(data)
-            .map_err(|_| DataCorruption::comment_only("SSTable index is corrupted"))
+    pub fn load(data: &[u8]) -> Result<SSTableIndex, SSTableDataCorruption> {
+        ciborium::de::from_reader(data).map_err(|_| SSTableDataCorruption)
     }
 
     pub fn search(&self, key: &[u8]) -> Option<BlockAddr> {
@@ -94,6 +92,7 @@ impl SSTableIndexBuilder {
 #[cfg(test)]
 mod tests {
     use super::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
+    use crate::SSTableDataCorruption;
 
     #[test]
     fn test_sstable_index() {
@@ -125,10 +124,7 @@ mod tests {
         sstable_builder.serialize(&mut buffer).unwrap();
         buffer[1] = 9u8;
         let data_corruption_err = SSTableIndex::load(&buffer[..]).err().unwrap();
-        assert_eq!(
-            format!("{data_corruption_err:?}"),
-            "Data corruption: SSTable index is corrupted."
-        );
+        assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 
     #[track_caller]

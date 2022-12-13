@@ -87,7 +87,7 @@ where
 {
     automaton: A,
     states: Vec<A::State>,
-    delta_reader: super::sstable::DeltaReader<'a, TermInfoReader>,
+    delta_reader: sstable::DeltaReader<'a, TermInfoReader>,
     key: Vec<u8>,
     term_ord: Option<TermOrdinal>,
     lower_bound: Bound<Vec<u8>>,

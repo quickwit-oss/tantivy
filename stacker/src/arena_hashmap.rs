@@ -4,14 +4,13 @@ use byteorder::{ByteOrder, NativeEndian};
 use murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
-use crate::postings::stacker::memory_arena::store;
-use crate::postings::UnorderedTermId;
-use crate::Term;
+use crate::memory_arena::store;
+use crate::UnorderedId;
 
 /// Returns the actual memory size in bytes
 /// required to create a table with a given capacity.
 /// required to create a table of size
-pub(crate) fn compute_table_size(capacity: usize) -> usize {
+pub fn compute_table_size(capacity: usize) -> usize {
     capacity * mem::size_of::<KeyValue>()
 }
 
@@ -22,7 +21,7 @@ pub(crate) fn compute_table_size(capacity: usize) -> usize {
 struct KeyValue {
     key_value_addr: Addr,
     hash: u32,
-    unordered_term_id: UnorderedTermId,
+    unordered_id: UnorderedId,
 }
 
 impl Default for KeyValue {
@@ -30,7 +29,7 @@ impl Default for KeyValue {
         KeyValue {
             key_value_addr: Addr::null_pointer(),
             hash: 0u32,
-            unordered_term_id: UnorderedTermId::default(),
+            unordered_id: UnorderedId::default(),
         }
     }
 }
@@ -41,15 +40,16 @@ impl KeyValue {
     }
 }
 
-/// Customized `HashMap` with string keys
+/// Customized `HashMap` with `&[u8]` keys
 ///
-/// This `HashMap` takes String as keys. Keys are
-/// stored in a user defined memory arena.
+/// Its main particularity is that rather than storing its
+/// keys in the heap, keys are stored in a memory arena
+/// inline with the values.
 ///
 /// The quirky API has the benefit of avoiding
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
-pub struct TermHashMap {
+pub struct ArenaHashMap {
     table: Box<[KeyValue]>,
     memory_arena: MemoryArena,
     mask: usize,
@@ -64,6 +64,7 @@ struct QuadraticProbing {
 }
 
 impl QuadraticProbing {
+    #[inline]
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
         QuadraticProbing { hash, i: 0, mask }
     }
@@ -76,18 +77,18 @@ impl QuadraticProbing {
 }
 
 pub struct Iter<'a> {
-    hashmap: &'a TermHashMap,
+    hashmap: &'a ArenaHashMap,
     inner: slice::Iter<'a, usize>,
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = (Term<&'a [u8]>, Addr, UnorderedTermId);
+    type Item = (&'a [u8], Addr, UnorderedId);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
             let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
-            (Term::wrap(key), offset, kv.unordered_term_id)
+            (key, offset, kv.unordered_id)
         })
     }
 }
@@ -102,15 +103,15 @@ fn compute_previous_power_of_two(n: usize) -> usize {
     1 << msb
 }
 
-impl TermHashMap {
-    pub(crate) fn new(table_size: usize) -> TermHashMap {
+impl ArenaHashMap {
+    pub fn new(table_size: usize) -> ArenaHashMap {
         assert!(table_size > 0);
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
-        let memory_arena = MemoryArena::new();
+        let memory_arena = MemoryArena::default();
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
             .take(table_size_power_of_2)
             .collect();
-        TermHashMap {
+        ArenaHashMap {
             table: table.into_boxed_slice(),
             memory_arena,
             mask: table_size_power_of_2 - 1,
@@ -119,18 +120,22 @@ impl TermHashMap {
         }
     }
 
+    #[inline]
     pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
         self.memory_arena.read(addr)
     }
 
+    #[inline]
     fn probe(&self, hash: u32) -> QuadraticProbing {
         QuadraticProbing::compute(hash as usize, self.mask)
     }
 
+    #[inline]
     pub fn mem_usage(&self) -> usize {
         self.table.len() * mem::size_of::<KeyValue>()
     }
 
+    #[inline]
     fn is_saturated(&self) -> bool {
         self.table.len() < self.occupied.len() * 3
     }
@@ -153,22 +158,30 @@ impl TermHashMap {
         }
     }
 
-    fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) -> UnorderedTermId {
+    #[inline]
+    fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) -> UnorderedId {
         self.occupied.push(bucket);
-        let unordered_term_id = self.len as UnorderedTermId;
+        let unordered_id = self.len as UnorderedId;
         self.len += 1;
         self.table[bucket] = KeyValue {
             key_value_addr,
             hash,
-            unordered_term_id,
+            unordered_id,
         };
-        unordered_term_id
+        unordered_id
     }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
+    #[inline]
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             inner: self.occupied.iter(),
@@ -210,7 +223,7 @@ impl TermHashMap {
         &mut self,
         key: &[u8],
         mut updater: TMutator,
-    ) -> UnorderedTermId
+    ) -> UnorderedId
     where
         V: Copy + 'static,
         TMutator: FnMut(Option<V>) -> V,
@@ -241,7 +254,7 @@ impl TermHashMap {
                     let v = self.memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
                     self.memory_arena.write_at(val_addr, new_v);
-                    return kv.unordered_term_id;
+                    return kv.unordered_id;
                 }
             }
         }
@@ -253,11 +266,11 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use super::{compute_previous_power_of_two, TermHashMap};
+    use super::{compute_previous_power_of_two, ArenaHashMap};
 
     #[test]
     fn test_hash_map() {
-        let mut hash_map: TermHashMap = TermHashMap::new(1 << 18);
+        let mut hash_map: ArenaHashMap = ArenaHashMap::new(1 << 18);
         hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             3u32

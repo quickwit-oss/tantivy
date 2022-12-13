@@ -1,17 +1,16 @@
 use std::io;
 
 mod merger;
-mod sstable;
 mod streamer;
 mod termdict;
 
 use std::iter::ExactSizeIterator;
 
 use common::VInt;
+use sstable::value::{ValueReader, ValueWriter};
+use sstable::{BlockReader, SSTable};
 
 pub use self::merger::TermMerger;
-use self::sstable::value::{ValueReader, ValueWriter};
-use self::sstable::{BlockReader, SSTable};
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
 use crate::postings::TermInfo;

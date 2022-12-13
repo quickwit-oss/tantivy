@@ -1,0 +1,13 @@
+[package]
+name = "tantivy-sstable"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = {path="../common", package="tantivy-common"}
+ciborium = "0.2"
+byteorder = "1"
+serde = "1"
+
+[dev-dependencies]
+proptest = "1"

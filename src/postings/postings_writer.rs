@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 use rustc_hash::FxHashMap;
+use stacker::Addr;
 
-use super::stacker::Addr;
 use crate::fastfield::MultiValuedFastFieldWriter;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -59,7 +59,11 @@ pub(crate) fn serialize_postings(
 ) -> crate::Result<HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>> {
     let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
         Vec::with_capacity(ctx.term_index.len());
-    term_offsets.extend(ctx.term_index.iter());
+    term_offsets.extend(
+        ctx.term_index
+            .iter()
+            .map(|(bytes, addr, unordered_id)| (Term::wrap(bytes), addr, unordered_id)),
+    );
     term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
     let mut unordered_term_mappings: HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>> =
         HashMap::new();

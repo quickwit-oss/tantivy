@@ -1,0 +1,9 @@
+[package]
+name = "tantivy-stacker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+murmurhash32 = "0.2"
+byteorder = "1"
+common = { version = "0.4", path = "../common/", package = "tantivy-common" }

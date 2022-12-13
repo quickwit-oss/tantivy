@@ -3,15 +3,12 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 use once_cell::sync::Lazy;
+use sstable::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, Writer};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
-use crate::termdict::sstable_termdict::sstable::sstable_index::BlockAddr;
-use crate::termdict::sstable_termdict::sstable::{
-    DeltaReader, Reader, SSTable, SSTableIndex, Writer,
-};
 use crate::termdict::sstable_termdict::{
     TermInfoReader, TermInfoWriter, TermSSTable, TermStreamer, TermStreamerBuilder,
 };
@@ -132,7 +129,8 @@ impl TermDictionary {
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
-        let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())?;
+        let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())
+            .map_err(|_| crate::error::DataCorruption::comment_only("SSTable corruption"))?;
         Ok(TermDictionary {
             sstable_slice,
             sstable_index,

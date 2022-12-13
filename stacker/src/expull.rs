@@ -2,8 +2,8 @@ use std::mem;
 
 use common::serialize_vint_u32;
 
-use super::{Addr, MemoryArena};
-use crate::postings::stacker::memory_arena::{load, store};
+use crate::memory_arena::{load, store};
+use crate::{Addr, MemoryArena};
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 const FIRST_BLOCK: usize = 16;
@@ -120,15 +120,17 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
     }
 }
 
-impl ExpUnrolledLinkedList {
-    pub fn new() -> ExpUnrolledLinkedList {
+impl Default for ExpUnrolledLinkedList {
+    fn default() -> ExpUnrolledLinkedList {
         ExpUnrolledLinkedList {
             len: 0u32,
             tail: Addr::null_pointer(),
             inlined_data: [0u8; INLINED_BLOCK_LEN as usize],
         }
     }
+}
 
+impl ExpUnrolledLinkedList {
     #[inline]
     pub fn writer<'a>(&'a mut self, arena: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
         ExpUnrolledLinkedListWriter { eull: self, arena }
@@ -169,8 +171,8 @@ mod tests {
 
     #[test]
     fn test_eull() {
-        let mut arena = MemoryArena::new();
-        let mut stack = ExpUnrolledLinkedList::new();
+        let mut arena = MemoryArena::default();
+        let mut stack = ExpUnrolledLinkedList::default();
         stack.writer(&mut arena).extend_from_slice(&[1u8]);
         stack.writer(&mut arena).extend_from_slice(&[2u8]);
         stack.writer(&mut arena).extend_from_slice(&[3u8, 4u8]);
@@ -184,8 +186,8 @@ mod tests {
 
     #[test]
     fn test_eull_long() {
-        let mut arena = MemoryArena::new();
-        let mut eull = ExpUnrolledLinkedList::new();
+        let mut arena = MemoryArena::default();
+        let mut eull = ExpUnrolledLinkedList::default();
         let data: Vec<u32> = (0..100).collect();
         for &el in &data {
             eull.writer(&mut arena).write_u32_vint(el);
@@ -202,9 +204,9 @@ mod tests {
 
     #[test]
     fn test_eull_interlaced() {
-        let mut eull = MemoryArena::new();
-        let mut stack = ExpUnrolledLinkedList::new();
-        let mut stack2 = ExpUnrolledLinkedList::new();
+        let mut eull = MemoryArena::default();
+        let mut stack = ExpUnrolledLinkedList::default();
+        let mut stack2 = ExpUnrolledLinkedList::default();
 
         let mut vec1: Vec<u8> = vec![];
         let mut vec2: Vec<u8> = vec![];
@@ -306,9 +308,9 @@ mod bench {
     #[bench]
     fn bench_push_stack(bench: &mut Bencher) {
         bench.iter(|| {
-            let mut arena = MemoryArena::new();
+            let mut arena = MemoryArena::default();
             let mut stacks: Vec<ExpUnrolledLinkedList> =
-                iter::repeat_with(ExpUnrolledLinkedList::new)
+                iter::repeat_with(ExpUnrolledLinkedList::default)
                     .take(NUM_STACK)
                     .collect();
             for s in 0..NUM_STACK {
