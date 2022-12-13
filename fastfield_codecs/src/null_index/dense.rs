@@ -101,7 +101,7 @@ impl DenseCodec {
     ///
     /// # Panics
     ///
-    /// May panic if any `idx` is greater than the column length.
+    /// May panic if any `idx` is greater than the max codec index.
     pub fn translate_codec_idx_to_original_idx<'a>(
         &'a self,
         iter: impl Iterator<Item = u32> + 'a,
