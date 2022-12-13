@@ -91,10 +91,11 @@ impl ValueWriter for TermInfoWriter {
 mod tests {
     use std::io;
 
+    use sstable::value::{ValueReader, ValueWriter};
+
     use super::BlockReader;
     use crate::directory::OwnedBytes;
     use crate::postings::TermInfo;
-    use sstable::value::{ValueReader, ValueWriter};
     use crate::termdict::sstable_termdict::TermInfoReader;
 
     #[test]
