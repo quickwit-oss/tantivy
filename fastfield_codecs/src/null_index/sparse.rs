@@ -49,13 +49,12 @@ impl SparseCodecBlock {
     fn new(num_vals: u16, offset: u32) -> Self {
         Self { num_vals, offset }
     }
+
     #[inline]
     fn value_at_idx(&self, data: &[u8], idx: u16) -> u16 {
-        let data_start_index = (self.offset + idx as u32) * 2;
-        u16::from_le_bytes([
-            data[data_start_index as usize],
-            data[data_start_index as usize + 1],
-        ])
+        let start_offset: usize = (self.offset + idx as u32) as usize * 2;
+        let bytes: [u8; 2] = data[start_offset..start_offset + 2].try_into().unwrap();
+        u16::from_le_bytes(bytes)
     }
 
     #[inline]
