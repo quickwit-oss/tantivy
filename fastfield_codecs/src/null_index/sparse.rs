@@ -30,7 +30,7 @@ pub struct SparseCodec {
 }
 
 /// A block consists of max u16 values
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct SparseCodecBlock {
     /// The number of values in the block
     num_vals: u16,
@@ -69,6 +69,8 @@ impl SparseCodecBlock {
         while left < right {
             let mid = left + size / 2;
 
+            // TODO do boundary check only once, and then use an 
+            // unsafe `value_at_idx` 
             let mid_val = self.value_at_idx(data, mid);
 
             if target > mid_val {
