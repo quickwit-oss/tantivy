@@ -69,8 +69,8 @@ impl SparseCodecBlock {
         while left < right {
             let mid = left + size / 2;
 
-            // TODO do boundary check only once, and then use an 
-            // unsafe `value_at_idx` 
+            // TODO do boundary check only once, and then use an
+            // unsafe `value_at_idx`
             let mid_val = self.value_at_idx(data, mid);
 
             if target > mid_val {
@@ -99,7 +99,8 @@ fn deserialize_sparse_codec_block(data: &[u8]) -> Vec<SparseCodecBlock> {
     for block_num in 0..num_blocks as usize {
         let block_data_index = block_data_index_start + SERIALIZED_BLOCK_METADATA_SIZE * block_num;
         let block_idx = u16::from_le_bytes([data[block_data_index], data[block_data_index + 1]]);
-        let num_vals = u16::from_le_bytes([data[block_data_index + 2], data[block_data_index + 3]]);
+        let num_vals =
+            u16::from_le_bytes([data[block_data_index + 2], data[block_data_index + 3]]) + 1;
         sparse_codec_blocks.resize(block_idx as usize, SparseCodecBlock::empty_block(offset));
         let block = SparseCodecBlock { num_vals, offset };
         sparse_codec_blocks.push(block);
@@ -186,32 +187,72 @@ impl SparseCodec {
     }
 }
 
+#[derive(Default)]
+struct BlockDataSerialized {
+    block_idx: u16,
+    num_vals: u32,
+}
+
+/// The threshold for for number of elements after which we switch to dense block encoding
+const DENSE_BLOCK_THRESHOLD: u32 = 6144;
+
 /// Iterator over positions of set values.
 pub fn serialize_sparse_codec(
     mut iter: impl Iterator<Item = u32>,
     mut out: impl Write,
 ) -> io::Result<()> {
-    let mut block_metadata: Vec<(u16, u16)> = Vec::new();
+    let mut block_metadata: Vec<BlockDataSerialized> = Vec::new();
+    let mut current_block = Vec::new();
     // This if-statement for the first element ensures that
     // `block_metadata` is not empty in the loop below.
     if let Some(idx) = iter.next() {
         let (block_idx, val_in_block) = split_in_block_idx_and_val_in_block(idx);
-        block_metadata.push((block_idx, 1));
-        out.write_all(val_in_block.to_le_bytes().as_ref())?;
+        block_metadata.push(BlockDataSerialized {
+            block_idx,
+            num_vals: 1,
+        });
+        current_block.push(val_in_block);
+        // out.write_all(val_in_block.to_le_bytes().as_ref())?;
     }
+    let mut flush_block = |current_block: &mut Vec<u16>| -> io::Result<()> {
+        let is_sparse = (current_block.len() as u32) < DENSE_BLOCK_THRESHOLD;
+        if is_sparse {
+            for val_in_block in current_block.iter() {
+                out.write_all(val_in_block.to_le_bytes().as_ref())?;
+            }
+        } else {
+            for val_in_block in current_block.iter() {
+                out.write_all(val_in_block.to_le_bytes().as_ref())?;
+            }
+        }
+        current_block.clear();
+        Ok(())
+    };
     for idx in iter {
         let (block_idx, val_in_block) = split_in_block_idx_and_val_in_block(idx);
-        if block_metadata[block_metadata.len() - 1].0 == block_idx {
+        if block_metadata[block_metadata.len() - 1].block_idx == block_idx {
             let last_idx_metadata = block_metadata.len() - 1;
-            block_metadata[last_idx_metadata].1 += 1;
+            block_metadata[last_idx_metadata].num_vals += 1;
         } else {
-            block_metadata.push((block_idx, 1));
+            // flush prev block
+            flush_block(&mut current_block)?;
+
+            block_metadata.push(BlockDataSerialized {
+                block_idx,
+                num_vals: 1,
+            });
         }
-        out.write_all(val_in_block.to_le_bytes().as_ref())?;
+        current_block.push(val_in_block);
+        // out.write_all(val_in_block.to_le_bytes().as_ref())?;
     }
+    // handle last block
+    flush_block(&mut current_block)?;
+
     for block in &block_metadata {
-        out.write_all(block.0.to_le_bytes().as_ref())?;
-        out.write_all(block.1.to_le_bytes().as_ref())?;
+        out.write_all(block.block_idx.to_le_bytes().as_ref())?;
+        // We don't store empty blocks, therefore we can subtract 1.
+        // This way we will be able to use u16 when the number of elements is 1 << 16 or u16::MAX+1
+        out.write_all(((block.num_vals - 1) as u16).to_le_bytes().as_ref())?;
     }
     out.write_all((block_metadata.len() as u16).to_le_bytes().as_ref())?;
 
