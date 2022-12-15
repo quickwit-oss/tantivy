@@ -64,6 +64,8 @@ impl SparseCodecBlock {
         let mut size = self.num_vals;
         let mut left = 0;
         let mut right = size;
+        // TODO try different implem.
+        //  e.g. exponential search into binary search
         while left < right {
             let mid = left + size / 2;
 
@@ -96,10 +98,7 @@ fn deserialize_sparse_codec_block(data: &[u8]) -> Vec<SparseCodecBlock> {
         let block_data_index = block_data_index_start + SERIALIZED_BLOCK_METADATA_SIZE * block_num;
         let block_idx = u16::from_le_bytes([data[block_data_index], data[block_data_index + 1]]);
         let num_vals = u16::from_le_bytes([data[block_data_index + 2], data[block_data_index + 3]]);
-        while block_idx != sparse_codec_blocks.len() as u16 {
-            // fill up empty blocks
-            sparse_codec_blocks.push(SparseCodecBlock::empty_block(offset));
-        }
+        sparse_codec_blocks.resize(block_idx as usize, SparseCodecBlock::empty_block(offset));
         let block = SparseCodecBlock { num_vals, offset };
         sparse_codec_blocks.push(block);
         offset += num_vals as u32;
@@ -148,7 +147,7 @@ impl SparseCodec {
     /// Translate from the original index to the codec index.
     pub fn translate_to_codec_idx(&self, idx: u32) -> Option<u32> {
         let (block_idx, val_in_block) = split_in_block_idx_and_val_in_block(idx);
-        let block = &self.blocks.get(block_idx as usize)?;
+        let block = self.blocks.get(block_idx as usize)?;
 
         let pos_in_block = block.binary_search(&self.data, val_in_block);
         pos_in_block.map(|pos_in_block: u16| block.offset + pos_in_block as u32)
@@ -191,6 +190,8 @@ pub fn serialize_sparse_codec(
     mut out: impl Write,
 ) -> io::Result<()> {
     let mut block_metadata: Vec<(u16, u16)> = Vec::new();
+    // This if-statement for the first element ensures that
+    // `block_metadata` is not empty in the loop below.
     if let Some(idx) = iter.next() {
         let (block_idx, val_in_block) = split_in_block_idx_and_val_in_block(idx);
         block_metadata.push((block_idx, 1));
