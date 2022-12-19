@@ -210,7 +210,7 @@ impl Default for ValueIndexInfo {
             fn num_vals(&self) -> u32 {
                 todo!()
             }
-            fn num_nulls(&self) -> u32 {
+            fn num_non_nulls(&self) -> u32 {
                 todo!()
             }
             fn iter(&self) -> Box<dyn Iterator<Item = u32>> {
@@ -243,8 +243,8 @@ pub trait MultiValueIndexInfo {
 pub trait SingleValueIndexInfo {
     /// The number of values including nulls in the column.
     fn num_vals(&self) -> u32;
-    /// The number of nulls in the column.
-    fn num_nulls(&self) -> u32;
+    /// The number of non-null values in the column.
+    fn num_non_nulls(&self) -> u32;
     /// Return a iterator of the positions of docs with a value
     fn iter(&self) -> Box<dyn Iterator<Item = u32>>;
 }
