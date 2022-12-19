@@ -9,6 +9,7 @@ use std::{fmt, result};
 use common::StableDeref;
 use fs2::FileExt;
 use memmap2::Mmap;
+use normpath::PathExt;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
@@ -196,9 +197,9 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        let canonical_path: PathBuf = directory_path.canonicalize().map_err(|io_err| {
+        let canonical_path: PathBuf = directory_path.normalize().map_err(|io_err| {
             OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
-        })?;
+        })?.into_path_buf();
         if !canonical_path.is_dir() {
             return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
                 directory_path,
@@ -443,25 +444,22 @@ impl Directory for MmapDirectory {
         Ok(self.inner.watch(watch_callback))
     }
 
+    #[cfg(windows)]
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        // On Windows, it is not necessary to fsync the parent directory to
+        // ensure that the directory entry containing the file has also reached
+        // disk, and calling sync_data on a handle to directory is a no-op on
+        // local disks, but will return an error on virtual drives.
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
     fn sync_directory(&self) -> Result<(), io::Error> {
         let mut open_opts = OpenOptions::new();
 
         // Linux needs read to be set, otherwise returns EINVAL
         // write must not be set, or it fails with EISDIR
         open_opts.read(true);
-
-        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
-        // and calling sync_all() only works if write access is requested.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-
-            use winapi::um::winbase;
-
-            open_opts
-                .write(true)
-                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
-        }
 
         let fd = open_opts.open(&self.inner.root_path)?;
         fd.sync_data()?;
