@@ -25,7 +25,7 @@ impl BitPacker {
         num_bits: u8,
         output: &mut TWrite,
     ) -> io::Result<()> {
-        let val_u64 = val as u64;
+        let val_u64 = val;
         let num_bits = num_bits as usize;
         if self.mini_buffer_written + num_bits > 64 {
             self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
@@ -102,7 +102,7 @@ impl BitUnpacker {
             .try_into()
             .unwrap();
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
-        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+        let val_shifted = (val_unshifted_unmasked >> bit_shift);
         val_shifted & self.mask
     }
 }
