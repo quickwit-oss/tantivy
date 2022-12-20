@@ -97,7 +97,7 @@ impl BinarySerializable for CompactSpace {
             };
             let range_length = range_mapping.range_length();
             ranges_mapping.push(range_mapping);
-            compact_start += range_length as u64;
+            compact_start += range_length;
         }
 
         Ok(Self { ranges_mapping })
@@ -407,10 +407,10 @@ impl CompactSpaceDecompressor {
             let idx2 = idx + 1;
             let idx3 = idx + 2;
             let idx4 = idx + 3;
-            let val1 = get_val(idx1 as u32);
-            let val2 = get_val(idx2 as u32);
-            let val3 = get_val(idx3 as u32);
-            let val4 = get_val(idx4 as u32);
+            let val1 = get_val(idx1);
+            let val2 = get_val(idx2);
+            let val3 = get_val(idx3);
+            let val4 = get_val(idx4);
             push_if_in_range(idx1, val1);
             push_if_in_range(idx2, val2);
             push_if_in_range(idx3, val3);
@@ -419,14 +419,14 @@ impl CompactSpaceDecompressor {
 
         // handle rest
         for idx in cutoff..position_range.end {
-            push_if_in_range(idx, get_val(idx as u32));
+            push_if_in_range(idx, get_val(idx));
         }
     }
 
     #[inline]
     fn iter_compact(&self) -> impl Iterator<Item = u64> + '_ {
         (0..self.params.num_vals)
-            .map(move |idx| self.params.bit_unpacker.get(idx, &self.data) as u64)
+            .map(move |idx| self.params.bit_unpacker.get(idx, &self.data))
     }
 
     #[inline]
@@ -569,7 +569,7 @@ mod tests {
         let decomp = CompactSpaceDecompressor::open(data).unwrap();
         let complete_range = 0..vals.len() as u32;
         for (pos, val) in vals.iter().enumerate() {
-            let val = *val as u128;
+            let val = *val;
             let pos = pos as u32;
             let mut positions = Vec::new();
             decomp.get_positions_for_value_range(val..=val, pos..pos + 1, &mut positions);
@@ -666,7 +666,7 @@ mod tests {
             get_positions_for_value_range_helper(
                 &decomp,
                 4_000_211_221u128..=5_000_000_000u128,
-                complete_range.clone()
+                complete_range
             ),
             vec![6, 7]
         );
@@ -703,7 +703,7 @@ mod tests {
             vec![0]
         );
         assert_eq!(
-            get_positions_for_value_range_helper(&decomp, 0..=105, complete_range.clone()),
+            get_positions_for_value_range_helper(&decomp, 0..=105, complete_range),
             vec![0]
         );
     }
@@ -759,7 +759,7 @@ mod tests {
             get_positions_for_value_range_helper(
                 &*decomp,
                 1_000_000..=1_000_000,
-                complete_range.clone()
+                complete_range
             ),
             vec![11]
         );

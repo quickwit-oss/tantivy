@@ -75,7 +75,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
         if column.num_vals() < 10 * CHUNK_SIZE as u32 {
             return None;
         }
-        let mut first_chunk: Vec<u64> = column.iter().take(CHUNK_SIZE as usize).collect();
+        let mut first_chunk: Vec<u64> = column.iter().take(CHUNK_SIZE).collect();
         let line = Line::train(&VecColumn::from(&first_chunk));
         for (i, buffer_val) in first_chunk.iter_mut().enumerate() {
             let interpolated_val = line.eval(i as u32);
