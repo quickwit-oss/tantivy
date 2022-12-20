@@ -363,7 +363,7 @@ impl U128FastFieldWriter {
             serializer.create_u128_fast_field_with_idx(
                 self.field,
                 iter_gen,
-                self.val_count as u32,
+                self.val_count,
                 0,
             )?;
         } else {
@@ -371,7 +371,7 @@ impl U128FastFieldWriter {
             serializer.create_u128_fast_field_with_idx(
                 self.field,
                 iter_gen,
-                self.val_count as u32,
+                self.val_count,
                 0,
             )?;
         }

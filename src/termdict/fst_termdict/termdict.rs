@@ -80,7 +80,7 @@ where W: Write
             self.term_info_store_writer
                 .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
-            (footer_size as u64).serialize(&mut counting_writer)?;
+            footer_size.serialize(&mut counting_writer)?;
         }
         Ok(file)
     }

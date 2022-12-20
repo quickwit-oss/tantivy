@@ -135,6 +135,7 @@ pub fn demux(
 mod tests {
     use super::*;
     use crate::collector::TopDocs;
+
     use crate::directory::RamDirectory;
     use crate::query::QueryParser;
     use crate::schema::{Schema, TEXT};
@@ -252,8 +253,8 @@ mod tests {
             &demux_mapping,
             target_settings,
             vec![
-                Box::new(RamDirectory::default()),
-                Box::new(RamDirectory::default()),
+                Box::<RamDirectory>::default(),
+                Box::<RamDirectory>::default(),
             ],
         )?;
 

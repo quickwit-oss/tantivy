@@ -71,7 +71,7 @@ impl PositionReader {
             .map(|num_bits| num_bits as usize)
             .sum();
         let num_bytes_to_skip = num_bits * COMPRESSION_BLOCK_SIZE / 8;
-        self.bit_widths.advance(num_blocks as usize);
+        self.bit_widths.advance(num_blocks);
         self.positions.advance(num_bytes_to_skip);
         self.anchor_offset += (num_blocks * COMPRESSION_BLOCK_SIZE) as u64;
     }

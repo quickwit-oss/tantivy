@@ -126,7 +126,7 @@ impl VecCursor {
     }
     #[inline]
     fn current(&self) -> Option<u32> {
-        self.docs.get(self.current_pos).map(|el| *el as u32)
+        self.docs.get(self.current_pos).map(|el| *el)
     }
     fn get_cleared_data(&mut self) -> &mut Vec<u32> {
         self.docs.clear();
@@ -268,9 +268,9 @@ impl DocSet for IpRangeDocSet {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
-            docid as u32
+            docid
         } else {
-            if self.next_fetch_start >= self.ip_addr_fast_field.num_docs() as u32 {
+            if self.next_fetch_start >= self.ip_addr_fast_field.num_docs() {
                 return TERMINATED;
             }
             self.fetch_block();
@@ -282,7 +282,7 @@ impl DocSet for IpRangeDocSet {
     fn doc(&self) -> DocId {
         self.loaded_docs
             .current()
-            .map(|el| el as u32)
+            .map(|el| el)
             .unwrap_or(TERMINATED)
     }
 

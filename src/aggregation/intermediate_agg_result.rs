@@ -281,9 +281,7 @@ impl IntermediateBucketResult {
         match self {
             IntermediateBucketResult::Range(range_res) => {
                 let mut buckets: Vec<RangeBucketEntry> = range_res
-                    .buckets
-                    .into_iter()
-                    .map(|(_, bucket)| {
+                    .buckets.into_values().map(|bucket| {
                         bucket.into_final_bucket_entry(
                             &req.sub_aggregation,
                             schema,

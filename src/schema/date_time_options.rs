@@ -236,7 +236,7 @@ mod tests {
         )
         .unwrap();
 
-        let date_options_json = serde_json::to_value(&date_options).unwrap();
+        let date_options_json = serde_json::to_value(date_options).unwrap();
         assert_eq!(
             date_options_json,
             serde_json::json!({

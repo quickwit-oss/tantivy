@@ -70,7 +70,7 @@ impl BlockCache {
             .lock()
             .unwrap()
             .peek_lru()
-            .map(|(&k, _)| k as usize)
+            .map(|(&k, _)| k)
     }
 }
 

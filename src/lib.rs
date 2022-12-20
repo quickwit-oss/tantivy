@@ -177,7 +177,7 @@ impl DateTime {
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
     pub const fn from_utc(dt: OffsetDateTime) -> Self {
-        let timestamp_micros = dt.unix_timestamp() as i64 * 1_000_000 + dt.microsecond() as i64;
+        let timestamp_micros = dt.unix_timestamp() * 1_000_000 + dt.microsecond() as i64;
         Self { timestamp_micros }
     }
 

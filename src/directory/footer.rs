@@ -38,7 +38,7 @@ impl Footer {
         counting_write.write_all(serde_json::to_string(&self)?.as_ref())?;
         let footer_payload_len = counting_write.written_bytes();
         BinarySerializable::serialize(&(footer_payload_len as u32), write)?;
-        BinarySerializable::serialize(&(FOOTER_MAGIC_NUMBER as u32), write)?;
+        BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, write)?;
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl Footer {
         }
 
         let footer: Footer = serde_json::from_slice(&file.read_bytes_slice(
-            file.len() - total_footer_size..file.len() - footer_metadata_len as usize,
+            file.len() - total_footer_size..file.len() - footer_metadata_len,
         )?)?;
 
         let body = file.slice_to(file.len() - total_footer_size);

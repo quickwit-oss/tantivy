@@ -66,7 +66,7 @@ impl FacetReader {
     ) -> crate::Result<()> {
         let found_term = self
             .term_dict
-            .ord_to_term(facet_ord as u64, &mut self.buffer)?;
+            .ord_to_term(facet_ord, &mut self.buffer)?;
         assert!(found_term, "Term ordinal {} no found.", facet_ord);
         let facet_str = str::from_utf8(&self.buffer[..])
             .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?;

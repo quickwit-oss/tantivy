@@ -473,7 +473,7 @@ mod tests {
             let fast_field_reader = open::<u64>(data)?;
 
             for a in 0..n {
-                assert_eq!(fast_field_reader.get_val(a as u32), permutation[a as usize]);
+                assert_eq!(fast_field_reader.get_val(a as u32), permutation[a]);
             }
         }
         Ok(())

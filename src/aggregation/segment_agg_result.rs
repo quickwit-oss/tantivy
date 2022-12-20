@@ -305,7 +305,7 @@ impl BucketCount {
     }
     pub(crate) fn add_count(&self, count: u32) {
         self.bucket_count
-            .fetch_add(count as u32, std::sync::atomic::Ordering::Relaxed);
+            .fetch_add(count, std::sync::atomic::Ordering::Relaxed);
     }
     pub(crate) fn get_count(&self) -> u32 {
         self.bucket_count.load(std::sync::atomic::Ordering::Relaxed)

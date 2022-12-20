@@ -152,7 +152,7 @@ pub(crate) fn advance_deletes(
     let num_deleted_docs = max_doc - num_alive_docs;
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
-        segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
+        segment = segment.with_delete_meta(num_deleted_docs, target_opstamp);
         let mut alive_doc_file = segment.open_write(SegmentComponent::Delete)?;
         write_alive_bitset(&alive_bitset, &mut alive_doc_file)?;
         alive_doc_file.terminate()?;
@@ -984,7 +984,7 @@ mod tests {
             "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
              min_layer_size: 10000, level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
         );
-        let merge_policy = Box::new(NoMergePolicy::default());
+        let merge_policy = Box::<NoMergePolicy>::default();
         index_writer.set_merge_policy(merge_policy);
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
@@ -1813,8 +1813,8 @@ mod tests {
         }
 
         let num_docs_expected = expected_ids_and_num_occurrences
-            .iter()
-            .map(|(_, id_occurrences)| *id_occurrences as usize)
+            .values()
+            .map(|id_occurrences| *id_occurrences as usize)
             .sum::<usize>();
         assert_eq!(searcher.num_docs() as usize, num_docs_expected);
         assert_eq!(old_searcher.num_docs() as usize, num_docs_expected);
