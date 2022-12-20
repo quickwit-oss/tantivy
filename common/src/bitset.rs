@@ -151,7 +151,7 @@ impl TinySet {
         if self.is_empty() {
             None
         } else {
-            let lowest = self.0.trailing_zeros() as u32;
+            let lowest = self.0.trailing_zeros();
             self.0 ^= TinySet::singleton(lowest).0;
             Some(lowest)
         }
@@ -421,7 +421,7 @@ mod tests {
             bitset.serialize(&mut out).unwrap();
 
             let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
-            assert_eq!(bitset.len() as usize, i as usize);
+            assert_eq!(bitset.len(), i as usize);
         }
     }
 
@@ -432,7 +432,7 @@ mod tests {
         bitset.serialize(&mut out).unwrap();
 
         let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
-        assert_eq!(bitset.len() as usize, 64);
+        assert_eq!(bitset.len(), 64);
     }
 
     #[test]
