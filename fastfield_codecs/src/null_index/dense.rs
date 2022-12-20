@@ -16,6 +16,7 @@ use super::{get_bit_at, set_bit_at};
 ///
 /// When translating a dense index to the original index, we can use the offset to find the correct
 /// block. Direct computation is not possible, but we can employ a linear or binary search.
+#[derive(Clone)]
 pub struct DenseCodec {
     // data consists of blocks of 64 bits.
     //
@@ -77,7 +78,7 @@ impl DenseCodec {
     }
 
     /// Return the number of non-null values in an index
-    pub fn num_non_null_vals(&self) -> u32 {
+    pub fn num_non_nulls(&self) -> u32 {
         let last_block = (self.data.len() / SERIALIZED_BLOCK_SIZE) - 1;
         self.dense_index_block(last_block as u32).offset
     }
@@ -101,7 +102,7 @@ impl DenseCodec {
     ///
     /// # Panics
     ///
-    /// May panic if any `idx` is greater than the column length.
+    /// May panic if any `idx` is greater than the max codec index.
     pub fn translate_codec_idx_to_original_idx<'a>(
         &'a self,
         iter: impl Iterator<Item = u32> + 'a,
@@ -120,7 +121,7 @@ impl DenseCodec {
                     num_set_bits += 1;
                 }
                 if num_set_bits == (dense_idx - index_block.offset + 1) {
-                    let orig_idx = block_pos * ELEMENTS_PER_BLOCK + idx_in_bitvec as u32;
+                    let orig_idx = block_pos * ELEMENTS_PER_BLOCK + idx_in_bitvec;
                     return orig_idx;
                 }
             }
@@ -173,7 +174,7 @@ pub fn serialize_dense_codec(
         block.serialize(&mut out)?;
         offset.serialize(&mut out)?;
 
-        offset += block.count_ones() as u32;
+        offset += block.count_ones();
     }
     // Add sentinal block for the offset
     let block: u64 = 0;
@@ -379,7 +380,7 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_90percent_filled_random_stride(
+    fn bench_dense_codec_translate_orig_to_codec_90percent_filled_random_stride(
         bench: &mut Bencher,
     ) {
         let codec = gen_bools(0.9f64);
@@ -387,7 +388,7 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_50percent_filled_random_stride(
+    fn bench_dense_codec_translate_orig_to_codec_50percent_filled_random_stride(
         bench: &mut Bencher,
     ) {
         let codec = gen_bools(0.5f64);
@@ -395,19 +396,19 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_full_scan_10percent(bench: &mut Bencher) {
+    fn bench_dense_codec_translate_orig_to_codec_full_scan_10percent(bench: &mut Bencher) {
         let codec = gen_bools(0.1f64);
         bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_full_scan_90percent(bench: &mut Bencher) {
+    fn bench_dense_codec_translate_orig_to_codec_full_scan_90percent(bench: &mut Bencher) {
         let codec = gen_bools(0.9f64);
         bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
     }
 
     #[bench]
-    fn bench_dense_codec_translate_orig_to_dense_10percent_filled_random_stride(
+    fn bench_dense_codec_translate_orig_to_codec_10percent_filled_random_stride(
         bench: &mut Bencher,
     ) {
         let codec = gen_bools(0.1f64);
@@ -415,11 +416,11 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_random_stride_big_step(
+    fn bench_dense_codec_translate_codec_to_orig_90percent_filled_random_stride_big_step(
         bench: &mut Bencher,
     ) {
         let codec = gen_bools(0.9f64);
-        let num_vals = codec.num_non_null_vals();
+        let num_vals = codec.num_non_nulls();
         bench.iter(|| {
             codec
                 .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 50_000))
@@ -428,11 +429,11 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_random_stride(
+    fn bench_dense_codec_translate_codec_to_orig_90percent_filled_random_stride(
         bench: &mut Bencher,
     ) {
         let codec = gen_bools(0.9f64);
-        let num_vals = codec.num_non_null_vals();
+        let num_vals = codec.num_non_nulls();
         bench.iter(|| {
             codec
                 .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 100))
@@ -441,9 +442,9 @@ mod bench {
     }
 
     #[bench]
-    fn bench_dense_codec_translate_dense_to_orig_90percent_filled_full_scan(bench: &mut Bencher) {
+    fn bench_dense_codec_translate_codec_to_orig_90percent_filled_full_scan(bench: &mut Bencher) {
         let codec = gen_bools(0.9f64);
-        let num_vals = codec.num_non_null_vals();
+        let num_vals = codec.num_non_nulls();
         bench.iter(|| {
             codec
                 .translate_codec_idx_to_original_idx(0..num_vals)

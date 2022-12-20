@@ -1,6 +1,7 @@
 pub use dense::{serialize_dense_codec, DenseCodec};
 
 mod dense;
+mod sparse;
 
 #[inline]
 fn get_bit_at(input: u64, n: u32) -> bool {
