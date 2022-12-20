@@ -465,7 +465,7 @@ impl<W: Write> PostingsSerializer<W> {
     /// When called after writing the postings of a term, this value is used as a
     /// end offset.
     fn written_bytes(&self) -> u64 {
-        self.output_write.written_bytes() as u64
+        self.output_write.written_bytes()
     }
 
     fn clear(&mut self) {

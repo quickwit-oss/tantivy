@@ -85,7 +85,7 @@ impl ValueReader for U64MonotonicReader {
         self.vals.clear();
         let mut prev_val = 0u64;
         for _ in 0..len {
-            let delta = reader.deserialize_u64() as u64;
+            let delta = reader.deserialize_u64();
             let val = prev_val + delta;
             self.vals.push(val);
             prev_val = val;

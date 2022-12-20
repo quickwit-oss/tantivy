@@ -69,7 +69,7 @@ impl TermInfoBlockMeta {
         let posting_end_addr = posting_start_addr + num_bits;
         let positions_start_addr = posting_start_addr + self.postings_offset_nbits as usize;
         // the position_end is the positions_start of the next term info.
-        let positions_end_addr = positions_start_addr + num_bits as usize;
+        let positions_end_addr = positions_start_addr + num_bits;
 
         let doc_freq_addr = positions_start_addr + self.positions_offset_nbits as usize;
 

@@ -75,7 +75,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 
         let mut prev_offset = 0;
         for (file_addr, offset) in self.offsets {
-            VInt((offset - prev_offset) as u64).serialize(&mut self.write)?;
+            VInt(offset - prev_offset).serialize(&mut self.write)?;
             file_addr.serialize(&mut self.write)?;
             prev_offset = offset;
         }

@@ -451,9 +451,9 @@ mod tests {
                         text_field_id => term.to_string(),
                         string_field_id => term.to_string(),
                         score_field => i as u64,
-                        score_field_f64 => i as f64,
+                        score_field_f64 => i,
                         score_field_i64 => i as i64,
-                        fraction_field => i as f64/100.0,
+                        fraction_field => i/100.0,
                     ))?;
                 }
                 index_writer.commit()?;

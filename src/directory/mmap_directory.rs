@@ -341,7 +341,7 @@ impl Directory for MmapDirectory {
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         let full_path = self.resolve_path(path);
-        fs::remove_file(&full_path).map_err(|e| {
+        fs::remove_file(full_path).map_err(|e| {
             if e.kind() == io::ErrorKind::NotFound {
                 DeleteError::FileDoesNotExist(path.to_owned())
             } else {
@@ -395,7 +395,7 @@ impl Directory for MmapDirectory {
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let full_path = self.resolve_path(path);
         let mut buffer = Vec::new();
-        match File::open(&full_path) {
+        match File::open(full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer).map_err(|io_error| {
                     OpenReadError::wrap_io_error(io_error, path.to_path_buf())
@@ -425,7 +425,7 @@ impl Directory for MmapDirectory {
         let file: File = OpenOptions::new()
             .write(true)
             .create(true) //< if the file does not exist yet, create it.
-            .open(&full_path)
+            .open(full_path)
             .map_err(LockError::wrap_io_error)?;
         if lock.is_blocking {
             file.lock_exclusive().map_err(LockError::wrap_io_error)?;

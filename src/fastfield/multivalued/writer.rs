@@ -264,7 +264,7 @@ fn iter_remapped_multivalue_index<'a, C: Column>(
     std::iter::once(0).chain(doc_id_map.iter_old_doc_ids().map(move |old_doc| {
         let num_vals_for_doc = column.get_val(old_doc + 1) - column.get_val(old_doc);
         offset += num_vals_for_doc;
-        offset as u64
+        offset
     }))
 }
 

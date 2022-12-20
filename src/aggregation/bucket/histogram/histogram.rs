@@ -401,7 +401,7 @@ impl SegmentHistogramCollector {
 
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
-                get_bucket_val(val, self.interval, self.offset) as f64
+                get_bucket_val(val, self.interval, self.offset)
             );
             self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }
@@ -428,7 +428,7 @@ impl SegmentHistogramCollector {
         if bounds.contains(val) {
             debug_assert_eq!(
                 self.buckets[bucket_pos].key,
-                get_bucket_val(val, self.interval, self.offset) as f64
+                get_bucket_val(val, self.interval, self.offset)
             );
 
             self.increment_bucket(bucket_pos, doc, bucket_with_accessor)?;

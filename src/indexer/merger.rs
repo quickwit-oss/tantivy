@@ -366,7 +366,7 @@ impl IndexMerger {
                         .map(|doc| reader.num_vals(doc))
                         .sum()
                 } else {
-                    reader.total_num_vals() as u32
+                    reader.total_num_vals()
                 }
             })
             .sum();
@@ -968,7 +968,7 @@ impl IndexMerger {
                     let doc_bytes = doc_bytes_res?;
                     store_writer.store_bytes(&doc_bytes)?;
                 } else {
-                    return Err(DataCorruption::comment_only(&format!(
+                    return Err(DataCorruption::comment_only(format!(
                         "unexpected missing document in docstore on merge, doc address \
                          {old_doc_addr:?}",
                     ))

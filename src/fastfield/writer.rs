@@ -360,20 +360,10 @@ impl U128FastFieldWriter {
                     .map(|idx| self.vals[idx as usize])
             };
 
-            serializer.create_u128_fast_field_with_idx(
-                self.field,
-                iter_gen,
-                self.val_count as u32,
-                0,
-            )?;
+            serializer.create_u128_fast_field_with_idx(self.field, iter_gen, self.val_count, 0)?;
         } else {
             let iter_gen = || self.vals.iter().cloned();
-            serializer.create_u128_fast_field_with_idx(
-                self.field,
-                iter_gen,
-                self.val_count as u32,
-                0,
-            )?;
+            serializer.create_u128_fast_field_with_idx(self.field, iter_gen, self.val_count, 0)?;
         }
 
         Ok(())

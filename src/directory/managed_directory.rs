@@ -388,7 +388,7 @@ mod tests_mmap_specific {
         let tempdir_path = PathBuf::from(tempdir.path());
         let living_files = HashSet::new();
 
-        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mmap_directory = MmapDirectory::open(tempdir_path).unwrap();
         let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
         let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();

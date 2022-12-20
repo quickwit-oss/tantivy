@@ -66,11 +66,7 @@ impl BlockCache {
 
     #[cfg(test)]
     fn peek_lru(&self) -> Option<usize> {
-        self.cache
-            .lock()
-            .unwrap()
-            .peek_lru()
-            .map(|(&k, _)| k as usize)
+        self.cache.lock().unwrap().peek_lru().map(|(&k, _)| k)
     }
 }
 

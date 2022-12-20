@@ -866,7 +866,7 @@ mod tests {
         }
 
         assert_eq!(indices.len(), 3);
-        let output_directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        let output_directory: Box<dyn Directory> = Box::<RamDirectory>::default();
         let index = merge_indices(&indices, output_directory)?;
         assert_eq!(index.schema(), schema);
 

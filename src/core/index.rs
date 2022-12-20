@@ -813,7 +813,7 @@ mod tests {
             let field = schema.get_field("num_likes").unwrap();
             let tempdir = TempDir::new().unwrap();
             let tempdir_path = PathBuf::from(tempdir.path());
-            let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
+            let index = Index::create_in_dir(tempdir_path, schema).unwrap();
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::OnCommit)

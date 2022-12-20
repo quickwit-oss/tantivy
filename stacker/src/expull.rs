@@ -62,7 +62,7 @@ fn len_to_capacity(len: u32) -> CapacityResult {
 pub struct ExpUnrolledLinkedList {
     len: u32,
     tail: Addr,
-    inlined_data: [u8; INLINED_BLOCK_LEN as usize],
+    inlined_data: [u8; INLINED_BLOCK_LEN],
 }
 
 pub struct ExpUnrolledLinkedListWriter<'a> {
@@ -125,7 +125,7 @@ impl Default for ExpUnrolledLinkedList {
         ExpUnrolledLinkedList {
             len: 0u32,
             tail: Addr::null_pointer(),
-            inlined_data: [0u8; INLINED_BLOCK_LEN as usize],
+            inlined_data: [0u8; INLINED_BLOCK_LEN],
         }
     }
 }

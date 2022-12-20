@@ -170,7 +170,7 @@ pub trait Collector: Sync + Send {
         segment_ord: u32,
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
-        let mut segment_collector = self.for_segment(segment_ord as u32, reader)?;
+        let mut segment_collector = self.for_segment(segment_ord, reader)?;
 
         match (reader.alive_bitset(), self.requires_scoring()) {
             (Some(alive_bitset), true) => {
