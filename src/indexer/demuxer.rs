@@ -135,7 +135,6 @@ pub fn demux(
 mod tests {
     use super::*;
     use crate::collector::TopDocs;
-
     use crate::directory::RamDirectory;
     use crate::query::QueryParser;
     use crate::schema::{Schema, TEXT};

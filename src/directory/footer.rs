@@ -90,9 +90,10 @@ impl Footer {
             ));
         }
 
-        let footer: Footer = serde_json::from_slice(&file.read_bytes_slice(
-            file.len() - total_footer_size..file.len() - footer_metadata_len,
-        )?)?;
+        let footer: Footer =
+            serde_json::from_slice(&file.read_bytes_slice(
+                file.len() - total_footer_size..file.len() - footer_metadata_len,
+            )?)?;
 
         let body = file.slice_to(file.len() - total_footer_size);
         Ok((footer, body))

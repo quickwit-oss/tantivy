@@ -425,8 +425,7 @@ impl CompactSpaceDecompressor {
 
     #[inline]
     fn iter_compact(&self) -> impl Iterator<Item = u64> + '_ {
-        (0..self.params.num_vals)
-            .map(move |idx| self.params.bit_unpacker.get(idx, &self.data))
+        (0..self.params.num_vals).map(move |idx| self.params.bit_unpacker.get(idx, &self.data))
     }
 
     #[inline]
@@ -756,11 +755,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_positions_for_value_range_helper(
-                &*decomp,
-                1_000_000..=1_000_000,
-                complete_range
-            ),
+            get_positions_for_value_range_helper(&*decomp, 1_000_000..=1_000_000, complete_range),
             vec![11]
         );
     }
