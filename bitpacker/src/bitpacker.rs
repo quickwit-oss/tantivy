@@ -25,15 +25,14 @@ impl BitPacker {
         num_bits: u8,
         output: &mut TWrite,
     ) -> io::Result<()> {
-        let val_u64 = val;
         let num_bits = num_bits as usize;
         if self.mini_buffer_written + num_bits > 64 {
-            self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
+            self.mini_buffer |= val.wrapping_shl(self.mini_buffer_written as u32);
             output.write_all(self.mini_buffer.to_le_bytes().as_ref())?;
-            self.mini_buffer = val_u64.wrapping_shr((64 - self.mini_buffer_written) as u32);
+            self.mini_buffer = val.wrapping_shr((64 - self.mini_buffer_written) as u32);
             self.mini_buffer_written = self.mini_buffer_written + num_bits - 64;
         } else {
-            self.mini_buffer |= val_u64 << self.mini_buffer_written;
+            self.mini_buffer |= val << self.mini_buffer_written;
             self.mini_buffer_written += num_bits;
             if self.mini_buffer_written == 64 {
                 output.write_all(self.mini_buffer.to_le_bytes().as_ref())?;
