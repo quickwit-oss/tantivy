@@ -58,6 +58,7 @@ enum SparseCodecBlockVariant {
 }
 
 impl SparseCodecBlockVariant {
+    /// The number of non-null values that preceeded that block.
     fn offset(&self) -> u32 {
         match self {
             SparseCodecBlockVariant::Empty { offset } => *offset,
@@ -114,8 +115,7 @@ impl SparseBlock {
     #[inline]
     fn value_at_idx(&self, data: &[u8], idx: u16) -> u16 {
         let start_offset: usize = self.byte_start as usize + (idx as u32 as usize * 2);
-        let bytes: [u8; 2] = data[start_offset..start_offset + 2].try_into().unwrap();
-        u16::from_le_bytes(bytes)
+        get_u16(data, start_offset)
     }
 
     #[inline]
@@ -148,21 +148,26 @@ impl SparseBlock {
     }
 }
 
+#[inline]
+fn get_u16(data: &[u8], byte_position: usize) -> u16 {
+    let bytes: [u8; 2] = data[byte_position..byte_position + 2].try_into().unwrap();
+    u16::from_le_bytes(bytes)
+}
+
 const SERIALIZED_BLOCK_METADATA_SIZE: usize = 4;
 
 fn deserialize_sparse_codec_block(data: &OwnedBytes) -> Vec<SparseCodecBlockVariant> {
     // The number of vals so far
     let mut offset = 0;
     let mut sparse_codec_blocks = Vec::new();
-    let num_blocks = u16::from_le_bytes([data[data.len() - 2], data[data.len() - 1]]);
+    let num_blocks = get_u16(&data, data.len() - 2);
     let block_data_index_start =
         data.len() - 2 - num_blocks as usize * SERIALIZED_BLOCK_METADATA_SIZE;
     let mut byte_start = 0;
     for block_num in 0..num_blocks as usize {
         let block_data_index = block_data_index_start + SERIALIZED_BLOCK_METADATA_SIZE * block_num;
-        let block_idx = u16::from_le_bytes([data[block_data_index], data[block_data_index + 1]]);
-        let num_vals =
-            u16::from_le_bytes([data[block_data_index + 2], data[block_data_index + 3]]) as u32 + 1;
+        let block_idx = get_u16(data, block_data_index);
+        let num_vals = get_u16(data, block_data_index + 2) as u32 + 1;
         sparse_codec_blocks.resize(
             block_idx as usize,
             SparseCodecBlockVariant::Empty { offset },
@@ -186,7 +191,7 @@ fn deserialize_sparse_codec_block(data: &OwnedBytes) -> Vec<SparseCodecBlockVari
             byte_start += NUM_BYTES_DENSE_BLOCK;
         }
 
-        offset += num_vals as u32;
+        offset += num_vals;
     }
     sparse_codec_blocks.push(SparseCodecBlockVariant::Empty { offset });
     sparse_codec_blocks
