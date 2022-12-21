@@ -1,8 +1,7 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
-use common::{BinarySerializable, CountingWriter, VInt};
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum FastFieldCardinality {

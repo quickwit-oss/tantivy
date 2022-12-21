@@ -20,7 +20,7 @@ mod atomic_impl {
         }
 
         pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
-            self.0.fetch_add(val, order) as u64
+            self.0.fetch_add(val, order)
         }
 
         pub fn revert(&self, val: u64, order: Ordering) -> u64 {

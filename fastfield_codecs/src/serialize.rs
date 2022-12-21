@@ -21,9 +21,8 @@ use std::io;
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
-use common::{BinarySerializable, VInt};
+use common::{BinarySerializable, OwnedBytes, VInt};
 use log::warn;
-use ownedbytes::OwnedBytes;
 
 use crate::bitpacked::BitpackedCodec;
 use crate::blockwise_linear::BlockwiseLinearCodec;

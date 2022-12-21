@@ -1,7 +1,6 @@
 use std::io::{self, Write};
 
-use common::BinarySerializable;
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, OwnedBytes};
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::line::Line;

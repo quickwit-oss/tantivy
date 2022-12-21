@@ -1,7 +1,6 @@
 use std::io::{self, Write};
 
-use common::BitSet;
-use ownedbytes::OwnedBytes;
+use common::{BitSet, OwnedBytes};
 
 use super::{serialize_dense_codec, DenseCodec};
 
