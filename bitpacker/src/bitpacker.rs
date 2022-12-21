@@ -101,7 +101,7 @@ impl BitUnpacker {
             .try_into()
             .unwrap();
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
-        let val_shifted = (val_unshifted_unmasked >> bit_shift);
+        let val_shifted = val_unshifted_unmasked >> bit_shift;
         val_shifted & self.mask
     }
 }

@@ -160,7 +160,7 @@ fn deserialize_sparse_codec_block(data: &OwnedBytes) -> Vec<SparseCodecBlockVari
     // The number of vals so far
     let mut offset = 0;
     let mut sparse_codec_blocks = Vec::new();
-    let num_blocks = get_u16(&data, data.len() - 2);
+    let num_blocks = get_u16(data, data.len() - 2);
     let block_data_index_start =
         data.len() - 2 - num_blocks as usize * SERIALIZED_BLOCK_METADATA_SIZE;
     let mut byte_start = 0;

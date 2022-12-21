@@ -126,7 +126,7 @@ impl VecCursor {
     }
     #[inline]
     fn current(&self) -> Option<u32> {
-        self.docs.get(self.current_pos).map(|el| *el)
+        self.docs.get(self.current_pos).copied()
     }
     fn get_cleared_data(&mut self) -> &mut Vec<u32> {
         self.docs.clear();
@@ -280,10 +280,7 @@ impl DocSet for IpRangeDocSet {
 
     #[inline]
     fn doc(&self) -> DocId {
-        self.loaded_docs
-            .current()
-            .map(|el| el)
-            .unwrap_or(TERMINATED)
+        self.loaded_docs.current().unwrap_or(TERMINATED)
     }
 
     /// Advances the `DocSet` forward until reaching the target, or going to the
