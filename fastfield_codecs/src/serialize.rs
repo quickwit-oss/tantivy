@@ -197,12 +197,12 @@ pub fn serialize_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
 }
 
 #[allow(dead_code)]
-pub enum ValueIndexInfo {
-    MultiValue(Box<dyn MultiValueIndexInfo>),
-    SingleValue(Box<dyn SingleValueIndexInfo>),
+pub enum ValueIndexInfo<'a> {
+    MultiValue(Box<dyn MultiValueIndexInfo + 'a>),
+    SingleValue(Box<dyn SingleValueIndexInfo + 'a>),
 }
 
-impl Default for ValueIndexInfo {
+impl Default for ValueIndexInfo<'static> {
     fn default() -> Self {
         struct Dummy {}
         impl SingleValueIndexInfo for Dummy {
@@ -221,7 +221,7 @@ impl Default for ValueIndexInfo {
     }
 }
 
-impl ValueIndexInfo {
+impl<'a> ValueIndexInfo<'a> {
     fn get_cardinality(&self) -> FastFieldCardinality {
         match self {
             ValueIndexInfo::MultiValue(_) => FastFieldCardinality::Multi,
@@ -236,7 +236,7 @@ pub trait MultiValueIndexInfo {
     /// The number of values in the column.
     fn num_vals(&self) -> u32;
     /// Return the start index of the values for each doc
-    fn iter(&self) -> Box<dyn Iterator<Item = u32>>;
+    fn iter(&self) -> Box<dyn Iterator<Item = u32> + '_>;
 }
 
 pub trait SingleValueIndexInfo {
@@ -245,7 +245,7 @@ pub trait SingleValueIndexInfo {
     /// The number of non-null values in the column.
     fn num_non_nulls(&self) -> u32;
     /// Return a iterator of the positions of docs with a value
-    fn iter(&self) -> Box<dyn Iterator<Item = u32>>;
+    fn iter(&self) -> Box<dyn Iterator<Item = u32> + '_>;
 }
 
 /// Serializes u128 values with the compact space codec.
