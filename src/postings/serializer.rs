@@ -213,21 +213,21 @@ impl<'a> FieldSerializer<'a> {
         fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
             Err(io::Error::new(io::ErrorKind::Other, format!("{:?}", msg)))
         });
-        if self.term_open {
-            self.postings_serializer
-                .close_term(self.current_term_info.doc_freq)?;
-            self.current_term_info.postings_range.end =
-                self.postings_serializer.written_bytes() as usize;
-
-            if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
-                positions_serializer.close_term()?;
-                self.current_term_info.positions_range.end =
-                    positions_serializer.written_bytes() as usize;
-            }
-            self.term_dictionary_builder
-                .insert_value(&self.current_term_info)?;
-            self.term_open = false;
+        if !self.term_open {
+            return Ok(());
         }
+        self.postings_serializer
+            .close_term(self.current_term_info.doc_freq)?;
+        self.current_term_info.postings_range.end =
+            self.postings_serializer.written_bytes() as usize;
+        if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
+            positions_serializer.close_term()?;
+            self.current_term_info.positions_range.end =
+                positions_serializer.written_bytes() as usize;
+        }
+        self.term_dictionary_builder
+            .insert_value(&self.current_term_info)?;
+        self.term_open = false;
         Ok(())
     }
 
