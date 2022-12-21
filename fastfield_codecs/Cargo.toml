@@ -21,6 +21,7 @@ fastdivide = "0.4"
 log = "0.4"
 itertools = { version = "0.10.3" }
 measure_time = { version="0.8.2", optional=true}
+ordered-float = "3.4"
 
 [dev-dependencies]
 more-asserts = "0.3.0"
