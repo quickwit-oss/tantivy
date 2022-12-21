@@ -3,7 +3,7 @@ use std::ops::{Deref, Range};
 use std::sync::Arc;
 use std::{fmt, io, mem};
 
-use stable_deref_trait::StableDeref;
+pub use stable_deref_trait::StableDeref;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a slice.

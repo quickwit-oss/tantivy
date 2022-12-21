@@ -44,7 +44,7 @@ where
         let start_offset = self.write.written_bytes() as usize;
         // TODO avoid buffer allocation
         let mut buffer = Vec::new();
-        self.value_writer.write_block(&mut buffer);
+        self.value_writer.serialize_block(&mut buffer);
         let block_len = buffer.len() + self.block.len();
         self.write.write_all(&(block_len as u32).to_le_bytes())?;
         self.write.write_all(&buffer[..])?;
@@ -84,7 +84,7 @@ where
         Ok(None)
     }
 
-    pub fn finalize(self) -> CountingWriter<BufWriter<W>> {
+    pub fn finish(self) -> CountingWriter<BufWriter<W>> {
         self.write
     }
 }
@@ -110,6 +110,10 @@ where TValueReader: value::ValueReader
             value_reader: TValueReader::default(),
             block_reader: BlockReader::new(Box::new(reader)),
         }
+    }
+
+    pub fn empty() -> Self {
+        DeltaReader::new(&b""[..])
     }
 
     fn deserialize_vint(&mut self) -> u64 {
@@ -156,7 +160,8 @@ where TValueReader: value::ValueReader
             if !self.block_reader.read_block()? {
                 return Ok(false);
             }
-            self.value_reader.read(&mut self.block_reader)?;
+            let consumed_len = self.value_reader.load(self.block_reader.buffer())?;
+            self.block_reader.advance(consumed_len);
             self.idx = 0;
         } else {
             self.idx += 1;
@@ -178,5 +183,17 @@ where TValueReader: value::ValueReader
 
     pub fn value(&self) -> &TValueReader::Value {
         self.value_reader.value(self.idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeltaReader;
+    use crate::value::U64MonotonicReader;
+
+    #[test]
+    fn test_empty() {
+        let mut delta_reader: DeltaReader<U64MonotonicReader> = DeltaReader::empty();
+        assert!(!delta_reader.advance().unwrap());
     }
 }

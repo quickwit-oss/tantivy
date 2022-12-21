@@ -5,11 +5,12 @@ use std::ops::Deref;
 pub use byteorder::LittleEndian as Endianness;
 
 mod bitset;
+pub mod file_slice;
 mod serialize;
 mod vint;
 mod writer;
-
 pub use bitset::*;
+pub use ownedbytes::OwnedBytes;
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
     deserialize_vint_u128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u128,

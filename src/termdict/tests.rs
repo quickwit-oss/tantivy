@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::str;
+use std::{io, str};
 
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
@@ -247,7 +247,7 @@ fn test_empty_string() -> crate::Result<()> {
     Ok(())
 }
 
-fn stream_range_test_dict() -> crate::Result<TermDictionary> {
+fn stream_range_test_dict() -> io::Result<TermDictionary> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
         for i in 0u8..10u8 {

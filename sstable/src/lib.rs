@@ -1,21 +1,29 @@
 use std::io::{self, Write};
+use std::ops::Range;
 use std::usize;
 
 use merge::ValueMerger;
 
 mod delta;
+mod dictionary;
 pub mod merge;
+mod streamer;
 pub mod value;
 
 mod sstable_index;
 pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
 pub(crate) mod vint;
+pub use dictionary::Dictionary;
+pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
 pub use self::merge::VoidMerge;
 use self::value::{U64MonotonicReader, U64MonotonicWriter, ValueReader, ValueWriter};
+use crate::value::{RangeReader, RangeWriter};
+
+pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
 
@@ -31,15 +39,15 @@ fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
 pub struct SSTableDataCorruption;
 
 pub trait SSTable: Sized {
-    type Value;
-    type Reader: ValueReader<Value = Self::Value>;
-    type Writer: ValueWriter<Value = Self::Value>;
+    type Value: Clone;
+    type ValueReader: ValueReader<Value = Self::Value>;
+    type ValueWriter: ValueWriter<Value = Self::Value>;
 
-    fn delta_writer<W: io::Write>(write: W) -> DeltaWriter<W, Self::Writer> {
+    fn delta_writer<W: io::Write>(write: W) -> DeltaWriter<W, Self::ValueWriter> {
         DeltaWriter::new(write)
     }
 
-    fn writer<W: io::Write>(write: W) -> Writer<W, Self::Writer> {
+    fn writer<W: io::Write>(write: W) -> Writer<W, Self::ValueWriter> {
         Writer {
             previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             num_terms: 0u64,
@@ -49,15 +57,20 @@ pub trait SSTable: Sized {
         }
     }
 
-    fn delta_reader<'a, R: io::Read + 'a>(reader: R) -> DeltaReader<'a, Self::Reader> {
+    fn delta_reader<'a, R: io::Read + 'a>(reader: R) -> DeltaReader<'a, Self::ValueReader> {
         DeltaReader::new(reader)
     }
 
-    fn reader<'a, R: io::Read + 'a>(reader: R) -> Reader<'a, Self::Reader> {
+    fn reader<'a, R: io::Read + 'a>(reader: R) -> Reader<'a, Self::ValueReader> {
         Reader {
             key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             delta_reader: Self::delta_reader(reader),
         }
+    }
+
+    /// Returns an empty static reader.
+    fn create_empty_reader() -> Reader<'static, Self::ValueReader> {
+        Self::reader(&b""[..])
     }
 
     fn merge<R: io::Read, W: io::Write, M: ValueMerger<Self::Value>>(
@@ -76,8 +89,8 @@ pub struct VoidSSTable;
 
 impl SSTable for VoidSSTable {
     type Value = ();
-    type Reader = value::VoidReader;
-    type Writer = value::VoidWriter;
+    type ValueReader = value::VoidReader;
+    type ValueWriter = value::VoidWriter;
 }
 
 #[allow(dead_code)]
@@ -86,9 +99,20 @@ pub struct SSTableMonotonicU64;
 impl SSTable for SSTableMonotonicU64 {
     type Value = u64;
 
-    type Reader = U64MonotonicReader;
+    type ValueReader = U64MonotonicReader;
 
-    type Writer = U64MonotonicWriter;
+    type ValueWriter = U64MonotonicWriter;
+}
+
+/// Retpresent
+pub struct SSTableRange;
+
+impl SSTable for SSTableRange {
+    type Value = Range<u64>;
+
+    type ValueReader = RangeReader;
+
+    type ValueWriter = RangeWriter;
 }
 
 pub struct Reader<'a, TValueReader> {
@@ -141,11 +165,23 @@ where
     W: io::Write,
     TValueWriter: value::ValueWriter,
 {
+    pub fn create(wrt: W) -> io::Result<Self> {
+        Ok(Writer {
+            previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
+            num_terms: 0u64,
+            index_builder: SSTableIndexBuilder::default(),
+            delta_writer: DeltaWriter::new(wrt),
+            first_ordinal_of_the_block: 0u64,
+        })
+    }
+
+    #[inline(always)]
     pub(crate) fn current_key(&self) -> &[u8] {
         &self.previous_key[..]
     }
 
-    pub fn write_key(&mut self, key: &[u8]) {
+    #[inline]
+    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         // If this is the first key in the block, we use it to
         // shorten the last term in the last block.
         if self.first_ordinal_of_the_block == self.num_terms {
@@ -165,16 +201,22 @@ where
         self.previous_key.resize(key.len(), 0u8);
         self.previous_key[keep_len..].copy_from_slice(&key[keep_len..]);
         self.delta_writer.write_suffix(keep_len, &key[keep_len..]);
-    }
-
-    #[allow(dead_code)]
-    pub fn write(&mut self, key: &[u8], value: &TValueWriter::Value) -> io::Result<()> {
-        self.write_key(key);
-        self.write_value(value)?;
         Ok(())
     }
 
-    pub fn write_value(&mut self, value: &TValueWriter::Value) -> io::Result<()> {
+    #[inline]
+    pub fn insert<K: AsRef<[u8]>>(
+        &mut self,
+        key: K,
+        value: &TValueWriter::Value,
+    ) -> io::Result<()> {
+        self.insert_key(key.as_ref())?;
+        self.insert_value(value)?;
+        Ok(())
+    }
+
+    #[inline]
+    pub fn insert_value(&mut self, value: &TValueWriter::Value) -> io::Result<()> {
         self.delta_writer.write_value(value);
         self.num_terms += 1u64;
         self.flush_block_if_required()
@@ -193,7 +235,7 @@ where
         Ok(())
     }
 
-    pub fn finalize(mut self) -> io::Result<W> {
+    pub fn finish(mut self) -> io::Result<W> {
         if let Some(byte_range) = self.delta_writer.flush_block()? {
             self.index_builder.add_block(
                 &self.previous_key[..],
@@ -202,7 +244,7 @@ where
             );
             self.first_ordinal_of_the_block = self.num_terms;
         }
-        let mut wrt = self.delta_writer.finalize();
+        let mut wrt = self.delta_writer.finish();
         wrt.write_all(&0u32.to_le_bytes())?;
 
         let offset = wrt.written_bytes();
@@ -246,10 +288,10 @@ mod test {
         let mut buffer = vec![];
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
-            assert!(sstable_writer.write(&long_key[..], &()).is_ok());
-            assert!(sstable_writer.write(&[0, 3, 4], &()).is_ok());
-            assert!(sstable_writer.write(&long_key2[..], &()).is_ok());
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.insert(&long_key[..], &()).is_ok());
+            assert!(sstable_writer.insert(&[0, 3, 4], &()).is_ok());
+            assert!(sstable_writer.insert(&long_key2[..], &()).is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
         assert!(sstable_reader.advance().unwrap());
@@ -266,10 +308,10 @@ mod test {
         let mut buffer = vec![];
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
-            assert!(sstable_writer.write(&[17u8], &()).is_ok());
-            assert!(sstable_writer.write(&[17u8, 18u8, 19u8], &()).is_ok());
-            assert!(sstable_writer.write(&[17u8, 20u8], &()).is_ok());
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.insert(&[17u8], &()).is_ok());
+            assert!(sstable_writer.insert(&[17u8, 18u8, 19u8], &()).is_ok());
+            assert!(sstable_writer.insert(&[17u8, 20u8], &()).is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         assert_eq!(
             &buffer,
@@ -304,8 +346,8 @@ mod test {
     fn test_simple_sstable_non_increasing_key() {
         let mut buffer = vec![];
         let mut sstable_writer = VoidSSTable::writer(&mut buffer);
-        assert!(sstable_writer.write(&[17u8], &()).is_ok());
-        assert!(sstable_writer.write(&[16u8], &()).is_ok());
+        assert!(sstable_writer.insert(&[17u8], &()).is_ok());
+        assert!(sstable_writer.insert(&[16u8], &()).is_ok());
     }
 
     #[test]
@@ -313,9 +355,9 @@ mod test {
         let mut buffer = Vec::new();
         {
             let mut writer = VoidSSTable::writer(&mut buffer);
-            writer.write(b"abcd", &()).unwrap();
-            writer.write(b"abe", &()).unwrap();
-            writer.finalize().unwrap();
+            writer.insert(b"abcd", &()).unwrap();
+            writer.insert(b"abe", &()).unwrap();
+            writer.finish().unwrap();
         }
         let mut output = Vec::new();
         assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
@@ -327,9 +369,9 @@ mod test {
         let mut buffer = Vec::new();
         {
             let mut writer = VoidSSTable::writer(&mut buffer);
-            writer.write(b"abcd", &()).unwrap();
-            writer.write(b"abe", &()).unwrap();
-            writer.finalize().unwrap();
+            writer.insert(b"abcd", &()).unwrap();
+            writer.insert(b"abe", &()).unwrap();
+            writer.finish().unwrap();
         }
         let mut output = Vec::new();
         assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
@@ -340,10 +382,10 @@ mod test {
     fn test_sstable_u64() -> io::Result<()> {
         let mut buffer = Vec::new();
         let mut writer = SSTableMonotonicU64::writer(&mut buffer);
-        writer.write(b"abcd", &1u64)?;
-        writer.write(b"abe", &4u64)?;
-        writer.write(b"gogo", &4324234234234234u64)?;
-        writer.finalize()?;
+        writer.insert(b"abcd", &1u64)?;
+        writer.insert(b"abe", &4u64)?;
+        writer.insert(b"gogo", &4324234234234234u64)?;
+        writer.finish()?;
         let mut reader = SSTableMonotonicU64::reader(&buffer[..]);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abcd");
@@ -356,5 +398,11 @@ mod test {
         assert_eq!(reader.value(), &4324234234234234u64);
         assert!(!reader.advance()?);
         Ok(())
+    }
+
+    #[test]
+    fn test_sstable_empty() {
+        let mut sstable_range_empty = crate::SSTableRange::create_empty_reader();
+        assert!(!sstable_range_empty.advance().unwrap());
     }
 }

@@ -15,10 +15,17 @@ impl SSTableIndex {
         ciborium::de::from_reader(data).map_err(|_| SSTableDataCorruption)
     }
 
-    pub fn search(&self, key: &[u8]) -> Option<BlockAddr> {
+    pub fn search_block(&self, key: &[u8]) -> Option<BlockAddr> {
+        self.search_block_from(key).next()
+    }
+
+    pub fn search_block_from<'key, 'slf: 'key>(
+        &'slf self,
+        key: &'key [u8],
+    ) -> impl Iterator<Item = BlockAddr> + Clone + 'key {
         self.blocks
             .iter()
-            .find(|block| &block.last_key_or_greater[..] >= key)
+            .skip_while(|block| &block.last_key_or_greater[..] < key)
             .map(|block| block.block_addr.clone())
     }
 }
@@ -105,7 +112,7 @@ mod tests {
         sstable_builder.serialize(&mut buffer).unwrap();
         let sstable_index = SSTableIndex::load(&buffer[..]).unwrap();
         assert_eq!(
-            sstable_index.search(b"bbbde"),
+            sstable_index.search_block(b"bbbde"),
             Some(BlockAddr {
                 first_ordinal: 10u64,
                 byte_range: 30..40

@@ -28,11 +28,11 @@ impl<B: AsRef<[u8]>> PartialEq for HeapItem<B> {
 
 #[allow(dead_code)]
 pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
-    readers: Vec<Reader<SST::Reader>>,
-    mut writer: Writer<W, SST::Writer>,
+    readers: Vec<Reader<SST::ValueReader>>,
+    mut writer: Writer<W, SST::ValueWriter>,
     mut merger: M,
 ) -> io::Result<()> {
-    let mut heap: BinaryHeap<HeapItem<Reader<SST::Reader>>> =
+    let mut heap: BinaryHeap<HeapItem<Reader<SST::ValueReader>>> =
         BinaryHeap::with_capacity(readers.len());
     for mut reader in readers {
         if reader.advance()? {
@@ -43,7 +43,7 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
         let len = heap.len();
         let mut value_merger;
         if let Some(mut head) = heap.peek_mut() {
-            writer.write_key(head.0.key());
+            writer.insert_key(head.0.key()).unwrap();
             value_merger = merger.new_value(head.0.value());
             if !head.0.advance()? {
                 PeekMut::pop(head);
@@ -64,9 +64,9 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
             break;
         }
         let value = value_merger.finish();
-        writer.write_value(&value)?;
+        writer.insert_value(&value)?;
         writer.flush_block_if_required()?;
     }
-    writer.finalize()?;
+    writer.finish()?;
     Ok(())
 }

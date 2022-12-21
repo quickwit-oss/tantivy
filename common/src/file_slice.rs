@@ -1,19 +1,18 @@
-use std::ops::{Deref, Range};
+use std::ops::{Deref, Range, RangeBounds};
 use std::sync::Arc;
 use std::{fmt, io};
 
 use async_trait::async_trait;
-use common::HasLen;
-use stable_deref_trait::StableDeref;
+use ownedbytes::{OwnedBytes, StableDeref};
 
-use crate::directory::OwnedBytes;
+use crate::HasLen;
 
 /// Objects that represents files sections in tantivy.
 ///
 /// By contract, whatever happens to the directory file, as long as a FileHandle
 /// is alive, the data associated with it cannot be altered or destroyed.
 ///
-/// The underlying behavior is therefore specific to the [`Directory`](crate::Directory) that
+/// The underlying behavior is therefore specific to the `Directory` that
 /// created it. Despite its name, a [`FileSlice`] may or may not directly map to an actual file
 /// on the filesystem.
 
@@ -24,13 +23,9 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes>;
 
-    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    async fn read_bytes_async(
-        &self,
-        _byte_range: Range<usize>,
-    ) -> crate::AsyncIoResult<OwnedBytes> {
-        Err(crate::error::AsyncIoError::AsyncUnsupported)
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
+        self.read_bytes(byte_range)
     }
 }
 
@@ -42,7 +37,7 @@ impl FileHandle for &'static [u8] {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.read_bytes(byte_range)?)
     }
 }
@@ -70,6 +65,25 @@ impl fmt::Debug for FileSlice {
     }
 }
 
+#[inline]
+fn combine_ranges<R: RangeBounds<usize>>(orig_range: Range<usize>, rel_range: R) -> Range<usize> {
+    let start: usize = orig_range.start
+        + match rel_range.start_bound().cloned() {
+            std::ops::Bound::Included(rel_start) => rel_start,
+            std::ops::Bound::Excluded(rel_start) => rel_start + 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+    assert!(start <= orig_range.end);
+    let end: usize = match rel_range.end_bound().cloned() {
+        std::ops::Bound::Included(rel_end) => orig_range.start + rel_end + 1,
+        std::ops::Bound::Excluded(rel_end) => orig_range.start + rel_end,
+        std::ops::Bound::Unbounded => orig_range.end,
+    };
+    assert!(end >= start);
+    assert!(end <= orig_range.end);
+    start..end
+}
+
 impl FileSlice {
     /// Wraps a FileHandle.
     pub fn new(file_handle: Arc<dyn FileHandle>) -> Self {
@@ -93,11 +107,11 @@ impl FileSlice {
     ///
     /// Panics if `byte_range.end` exceeds the filesize.
     #[must_use]
-    pub fn slice(&self, byte_range: Range<usize>) -> FileSlice {
-        assert!(byte_range.end <= self.len());
+    #[inline]
+    pub fn slice<R: RangeBounds<usize>>(&self, byte_range: R) -> FileSlice {
         FileSlice {
             data: self.data.clone(),
-            range: self.range.start + byte_range.start..self.range.start + byte_range.end,
+            range: combine_ranges(self.range.clone(), byte_range),
         }
     }
 
@@ -117,9 +131,8 @@ impl FileSlice {
         self.data.read_bytes(self.range.clone())
     }
 
-    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    pub async fn read_bytes_async(&self) -> crate::AsyncIoResult<OwnedBytes> {
+    pub async fn read_bytes_async(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes_async(self.range.clone()).await
     }
 
@@ -137,12 +150,8 @@ impl FileSlice {
             .read_bytes(self.range.start + range.start..self.range.start + range.end)
     }
 
-    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    pub async fn read_bytes_slice_async(
-        &self,
-        byte_range: Range<usize>,
-    ) -> crate::AsyncIoResult<OwnedBytes> {
+    pub async fn read_bytes_slice_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         assert!(
             self.range.start + byte_range.end <= self.range.end,
             "`to` exceeds the fileslice length"
@@ -205,7 +214,7 @@ impl FileHandle for FileSlice {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
 }
@@ -223,7 +232,7 @@ impl FileHandle for OwnedBytes {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+    async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         let bytes = self.read_bytes(range)?;
         Ok(bytes)
     }
@@ -234,9 +243,9 @@ mod tests {
     use std::io;
     use std::sync::Arc;
 
-    use common::HasLen;
-
     use super::{FileHandle, FileSlice};
+    use crate::file_slice::combine_ranges;
+    use crate::HasLen;
 
     #[test]
     fn test_file_slice() -> io::Result<()> {
@@ -306,5 +315,19 @@ mod tests {
             slice_deref.read_bytes_slice(0..10).unwrap().as_ref(),
             b"bcd"
         );
+    }
+
+    #[test]
+    fn test_combine_range() {
+        assert_eq!(combine_ranges(1..3, 0..1), 1..2);
+        assert_eq!(combine_ranges(1..3, 1..), 2..3);
+        assert_eq!(combine_ranges(1..4, ..2), 1..3);
+        assert_eq!(combine_ranges(3..10, 2..5), 5..8);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_combine_range_panics() {
+        let _ = combine_ranges(3..5, 1..4);
     }
 }

@@ -4,31 +4,39 @@ use std::ops::Bound;
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
-use super::TermDictionary;
-use crate::postings::TermInfo;
-use crate::termdict::sstable_termdict::TermInfoReader;
-use crate::termdict::TermOrdinal;
+use crate::dictionary::Dictionary;
+use crate::{SSTable, TermOrdinal};
 
-/// `TermStreamerBuilder` is a helper object used to define
+/// `StreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
-pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
+pub struct StreamerBuilder<'a, TSSTable, A = AlwaysMatch>
 where
     A: Automaton,
     A::State: Clone,
+    TSSTable: SSTable,
 {
-    term_dict: &'a TermDictionary,
+    term_dict: &'a Dictionary<TSSTable>,
     automaton: A,
     lower: Bound<Vec<u8>>,
     upper: Bound<Vec<u8>>,
 }
 
-impl<'a, A> TermStreamerBuilder<'a, A>
+fn bound_as_byte_slice(bound: &Bound<Vec<u8>>) -> Bound<&[u8]> {
+    match bound.as_ref() {
+        Bound::Included(key) => Bound::Included(key.as_slice()),
+        Bound::Excluded(key) => Bound::Excluded(key.as_slice()),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+impl<'a, TSSTable, A> StreamerBuilder<'a, TSSTable, A>
 where
     A: Automaton,
     A::State: Clone,
+    TSSTable: SSTable,
 {
-    pub(crate) fn new(term_dict: &'a TermDictionary, automaton: A) -> Self {
-        TermStreamerBuilder {
+    pub(crate) fn new(term_dict: &'a Dictionary<TSSTable>, automaton: A) -> Self {
+        StreamerBuilder {
             term_dict,
             automaton,
             lower: Bound::Unbounded,
@@ -61,12 +69,18 @@ where
     }
 
     /// Creates the stream corresponding to the range
-    /// of terms defined using the `TermStreamerBuilder`.
-    pub fn into_stream(self) -> io::Result<TermStreamer<'a, A>> {
+    /// of terms defined using the `StreamerBuilder`.
+    pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
         // TODO Optimize by skipping to the right first block.
         let start_state = self.automaton.start();
-        let delta_reader = self.term_dict.sstable_delta_reader()?;
-        Ok(TermStreamer {
+        let key_range = (
+            bound_as_byte_slice(&self.lower),
+            bound_as_byte_slice(&self.upper),
+        );
+        let delta_reader = self
+            .term_dict
+            .sstable_delta_reader_for_key_range(key_range)?;
+        Ok(Streamer {
             automaton: self.automaton,
             states: vec![start_state],
             delta_reader,
@@ -78,26 +92,28 @@ where
     }
 }
 
-/// `TermStreamer` acts as a cursor over a range of terms of a segment.
+/// `Streamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub struct TermStreamer<'a, A = AlwaysMatch>
+pub struct Streamer<'a, TSSTable, A = AlwaysMatch>
 where
     A: Automaton,
     A::State: Clone,
+    TSSTable: SSTable,
 {
     automaton: A,
     states: Vec<A::State>,
-    delta_reader: sstable::DeltaReader<'a, TermInfoReader>,
+    delta_reader: crate::DeltaReader<'a, TSSTable::ValueReader>,
     key: Vec<u8>,
     term_ord: Option<TermOrdinal>,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
 }
 
-impl<'a, A> TermStreamer<'a, A>
+impl<'a, TSSTable, A> Streamer<'a, TSSTable, A>
 where
     A: Automaton,
     A::State: Clone,
+    TSSTable: SSTable,
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
@@ -174,13 +190,13 @@ where
     ///
     /// Calling `.value()` before the first call to `.advance()` returns
     /// `V::default()`.
-    pub fn value(&self) -> &TermInfo {
+    pub fn value(&self) -> &TSSTable::Value {
         self.delta_reader.value()
     }
 
     /// Return the next `(key, value)` pair.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Option<(&[u8], &TermInfo)> {
+    pub fn next(&mut self) -> Option<(&[u8], &TSSTable::Value)> {
         if self.advance() {
             Some((self.key(), self.value()))
         } else {
@@ -191,60 +207,54 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::TermDictionary;
-    use crate::directory::OwnedBytes;
-    use crate::postings::TermInfo;
+    use std::io;
 
-    fn make_term_info(i: usize) -> TermInfo {
-        TermInfo {
-            doc_freq: 1000u32 + i as u32,
-            postings_range: (i + 10) * (i * 10)..((i + 1) + 10) * ((i + 1) * 10),
-            positions_range: i * 500..(i + 1) * 500,
-        }
-    }
+    use common::OwnedBytes;
 
-    fn create_test_term_dictionary() -> crate::Result<TermDictionary> {
-        let mut term_dict_builder = super::super::TermDictionaryBuilder::create(Vec::new())?;
-        term_dict_builder.insert(b"abaisance", &make_term_info(0))?;
-        term_dict_builder.insert(b"abalation", &make_term_info(1))?;
-        term_dict_builder.insert(b"abalienate", &make_term_info(2))?;
-        term_dict_builder.insert(b"abandon", &make_term_info(3))?;
-        let buffer = term_dict_builder.finish()?;
+    use crate::{Dictionary, SSTableMonotonicU64};
+
+    fn create_test_dictionary() -> io::Result<Dictionary<SSTableMonotonicU64>> {
+        let mut dict_builder = Dictionary::<SSTableMonotonicU64>::builder(Vec::new())?;
+        dict_builder.insert(b"abaisance", &0)?;
+        dict_builder.insert(b"abalation", &1)?;
+        dict_builder.insert(b"abalienate", &2)?;
+        dict_builder.insert(b"abandon", &3)?;
+        let buffer = dict_builder.finish()?;
         let owned_bytes = OwnedBytes::new(buffer);
-        TermDictionary::from_bytes(owned_bytes)
+        Dictionary::from_bytes(owned_bytes)
     }
 
     #[test]
-    fn test_sstable_stream() -> crate::Result<()> {
-        let term_dict = create_test_term_dictionary()?;
-        let mut term_streamer = term_dict.stream()?;
-        assert!(term_streamer.advance());
-        assert_eq!(term_streamer.key(), b"abaisance");
-        assert_eq!(term_streamer.value().doc_freq, 1000u32);
-        assert!(term_streamer.advance());
-        assert_eq!(term_streamer.key(), b"abalation");
-        assert_eq!(term_streamer.value().doc_freq, 1001u32);
-        assert!(term_streamer.advance());
-        assert_eq!(term_streamer.key(), b"abalienate");
-        assert_eq!(term_streamer.value().doc_freq, 1002u32);
-        assert!(term_streamer.advance());
-        assert_eq!(term_streamer.key(), b"abandon");
-        assert_eq!(term_streamer.value().doc_freq, 1003u32);
-        assert!(!term_streamer.advance());
+    fn test_sstable_stream() -> io::Result<()> {
+        let dict = create_test_dictionary()?;
+        let mut streamer = dict.stream()?;
+        assert!(streamer.advance());
+        assert_eq!(streamer.key(), b"abaisance");
+        assert_eq!(streamer.value(), &0);
+        assert!(streamer.advance());
+        assert_eq!(streamer.key(), b"abalation");
+        assert_eq!(streamer.value(), &1);
+        assert!(streamer.advance());
+        assert_eq!(streamer.key(), b"abalienate");
+        assert_eq!(streamer.value(), &2);
+        assert!(streamer.advance());
+        assert_eq!(streamer.key(), b"abandon");
+        assert_eq!(streamer.value(), &3);
+        assert!(!streamer.advance());
         Ok(())
     }
 
     #[test]
-    fn test_sstable_search() -> crate::Result<()> {
-        let term_dict = create_test_term_dictionary()?;
+    fn test_sstable_search() -> io::Result<()> {
+        let term_dict = create_test_dictionary()?;
         let ptn = tantivy_fst::Regex::new("ab.*t.*").unwrap();
         let mut term_streamer = term_dict.search(ptn).into_stream()?;
         assert!(term_streamer.advance());
         assert_eq!(term_streamer.key(), b"abalation");
-        assert_eq!(term_streamer.value().doc_freq, 1001u32);
+        assert_eq!(term_streamer.value(), &1u64);
         assert!(term_streamer.advance());
         assert_eq!(term_streamer.key(), b"abalienate");
-        assert_eq!(term_streamer.value().doc_freq, 1002u32);
+        assert_eq!(term_streamer.value(), &2u64);
         assert!(!term_streamer.advance());
         Ok(())
     }
