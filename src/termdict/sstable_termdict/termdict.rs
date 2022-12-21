@@ -13,7 +13,6 @@ use crate::termdict::sstable_termdict::{
     TermInfoReader, TermInfoWriter, TermSSTable, TermStreamer, TermStreamerBuilder,
 };
 use crate::termdict::TermOrdinal;
-use crate::AsyncIoResult;
 
 pub struct TermInfoSSTable;
 impl SSTable for TermInfoSSTable {
@@ -108,7 +107,7 @@ impl TermDictionary {
     pub(crate) async fn sstable_reader_block_async(
         &self,
         block_addr: BlockAddr,
-    ) -> AsyncIoResult<Reader<'static, TermInfoReader>> {
+    ) -> io::Result<Reader<'static, TermInfoReader>> {
         let data = self
             .sstable_slice
             .read_bytes_slice_async(block_addr.byte_range)
@@ -216,7 +215,7 @@ impl TermDictionary {
     }
 
     /// Lookups the value corresponding to the key.
-    pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> AsyncIoResult<Option<TermInfo>> {
+    pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
         if let Some(block_addr) = self.sstable_index.search(key.as_ref()) {
             let mut sstable_reader = self.sstable_reader_block_async(block_addr).await?;
             let key_bytes = key.as_ref();
@@ -249,7 +248,7 @@ impl TermDictionary {
     }
 
     #[doc(hidden)]
-    pub async fn warm_up_dictionary(&self) -> AsyncIoResult<()> {
+    pub async fn warm_up_dictionary(&self) -> io::Result<()> {
         self.sstable_slice.read_bytes_async().await?;
         Ok(())
     }

@@ -24,13 +24,12 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes>;
 
-    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    async fn read_bytes_async(
-        &self,
-        _byte_range: Range<usize>,
-    ) -> crate::AsyncIoResult<OwnedBytes> {
-        Err(crate::error::AsyncIoError::AsyncUnsupported)
+    async fn read_bytes_async(&self, _byte_range: Range<usize>) -> io::Result<OwnedBytes> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Async read is not supported.",
+        ))
     }
 }
 
@@ -41,8 +40,7 @@ impl FileHandle for &'static [u8] {
         Ok(OwnedBytes::new(bytes))
     }
 
-    #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.read_bytes(byte_range)?)
     }
 }
@@ -117,9 +115,8 @@ impl FileSlice {
         self.data.read_bytes(self.range.clone())
     }
 
-    #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    pub async fn read_bytes_async(&self) -> crate::AsyncIoResult<OwnedBytes> {
+    pub async fn read_bytes_async(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes_async(self.range.clone()).await
     }
 
@@ -139,10 +136,7 @@ impl FileSlice {
 
     #[cfg(feature = "quickwit")]
     #[doc(hidden)]
-    pub async fn read_bytes_slice_async(
-        &self,
-        byte_range: Range<usize>,
-    ) -> crate::AsyncIoResult<OwnedBytes> {
+    pub async fn read_bytes_slice_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         assert!(
             self.range.start + byte_range.end <= self.range.end,
             "`to` exceeds the fileslice length"
@@ -205,7 +199,7 @@ impl FileHandle for FileSlice {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, byte_range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
+    async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
 }
@@ -223,9 +217,8 @@ impl FileHandle for OwnedBytes {
     }
 
     #[cfg(feature = "quickwit")]
-    async fn read_bytes_async(&self, range: Range<usize>) -> crate::AsyncIoResult<OwnedBytes> {
-        let bytes = self.read_bytes(range)?;
-        Ok(bytes)
+    async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
+        self.read_bytes(range)
     }
 }
 

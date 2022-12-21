@@ -91,15 +91,13 @@ impl BitUnpacker {
             return 0u64;
         }
         let addr_in_bits = idx * self.num_bits as u32;
-        let addr = addr_in_bits >> 3;
+        let addr = (addr_in_bits >> 3) as usize;
         let bit_shift = addr_in_bits & 7;
         debug_assert!(
-            addr + 8 <= data.len() as u32,
+            addr + 8 <= data.len(),
             "The fast field field should have been padded with 7 bytes."
         );
-        let bytes: [u8; 8] = (&data[(addr as usize)..(addr as usize) + 8])
-            .try_into()
-            .unwrap();
+        let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = val_unshifted_unmasked >> bit_shift;
         val_shifted & self.mask
