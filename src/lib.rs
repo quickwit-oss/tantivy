@@ -259,10 +259,6 @@ pub use crate::future_result::FutureResult;
 /// and instead, refer to this as `crate::Result<T>`.
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
-/// Result for an Async io operation.
-#[cfg(feature = "quickwit")]
-pub type AsyncIoResult<T> = std::result::Result<T, crate::error::AsyncIoError>;
-
 mod core;
 mod indexer;
 

@@ -104,28 +104,6 @@ pub enum TantivyError {
     InternalError(String),
 }
 
-#[cfg(feature = "quickwit")]
-#[derive(Error, Debug)]
-#[doc(hidden)]
-pub enum AsyncIoError {
-    #[error("io::Error `{0}`")]
-    Io(#[from] io::Error),
-    #[error("Asynchronous API is unsupported by this directory")]
-    AsyncUnsupported,
-}
-
-#[cfg(feature = "quickwit")]
-impl From<AsyncIoError> for TantivyError {
-    fn from(async_io_err: AsyncIoError) -> Self {
-        match async_io_err {
-            AsyncIoError::Io(io_err) => TantivyError::from(io_err),
-            AsyncIoError::AsyncUnsupported => {
-                TantivyError::SystemError(format!("{:?}", async_io_err))
-            }
-        }
-    }
-}
-
 impl From<io::Error> for TantivyError {
     fn from(io_err: io::Error) -> TantivyError {
         TantivyError::IoError(Arc::new(io_err))

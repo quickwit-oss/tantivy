@@ -319,7 +319,7 @@ impl StoreReader {
     /// In most cases use [`get_async`](Self::get_async)
     ///
     /// Loads and decompresses a block asynchronously.
-    async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
+    async fn read_block_async(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
         let cache_key = checkpoint.byte_range.start;
         if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
             return Ok(block);
