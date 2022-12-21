@@ -79,9 +79,9 @@ mod tests {
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
             for &key in keys {
-                assert!(sstable_writer.write(key.as_bytes(), &()).is_ok());
+                assert!(sstable_writer.insert(key.as_bytes(), &()).is_ok());
             }
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         buffer
     }
@@ -91,9 +91,9 @@ mod tests {
         {
             let mut sstable_writer = SSTableMonotonicU64::writer(&mut buffer);
             for (key, val) in keys {
-                assert!(sstable_writer.write(key.as_bytes(), val).is_ok());
+                assert!(sstable_writer.insert(key.as_bytes(), val).is_ok());
             }
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         buffer
     }
