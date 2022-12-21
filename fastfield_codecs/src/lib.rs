@@ -43,7 +43,7 @@ mod null_index_footer;
 
 mod column;
 mod gcd;
-mod serialize;
+pub mod serialize;
 
 pub use ordered_float;
 

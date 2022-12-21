@@ -1,0 +1,26 @@
+[package]
+name = "tantivy-columnar"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stacker = { path = "../stacker", package="tantivy-stacker"}
+serde_json = "1"
+thiserror = "1"
+fnv = "1"
+tantivy-fst =  "0.4.0"
+sstable = { path = "../sstable", package = "tantivy-sstable" }
+common = { path = "../common", package = "tantivy-common" }
+fastfield_codecs = { path = "../fastfield_codecs"}
+ordered-float = "3.4"
+itertools = "0.10"
+
+[features]
+# default = ["quickwit"]
+# quickwit = ["common/quickwit"]
+
+
+
+
+[dev-dependencies]
+proptest = "1"
