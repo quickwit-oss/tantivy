@@ -1,9 +1,8 @@
 use std::convert::TryInto;
 use std::io::{self, Write};
 
-use common::BinarySerializable;
+use common::{BinarySerializable, OwnedBytes};
 use itertools::Itertools;
-use ownedbytes::OwnedBytes;
 
 use super::{get_bit_at, set_bit_at};
 

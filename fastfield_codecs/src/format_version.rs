@@ -1,7 +1,6 @@
 use std::io;
 
-use common::BinarySerializable;
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, OwnedBytes};
 
 const MAGIC_NUMBER: u16 = 4335u16;
 const FASTFIELD_FORMAT_VERSION: u8 = 1;

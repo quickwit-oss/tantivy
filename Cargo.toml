@@ -36,7 +36,6 @@ fs2 = { version = "0.4.3", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
-stable_deref_trait = "1.2.0"
 rust-stemmers = "1.2.0"
 downcast-rs = "1.2.0"
 bitpacking = { version = "0.8.4", default-features = false, features = ["bitpacker4x"] }
@@ -60,9 +59,8 @@ sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optiona
 stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
 tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
 tantivy-bitpacker = 		{ version= "0.3", path="./bitpacker" }
-common = 								{ version= "0.4", path = "./common/", package = "tantivy-common" }
+common = 								{ version= "0.5", path = "./common/", package = "tantivy-common" }
 fastfield_codecs = 			{ version= "0.3", path="./fastfield_codecs", default-features = false }
-ownedbytes = 						{ version= "0.4", path="./ownedbytes" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

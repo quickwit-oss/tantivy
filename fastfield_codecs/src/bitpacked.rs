@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use ownedbytes::OwnedBytes;
+use common::OwnedBytes;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::serialize::NormalizedHeader;

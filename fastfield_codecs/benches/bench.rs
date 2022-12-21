@@ -7,8 +7,8 @@ mod tests {
     use std::iter;
     use std::sync::Arc;
 
+    use common::OwnedBytes;
     use fastfield_codecs::*;
-    use ownedbytes::OwnedBytes;
     use rand::prelude::*;
     use test::Bencher;
 

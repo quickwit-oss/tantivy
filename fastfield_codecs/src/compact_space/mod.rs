@@ -17,8 +17,7 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
-use common::{BinarySerializable, CountingWriter, VInt, VIntU128};
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt, VIntU128};
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
 use crate::compact_space::build_compact_space::get_compact_space;

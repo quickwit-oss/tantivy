@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 murmurhash32 = "0.2"
 byteorder = "1"
-common = { version = "0.4", path = "../common/", package = "tantivy-common" }
+common = { version = "0.5", path = "../common/", package = "tantivy-common" }
