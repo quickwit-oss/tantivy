@@ -45,7 +45,7 @@ mod tests {
     use std::io;
     use std::num::NonZeroU64;
 
-    use ownedbytes::OwnedBytes;
+    use common::OwnedBytes;
 
     use crate::gcd::{compute_gcd, find_gcd};
     use crate::{FastFieldCodecType, VecColumn};

@@ -18,7 +18,7 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
-use common::BinarySerializable;
+use common::{BinarySerializable, OwnedBytes};
 use compact_space::CompactSpaceDecompressor;
 use format_version::read_format_version;
 use monotonic_mapping::{
@@ -26,7 +26,6 @@ use monotonic_mapping::{
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
 };
 use null_index_footer::read_null_index_footer;
-use ownedbytes::OwnedBytes;
 use serialize::{Header, U128Header};
 
 mod bitpacked;
@@ -436,7 +435,7 @@ mod tests {
 mod bench {
     use std::sync::Arc;
 
-    use ownedbytes::OwnedBytes;
+    use common::OwnedBytes;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use test::{self, Bencher};

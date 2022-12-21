@@ -80,6 +80,7 @@ impl MultiValueIndex {
     ///
     /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
     /// match a docid to its value position.
+    #[allow(clippy::bool_to_int_with_if)]
     pub(crate) fn positions_to_docids(&self, doc_id_range: Range<u32>, positions: &mut Vec<u32>) {
         if positions.is_empty() {
             return;

@@ -6,10 +6,10 @@ use std::io::BufRead;
 use std::net::{IpAddr, Ipv6Addr};
 use std::str::FromStr;
 
+use common::OwnedBytes;
 use fastfield_codecs::{open_u128, serialize_u128, Column, FastFieldCodecType, VecColumn};
 use itertools::Itertools;
 use measure_time::print_time;
-use ownedbytes::OwnedBytes;
 use prettytable::{Cell, Row, Table};
 
 fn print_set_stats(ip_addrs: &[u128]) {

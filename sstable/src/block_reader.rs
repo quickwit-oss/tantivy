@@ -1,11 +1,16 @@
-use std::io::{self, Read};
-
-use byteorder::{LittleEndian, ReadBytesExt};
+use std::io;
 
 pub struct BlockReader<'a> {
     buffer: Vec<u8>,
     reader: Box<dyn io::Read + 'a>,
     offset: usize,
+}
+
+#[inline]
+fn read_u32(read: &mut dyn io::Read) -> io::Result<u32> {
+    let mut buf = [0u8; 4];
+    read.read_exact(&mut buf)?;
+    Ok(u32::from_le_bytes(buf))
 }
 
 impl<'a> BlockReader<'a> {
@@ -30,7 +35,7 @@ impl<'a> BlockReader<'a> {
 
     pub fn read_block(&mut self) -> io::Result<bool> {
         self.offset = 0;
-        let block_len_res = self.reader.read_u32::<LittleEndian>();
+        let block_len_res = read_u32(self.reader.as_mut());
         if let Err(err) = &block_len_res {
             if err.kind() == io::ErrorKind::UnexpectedEof {
                 return Ok(false);

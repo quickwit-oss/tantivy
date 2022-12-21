@@ -4,9 +4,8 @@ use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::{BinarySerializable, HasLen};
+use common::{BinarySerializable, HasLen, OwnedBytes};
 use lru::LruCache;
-use ownedbytes::OwnedBytes;
 
 use super::footer::DocStoreFooter;
 use super::index::SkipIndex;

@@ -121,7 +121,7 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 }
 
 impl TermInfoStore {
-    pub fn open(term_info_store_file: FileSlice) -> crate::Result<TermInfoStore> {
+    pub fn open(term_info_store_file: FileSlice) -> io::Result<TermInfoStore> {
         let (len_slice, main_slice) = term_info_store_file.split(16);
         let mut bytes = len_slice.read_bytes()?;
         let len = u64::deserialize(&mut bytes)? as usize;

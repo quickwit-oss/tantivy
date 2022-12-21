@@ -60,9 +60,8 @@ sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optiona
 stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
 tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
 tantivy-bitpacker = 		{ version= "0.3", path="./bitpacker" }
-common = 								{ version= "0.4", path = "./common/", package = "tantivy-common" }
+common = 								{ version= "0.5", path = "./common/", package = "tantivy-common" }
 fastfield_codecs = 			{ version= "0.3", path="./fastfield_codecs", default-features = false }
-ownedbytes = 						{ version= "0.4", path="./ownedbytes" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

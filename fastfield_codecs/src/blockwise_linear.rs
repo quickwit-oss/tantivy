@@ -1,8 +1,7 @@
 use std::sync::Arc;
 use std::{io, iter};
 
-use common::{BinarySerializable, CountingWriter, DeserializeFrom};
-use ownedbytes::OwnedBytes;
+use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::line::Line;
@@ -47,7 +46,7 @@ impl FastFieldCodec for BlockwiseLinearCodec {
     type Reader = BlockwiseLinearReader;
 
     fn open_from_bytes(
-        bytes: ownedbytes::OwnedBytes,
+        bytes: common::OwnedBytes,
         normalized_header: NormalizedHeader,
     ) -> io::Result<Self::Reader> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
