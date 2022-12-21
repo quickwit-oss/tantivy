@@ -279,6 +279,7 @@ where
 #[cfg(test)]
 mod test {
     use std::io;
+    use std::ops::Bound;
 
     use super::{common_prefix_len, SSTable, SSTableMonotonicU64, VoidMerge, VoidSSTable};
 
@@ -427,5 +428,70 @@ mod test {
     fn test_sstable_empty() {
         let mut sstable_range_empty = crate::SSTableRange::create_empty_reader();
         assert!(!sstable_range_empty.advance().unwrap());
+    }
+
+    use common::file_slice::FileSlice;
+    use proptest::prelude::*;
+
+    use crate::Dictionary;
+
+    fn bound_strategy() -> impl Strategy<Value = Bound<String>> {
+        prop_oneof![
+            Just(Bound::<String>::Unbounded),
+            "[a-d]*".prop_map(|key| Bound::Included(key)),
+            "[a-d]*".prop_map(|key| Bound::Excluded(key)),
+        ]
+    }
+
+    fn extract_key(bound: Bound<&String>) -> Option<&str> {
+        match bound.as_ref() {
+            Bound::Included(key) => Some(key.as_str()),
+            Bound::Excluded(key) => Some(key.as_str()),
+            Bound::Unbounded => None,
+        }
+    }
+
+    fn bounds_strategy() -> impl Strategy<Value = (Bound<String>, Bound<String>)> {
+        (bound_strategy(), bound_strategy()).prop_filter(
+            "Lower bound <= Upper bound",
+            |(left, right)| match (extract_key(left.as_ref()), extract_key(right.as_ref())) {
+                (None, _) => true,
+                (_, None) => true,
+                (left, right) => left <= right,
+            },
+        )
+    }
+
+    proptest! {
+        #[test]
+        fn test_prop_test_ranges(words in prop::collection::btree_set("[a-d]*", 1..100),
+            (lower_bound, upper_bound) in bounds_strategy(),
+        ) {
+            // TODO tweak block size.
+            let mut builder = Dictionary::<VoidSSTable>::builder(Vec::new()).unwrap();
+            for word in &words {
+                builder.insert(word.as_bytes(), &()).unwrap();
+            }
+            let buffer: Vec<u8> = builder.finish().unwrap();
+            let dictionary: Dictionary<VoidSSTable> = Dictionary::open(FileSlice::from(buffer)).unwrap();
+            let mut range_builder = dictionary.range();
+            range_builder = match lower_bound.as_ref() {
+                Bound::Included(key) => range_builder.ge(key.as_bytes()),
+                Bound::Excluded(key) => range_builder.gt(key.as_bytes()),
+                Bound::Unbounded => range_builder,
+            };
+            range_builder = match upper_bound.as_ref() {
+                Bound::Included(key) => range_builder.le(key.as_bytes()),
+                Bound::Excluded(key) => range_builder.lt(key.as_bytes()),
+                Bound::Unbounded => range_builder,
+            };
+            let mut stream = range_builder.into_stream().unwrap();
+            let mut btree_set_range = words.range((lower_bound, upper_bound));
+            while stream.advance() {
+                let val = btree_set_range.next().unwrap();
+                assert_eq!(val.as_bytes(), stream.key());
+            }
+            assert!(btree_set_range.next().is_none());
+        }
     }
 }

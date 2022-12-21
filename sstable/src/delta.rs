@@ -144,15 +144,14 @@ where TValueReader: value::ValueReader
     }
 
     fn read_delta_key(&mut self) -> bool {
-        if let Some((keep, add)) = self.read_keep_add() {
-            self.common_prefix_len = keep;
-            self.suffix_start = self.block_reader.offset();
-            self.suffix_end = self.suffix_start + add;
-            self.block_reader.advance(add);
-            true
-        } else {
-            false
-        }
+        let Some((keep, add)) = self.read_keep_add() else {
+            return false;
+        };
+        self.common_prefix_len = keep;
+        self.suffix_start = self.block_reader.offset();
+        self.suffix_end = self.suffix_start + add;
+        self.block_reader.advance(add);
+        true
     }
 
     pub fn advance(&mut self) -> io::Result<bool> {
@@ -172,15 +171,18 @@ where TValueReader: value::ValueReader
         Ok(true)
     }
 
+    #[inline(always)]
     pub fn common_prefix_len(&self) -> usize {
         self.common_prefix_len
     }
 
+    #[inline(always)]
     pub fn suffix(&self) -> &[u8] {
         self.block_reader
             .buffer_from_to(self.suffix_start, self.suffix_end)
     }
 
+    #[inline(always)]
     pub fn value(&self) -> &TValueReader::Value {
         self.value_reader.value(self.idx)
     }
