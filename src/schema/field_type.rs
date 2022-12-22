@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -329,7 +330,7 @@ impl FieldType {
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the
     /// target field is a `Str`, this method will return an Error.
-    pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
+    pub fn value_from_json(&self, json: JsonValue) -> Result<Value<'static>, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
                 match self {
@@ -341,7 +342,7 @@ impl FieldType {
                             })?;
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
-                    FieldType::Str(_) => Ok(Value::Str(field_text)),
+                    FieldType::Str(_) => Ok(Value::Str(Cow::Owned(field_text))),
                     FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
                         Err(ValueParsingError::TypeError {
                             expected: "an integer",

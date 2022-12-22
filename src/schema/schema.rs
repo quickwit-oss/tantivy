@@ -308,7 +308,11 @@ impl Schema {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_name = self.get_field_name(field);
-            let values: Vec<Value> = field_values.into_iter().cloned().collect();
+            let values: Vec<Value> = field_values
+                .into_iter()
+                .cloned()
+                .map(Value::into_owned)
+                .collect();
             field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
@@ -338,20 +342,21 @@ impl Schema {
             if let Some(field) = self.get_field(&field_name) {
                 let field_entry = self.get_field_entry(field);
                 let field_type = field_entry.field_type();
+                // TODO rewrite this with shared allocation?
                 match json_value {
                     JsonValue::Array(json_items) => {
                         for json_item in json_items {
                             let value = field_type
                                 .value_from_json(json_item)
                                 .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add_field_value(field, value);
+                            doc.add_field_value(field, value.into_owned());
                         }
                     }
                     _ => {
                         let value = field_type
                             .value_from_json(json_value)
                             .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                        doc.add_field_value(field, value);
+                        doc.add_field_value(field, value.into_owned());
                     }
                 }
             }

@@ -10,4 +10,5 @@ use crate::schema::Value;
 /// A `NamedFieldDocument` is a simple representation of a document
 /// as a `BTreeMap<String, Vec<Value>>`.
 #[derive(Debug, Deserialize, Serialize)]
-pub struct NamedFieldDocument(pub BTreeMap<String, Vec<Value>>);
+#[serde(bound(deserialize = "'static: 'de, 'de: 'static"))]
+pub struct NamedFieldDocument(pub BTreeMap<String, Vec<Value<'static>>>);

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::mem;
@@ -15,12 +16,13 @@ use crate::DateTime;
 /// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+#[serde(bound(deserialize = "'static: 'de, 'de: 'static"))]
 pub struct Document {
-    field_values: Vec<FieldValue>,
+    field_values: Vec<FieldValue<'static>>,
 }
 
-impl From<Vec<FieldValue>> for Document {
-    fn from(field_values: Vec<FieldValue>) -> Self {
+impl From<Vec<FieldValue<'static>>> for Document {
+    fn from(field_values: Vec<FieldValue<'static>>) -> Self {
         Document { field_values }
     }
 }
@@ -49,9 +51,9 @@ impl PartialEq for Document {
 impl Eq for Document {}
 
 impl IntoIterator for Document {
-    type Item = FieldValue;
+    type Item = FieldValue<'static>;
 
-    type IntoIter = std::vec::IntoIter<FieldValue>;
+    type IntoIter = std::vec::IntoIter<FieldValue<'static>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.field_values.into_iter()
@@ -84,7 +86,7 @@ impl Document {
 
     /// Add a text field.
     pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
-        let value = Value::Str(text.to_string());
+        let value = Value::Str(Cow::Owned(text.to_string()));
         self.add_field_value(field, value);
     }
 
@@ -138,7 +140,7 @@ impl Document {
     }
 
     /// Add a (field, value) to the document.
-    pub fn add_field_value<T: Into<Value>>(&mut self, field: Field, typed_val: T) {
+    pub fn add_field_value<T: Into<Value<'static>>>(&mut self, field: Field, typed_val: T) {
         let value = typed_val.into();
         let field_value = FieldValue { field, value };
         self.field_values.push(field_value);
@@ -216,7 +218,7 @@ impl Document {
                 } => {
                     let field_value = FieldValue {
                         field: *field,
-                        value: Value::Str(pre_tokenized_text.text.to_string()),
+                        value: Value::Str(Cow::Owned(pre_tokenized_text.text.to_string())),
                     };
                     field_value.serialize(writer)?;
                 }

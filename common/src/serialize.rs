@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::{fmt, io};
 
@@ -207,6 +208,23 @@ impl BinarySerializable for String {
             .take(string_length as u64)
             .read_to_string(&mut result)?;
         Ok(result)
+    }
+}
+
+impl<'a> BinarySerializable for Cow<'a, str> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let data: &[u8] = self.as_bytes();
+        VInt(data.len() as u64).serialize(writer)?;
+        writer.write_all(data)
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let string_length = VInt::deserialize(reader)?.val() as usize;
+        let mut result = String::with_capacity(string_length);
+        reader
+            .take(string_length as u64)
+            .read_to_string(&mut result)?;
+        Ok(Cow::Owned(result))
     }
 }
 

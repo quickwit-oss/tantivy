@@ -7,12 +7,13 @@ use crate::schema::{Field, Value};
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct FieldValue {
+#[serde(bound(deserialize = "'a: 'de, 'de: 'a"))]
+pub struct FieldValue<'a> {
     pub field: Field,
-    pub value: Value,
+    pub value: Value<'a>,
 }
 
-impl FieldValue {
+impl<'a> FieldValue<'a> {
     /// Constructor
     pub fn new(field: Field, value: Value) -> FieldValue {
         FieldValue { field, value }
@@ -29,13 +30,13 @@ impl FieldValue {
     }
 }
 
-impl From<FieldValue> for Value {
-    fn from(field_value: FieldValue) -> Self {
+impl<'a> From<FieldValue<'a>> for Value<'a> {
+    fn from(field_value: FieldValue<'a>) -> Self {
         field_value.value
     }
 }
 
-impl BinarySerializable for FieldValue {
+impl<'a> BinarySerializable for FieldValue<'a> {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.field.serialize(writer)?;
         self.value.serialize(writer)

@@ -31,7 +31,7 @@ pub struct MoreLikeThisQuery {
 #[derive(Debug, PartialEq, Clone)]
 enum TargetDocument {
     DocumentAdress(DocAddress),
-    DocumentFields(Vec<(Field, Vec<Value>)>),
+    DocumentFields(Vec<(Field, Vec<Value<'static>>)>),
 }
 
 impl MoreLikeThisQuery {
@@ -160,7 +160,10 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields(self, doc_fields: Vec<(Field, Vec<Value>)>) -> MoreLikeThisQuery {
+    pub fn with_document_fields(
+        self,
+        doc_fields: Vec<(Field, Vec<Value<'static>>)>,
+    ) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),

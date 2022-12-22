@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -12,9 +13,9 @@ use crate::DateTime;
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum Value<'a> {
     /// The str type is used for any text information.
-    Str(String),
+    Str(Cow<'a, str>),
     /// Pre-tokenized str type,
     PreTokStr(PreTokenizedString),
     /// Unsigned 64-bits Integer `u64`
@@ -30,16 +31,38 @@ pub enum Value {
     /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
+    // TODO allow Cow<'a, [u8]>
     Bytes(Vec<u8>),
     /// Json object value.
+    // TODO allow Cow keys and borrowed values
     JsonObject(serde_json::Map<String, serde_json::Value>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
 }
 
-impl Eq for Value {}
+impl<'a> Value<'a> {
+    /// Convert a borrowing [`Value`] to an owning one.
+    pub fn into_owned(self) -> Value<'static> {
+        use Value::*;
+        match self {
+            Str(val) => Str(Cow::Owned(val.into_owned())),
+            PreTokStr(val) => PreTokStr(val),
+            U64(val) => U64(val),
+            I64(val) => I64(val),
+            F64(val) => F64(val),
+            Bool(val) => Bool(val),
+            Date(val) => Date(val),
+            Facet(val) => Facet(val),
+            Bytes(val) => Bytes(val),
+            JsonObject(val) => JsonObject(val),
+            IpAddr(val) => IpAddr(val),
+        }
+    }
+}
 
-impl Serialize for Value {
+impl<'a> Eq for Value<'a> {}
+
+impl<'a> Serialize for Value<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
         match *self {
@@ -65,13 +88,13 @@ impl Serialize for Value {
     }
 }
 
-impl<'de> Deserialize<'de> for Value {
+impl<'de> Deserialize<'de> for Value<'de> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
         struct ValueVisitor;
 
         impl<'de> Visitor<'de> for ValueVisitor {
-            type Value = Value;
+            type Value = Value<'de>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a string or u32")
@@ -93,12 +116,13 @@ impl<'de> Deserialize<'de> for Value {
                 Ok(Value::Bool(v))
             }
 
+            // TODO add visit_borrowed_str
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(Value::Str(v.to_owned()))
+                Ok(Value::Str(Cow::Owned(v.to_owned())))
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
-                Ok(Value::Str(v))
+                Ok(Value::Str(Cow::Owned(v)))
             }
         }
 
@@ -106,7 +130,7 @@ impl<'de> Deserialize<'de> for Value {
     }
 }
 
-impl Value {
+impl<'a> Value<'a> {
     /// Returns the text value, provided the value is of the `Str` type.
     /// (Returns `None` if the value is not of the `Str` type).
     pub fn as_text(&self) -> Option<&str> {
@@ -224,86 +248,87 @@ impl Value {
     }
 }
 
-impl From<String> for Value {
-    fn from(s: String) -> Value {
-        Value::Str(s)
+impl From<String> for Value<'static> {
+    fn from(s: String) -> Value<'static> {
+        Value::Str(Cow::Owned(s))
     }
 }
 
-impl From<Ipv6Addr> for Value {
-    fn from(v: Ipv6Addr) -> Value {
+impl From<Ipv6Addr> for Value<'static> {
+    fn from(v: Ipv6Addr) -> Value<'static> {
         Value::IpAddr(v)
     }
 }
 
-impl From<u64> for Value {
-    fn from(v: u64) -> Value {
+impl From<u64> for Value<'static> {
+    fn from(v: u64) -> Value<'static> {
         Value::U64(v)
     }
 }
 
-impl From<i64> for Value {
-    fn from(v: i64) -> Value {
+impl From<i64> for Value<'static> {
+    fn from(v: i64) -> Value<'static> {
         Value::I64(v)
     }
 }
 
-impl From<f64> for Value {
-    fn from(v: f64) -> Value {
+impl From<f64> for Value<'static> {
+    fn from(v: f64) -> Value<'static> {
         Value::F64(v)
     }
 }
 
-impl From<bool> for Value {
+impl From<bool> for Value<'static> {
     fn from(b: bool) -> Self {
         Value::Bool(b)
     }
 }
 
-impl From<DateTime> for Value {
-    fn from(dt: DateTime) -> Value {
+impl From<DateTime> for Value<'static> {
+    fn from(dt: DateTime) -> Value<'static> {
         Value::Date(dt)
     }
 }
 
-impl<'a> From<&'a str> for Value {
-    fn from(s: &'a str) -> Value {
-        Value::Str(s.to_string())
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(s: &'a str) -> Value<'a> {
+        Value::Str(Cow::Borrowed(s))
     }
 }
 
-impl<'a> From<&'a [u8]> for Value {
-    fn from(bytes: &'a [u8]) -> Value {
+// TODO change lifetime to 'a
+impl<'a> From<&'a [u8]> for Value<'static> {
+    fn from(bytes: &'a [u8]) -> Value<'static> {
         Value::Bytes(bytes.to_vec())
     }
 }
 
-impl From<Facet> for Value {
-    fn from(facet: Facet) -> Value {
+impl From<Facet> for Value<'static> {
+    fn from(facet: Facet) -> Value<'static> {
         Value::Facet(facet)
     }
 }
 
-impl From<Vec<u8>> for Value {
-    fn from(bytes: Vec<u8>) -> Value {
+impl From<Vec<u8>> for Value<'static> {
+    fn from(bytes: Vec<u8>) -> Value<'static> {
         Value::Bytes(bytes)
     }
 }
 
-impl From<PreTokenizedString> for Value {
-    fn from(pretokenized_string: PreTokenizedString) -> Value {
+impl From<PreTokenizedString> for Value<'static> {
+    fn from(pretokenized_string: PreTokenizedString) -> Value<'static> {
         Value::PreTokStr(pretokenized_string)
     }
 }
 
-impl From<serde_json::Map<String, serde_json::Value>> for Value {
-    fn from(json_object: serde_json::Map<String, serde_json::Value>) -> Value {
+impl From<serde_json::Map<String, serde_json::Value>> for Value<'static> {
+    fn from(json_object: serde_json::Map<String, serde_json::Value>) -> Value<'static> {
         Value::JsonObject(json_object)
     }
 }
 
-impl From<serde_json::Value> for Value {
-    fn from(json_value: serde_json::Value) -> Value {
+impl From<serde_json::Value> for Value<'static> {
+    fn from(json_value: serde_json::Value) -> Value<'static> {
         match json_value {
             serde_json::Value::Object(json_object) => Value::JsonObject(json_object),
             _ => {
@@ -314,6 +339,7 @@ impl From<serde_json::Value> for Value {
 }
 
 mod binary_serialize {
+    use std::borrow::Cow;
     use std::io::{self, Read, Write};
     use std::net::Ipv6Addr;
 
@@ -341,7 +367,7 @@ mod binary_serialize {
 
     const TOK_STR_CODE: u8 = 0;
 
-    impl BinarySerializable for Value {
+    impl<'a> BinarySerializable for Value<'a> {
         fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
             match *self {
                 Value::Str(ref text) => {
@@ -408,7 +434,7 @@ mod binary_serialize {
             match type_code {
                 TEXT_CODE => {
                     let text = String::deserialize(reader)?;
-                    Ok(Value::Str(text))
+                    Ok(Value::Str(Cow::Owned(text)))
                 }
                 U64_CODE => {
                     let value = u64::deserialize(reader)?;
