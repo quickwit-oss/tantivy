@@ -711,7 +711,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();
-            assert!(doc.field_values().is_empty());
+            assert_eq!(doc.value_count(), 0);
         }
         {
             let doc = schema

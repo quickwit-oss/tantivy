@@ -1,37 +1,86 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
-use std::mem;
 use std::net::Ipv6Addr;
+use std::{fmt, mem};
 
 use common::{BinarySerializable, VInt};
+use itertools::Either;
+use yoke::erased::ErasedArcCart;
+use yoke::Yoke;
 
 use super::*;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
+
+/// A group of FieldValue sharing an underlying storage
+///
+/// Or a single owned FieldValue.
+#[derive(Clone)]
+enum FieldValueGroup {
+    Single(FieldValue<'static>),
+    Group(Yoke<Vec<FieldValue<'static>>, ErasedArcCart>),
+}
+
+impl FieldValueGroup {
+    fn iter(&self) -> impl Iterator<Item = &FieldValue> {
+        match self {
+            FieldValueGroup::Single(field_value) => Either::Left(std::iter::once(field_value)),
+            FieldValueGroup::Group(field_values) => Either::Right(field_values.get().iter()),
+        }
+    }
+
+    fn count(&self) -> usize {
+        match self {
+            FieldValueGroup::Single(_) => 1,
+            FieldValueGroup::Group(field_values) => field_values.get().len(),
+        }
+    }
+}
+
+impl From<Vec<FieldValue<'static>>> for FieldValueGroup {
+    fn from(field_values: Vec<FieldValue<'static>>) -> FieldValueGroup {
+        FieldValueGroup::Group(
+            Yoke::new_always_owned(field_values)
+                .wrap_cart_in_arc()
+                .erase_arc_cart(),
+        )
+    }
+}
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
 ///
 /// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-#[serde(bound(deserialize = "'static: 'de, 'de: 'static"))]
+#[derive(Clone, Default)]
+// TODO bring back Ser/De and Debug
+//#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+//#[serde(bound(deserialize = "'static: 'de, 'de: 'static"))]
 pub struct Document {
-    field_values: Vec<FieldValue<'static>>,
+    field_values: Vec<FieldValueGroup>,
+}
+
+impl fmt::Debug for Document {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
 }
 
 impl From<Vec<FieldValue<'static>>> for Document {
     fn from(field_values: Vec<FieldValue<'static>>) -> Self {
+        let field_values = vec![field_values.into()];
         Document { field_values }
     }
 }
 impl PartialEq for Document {
     fn eq(&self, other: &Document) -> bool {
         // super slow, but only here for tests
-        let convert_to_comparable_map = |field_values: &[FieldValue]| {
+        let convert_to_comparable_map = |field_values| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
-            for field_value in field_values.iter() {
+            for field_value in field_values {
+                // for some reason rustc fails to guess the type
+                let field_value: &FieldValue = field_value;
                 let json_val = serde_json::to_string(field_value.value()).unwrap();
                 field_value_set
                     .entry(field_value.field())
@@ -41,9 +90,9 @@ impl PartialEq for Document {
             field_value_set
         };
         let self_field_values: HashMap<Field, HashSet<String>> =
-            convert_to_comparable_map(&self.field_values);
+            convert_to_comparable_map(self.field_values());
         let other_field_values: HashMap<Field, HashSet<String>> =
-            convert_to_comparable_map(&other.field_values);
+            convert_to_comparable_map(other.field_values());
         self_field_values.eq(&other_field_values)
     }
 }
@@ -56,7 +105,8 @@ impl IntoIterator for Document {
     type IntoIter = std::vec::IntoIter<FieldValue<'static>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.field_values.into_iter()
+        todo!()
+        // self.field_values.into_iter()
     }
 }
 
@@ -143,12 +193,19 @@ impl Document {
     pub fn add_field_value<T: Into<Value<'static>>>(&mut self, field: Field, typed_val: T) {
         let value = typed_val.into();
         let field_value = FieldValue { field, value };
-        self.field_values.push(field_value);
+        self.field_values.push(FieldValueGroup::Single(field_value));
     }
 
     /// field_values accessor
-    pub fn field_values(&self) -> &[FieldValue] {
-        &self.field_values
+    pub fn field_values(&self) -> impl Iterator<Item = &FieldValue> {
+        self.field_values.iter().flat_map(|group| group.iter())
+    }
+
+    /// Return the total number of values
+    ///
+    /// More efficient than calling `self.field_values().count()`
+    pub fn value_count(&self) -> usize {
+        self.field_values.iter().map(|group| group.count()).sum()
     }
 
     /// Sort and groups the field_values by field.
@@ -156,7 +213,7 @@ impl Document {
     /// The result of this method is not cached and is
     /// computed on the fly when this method is called.
     pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&Value>)> {
-        let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
+        let mut field_values: Vec<&FieldValue> = self.field_values().collect();
         field_values.sort_by_key(|field_value| field_value.field());
 
         let mut field_values_it = field_values.into_iter();
@@ -191,6 +248,7 @@ impl Document {
     pub fn get_all(&self, field: Field) -> impl Iterator<Item = &Value> {
         self.field_values
             .iter()
+            .flat_map(|group| group.iter())
             .filter(move |field_value| field_value.field() == field)
             .map(FieldValue::value)
     }
@@ -204,7 +262,6 @@ impl Document {
     pub fn serialize_stored<W: Write>(&self, schema: &Schema, writer: &mut W) -> io::Result<()> {
         let stored_field_values = || {
             self.field_values()
-                .iter()
                 .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
         };
         let num_field_values = stored_field_values().count();
@@ -232,7 +289,7 @@ impl Document {
 impl BinarySerializable for Document {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let field_values = self.field_values();
-        VInt(field_values.len() as u64).serialize(writer)?;
+        VInt(self.value_count() as u64).serialize(writer)?;
         for field_value in field_values {
             field_value.serialize(writer)?;
         }
@@ -261,7 +318,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("title", TEXT);
         let mut doc = Document::default();
         doc.add_text(text_field, "My title");
-        assert_eq!(doc.field_values().len(), 1);
+        assert_eq!(doc.value_count(), 1);
     }
 
     #[test]
@@ -275,7 +332,7 @@ mod tests {
                 .clone(),
         );
         doc.add_text(Field::from_field_id(1), "hello");
-        assert_eq!(doc.field_values().len(), 2);
+        assert_eq!(doc.value_count(), 2);
         let mut payload: Vec<u8> = Vec::new();
         doc.serialize(&mut payload).unwrap();
         assert_eq!(payload.len(), 26);

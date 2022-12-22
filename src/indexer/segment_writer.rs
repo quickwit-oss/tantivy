@@ -158,7 +158,6 @@ impl SegmentWriter {
         let doc_id = self.max_doc;
         let vals_grouped_by_field = doc
             .field_values()
-            .iter()
             .sorted_by_key(|el| el.field())
             .group_by(|el| el.field());
         for (field, field_values) in &vals_grouped_by_field {
@@ -502,9 +501,17 @@ mod tests {
         let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
         let doc = reader.get(0).unwrap();
 
-        assert_eq!(doc.field_values().len(), 2);
-        assert_eq!(doc.field_values()[0].value().as_text(), Some("A"));
-        assert_eq!(doc.field_values()[1].value().as_text(), Some("title"));
+        assert_eq!(doc.value_count(), 2);
+        let mut field_value_iter = doc.field_values();
+        assert_eq!(
+            field_value_iter.next().unwrap().value().as_text(),
+            Some("A")
+        );
+        assert_eq!(
+            field_value_iter.next().unwrap().value().as_text(),
+            Some("title")
+        );
+        assert!(field_value_iter.next().is_none());
     }
 
     #[test]
@@ -833,20 +840,23 @@ mod tests {
         // This is a bit of a contrived example.
         let tokens = PreTokenizedString {
             text: "contrived-example".to_string(), //< I can't think of a use case where this corner case happens in real life.
-            tokens: vec![Token { // Not the last token, yet ends after the last token.
-                offset_from: 0,
-                offset_to: 14,
-                position: 0,
-                text: "long_token".to_string(),
-                position_length: 3,
-            },
-            Token {
-                offset_from: 0,
-                offset_to: 14,
-                position: 1,
-                text: "short".to_string(),
-                position_length: 1,
-            }],
+            tokens: vec![
+                Token {
+                    // Not the last token, yet ends after the last token.
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 0,
+                    text: "long_token".to_string(),
+                    position_length: 3,
+                },
+                Token {
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 1,
+                    text: "short".to_string(),
+                    position_length: 1,
+                },
+            ],
         };
         doc.add_pre_tokenized_text(text, tokens);
         doc.add_text(text, "hello");

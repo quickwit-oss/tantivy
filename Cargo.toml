@@ -61,6 +61,7 @@ measure_time = "0.8.2"
 ciborium = { version = "0.2", optional = true}
 async-trait = "0.1.53"
 arc-swap = "1.5.0"
+yoke = "0.6.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
