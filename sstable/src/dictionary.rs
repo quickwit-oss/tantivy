@@ -11,12 +11,25 @@ use tantivy_fst::Automaton;
 use crate::streamer::{Streamer, StreamerBuilder};
 use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal};
 
-/// The term dictionary contains all of the terms in
-/// `tantivy index` in a sorted manner.
+/// An SSTable is a sorted map that associates sorted `&[u8]` keys
+/// to any kind of typed values.
 ///
-/// The `Fst` crate is used to associate terms to their
-/// respective `TermOrdinal`. The `TermInfoStore` then makes it
-/// possible to fetch the associated `TermInfo`.
+/// The SSTable is organized in blocks.
+/// In each block, keys and values are encoded separately.
+///
+/// The keys are encoded using incremental encoding.
+/// The values on the other hand, are encoded according to a value-specific
+/// codec defined in the TSSTable generic argument.
+///
+/// Finally, an index is joined to the Dictionary to make it possible,
+/// given a key to identify which block contains this key.
+///
+/// The codec was designed in such a way that the sstable
+/// reader is not aware of block, and yet can read any sequence of blocks,
+/// as long as the slice of bytes it is given starts and stops at
+/// block boundary.
+///
+/// (See also README.md)
 pub struct Dictionary<TSSTable: SSTable> {
     pub sstable_slice: FileSlice,
     pub sstable_index: SSTableIndex,
@@ -62,6 +75,23 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(TSSTable::delta_reader(data))
     }
 
+    /// This function returns a file slice covering a set of sstable blocks
+    /// that include the key range passed in arguments.
+    ///
+    /// It works by identifying
+    /// - `first_block`: the block containing the start boudary key
+    /// - `last_block`: the block containing the end boundary key.
+    ///
+    /// And then returning the range that spans over all blocks between.
+    /// and including first_block and last_block, aka:
+    /// `[first_block.start_offset .. last_block.end_offset)`
+    ///
+    /// Technically this function does not provide the tightest fit, as
+    /// for simplification, it treats the start bound of the `key_range`
+    /// as if it was inclusive, even if it is exclusive.
+    /// On the rare edge case where a user asks for `(start_key, end_key]`
+    /// and `start_key` happens to be the last key of a block, we return a
+    /// slice that is the first block was not necessary.
     fn file_slice_for_range(&self, key_range: impl RangeBounds<[u8]>) -> FileSlice {
         let start_bound: Bound<usize> = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {

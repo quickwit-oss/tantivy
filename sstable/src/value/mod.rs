@@ -26,7 +26,7 @@ pub trait ValueWriter: Default {
 
     /// Records a new value.
     /// This method usually just accumulates data in a `Vec`,
-    /// only to be serialized on the call to `ValueWriter::write_block`.
+    /// only to be serialized on the call to `ValueWriter::serialize_block`.
     fn write(&mut self, val: &Self::Value);
 
     /// Serializes the accumulated values into the output buffer.
@@ -37,7 +37,7 @@ pub use range::{RangeReader, RangeWriter};
 pub use u64_monotonic::{U64MonotonicReader, U64MonotonicWriter};
 pub use void::{VoidReader, VoidWriter};
 
-fn deserialize_u64(data: &mut &[u8]) -> u64 {
+fn deserialize_vint_u64(data: &mut &[u8]) -> u64 {
     let (num_bytes, val) = super::vint::deserialize_read(data);
     *data = &data[num_bytes..];
     val

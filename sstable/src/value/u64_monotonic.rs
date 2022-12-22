@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::value::{deserialize_u64, ValueReader, ValueWriter};
+use crate::value::{deserialize_vint_u64, ValueReader, ValueWriter};
 use crate::vint;
 
 #[derive(Default)]
@@ -17,11 +17,11 @@ impl ValueReader for U64MonotonicReader {
 
     fn load(&mut self, mut data: &[u8]) -> io::Result<usize> {
         let original_num_bytes = data.len();
-        let num_vals = deserialize_u64(&mut data) as usize;
+        let num_vals = deserialize_vint_u64(&mut data) as usize;
         self.vals.clear();
         let mut prev_val = 0u64;
         for _ in 0..num_vals {
-            let delta = deserialize_u64(&mut data);
+            let delta = deserialize_vint_u64(&mut data);
             let val = prev_val + delta;
             self.vals.push(val);
             prev_val = val;

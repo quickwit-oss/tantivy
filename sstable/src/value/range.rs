@@ -1,7 +1,7 @@
 use std::io;
 use std::ops::Range;
 
-use crate::value::{deserialize_u64, ValueReader, ValueWriter};
+use crate::value::{deserialize_vint_u64, ValueReader, ValueWriter};
 
 #[derive(Default)]
 pub struct RangeReader {
@@ -18,11 +18,11 @@ impl ValueReader for RangeReader {
     fn load(&mut self, mut data: &[u8]) -> io::Result<usize> {
         self.vals.clear();
         let original_num_bytes = data.len();
-        let len = deserialize_u64(&mut data) as usize;
+        let len = deserialize_vint_u64(&mut data) as usize;
         if len != 0 {
-            let mut prev_val = deserialize_u64(&mut data);
+            let mut prev_val = deserialize_vint_u64(&mut data);
             for _ in 1..len {
-                let next_val = prev_val + deserialize_u64(&mut data);
+                let next_val = prev_val + deserialize_vint_u64(&mut data);
                 self.vals.push(prev_val..next_val);
                 prev_val = next_val;
             }
