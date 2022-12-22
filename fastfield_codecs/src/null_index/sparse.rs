@@ -58,6 +58,7 @@ enum SparseCodecBlockVariant {
 
 impl SparseCodecBlockVariant {
     /// The number of non-null values that preceeded that block.
+    #[inline]
     fn offset(&self) -> u32 {
         match self {
             SparseCodecBlockVariant::Empty { offset } => *offset,

@@ -170,15 +170,18 @@ impl Column for BlockwiseLinearReader {
         interpoled_val.wrapping_add(bitpacked_diff)
     }
 
+    #[inline(always)]
     fn min_value(&self) -> u64 {
         // The BlockwiseLinearReader assumes a normalized vector.
         0u64
     }
 
+    #[inline(always)]
     fn max_value(&self) -> u64 {
         self.normalized_header.max_value
     }
 
+    #[inline(always)]
     fn num_vals(&self) -> u32 {
         self.normalized_header.num_vals
     }
