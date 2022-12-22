@@ -21,7 +21,7 @@ use crate::postings::TermInfo;
 pub type TermDictionary = sstable::Dictionary<TermSSTable>;
 
 /// Builder for the new term dictionary.
-pub type TermDictionaryBuilder<W> = sstable::Writer<W, TermInfoWriter>;
+pub type TermDictionaryBuilder<W> = sstable::Writer<W, TermInfoValueWriter>;
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
@@ -32,18 +32,19 @@ pub struct TermSSTable;
 
 impl SSTable for TermSSTable {
     type Value = TermInfo;
-    type ValueReader = TermInfoReader;
-    type ValueWriter = TermInfoWriter;
+    type ValueReader = TermInfoValueReader;
+    type ValueWriter = TermInfoValueWriter;
 }
 
 #[derive(Default)]
-pub struct TermInfoReader {
+pub struct TermInfoValueReader {
     term_infos: Vec<TermInfo>,
 }
 
-impl ValueReader for TermInfoReader {
+impl ValueReader for TermInfoValueReader {
     type Value = TermInfo;
 
+    #[inline(always)]
     fn value(&self, idx: usize) -> &TermInfo {
         &self.term_infos[idx]
     }
@@ -75,18 +76,18 @@ impl ValueReader for TermInfoReader {
 }
 
 #[derive(Default)]
-pub struct TermInfoWriter {
+pub struct TermInfoValueWriter {
     term_infos: Vec<TermInfo>,
 }
 
-impl ValueWriter for TermInfoWriter {
+impl ValueWriter for TermInfoValueWriter {
     type Value = TermInfo;
 
     fn write(&mut self, term_info: &TermInfo) {
         self.term_infos.push(term_info.clone());
     }
 
-    fn serialize_block(&mut self, buffer: &mut Vec<u8>) {
+    fn serialize_block(&self, buffer: &mut Vec<u8>) {
         VInt(self.term_infos.len() as u64).serialize_into_vec(buffer);
         if self.term_infos.is_empty() {
             return;
@@ -98,6 +99,9 @@ impl ValueWriter for TermInfoWriter {
             VInt(term_info.postings_range.len() as u64).serialize_into_vec(buffer);
             VInt(term_info.positions_range.len() as u64).serialize_into_vec(buffer);
         }
+    }
+
+    fn clear(&mut self) {
         self.term_infos.clear();
     }
 }
@@ -107,11 +111,11 @@ mod tests {
     use sstable::value::{ValueReader, ValueWriter};
 
     use crate::postings::TermInfo;
-    use crate::termdict::sstable_termdict::TermInfoReader;
+    use crate::termdict::sstable_termdict::TermInfoValueReader;
 
     #[test]
     fn test_block_terminfos() {
-        let mut term_info_writer = super::TermInfoWriter::default();
+        let mut term_info_writer = super::TermInfoValueWriter::default();
         term_info_writer.write(&TermInfo {
             doc_freq: 120u32,
             postings_range: 17..45,
@@ -129,7 +133,7 @@ mod tests {
         });
         let mut buffer = Vec::new();
         term_info_writer.serialize_block(&mut buffer);
-        let mut term_info_reader = TermInfoReader::default();
+        let mut term_info_reader = TermInfoValueReader::default();
         let num_bytes: usize = term_info_reader.load(&buffer[..]).unwrap();
         assert_eq!(
             term_info_reader.value(0),

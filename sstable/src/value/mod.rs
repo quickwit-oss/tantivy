@@ -20,6 +20,8 @@ pub trait ValueReader: Default {
     fn load(&mut self, data: &[u8]) -> io::Result<usize>;
 }
 
+/// `ValueWriter` is a trait to make it possible to write blocks
+/// of value.
 pub trait ValueWriter: Default {
     /// Type of the value being written.
     type Value;
@@ -30,12 +32,16 @@ pub trait ValueWriter: Default {
     fn write(&mut self, val: &Self::Value);
 
     /// Serializes the accumulated values into the output buffer.
-    fn serialize_block(&mut self, output: &mut Vec<u8>);
+    fn serialize_block(&self, output: &mut Vec<u8>);
+
+    /// Clears the `ValueWriter`. After a call to clear, the `ValueWriter`
+    /// should behave like a fresh `ValueWriter::default()`.
+    fn clear(&mut self);
 }
 
-pub use range::{RangeReader, RangeWriter};
-pub use u64_monotonic::{U64MonotonicReader, U64MonotonicWriter};
-pub use void::{VoidReader, VoidWriter};
+pub use range::{RangeValueReader, RangeValueWriter};
+pub use u64_monotonic::{U64MonotonicValueReader, U64MonotonicValueWriter};
+pub use void::{VoidValueReader, VoidValueWriter};
 
 fn deserialize_vint_u64(data: &mut &[u8]) -> u64 {
     let (num_bytes, val) = super::vint::deserialize_read(data);
@@ -63,6 +69,7 @@ pub(crate) mod tests {
                 writer.write(value);
             }
             writer.serialize_block(&mut buffer);
+            writer.clear();
         }
         let data_len = buffer.len();
         buffer.extend_from_slice(&b"extradata"[..]);

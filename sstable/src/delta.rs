@@ -16,6 +16,8 @@ where W: io::Write
     block: Vec<u8>,
     write: CountingWriter<BufWriter<W>>,
     value_writer: TValueWriter,
+    // Only here to avoid allocations.
+    stateless_buffer: Vec<u8>,
 }
 
 impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
@@ -28,6 +30,7 @@ where
             block: Vec::with_capacity(BLOCK_LEN * 2),
             write: CountingWriter::wrap(BufWriter::new(wrt)),
             value_writer: TValueWriter::default(),
+            stateless_buffer: Vec::new(),
         }
     }
 }
@@ -42,15 +45,16 @@ where
             return Ok(None);
         }
         let start_offset = self.write.written_bytes() as usize;
-        // TODO avoid buffer allocation
-        let mut buffer = Vec::new();
-        self.value_writer.serialize_block(&mut buffer);
+        let buffer: &mut Vec<u8> = &mut self.stateless_buffer;
+        self.value_writer.serialize_block(buffer);
+        self.value_writer.clear();
         let block_len = buffer.len() + self.block.len();
         self.write.write_all(&(block_len as u32).to_le_bytes())?;
         self.write.write_all(&buffer[..])?;
         self.write.write_all(&self.block[..])?;
         let end_offset = self.write.written_bytes() as usize;
         self.block.clear();
+        buffer.clear();
         Ok(Some(start_offset..end_offset))
     }
 
@@ -91,8 +95,7 @@ where
 
 pub struct DeltaReader<'a, TValueReader> {
     common_prefix_len: usize,
-    suffix_start: usize,
-    suffix_end: usize,
+    suffix_range: Range<usize>,
     value_reader: TValueReader,
     block_reader: BlockReader<'a>,
     idx: usize,
@@ -105,8 +108,7 @@ where TValueReader: value::ValueReader
         DeltaReader {
             idx: 0,
             common_prefix_len: 0,
-            suffix_start: 0,
-            suffix_end: 0,
+            suffix_range: 0..0,
             value_reader: TValueReader::default(),
             block_reader: BlockReader::new(Box::new(reader)),
         }
@@ -148,8 +150,8 @@ where TValueReader: value::ValueReader
             return false;
         };
         self.common_prefix_len = keep;
-        self.suffix_start = self.block_reader.offset();
-        self.suffix_end = self.suffix_start + add;
+        let suffix_start = self.block_reader.offset();
+        self.suffix_range = suffix_start..(suffix_start + add);
         self.block_reader.advance(add);
         true
     }
@@ -178,8 +180,7 @@ where TValueReader: value::ValueReader
 
     #[inline(always)]
     pub fn suffix(&self) -> &[u8] {
-        self.block_reader
-            .buffer_from_to(self.suffix_start, self.suffix_end)
+        self.block_reader.buffer_from_to(self.suffix_range.clone())
     }
 
     #[inline(always)]
@@ -191,11 +192,11 @@ where TValueReader: value::ValueReader
 #[cfg(test)]
 mod tests {
     use super::DeltaReader;
-    use crate::value::U64MonotonicReader;
+    use crate::value::U64MonotonicValueReader;
 
     #[test]
     fn test_empty() {
-        let mut delta_reader: DeltaReader<U64MonotonicReader> = DeltaReader::empty();
+        let mut delta_reader: DeltaReader<U64MonotonicValueReader> = DeltaReader::empty();
         assert!(!delta_reader.advance().unwrap());
     }
 }

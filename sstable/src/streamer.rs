@@ -211,10 +211,10 @@ mod tests {
 
     use common::OwnedBytes;
 
-    use crate::{Dictionary, SSTableMonotonicU64};
+    use crate::{Dictionary, MonotonicU64SSTable};
 
-    fn create_test_dictionary() -> io::Result<Dictionary<SSTableMonotonicU64>> {
-        let mut dict_builder = Dictionary::<SSTableMonotonicU64>::builder(Vec::new())?;
+    fn create_test_dictionary() -> io::Result<Dictionary<MonotonicU64SSTable>> {
+        let mut dict_builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new())?;
         dict_builder.insert(b"abaisance", &0)?;
         dict_builder.insert(b"abalation", &1)?;
         dict_builder.insert(b"abalienate", &2)?;

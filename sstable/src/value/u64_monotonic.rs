@@ -4,13 +4,14 @@ use crate::value::{deserialize_vint_u64, ValueReader, ValueWriter};
 use crate::vint;
 
 #[derive(Default)]
-pub struct U64MonotonicReader {
+pub struct U64MonotonicValueReader {
     vals: Vec<u64>,
 }
 
-impl ValueReader for U64MonotonicReader {
+impl ValueReader for U64MonotonicValueReader {
     type Value = u64;
 
+    #[inline(always)]
     fn value(&self, idx: usize) -> &Self::Value {
         &self.vals[idx]
     }
@@ -31,18 +32,18 @@ impl ValueReader for U64MonotonicReader {
 }
 
 #[derive(Default)]
-pub struct U64MonotonicWriter {
+pub struct U64MonotonicValueWriter {
     vals: Vec<u64>,
 }
 
-impl ValueWriter for U64MonotonicWriter {
+impl ValueWriter for U64MonotonicValueWriter {
     type Value = u64;
 
     fn write(&mut self, val: &Self::Value) {
         self.vals.push(*val);
     }
 
-    fn serialize_block(&mut self, output: &mut Vec<u8>) {
+    fn serialize_block(&self, output: &mut Vec<u8>) {
         let mut prev_val = 0u64;
         vint::serialize_into_vec(self.vals.len() as u64, output);
         for &val in &self.vals {
@@ -50,6 +51,9 @@ impl ValueWriter for U64MonotonicWriter {
             vint::serialize_into_vec(delta, output);
             prev_val = val;
         }
+    }
+
+    fn clear(&mut self) {
         self.vals.clear();
     }
 }
@@ -60,14 +64,20 @@ mod tests {
 
     #[test]
     fn test_u64_monotonic_reader_writer() {
-        crate::value::tests::test_value_reader_writer::<_, U64MonotonicReader, U64MonotonicWriter>(
-            &[],
-        );
-        crate::value::tests::test_value_reader_writer::<_, U64MonotonicReader, U64MonotonicWriter>(
-            &[5],
-        );
-        crate::value::tests::test_value_reader_writer::<_, U64MonotonicReader, U64MonotonicWriter>(
-            &[1u64, 30u64],
-        );
+        crate::value::tests::test_value_reader_writer::<
+            _,
+            U64MonotonicValueReader,
+            U64MonotonicValueWriter,
+        >(&[]);
+        crate::value::tests::test_value_reader_writer::<
+            _,
+            U64MonotonicValueReader,
+            U64MonotonicValueWriter,
+        >(&[5]);
+        crate::value::tests::test_value_reader_writer::<
+            _,
+            U64MonotonicValueReader,
+            U64MonotonicValueWriter,
+        >(&[1u64, 30u64]);
     }
 }

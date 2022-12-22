@@ -5,7 +5,7 @@ use common::file_slice::FileSlice;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use tantivy_sstable::{self, Dictionary, SSTableMonotonicU64};
+use tantivy_sstable::{self, Dictionary, MonotonicU64SSTable};
 
 const CHARSET: &'static [u8] = b"abcdefghij";
 
@@ -19,13 +19,13 @@ fn generate_key(rng: &mut impl Rng) -> String {
     .collect()
 }
 
-fn prepare_sstable() -> io::Result<Dictionary<SSTableMonotonicU64>> {
+fn prepare_sstable() -> io::Result<Dictionary<MonotonicU64SSTable>> {
     let mut rng = StdRng::from_seed([3u8; 32]);
     let mut els = BTreeSet::new();
     while els.len() < 100_000 {
         els.insert(generate_key(&mut rng));
     }
-    let mut dictionary_builder = Dictionary::<SSTableMonotonicU64>::builder(Vec::new())?;
+    let mut dictionary_builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new())?;
     for (ord, word) in els.iter().enumerate() {
         dictionary_builder.insert(word, &(ord as u64))?;
     }
@@ -35,7 +35,7 @@ fn prepare_sstable() -> io::Result<Dictionary<SSTableMonotonicU64>> {
 }
 
 fn stream_bench(
-    dictionary: &Dictionary<SSTableMonotonicU64>,
+    dictionary: &Dictionary<MonotonicU64SSTable>,
     lower: &[u8],
     upper: &[u8],
     do_scan: bool,

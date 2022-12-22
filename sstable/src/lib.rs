@@ -20,8 +20,8 @@ mod block_reader;
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
 pub use self::merge::VoidMerge;
-use self::value::{U64MonotonicReader, U64MonotonicWriter, ValueReader, ValueWriter};
-use crate::value::{RangeReader, RangeWriter};
+use self::value::{U64MonotonicValueReader, U64MonotonicValueWriter, ValueReader, ValueWriter};
+use crate::value::{RangeValueReader, RangeValueWriter};
 
 pub type TermOrdinal = u64;
 
@@ -87,31 +87,47 @@ pub struct VoidSSTable;
 
 impl SSTable for VoidSSTable {
     type Value = ();
-    type ValueReader = value::VoidReader;
-    type ValueWriter = value::VoidWriter;
+    type ValueReader = value::VoidValueReader;
+    type ValueWriter = value::VoidValueWriter;
 }
 
+/// SSTable associated keys to u64
+/// sorted in order.
+///
+/// In other words, two keys `k1` and `k2`
+/// such that `k1` <= `k2`, are required to observe
+/// `range_sstable[k1] <= range_sstable[k2]`.
 #[allow(dead_code)]
-pub struct SSTableMonotonicU64;
+pub struct MonotonicU64SSTable;
 
-impl SSTable for SSTableMonotonicU64 {
+impl SSTable for MonotonicU64SSTable {
     type Value = u64;
 
-    type ValueReader = U64MonotonicReader;
+    type ValueReader = U64MonotonicValueReader;
 
-    type ValueWriter = U64MonotonicWriter;
+    type ValueWriter = U64MonotonicValueWriter;
 }
 
-pub struct SSTableRange;
+/// SSTable associating keys to ranges.
+/// The range are required to partition the
+/// space.
+///
+/// In other words, two consecutive keys `k1` and `k2`
+/// are required to observe
+/// `range_sstable[k1].end == range_sstable[k2].start`.
+///
+/// The first range is not required to start at `0`.
+pub struct RangeSSTable;
 
-impl SSTable for SSTableRange {
+impl SSTable for RangeSSTable {
     type Value = Range<u64>;
 
-    type ValueReader = RangeReader;
+    type ValueReader = RangeValueReader;
 
-    type ValueWriter = RangeWriter;
+    type ValueWriter = RangeValueWriter;
 }
 
+/// SSTable reader.
 pub struct Reader<'a, TValueReader> {
     key: Vec<u8>,
     delta_reader: DeltaReader<'a, TValueReader>,
@@ -132,16 +148,19 @@ where TValueReader: ValueReader
         Ok(true)
     }
 
+    #[inline(always)]
     pub fn key(&self) -> &[u8] {
         &self.key
     }
 
+    #[inline(always)]
     pub fn value(&self) -> &TValueReader::Value {
         self.delta_reader.value()
     }
 }
 
 impl<'a, TValueReader> AsRef<[u8]> for Reader<'a, TValueReader> {
+    #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         &self.key
     }
@@ -281,7 +300,7 @@ mod test {
     use std::io;
     use std::ops::Bound;
 
-    use super::{common_prefix_len, SSTable, SSTableMonotonicU64, VoidMerge, VoidSSTable};
+    use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
 
     fn aux_test_common_prefix_len(left: &str, right: &str, expect_len: usize) {
         assert_eq!(
@@ -405,12 +424,12 @@ mod test {
     #[test]
     fn test_sstable_u64() -> io::Result<()> {
         let mut buffer = Vec::new();
-        let mut writer = SSTableMonotonicU64::writer(&mut buffer);
+        let mut writer = MonotonicU64SSTable::writer(&mut buffer);
         writer.insert(b"abcd", &1u64)?;
         writer.insert(b"abe", &4u64)?;
         writer.insert(b"gogo", &4324234234234234u64)?;
         writer.finish()?;
-        let mut reader = SSTableMonotonicU64::reader(&buffer[..]);
+        let mut reader = MonotonicU64SSTable::reader(&buffer[..]);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abcd");
         assert_eq!(reader.value(), &1u64);
@@ -426,7 +445,7 @@ mod test {
 
     #[test]
     fn test_sstable_empty() {
-        let mut sstable_range_empty = crate::SSTableRange::create_empty_reader();
+        let mut sstable_range_empty = crate::RangeSSTable::create_empty_reader();
         assert!(!sstable_range_empty.advance().unwrap());
     }
 

@@ -1,4 +1,5 @@
 use std::io;
+use std::ops::Range;
 
 pub struct BlockReader<'a> {
     buffer: Vec<u8>,
@@ -29,8 +30,8 @@ impl<'a> BlockReader<'a> {
     }
 
     #[inline(always)]
-    pub fn buffer_from_to(&self, start: usize, end: usize) -> &[u8] {
-        &self.buffer[start..end]
+    pub fn buffer_from_to(&self, range: Range<usize>) -> &[u8] {
+        &self.buffer[range]
     }
 
     pub fn read_block(&mut self) -> io::Result<bool> {
@@ -51,14 +52,17 @@ impl<'a> BlockReader<'a> {
         Ok(true)
     }
 
+    #[inline(always)]
     pub fn offset(&self) -> usize {
         self.offset
     }
 
+    #[inline(always)]
     pub fn advance(&mut self, num_bytes: usize) {
         self.offset += num_bytes;
     }
 
+    #[inline(always)]
     pub fn buffer(&self) -> &[u8] {
         &self.buffer[self.offset..]
     }
