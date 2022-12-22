@@ -2,6 +2,7 @@
 name = "tantivy-sstable"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 common = {path="../common", package="tantivy-common"}
