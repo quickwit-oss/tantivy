@@ -44,9 +44,6 @@ mod column;
 mod gcd;
 mod serialize;
 
-use ordered_float;
-pub use ordered_float::{NotNan, FloatIsNan};
-
 use self::bitpacked::BitpackedCodec;
 use self::blockwise_linear::BlockwiseLinearCodec;
 pub use self::column::{monotonic_map_column, Column, IterColumn, VecColumn};
