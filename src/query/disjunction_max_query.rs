@@ -3,7 +3,7 @@ use tantivy_query_grammar::Occur;
 use crate::query::{BooleanWeight, DisjunctionMaxCombiner, EnableScoring, Query, Weight};
 use crate::{Score, Term};
 
-/// The disjunction max query кeturns documents matching one or more wrapped queries,
+/// The disjunction max query returns documents matching one or more wrapped queries,
 /// called query clauses or clauses.
 ///
 /// If a returned document matches multiple query clauses,
