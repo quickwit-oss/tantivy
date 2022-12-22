@@ -71,7 +71,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::str;
 
-    use super::super::{SSTable, SSTableMonotonicU64, VoidSSTable};
+    use super::super::{MonotonicU64SSTable, SSTable, VoidSSTable};
     use super::{U64Merge, VoidMerge};
 
     fn write_sstable(keys: &[&'static str]) -> Vec<u8> {
@@ -79,9 +79,9 @@ mod tests {
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
             for &key in keys {
-                assert!(sstable_writer.write(key.as_bytes(), &()).is_ok());
+                assert!(sstable_writer.insert(key.as_bytes(), &()).is_ok());
             }
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         buffer
     }
@@ -89,11 +89,11 @@ mod tests {
     fn write_sstable_u64(keys: &[(&'static str, u64)]) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![];
         {
-            let mut sstable_writer = SSTableMonotonicU64::writer(&mut buffer);
+            let mut sstable_writer = MonotonicU64SSTable::writer(&mut buffer);
             for (key, val) in keys {
-                assert!(sstable_writer.write(key.as_bytes(), val).is_ok());
+                assert!(sstable_writer.insert(key.as_bytes(), val).is_ok());
             }
-            assert!(sstable_writer.finalize().is_ok());
+            assert!(sstable_writer.finish().is_ok());
         }
         buffer
     }
@@ -132,8 +132,8 @@ mod tests {
             }
         }
         let mut w = Vec::new();
-        assert!(SSTableMonotonicU64::merge(sstables_ref, &mut w, U64Merge).is_ok());
-        let mut reader = SSTableMonotonicU64::reader(&w[..]);
+        assert!(MonotonicU64SSTable::merge(sstables_ref, &mut w, U64Merge).is_ok());
+        let mut reader = MonotonicU64SSTable::reader(&w[..]);
         for (k, v) in merged {
             assert!(reader.advance().unwrap());
             assert_eq!(reader.key(), k.as_bytes());

@@ -16,6 +16,8 @@ where W: io::Write
     block: Vec<u8>,
     write: CountingWriter<BufWriter<W>>,
     value_writer: TValueWriter,
+    // Only here to avoid allocations.
+    stateless_buffer: Vec<u8>,
 }
 
 impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
@@ -28,6 +30,7 @@ where
             block: Vec::with_capacity(BLOCK_LEN * 2),
             write: CountingWriter::wrap(BufWriter::new(wrt)),
             value_writer: TValueWriter::default(),
+            stateless_buffer: Vec::new(),
         }
     }
 }
@@ -42,15 +45,16 @@ where
             return Ok(None);
         }
         let start_offset = self.write.written_bytes() as usize;
-        // TODO avoid buffer allocation
-        let mut buffer = Vec::new();
-        self.value_writer.write_block(&mut buffer);
+        let buffer: &mut Vec<u8> = &mut self.stateless_buffer;
+        self.value_writer.serialize_block(buffer);
+        self.value_writer.clear();
         let block_len = buffer.len() + self.block.len();
         self.write.write_all(&(block_len as u32).to_le_bytes())?;
         self.write.write_all(&buffer[..])?;
         self.write.write_all(&self.block[..])?;
         let end_offset = self.write.written_bytes() as usize;
         self.block.clear();
+        buffer.clear();
         Ok(Some(start_offset..end_offset))
     }
 
@@ -84,15 +88,14 @@ where
         Ok(None)
     }
 
-    pub fn finalize(self) -> CountingWriter<BufWriter<W>> {
+    pub fn finish(self) -> CountingWriter<BufWriter<W>> {
         self.write
     }
 }
 
 pub struct DeltaReader<'a, TValueReader> {
     common_prefix_len: usize,
-    suffix_start: usize,
-    suffix_end: usize,
+    suffix_range: Range<usize>,
     value_reader: TValueReader,
     block_reader: BlockReader<'a>,
     idx: usize,
@@ -105,11 +108,14 @@ where TValueReader: value::ValueReader
         DeltaReader {
             idx: 0,
             common_prefix_len: 0,
-            suffix_start: 0,
-            suffix_end: 0,
+            suffix_range: 0..0,
             value_reader: TValueReader::default(),
             block_reader: BlockReader::new(Box::new(reader)),
         }
+    }
+
+    pub fn empty() -> Self {
+        DeltaReader::new(&b""[..])
     }
 
     fn deserialize_vint(&mut self) -> u64 {
@@ -140,15 +146,14 @@ where TValueReader: value::ValueReader
     }
 
     fn read_delta_key(&mut self) -> bool {
-        if let Some((keep, add)) = self.read_keep_add() {
-            self.common_prefix_len = keep;
-            self.suffix_start = self.block_reader.offset();
-            self.suffix_end = self.suffix_start + add;
-            self.block_reader.advance(add);
-            true
-        } else {
-            false
-        }
+        let Some((keep, add)) = self.read_keep_add() else {
+            return false;
+        };
+        self.common_prefix_len = keep;
+        let suffix_start = self.block_reader.offset();
+        self.suffix_range = suffix_start..(suffix_start + add);
+        self.block_reader.advance(add);
+        true
     }
 
     pub fn advance(&mut self) -> io::Result<bool> {
@@ -156,7 +161,8 @@ where TValueReader: value::ValueReader
             if !self.block_reader.read_block()? {
                 return Ok(false);
             }
-            self.value_reader.read(&mut self.block_reader)?;
+            let consumed_len = self.value_reader.load(self.block_reader.buffer())?;
+            self.block_reader.advance(consumed_len);
             self.idx = 0;
         } else {
             self.idx += 1;
@@ -167,16 +173,30 @@ where TValueReader: value::ValueReader
         Ok(true)
     }
 
+    #[inline(always)]
     pub fn common_prefix_len(&self) -> usize {
         self.common_prefix_len
     }
 
+    #[inline(always)]
     pub fn suffix(&self) -> &[u8] {
-        self.block_reader
-            .buffer_from_to(self.suffix_start, self.suffix_end)
+        self.block_reader.buffer_from_to(self.suffix_range.clone())
     }
 
+    #[inline(always)]
     pub fn value(&self) -> &TValueReader::Value {
         self.value_reader.value(self.idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeltaReader;
+    use crate::value::U64MonotonicValueReader;
+
+    #[test]
+    fn test_empty() {
+        let mut delta_reader: DeltaReader<U64MonotonicValueReader> = DeltaReader::empty();
+        assert!(!delta_reader.advance().unwrap());
     }
 }

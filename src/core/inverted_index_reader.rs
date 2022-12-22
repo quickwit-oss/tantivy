@@ -209,7 +209,7 @@ impl InvertedIndexReader {
     ///
     /// Most users should prefer using [`Self::read_postings()`] instead.
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
-        let term_info_opt = self.get_term_info_async(term).await?;
+        let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
             self.postings_file_slice
                 .read_bytes_slice_async(term_info.postings_range.clone())

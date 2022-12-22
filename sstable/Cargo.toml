@@ -6,8 +6,15 @@ edition = "2021"
 [dependencies]
 common = {path="../common", package="tantivy-common"}
 ciborium = "0.2"
-byteorder = "1"
 serde = "1"
+tantivy-fst = "0.4"
 
 [dev-dependencies]
 proptest = "1"
+criterion = "0.4"
+names = "0.14"
+rand = "0.8"
+
+[[bench]]
+name = "stream_bench"
+harness = false
