@@ -135,7 +135,7 @@ impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
     }
 }
 
-impl<'a, T: Copy + Ord + Default, V> From<&'a V> for VecColumn<'a, T>
+impl<'a, T: Copy + PartialOrd + Default, V> From<&'a V> for VecColumn<'a, T>
 where V: AsRef<[T]> + ?Sized
 {
     fn from(values: &'a V) -> Self {
