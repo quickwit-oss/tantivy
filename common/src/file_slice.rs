@@ -224,7 +224,6 @@ impl FileHandle for FileSlice {
         self.read_bytes_slice(range)
     }
 
-    #[cfg(feature = "quickwit")]
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
@@ -242,7 +241,6 @@ impl FileHandle for OwnedBytes {
         Ok(self.slice(range))
     }
 
-    #[cfg(feature = "quickwit")]
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes(range)
     }
