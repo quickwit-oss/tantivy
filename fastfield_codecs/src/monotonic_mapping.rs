@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use fastdivide::DividerU64;
+use ordered_float::NotNan;
 
 use crate::MonotonicallyMappableToU128;
 
@@ -205,6 +206,8 @@ impl MonotonicallyMappableToU64 for bool {
     }
 }
 
+// TODO remove me.
+// Tantivy should refuse NaN values and work with NotNaN internally.
 impl MonotonicallyMappableToU64 for f64 {
     #[inline(always)]
     fn to_u64(self) -> u64 {
@@ -217,10 +220,41 @@ impl MonotonicallyMappableToU64 for f64 {
     }
 }
 
+impl MonotonicallyMappableToU64 for ordered_float::NotNan<f64> {
+    fn to_u64(self) -> u64 {
+        common::f64_to_u64(self.into_inner())
+    }
+
+    fn from_u64(val: u64) -> Self {
+        NotNan::new(common::u64_to_f64(val)).expect("Invalid NotNaN f64 value.")
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn test_from_u64_pos_inf() {
+        let inf_as_u64 = common::f64_to_u64(f64::INFINITY);
+        let inf_back_to_f64 = NotNan::from_u64(inf_as_u64);
+        assert_eq!(inf_back_to_f64, NotNan::new(f64::INFINITY).unwrap());
+    }
+
+    #[test]
+    fn test_from_u64_neg_inf() {
+        let inf_as_u64 = common::f64_to_u64(-f64::INFINITY);
+        let inf_back_to_f64 = NotNan::from_u64(inf_as_u64);
+        assert_eq!(inf_back_to_f64, NotNan::new(-f64::INFINITY).unwrap());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid NotNaN")]
+    fn test_from_u64_nan_panics() {
+        let nan_as_u64 = common::f64_to_u64(f64::NAN);
+        NotNan::from_u64(nan_as_u64);
+    }
 
     #[test]
     fn strictly_monotonic_test() {
