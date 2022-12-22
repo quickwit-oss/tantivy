@@ -56,7 +56,7 @@ where
     let first_el = vals.find(|val| {
         // We use this to make sure we skip all NaN values when
         // working with a float type.
-        val.partial_cmp(&val) == Some(Ordering::Equal)
+        val.partial_cmp(val) == Some(Ordering::Equal)
     })?;
     let mut min_so_far: T = first_el;
     let mut max_so_far: T = first_el;
