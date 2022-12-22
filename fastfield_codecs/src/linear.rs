@@ -24,13 +24,13 @@ impl Column for LinearReader {
         interpoled_val.wrapping_add(bitpacked_diff)
     }
 
-    #[inline]
+    #[inline(always)]
     fn min_value(&self) -> u64 {
         // The LinearReader assumes a normalized vector.
         0u64
     }
 
-    #[inline]
+    #[inline(always)]
     fn max_value(&self) -> u64 {
         self.header.max_value
     }

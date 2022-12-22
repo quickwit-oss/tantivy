@@ -57,10 +57,12 @@ impl<T> From<T> for StrictlyMonotonicMappingInverter<T> {
 impl<From, To, T> StrictlyMonotonicFn<To, From> for StrictlyMonotonicMappingInverter<T>
 where T: StrictlyMonotonicFn<From, To>
 {
+    #[inline(always)]
     fn mapping(&self, val: To) -> From {
         self.orig_mapping.inverse(val)
     }
 
+    #[inline(always)]
     fn inverse(&self, val: From) -> To {
         self.orig_mapping.mapping(val)
     }
@@ -83,10 +85,12 @@ impl<External: MonotonicallyMappableToU128, T: MonotonicallyMappableToU128>
     StrictlyMonotonicFn<External, u128> for StrictlyMonotonicMappingToInternal<T>
 where T: MonotonicallyMappableToU128
 {
+    #[inline(always)]
     fn mapping(&self, inp: External) -> u128 {
         External::to_u128(inp)
     }
 
+    #[inline(always)]
     fn inverse(&self, out: u128) -> External {
         External::from_u128(out)
     }
@@ -96,10 +100,12 @@ impl<External: MonotonicallyMappableToU64, T: MonotonicallyMappableToU64>
     StrictlyMonotonicFn<External, u64> for StrictlyMonotonicMappingToInternal<T>
 where T: MonotonicallyMappableToU64
 {
+    #[inline(always)]
     fn mapping(&self, inp: External) -> u64 {
         External::to_u64(inp)
     }
 
+    #[inline(always)]
     fn inverse(&self, out: u64) -> External {
         External::from_u64(out)
     }
@@ -127,11 +133,13 @@ impl StrictlyMonotonicMappingToInternalGCDBaseval {
 impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     for StrictlyMonotonicMappingToInternalGCDBaseval
 {
+    #[inline(always)]
     fn mapping(&self, inp: External) -> u64 {
         self.gcd_divider
             .divide(External::to_u64(inp) - self.min_value)
     }
 
+    #[inline(always)]
     fn inverse(&self, out: u64) -> External {
         External::from_u64(self.min_value + out * self.gcd)
     }
@@ -142,6 +150,7 @@ pub(crate) struct StrictlyMonotonicMappingToInternalBaseval {
     min_value: u64,
 }
 impl StrictlyMonotonicMappingToInternalBaseval {
+    #[inline(always)]
     pub(crate) fn new(min_value: u64) -> Self {
         Self { min_value }
     }
@@ -150,20 +159,24 @@ impl StrictlyMonotonicMappingToInternalBaseval {
 impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     for StrictlyMonotonicMappingToInternalBaseval
 {
+    #[inline(always)]
     fn mapping(&self, val: External) -> u64 {
         External::to_u64(val) - self.min_value
     }
 
+    #[inline(always)]
     fn inverse(&self, val: u64) -> External {
         External::from_u64(self.min_value + val)
     }
 }
 
 impl MonotonicallyMappableToU64 for u64 {
+    #[inline(always)]
     fn to_u64(self) -> u64 {
         self
     }
 
+    #[inline(always)]
     fn from_u64(val: u64) -> Self {
         val
     }
@@ -196,10 +209,12 @@ impl MonotonicallyMappableToU64 for bool {
 // TODO remove me.
 // Tantivy should refuse NaN values and work with NotNaN internally.
 impl MonotonicallyMappableToU64 for f64 {
+    #[inline(always)]
     fn to_u64(self) -> u64 {
         common::f64_to_u64(self)
     }
 
+    #[inline(always)]
     fn from_u64(val: u64) -> Self {
         common::u64_to_f64(val)
     }

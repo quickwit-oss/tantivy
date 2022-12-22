@@ -202,6 +202,7 @@ pub enum ValueIndexInfo<'a> {
     SingleValue(Box<dyn SingleValueIndexInfo + 'a>),
 }
 
+// TODO Remove me
 impl Default for ValueIndexInfo<'static> {
     fn default() -> Self {
         struct Dummy {}
