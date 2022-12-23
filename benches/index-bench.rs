@@ -3,11 +3,13 @@ use itertools::Itertools;
 use pprof::criterion::{Output, PProfProfiler};
 use serde_json::{self, Value as JsonValue};
 use tantivy::directory::RamDirectory;
-use tantivy::schema::{INDEXED, STORED, STRING, TEXT, TextOptions, TextFieldIndexing, FieldValue, Value};
-use tantivy::{Index, IndexBuilder, Document};
+use tantivy::schema::{
+    FieldValue, TextFieldIndexing, TextOptions, Value, INDEXED, STORED, STRING, TEXT,
+};
+use tantivy::{Document, Index, IndexBuilder};
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
-const NUM_REPEATS: usize = 2;
+const NUM_REPEATS: usize = 10;
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let mut schema_builder = tantivy::schema::SchemaBuilder::new();
@@ -15,8 +17,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         .set_tokenizer("default")
         .set_fieldnorms(false)
         .set_index_option(tantivy::schema::IndexRecordOption::WithFreqsAndPositions);
-    let mut text_options = TextOptions::default()
-        .set_indexing_options(text_indexing_options);
+    let mut text_options = TextOptions::default().set_indexing_options(text_indexing_options);
     let text_field = schema_builder.add_text_field("body", text_options);
     let schema = schema_builder.build();
 
@@ -26,14 +27,15 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
     for doc_json in HDFS_LOGS.trim().split("\n") {
         let json_obj: serde_json::Map<String, JsonValue> = serde_json::from_str(doc_json).unwrap();
         let text = json_obj.get("body").unwrap().as_str().unwrap();
-        let text_array = text.split(" ");
         let mut doc_no_array = Document::new();
-        doc_no_array.add_field_value(text_field, Value::Str(text.to_string()));
+        doc_no_array.add_text(text_field, text);
         documents_no_array.push(doc_no_array);
         let mut doc_with_array = Document::new();
-        for text_element in text_array {
-            doc_with_array.add_field_value(text_field, Value::Str(text_element.to_string()));
-        }
+        doc_with_array.add_borrowed_values(text.to_owned(), |text| {
+            text.split(' ')
+                .map(|text| FieldValue::new(text_field, text.into()))
+                .collect()
+        });
         documents_with_array.push(doc_with_array);
     }
 

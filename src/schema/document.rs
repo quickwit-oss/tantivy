@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
+use std::sync::Arc;
 use std::{fmt, mem};
 
 use common::{BinarySerializable, VInt};
@@ -19,7 +20,25 @@ use crate::DateTime;
 #[derive(Clone)]
 enum FieldValueGroup {
     Single(FieldValue<'static>),
-    Group(Yoke<Vec<FieldValue<'static>>, ErasedArcCart>),
+    Group(Yoke<VecFieldValue<'static>, ErasedArcCart>),
+}
+
+// this NewType is required to make it possible to yoke a vec with non 'static inner values.
+#[derive(yoke::Yokeable, Clone)]
+struct VecFieldValue<'a>(Vec<FieldValue<'a>>);
+
+impl<'a> std::ops::Deref for VecFieldValue<'a> {
+    type Target = Vec<FieldValue<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> From<Vec<FieldValue<'a>>> for VecFieldValue<'a> {
+    fn from(field_values: Vec<FieldValue>) -> VecFieldValue {
+        VecFieldValue(field_values)
+    }
 }
 
 impl FieldValueGroup {
@@ -41,7 +60,7 @@ impl FieldValueGroup {
 impl From<Vec<FieldValue<'static>>> for FieldValueGroup {
     fn from(field_values: Vec<FieldValue<'static>>) -> FieldValueGroup {
         FieldValueGroup::Group(
-            Yoke::new_always_owned(field_values)
+            Yoke::new_always_owned(field_values.into())
                 .wrap_cart_in_arc()
                 .erase_arc_cart(),
         )
@@ -194,6 +213,19 @@ impl Document {
         let value = typed_val.into();
         let field_value = FieldValue { field, value };
         self.field_values.push(FieldValueGroup::Single(field_value));
+    }
+
+    /// Add multiple borrowed values, also taking the container they're borrowing from
+    // TODO add a try_ variant?
+    pub fn add_borrowed_values<T, F>(&mut self, storage: T, f: F)
+    where
+        T: Send + Sync + 'static,
+        F: FnOnce(&T) -> Vec<FieldValue>,
+    {
+        let yoke =
+            Yoke::attach_to_cart(Arc::new(storage), |storage| f(storage).into()).erase_arc_cart();
+
+        self.field_values.push(FieldValueGroup::Group(yoke));
     }
 
     /// field_values accessor
