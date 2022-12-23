@@ -209,8 +209,11 @@ where
     }
 
     /// Inserts a `(key, value)` pair in the term dictionary.
+    /// Keys have to be inserted in order.
     ///
-    /// *Keys have to be inserted in order.*
+    /// # Panics
+    ///
+    /// Will panics if keys are inserted in an invalid order.
     #[inline]
     pub fn insert<K: AsRef<[u8]>>(
         &mut self,
@@ -295,6 +298,17 @@ where
         Ok(wrt.into_inner()?)
     }
 }
+
+impl<TValueWriter> Writer<Vec<u8>, TValueWriter>
+where TValueWriter: value::ValueWriter
+{
+    #[inline]
+    pub fn insert_cannot_fail<K: AsRef<[u8]>>(&mut self, key: K, value: &TValueWriter::Value) {
+        self.insert(key, value)
+            .expect("SSTable over a Vec should never fail");
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::io;
