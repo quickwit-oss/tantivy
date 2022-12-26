@@ -457,8 +457,8 @@ mod test {
     fn bound_strategy() -> impl Strategy<Value = Bound<String>> {
         prop_oneof![
             Just(Bound::<String>::Unbounded),
-            "[a-d]*".prop_map(|key| Bound::Included(key)),
-            "[a-d]*".prop_map(|key| Bound::Excluded(key)),
+            "[a-c]{0-5}".prop_map(|key| Bound::Included(key)),
+            "[a-c]{0-5}".prop_map(|key| Bound::Excluded(key)),
         ]
     }
 
@@ -476,14 +476,14 @@ mod test {
             |(left, right)| match (extract_key(left.as_ref()), extract_key(right.as_ref())) {
                 (None, _) => true,
                 (_, None) => true,
-                (left, right) => left <= right,
+                (left, right) => left < right,
             },
         )
     }
 
     proptest! {
         #[test]
-        fn test_prop_test_ranges(words in prop::collection::btree_set("[a-d]*", 1..100),
+        fn test_proptest_sstable_ranges(words in prop::collection::btree_set("[a-c]{0-6}", 1..100),
             (lower_bound, upper_bound) in bounds_strategy(),
         ) {
             // TODO tweak block size.
