@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use common::{BitSet, OwnedBytes};
+use common::{BitSet, GroupByIteratorExtended, OwnedBytes};
 
 use super::{serialize_dense_codec, DenseCodec};
 
@@ -78,12 +78,22 @@ struct DenseBlock {
 }
 
 impl DenseBlock {
+    #[inline]
     pub fn exists(&self, idx: u32) -> bool {
         self.codec.exists(idx)
     }
+    #[inline]
     pub fn translate_to_codec_idx(&self, idx: u32) -> Option<u32> {
         self.codec.translate_to_codec_idx(idx)
     }
+    #[inline]
+    pub fn translate_codec_idx_to_original_idx_iter<'a>(
+        &'a self,
+        iter: impl Iterator<Item = u32> + 'a,
+    ) -> impl Iterator<Item = u32> + 'a {
+        self.codec.translate_codec_idx_to_original_idx(iter)
+    }
+    #[inline]
     pub fn translate_codec_idx_to_original_idx(&self, idx: u32) -> u32 {
         self.codec
             .translate_codec_idx_to_original_idx(idx..=idx)
@@ -207,6 +217,7 @@ struct ValueAddr {
 }
 
 /// Splits a idx into block index and value in the block
+#[inline]
 fn value_addr(idx: u32) -> ValueAddr {
     /// Static assert number elements per block this method expects
     #[allow(clippy::assertions_on_constants)]
@@ -273,6 +284,7 @@ impl SparseCodec {
         }
     }
 
+    #[inline]
     fn find_block(&self, dense_idx: u32, mut block_pos: u32) -> u32 {
         loop {
             let offset = self.blocks[block_pos as usize].offset();
@@ -284,6 +296,7 @@ impl SparseCodec {
     }
 
     /// Translate positions from the codec index to the original index.
+    /// Correctness: Provided values must be in increasing values
     ///
     /// # Panics
     ///
@@ -292,35 +305,41 @@ impl SparseCodec {
         &'a self,
         iter: impl Iterator<Item = u32> + 'a,
     ) -> impl Iterator<Item = u32> + 'a {
-        // TODO: There's a big potential performance gain, by using iterators per block instead of
-        // random access for each element in a block
-        // group_by itertools won't help though, since it requires a temporary local variable
         let mut block_pos = 0u32;
-        iter.map(move |codec_idx| {
-            // update block_pos to limit search scope
-            block_pos = self.find_block(codec_idx, block_pos);
+        iter.group_by(move |codec_idx| {
+            block_pos = self.find_block(*codec_idx, block_pos);
+            block_pos
+        })
+        .flat_map(move |(block_pos, block_iter)| {
             let block_doc_idx_start = block_pos * ELEMENTS_PER_BLOCK;
             let block = &self.blocks[block_pos as usize];
-            let idx_in_block = codec_idx - block.offset();
+            let offset = block.offset();
+            let indexes_in_block_iter = block_iter.map(move |codec_idx| codec_idx - offset);
             match block {
                 SparseCodecBlockVariant::Empty { offset: _ } => {
                     panic!(
                         "invalid input, cannot translate to original index. associated empty \
-                         block with dense idx. block_pos {}, idx_in_block {}",
-                        block_pos, idx_in_block
+                         block with dense idx. block_pos {}, idx_in_block {:?}",
+                        block_pos,
+                        indexes_in_block_iter.collect::<Vec<_>>()
                     )
                 }
                 SparseCodecBlockVariant::Dense(dense) => {
-                    dense.translate_codec_idx_to_original_idx(idx_in_block) + block_doc_idx_start
+                    Box::new(dense.translate_codec_idx_to_original_idx_iter(indexes_in_block_iter))
+                        as Box<dyn Iterator<Item = u32>>
                 }
                 SparseCodecBlockVariant::Sparse(block) => {
-                    block.value_at_idx(&self.data, idx_in_block as u16) as u32 + block_doc_idx_start
+                    Box::new(indexes_in_block_iter.map(move |idx_in_block| {
+                        block.value_at_idx(&self.data, idx_in_block as u16) as u32
+                    }))
                 }
             }
+            .map(move |idx| idx + block_doc_idx_start)
         })
     }
 }
 
+#[inline]
 fn is_sparse(num_elem_in_block: u32) -> bool {
     num_elem_in_block < DENSE_BLOCK_THRESHOLD
 }
@@ -595,11 +614,16 @@ mod bench {
         codec
     }
 
-    fn random_range_iterator(start: u32, end: u32, step_size: u32) -> impl Iterator<Item = u32> {
+    fn random_range_iterator(
+        start: u32,
+        end: u32,
+        avg_step_size: u32,
+        avg_deviation: u32,
+    ) -> impl Iterator<Item = u32> {
         let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
         let mut current = start;
         std::iter::from_fn(move || {
-            current += rng.gen_range(1..step_size + 1);
+            current += rng.gen_range(avg_step_size - avg_deviation..=avg_step_size + avg_deviation);
             if current >= end {
                 None
             } else {
@@ -608,10 +632,17 @@ mod bench {
         })
     }
 
-    fn walk_over_data(codec: &SparseCodec, max_step_size: u32) -> Option<u32> {
+    fn n_percent_step_iterator(percent: f32, num_values: u32) -> impl Iterator<Item = u32> {
+        let ratio = percent as f32 / 100.0;
+        let step_size = (1f32 / ratio) as u32;
+        let deviation = step_size - 1;
+        random_range_iterator(0, num_values, step_size, deviation)
+    }
+
+    fn walk_over_data(codec: &SparseCodec, avg_step_size: u32) -> Option<u32> {
         walk_over_data_from_positions(
             codec,
-            random_range_iterator(0, TOTAL_NUM_VALUES, max_step_size),
+            random_range_iterator(0, TOTAL_NUM_VALUES, avg_step_size, 0),
         )
     }
 
@@ -627,83 +658,83 @@ mod bench {
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_1percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_orig_to_codec_1percent_filled_10percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.01f64);
         bench.iter(|| walk_over_data(&codec, 100));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_5percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_orig_to_codec_5percent_filled_10percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.05f64);
         bench.iter(|| walk_over_data(&codec, 100));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_full_scan_10percent(bench: &mut Bencher) {
+    fn bench_translate_orig_to_codec_5percent_filled_1percent_hit(bench: &mut Bencher) {
+        let codec = gen_bools(0.05f64);
+        bench.iter(|| walk_over_data(&codec, 1000));
+    }
+
+    #[bench]
+    fn bench_translate_orig_to_codec_full_scan_1percent_filled(bench: &mut Bencher) {
+        let codec = gen_bools(0.01f64);
+        bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
+    }
+
+    #[bench]
+    fn bench_translate_orig_to_codec_full_scan_10percent_filled(bench: &mut Bencher) {
         let codec = gen_bools(0.1f64);
         bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_full_scan_90percent(bench: &mut Bencher) {
+    fn bench_translate_orig_to_codec_full_scan_90percent_filled(bench: &mut Bencher) {
         let codec = gen_bools(0.9f64);
         bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_full_scan_1percent(bench: &mut Bencher) {
-        let codec = gen_bools(0.01f64);
-        bench.iter(|| walk_over_data_from_positions(&codec, 0..TOTAL_NUM_VALUES));
-    }
-
-    #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_10percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_orig_to_codec_10percent_filled_1percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.1f64);
         bench.iter(|| walk_over_data(&codec, 100));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_orig_to_codec_90percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_orig_to_codec_50percent_filled_1percent_hit(bench: &mut Bencher) {
+        let codec = gen_bools(0.5f64);
+        bench.iter(|| walk_over_data(&codec, 100));
+    }
+
+    #[bench]
+    fn bench_translate_orig_to_codec_90percent_filled_1percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.9f64);
         bench.iter(|| walk_over_data(&codec, 100));
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_1percent_filled_random_stride_big_step(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_codec_to_orig_1percent_filled_0comma005percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.01f64);
-        let num_vals = codec.num_non_nulls();
+        let num_non_nulls = codec.num_non_nulls();
         bench.iter(|| {
             codec
-                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 50_000))
+                .translate_codec_idx_to_original_idx(n_percent_step_iterator(0.005, num_non_nulls))
                 .last()
         });
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_1percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_codec_to_orig_1percent_filled_10percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.01f64);
-        let num_vals = codec.num_non_nulls();
+        let num_non_nulls = codec.num_non_nulls();
         bench.iter(|| {
             codec
-                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 100))
+                .translate_codec_idx_to_original_idx(n_percent_step_iterator(10.0, num_non_nulls))
                 .last()
         });
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_1percent_filled_full_scan(bench: &mut Bencher) {
+    fn bench_translate_codec_to_orig_1percent_filled_full_scan(bench: &mut Bencher) {
         let codec = gen_bools(0.01f64);
         let num_vals = codec.num_non_nulls();
         bench.iter(|| {
@@ -714,33 +745,18 @@ mod bench {
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_90percent_filled_random_stride_big_step(
-        bench: &mut Bencher,
-    ) {
+    fn bench_translate_codec_to_orig_90percent_filled_0comma005percent_hit(bench: &mut Bencher) {
         let codec = gen_bools(0.90f64);
-        let num_vals = codec.num_non_nulls();
+        let num_non_nulls = codec.num_non_nulls();
         bench.iter(|| {
             codec
-                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 50_000))
+                .translate_codec_idx_to_original_idx(n_percent_step_iterator(0.005, num_non_nulls))
                 .last()
         });
     }
 
     #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_90percent_filled_random_stride(
-        bench: &mut Bencher,
-    ) {
-        let codec = gen_bools(0.9f64);
-        let num_vals = codec.num_non_nulls();
-        bench.iter(|| {
-            codec
-                .translate_codec_idx_to_original_idx(random_range_iterator(0, num_vals, 100))
-                .last()
-        });
-    }
-
-    #[bench]
-    fn bench_sparse_codec_translate_codec_to_orig_90percent_filled_full_scan(bench: &mut Bencher) {
+    fn bench_translate_codec_to_orig_90percent_filled_full_scan(bench: &mut Bencher) {
         let codec = gen_bools(0.9f64);
         let num_vals = codec.num_non_nulls();
         bench.iter(|| {
