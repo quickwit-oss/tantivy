@@ -31,15 +31,16 @@ const BLOCK_BITVEC_SIZE: usize = 8;
 const BLOCK_OFFSET_SIZE: usize = 4;
 const SERIALIZED_BLOCK_SIZE: usize = BLOCK_BITVEC_SIZE + BLOCK_OFFSET_SIZE;
 
+/// Interpreting the bitvec as a list of 64 bits from the low weight to the
+/// high weight.
+///
+/// This function returns the number of bits set to 1 within
+/// `[0..pos_in_vec)`.
 #[inline]
 fn count_ones(bitvec: u64, pos_in_bitvec: u32) -> u32 {
-    if pos_in_bitvec == 63 {
-        bitvec.count_ones()
-    } else {
-        let mask = (1u64 << (pos_in_bitvec + 1)) - 1;
-        let masked_bitvec = bitvec & mask;
-        masked_bitvec.count_ones()
-    }
+    let mask = (1u64 << pos_in_bitvec) - 1;
+    let masked_bitvec = bitvec & mask;
+    masked_bitvec.count_ones()
 }
 
 #[derive(Clone, Copy)]
@@ -66,9 +67,7 @@ impl DenseCodec {
     pub fn exists(&self, idx: u32) -> bool {
         let block_pos = idx / ELEMENTS_PER_BLOCK;
         let bitvec = self.dense_index_block(block_pos).bitvec;
-
         let pos_in_bitvec = idx % ELEMENTS_PER_BLOCK;
-
         get_bit_at(bitvec, pos_in_bitvec)
     }
     #[inline]
@@ -90,8 +89,7 @@ impl DenseCodec {
         let pos_in_block_bit_vec = idx % ELEMENTS_PER_BLOCK;
         let ones_in_block = count_ones(index_block.bitvec, pos_in_block_bit_vec);
         if get_bit_at(index_block.bitvec, pos_in_block_bit_vec) {
-            // -1 is ok, since idx does exist, so there's at least one
-            Some(index_block.offset + ones_in_block - 1)
+            Some(index_block.offset + ones_in_block)
         } else {
             None
         }
@@ -319,9 +317,10 @@ mod tests {
         set_bit_at(&mut block, 0);
         set_bit_at(&mut block, 2);
 
-        assert_eq!(count_ones(block, 0), 1);
+        assert_eq!(count_ones(block, 0), 0);
         assert_eq!(count_ones(block, 1), 1);
-        assert_eq!(count_ones(block, 2), 2);
+        assert_eq!(count_ones(block, 2), 1);
+        assert_eq!(count_ones(block, 3), 2);
     }
 }
 
