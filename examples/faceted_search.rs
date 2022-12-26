@@ -9,7 +9,8 @@
 // - create an index in memory
 // - index few documents with respective facets in our index
 // - search and count the number of documents that the classifications start the facet "/Felidae"
-// - Search the facet "/Felidae/Pantherinae" and count the number of documents that the classifications include the facet.
+// - Search the facet "/Felidae/Pantherinae" and count the number of documents that the
+//   classifications include the facet.
 //
 // ---
 // Importing tantivy...
