@@ -253,8 +253,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::{FileHandle, FileSlice};
-    use crate::file_slice::combine_ranges;
-    use crate::HasLen;
+    use crate::{file_slice::combine_ranges, HasLen};
 
     #[test]
     fn test_file_slice() -> io::Result<()> {

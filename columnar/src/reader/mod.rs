@@ -1,3 +1,5 @@
+mod column_handle;
+
 use std::ops::Range;
 use std::{io, mem};
 
@@ -6,6 +8,7 @@ use common::BinarySerializable;
 use sstable::{Dictionary, RangeSSTable};
 
 use crate::column_type_header::ColumnTypeAndCardinality;
+pub use crate::reader::column_handle::ColumnHandle;
 
 fn io_invalid_data(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
@@ -72,7 +75,7 @@ impl ColumnarReader {
     pub fn read_columns(
         &self,
         column_name: &str,
-    ) -> io::Result<Vec<(ColumnTypeAndCardinality, Range<u64>)>> {
+    ) -> io::Result<Vec<ColumnHandle>> {
         // Each column is a associated to a given `column_key`,
         // that starts by `column_name\0column_header`.
         //
@@ -91,15 +94,17 @@ impl ColumnarReader {
             .ge(start_key.as_bytes())
             .lt(end_key.as_bytes())
             .into_stream()?;
-        let mut results = Vec::new();
+        let mut results: Vec<ColumnHandle> = Vec::new();
         while stream.advance() {
             let key_bytes: &[u8] = stream.key();
             assert!(key_bytes.starts_with(start_key.as_bytes()));
             let column_code: u8 = key_bytes.last().cloned().unwrap();
             let column_type_and_cardinality = ColumnTypeAndCardinality::try_from_code(column_code)
                 .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
-            let range = stream.value().clone();
-            results.push((column_type_and_cardinality, range));
+            let Range { start, end } = stream.value().clone();
+            let column_data = self.column_data.slice(start as usize..end as usize);
+            let column_handle = ColumnHandle::new(column_name.to_string(), column_data, column_type_and_cardinality.typ, column_type_and_cardinality.cardinality);
+            results.push(column_handle);
         }
         Ok(results)
     }

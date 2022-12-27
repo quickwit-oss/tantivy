@@ -42,8 +42,7 @@ pub trait Column<T: PartialOrd = u64>: Send + Sync {
         positions: &mut Vec<u32>,
     ) {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
-
-        for idx in doc_id_range.start..doc_id_range.end {
+        for idx in doc_id_range {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
                 positions.push(idx);

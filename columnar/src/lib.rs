@@ -9,6 +9,7 @@ pub use column_type_header::Cardinality;
 pub use reader::ColumnarReader;
 pub use value::{NumericalType, NumericalValue};
 pub use writer::ColumnarWriter;
+pub use reader::ColumnHandle;
 
 pub type DocId = u32;
 
@@ -17,12 +18,9 @@ pub struct InvalidData;
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
-
     use common::file_slice::FileSlice;
-
-    use crate::column_type_header::{ColumnType, ColumnTypeAndCardinality};
-    use crate::reader::ColumnarReader;
+    use crate::column_type_header::ColumnType;
+    use crate::reader::{ColumnarReader, ColumnHandle};
     use crate::value::NumericalValue;
     use crate::{Cardinality, ColumnarWriter};
 
@@ -36,10 +34,10 @@ mod tests {
         let columnar_fileslice = FileSlice::from(buffer);
         let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
         assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
+        let cols: Vec<ColumnHandle> =
             columnar.read_columns("my_string").unwrap();
         assert_eq!(cols.len(), 1);
-        assert_eq!(cols[0].1, 0..158);
+        assert_eq!(cols[0].num_bytes(), 158);
     }
 
     #[test]
@@ -51,17 +49,21 @@ mod tests {
         let columnar_fileslice = FileSlice::from(buffer);
         let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
         assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
+        let cols: Vec<ColumnHandle> =
             columnar.read_columns("bool.value").unwrap();
         assert_eq!(cols.len(), 1);
+        let col = cols.into_iter().next().unwrap();
         assert_eq!(
-            cols[0].0,
-            ColumnTypeAndCardinality {
-                cardinality: Cardinality::Optional,
-                typ: ColumnType::Bool
-            }
+            col.column_type(),
+            ColumnType::Bool
         );
-        assert_eq!(cols[0].1, 0..21);
+        assert_eq!(
+            col.cardinality(),
+            Cardinality::Optional);
+        assert_eq!(
+            col.column_name(),
+            "bool.value"
+        );
     }
 
     #[test]
@@ -75,7 +77,7 @@ mod tests {
         let columnar_fileslice = FileSlice::from(buffer);
         let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
         assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
+        let cols: Vec<ColumnHandle> =
             columnar.read_columns("srical.value").unwrap();
         assert_eq!(cols.len(), 1);
         // Right now this 31 bytes are spent as follows
@@ -84,6 +86,6 @@ mod tests {
         // - vals  8 //< due to padding? could have been 1byte?.
         // - null footer 6 bytes
         // - version footer 3 bytes // Should be file-wide
-        assert_eq!(cols[0].1, 0..31);
+        assert_eq!(cols[0].num_bytes(), 31);
     }
 }
