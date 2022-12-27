@@ -3,11 +3,11 @@ use std::io;
 use fnv::FnvHashMap;
 use sstable::SSTable;
 
-pub(crate) struct IdMapping {
+pub(crate) struct TermIdMapping {
     unordered_to_ord: Vec<OrderedId>,
 }
 
-impl IdMapping {
+impl TermIdMapping {
     pub fn to_ord(&self, unordered: UnorderedId) -> OrderedId {
         self.unordered_to_ord[unordered.0 as usize]
     }
@@ -48,7 +48,7 @@ impl DictionaryBuilder {
 
     /// Serialize the dictionary into an fst, and returns the
     /// `UnorderedId -> TermOrdinal` map.
-    pub fn serialize<'a, W: io::Write + 'a>(&self, wrt: &mut W) -> io::Result<IdMapping> {
+    pub fn serialize<'a, W: io::Write + 'a>(&self, wrt: &mut W) -> io::Result<TermIdMapping> {
         let mut terms: Vec<(&[u8], UnorderedId)> =
             self.dict.iter().map(|(k, v)| (k.as_slice(), *v)).collect();
         terms.sort_unstable_by_key(|(key, _)| *key);
@@ -61,7 +61,7 @@ impl DictionaryBuilder {
             unordered_to_ord[unordered_id.0 as usize] = ordered_id;
         }
         sstable_builder.finish()?;
-        Ok(IdMapping { unordered_to_ord })
+        Ok(TermIdMapping { unordered_to_ord })
     }
 }
 

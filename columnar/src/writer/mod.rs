@@ -11,16 +11,12 @@ use fastfield_codecs::{Column, MonotonicallyMappableToU64, VecColumn};
 use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
-use crate::column_type_header::{ColumnType, ColumnTypeAndCardinality, GeneralType};
-use crate::dictionary::{DictionaryBuilder, IdMapping, UnorderedId};
+use crate::column_type_header::{ColumnType, ColumnTypeAndCardinality, ColumnTypeCategory};
+use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
 use crate::writer::column_writers::{ColumnWriter, NumericalColumnWriter, StrColumnWriter};
 use crate::writer::value_index::{IndexBuilder, SpareIndexBuilders};
 use crate::{Cardinality, DocId};
-
-/// Threshold above which a column data will be compressed
-/// using ZSTD.
-const COLUMN_COMPRESSION_THRESHOLD: usize = 100_000;
 
 /// This is a set of buffers that are only here
 /// to limit the amount of allocation.
@@ -34,6 +30,20 @@ struct SpareBuffers {
     column_buffer: Vec<u8>,
 }
 
+/// Makes it possible to create a new columnar.
+///
+/// ```rust
+/// use tantivy_columnar::ColumnarWriter;
+/// fn main() {
+///     let mut columnar_writer = ColumnarWriter::default();
+///     columnar_writer.record_str(0u32 /* doc id */, "product_name", "Red backpack");
+///     columnar_writer.record_numerical(0u32 /* doc id */, "price", 10u64);
+///     columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
+///     columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
+///     let mut wrt: Vec<u8> =  Vec::new();
+///     columnar_writer.serialize(2u32, &mut wrt).unwrap();
+/// }
+/// ```
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,
     bool_field_hash_map: ArenaHashMap,
@@ -58,11 +68,11 @@ impl Default for ColumnarWriter {
 }
 
 impl ColumnarWriter {
-    pub fn record_numerical(
+    pub fn record_numerical<T: Into<NumericalValue> + Copy>(
         &mut self,
         doc: DocId,
         column_name: &str,
-        numerical_value: NumericalValue,
+        numerical_value: T,
     ) {
         assert!(
             !column_name.as_bytes().contains(&0u8),
@@ -73,7 +83,7 @@ impl ColumnarWriter {
             column_name.as_bytes(),
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
-                column.record_numerical_value(doc, numerical_value, arena);
+                column.record_numerical_value(doc, numerical_value.into(), arena);
                 column
             },
         );
@@ -95,7 +105,7 @@ impl ColumnarWriter {
         );
     }
 
-    pub fn record_str(&mut self, doc: DocId, column_name: &str, value: &[u8]) {
+    pub fn record_str(&mut self, doc: DocId, column_name: &str, value: &str) {
         assert!(
             !column_name.as_bytes().contains(&0u8),
             "key may not contain the 0 byte"
@@ -113,7 +123,7 @@ impl ColumnarWriter {
                     dictionaries.push(DictionaryBuilder::default());
                     StrColumnWriter::with_dictionary_id(dictionary_id)
                 });
-                column.record_bytes(doc, value, dictionaries, arena);
+                column.record_bytes(doc, value.as_bytes(), dictionaries, arena);
                 column
             },
         );
@@ -121,27 +131,27 @@ impl ColumnarWriter {
 
     pub fn serialize(&mut self, num_docs: DocId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
-        let mut field_columns: Vec<(&[u8], GeneralType, Addr)> = self
+        let mut field_columns: Vec<(&[u8], ColumnTypeCategory, Addr)> = self
             .numerical_field_hash_map
             .iter()
-            .map(|(term, addr, _)| (term, GeneralType::Numerical, addr))
+            .map(|(term, addr, _)| (term, ColumnTypeCategory::Numerical, addr))
             .collect();
         field_columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, GeneralType::Str, addr)),
+                .map(|(term, addr, _)| (term, ColumnTypeCategory::Str, addr)),
         );
         field_columns.extend(
             self.bool_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, GeneralType::Bool, addr)),
+                .map(|(term, addr, _)| (term, ColumnTypeCategory::Bool, addr)),
         );
         field_columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
         for (column_name, bytes_or_numerical, addr) in field_columns {
             match bytes_or_numerical {
-                GeneralType::Bool => {
+                ColumnTypeCategory::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
                     let column_type_and_cardinality = ColumnTypeAndCardinality {
@@ -158,7 +168,7 @@ impl ColumnarWriter {
                         column_serializer,
                     )?;
                 }
-                GeneralType::Str => {
+                ColumnTypeCategory::Str => {
                     let str_column_writer: StrColumnWriter = self.bytes_field_hash_map.read(addr);
                     let dictionary_builder =
                         &dictionaries[str_column_writer.dictionary_id as usize];
@@ -178,7 +188,7 @@ impl ColumnarWriter {
                         column_serializer,
                     )?;
                 }
-                GeneralType::Numerical => {
+                ColumnTypeCategory::Numerical => {
                     let numerical_column_writer: NumericalColumnWriter =
                         self.numerical_field_hash_map.read(addr);
                     let (numerical_type, cardinality) =
@@ -206,15 +216,7 @@ impl ColumnarWriter {
 }
 
 fn compress_and_write_column<W: io::Write>(column_bytes: &[u8], wrt: &mut W) -> io::Result<()> {
-    if column_bytes.len() >= COLUMN_COMPRESSION_THRESHOLD {
-        wrt.write_all(&[1])?;
-        let mut encoder = zstd::Encoder::new(wrt, 3)?;
-        encoder.write_all(column_bytes)?;
-        encoder.finish()?;
-    } else {
-        wrt.write_all(&[0])?;
-        wrt.write_all(column_bytes)?;
-    }
+    wrt.write_all(column_bytes)?;
     Ok(())
 }
 
@@ -233,13 +235,13 @@ fn serialize_bytes_column<W: io::Write>(
         ..
     } = buffers;
     column_buffer.clear();
-    let id_mapping: IdMapping = dictionary_builder.serialize(column_buffer)?;
+    let term_id_mapping: TermIdMapping = dictionary_builder.serialize(column_buffer)?;
     let dictionary_num_bytes: u32 = column_buffer.len() as u32;
     let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {
         // We map unordered ids to ordered ids.
         match symbol {
             ColumnOperation::Value(unordered_id) => {
-                let ordered_id = id_mapping.to_ord(unordered_id);
+                let ordered_id = term_id_mapping.to_ord(unordered_id);
                 ColumnOperation::Value(ordered_id.0 as u64)
             }
             ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),

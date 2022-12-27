@@ -10,7 +10,6 @@ serde_json = "1"
 thiserror = "1"
 fnv = "1"
 sstable = { path = "../sstable", package = "tantivy-sstable" }
-zstd = "0.12"
 common = { path = "../common", package = "tantivy-common" }
 fastfield_codecs = { path = "../fastfield_codecs"}
 itertools = "0.10"

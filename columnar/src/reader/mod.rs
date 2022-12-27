@@ -9,7 +9,7 @@ use crate::column_type_header::ColumnTypeAndCardinality;
 
 fn io_invalid_data(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
-                                                    // {key_bytes:?}")));
+    // {key_bytes:?}")));
 }
 
 /// The ColumnarReader makes it possible to access a set of columns
@@ -50,7 +50,7 @@ impl ColumnarReader {
             let key_bytes: &[u8] = stream.key();
             let column_code: u8 = key_bytes.last().cloned().unwrap();
             let column_type_and_cardinality = ColumnTypeAndCardinality::try_from_code(column_code)
-                .ok_or_else(|| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
+                .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
             let range = stream.value().clone();
             let column_name = String::from_utf8_lossy(&key_bytes[..key_bytes.len() - 1]);
             let range_len = range.end - range.start;
@@ -64,15 +64,26 @@ impl ColumnarReader {
         Ok(results)
     }
 
-    /// Get all columns for the given field_name.
+    /// Get all columns for the given column name.
+    ///
+    /// There can be more than one column associated to a given column name, provided they have
+    /// different types.
     // TODO fix ugly API
     pub fn read_columns(
         &self,
-        field_name: &str,
+        column_name: &str,
     ) -> io::Result<Vec<(ColumnTypeAndCardinality, Range<u64>)>> {
-        let mut start_key = field_name.to_string();
+        // Each column is a associated to a given `column_key`,
+        // that starts by `column_name\0column_header`.
+        //
+        // Listing the columns associate to the given column name is therefore equivalent to listing
+        // `column_key` with the prefix `column_name\0`.
+        //
+        // This is in turn equivalent to searching for the range
+        // `[column_name,\0`..column_name\1)`.
+        let mut start_key = column_name.to_string();
         start_key.push('\0');
-        let mut end_key = field_name.to_string();
+        let mut end_key = column_name.to_string();
         end_key.push(1u8 as char);
         let mut stream = self
             .column_dictionary
@@ -83,12 +94,10 @@ impl ColumnarReader {
         let mut results = Vec::new();
         while stream.advance() {
             let key_bytes: &[u8] = stream.key();
-            if !key_bytes.starts_with(start_key.as_bytes()) {
-                return Err(io_invalid_data(format!("Invalid key found. key: {key_bytes:?} field_name:{field_name:?}")));
-            }
+            assert!(key_bytes.starts_with(start_key.as_bytes()));
             let column_code: u8 = key_bytes.last().cloned().unwrap();
             let column_type_and_cardinality = ColumnTypeAndCardinality::try_from_code(column_code)
-                .ok_or_else(|| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
+                .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
             let range = stream.value().clone();
             results.push((column_type_and_cardinality, range));
         }

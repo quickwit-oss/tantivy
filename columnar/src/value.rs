@@ -1,3 +1,5 @@
+use crate::InvalidData;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum NumericalValue {
     I64(i64),
@@ -49,12 +51,12 @@ impl NumericalType {
         self as u8
     }
 
-    pub fn try_from_code(code: u8) -> Option<NumericalType> {
+    pub fn try_from_code(code: u8) -> Result<NumericalType, InvalidData> {
         match code {
-            0 => Some(NumericalType::I64),
-            1 => Some(NumericalType::U64),
-            2 => Some(NumericalType::F64),
-            _ => None,
+            0 => Ok(NumericalType::I64),
+            1 => Ok(NumericalType::U64),
+            2 => Ok(NumericalType::F64),
+            _ => Err(InvalidData),
         }
     }
 }
@@ -112,7 +114,7 @@ mod tests {
     fn test_numerical_type_code() {
         let mut num_numerical_type = 0;
         for code in u8::MIN..=u8::MAX {
-            if let Some(numerical_type) = NumericalType::try_from_code(code) {
+            if let Ok(numerical_type) = NumericalType::try_from_code(code) {
                 assert_eq!(numerical_type.to_code(), code);
                 num_numerical_type += 1;
             }

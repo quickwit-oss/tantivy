@@ -12,6 +12,9 @@ pub use writer::ColumnarWriter;
 
 pub type DocId = u32;
 
+#[derive(Copy, Clone, Debug)]
+pub struct InvalidData;
+
 #[cfg(test)]
 mod tests {
     use std::ops::Range;
@@ -26,8 +29,8 @@ mod tests {
     #[test]
     fn test_dataframe_writer_bytes() {
         let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_str(1u32, "my_string", b"hello");
-        dataframe_writer.record_str(3u32, "my_string", b"helloeee");
+        dataframe_writer.record_str(1u32, "my_string", "hello");
+        dataframe_writer.record_str(3u32, "my_string", "helloeee");
         let mut buffer: Vec<u8> = Vec::new();
         dataframe_writer.serialize(5, &mut buffer).unwrap();
         let columnar_fileslice = FileSlice::from(buffer);
@@ -36,7 +39,7 @@ mod tests {
         let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
             columnar.read_columns("my_string").unwrap();
         assert_eq!(cols.len(), 1);
-        assert_eq!(cols[0].1, 0..159);
+        assert_eq!(cols[0].1, 0..158);
     }
 
     #[test]
@@ -58,7 +61,7 @@ mod tests {
                 typ: ColumnType::Bool
             }
         );
-        assert_eq!(cols[0].1, 0..22);
+        assert_eq!(cols[0].1, 0..21);
     }
 
     #[test]
@@ -81,6 +84,6 @@ mod tests {
         // - vals  8 //< due to padding? could have been 1byte?.
         // - null footer 6 bytes
         // - version footer 3 bytes // Should be file-wide
-        assert_eq!(cols[0].1, 0..32);
+        assert_eq!(cols[0].1, 0..31);
     }
 }

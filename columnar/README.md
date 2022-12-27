@@ -16,42 +16,36 @@ and different cardinality `(required, optional, multivalued)`.
 
 # Coercion rules
 
-Users can create a columnar by appending rows to a writer.
-Nothing prevents a user from recording values with different to a same `column_key`.
+Users can create a columnar by inserting rows to a `ColumnarWriter`,
+and serializing it into a `Write` object.
+Nothing prevents a user from recording values with different type to the same `column_name`.
 
 In that case, `tantivy-columnar`'s behavior is as follows:
-- Values that corresponds to different JsonValue type are mapped to different columns. For instance, String values are treated independently from Number or boolean values. `tantivy-columnar` will simply emit several columns associated to a given column_name.
-- Only one column for a given json value type is emitted.  If number values with different number types are recorded (e.g. u64, i64, f64), `tantivy-columnar` will pick the first type that can represents the set of appended value, with the following prioriy order (`i64`, `u64`, `f64`). `i64` is picked over `u64` as it is likely to  yield less change of types. Most use cases strictly requiring `u64` show the restriction on 50% of the values (e.g. a 64-bit hash). On the other hand, a lot of use cases can show rare negative value.
+- JsonValues are grouped into 3 types (String, Number, bool).
+Values that corresponds to different groups are mapped to different columns. For instance, String values are treated independently
+from Number or boolean values. `tantivy-columnar` will simply emit several columns associated to a given column_name.
+- Only one column for a given json value type is emitted.  If number values with different number types are recorded (e.g. u64, i64, f64),
+`tantivy-columnar` will pick the first type that can represents the set of appended value, with the following prioriy order (`i64`, `u64`, `f64`).
+`i64` is picked over `u64` as it is likely to  yield less change of types. Most use cases strictly requiring `u64` show the
+restriction on 50% of the values (e.g. a 64-bit hash). On the other hand, a lot of use cases can show rare negative value.
 
 # Columnar format
 
-Because this columnar format tries to avoid some coercion.
-There can be several columns (with different type) associated to a single `column_name`.
-
-Each column is associated to `column_key`.
-The format of that key is:
+This columnar format may have more than one column (with different types) associated to the same `column_name` (see [Coercion rules](#coercion-rules) above).
+The `(column_name, columne_type)` couple however uniquely identifies a column.
+That couple is serialized as a column `column_key`.  The format of that key is:
 `[column_name][ZERO_BYTE][column_type_header: u8]`
 
 ```
 COLUMNAR:=
     [COLUMNAR_DATA]
-    [COLUMNAR_INDEX]
+    [COLUMNAR_KEY_TO_DATA_INDEX]
     [COLUMNAR_FOOTER];
 
 
 # Columns are sorted by their column key.
 COLUMNAR_DATA:=
-    [COLUMN]+;
-
-COLUMN:=
-    COMPRESSED_COLUMN | NON_COMPRESSED_COLUMN;
-
-# COLUMN_DATA is compressed when it exceeds a threshold of 100KB.
-
-COMPRESSED_COLUMN := [b'1'][zstd(COLUMN_DATA)]
-NON_COMPRESSED_COLUMN:= [b'0'][COLUMN_DATA]
-
-COLUMNAR_INDEX := [RANGE_SSTABLE_BYTES]
+    [COLUMN_DATA]+;
 
 COLUMNAR_FOOTER := [RANGE_SSTABLE_BYTES_LEN: 8 bytes little endian]
 
@@ -63,7 +57,7 @@ sorted by column key.
 A sstable associates
 `(column names, column_cardinality, column_type) to range of bytes.
 
-Column name may not contain the zero byte.
+Column name may not contain the zero byte `\0`.
 
 Listing all columns associated to `column_name` can therefore
 be done by listing all keys prefixed by
