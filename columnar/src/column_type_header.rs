@@ -10,6 +10,7 @@ use crate::InvalidData;
 #[repr(u8)]
 pub enum Cardinality {
     /// All documents contain exactly one value.
+    /// Required is the default for auto-detecting the Cardinality, since it is the most strict. 
     #[default]
     Required = 0,
     /// All documents contain at most one value.
