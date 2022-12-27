@@ -60,7 +60,7 @@ COLUMNAR_FOOTER := [RANGE_SSTABLE_BYTES_LEN: 8 bytes little endian]
 The columnar file starts by the actual column data, concatenated one after the other,
 sorted by column key.
 
-A quickwit/tantivy style sstable associates
+A sstable associates
 `(column names, column_cardinality, column_type) to range of bytes.
 
 Column name may not contain the zero byte.

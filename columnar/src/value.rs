@@ -62,6 +62,7 @@ impl NumericalType {
 /// We voluntarily avoid using `Into` here to keep this
 /// implementation quirk as private as possible.
 ///
+/// # Panics
 /// This coercion trait actually panics if it is used
 /// to convert a loose types to a stricter type.
 ///

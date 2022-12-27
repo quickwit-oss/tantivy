@@ -8,7 +8,7 @@ use sstable::{Dictionary, RangeSSTable};
 use crate::column_type_header::ColumnTypeAndCardinality;
 
 fn io_invalid_data(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, msg) // format!("Invalid key found.
+    io::Error::new(io::ErrorKind::InvalidData, msg)
                                                     // {key_bytes:?}")));
 }
 
@@ -84,7 +84,7 @@ impl ColumnarReader {
         while stream.advance() {
             let key_bytes: &[u8] = stream.key();
             if !key_bytes.starts_with(start_key.as_bytes()) {
-                return Err(io_invalid_data(format!("Invalid key found. {key_bytes:?}")));
+                return Err(io_invalid_data(format!("Invalid key found. key: {key_bytes:?} field_name:{field_name:?}")));
             }
             let column_code: u8 = key_bytes.last().cloned().unwrap();
             let column_type_and_cardinality = ColumnTypeAndCardinality::try_from_code(column_code)
