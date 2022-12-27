@@ -138,7 +138,7 @@ pub struct ColumnTypeAndCardinality {
 
 impl ColumnTypeAndCardinality {
     pub fn to_code(self) -> u8 {
-        place_bits::<6, 8>(self.cardinality.to_code()) | place_bits::<0, 6>(self.typ.to_code())
+        place_bits::<0, 6>(self.typ.to_code()) | place_bits::<6, 8>(self.cardinality.to_code())
     }
 
     pub fn try_from_code(code: u8) -> Result<ColumnTypeAndCardinality, InvalidData> {
