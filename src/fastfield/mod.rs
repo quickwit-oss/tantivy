@@ -12,12 +12,14 @@
 //!
 //!
 //! Fields have to be declared as `FAST` in the schema.
-//! Currently supported fields are: u64, i64, f64, bytes and text.
+//! Currently supported fields are: u64, i64, f64, bytes, ip and text.
 //!
 //! Fast fields are stored in with [different codecs](fastfield_codecs). The best codec is detected
 //! automatically, when serializing.
 //!
 //! Read access performance is comparable to that of an array lookup.
+
+use std::net::Ipv6Addr;
 
 use fastfield_codecs::MonotonicallyMappableToU64;
 
@@ -28,7 +30,7 @@ pub use self::facet_reader::FacetReader;
 pub(crate) use self::multivalued::{get_fastfield_codecs_for_multivalue, MultivalueStartIndex};
 pub use self::multivalued::{
     MultiValueIndex, MultiValueU128FastFieldWriter, MultiValuedFastFieldReader,
-    MultiValuedFastFieldWriter, MultiValuedU128FastFieldReader,
+    MultiValuedFastFieldWriter,
 };
 pub(crate) use self::readers::type_and_cardinality;
 pub use self::readers::FastFieldReaders;
@@ -47,6 +49,33 @@ mod readers;
 mod serializer;
 mod writer;
 
+/// Trait for types that provide a zero value.
+///
+/// The resulting value is never used, just as placeholder, e.g. for `vec.resize()`.
+pub trait MakeZero {
+    /// Build a default value. This default value is never used, so the value does not
+    /// really matter.
+    fn make_zero() -> Self;
+}
+
+impl<T: FastValue> MakeZero for T {
+    fn make_zero() -> Self {
+        T::from_u64(0)
+    }
+}
+
+impl MakeZero for u128 {
+    fn make_zero() -> Self {
+        0
+    }
+}
+
+impl MakeZero for Ipv6Addr {
+    fn make_zero() -> Self {
+        Ipv6Addr::from(0u128.to_be_bytes())
+    }
+}
+
 /// Trait for types that are allowed for fast fields:
 /// (u64, i64 and f64, bool, DateTime).
 pub trait FastValue:
@@ -54,12 +83,6 @@ pub trait FastValue:
 {
     /// Returns the `schema::Type` for this FastValue.
     fn to_type() -> Type;
-
-    /// Build a default value. This default value is never used, so the value does not
-    /// really matter.
-    fn make_zero() -> Self {
-        Self::from_u64(0u64)
-    }
 }
 
 impl FastValue for u64 {
@@ -100,12 +123,6 @@ impl MonotonicallyMappableToU64 for DateTime {
 impl FastValue for DateTime {
     fn to_type() -> Type {
         Type::Date
-    }
-
-    fn make_zero() -> Self {
-        DateTime {
-            timestamp_micros: 0,
-        }
     }
 }
 
@@ -518,11 +535,6 @@ mod tests {
         reader.reload()?;
         assert_eq!(reader.searcher().segment_readers().len(), 1);
         Ok(())
-    }
-
-    #[test]
-    fn test_default_date() {
-        assert_eq!(0, DateTime::make_zero().into_timestamp_secs());
     }
 
     fn get_vals_for_docs(ff: &MultiValuedFastFieldReader<u64>, docs: Range<u32>) -> Vec<u64> {

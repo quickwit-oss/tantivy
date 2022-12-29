@@ -6,7 +6,7 @@ use common::BitSet;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
-use crate::query::range_query_ip_fastfield::IPFastFieldRangeWeight;
+use crate::query::range_query::range_query_ip_fastfield::IPFastFieldRangeWeight;
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
