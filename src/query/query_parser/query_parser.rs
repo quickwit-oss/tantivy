@@ -12,8 +12,8 @@ use crate::indexer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
-    TermQuery, TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
+    RangeQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -178,6 +178,9 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// (See [`set_field_boost(...)`](QueryParser::set_field_boost)). Typically you may want to boost a
 /// title field.
 ///
+/// Additionally, specific fields can be marked to use fuzzy term queries for each literal
+/// via the [`QueryParser::set_field_fuzzy`] method.
+///
 /// Phrase terms support the `~` slop operator which allows to set the phrase's matching
 /// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
 #[derive(Clone)]
@@ -187,6 +190,7 @@ pub struct QueryParser {
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
     boost: HashMap<Field, Score>,
+    fuzzy: HashMap<Field, (bool, u8, bool)>,
 }
 
 fn all_negative(ast: &LogicalAst) -> bool {
@@ -214,6 +218,7 @@ impl QueryParser {
             tokenizer_manager,
             conjunction_by_default: false,
             boost: Default::default(),
+            fuzzy: Default::default(),
         }
     }
 
@@ -251,6 +256,24 @@ impl QueryParser {
         self.boost.insert(field, boost);
     }
 
+    /// Sets the given [field][`Field`] to use [fuzzy term queries][`FuzzyTermQuery`]
+    ///
+    /// If set, the parse will produce queries using fuzzy term queries
+    /// with the given parameters for each literal matched against the given field.
+    ///
+    /// See the [`FuzzyTermQuery::new`] and [`FuzzyTermQuery::new_prefix`] methods
+    /// for the meaning of the individual parameters.
+    pub fn set_field_fuzzy(
+        &mut self,
+        field: Field,
+        prefix: bool,
+        distance: u8,
+        transpose_cost_one: bool,
+    ) {
+        self.fuzzy
+            .insert(field, (prefix, distance, transpose_cost_one));
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
@@ -263,7 +286,7 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(logical_ast))
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
     /// Parse the user query into an AST.
@@ -664,9 +687,26 @@ impl QueryParser {
     }
 }
 
-fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
+fn convert_literal_to_query(
+    fuzzy: &HashMap<Field, (bool, u8, bool)>,
+    logical_literal: LogicalLiteral,
+) -> Box<dyn Query> {
     match logical_literal {
-        LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
+        LogicalLiteral::Term(term) => {
+            if let Some(&(prefix, distance, transpose_cost_one)) = fuzzy.get(&term.field()) {
+                if prefix {
+                    Box::new(FuzzyTermQuery::new_prefix(
+                        term,
+                        distance,
+                        transpose_cost_one,
+                    ))
+                } else {
+                    Box::new(FuzzyTermQuery::new(term, distance, transpose_cost_one))
+                }
+            } else {
+                Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
+            }
+        }
         LogicalLiteral::Phrase(term_with_offsets, slop) => Box::new(
             PhraseQuery::new_with_offset_and_slop(term_with_offsets, slop),
         ),
@@ -759,12 +799,15 @@ fn generate_literals_for_json_object(
     Ok(logical_literals)
 }
 
-fn convert_to_query(logical_ast: LogicalAst) -> Box<dyn Query> {
+fn convert_to_query(
+    fuzzy: &HashMap<Field, (bool, u8, bool)>,
+    logical_ast: LogicalAst,
+) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery)))
                 .collect::<Vec<_>>();
             assert!(
                 !occur_subqueries.is_empty(),
@@ -773,10 +816,10 @@ fn convert_to_query(logical_ast: LogicalAst) -> Box<dyn Query> {
             Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
-            convert_literal_to_query(*trimmed_logical_literal)
+            convert_literal_to_query(fuzzy, *trimmed_logical_literal)
         }
         Some(LogicalAst::Boost(ast, boost)) => {
-            let query = convert_to_query(*ast);
+            let query = convert_to_query(fuzzy, *ast);
             let boosted_query = BoostQuery::new(query, boost);
             Box::new(boosted_query)
         }
@@ -1571,5 +1614,42 @@ mod test {
             r#"IN [Term(type=F64, field=10, 1.1), Term(type=F64, field=10, 2.2), Term(type=F64, field=10, -3.3)]"#,
             false,
         );
+    }
+
+    #[test]
+    pub fn test_set_field_fuzzy() {
+        {
+            let mut query_parser = make_query_parser();
+            query_parser.set_field_fuzzy(
+                query_parser.schema.get_field("title").unwrap(),
+                false,
+                1,
+                true,
+            );
+            let query = query_parser.parse_query("abc").unwrap();
+            assert_eq!(
+                format!("{:?}", query),
+                "BooleanQuery { subqueries: [(Should, FuzzyTermQuery { term: Term(type=Str, \
+                 field=0, \"abc\"), distance: 1, transposition_cost_one: true, prefix: false }), \
+                 (Should, TermQuery(Term(type=Str, field=1, \"abc\")))] }"
+            );
+        }
+
+        {
+            let mut query_parser = make_query_parser();
+            query_parser.set_field_fuzzy(
+                query_parser.schema.get_field("text").unwrap(),
+                true,
+                2,
+                false,
+            );
+            let query = query_parser.parse_query("abc").unwrap();
+            assert_eq!(
+                format!("{:?}", query),
+                "BooleanQuery { subqueries: [(Should, TermQuery(Term(type=Str, field=0, \
+                 \"abc\"))), (Should, FuzzyTermQuery { term: Term(type=Str, field=1, \"abc\"), \
+                 distance: 2, transposition_cost_one: false, prefix: true })] }"
+            );
+        }
     }
 }
