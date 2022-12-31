@@ -232,7 +232,7 @@ impl Directory for RamDirectory {
         let path_buf = PathBuf::from(path);
         self.fs.write().unwrap().write(path_buf, data);
         if path == *META_FILEPATH {
-            let _ = self.fs.write().unwrap().watch_router.broadcast();
+            drop(self.fs.write().unwrap().watch_router.broadcast());
         }
         Ok(())
     }
