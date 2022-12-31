@@ -160,6 +160,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
 ///   Inclusive bounds are `[]`, exclusive are `{}`.
 ///
+/// * set terms: Using the `IN` operator, a field can be matched against a set of literals, e.g.
+///   `title: IN [a b cd]` will match documents where `title` is either `a`, `b` or `cd`, but do so
+///   more efficiently than the alternative query `title:a OR title:b OR title:c` does.
+///
 /// * date values: The query parser supports rfc3339 formatted dates. For example
 ///   `"2002-10-02T15:00:00.05Z"` or `some_date_field:[2002-10-02T15:00:00Z TO
 ///   2002-10-02T18:00:00Z}`
