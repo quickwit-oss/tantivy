@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
 
+use rustc_hash::FxHashMap;
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 
 use super::logical_ast::*;
@@ -189,8 +189,8 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
-    boost: HashMap<Field, Score>,
-    fuzzy: HashMap<Field, (bool, u8, bool)>,
+    boost: FxHashMap<Field, Score>,
+    fuzzy: FxHashMap<Field, (bool, u8, bool)>,
 }
 
 fn all_negative(ast: &LogicalAst) -> bool {
@@ -688,7 +688,7 @@ impl QueryParser {
 }
 
 fn convert_literal_to_query(
-    fuzzy: &HashMap<Field, (bool, u8, bool)>,
+    fuzzy: &FxHashMap<Field, (bool, u8, bool)>,
     logical_literal: LogicalLiteral,
 ) -> Box<dyn Query> {
     match logical_literal {
@@ -800,7 +800,7 @@ fn generate_literals_for_json_object(
 }
 
 fn convert_to_query(
-    fuzzy: &HashMap<Field, (bool, u8, bool)>,
+    fuzzy: &FxHashMap<Field, (bool, u8, bool)>,
     logical_ast: LogicalAst,
 ) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
