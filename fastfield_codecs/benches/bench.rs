@@ -79,6 +79,8 @@ mod tests {
         }
         data.shuffle(&mut StdRng::from_seed([1u8; 32]));
 
+        assert_eq!(data.len(), 328350);
+
         // lengt = 328350
         data
     }
@@ -106,6 +108,58 @@ mod tests {
         open_u128::<u128>(out).unwrap()
     }
 
+    // U64 RANGE START
+    #[bench]
+    fn bench_intfastfield_getrange_u64_50percent_hit(b: &mut Bencher) {
+        let (major_item, _minor_item, data) = get_data_50percent_item();
+        let major_item = major_item as u64;
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(
+                major_item..=major_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u64_single_hit(b: &mut Bencher) {
+        let (_major_item, minor_item, data) = get_data_50percent_item();
+        let minor_item = minor_item as u64;
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(
+                minor_item..=minor_item,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u64_hit_all(b: &mut Bencher) {
+        let (_major_item, _minor_item, data) = get_data_50percent_item();
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(0..=u64::MAX, 0..data.len() as u32, &mut positions);
+            positions
+        });
+    }
+    // U64 RANGE END
+
+    // U128 RANGE START
     #[bench]
     fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
         let (major_item, _minor_item, data) = get_data_50percent_item();
@@ -149,6 +203,7 @@ mod tests {
             positions
         });
     }
+    // U128 RANGE END
 
     #[bench]
     fn bench_intfastfield_scan_all_fflookup_u128(b: &mut Bencher) {

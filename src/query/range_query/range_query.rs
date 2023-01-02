@@ -1,8 +1,9 @@
 use std::io;
 use std::ops::{Bound, Range};
 
-use common::BitSet;
+use common::{BinarySerializable, BitSet};
 
+use super::range_query_u64_fastfield::FastFieldRangeWeight;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
@@ -10,7 +11,7 @@ use crate::query::range_query::range_query_ip_fastfield::IPFastFieldRangeWeight;
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, Score};
+use crate::{DateTime, DocId, Score};
 
 pub(crate) fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -203,6 +204,40 @@ impl RangeQuery {
         )
     }
 
+    /// Create a new `RangeQuery` over a `date` field.
+    ///
+    /// The two `Bound` arguments make it possible to create more complex
+    /// ranges than semi-inclusive range.
+    ///
+    /// If the field is not of the type `date`, tantivy
+    /// will panic when the `Weight` object is created.
+    pub fn new_date_bounds(
+        field: Field,
+        left_bound: Bound<DateTime>,
+        right_bound: Bound<DateTime>,
+    ) -> RangeQuery {
+        let make_term_val =
+            |val: &DateTime| Term::from_field_date(field, *val).value_bytes().to_owned();
+        RangeQuery {
+            field,
+            value_type: Type::Date,
+            left_bound: map_bound(&left_bound, &make_term_val),
+            right_bound: map_bound(&right_bound, &make_term_val),
+        }
+    }
+
+    /// Create a new `RangeQuery` over a `date` field.
+    ///
+    /// If the field is not of the type `date`, tantivy
+    /// will panic when the `Weight` object is created.
+    pub fn new_date(field: Field, range: Range<DateTime>) -> RangeQuery {
+        RangeQuery::new_date_bounds(
+            field,
+            Bound::Included(range.start),
+            Bound::Excluded(range.end),
+        )
+    }
+
     /// Create a new `RangeQuery` over a `Str` field.
     ///
     /// The two `Bound` arguments make it possible to create more complex
@@ -252,6 +287,23 @@ impl RangeQuery {
     }
 }
 
+fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
+    match typ {
+        Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
+        Type::IpAddr => true,
+        Type::Str | Type::Facet | Type::Bytes | Type::Json => false,
+    }
+}
+
+/// Returns true if the type maps to a u64 fast field
+pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
+    match typ {
+        Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
+        Type::IpAddr => false,
+        Type::Str | Type::Facet | Type::Bytes | Type::Json => false,
+    }
+}
+
 impl Query for RangeQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let schema = enable_scoring.schema();
@@ -265,12 +317,29 @@ impl Query for RangeQuery {
             return Err(TantivyError::SchemaError(err_msg));
         }
 
-        if field_type.is_ip_addr() && field_type.is_fast() {
-            Ok(Box::new(IPFastFieldRangeWeight::new(
-                self.field,
-                &self.left_bound,
-                &self.right_bound,
-            )))
+        if field_type.is_fast() && is_type_valid_for_fastfield_range_query(self.value_type) {
+            if field_type.is_ip_addr() {
+                Ok(Box::new(IPFastFieldRangeWeight::new(
+                    self.field,
+                    &self.left_bound,
+                    &self.right_bound,
+                )))
+            } else {
+                // We run the range query on u64 value space for performance reasons and simpicity
+                // assert the type maps to u64
+                assert!(maps_to_u64_fastfield(self.value_type));
+                let parse_from_bytes = |data: &Vec<u8>| {
+                    u64::from_be(BinarySerializable::deserialize(&mut &data[..]).unwrap())
+                };
+
+                let left_bound = map_bound(&self.left_bound, &parse_from_bytes);
+                let right_bound = map_bound(&self.right_bound, &parse_from_bytes);
+                Ok(Box::new(FastFieldRangeWeight::new(
+                    self.field,
+                    left_bound,
+                    right_bound,
+                )))
+            }
         } else {
             Ok(Box::new(RangeWeight {
                 field: self.field,

@@ -23,13 +23,13 @@ pub struct IPFastFieldRangeWeight {
 
 impl IPFastFieldRangeWeight {
     pub fn new(field: Field, left_bound: &Bound<Vec<u8>>, right_bound: &Bound<Vec<u8>>) -> Self {
-        let ip_from_bound_raw_data = |data: &Vec<u8>| {
-            let left_ip_u128: u128 =
+        let parse_ip_from_bytes = |data: &Vec<u8>| {
+            let ip_u128: u128 =
                 u128::from_be(BinarySerializable::deserialize(&mut &data[..]).unwrap());
-            Ipv6Addr::from_u128(left_ip_u128)
+            Ipv6Addr::from_u128(ip_u128)
         };
-        let left_bound = map_bound(left_bound, &ip_from_bound_raw_data);
-        let right_bound = map_bound(right_bound, &ip_from_bound_raw_data);
+        let left_bound = map_bound(left_bound, &parse_ip_from_bytes);
+        let right_bound = map_bound(right_bound, &parse_ip_from_bytes);
         Self {
             field,
             left_bound,
