@@ -190,7 +190,14 @@ pub struct QueryParser {
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
     boost: FxHashMap<Field, Score>,
-    fuzzy: FxHashMap<Field, (bool, u8, bool)>,
+    fuzzy: FxHashMap<Field, Fuzzy>,
+}
+
+#[derive(Clone)]
+struct Fuzzy {
+    prefix: bool,
+    distance: u8,
+    transpose_cost_one: bool,
 }
 
 fn all_negative(ast: &LogicalAst) -> bool {
@@ -270,8 +277,14 @@ impl QueryParser {
         distance: u8,
         transpose_cost_one: bool,
     ) {
-        self.fuzzy
-            .insert(field, (prefix, distance, transpose_cost_one));
+        self.fuzzy.insert(
+            field,
+            Fuzzy {
+                prefix,
+                distance,
+                transpose_cost_one,
+            },
+        );
     }
 
     /// Parse a query
@@ -688,20 +701,24 @@ impl QueryParser {
 }
 
 fn convert_literal_to_query(
-    fuzzy: &FxHashMap<Field, (bool, u8, bool)>,
+    fuzzy: &FxHashMap<Field, Fuzzy>,
     logical_literal: LogicalLiteral,
 ) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => {
-            if let Some(&(prefix, distance, transpose_cost_one)) = fuzzy.get(&term.field()) {
-                if prefix {
+            if let Some(fuzzy) = fuzzy.get(&term.field()) {
+                if fuzzy.prefix {
                     Box::new(FuzzyTermQuery::new_prefix(
                         term,
-                        distance,
-                        transpose_cost_one,
+                        fuzzy.distance,
+                        fuzzy.transpose_cost_one,
                     ))
                 } else {
-                    Box::new(FuzzyTermQuery::new(term, distance, transpose_cost_one))
+                    Box::new(FuzzyTermQuery::new(
+                        term,
+                        fuzzy.distance,
+                        fuzzy.transpose_cost_one,
+                    ))
                 }
             } else {
                 Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
@@ -799,10 +816,7 @@ fn generate_literals_for_json_object(
     Ok(logical_literals)
 }
 
-fn convert_to_query(
-    fuzzy: &FxHashMap<Field, (bool, u8, bool)>,
-    logical_ast: LogicalAst,
-) -> Box<dyn Query> {
+fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
