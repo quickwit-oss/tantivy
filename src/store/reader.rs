@@ -1,5 +1,6 @@
 use std::io;
 use std::iter::Sum;
+use std::num::NonZeroUsize;
 use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -33,23 +34,29 @@ pub struct StoreReader {
 
 /// The cache for decompressed blocks.
 struct BlockCache {
-    cache: Mutex<LruCache<usize, Block>>,
-    cache_hits: Arc<AtomicUsize>,
-    cache_misses: Arc<AtomicUsize>,
+    cache: Option<Mutex<LruCache<usize, Block>>>,
+    cache_hits: AtomicUsize,
+    cache_misses: AtomicUsize,
 }
 
 impl BlockCache {
     fn get_from_cache(&self, pos: usize) -> Option<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&pos) {
+        if let Some(block) = self
+            .cache
+            .as_ref()
+            .and_then(|cache| cache.lock().unwrap().get(&pos).cloned())
+        {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
-            return Some(block.clone());
+            return Some(block);
         }
         self.cache_misses.fetch_add(1, Ordering::SeqCst);
         None
     }
 
     fn put_into_cache(&self, pos: usize, data: Block) {
-        self.cache.lock().unwrap().put(pos, data);
+        if let Some(cache) = self.cache.as_ref() {
+            cache.lock().unwrap().put(pos, data);
+        }
     }
 
     fn stats(&self) -> CacheStats {
@@ -59,13 +66,18 @@ impl BlockCache {
             num_entries: self.len(),
         }
     }
+
     fn len(&self) -> usize {
-        self.cache.lock().unwrap().len()
+        self.cache
+            .as_ref()
+            .map_or(0, |cache| cache.lock().unwrap().len())
     }
 
     #[cfg(test)]
     fn peek_lru(&self) -> Option<usize> {
-        self.cache.lock().unwrap().peek_lru().map(|(&k, _)| k)
+        self.cache
+            .as_ref()
+            .and_then(|cache| cache.lock().unwrap().peek_lru().map(|(&k, _)| k))
     }
 }
 
@@ -113,7 +125,8 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: Mutex::new(LruCache::new(cache_size)),
+                cache: NonZeroUsize::new(cache_size)
+                    .map(|cache_size| Mutex::new(LruCache::new(cache_size))),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },
