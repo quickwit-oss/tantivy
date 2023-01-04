@@ -258,7 +258,7 @@ mod tests {
         let field = schema.get_field("body").unwrap();
         let field_entry = schema.get_field_entry(field);
         assert!(matches!(field_entry.field_type(),
-                &FieldType::Str(ref text_options)
+                FieldType::Str(text_options)
                 if text_options.get_indexing_options().unwrap().tokenizer() == "default"));
     }
 

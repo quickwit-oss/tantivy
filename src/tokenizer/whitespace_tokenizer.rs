@@ -26,7 +26,7 @@ impl<'a> WhitespaceTokenStream<'a> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
-            .filter(|&(_, ref c)| c.is_ascii_whitespace())
+            .filter(|(_, c)| c.is_ascii_whitespace())
             .map(|(offset, _)| offset)
             .next()
             .unwrap_or(self.text.len())
