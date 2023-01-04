@@ -91,7 +91,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         boost: Score,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-        for &(ref occur, ref subweight) in &self.weights {
+        for (occur, subweight) in &self.weights {
             let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
             per_occur_scorers
                 .entry(*occur)
@@ -191,7 +191,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
 
         let mut explanation = Explanation::new("BooleanClause. Sum of ...", scorer.score());
-        for &(ref occur, ref subweight) in &self.weights {
+        for (occur, subweight) in &self.weights {
             if is_positive_occur(*occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
                     explanation.add_detail(child_explanation);

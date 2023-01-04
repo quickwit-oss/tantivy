@@ -54,9 +54,9 @@ impl fmt::Debug for LogicalAst {
                 if clause.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
-                    let (ref occur, ref subquery) = clause[0];
+                    let (occur, subquery) = &clause[0];
                     write!(formatter, "({}{:?}", occur_letter(*occur), subquery)?;
-                    for &(ref occur, ref subquery) in &clause[1..] {
+                    for (occur, subquery) in &clause[1..] {
                         write!(formatter, " {}{:?}", occur_letter(*occur), subquery)?;
                     }
                     formatter.write_str(")")?;
