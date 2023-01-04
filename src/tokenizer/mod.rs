@@ -133,6 +133,7 @@ mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
+mod regex_tokenizer;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
@@ -151,6 +152,7 @@ pub use self::tokenizer::{
 };
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
+pub use self::regex_tokenizer::RegexTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///
