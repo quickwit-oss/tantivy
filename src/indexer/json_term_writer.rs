@@ -89,11 +89,11 @@ pub(crate) fn index_json_values<'a>(
     Ok(())
 }
 
-fn index_json_object<'a>(
+fn index_json_object(
     doc: DocId,
     json_value: &serde_json::Map<String, serde_json::Value>,
     text_analyzer: &TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter<'a>,
+    json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
@@ -113,11 +113,11 @@ fn index_json_object<'a>(
     }
 }
 
-fn index_json_value<'a>(
+fn index_json_value(
     doc: DocId,
     json_value: &serde_json::Value,
     text_analyzer: &TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter<'a>,
+    json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,

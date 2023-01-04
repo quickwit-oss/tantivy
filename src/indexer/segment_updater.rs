@@ -577,7 +577,7 @@ impl SegmentUpdater {
         for merge_operation in merge_candidates {
             // If a merge cannot be started this is not a fatal error.
             // We do log a warning in `start_merge`.
-            let _ = self.start_merge(merge_operation);
+            drop(self.start_merge(merge_operation));
         }
     }
 
