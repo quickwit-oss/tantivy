@@ -9,9 +9,9 @@ use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
 /// the entire matched expression as well (as capture group 0). However, since there is no way to
 /// filter these out later, the `RegexTokenizer` discards them itself. If matching of the entire
 /// expression is desired, be sure to include a capture group around the entire expression.
-/// 
+///
 /// # Simple example (no capture groups)
-/// 
+///
 /// ```rust
 /// use tantivy::tokenizer::*;
 ///
@@ -30,9 +30,8 @@ use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
 ///     assert_eq!(token.offset_to, 13);
 /// }
 /// assert!(stream.next().is_none());
-/// 
 /// ```
-/// 
+///
 /// # Capture groups example
 ///
 /// ```rust

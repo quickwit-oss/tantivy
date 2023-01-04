@@ -124,6 +124,7 @@ mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
 mod raw_tokenizer;
+mod regex_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod split_compound_words;
@@ -133,7 +134,6 @@ mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
-mod regex_tokenizer;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
@@ -141,6 +141,7 @@ pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
+pub use self::regex_tokenizer::RegexTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::split_compound_words::SplitCompoundWords;
@@ -152,7 +153,6 @@ pub use self::tokenizer::{
 };
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
-pub use self::regex_tokenizer::RegexTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///
