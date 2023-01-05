@@ -144,7 +144,7 @@ use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 /// All constructors and conversions are provided as explicit
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
     // Timestamp in microseconds.
     pub(crate) timestamp_micros: i64,

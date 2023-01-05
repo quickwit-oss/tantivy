@@ -13,7 +13,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{
     get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer,
-    MultiValueIndex, MultiValuedFastFieldReader, MultiValuedU128FastFieldReader,
+    MultiValueIndex, MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
@@ -331,18 +331,18 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let segment_and_ff_readers: Vec<(&SegmentReader, MultiValuedU128FastFieldReader<u128>)> =
-            self.readers
-                .iter()
-                .map(|segment_reader| {
-                    let ff_reader: MultiValuedU128FastFieldReader<u128> =
-                        segment_reader.fast_fields().u128s(field).expect(
-                            "Failed to find index for multivalued field. This is a bug in \
-                             tantivy, please report.",
-                        );
-                    (segment_reader, ff_reader)
-                })
-                .collect::<Vec<_>>();
+        let segment_and_ff_readers: Vec<(&SegmentReader, MultiValuedFastFieldReader<u128>)> = self
+            .readers
+            .iter()
+            .map(|segment_reader| {
+                let ff_reader: MultiValuedFastFieldReader<u128> =
+                    segment_reader.fast_fields().u128s(field).expect(
+                        "Failed to find index for multivalued field. This is a bug in tantivy, \
+                         please report.",
+                    );
+                (segment_reader, ff_reader)
+            })
+            .collect::<Vec<_>>();
 
         Self::write_1_n_fast_field_idx_generic(
             field,

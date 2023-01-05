@@ -1,107 +1,30 @@
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
-use fastfield_codecs::{Column, MonotonicallyMappableToU128};
+use fastfield_codecs::Column;
 
 use super::MultiValueIndex;
-use crate::fastfield::FastValue;
+use crate::fastfield::MakeZero;
 use crate::DocId;
 
-/// Reader for a multivalued `u64` fast field.
+/// Reader for a multivalued fast field.
 ///
-/// The reader is implemented as two `u64` fast field.
+/// The reader is implemented as two fast fields, one u64 fast field for the index and one for the
+/// values.
 ///
-/// The `vals_reader` will access the concatenated list of all
-/// values for all reader.
-/// The `idx_reader` associated, for each document, the index of its first value.
-/// Stores the start position for each document.
+/// The `vals_reader` will access the concatenated list of all values.
+/// The `idx_reader` associates, for each document, the index of its first value.
 #[derive(Clone)]
-pub struct MultiValuedFastFieldReader<Item: FastValue> {
-    idx_reader: MultiValueIndex,
-    vals_reader: Arc<dyn Column<Item>>,
-}
-
-impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
-    pub(crate) fn open(
-        idx_reader: Arc<dyn Column<u64>>,
-        vals_reader: Arc<dyn Column<Item>>,
-    ) -> MultiValuedFastFieldReader<Item> {
-        MultiValuedFastFieldReader {
-            idx_reader: MultiValueIndex::new(idx_reader),
-            vals_reader,
-        }
-    }
-
-    /// Returns the array of values associated with the given `doc`.
-    #[inline]
-    fn get_vals_for_range(&self, range: Range<u32>, vals: &mut Vec<Item>) {
-        let len = (range.end - range.start) as usize;
-        vals.resize(len, Item::make_zero());
-        self.vals_reader
-            .get_range(range.start as u64, &mut vals[..]);
-    }
-
-    /// Returns the array of values associated with the given `doc`.
-    #[inline]
-    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
-        let range = self.idx_reader.range(doc);
-        self.get_vals_for_range(range, vals);
-    }
-
-    /// returns the multivalue index
-    pub fn get_index_reader(&self) -> &MultiValueIndex {
-        &self.idx_reader
-    }
-
-    /// Returns the minimum value for this fast field.
-    ///
-    /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound
-    /// of the actual minimum value.
-    pub fn min_value(&self) -> Item {
-        self.vals_reader.min_value()
-    }
-
-    /// Returns the maximum value for this fast field.
-    ///
-    /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound
-    /// of the actual maximum value.
-    pub fn max_value(&self) -> Item {
-        self.vals_reader.max_value()
-    }
-
-    /// Returns the number of values associated with the document `DocId`.
-    #[inline]
-    pub fn num_vals(&self, doc: DocId) -> u32 {
-        self.idx_reader.num_vals_for_doc(doc)
-    }
-
-    /// Returns the overall number of values in this field.
-    #[inline]
-    pub fn total_num_vals(&self) -> u32 {
-        self.idx_reader.total_num_vals()
-    }
-}
-
-/// Reader for a multivalued `u128` fast field.
-///
-/// The reader is implemented as a `u64` fast field for the index and a `u128` fast field.
-///
-/// The `vals_reader` will access the concatenated list of all
-/// values for all reader.
-/// The `idx_reader` associated, for each document, the index of its first value.
-#[derive(Clone)]
-pub struct MultiValuedU128FastFieldReader<T: MonotonicallyMappableToU128> {
+pub struct MultiValuedFastFieldReader<T> {
     idx_reader: MultiValueIndex,
     vals_reader: Arc<dyn Column<T>>,
 }
 
-impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
+impl<T: PartialOrd + MakeZero + Clone> MultiValuedFastFieldReader<T> {
     pub(crate) fn open(
         idx_reader: Arc<dyn Column<u64>>,
         vals_reader: Arc<dyn Column<T>>,
-    ) -> MultiValuedU128FastFieldReader<T> {
+    ) -> MultiValuedFastFieldReader<T> {
         Self {
             idx_reader: MultiValueIndex::new(idx_reader),
             vals_reader,
@@ -122,7 +45,7 @@ impl<T: MonotonicallyMappableToU128> MultiValuedU128FastFieldReader<T> {
     #[inline]
     fn get_vals_for_range(&self, range: Range<u32>, vals: &mut Vec<T>) {
         let len = (range.end - range.start) as usize;
-        vals.resize(len, T::from_u128(0));
+        vals.resize(len, T::make_zero());
         self.vals_reader
             .get_range(range.start as u64, &mut vals[..]);
     }
