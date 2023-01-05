@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::PhantomData;
 
 use fastdivide::DividerU64;
@@ -6,7 +7,9 @@ use crate::MonotonicallyMappableToU128;
 
 /// Monotonic maps a value to u64 value space.
 /// Monotonic mapping enables `PartialOrd` on u64 space without conversion to original space.
-pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync {
+pub trait MonotonicallyMappableToU64:
+    'static + PartialOrd + Copy + Send + Sync + fmt::Debug
+{
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.
@@ -34,6 +37,24 @@ pub trait StrictlyMonotonicFn<External, Internal> {
     fn mapping(&self, inp: External) -> Internal;
     /// Inverse of `mapping`. Maps the value from Internal to External.
     fn inverse(&self, out: Internal) -> External;
+
+    /// Maps a user provded value from External to Internal.
+    /// It may be necessary to coerce the value if it is outside the value space.
+    /// In that case it tries to find the next greater value in the value space.
+    ///
+    /// Returns a bool to mark if a value was outside the value space and had to be coerced _up_.
+    /// With that information we can detect if two values in a range both map outside the same value
+    /// space.
+    ///
+    /// coerce_up means the next valid upper value in the value space will be chosen if the value
+    /// has to be coerced.
+    fn mapping_coerce(&self, inp: External, _coerce_up: bool) -> (bool, Internal) {
+        (false, self.mapping(inp))
+    }
+    /// Inverse of `mapping_coerce`.
+    fn inverse_coerce(&self, out: Internal, _coerce_up: bool) -> (bool, External) {
+        (false, self.inverse(out))
+    }
 }
 
 /// Inverts a strictly monotonic mapping from `StrictlyMonotonicFn<A, B>` to
@@ -64,6 +85,15 @@ where T: StrictlyMonotonicFn<From, To>
     #[inline(always)]
     fn inverse(&self, val: From) -> To {
         self.orig_mapping.mapping(val)
+    }
+
+    #[inline]
+    fn mapping_coerce(&self, inp: To, coerce_up: bool) -> (bool, From) {
+        self.orig_mapping.inverse_coerce(inp, coerce_up)
+    }
+    #[inline]
+    fn inverse_coerce(&self, out: From, coerce_up: bool) -> (bool, To) {
+        self.orig_mapping.mapping_coerce(out, coerce_up)
     }
 }
 
@@ -142,6 +172,23 @@ impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     fn inverse(&self, out: u64) -> External {
         External::from_u64(self.min_value + out * self.gcd)
     }
+
+    #[inline]
+    fn mapping_coerce(&self, inp: External, coerce_up: bool) -> (bool, u64) {
+        let val = External::to_u64(inp);
+        if self.min_value > val {
+            (true, 0)
+        } else {
+            let need_coercion = coerce_up && (val - self.min_value) % self.gcd != 0;
+            let mut mapped_val = self.mapping(inp);
+            if !need_coercion {
+                (false, mapped_val)
+            } else {
+                mapped_val += 1;
+                (true, mapped_val)
+            }
+        }
+    }
 }
 
 /// Strictly monotonic mapping with a base value.
@@ -158,6 +205,16 @@ impl StrictlyMonotonicMappingToInternalBaseval {
 impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     for StrictlyMonotonicMappingToInternalBaseval
 {
+    #[inline]
+    fn mapping_coerce(&self, inp: External, _coerce_up: bool) -> (bool, u64) {
+        let val = External::to_u64(inp);
+        if self.min_value > val {
+            (true, 0)
+        } else {
+            (false, self.mapping(inp))
+        }
+    }
+
     #[inline(always)]
     fn mapping(&self, val: External) -> u64 {
         External::to_u64(val) - self.min_value

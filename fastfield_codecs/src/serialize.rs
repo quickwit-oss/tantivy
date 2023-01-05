@@ -17,9 +17,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-use std::io;
 use std::num::NonZeroU64;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use common::{BinarySerializable, OwnedBytes, VInt};
 use log::warn;
@@ -167,7 +167,7 @@ impl BinarySerializable for Header {
 
 /// Return estimated compression for given codec in the value range [0.0..1.0], where 1.0 means no
 /// compression.
-pub fn estimate<T: MonotonicallyMappableToU64>(
+pub fn estimate<T: MonotonicallyMappableToU64 + fmt::Debug>(
     typed_column: impl Column<T>,
     codec_type: FastFieldCodecType,
 ) -> Option<f32> {
@@ -276,7 +276,7 @@ pub fn serialize_u128_new<F: Fn() -> I, I: Iterator<Item = u128>>(
 }
 
 /// Serializes the column with the codec with the best estimate on the data.
-pub fn serialize<T: MonotonicallyMappableToU64>(
+pub fn serialize<T: MonotonicallyMappableToU64 + fmt::Debug>(
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
     codecs: &[FastFieldCodecType],
@@ -285,7 +285,7 @@ pub fn serialize<T: MonotonicallyMappableToU64>(
 }
 
 /// Serializes the column with the codec with the best estimate on the data.
-pub fn serialize_new<T: MonotonicallyMappableToU64>(
+pub fn serialize_new<T: MonotonicallyMappableToU64 + fmt::Debug>(
     value_index: ValueIndexInfo,
     typed_column: impl Column<T>,
     output: &mut impl io::Write,
@@ -366,7 +366,7 @@ fn serialize_given_codec(
 }
 
 /// Helper function to serialize a column (autodetect from all codecs) and then open it
-pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
+pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default + fmt::Debug>(
     column: &[T],
 ) -> Arc<dyn Column<T>> {
     let mut buffer = Vec::new();
