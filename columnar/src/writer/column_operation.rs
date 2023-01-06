@@ -92,8 +92,8 @@ impl<V: SymbolValue> ColumnOperation<V> {
     /// this deserialize method is meant to target in memory.
     pub(super) fn deserialize(bytes: &mut &[u8]) -> Option<Self> {
         let column_op_metadata_byte = pop_first_byte(bytes)?;
-        let column_op_metadata =
-            ColumnOperationMetadata::try_from_code(column_op_metadata_byte).expect("Invalid op metadata byte");
+        let column_op_metadata = ColumnOperationMetadata::try_from_code(column_op_metadata_byte)
+            .expect("Invalid op metadata byte");
         let symbol_bytes: &[u8];
         (symbol_bytes, *bytes) = bytes.split_at(column_op_metadata.len as usize);
         match column_op_metadata.op_type {
@@ -282,7 +282,8 @@ mod tests {
             for op_type in [ColumnOperationType::AddValue, ColumnOperationType::NewDoc] {
                 let column_op_metadata = ColumnOperationMetadata { op_type, len };
                 let column_op_metadata_code = column_op_metadata.to_code();
-                let serdeser_metadata = ColumnOperationMetadata::try_from_code(column_op_metadata_code).unwrap();
+                let serdeser_metadata =
+                    ColumnOperationMetadata::try_from_code(column_op_metadata_code).unwrap();
                 assert_eq!(column_op_metadata, serdeser_metadata);
             }
         }
