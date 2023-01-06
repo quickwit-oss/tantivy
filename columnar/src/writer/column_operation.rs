@@ -1,54 +1,80 @@
 use crate::dictionary::UnorderedId;
 use crate::utils::{place_bits, pop_first_byte, select_bits};
 use crate::value::NumericalValue;
-use crate::{DocId, NumericalType};
+use crate::{DocId, InvalidData, NumericalType};
 
 /// When we build a columnar dataframe, we first just group
-/// all mutations per column, and append them in append-only object.
+/// all mutations per column, and appends them in append-only buffer
+/// in the stacker.
+///
+/// These ColumnOperation<T> are therefore serialize/deserialized
+/// in memory.
 ///
 /// We represents all of these operations as `ColumnOperation`.
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub(crate) enum ColumnOperation<T> {
+pub(super) enum ColumnOperation<T> {
     NewDoc(DocId),
     Value(T),
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct ColumnOperationHeader {
-    typ_code: u8,
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+struct ColumnOperationMetadata {
+    op_type: ColumnOperationType,
     len: u8,
 }
 
-impl ColumnOperationHeader {
+impl ColumnOperationMetadata {
     fn to_code(self) -> u8 {
-        place_bits::<0, 4>(self.len) | place_bits::<4, 8>(self.typ_code)
+        place_bits::<0, 4>(self.len) | place_bits::<4, 8>(self.op_type.to_code())
     }
 
-    fn from_code(code: u8) -> Self {
+    fn try_from_code(code: u8) -> Result<Self, InvalidData> {
         let len = select_bits::<0, 4>(code);
         let typ_code = select_bits::<4, 8>(code);
-        ColumnOperationHeader { typ_code, len }
+        let column_type = ColumnOperationType::try_from_code(typ_code)?;
+        Ok(ColumnOperationMetadata {
+            op_type: column_type,
+            len,
+        })
     }
 }
 
-const NEW_DOC_CODE: u8 = 0u8;
-const NEW_VALUE_CODE: u8 = 1u8;
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[repr(u8)]
+enum ColumnOperationType {
+    NewDoc = 0u8,
+    AddValue = 1u8,
+}
+
+impl ColumnOperationType {
+    pub fn to_code(self) -> u8 {
+        self as u8
+    }
+
+    pub fn try_from_code(code: u8) -> Result<Self, InvalidData> {
+        match code {
+            0 => Ok(Self::NewDoc),
+            1 => Ok(Self::AddValue),
+            _ => Err(InvalidData),
+        }
+    }
+}
 
 impl<V: SymbolValue> ColumnOperation<V> {
-    pub fn serialize(self) -> impl AsRef<[u8]> {
+    pub(super) fn serialize(self) -> impl AsRef<[u8]> {
         let mut minibuf = MiniBuffer::default();
         let header = match self {
             ColumnOperation::NewDoc(new_doc) => {
                 let symbol_len = new_doc.serialize(&mut minibuf.bytes[1..]);
-                ColumnOperationHeader {
-                    typ_code: NEW_DOC_CODE,
+                ColumnOperationMetadata {
+                    op_type: ColumnOperationType::NewDoc,
                     len: symbol_len,
                 }
             }
             ColumnOperation::Value(val) => {
                 let symbol_len = val.serialize(&mut minibuf.bytes[1..]);
-                ColumnOperationHeader {
-                    typ_code: NEW_VALUE_CODE,
+                ColumnOperationMetadata {
+                    op_type: ColumnOperationType::AddValue,
                     len: symbol_len,
                 }
             }
@@ -62,23 +88,22 @@ impl<V: SymbolValue> ColumnOperation<V> {
     /// Deserialize a colummn operation.
     /// Returns None if the buffer is empty.
     ///
-    /// Panics if the payload is invalid.
-    pub fn deserialize(bytes: &mut &[u8]) -> Option<Self> {
+    /// Panics if the payload is invalid:
+    /// this deserialize method is meant to target in memory.
+    pub(super) fn deserialize(bytes: &mut &[u8]) -> Option<Self> {
         let header_byte = pop_first_byte(bytes)?;
-        let column_op_header = ColumnOperationHeader::from_code(header_byte);
+        let column_op_header =
+            ColumnOperationMetadata::try_from_code(header_byte).expect("Invalid header byte");
         let symbol_bytes: &[u8];
         (symbol_bytes, *bytes) = bytes.split_at(column_op_header.len as usize);
-        match column_op_header.typ_code {
-            NEW_DOC_CODE => {
+        match column_op_header.op_type {
+            ColumnOperationType::NewDoc => {
                 let new_doc = u32::deserialize(symbol_bytes);
                 Some(ColumnOperation::NewDoc(new_doc))
             }
-            NEW_VALUE_CODE => {
+            ColumnOperationType::AddValue => {
                 let value = V::deserialize(symbol_bytes);
                 Some(ColumnOperation::Value(value))
-            }
-            _ => {
-                panic!("Unknown code {}", column_op_header.typ_code);
             }
         }
     }
@@ -90,13 +115,17 @@ impl<T> From<T> for ColumnOperation<T> {
     }
 }
 
+// Serialization trait very local to the writer.
+// As we write fast fields, we accumulate them in "in memory".
+// In order to limit memory usage, and in order
+// to benefit from the stacker, we do this by serialization our data
+// as "Symbols".
 #[allow(clippy::from_over_into)]
-pub(crate) trait SymbolValue: Clone + Copy {
+pub(super) trait SymbolValue: Clone + Copy {
+    // Serializes the symbol into the given buffer.
+    // Returns the number of bytes written into the buffer.
     fn serialize(self, buffer: &mut [u8]) -> u8;
-
-    //
-    // `bytes` does not contain the header byte.
-    // This method should advance bytes by the number of bytes that were consumed.
+    // Panics if invalid
     fn deserialize(bytes: &[u8]) -> Self;
 }
 
@@ -248,10 +277,10 @@ mod tests {
     #[test]
     fn test_header_byte_serialization() {
         for len in 0..=15 {
-            for typ_code in 0..=15 {
-                let header = ColumnOperationHeader { typ_code, len };
+            for op_type in [ColumnOperationType::AddValue, ColumnOperationType::NewDoc] {
+                let header = ColumnOperationMetadata { op_type, len };
                 let header_code = header.to_code();
-                let serdeser_header = ColumnOperationHeader::from_code(header_code);
+                let serdeser_header = ColumnOperationMetadata::try_from_code(header_code).unwrap();
                 assert_eq!(header, serdeser_header);
             }
         }

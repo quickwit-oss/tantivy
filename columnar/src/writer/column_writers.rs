@@ -38,7 +38,7 @@ pub struct ColumnWriter {
 impl ColumnWriter {
     /// Returns an iterator over the Symbol that have been recorded
     /// for the given column.
-    pub(crate) fn operation_iterator<'a, V: SymbolValue>(
+    pub(super) fn operation_iterator<'a, V: SymbolValue>(
         &self,
         arena: &MemoryArena,
         buffer: &'a mut Vec<u8>,
@@ -53,7 +53,7 @@ impl ColumnWriter {
     ///
     /// This function will also update the cardinality of the column
     /// if necessary.
-    pub(crate) fn record<S: SymbolValue>(&mut self, doc: DocId, value: S, arena: &mut MemoryArena) {
+    pub(super) fn record<S: SymbolValue>(&mut self, doc: DocId, value: S, arena: &mut MemoryArena) {
         // Difference between `doc` and the last doc.
         match delta_with_last_doc(self.last_doc_opt, doc) {
             DocumentStep::SameDoc => {
@@ -166,7 +166,7 @@ impl NumericalColumnWriter {
         self.column_writer.record(doc, value, arena);
     }
 
-    pub fn operation_iterator<'a>(
+    pub(super) fn operation_iterator<'a>(
         self,
         arena: &MemoryArena,
         buffer: &'a mut Vec<u8>,
@@ -200,7 +200,7 @@ impl StrColumnWriter {
         self.column_writer.record(doc, unordered_id, arena);
     }
 
-    pub(crate) fn operation_iterator<'a>(
+    pub(super) fn operation_iterator<'a>(
         &self,
         arena: &MemoryArena,
         byte_buffer: &'a mut Vec<u8>,

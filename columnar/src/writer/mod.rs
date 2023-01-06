@@ -18,7 +18,8 @@ use crate::writer::column_writers::{ColumnWriter, NumericalColumnWriter, StrColu
 use crate::writer::value_index::{IndexBuilder, SpareIndexBuilders};
 use crate::{Cardinality, DocId};
 
-/// This is a set of buffers that are used to temporarily write the values into before passing them to the fast field codecs.
+/// This is a set of buffers that are used to temporarily write the values into before passing them
+/// to the fast field codecs.
 #[derive(Default)]
 struct SpareBuffers {
     value_index_builders: SpareIndexBuilders,

@@ -75,8 +75,8 @@ impl ColumnarReader {
         // Each column is a associated to a given `column_key`,
         // that starts by `column_name\0column_header`.
         //
-        // Listing the columns associated to the given column name is therefore equivalent to listing
-        // `column_key` with the prefix `column_name\0`.
+        // Listing the columns associated to the given column name is therefore equivalent to
+        // listing `column_key` with the prefix `column_name\0`.
         //
         // This is in turn equivalent to searching for the range
         // `[column_name,\0`..column_name\1)`.

@@ -85,7 +85,7 @@ impl IndexBuilder for OptionalIndexBuilder {
 pub struct MultivaluedIndexBuilder {
     // TODO should we switch to `start_offset`?
     // contains the num values so far for each `DocId`.
-    end_offset: Vec<DocId>,
+    end_offsets: Vec<DocId>,
     total_num_vals_seen: u32,
 }
 
@@ -113,22 +113,22 @@ impl<'a> MultiValueIndexInfo for MultivaluedValueArrayIndex<'a> {
 
 impl MultivaluedIndexBuilder {
     pub fn finish(&mut self, num_docs: DocId) -> impl MultiValueIndexInfo + '_ {
-        self.end_values
+        self.end_offsets
             .resize(num_docs as usize, self.total_num_vals_seen);
         MultivaluedValueArrayIndex {
-            end_offsets: &self.end_values[..],
+            end_offsets: &self.end_offsets[..],
         }
     }
 
     fn reset(&mut self) {
-        self.end_values.clear();
+        self.end_offsets.clear();
         self.total_num_vals_seen = 0;
     }
 }
 
 impl IndexBuilder for MultivaluedIndexBuilder {
     fn record_doc(&mut self, doc: DocId) {
-        self.end_values
+        self.end_offsets
             .resize(doc as usize, self.total_num_vals_seen);
     }
 
