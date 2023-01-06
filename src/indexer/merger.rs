@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Write;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use fastfield_codecs::VecColumn;
@@ -953,7 +954,7 @@ impl IndexMerger {
             let store_readers: Vec<_> = self
                 .readers
                 .iter()
-                .map(|reader| reader.get_store_reader(50))
+                .map(|reader| reader.get_store_reader(NonZeroUsize::new(50).unwrap()))
                 .collect::<Result<_, _>>()?;
 
             let mut document_iterators: Vec<_> = store_readers
@@ -978,7 +979,7 @@ impl IndexMerger {
         } else {
             debug!("trivial-doc-id-mapping");
             for reader in &self.readers {
-                let store_reader = reader.get_store_reader(1)?;
+                let store_reader = reader.get_store_reader(NonZeroUsize::new(1).unwrap())?;
                 if reader.has_deletes()
                     // If there is not enough data in the store, we avoid stacking in order to
                     // avoid creating many small blocks in the doc store. Once we have 5 full blocks,

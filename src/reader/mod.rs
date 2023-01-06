@@ -1,6 +1,7 @@
 mod warming;
 
 use std::convert::TryInto;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::{atomic, Arc, Weak};
 
@@ -44,7 +45,7 @@ pub struct IndexReaderBuilder {
     index: Index,
     warmers: Vec<Weak<dyn Warmer>>,
     num_warming_threads: usize,
-    doc_store_cache_size: usize,
+    doc_store_cache_size: NonZeroUsize,
 }
 
 impl IndexReaderBuilder {
@@ -119,7 +120,10 @@ impl IndexReaderBuilder {
     ///
     /// The doc store readers cache by default DOCSTORE_CACHE_CAPACITY(100) decompressed blocks.
     #[must_use]
-    pub fn doc_store_cache_size(mut self, doc_store_cache_size: usize) -> IndexReaderBuilder {
+    pub fn doc_store_cache_size(
+        mut self,
+        doc_store_cache_size: NonZeroUsize,
+    ) -> IndexReaderBuilder {
         self.doc_store_cache_size = doc_store_cache_size;
         self
     }
@@ -151,7 +155,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 }
 
 struct InnerIndexReader {
-    doc_store_cache_size: usize,
+    doc_store_cache_size: NonZeroUsize,
     index: Index,
     warming_state: WarmingState,
     searcher: arc_swap::ArcSwap<SearcherInner>,
@@ -161,7 +165,7 @@ struct InnerIndexReader {
 
 impl InnerIndexReader {
     fn new(
-        doc_store_cache_size: usize,
+        doc_store_cache_size: NonZeroUsize,
         index: Index,
         warming_state: WarmingState,
         // The searcher_generation_inventory is not used as source, but as target to track the
@@ -214,7 +218,7 @@ impl InnerIndexReader {
 
     fn create_searcher(
         index: &Index,
-        doc_store_cache_size: usize,
+        doc_store_cache_size: NonZeroUsize,
         warming_state: &WarmingState,
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,

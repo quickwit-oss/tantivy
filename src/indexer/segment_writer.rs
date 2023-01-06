@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 
@@ -429,8 +431,9 @@ fn remap_and_write(
             serializer
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
-            1, /* The docstore is configured to have one doc per block, and each doc is accessed
-                * only once: we don't need caching. */
+            // The docstore is configured to have one doc per block,
+            // and each doc is accessed only once: we don't need caching.
+            NonZeroUsize::new(1).unwrap(),
         )?;
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
             let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
@@ -446,6 +449,7 @@ fn remap_and_write(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
     use std::path::Path;
 
     use super::compute_initial_table_size;
@@ -500,7 +504,11 @@ mod tests {
         store_writer.store(&doc, &schema).unwrap();
         store_writer.close().unwrap();
 
-        let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
+        let reader = StoreReader::open(
+            directory.open_read(path).unwrap(),
+            NonZeroUsize::new(1).unwrap(),
+        )
+        .unwrap();
         let doc = reader.get(0).unwrap();
 
         assert_eq!(doc.field_values().len(), 2);

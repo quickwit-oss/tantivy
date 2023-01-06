@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::num::NonZeroUsize;
 
 use rand::{thread_rng, Rng};
 
@@ -9,7 +10,7 @@ fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
     assert_eq!(searcher.num_docs() as usize, vals.len());
     for segment_reader in searcher.segment_readers() {
-        let store_reader = segment_reader.get_store_reader(1)?;
+        let store_reader = segment_reader.get_store_reader(NonZeroUsize::new(1).unwrap())?;
         for doc_id in 0..segment_reader.max_doc() {
             let _doc = store_reader.get(doc_id)?;
         }

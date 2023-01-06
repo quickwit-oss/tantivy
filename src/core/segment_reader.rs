@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
@@ -134,7 +135,7 @@ impl SegmentReader {
     }
 
     /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self, cache_size: usize) -> io::Result<StoreReader> {
+    pub fn get_store_reader(&self, cache_size: NonZeroUsize) -> io::Result<StoreReader> {
         StoreReader::open(self.store_file.clone(), cache_size)
     }
 
@@ -327,7 +328,8 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
-            self.get_store_reader(0)?.space_usage(),
+            self.get_store_reader(NonZeroUsize::new(1).unwrap())?
+                .space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -250,7 +251,7 @@ impl SearcherInner {
         index: Index,
         segment_readers: Vec<SegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
-        doc_store_cache_size: usize,
+        doc_store_cache_size: NonZeroUsize,
     ) -> io::Result<SearcherInner> {
         assert_eq!(
             &segment_readers

@@ -19,7 +19,8 @@ use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 
-pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
+pub(crate) const DOCSTORE_CACHE_CAPACITY: NonZeroUsize =
+    unsafe { NonZeroUsize::new_unchecked(100) };
 
 type Block = OwnedBytes;
 
@@ -34,29 +35,23 @@ pub struct StoreReader {
 
 /// The cache for decompressed blocks.
 struct BlockCache {
-    cache: Option<Mutex<LruCache<usize, Block>>>,
+    cache: Mutex<LruCache<usize, Block>>,
     cache_hits: AtomicUsize,
     cache_misses: AtomicUsize,
 }
 
 impl BlockCache {
     fn get_from_cache(&self, pos: usize) -> Option<Block> {
-        if let Some(block) = self
-            .cache
-            .as_ref()
-            .and_then(|cache| cache.lock().unwrap().get(&pos).cloned())
-        {
+        if let Some(block) = self.cache.lock().unwrap().get(&pos) {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
-            return Some(block);
+            return Some(block.clone());
         }
         self.cache_misses.fetch_add(1, Ordering::SeqCst);
         None
     }
 
     fn put_into_cache(&self, pos: usize, data: Block) {
-        if let Some(cache) = self.cache.as_ref() {
-            cache.lock().unwrap().put(pos, data);
-        }
+        self.cache.lock().unwrap().put(pos, data);
     }
 
     fn stats(&self) -> CacheStats {
@@ -68,16 +63,12 @@ impl BlockCache {
     }
 
     fn len(&self) -> usize {
-        self.cache
-            .as_ref()
-            .map_or(0, |cache| cache.lock().unwrap().len())
+        self.cache.lock().unwrap().len()
     }
 
     #[cfg(test)]
     fn peek_lru(&self) -> Option<usize> {
-        self.cache
-            .as_ref()
-            .and_then(|cache| cache.lock().unwrap().peek_lru().map(|(&k, _)| k))
+        self.cache.lock().unwrap().peek_lru().map(|(&k, _)| k)
     }
 }
 
@@ -114,7 +105,7 @@ impl Sum for CacheStats {
 
 impl StoreReader {
     /// Opens a store reader
-    pub fn open(store_file: FileSlice, cache_size: usize) -> io::Result<StoreReader> {
+    pub fn open(store_file: FileSlice, cache_size: NonZeroUsize) -> io::Result<StoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -125,8 +116,7 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: NonZeroUsize::new(cache_size)
-                    .map(|cache_size| Mutex::new(LruCache::new(cache_size))),
+                cache: Mutex::new(LruCache::new(cache_size)),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },
