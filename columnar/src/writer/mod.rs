@@ -3,9 +3,10 @@ mod column_writers;
 mod serializer;
 mod value_index;
 
-use std::io::{self, Write};
+use std::io;
 
 use column_operation::ColumnOperation;
+use common::CountingWriter;
 use fastfield_codecs::serialize::ValueIndexInfo;
 use fastfield_codecs::{Column, MonotonicallyMappableToU64, VecColumn};
 use serializer::ColumnarSerializer;
@@ -27,7 +28,6 @@ struct SpareBuffers {
     u64_values: Vec<u64>,
     f64_values: Vec<f64>,
     bool_values: Vec<bool>,
-    column_buffer: Vec<u8>,
 }
 
 /// Makes it possible to create a new columnar.
@@ -159,14 +159,14 @@ impl ColumnarWriter {
                         cardinality,
                         typ: ColumnType::Bool,
                     };
-                    let column_serializer =
+                    let mut column_serializer =
                         serializer.serialize_column(column_name, column_type_and_cardinality);
                     serialize_bool_column(
                         cardinality,
                         num_docs,
                         column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
-                        column_serializer,
+                        &mut column_serializer,
                     )?;
                 }
                 ColumnTypeCategory::Str => {
@@ -178,7 +178,7 @@ impl ColumnarWriter {
                         cardinality,
                         typ: ColumnType::Bytes,
                     };
-                    let column_serializer =
+                    let mut column_serializer =
                         serializer.serialize_column(column_name, column_type_and_cardinality);
                     serialize_bytes_column(
                         cardinality,
@@ -186,7 +186,7 @@ impl ColumnarWriter {
                         dictionary_builder,
                         str_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
-                        column_serializer,
+                        &mut column_serializer,
                     )?;
                 }
                 ColumnTypeCategory::Numerical => {
@@ -198,7 +198,7 @@ impl ColumnarWriter {
                         cardinality,
                         typ: ColumnType::Numerical(numerical_type),
                     };
-                    let column_serializer =
+                    let mut column_serializer =
                         serializer.serialize_column(column_name, column_type_and_cardinality);
                     serialize_numerical_column(
                         cardinality,
@@ -206,7 +206,7 @@ impl ColumnarWriter {
                         numerical_type,
                         numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
-                        column_serializer,
+                        &mut column_serializer,
                     )?;
                 }
             };
@@ -216,28 +216,23 @@ impl ColumnarWriter {
     }
 }
 
-fn compress_and_write_column<W: io::Write>(column_bytes: &[u8], wrt: &mut W) -> io::Result<()> {
-    wrt.write_all(column_bytes)?;
-    Ok(())
-}
-
-fn serialize_bytes_column<W: io::Write>(
+fn serialize_bytes_column(
     cardinality: Cardinality,
     num_docs: DocId,
     dictionary_builder: &DictionaryBuilder,
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
-    mut wrt: W,
+    wrt: impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
         value_index_builders,
         u64_values,
-        column_buffer,
         ..
     } = buffers;
-    column_buffer.clear();
-    let term_id_mapping: TermIdMapping = dictionary_builder.serialize(column_buffer)?;
-    let dictionary_num_bytes: u32 = column_buffer.len() as u32;
+    let mut counting_writer = CountingWriter::wrap(wrt);
+    let term_id_mapping: TermIdMapping = dictionary_builder.serialize(&mut counting_writer)?;
+    let dictionary_num_bytes: u32 = counting_writer.written_bytes() as u32;
+    let mut wrt = counting_writer.finish();
     let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {
         // We map unordered ids to ordered ids.
         match symbol {
@@ -254,30 +249,27 @@ fn serialize_bytes_column<W: io::Write>(
         num_docs,
         value_index_builders,
         u64_values,
-        column_buffer,
+        &mut wrt,
     )?;
-    column_buffer.write_all(&dictionary_num_bytes.to_le_bytes()[..])?;
-    compress_and_write_column(column_buffer, &mut wrt)?;
+    wrt.write_all(&dictionary_num_bytes.to_le_bytes()[..])?;
     Ok(())
 }
 
-fn serialize_numerical_column<W: io::Write>(
+fn serialize_numerical_column(
     cardinality: Cardinality,
     num_docs: DocId,
     numerical_type: NumericalType,
     op_iterator: impl Iterator<Item = ColumnOperation<NumericalValue>>,
     buffers: &mut SpareBuffers,
-    mut wrt: W,
+    wrt: &mut impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
         value_index_builders,
         u64_values,
         i64_values,
         f64_values,
-        column_buffer,
         ..
     } = buffers;
-    column_buffer.clear();
     match numerical_type {
         NumericalType::I64 => {
             serialize_column(
@@ -286,7 +278,7 @@ fn serialize_numerical_column<W: io::Write>(
                 num_docs,
                 value_index_builders,
                 i64_values,
-                column_buffer,
+                wrt,
             )?;
         }
         NumericalType::U64 => {
@@ -296,7 +288,7 @@ fn serialize_numerical_column<W: io::Write>(
                 num_docs,
                 value_index_builders,
                 u64_values,
-                column_buffer,
+                wrt,
             )?;
         }
         NumericalType::F64 => {
@@ -306,37 +298,33 @@ fn serialize_numerical_column<W: io::Write>(
                 num_docs,
                 value_index_builders,
                 f64_values,
-                column_buffer,
+                wrt,
             )?;
         }
     };
-    compress_and_write_column(column_buffer, &mut wrt)?;
     Ok(())
 }
 
-fn serialize_bool_column<W: io::Write>(
+fn serialize_bool_column(
     cardinality: Cardinality,
     num_docs: DocId,
     column_operations_it: impl Iterator<Item = ColumnOperation<bool>>,
     buffers: &mut SpareBuffers,
-    mut wrt: W,
+    wrt: &mut impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
         value_index_builders,
         bool_values,
-        column_buffer,
         ..
     } = buffers;
-    column_buffer.clear();
     serialize_column(
         column_operations_it,
         cardinality,
         num_docs,
         value_index_builders,
         bool_values,
-        column_buffer,
+        wrt,
     )?;
-    compress_and_write_column(column_buffer, &mut wrt)?;
     Ok(())
 }
 
@@ -348,7 +336,7 @@ fn serialize_column<
     num_docs: DocId,
     value_index_builders: &mut SpareIndexBuilders,
     values: &mut Vec<T>,
-    wrt: &mut Vec<u8>,
+    mut wrt: impl io::Write,
 ) -> io::Result<()>
 where
     for<'a> VecColumn<'a, T>: Column<T>,
@@ -363,7 +351,7 @@ where
             );
             fastfield_codecs::serialize(
                 VecColumn::from(&values[..]),
-                wrt,
+                &mut wrt,
                 &fastfield_codecs::ALL_CODEC_TYPES[..],
             )?;
         }
@@ -374,7 +362,7 @@ where
             fastfield_codecs::serialize::serialize_new(
                 ValueIndexInfo::SingleValue(Box::new(optional_index)),
                 VecColumn::from(&values[..]),
-                wrt,
+                &mut wrt,
                 &fastfield_codecs::ALL_CODEC_TYPES[..],
             )?;
         }
@@ -385,7 +373,7 @@ where
             fastfield_codecs::serialize::serialize_new(
                 ValueIndexInfo::MultiValue(Box::new(multivalued_index)),
                 VecColumn::from(&values[..]),
-                wrt,
+                &mut wrt,
                 &fastfield_codecs::ALL_CODEC_TYPES[..],
             )?;
         }

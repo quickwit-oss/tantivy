@@ -63,7 +63,7 @@ impl ColumnOperationType {
 impl<V: SymbolValue> ColumnOperation<V> {
     pub(super) fn serialize(self) -> impl AsRef<[u8]> {
         let mut minibuf = MiniBuffer::default();
-        let header = match self {
+        let column_op_metadata = match self {
             ColumnOperation::NewDoc(new_doc) => {
                 let symbol_len = new_doc.serialize(&mut minibuf.bytes[1..]);
                 ColumnOperationMetadata {
@@ -79,9 +79,9 @@ impl<V: SymbolValue> ColumnOperation<V> {
                 }
             }
         };
-        minibuf.bytes[0] = header.to_code();
+        minibuf.bytes[0] = column_op_metadata.to_code();
         // +1 for the metadata
-        minibuf.len = 1 + header.len;
+        minibuf.len = 1 + column_op_metadata.len;
         minibuf
     }
 
@@ -91,12 +91,12 @@ impl<V: SymbolValue> ColumnOperation<V> {
     /// Panics if the payload is invalid:
     /// this deserialize method is meant to target in memory.
     pub(super) fn deserialize(bytes: &mut &[u8]) -> Option<Self> {
-        let header_byte = pop_first_byte(bytes)?;
-        let column_op_header =
-            ColumnOperationMetadata::try_from_code(header_byte).expect("Invalid header byte");
+        let column_op_metadata_byte = pop_first_byte(bytes)?;
+        let column_op_metadata =
+            ColumnOperationMetadata::try_from_code(column_op_metadata_byte).expect("Invalid op metadata byte");
         let symbol_bytes: &[u8];
-        (symbol_bytes, *bytes) = bytes.split_at(column_op_header.len as usize);
-        match column_op_header.op_type {
+        (symbol_bytes, *bytes) = bytes.split_at(column_op_metadata.len as usize);
+        match column_op_metadata.op_type {
             ColumnOperationType::NewDoc => {
                 let new_doc = u32::deserialize(symbol_bytes);
                 Some(ColumnOperation::NewDoc(new_doc))
@@ -124,7 +124,7 @@ impl<T> From<T> for ColumnOperation<T> {
 pub(super) trait SymbolValue: Clone + Copy {
     // Serializes the symbol into the given buffer.
     // Returns the number of bytes written into the buffer.
-    /// # Panics 
+    /// # Panics
     /// May not exceed 9bytes
     fn serialize(self, buffer: &mut [u8]) -> u8;
     // Panics if invalid
@@ -277,13 +277,13 @@ mod tests {
     }
 
     #[test]
-    fn test_header_byte_serialization() {
+    fn test_column_op_metadata_byte_serialization() {
         for len in 0..=15 {
             for op_type in [ColumnOperationType::AddValue, ColumnOperationType::NewDoc] {
-                let header = ColumnOperationMetadata { op_type, len };
-                let header_code = header.to_code();
-                let serdeser_header = ColumnOperationMetadata::try_from_code(header_code).unwrap();
-                assert_eq!(header, serdeser_header);
+                let column_op_metadata = ColumnOperationMetadata { op_type, len };
+                let column_op_metadata_code = column_op_metadata.to_code();
+                let serdeser_metadata = ColumnOperationMetadata::try_from_code(column_op_metadata_code).unwrap();
+                assert_eq!(column_op_metadata, serdeser_metadata);
             }
         }
     }
