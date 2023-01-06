@@ -55,7 +55,7 @@ The columnar file starts by the actual column data, concatenated one after the o
 sorted by column key.
 
 A sstable associates
-`(column names, column_cardinality, column_type) to range of bytes.
+`(column name, column_cardinality, column_type) to range of bytes.
 
 Column name may not contain the zero byte `\0`.
 

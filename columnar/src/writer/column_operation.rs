@@ -54,6 +54,7 @@ impl<V: SymbolValue> ColumnOperation<V> {
             }
         };
         minibuf.bytes[0] = header.to_code();
+        // +1 for the metadata
         minibuf.len = 1 + header.len;
         minibuf
     }
@@ -93,7 +94,6 @@ impl<T> From<T> for ColumnOperation<T> {
 pub(crate) trait SymbolValue: Clone + Copy {
     fn serialize(self, buffer: &mut [u8]) -> u8;
 
-    // Reads the header type and the given bytes.
     //
     // `bytes` does not contain the header byte.
     // This method should advance bytes by the number of bytes that were consumed.
@@ -147,6 +147,9 @@ impl SymbolValue for NumericalValue {
         }
     }
 
+    /// F64: Serialize with a fixed size of 9 bytes
+    /// U64: Serialize without leading zeroes
+    /// I64: ZigZag encoded and serialize without leading zeroes
     fn serialize(self, output: &mut [u8]) -> u8 {
         match self {
             NumericalValue::F64(val) => {

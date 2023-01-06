@@ -5,7 +5,7 @@ use crate::DocId;
 /// The `IndexBuilder` interprets a sequence of
 /// calls of the form:
 /// (record_doc,record_value+)*
-/// and can then serialize the results into an index.
+/// and can then serialize the results into an index to associate docids with their value[s].
 ///
 /// It has different implementation depending on whether the
 /// cardinality is required, optional, or multivalued.
@@ -30,6 +30,7 @@ pub struct OptionalIndexBuilder {
 }
 
 struct SingleValueArrayIndex<'a> {
+    // DocIds with a value. DocIds are strictly increasing
     docs: &'a [DocId],
     num_docs: DocId,
 }
@@ -83,7 +84,8 @@ impl IndexBuilder for OptionalIndexBuilder {
 #[derive(Default)]
 pub struct MultivaluedIndexBuilder {
     // TODO should we switch to `start_offset`?
-    end_values: Vec<DocId>,
+    // contains the num values so far for each `DocId`.
+    end_offset: Vec<DocId>,
     total_num_vals_seen: u32,
 }
 

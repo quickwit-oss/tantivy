@@ -18,8 +18,7 @@ use crate::writer::column_writers::{ColumnWriter, NumericalColumnWriter, StrColu
 use crate::writer::value_index::{IndexBuilder, SpareIndexBuilders};
 use crate::{Cardinality, DocId};
 
-/// This is a set of buffers that are only here
-/// to limit the amount of allocation.
+/// This is a set of buffers that are used to temporarily write the values into before passing them to the fast field codecs.
 #[derive(Default)]
 struct SpareBuffers {
     value_index_builders: SpareIndexBuilders,
@@ -119,6 +118,7 @@ impl ColumnarWriter {
             column_name.as_bytes(),
             |column_opt: Option<StrColumnWriter>| {
                 let mut column: StrColumnWriter = column_opt.unwrap_or_else(|| {
+                    // Each column has its own dictionary
                     let dictionary_id = dictionaries.len() as u32;
                     dictionaries.push(DictionaryBuilder::default());
                     StrColumnWriter::with_dictionary_id(dictionary_id)
