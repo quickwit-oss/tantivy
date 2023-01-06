@@ -124,6 +124,8 @@ impl<T> From<T> for ColumnOperation<T> {
 pub(super) trait SymbolValue: Clone + Copy {
     // Serializes the symbol into the given buffer.
     // Returns the number of bytes written into the buffer.
+    /// # Panics 
+    /// May not exceed 9bytes
     fn serialize(self, buffer: &mut [u8]) -> u8;
     // Panics if invalid
     fn deserialize(bytes: &[u8]) -> Self;
