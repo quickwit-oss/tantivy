@@ -313,8 +313,7 @@ mod bench {
             })
             .collect();
 
-        let index = create_index_from_docs(&docs);
-        index
+        create_index_from_docs(&docs)
     }
 
     fn get_90_percent() -> RangeInclusive<Ipv6Addr> {
@@ -353,7 +352,7 @@ mod bench {
 
         let query = gen_query_inclusive(ip_range.start(), ip_range.end());
         let query_from_text = |text: &str| {
-            QueryParser::for_index(&index, vec![])
+            QueryParser::for_index(index, vec![])
                 .parse_query(text)
                 .unwrap()
         };

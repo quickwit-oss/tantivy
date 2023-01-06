@@ -1208,7 +1208,7 @@ mod tests {
                         text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                         text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                         score_field => val as u64,
-                        score_field_f64 => val as f64,
+                        score_field_f64 => val,
                         score_field_i64 => val as i64,
                     ))?;
                 }
@@ -1250,10 +1250,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&term_query, &collector).unwrap()
             });
         }
 
@@ -1281,10 +1278,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&term_query, &collector).unwrap()
             });
         }
 
@@ -1312,10 +1306,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&term_query, &collector).unwrap()
             });
         }
 
@@ -1351,10 +1342,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&term_query, &collector).unwrap()
             });
         }
 
@@ -1380,10 +1368,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1409,10 +1394,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1446,10 +1428,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1481,10 +1460,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1520,10 +1496,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1550,10 +1523,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&AllQuery, &collector).unwrap()
             });
         }
 
@@ -1597,7 +1567,7 @@ mod tests {
                                 ],
                                 ..Default::default()
                             }),
-                            sub_aggregation: sub_agg_req_1.clone(),
+                            sub_aggregation: sub_agg_req_1,
                         }),
                     ),
                 ]
@@ -1607,10 +1577,7 @@ mod tests {
                 let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
 
                 let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
+                searcher.search(&term_query, &collector).unwrap()
             });
         }
     }

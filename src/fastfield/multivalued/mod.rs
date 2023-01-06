@@ -525,7 +525,7 @@ mod bench {
             serializer.close().unwrap();
             field
         };
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data_idx = fast_fields_composite
