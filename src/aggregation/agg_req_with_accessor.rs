@@ -8,7 +8,7 @@ use fastfield_codecs::Column;
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
-use super::metric::{AverageAggregation, StatsAggregation};
+use super::metric::{AverageAggregation, MinAggregation, StatsAggregation};
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
 use crate::fastfield::{type_and_cardinality, MultiValuedFastFieldReader};
@@ -134,6 +134,7 @@ impl MetricAggregationWithAccessor {
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
             MetricAggregation::Average(AverageAggregation { field: field_name })
+            | MetricAggregation::Min(MinAggregation { field: field_name })
             | MetricAggregation::Stats(StatsAggregation { field: field_name }) => {
                 let (accessor, field_type) =
                     get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?;

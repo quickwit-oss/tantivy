@@ -70,6 +70,8 @@ impl AggregationResult {
 pub enum MetricResult {
     /// Average metric result.
     Average(SingleMetricResult),
+    /// Min metric result.
+    Min(SingleMetricResult),
     /// Stats metric result.
     Stats(Stats),
 }
@@ -78,6 +80,7 @@ impl MetricResult {
     fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
         match self {
             MetricResult::Average(avg) => Ok(avg.value),
+            MetricResult::Min(min) => Ok(min.value),
             MetricResult::Stats(stats) => stats.get_value(agg_property),
         }
     }
@@ -87,6 +90,9 @@ impl From<IntermediateMetricResult> for MetricResult {
         match metric {
             IntermediateMetricResult::Average(avg_data) => {
                 MetricResult::Average(avg_data.finalize().into())
+            }
+            IntermediateMetricResult::Min(intermediate_min) => {
+                MetricResult::Min(intermediate_min.finalize().into())
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())

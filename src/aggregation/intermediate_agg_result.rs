@@ -17,7 +17,7 @@ use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
     GetDocCount, Order, OrderTarget, SegmentHistogramBucketEntry, TermsAggregation,
 };
-use super::metric::{IntermediateAverage, IntermediateStats};
+use super::metric::{IntermediateAverage, IntermediateMin, IntermediateStats};
 use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
@@ -206,6 +206,8 @@ pub enum IntermediateAggregationResult {
 pub enum IntermediateMetricResult {
     /// Average containing intermediate average data result
     Average(IntermediateAverage),
+    /// Min intermediate result
+    Min(IntermediateMin),
     /// AverageData variant
     Stats(IntermediateStats),
 }
@@ -215,6 +217,9 @@ impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
         match tree {
             SegmentMetricResultCollector::Average(collector) => {
                 IntermediateMetricResult::Average(IntermediateAverage::from_collector(collector))
+            }
+            SegmentMetricResultCollector::Min(collector) => {
+                IntermediateMetricResult::Min(IntermediateMin::from_collector(collector))
             }
             SegmentMetricResultCollector::Stats(collector) => {
                 IntermediateMetricResult::Stats(collector.stats)
@@ -229,6 +234,7 @@ impl IntermediateMetricResult {
             MetricAggregation::Average(_) => {
                 IntermediateMetricResult::Average(IntermediateAverage::default())
             }
+            MetricAggregation::Min(_) => IntermediateMetricResult::Min(IntermediateMin::default()),
             MetricAggregation::Stats(_) => {
                 IntermediateMetricResult::Stats(IntermediateStats::default())
             }
@@ -241,6 +247,9 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::Average(avg_data_right),
             ) => {
                 avg_data_left.merge_fruits(avg_data_right);
+            }
+            (IntermediateMetricResult::Min(min_left), IntermediateMetricResult::Min(min_right)) => {
+                min_left.merge_fruits(min_right);
             }
             (
                 IntermediateMetricResult::Stats(stats_left),

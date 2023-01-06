@@ -51,7 +51,7 @@ use serde::{Deserialize, Serialize};
 
 pub use super::bucket::RangeAggregation;
 use super::bucket::{HistogramAggregation, TermsAggregation};
-use super::metric::{AverageAggregation, StatsAggregation};
+use super::metric::{AverageAggregation, MinAggregation, StatsAggregation};
 use super::VecWithNames;
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -240,6 +240,9 @@ pub enum MetricAggregation {
     /// Calculates the average.
     #[serde(rename = "avg")]
     Average(AverageAggregation),
+    /// Calculates the minimum.
+    #[serde(rename = "min")]
+    Min(MinAggregation),
     /// Calculates stats sum, average, min, max, standard_deviation on a field.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
@@ -249,6 +252,7 @@ impl MetricAggregation {
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
             MetricAggregation::Average(avg) => fast_field_names.insert(avg.field.to_string()),
+            MetricAggregation::Min(min) => fast_field_names.insert(min.field.to_string()),
             MetricAggregation::Stats(stats) => fast_field_names.insert(stats.field.to_string()),
         };
     }

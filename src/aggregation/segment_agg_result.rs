@@ -15,7 +15,8 @@ use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTer
 use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
-    AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
+    AverageAggregation, MinAggregation, SegmentAverageCollector, SegmentMinCollector,
+    SegmentStatsCollector, StatsAggregation,
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
@@ -164,31 +165,38 @@ impl SegmentAggregationResultsCollector {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentMetricResultCollector {
     Average(SegmentAverageCollector),
+    Min(SegmentMinCollector),
     Stats(SegmentStatsCollector),
 }
 
 impl SegmentMetricResultCollector {
     pub fn from_req_and_validate(req: &MetricAggregationWithAccessor) -> crate::Result<Self> {
         match &req.metric {
-            MetricAggregation::Average(AverageAggregation { field: _ }) => {
+            MetricAggregation::Average(AverageAggregation { .. }) => {
                 Ok(SegmentMetricResultCollector::Average(
                     SegmentAverageCollector::from_req(req.field_type),
                 ))
             }
-            MetricAggregation::Stats(StatsAggregation { field: _ }) => {
+            MetricAggregation::Min(MinAggregation { .. }) => Ok(SegmentMetricResultCollector::Min(
+                SegmentMinCollector::from_req(req.field_type),
+            )),
+            MetricAggregation::Stats(StatsAggregation { .. }) => {
                 Ok(SegmentMetricResultCollector::Stats(
                     SegmentStatsCollector::from_req(req.field_type),
                 ))
             }
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
+    pub(crate) fn collect_block(&mut self, docs: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Average(avg_collector) => {
-                avg_collector.collect_block(doc, &*metric.accessor);
+                avg_collector.collect_block(docs, &*metric.accessor);
+            }
+            SegmentMetricResultCollector::Min(min_collector) => {
+                min_collector.collect_block(docs, &*metric.accessor);
             }
             SegmentMetricResultCollector::Stats(stats_collector) => {
-                stats_collector.collect_block(doc, &*metric.accessor);
+                stats_collector.collect_block(docs, &*metric.accessor);
             }
         }
     }
