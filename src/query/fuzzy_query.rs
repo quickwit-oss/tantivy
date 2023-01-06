@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-use std::ops::Range;
-
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
 use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
@@ -33,22 +30,6 @@ impl Automaton for DfaWrapper {
         self.0.transition(*state, byte)
     }
 }
-
-/// A range of Levenshtein distances that we will build DFAs for our terms
-/// The computation is exponential, so best keep it to low single digits
-const VALID_LEVENSHTEIN_DISTANCE_RANGE: Range<u8> = 0..3;
-
-static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
-    let mut lev_builder_cache = HashMap::new();
-    // TODO make population lazy on a `(distance, val)` basis
-    for distance in VALID_LEVENSHTEIN_DISTANCE_RANGE {
-        for &transposition in &[false, true] {
-            let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
-            lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
-        }
-    }
-    lev_builder_cache
-});
 
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is within
@@ -129,30 +110,39 @@ impl FuzzyTermQuery {
     }
 
     fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
-        // LEV_BUILDER is a HashMap, whose `get` method returns an Option
-        match LEV_BUILDER.get(&(self.distance, self.transposition_cost_one)) {
-            // Unwrap the option and build the Ok(AutomatonWeight)
-            Some(automaton_builder) => {
-                let term_text = self.term.as_str().ok_or_else(|| {
-                    crate::TantivyError::InvalidArgument(
-                        "The fuzzy term query requires a string term.".to_string(),
-                    )
-                })?;
-                let automaton = if self.prefix {
-                    automaton_builder.build_prefix_dfa(term_text)
-                } else {
-                    automaton_builder.build_dfa(term_text)
-                };
-                Ok(AutomatonWeight::new(
-                    self.term.field(),
-                    DfaWrapper(automaton),
+        static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 3] = [
+            [OnceCell::new(), OnceCell::new()],
+            [OnceCell::new(), OnceCell::new()],
+            [OnceCell::new(), OnceCell::new()],
+        ];
+
+        let automaton_builder = AUTOMATON_BUILDER
+            .get(self.distance as usize)
+            .ok_or_else(|| {
+                InvalidArgument(format!(
+                    "Levenshtein distance of {} is not allowed. Choose a value less than {}",
+                    self.distance,
+                    AUTOMATON_BUILDER.len()
                 ))
-            }
-            None => Err(InvalidArgument(format!(
-                "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
-                self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
-            ))),
-        }
+            })?
+            .get(self.transposition_cost_one as usize)
+            .unwrap()
+            .get_or_init(|| {
+                LevenshteinAutomatonBuilder::new(self.distance, self.transposition_cost_one)
+            });
+
+        let term_text = self.term.as_str().ok_or_else(|| {
+            InvalidArgument("The fuzzy term query requires a string term.".to_string())
+        })?;
+        let automaton = if self.prefix {
+            automaton_builder.build_prefix_dfa(term_text)
+        } else {
+            automaton_builder.build_dfa(term_text)
+        };
+        Ok(AutomatonWeight::new(
+            self.term.field(),
+            DfaWrapper(automaton),
+        ))
     }
 }
 
