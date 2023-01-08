@@ -303,8 +303,7 @@ mod tests {
 
     use super::{utf8_codepoint_width, CodepointFrontiers, NgramTokenizer, StutteringIterator};
     use crate::tokenizer::tests::assert_token;
-    use crate::tokenizer::tokenizer::Tokenizer;
-    use crate::tokenizer::{BoxTokenStream, Token};
+    use crate::tokenizer::{BoxTokenStream, Token, Tokenizer};
 
     fn test_helper(mut tokenizer: BoxTokenStream) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];
