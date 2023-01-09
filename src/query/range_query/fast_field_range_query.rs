@@ -1,3 +1,4 @@
+use core::fmt;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -44,7 +45,7 @@ pub(crate) enum FastFieldCardinality<T: MakeZero> {
     MultiValue(MultiValuedFastFieldReader<T>),
 }
 
-impl<T: MakeZero + PartialOrd + Clone> FastFieldCardinality<T> {
+impl<T: MakeZero + PartialOrd + Copy + fmt::Debug> FastFieldCardinality<T> {
     fn num_docs(&self) -> u32 {
         match self {
             FastFieldCardinality::SingleValue(single_value) => single_value.num_vals(),
@@ -76,7 +77,7 @@ pub(crate) struct RangeDocSet<T: MakeZero> {
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
-impl<T: MakeZero + Send + PartialOrd + Clone> RangeDocSet<T> {
+impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, fast_field: FastFieldCardinality<T>) -> Self {
         let mut range_docset = Self {
             value_range,
@@ -159,7 +160,7 @@ impl<T: MakeZero + Send + PartialOrd + Clone> RangeDocSet<T> {
     }
 }
 
-impl<T: MakeZero + Send + PartialOrd + Clone> DocSet for RangeDocSet<T> {
+impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> DocSet for RangeDocSet<T> {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {

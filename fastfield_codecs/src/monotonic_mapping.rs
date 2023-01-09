@@ -1,5 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 
 use fastdivide::DividerU64;
 
@@ -32,7 +33,7 @@ pub trait MonotonicallyMappableToU64:
 /// mapping from their range to their domain. The `inverse` method is required when opening a codec,
 /// so a value can be converted back to its original domain (e.g. ip address or f64) from its
 /// internal representation.
-pub trait StrictlyMonotonicFn<External, Internal> {
+pub trait StrictlyMonotonicFn<External: Copy, Internal: Copy> {
     /// Strictly monotonically maps the value from External to Internal.
     fn mapping(&self, inp: External) -> Internal;
     /// Inverse of `mapping`. Maps the value from Internal to External.
@@ -48,12 +49,12 @@ pub trait StrictlyMonotonicFn<External, Internal> {
     ///
     /// coerce_up means the next valid upper value in the value space will be chosen if the value
     /// has to be coerced.
-    fn mapping_coerce(&self, inp: External, _coerce_up: bool) -> (bool, Internal) {
-        (false, self.mapping(inp))
+    fn mapping_coerce(&self, inp: RangeInclusive<External>) -> RangeInclusive<Internal> {
+        self.mapping(*inp.start())..=self.mapping(*inp.end())
     }
     /// Inverse of `mapping_coerce`.
-    fn inverse_coerce(&self, out: Internal, _coerce_up: bool) -> (bool, External) {
-        (false, self.inverse(out))
+    fn inverse_coerce(&self, out: RangeInclusive<Internal>) -> RangeInclusive<External> {
+        self.inverse(*out.start())..=self.inverse(*out.end())
     }
 }
 
@@ -75,7 +76,10 @@ impl<T> From<T> for StrictlyMonotonicMappingInverter<T> {
 }
 
 impl<From, To, T> StrictlyMonotonicFn<To, From> for StrictlyMonotonicMappingInverter<T>
-where T: StrictlyMonotonicFn<From, To>
+where
+    T: StrictlyMonotonicFn<From, To>,
+    From: Copy,
+    To: Copy,
 {
     #[inline(always)]
     fn mapping(&self, val: To) -> From {
@@ -88,12 +92,12 @@ where T: StrictlyMonotonicFn<From, To>
     }
 
     #[inline]
-    fn mapping_coerce(&self, inp: To, coerce_up: bool) -> (bool, From) {
-        self.orig_mapping.inverse_coerce(inp, coerce_up)
+    fn mapping_coerce(&self, inp: RangeInclusive<To>) -> RangeInclusive<From> {
+        self.orig_mapping.inverse_coerce(inp)
     }
     #[inline]
-    fn inverse_coerce(&self, out: From, coerce_up: bool) -> (bool, To) {
-        self.orig_mapping.mapping_coerce(out, coerce_up)
+    fn inverse_coerce(&self, out: RangeInclusive<From>) -> RangeInclusive<To> {
+        self.orig_mapping.mapping_coerce(out)
     }
 }
 
@@ -174,20 +178,28 @@ impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     }
 
     #[inline]
-    fn mapping_coerce(&self, inp: External, coerce_up: bool) -> (bool, u64) {
-        let val = External::to_u64(inp);
-        if self.min_value > val {
-            (true, 0)
-        } else {
+    #[allow(clippy::reversed_empty_ranges)]
+    fn mapping_coerce(&self, inp: RangeInclusive<External>) -> RangeInclusive<u64> {
+        let end = External::to_u64(*inp.end());
+        if end < self.min_value || inp.end() < inp.start() {
+            return 1..=0;
+        }
+        let map_coerce = |mut inp, coerce_up| {
+            let inp_lower_bound = self.inverse(0);
+            if inp < inp_lower_bound {
+                inp = inp_lower_bound;
+            }
+            let val = External::to_u64(inp);
             let need_coercion = coerce_up && (val - self.min_value) % self.gcd != 0;
             let mut mapped_val = self.mapping(inp);
-            if !need_coercion {
-                (false, mapped_val)
-            } else {
+            if need_coercion {
                 mapped_val += 1;
-                (true, mapped_val)
             }
-        }
+            mapped_val
+        };
+        let start = map_coerce(*inp.start(), true);
+        let end = map_coerce(*inp.end(), false);
+        start..=end
     }
 }
 
@@ -206,13 +218,14 @@ impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
     for StrictlyMonotonicMappingToInternalBaseval
 {
     #[inline]
-    fn mapping_coerce(&self, inp: External, _coerce_up: bool) -> (bool, u64) {
-        let val = External::to_u64(inp);
-        if self.min_value > val {
-            (true, 0)
-        } else {
-            (false, self.mapping(inp))
+    #[allow(clippy::reversed_empty_ranges)]
+    fn mapping_coerce(&self, inp: RangeInclusive<External>) -> RangeInclusive<u64> {
+        if External::to_u64(*inp.end()) < self.min_value {
+            return 1..=0;
         }
+        let start = self.mapping(External::to_u64(*inp.start()).max(self.min_value));
+        let end = self.mapping(External::to_u64(*inp.end()));
+        start..=end
     }
 
     #[inline(always)]
@@ -298,7 +311,7 @@ mod tests {
         test_round_trip::<_, _, u64>(&mapping, 100u64);
     }
 
-    fn test_round_trip<T: StrictlyMonotonicFn<K, L>, K: std::fmt::Debug + Eq + Copy, L>(
+    fn test_round_trip<T: StrictlyMonotonicFn<K, L>, K: std::fmt::Debug + Eq + Copy, L: Copy>(
         mapping: &T,
         test_val: K,
     ) {

@@ -1,3 +1,4 @@
+use core::fmt;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
@@ -20,7 +21,7 @@ pub struct MultiValuedFastFieldReader<T> {
     vals_reader: Arc<dyn Column<T>>,
 }
 
-impl<T: PartialOrd + MakeZero + Clone> MultiValuedFastFieldReader<T> {
+impl<T: PartialOrd + MakeZero + Copy + fmt::Debug> MultiValuedFastFieldReader<T> {
     pub(crate) fn open(
         idx_reader: Arc<dyn Column<u64>>,
         vals_reader: Arc<dyn Column<T>>,
@@ -128,15 +129,68 @@ mod tests {
     use crate::core::Index;
     use crate::query::RangeQuery;
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
-    use crate::{DateOptions, DateTime};
+    use crate::{DateOptions, DatePrecision, DateTime};
 
     #[test]
-    fn test_multivalued_date_docids_for_value_range() -> crate::Result<()> {
+    fn test_multivalued_date_docids_for_value_range_1() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
             DateOptions::default()
                 .set_fast(Cardinality::MultiValues)
+                .set_indexed()
+                .set_fieldnorm()
+                .set_precision(DatePrecision::Microseconds)
+                .set_stored(),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        let first_time_stamp = OffsetDateTime::now_utc();
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_utc(first_time_stamp),
+            date_field => DateTime::from_utc(first_time_stamp),
+        ))?;
+        // add another second
+        let two_secs_ahead = first_time_stamp + Duration::seconds(2);
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let reader = searcher.segment_reader(0);
+
+        let date_ff_reader = reader.fast_fields().dates(date_field).unwrap();
+        let mut docids = vec![];
+        date_ff_reader.get_docids_for_value_range(
+            DateTime::from_utc(first_time_stamp)..=DateTime::from_utc(two_secs_ahead),
+            0..5,
+            &mut docids,
+        );
+        assert_eq!(docids, vec![0]);
+
+        let count_multiples =
+            |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        assert_eq!(
+            count_multiples(RangeQuery::new_date(
+                date_field,
+                DateTime::from_utc(first_time_stamp)..DateTime::from_utc(two_secs_ahead)
+            )),
+            1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_multivalued_date_docids_for_value_range_2() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field(
+            "multi_date_field",
+            DateOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                // TODO: Test different precision after fixing https://github.com/quickwit-oss/tantivy/issues/1783
+                .set_precision(DatePrecision::Microseconds)
                 .set_indexed()
                 .set_fieldnorm()
                 .set_stored(),

@@ -178,8 +178,8 @@ pub fn monotonic_map_column<C, T, Input, Output>(
 where
     C: Column<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone + Debug,
-    Output: PartialOrd + Send + Sync + Clone + Debug,
+    Input: PartialOrd + Send + Sync + Copy + Debug,
+    Output: PartialOrd + Send + Sync + Copy + Debug,
 {
     MonotonicMappingColumn {
         from_column,
@@ -192,8 +192,8 @@ impl<C, T, Input, Output> Column<Output> for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone + Debug,
-    Output: PartialOrd + Send + Sync + Clone + Debug,
+    Input: PartialOrd + Send + Sync + Copy + Debug,
+    Output: PartialOrd + Send + Sync + Copy + Debug,
 {
     #[inline]
     fn get_val(&self, idx: u32) -> Output {
@@ -232,23 +232,12 @@ where
         if range.start() > &self.max_value() || range.end() < &self.min_value() {
             return;
         }
-        let (start_is_coerced_up, start) = self
-            .monotonic_mapping
-            .inverse_coerce(range.start().clone(), true);
-        let (end_is_coerced_up, end) = self
-            .monotonic_mapping
-            .inverse_coerce(range.end().clone(), false);
-        // Correctness: This case only happens, when both values are lower than the value space
-        // In that case both values are coerced to 0
-        if start_is_coerced_up && end_is_coerced_up && start == end {
-            return;
-        }
-        // Performance
-        if start > end {
+        let range = self.monotonic_mapping.inverse_coerce(range);
+        if range.start() > range.end() {
             return;
         }
         self.from_column
-            .get_docids_for_value_range(start..=end, doc_id_range, positions)
+            .get_docids_for_value_range(range, doc_id_range, positions)
     }
 
     // We voluntarily do not implement get_range as it yields a regression,

@@ -323,6 +323,9 @@ mod tests {
     pub fn get_codec_test_datasets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
+        let data = vec![10];
+        data_and_names.push((data, "minimal test"));
+
         let data = (10..=10_000_u64).collect::<Vec<_>>();
         data_and_names.push((data, "simple monotonically increasing"));
 
