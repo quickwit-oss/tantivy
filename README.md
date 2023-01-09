@@ -29,7 +29,7 @@ Your mileage WILL vary depending on the nature of queries and their load.
 # Features
 
 - Full-text search
-- Configurable tokenizer (stemming available for 17 Latin languages with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
+- Configurable tokenizer (stemming available for 17 Latin languages) with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command-line tools
 - BM25 scoring (the same as Lucene)
@@ -42,12 +42,12 @@ Your mileage WILL vary depending on the nature of queries and their load.
 - Single valued and multivalued u64, i64, and f64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
 - Text, i64, u64, f64, dates, and hierarchical facet fields
-- LZ4 compressed document store
+- Compressed document store (LZ4, Zstd, None, Brotli, Snap)
 - Range queries
 - Faceted search
 - Configurable indexing (optional term frequency and position indexing)
 - JSON Field
-- Aggregation Collector: range buckets, average, and stats metrics
+- Aggregation Collector: histogram, range buckets, average, and stats metrics
 - LogMergePolicy with deletes
 - Searcher Warmer API
 - Cheesy logo with a horse
@@ -80,6 +80,10 @@ There are many ways to support this project.
 # Contributing code
 
 We use the GitHub Pull Request workflow: reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
+
+## Tokenizer
+
+When implementing a tokenizer for tantivy depend on the `tantivy-tokenizer-api` crate.
 
 ## Minimum supported Rust version
 
