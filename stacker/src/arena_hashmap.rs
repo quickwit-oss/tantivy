@@ -209,7 +209,7 @@ impl ArenaHashMap {
         }
     }
 
-    /// `update` create a new entry for a given key if it does not exists
+    /// `update` create a new entry for a given key if it does not exist
     /// or updates the existing entry.
     ///
     /// The actual logic for this update is define in the `updater`
@@ -237,7 +237,7 @@ impl ArenaHashMap {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
-                // The key does not exists yet.
+                // The key does not exist yet.
                 let val = updater(None);
                 let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
                 let key_addr = self.memory_arena.allocate_space(num_bytes);

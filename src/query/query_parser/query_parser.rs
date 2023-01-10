@@ -36,7 +36,7 @@ pub enum QueryParserError {
     #[error("Unsupported query: {0}")]
     UnsupportedQuery(String),
     /// The query references a field that is not in the schema
-    #[error("Field does not exists: '{0}'")]
+    #[error("Field does not exist: '{0}'")]
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64` or `i64`-field, but the value
     /// is neither.
