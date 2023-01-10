@@ -9,18 +9,18 @@ use fastfield_codecs::MonotonicallyMappableToU64;
 use super::fast_field_range_query::{FastFieldCardinality, RangeDocSet};
 use super::range_query::map_bound;
 use crate::query::{ConstScorer, Explanation, Scorer, Weight};
-use crate::schema::{Cardinality, Field};
+use crate::schema::Cardinality;
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
 pub struct FastFieldRangeWeight {
-    field: Field,
+    field: String,
     left_bound: Bound<u64>,
     right_bound: Bound<u64>,
 }
 
 impl FastFieldRangeWeight {
-    pub fn new(field: Field, left_bound: Bound<u64>, right_bound: Bound<u64>) -> Self {
+    pub fn new(field: String, left_bound: Bound<u64>, right_bound: Bound<u64>) -> Self {
         let left_bound = map_bound(&left_bound, &|val| *val);
         let right_bound = map_bound(&right_bound, &|val| *val);
         Self {
@@ -33,10 +33,13 @@ impl FastFieldRangeWeight {
 
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let field_type = reader.schema().get_field_entry(self.field).field_type();
+        let field_type = reader
+            .schema()
+            .get_field_entry(reader.schema().get_field(&self.field)?)
+            .field_type();
         match field_type.fastfield_cardinality().unwrap() {
             Cardinality::SingleValue => {
-                let fast_field = reader.fast_fields().u64_lenient(self.field)?;
+                let fast_field = reader.fast_fields().u64_lenient(&self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
@@ -48,7 +51,7 @@ impl Weight for FastFieldRangeWeight {
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
             Cardinality::MultiValues => {
-                let fast_field = reader.fast_fields().u64s_lenient(self.field)?;
+                let fast_field = reader.fast_fields().u64s_lenient(&self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,

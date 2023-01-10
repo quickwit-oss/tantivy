@@ -548,9 +548,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     };
 
     // If we have a date type on the histogram buckets, we add the `key_as_string` field as rfc339
-    let field = schema
-        .get_field(&histogram_req.field)
-        .ok_or_else(|| TantivyError::FieldNotFound(histogram_req.field.to_string()))?;
+    let field = schema.get_field(&histogram_req.field)?;
     if schema.get_field_entry(field).field_type().is_date() {
         for bucket in buckets.iter_mut() {
             if let crate::aggregation::Key::F64(val) = bucket.key {

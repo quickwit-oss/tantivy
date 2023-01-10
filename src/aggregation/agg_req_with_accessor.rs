@@ -91,10 +91,7 @@ impl BucketAggregationWithAccessor {
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
-                let field = reader
-                    .schema()
-                    .get_field(field_name)
-                    .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
+                let field = reader.schema().get_field(field_name)?;
                 inverted_index = Some(reader.inverted_index(field)?);
                 get_ff_reader_and_validate(reader, field_name, Cardinality::MultiValues)?
             }
@@ -188,10 +185,7 @@ fn get_ff_reader_and_validate(
     field_name: &str,
     cardinality: Cardinality,
 ) -> crate::Result<(FastFieldAccessor, Type)> {
-    let field = reader
-        .schema()
-        .get_field(field_name)
-        .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
+    let field = reader.schema().get_field(field_name)?;
     let field_type = reader.schema().get_field_entry(field).field_type();
 
     if let Some((_ff_type, field_cardinality)) = type_and_cardinality(field_type) {
@@ -211,10 +205,10 @@ fn get_ff_reader_and_validate(
     let ff_fields = reader.fast_fields();
     match cardinality {
         Cardinality::SingleValue => ff_fields
-            .u64_lenient(field)
+            .u64_lenient(field_name)
             .map(|field| (FastFieldAccessor::Single(field), field_type.value_type())),
         Cardinality::MultiValues => ff_fields
-            .u64s_lenient(field)
+            .u64s_lenient(field_name)
             .map(|field| (FastFieldAccessor::Multi(field), field_type.value_type())),
     }
 }

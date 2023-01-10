@@ -231,7 +231,7 @@ impl IndexBuilder {
     fn validate(&self) -> crate::Result<()> {
         if let Some(schema) = self.schema.as_ref() {
             if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref() {
-                let schema_field = schema.get_field(&sort_by_field.field).ok_or_else(|| {
+                let schema_field = schema.get_field(&sort_by_field.field).map_err(|_| {
                     TantivyError::InvalidArgument(format!(
                         "Field to sort index {} not found in schema",
                         sort_by_field.field
