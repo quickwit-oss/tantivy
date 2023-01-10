@@ -36,31 +36,27 @@ impl Weight for FastFieldRangeWeight {
         let field_type = reader.schema().get_field_entry(self.field).field_type();
         match field_type.fastfield_cardinality().unwrap() {
             Cardinality::SingleValue => {
-                let ip_addr_fast_field = reader.fast_fields().u64_lenient(self.field)?;
+                let fast_field = reader.fast_fields().u64_lenient(self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
-                    ip_addr_fast_field.min_value(),
-                    ip_addr_fast_field.max_value(),
+                    fast_field.min_value(),
+                    fast_field.max_value(),
                 );
-                let docset = RangeDocSet::new(
-                    value_range,
-                    FastFieldCardinality::SingleValue(ip_addr_fast_field),
-                );
+                let docset =
+                    RangeDocSet::new(value_range, FastFieldCardinality::SingleValue(fast_field));
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
             Cardinality::MultiValues => {
-                let ip_addr_fast_field = reader.fast_fields().u64s_lenient(self.field)?;
+                let fast_field = reader.fast_fields().u64s_lenient(self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
-                    ip_addr_fast_field.min_value(),
-                    ip_addr_fast_field.max_value(),
+                    fast_field.min_value(),
+                    fast_field.max_value(),
                 );
-                let docset = RangeDocSet::new(
-                    value_range,
-                    FastFieldCardinality::MultiValue(ip_addr_fast_field),
-                );
+                let docset =
+                    RangeDocSet::new(value_range, FastFieldCardinality::MultiValue(fast_field));
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
         }
@@ -131,7 +127,6 @@ mod tests {
     pub fn doc_from_id_1(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            // ip != id
             id_name: id.to_string(),
             id,
         }
@@ -139,7 +134,6 @@ mod tests {
     fn doc_from_id_2(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            // ip != id
             id_name: (id - 1).to_string(),
             id,
         }
@@ -148,19 +142,19 @@ mod tests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
         #[test]
-        fn test_ip_range_for_docs_prop(ops in proptest::collection::vec(operation_strategy(), 1..1000)) {
+        fn test_range_for_docs_prop(ops in proptest::collection::vec(operation_strategy(), 1..1000)) {
             assert!(test_id_range_for_docs(ops).is_ok());
         }
     }
 
     #[test]
-    fn ip_range_regression1_test() {
+    fn range_regression1_test() {
         let ops = vec![doc_from_id_1(0)];
         assert!(test_id_range_for_docs(ops).is_ok());
     }
 
     #[test]
-    fn ip_range_regression2_test() {
+    fn range_regression2_test() {
         let ops = vec![
             doc_from_id_1(52),
             doc_from_id_1(63),
@@ -172,13 +166,13 @@ mod tests {
     }
 
     #[test]
-    fn ip_range_regression3_test() {
+    fn range_regression3_test() {
         let ops = vec![doc_from_id_1(1), doc_from_id_1(2), doc_from_id_1(3)];
         assert!(test_id_range_for_docs(ops).is_ok());
     }
 
     #[test]
-    fn ip_range_regression4_test() {
+    fn range_regression4_test() {
         let ops = vec![doc_from_id_2(100)];
         assert!(test_id_range_for_docs(ops).is_ok());
     }
@@ -294,7 +288,7 @@ mod tests {
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
-            // Intersection search on multivalue ip field
+            // Intersection search on multivalue id field
             let id_filter = sample_docs[0].id_name.to_string();
             let query = format!(
                 "{} AND id_name:{}",
