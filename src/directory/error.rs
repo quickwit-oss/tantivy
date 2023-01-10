@@ -32,7 +32,7 @@ impl LockError {
 /// Error that may occur when opening a directory
 #[derive(Debug, Clone, Error)]
 pub enum OpenDirectoryError {
-    /// The underlying directory does not exists.
+    /// The underlying directory does not exist.
     #[error("Directory does not exist: '{0}'.")]
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
@@ -151,8 +151,8 @@ impl fmt::Debug for Incompatibility {
 /// Error that may occur when accessing a file read
 #[derive(Debug, Clone, Error)]
 pub enum OpenReadError {
-    /// The file does not exists.
-    #[error("Files does not exists: {0:?}")]
+    /// The file does not exist.
+    #[error("Files does not exist: {0:?}")]
     FileDoesNotExist(PathBuf),
     /// Any kind of io::Error.
     #[error(
@@ -181,8 +181,8 @@ impl OpenReadError {
 /// Error that may occur when trying to delete a file
 #[derive(Debug, Clone, Error)]
 pub enum DeleteError {
-    /// The file does not exists.
-    #[error("File does not exists: '{0}'.")]
+    /// The file does not exist.
+    #[error("File does not exist: '{0}'.")]
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
