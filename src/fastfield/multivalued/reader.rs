@@ -122,8 +122,78 @@ impl<T: PartialOrd + MakeZero + Clone> MultiValuedFastFieldReader<T> {
 #[cfg(test)]
 mod tests {
 
+    use time::{Duration, OffsetDateTime};
+
+    use crate::collector::Count;
     use crate::core::Index;
+    use crate::query::RangeQuery;
     use crate::schema::{Cardinality, Facet, FacetOptions, NumericOptions, Schema};
+    use crate::{DateOptions, DateTime};
+
+    #[test]
+    fn test_multivalued_date_docids_for_value_range() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field(
+            "multi_date_field",
+            DateOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_indexed()
+                .set_fieldnorm()
+                .set_stored(),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        let first_time_stamp = OffsetDateTime::now_utc();
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_utc(first_time_stamp),
+            date_field => DateTime::from_utc(first_time_stamp),
+        ))?;
+        index_writer.add_document(doc!())?;
+        // add one second
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_utc(first_time_stamp + Duration::seconds(1)),
+        ))?;
+        // add another second
+        let two_secs_ahead = first_time_stamp + Duration::seconds(2);
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_utc(two_secs_ahead),
+            date_field => DateTime::from_utc(two_secs_ahead),
+            date_field => DateTime::from_utc(two_secs_ahead),
+        ))?;
+        // add three seconds
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_utc(first_time_stamp + Duration::seconds(3)),
+        ))?;
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let reader = searcher.segment_reader(0);
+        assert_eq!(reader.num_docs(), 5);
+
+        let date_ff_reader = reader.fast_fields().dates(date_field).unwrap();
+        let mut docids = vec![];
+        date_ff_reader.get_docids_for_value_range(
+            DateTime::from_utc(first_time_stamp)..=DateTime::from_utc(two_secs_ahead),
+            0..5,
+            &mut docids,
+        );
+        assert_eq!(docids, vec![0, 2, 3]);
+
+        let count_multiples =
+            |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        assert_eq!(
+            count_multiples(RangeQuery::new_date(
+                date_field,
+                DateTime::from_utc(first_time_stamp)..DateTime::from_utc(two_secs_ahead)
+            )),
+            2
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_multifastfield_reader() -> crate::Result<()> {

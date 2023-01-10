@@ -4,7 +4,7 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
+    use std::ops::RangeInclusive;
     use std::sync::Arc;
 
     use common::OwnedBytes;
@@ -71,26 +71,23 @@ mod tests {
         });
     }
 
-    fn get_exp_data() -> Vec<u64> {
+    const FIFTY_PERCENT_RANGE: RangeInclusive<u64> = 1..=50;
+    const SINGLE_ITEM: u64 = 90;
+    const SINGLE_ITEM_RANGE: RangeInclusive<u64> = 90..=90;
+    const ONE_PERCENT_ITEM_RANGE: RangeInclusive<u64> = 49..=49;
+    fn get_data_50percent_item() -> Vec<u128> {
+        let mut rng = StdRng::from_seed([1u8; 32]);
+
         let mut data = vec![];
-        for i in 0..100 {
-            let num = i * i;
-            data.extend(iter::repeat(i as u64).take(num));
+        for _ in 0..300_000 {
+            let val = rng.gen_range(1..=100);
+            data.push(val);
         }
-        data.shuffle(&mut StdRng::from_seed([1u8; 32]));
+        data.push(SINGLE_ITEM);
 
-        // lengt = 328350
+        data.shuffle(&mut rng);
+        let data = data.iter().map(|el| *el as u128).collect::<Vec<_>>();
         data
-    }
-
-    fn get_data_50percent_item() -> (u128, u128, Vec<u128>) {
-        let mut permutation = get_exp_data();
-        let major_item = 20;
-        let minor_item = 10;
-        permutation.extend(iter::repeat(major_item).take(permutation.len()));
-        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-        let permutation = permutation.iter().map(|el| *el as u128).collect::<Vec<_>>();
-        (major_item as u128, minor_item as u128, permutation)
     }
     fn get_u128_column_random() -> Arc<dyn Column<u128>> {
         let permutation = generate_random();
@@ -106,15 +103,82 @@ mod tests {
         open_u128::<u128>(out).unwrap()
     }
 
+    // U64 RANGE START
+    #[bench]
+    fn bench_intfastfield_getrange_u64_50percent_hit(b: &mut Bencher) {
+        let data = get_data_50percent_item();
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(
+                FIFTY_PERCENT_RANGE,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u64_1percent_hit(b: &mut Bencher) {
+        let data = get_data_50percent_item();
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(
+                ONE_PERCENT_ITEM_RANGE,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u64_single_hit(b: &mut Bencher) {
+        let data = get_data_50percent_item();
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(
+                SINGLE_ITEM_RANGE,
+                0..data.len() as u32,
+                &mut positions,
+            );
+            positions
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_getrange_u64_hit_all(b: &mut Bencher) {
+        let data = get_data_50percent_item();
+        let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
+        let column: Arc<dyn Column<u64>> = serialize_and_load(&data);
+
+        b.iter(|| {
+            let mut positions = Vec::new();
+            column.get_docids_for_value_range(0..=u64::MAX, 0..data.len() as u32, &mut positions);
+            positions
+        });
+    }
+    // U64 RANGE END
+
+    // U128 RANGE START
     #[bench]
     fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
-        let (major_item, _minor_item, data) = get_data_50percent_item();
+        let data = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
         b.iter(|| {
             let mut positions = Vec::new();
             column.get_docids_for_value_range(
-                major_item..=major_item,
+                *FIFTY_PERCENT_RANGE.start() as u128..=*FIFTY_PERCENT_RANGE.end() as u128,
                 0..data.len() as u32,
                 &mut positions,
             );
@@ -124,13 +188,13 @@ mod tests {
 
     #[bench]
     fn bench_intfastfield_getrange_u128_single_hit(b: &mut Bencher) {
-        let (_major_item, minor_item, data) = get_data_50percent_item();
+        let data = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
         b.iter(|| {
             let mut positions = Vec::new();
             column.get_docids_for_value_range(
-                minor_item..=minor_item,
+                *SINGLE_ITEM_RANGE.start() as u128..=*SINGLE_ITEM_RANGE.end() as u128,
                 0..data.len() as u32,
                 &mut positions,
             );
@@ -140,7 +204,7 @@ mod tests {
 
     #[bench]
     fn bench_intfastfield_getrange_u128_hit_all(b: &mut Bencher) {
-        let (_major_item, _minor_item, data) = get_data_50percent_item();
+        let data = get_data_50percent_item();
         let column = get_u128_column_from_data(&data);
 
         b.iter(|| {
@@ -149,6 +213,7 @@ mod tests {
             positions
         });
     }
+    // U128 RANGE END
 
     #[bench]
     fn bench_intfastfield_scan_all_fflookup_u128(b: &mut Bencher) {
