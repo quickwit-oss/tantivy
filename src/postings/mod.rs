@@ -631,7 +631,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             while segment_postings.advance() != TERMINATED {}
@@ -647,25 +647,25 @@ mod bench {
             let segment_postings_a = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_b = segment_reader
                 .inverted_index(TERM_B.field())
                 .unwrap()
-                .read_postings(&*TERM_B, IndexRecordOption::Basic)
+                .read_postings(&TERM_B, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_c = segment_reader
                 .inverted_index(TERM_C.field())
                 .unwrap()
-                .read_postings(&*TERM_C, IndexRecordOption::Basic)
+                .read_postings(&TERM_C, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_d = segment_reader
                 .inverted_index(TERM_D.field())
                 .unwrap()
-                .read_postings(&*TERM_D, IndexRecordOption::Basic)
+                .read_postings(&TERM_D, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let mut intersection = Intersection::new(vec![
@@ -687,7 +687,7 @@ mod bench {
         let mut segment_postings = segment_reader
             .inverted_index(TERM_A.field())
             .unwrap()
-            .read_postings(&*TERM_A, IndexRecordOption::Basic)
+            .read_postings(&TERM_A, IndexRecordOption::Basic)
             .unwrap()
             .unwrap();
 
@@ -705,7 +705,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             for doc in &existing_docs {
@@ -746,7 +746,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let mut s = 0u32;

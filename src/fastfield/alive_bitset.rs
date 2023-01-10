@@ -175,7 +175,7 @@ mod bench {
 
     fn get_alive() -> Vec<u32> {
         let mut data = (0..1_000_000_u32).collect::<Vec<u32>>();
-        for _ in 0..(1_000_000) * 1 / 8 {
+        for _ in 0..1_000_000 / 8 {
             remove_rand(&mut data);
         }
         data

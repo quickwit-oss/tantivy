@@ -358,8 +358,7 @@ mod bench {
             })
             .collect();
 
-        let index = create_index_from_docs(&docs);
-        index
+        create_index_from_docs(&docs)
     }
 
     fn get_90_percent() -> RangeInclusive<u64> {
@@ -392,7 +391,7 @@ mod bench {
 
         let query = gen_query_inclusive(id_range.start(), id_range.end());
         let query_from_text = |text: &str| {
-            QueryParser::for_index(&index, vec![])
+            QueryParser::for_index(index, vec![])
                 .parse_query(text)
                 .unwrap()
         };
