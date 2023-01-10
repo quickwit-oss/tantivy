@@ -34,15 +34,14 @@ struct SpareBuffers {
 ///
 /// ```rust
 /// use tantivy_columnar::ColumnarWriter;
-/// fn main() {
-///     let mut columnar_writer = ColumnarWriter::default();
-///     columnar_writer.record_str(0u32 /* doc id */, "product_name", "Red backpack");
-///     columnar_writer.record_numerical(0u32 /* doc id */, "price", 10u64);
-///     columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
-///     columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
-///     let mut wrt: Vec<u8> =  Vec::new();
-///     columnar_writer.serialize(2u32, &mut wrt).unwrap();
-/// }
+///
+/// let mut columnar_writer = ColumnarWriter::default();
+/// columnar_writer.record_str(0u32 /* doc id */, "product_name", "Red backpack");
+/// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10u64);
+/// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
+/// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
+/// let mut wrt: Vec<u8> =  Vec::new();
+/// columnar_writer.serialize(2u32, &mut wrt).unwrap();
 /// ```
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,

@@ -3,6 +3,8 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use rustc_hash::FxHashMap;
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 
@@ -403,7 +405,9 @@ impl QueryParser {
                 Err(e) => Err(QueryParserError::from(e)),
             },
             FieldType::Bytes(_) => {
-                let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
+                let bytes = BASE64
+                    .decode(phrase)
+                    .map_err(QueryParserError::ExpectedBase64)?;
                 Ok(Term::from_field_bytes(field, &bytes))
             }
             FieldType::IpAddr(_) => {
@@ -498,7 +502,9 @@ impl QueryParser {
                 Err(e) => Err(QueryParserError::from(e)),
             },
             FieldType::Bytes(_) => {
-                let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
+                let bytes = BASE64
+                    .decode(phrase)
+                    .map_err(QueryParserError::ExpectedBase64)?;
                 let bytes_term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![LogicalLiteral::Term(bytes_term)])
             }

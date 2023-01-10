@@ -15,10 +15,10 @@ pub struct ColumnarSerializer<W: io::Write> {
 
 /// Returns a key consisting of the concatenation of the key and the column_type_and_cardinality
 /// code.
-fn prepare_key<'a>(
+fn prepare_key(
     key: &[u8],
     column_type_cardinality: ColumnTypeAndCardinality,
-    buffer: &'a mut Vec<u8>,
+    buffer: &mut Vec<u8>,
 ) {
     buffer.clear();
     buffer.extend_from_slice(key);

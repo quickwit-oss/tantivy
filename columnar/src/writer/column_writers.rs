@@ -9,18 +9,18 @@ use crate::{Cardinality, DocId, NumericalType, NumericalValue};
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
 enum DocumentStep {
-    SameDoc = 0,
-    NextDoc = 1,
-    SkippedDoc = 2,
+    Same = 0,
+    Next = 1,
+    Skipped = 2,
 }
 
 #[inline(always)]
 fn delta_with_last_doc(last_doc_opt: Option<u32>, doc: u32) -> DocumentStep {
     let expected_next_doc = last_doc_opt.map(|last_doc| last_doc + 1).unwrap_or(0u32);
     match doc.cmp(&expected_next_doc) {
-        Ordering::Less => DocumentStep::SameDoc,
-        Ordering::Equal => DocumentStep::NextDoc,
-        Ordering::Greater => DocumentStep::SkippedDoc,
+        Ordering::Less => DocumentStep::Same,
+        Ordering::Equal => DocumentStep::Next,
+        Ordering::Greater => DocumentStep::Skipped,
     }
 }
 
@@ -56,15 +56,15 @@ impl ColumnWriter {
     pub(super) fn record<S: SymbolValue>(&mut self, doc: DocId, value: S, arena: &mut MemoryArena) {
         // Difference between `doc` and the last doc.
         match delta_with_last_doc(self.last_doc_opt, doc) {
-            DocumentStep::SameDoc => {
+            DocumentStep::Same => {
                 // This is the last encounterred document.
                 self.cardinality = Cardinality::Multivalued;
             }
-            DocumentStep::NextDoc => {
+            DocumentStep::Next => {
                 self.last_doc_opt = Some(doc);
                 self.write_symbol::<S>(ColumnOperation::NewDoc(doc), arena);
             }
-            DocumentStep::SkippedDoc => {
+            DocumentStep::Skipped => {
                 self.cardinality = self.cardinality.max(Cardinality::Optional);
                 self.last_doc_opt = Some(doc);
                 self.write_symbol::<S>(ColumnOperation::NewDoc(doc), arena);
@@ -79,8 +79,8 @@ impl ColumnWriter {
     // at the end of the column.
     pub(crate) fn get_cardinality(&self, num_docs: DocId) -> Cardinality {
         match delta_with_last_doc(self.last_doc_opt, num_docs) {
-            DocumentStep::SameDoc | DocumentStep::NextDoc => self.cardinality,
-            DocumentStep::SkippedDoc => self.cardinality.max(Cardinality::Optional),
+            DocumentStep::Same | DocumentStep::Next => self.cardinality,
+            DocumentStep::Skipped => self.cardinality.max(Cardinality::Optional),
         }
     }
 
@@ -215,20 +215,14 @@ mod tests {
 
     #[test]
     fn test_delta_with_last_doc() {
-        assert_eq!(delta_with_last_doc(None, 0u32), DocumentStep::NextDoc);
-        assert_eq!(delta_with_last_doc(None, 1u32), DocumentStep::SkippedDoc);
-        assert_eq!(delta_with_last_doc(None, 2u32), DocumentStep::SkippedDoc);
-        assert_eq!(delta_with_last_doc(Some(0u32), 0u32), DocumentStep::SameDoc);
-        assert_eq!(delta_with_last_doc(Some(1u32), 1u32), DocumentStep::SameDoc);
-        assert_eq!(delta_with_last_doc(Some(1u32), 2u32), DocumentStep::NextDoc);
-        assert_eq!(
-            delta_with_last_doc(Some(1u32), 3u32),
-            DocumentStep::SkippedDoc
-        );
-        assert_eq!(
-            delta_with_last_doc(Some(1u32), 4u32),
-            DocumentStep::SkippedDoc
-        );
+        assert_eq!(delta_with_last_doc(None, 0u32), DocumentStep::Next);
+        assert_eq!(delta_with_last_doc(None, 1u32), DocumentStep::Skipped);
+        assert_eq!(delta_with_last_doc(None, 2u32), DocumentStep::Skipped);
+        assert_eq!(delta_with_last_doc(Some(0u32), 0u32), DocumentStep::Same);
+        assert_eq!(delta_with_last_doc(Some(1u32), 1u32), DocumentStep::Same);
+        assert_eq!(delta_with_last_doc(Some(1u32), 2u32), DocumentStep::Next);
+        assert_eq!(delta_with_last_doc(Some(1u32), 3u32), DocumentStep::Skipped);
+        assert_eq!(delta_with_last_doc(Some(1u32), 4u32), DocumentStep::Skipped);
     }
 
     #[track_caller]

@@ -1,14 +1,15 @@
 use regex::Regex;
-use crate::TantivyError;
 
 use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use crate::TantivyError;
 
 /// Tokenize the text by using a regex pattern to split.
 /// Each match of the regex emits a distinct token, empty tokens will not be emitted. Anchors such
 /// as `\A` will match the text from the part where the last token was emitted or the beginning of
 /// the complete text if no token was emitted yet.
 ///
-/// Example: `` 'aaa' bbb 'ccc' 'ddd' `` with the pattern `` '(?:\w*)' `` will be tokenized as followed:
+/// Example: `` 'aaa' bbb 'ccc' 'ddd' `` with the pattern `` '(?:\w*)' `` will be tokenized as
+/// followed:
 ///
 /// | Term     | aaa  | ccc    | ddd   |
 /// |----------|------|--------|-------|
@@ -21,7 +22,7 @@ use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
 /// ```rust
 /// use tantivy::tokenizer::*;
 ///
-/// let tokenizer = RegexTokenizer::new(r"'(?:\w*)'");
+/// let tokenizer = RegexTokenizer::new(r"'(?:\w*)'").unwrap();
 /// let mut stream = tokenizer.token_stream("'aaa' bbb 'ccc' 'ddd'");
 /// {
 ///     let token = stream.next().unwrap();
@@ -46,10 +47,11 @@ use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
 
 #[derive(Clone)]
 pub struct RegexTokenizer {
-    regex: Regex
+    regex: Regex,
 }
 
 impl RegexTokenizer {
+    /// Creates a new RegexTokenizer.
     pub fn new(regex_pattern: &str) -> crate::Result<RegexTokenizer> {
         Regex::new(regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_owned()))
@@ -63,6 +65,7 @@ impl Tokenizer for RegexTokenizer {
             regex: self.regex.clone(),
             text,
             token: Token::default(),
+            cursor: 0,
         })
     }
 }
@@ -71,25 +74,28 @@ pub struct RegexTokenStream<'a> {
     regex: Regex,
     text: &'a str,
     token: Token,
+    cursor: usize,
 }
 
 impl<'a> TokenStream for RegexTokenStream<'a> {
     fn advance(&mut self) -> bool {
-        if let Some(m) = self.regex.find(self.text) {
-            if !m.as_str().is_empty() {
-                self.token.text.clear();
-                self.token.text.push_str(&self.text[m.start()..m.end()]);
-
-                self.token.offset_from = self.token.offset_to + m.start();
-                self.token.offset_to = self.token.offset_to + m.end();
-
-                self.token.position = self.token.position.wrapping_add(1);
-
-                self.text = &self.text[m.end()..];
-                return true
-            }
+        let Some(regex_match) = self.regex.find(self.text) else {
+            return false;
+        };
+        if regex_match.as_str().is_empty() {
+            return false;
         }
-        false
+        self.token.text.clear();
+        self.token.text.push_str(regex_match.as_str());
+
+        self.token.offset_from = self.cursor + regex_match.start();
+        self.cursor += regex_match.end();
+        self.token.offset_to = self.cursor;
+
+        self.token.position = self.token.position.wrapping_add(1);
+
+        self.text = &self.text[regex_match.end()..];
+        true
     }
 
     fn token(&self) -> &Token {
@@ -103,10 +109,10 @@ impl<'a> TokenStream for RegexTokenStream<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::tokenizer::regex_tokenizer::RegexTokenizer;
     use crate::tokenizer::tests::assert_token;
     use crate::tokenizer::{TextAnalyzer, Token};
-    use crate::tokenizer::regex_tokenizer::RegexTokenizer;
-    
+
     #[test]
     fn test_regex_tokenizer() {
         let tokens = token_stream_helper("'aaa' bbb 'ccc' 'ddd'", r"'(?:\w*)'");
@@ -132,7 +138,10 @@ mod tests {
     fn test_regexp_tokenizer_error_on_invalid_regex() {
         let tokenizer = RegexTokenizer::new(r"\@");
         assert_eq!(tokenizer.is_err(), true);
-        assert_eq!(tokenizer.err().unwrap().to_string(), "An invalid argument was passed: '\\@'");
+        assert_eq!(
+            tokenizer.err().unwrap().to_string(),
+            "An invalid argument was passed: '\\@'"
+        );
     }
 
     fn token_stream_helper(text: &str, pattern: &str) -> Vec<Token> {

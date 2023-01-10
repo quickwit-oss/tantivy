@@ -133,7 +133,7 @@ pub(super) trait SymbolValue: Clone + Copy {
 
 impl SymbolValue for bool {
     fn serialize(self, buffer: &mut [u8]) -> u8 {
-        buffer[0] = if self { 1u8 } else { 0u8 };
+        buffer[0] = u8::from(self);
         1u8
     }
 

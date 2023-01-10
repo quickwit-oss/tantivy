@@ -1,6 +1,8 @@
 use std::fmt;
 use std::net::Ipv6Addr;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
@@ -51,7 +53,7 @@ impl Serialize for Value {
             Value::Bool(b) => serializer.serialize_bool(b),
             Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
-            Value::Bytes(ref bytes) => serializer.serialize_str(&base64::encode(bytes)),
+            Value::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
             Value::IpAddr(ref obj) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.

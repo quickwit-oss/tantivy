@@ -1,6 +1,8 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
@@ -358,7 +360,8 @@ impl FieldType {
                         json: JsonValue::String(field_text),
                     }),
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => base64::decode(&field_text)
+                    FieldType::Bytes(_) => BASE64
+                        .decode(&field_text)
                         .map(Value::Bytes)
                         .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
                     FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
