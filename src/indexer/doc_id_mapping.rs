@@ -99,7 +99,7 @@ pub(crate) fn expect_field_id_for_sort_field(
     schema: &Schema,
     sort_by_field: &IndexSortByField,
 ) -> crate::Result<Field> {
-    schema.get_field(&sort_by_field.field).ok_or_else(|| {
+    schema.get_field(&sort_by_field.field).map_err(|_| {
         TantivyError::InvalidArgument(format!(
             "field to sort index by not found: {:?}",
             sort_by_field.field
@@ -462,15 +462,14 @@ mod tests_indexsorting {
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
-        let my_number = index.schema().get_field("my_number").unwrap();
+        index.schema().get_field("my_number").unwrap();
 
-        let fast_field = fast_fields.u64(my_number).unwrap();
+        let fast_field = fast_fields.u64("my_number").unwrap();
         assert_eq!(fast_field.get_val(0), 10u64);
         assert_eq!(fast_field.get_val(1), 20u64);
         assert_eq!(fast_field.get_val(2), 30u64);
 
-        let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
-        let multifield = fast_fields.u64s(multi_numbers).unwrap();
+        let multifield = fast_fields.u64s("multi_numbers").unwrap();
         let mut vals = vec![];
         multifield.get_vals(0u32, &mut vals);
         assert_eq!(vals, &[] as &[u64]);

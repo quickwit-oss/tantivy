@@ -156,7 +156,7 @@ impl CustomScorer<u64> for ScorerByField {
         // The conversion will then happen only on the top-K docs.
         let ff_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(self.field)?;
+            .typed_fast_field_reader(segment_reader.schema().get_field_name(self.field))?;
         Ok(ScorerByFastFieldReader { ff_reader })
     }
 }
@@ -454,7 +454,7 @@ impl TopDocs {
     ///             // In our case, we will get a reader for the popularity
     ///             // fast field.
     ///             let popularity_reader =
-    ///                 segment_reader.fast_fields().u64(popularity).unwrap();
+    ///                 segment_reader.fast_fields().u64("popularity").unwrap();
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
@@ -561,9 +561,9 @@ impl TopDocs {
     ///             // Note that this is implemented by using a `(u64, u64)`
     ///             // as a score.
     ///             let popularity_reader =
-    ///                 segment_reader.fast_fields().u64(popularity).unwrap();
+    ///                 segment_reader.fast_fields().u64("popularity").unwrap();
     ///             let boosted_reader =
-    ///                 segment_reader.fast_fields().u64(boosted).unwrap();
+    ///                 segment_reader.fast_fields().u64("boosted").unwrap();
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {

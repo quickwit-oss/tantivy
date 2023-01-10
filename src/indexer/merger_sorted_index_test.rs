@@ -185,7 +185,7 @@ mod tests {
         let segment_reader = searcher.segment_readers().last().unwrap();
 
         let fast_fields = segment_reader.fast_fields();
-        let fast_field = fast_fields.u64(int_field).unwrap();
+        let fast_field = fast_fields.u64("intval").unwrap();
         assert_eq!(fast_field.get_val(5), 1u64);
         assert_eq!(fast_field.get_val(4), 2u64);
         assert_eq!(fast_field.get_val(3), 3u64);
@@ -364,15 +364,13 @@ mod tests {
         .unwrap();
 
         let int_field = index.schema().get_field("intval").unwrap();
-        let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
-        let bytes_field = index.schema().get_field("bytes").unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_readers().last().unwrap();
 
         let fast_fields = segment_reader.fast_fields();
-        let fast_field = fast_fields.u64(int_field).unwrap();
+        let fast_field = fast_fields.u64("intval").unwrap();
         assert_eq!(fast_field.get_val(0), 1u64);
         assert_eq!(fast_field.get_val(1), 2u64);
         assert_eq!(fast_field.get_val(2), 3u64);
@@ -386,7 +384,7 @@ mod tests {
             vals
         };
         let fast_fields = segment_reader.fast_fields();
-        let fast_field = fast_fields.u64s(multi_numbers).unwrap();
+        let fast_field = fast_fields.u64s("multi_numbers").unwrap();
         assert_eq!(&get_vals(&fast_field, 0), &[] as &[u64]);
         assert_eq!(&get_vals(&fast_field, 1), &[2, 3]);
         assert_eq!(&get_vals(&fast_field, 2), &[3, 4]);
@@ -394,7 +392,7 @@ mod tests {
         assert_eq!(&get_vals(&fast_field, 4), &[20]);
         assert_eq!(&get_vals(&fast_field, 5), &[1001, 1002]);
 
-        let fast_field = fast_fields.bytes(bytes_field).unwrap();
+        let fast_field = fast_fields.bytes("bytes").unwrap();
         assert_eq!(fast_field.get_bytes(0), &[] as &[u8]);
         assert_eq!(fast_field.get_bytes(2), &[1, 2, 3]);
         assert_eq!(fast_field.get_bytes(5), &[5, 5]);
@@ -527,7 +525,6 @@ mod bench_sorted_index_merge {
             order: Order::Desc,
         };
         let index = create_index(Some(sort_by_field.clone()));
-        let field = index.schema().get_field("intval").unwrap();
         let segments = index.searchable_segments().unwrap();
         let merger: IndexMerger =
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
@@ -535,8 +532,10 @@ mod bench_sorted_index_merge {
         b.iter(|| {
             let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
                 let reader = &merger.readers[doc_addr.segment_ord as usize];
-                let u64_reader: Arc<dyn Column<u64>> =
-                    reader.fast_fields().typed_fast_field_reader(field).expect(
+                let u64_reader: Arc<dyn Column<u64>> = reader
+                    .fast_fields()
+                    .typed_fast_field_reader("intval")
+                    .expect(
                         "Failed to find a reader for single fast field. This is a tantivy bug and \
                          it should never happen.",
                     );

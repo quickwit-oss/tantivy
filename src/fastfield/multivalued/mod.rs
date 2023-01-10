@@ -52,7 +52,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
-        let multi_value_reader = segment_reader.fast_fields().u64s(field)?;
+        let multi_value_reader = segment_reader.fast_fields().u64s("multifield")?;
         {
             multi_value_reader.get_vals(2, &mut vals);
             assert_eq!(&vals, &[4u64]);
@@ -229,7 +229,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
-        let multi_value_reader = segment_reader.fast_fields().i64s(field).unwrap();
+        let multi_value_reader = segment_reader.fast_fields().i64s("multifield").unwrap();
         multi_value_reader.get_vals(2, &mut vals);
         assert_eq!(&vals, &[-4i64]);
         multi_value_reader.get_vals(0, &mut vals);
@@ -261,7 +261,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
-        let multi_value_reader = segment_reader.fast_fields().bools(bool_field).unwrap();
+        let multi_value_reader = segment_reader.fast_fields().bools("multifield").unwrap();
         multi_value_reader.get_vals(2, &mut vals);
         assert_eq!(&vals, &[false]);
         multi_value_reader.get_vals(0, &mut vals);

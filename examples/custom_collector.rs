@@ -14,7 +14,7 @@ use fastfield_codecs::Column;
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, FAST, INDEXED, TEXT};
+use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, Score, SegmentReader};
 
 #[derive(Default)]
@@ -52,11 +52,11 @@ impl Stats {
 }
 
 struct StatsCollector {
-    field: Field,
+    field: String,
 }
 
 impl StatsCollector {
-    fn with_field(field: Field) -> StatsCollector {
+    fn with_field(field: String) -> StatsCollector {
         StatsCollector { field }
     }
 }
@@ -73,7 +73,7 @@ impl Collector for StatsCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> tantivy::Result<StatsSegmentCollector> {
-        let fast_field_reader = segment_reader.fast_fields().u64(self.field)?;
+        let fast_field_reader = segment_reader.fast_fields().u64(&self.field)?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
             stats: Stats::default(),
@@ -171,7 +171,9 @@ fn main() -> tantivy::Result<()> {
 
     // here we want to get a hit on the 'ken' in Frankenstein
     let query = query_parser.parse_query("broom")?;
-    if let Some(stats) = searcher.search(&query, &StatsCollector::with_field(price))? {
+    if let Some(stats) =
+        searcher.search(&query, &StatsCollector::with_field("price".to_string()))?
+    {
         println!("count: {}", stats.count());
         println!("mean: {}", stats.mean());
         println!("standard deviation: {}", stats.standard_deviation());
