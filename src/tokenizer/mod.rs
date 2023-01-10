@@ -135,6 +135,7 @@ mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
+mod regex_tokenizer;
 
 pub use tokenizer_api::{
     BoxTokenFilter, BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer,
