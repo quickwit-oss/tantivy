@@ -1,7 +1,7 @@
 use crate::dictionary::UnorderedId;
 use crate::utils::{place_bits, pop_first_byte, select_bits};
 use crate::value::NumericalValue;
-use crate::{DocId, InvalidData, NumericalType};
+use crate::{InvalidData, NumericalType, RowId};
 
 /// When we build a columnar dataframe, we first just group
 /// all mutations per column, and appends them in append-only buffer
@@ -13,7 +13,7 @@ use crate::{DocId, InvalidData, NumericalType};
 /// We represents all of these operations as `ColumnOperation`.
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub(super) enum ColumnOperation<T> {
-    NewDoc(DocId),
+    NewDoc(RowId),
     Value(T),
 }
 

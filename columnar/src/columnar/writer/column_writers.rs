@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
+use crate::columnar::writer::column_operation::{ColumnOperation, SymbolValue};
 use crate::dictionary::{DictionaryBuilder, UnorderedId};
-use crate::writer::column_operation::{ColumnOperation, SymbolValue};
-use crate::{Cardinality, DocId, NumericalType, NumericalValue};
+use crate::{Cardinality, NumericalType, NumericalValue, RowId};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -53,7 +53,7 @@ impl ColumnWriter {
     ///
     /// This function will also update the cardinality of the column
     /// if necessary.
-    pub(super) fn record<S: SymbolValue>(&mut self, doc: DocId, value: S, arena: &mut MemoryArena) {
+    pub(super) fn record<S: SymbolValue>(&mut self, doc: RowId, value: S, arena: &mut MemoryArena) {
         // Difference between `doc` and the last doc.
         match delta_with_last_doc(self.last_doc_opt, doc) {
             DocumentStep::Same => {
@@ -77,7 +77,7 @@ impl ColumnWriter {
     // The overall number of docs in the column is necessary to
     // deal with the case where the all docs contain 1 value, except some documents
     // at the end of the column.
-    pub(crate) fn get_cardinality(&self, num_docs: DocId) -> Cardinality {
+    pub(crate) fn get_cardinality(&self, num_docs: RowId) -> Cardinality {
         match delta_with_last_doc(self.last_doc_opt, num_docs) {
             DocumentStep::Same | DocumentStep::Next => self.cardinality,
             DocumentStep::Skipped => self.cardinality.max(Cardinality::Optional),
@@ -150,7 +150,7 @@ impl CompatibleNumericalTypes {
 }
 
 impl NumericalColumnWriter {
-    pub fn column_type_and_cardinality(&self, num_docs: DocId) -> (NumericalType, Cardinality) {
+    pub fn column_type_and_cardinality(&self, num_docs: RowId) -> (NumericalType, Cardinality) {
         let numerical_type = self.compatible_numerical_types.to_numerical_type();
         let cardinality = self.column_writer.get_cardinality(num_docs);
         (numerical_type, cardinality)
@@ -158,7 +158,7 @@ impl NumericalColumnWriter {
 
     pub fn record_numerical_value(
         &mut self,
-        doc: DocId,
+        doc: RowId,
         value: NumericalValue,
         arena: &mut MemoryArena,
     ) {
@@ -191,7 +191,7 @@ impl StrColumnWriter {
 
     pub(crate) fn record_bytes(
         &mut self,
-        doc: DocId,
+        doc: RowId,
         bytes: &[u8],
         dictionaries: &mut [DictionaryBuilder],
         arena: &mut MemoryArena,

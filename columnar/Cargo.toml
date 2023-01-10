@@ -11,8 +11,22 @@ thiserror = "1"
 fnv = "1"
 sstable = { path = "../sstable", package = "tantivy-sstable" }
 common = { path = "../common", package = "tantivy-common" }
-fastfield_codecs = { path = "../fastfield_codecs"}
 itertools = "0.10"
+log = "0.4"
+tantivy-bitpacker = { version= "0.3", path = "../bitpacker/" }
+prettytable-rs = {version="0.10.0", optional= true}
+rand = {version="0.8.3", optional= true}
+fastdivide = "0.4"
+measure_time = { version="0.8.2", optional=true}
 
 [dev-dependencies]
 proptest = "1"
+more-asserts = "0.3.0"
+rand = "0.8.3"
+
+# temporary
+[workspace]
+members = []
+
+[features]
+unstable = []

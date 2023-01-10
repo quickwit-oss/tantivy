@@ -5,7 +5,7 @@ use common::CountingWriter;
 use sstable::value::RangeValueWriter;
 use sstable::RangeSSTable;
 
-use crate::column_type_header::ColumnTypeAndCardinality;
+use crate::columnar::ColumnType;
 
 pub struct ColumnarSerializer<W: io::Write> {
     wrt: CountingWriter<W>,
@@ -15,15 +15,11 @@ pub struct ColumnarSerializer<W: io::Write> {
 
 /// Returns a key consisting of the concatenation of the key and the column_type_and_cardinality
 /// code.
-fn prepare_key(
-    key: &[u8],
-    column_type_cardinality: ColumnTypeAndCardinality,
-    buffer: &mut Vec<u8>,
-) {
+fn prepare_key(key: &[u8], column_type: ColumnType, buffer: &mut Vec<u8>) {
     buffer.clear();
     buffer.extend_from_slice(key);
     buffer.push(0u8);
-    buffer.push(column_type_cardinality.to_code());
+    buffer.push(column_type.to_code());
 }
 
 impl<W: io::Write> ColumnarSerializer<W> {
@@ -40,14 +36,10 @@ impl<W: io::Write> ColumnarSerializer<W> {
     pub fn serialize_column<'a>(
         &'a mut self,
         column_name: &[u8],
-        column_type_cardinality: ColumnTypeAndCardinality,
+        column_type: ColumnType,
     ) -> impl io::Write + 'a {
         let start_offset = self.wrt.written_bytes();
-        prepare_key(
-            column_name,
-            column_type_cardinality,
-            &mut self.prepare_key_buffer,
-        );
+        prepare_key(column_name, column_type, &mut self.prepare_key_buffer);
         ColumnSerializer {
             columnar_serializer: self,
             start_offset,
@@ -59,6 +51,9 @@ impl<W: io::Write> ColumnarSerializer<W> {
         let sstable_num_bytes: u64 = sstable_bytes.len() as u64;
         self.wrt.write_all(&sstable_bytes)?;
         self.wrt.write_all(&sstable_num_bytes.to_le_bytes()[..])?;
+        self.wrt
+            .write_all(&super::super::format_version::footer())?;
+        self.wrt.flush()?;
         Ok(())
     }
 }
@@ -97,20 +92,15 @@ impl<'a, W: io::Write> io::Write for ColumnSerializer<'a, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::column_type_header::ColumnType;
-    use crate::Cardinality;
+    use crate::columnar::column_type::ColumnType;
 
     #[test]
     fn test_prepare_key_bytes() {
         let mut buffer: Vec<u8> = b"somegarbage".to_vec();
-        let column_type_and_cardinality = ColumnTypeAndCardinality {
-            typ: ColumnType::Bytes,
-            cardinality: Cardinality::Optional,
-        };
-        prepare_key(b"root\0child", column_type_and_cardinality, &mut buffer);
+        prepare_key(b"root\0child", ColumnType::Bytes, &mut buffer);
         assert_eq!(buffer.len(), 12);
         assert_eq!(&buffer[..10], b"root\0child");
         assert_eq!(buffer[10], 0u8);
-        assert_eq!(buffer[11], column_type_and_cardinality.to_code());
+        assert_eq!(buffer[11], ColumnType::Bytes.to_code());
     }
 }

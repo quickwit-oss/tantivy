@@ -6,13 +6,12 @@ This crate describes columnar format used in tantivy.
 
 This format is special in the following way.
 - it needs to be compact
-- it does not required to be loaded in memory.
-- it is designed to fit well with quickwit's strange constraint:
-we need to be able to load columns rapidly.
+- accessing a specific column does not require to load the entire columnar. It can be done in 2 to 3 random access.
 - columns of several types can be associated with the same column name.
 - it needs to support columns with different types `(str, u64, i64, f64)`
 and different cardinality `(required, optional, multivalued)`.
 - columns, once loaded, offer cheap random access.
+- it is designed to allow range queries.
 
 # Coercion rules
 
@@ -65,3 +64,46 @@ be done by listing all keys prefixed by
 
 The associated range of bytes refer to a range of bytes
 
+This crate exposes a columnar format for tantivy.
+This format is described in README.md
+
+
+The crate introduces the following concepts.
+
+`Columnar` is an equivalent of a dataframe.
+It maps `column_key` to `Column`.
+
+A `Column<T>` asssociates a `RowId` (u32) to any
+number of values.
+
+This is made possible by wrapping a `ColumnIndex` and a `ColumnValue` object.
+The `ColumnValue<T>` represents a mapping that associates each `RowId` to
+exactly one single value.
+
+The `ColumnIndex` then maps each RowId to a set of `RowId` in the
+`ColumnValue`.
+
+For optimization, and compression purposes, the `ColumnIndex` has three
+possible representation, each for different cardinalities.
+
+- Full
+
+All RowId have exactly one value. The ColumnIndex is the trivial mapping.
+
+- Optional
+
+All RowIds can have at most one value. The ColumnIndex is the trivial mapping `ColumnRowId -> Option<ColumnValueRowId>`.
+
+- Multivalued
+
+All RowIds can have any number of values.
+The column index is mapping values to a range.
+
+
+All these objects are implemented an unit tested independently
+in their own module:
+
+- columnar
+- column_index
+- column_values
+- column
