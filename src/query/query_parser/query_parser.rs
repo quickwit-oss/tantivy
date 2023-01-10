@@ -672,7 +672,7 @@ impl QueryParser {
                 let field_entry = self.schema.get_field_entry(field);
                 let value_type = field_entry.field_type().value_type();
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Range {
-                    field,
+                    field: self.schema.get_field_name(field).to_string(),
                     value_type,
                     lower: self.resolve_bound(field, json_path, &lower)?,
                     upper: self.resolve_bound(field, json_path, &upper)?,
@@ -964,7 +964,7 @@ mod test {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "RangeQuery { field: Field(0), value_type: Str, left_bound: Included([97]), \
+            "RangeQuery { field: \"title\", value_type: Str, left_bound: Included([97]), \
              right_bound: Included([98]) }"
         );
     }

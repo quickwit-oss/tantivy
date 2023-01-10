@@ -5,7 +5,7 @@ use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::FastValue;
-use crate::schema::{Field, Type};
+use crate::schema::Type;
 use crate::{DocId, Score};
 
 /// Histogram builds an histogram of the values of a fastfield for the
@@ -28,7 +28,7 @@ pub struct HistogramCollector {
     min_value: u64,
     num_buckets: usize,
     divider: DividerU64,
-    field: Field,
+    field: String,
 }
 
 impl HistogramCollector {
@@ -46,7 +46,7 @@ impl HistogramCollector {
     /// # Disclaimer
     /// This function panics if the field given is of type f64.
     pub fn new<TFastValue: FastValue>(
-        field: Field,
+        field: String,
         min_value: TFastValue,
         bucket_width: u64,
         num_buckets: usize,
@@ -112,7 +112,7 @@ impl Collector for HistogramCollector {
         _segment_local_id: crate::SegmentOrdinal,
         segment: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let ff_reader = segment.fast_fields().u64_lenient(self.field)?;
+        let ff_reader = segment.fast_fields().u64_lenient(&self.field)?;
         Ok(SegmentHistogramCollector {
             histogram_computer: HistogramComputer {
                 counts: vec![0; self.num_buckets],
@@ -211,13 +211,13 @@ mod tests {
     #[test]
     fn test_no_segments() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let val_field = schema_builder.add_u64_field("val_field", FAST);
+        schema_builder.add_u64_field("val_field", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let all_query = AllQuery;
-        let histogram_collector = HistogramCollector::new(val_field, 0u64, 2, 5);
+        let histogram_collector = HistogramCollector::new("val_field".to_string(), 0u64, 2, 5);
         let histogram = searcher.search(&all_query, &histogram_collector)?;
         assert_eq!(histogram, vec![0; 5]);
         Ok(())
@@ -238,7 +238,8 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let all_query = AllQuery;
-        let histogram_collector = HistogramCollector::new(val_field, -20i64, 10u64, 4);
+        let histogram_collector =
+            HistogramCollector::new("val_field".to_string(), -20i64, 10u64, 4);
         let histogram = searcher.search(&all_query, &histogram_collector)?;
         assert_eq!(histogram, vec![1, 1, 0, 1]);
         Ok(())
@@ -262,7 +263,8 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let all_query = AllQuery;
-        let histogram_collector = HistogramCollector::new(val_field, -20i64, 10u64, 4);
+        let histogram_collector =
+            HistogramCollector::new("val_field".to_string(), -20i64, 10u64, 4);
         let histogram = searcher.search(&all_query, &histogram_collector)?;
         assert_eq!(histogram, vec![1, 1, 0, 1]);
         Ok(())
@@ -285,7 +287,7 @@ mod tests {
         let searcher = reader.searcher();
         let all_query = AllQuery;
         let week_histogram_collector = HistogramCollector::new(
-            date_field,
+            "date_field".to_string(),
             DateTime::from_primitive(
                 Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
             ),

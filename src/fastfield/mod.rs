@@ -583,7 +583,7 @@ mod tests {
             assert_eq!(searcher.segment_readers().len(), 1);
             let segment_reader = searcher.segment_reader(0);
             let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+            let text_fast_field = fast_fields.u64s("text").unwrap();
 
             assert_eq!(
                 get_vals_for_docs(&text_fast_field, 0..5),
@@ -622,7 +622,7 @@ mod tests {
             assert_eq!(searcher.segment_readers().len(), 2);
             let segment_reader = searcher.segment_reader(1);
             let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+            let text_fast_field = fast_fields.u64s("text").unwrap();
 
             assert_eq!(get_vals_for_docs(&text_fast_field, 0..3), vec![0, 1, 0]);
         }
@@ -638,7 +638,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
-        let text_fast_field = fast_fields.u64s(text_field).unwrap();
+        let text_fast_field = fast_fields.u64s("text").unwrap();
 
         assert_eq!(
             get_vals_for_docs(&text_fast_field, 0..8),
@@ -681,7 +681,7 @@ mod tests {
             assert_eq!(searcher.segment_readers().len(), 1);
             let segment_reader = searcher.segment_reader(0);
             let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+            let text_fast_field = fast_fields.u64s("text").unwrap();
 
             assert_eq!(get_vals_for_docs(&text_fast_field, 0..6), vec![1, 0, 0, 2]);
 
@@ -712,7 +712,7 @@ mod tests {
             assert_eq!(searcher.segment_readers().len(), 2);
             let segment_reader = searcher.segment_reader(1);
             let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s(text_field).unwrap();
+            let text_fast_field = fast_fields.u64s("text").unwrap();
 
             assert_eq!(get_vals_for_docs(&text_fast_field, 0..2), vec![0, 1]);
         }
@@ -728,7 +728,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
-        let text_fast_field = fast_fields.u64s(text_field).unwrap();
+        let text_fast_field = fast_fields.u64s("text").unwrap();
 
         assert_eq!(
             get_vals_for_docs(&text_fast_field, 0..9),
@@ -773,8 +773,8 @@ mod tests {
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
-        let date_fast_field = fast_fields.date(date_field).unwrap();
-        let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
+        let date_fast_field = fast_fields.date("date").unwrap();
+        let dates_fast_field = fast_fields.dates("multi_date").unwrap();
         let mut dates = vec![];
         {
             assert_eq!(date_fast_field.get_val(0).into_timestamp_micros(), 1i64);

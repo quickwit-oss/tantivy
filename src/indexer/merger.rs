@@ -16,7 +16,7 @@ use crate::fastfield::{
     MultiValueIndex, MultiValuedFastFieldReader,
 };
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
-use crate::indexer::doc_id_mapping::{expect_field_id_for_sort_field, SegmentDocIdMapping};
+use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::indexer::sorted_doc_id_column::RemappedDocIdColumn;
 use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;
 use crate::indexer::SegmentSerializer;
@@ -335,8 +335,10 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|segment_reader| {
-                let ff_reader: MultiValuedFastFieldReader<u128> =
-                    segment_reader.fast_fields().u128s(field).expect(
+                let ff_reader: MultiValuedFastFieldReader<u128> = segment_reader
+                    .fast_fields()
+                    .u128s(self.schema.get_field_name(field))
+                    .expect(
                         "Failed to find index for multivalued field. This is a bug in tantivy, \
                          please report.",
                     );
@@ -401,10 +403,13 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-                let u128_reader: Arc<dyn Column<u128>> = reader.fast_fields().u128(field).expect(
-                    "Failed to find a reader for single fast field. This is a tantivy bug and it \
-                     should never happen.",
-                );
+                let u128_reader: Arc<dyn Column<u128>> = reader
+                    .fast_fields()
+                    .u128(self.schema.get_field_name(field))
+                    .expect(
+                        "Failed to find a reader for single fast field. This is a tantivy bug and \
+                         it should never happen.",
+                    );
                 u128_reader
             })
             .collect::<Vec<_>>();
@@ -431,7 +436,11 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let fast_field_accessor = RemappedDocIdColumn::new(&self.readers, doc_id_mapping, field);
+        let fast_field_accessor = RemappedDocIdColumn::new(
+            &self.readers,
+            doc_id_mapping,
+            self.schema.get_field_name(field),
+        );
         fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
 
         Ok(())
@@ -464,8 +473,8 @@ impl IndexMerger {
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Arc<dyn Column>> {
-        let field_id = expect_field_id_for_sort_field(reader.schema(), sort_by_field)?; // for now expect fastfield, but not strictly required
-        let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
+        reader.schema().get_field(&sort_by_field.field)?;
+        let value_accessor = reader.fast_fields().u64_lenient(&sort_by_field.field)?;
         Ok(value_accessor)
     }
     /// Collecting value_accessors into a vec to bind the lifetime.
@@ -569,7 +578,7 @@ impl IndexMerger {
             .map(|reader| {
                 let u64s_reader: MultiValuedFastFieldReader<u64> = reader
                     .fast_fields()
-                    .typed_fast_field_multi_reader::<u64>(field)
+                    .typed_fast_field_multi_reader::<u64>(self.schema.get_field_name(field))
                     .expect(
                         "Failed to find index for multivalued field. This is a bug in tantivy, \
                          please report.",
@@ -613,7 +622,7 @@ impl IndexMerger {
             .map(|reader| {
                 let ff_reader: MultiValuedFastFieldReader<u64> = reader
                     .fast_fields()
-                    .u64s(field)
+                    .u64s(self.schema.get_field_name(field))
                     .expect("Could not find multivalued u64 fast value reader.");
                 ff_reader
             })
@@ -684,8 +693,11 @@ impl IndexMerger {
 
         self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
-        let fastfield_accessor =
-            RemappedDocIdMultiValueColumn::new(&self.readers, doc_id_mapping, field);
+        let fastfield_accessor = RemappedDocIdMultiValueColumn::new(
+            &self.readers,
+            doc_id_mapping,
+            self.schema.get_field_name(field),
+        );
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx_and_codecs(
             field,
             fastfield_accessor,
@@ -706,10 +718,13 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-                let bytes_reader = reader.fast_fields().bytes(field).expect(
-                    "Failed to find index for bytes field. This is a bug in tantivy, please \
-                     report.",
-                );
+                let bytes_reader = reader
+                    .fast_fields()
+                    .bytes(self.schema.get_field_name(field))
+                    .expect(
+                        "Failed to find index for bytes field. This is a bug in tantivy, please \
+                         report.",
+                    );
                 (reader, bytes_reader)
             })
             .collect::<Vec<_>>();
@@ -1206,7 +1221,10 @@ mod tests {
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    searcher.search(&query, &FastFieldTestCollector::for_field(score_field))
+                    searcher.search(
+                        &query,
+                        &FastFieldTestCollector::for_field("score".to_string()),
+                    )
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
@@ -1244,7 +1262,7 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         let reader = index.reader().unwrap();
         let search_term = |searcher: &Searcher, term: Term| {
-            let collector = FastFieldTestCollector::for_field(score_field);
+            let collector = FastFieldTestCollector::for_field("score".to_string());
             let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
             let term_query = TermQuery::new(term, IndexRecordOption::Basic);
             searcher
@@ -1366,7 +1384,7 @@ mod tests {
             let score_field_reader = searcher
                 .segment_reader(0)
                 .fast_fields()
-                .u64(score_field)
+                .u64("score")
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 4000);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -1374,7 +1392,7 @@ mod tests {
             let score_field_reader = searcher
                 .segment_reader(1)
                 .fast_fields()
-                .u64(score_field)
+                .u64("score")
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 1);
             assert_eq!(score_field_reader.max_value(), 3);
@@ -1420,7 +1438,7 @@ mod tests {
             let score_field_reader = searcher
                 .segment_reader(0)
                 .fast_fields()
-                .u64(score_field)
+                .u64("score")
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -1467,7 +1485,7 @@ mod tests {
             let score_field_reader = searcher
                 .segment_reader(0)
                 .fast_fields()
-                .u64(score_field)
+                .u64("score")
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -1514,7 +1532,7 @@ mod tests {
             let score_field_reader = searcher
                 .segment_reader(0)
                 .fast_fields()
-                .u64(score_field)
+                .u64("score")
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 6000);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -1836,7 +1854,7 @@ mod tests {
 
         {
             let segment = searcher.segment_reader(0u32);
-            let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
+            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
 
             ff_reader.get_vals(0, &mut vals);
             assert_eq!(&vals, &[1, 2]);
@@ -1862,7 +1880,7 @@ mod tests {
 
         {
             let segment = searcher.segment_reader(1u32);
-            let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
+            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
             ff_reader.get_vals(0, &mut vals);
             assert_eq!(&vals, &[28, 27]);
 
@@ -1872,7 +1890,7 @@ mod tests {
 
         {
             let segment = searcher.segment_reader(2u32);
-            let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
+            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
             ff_reader.get_vals(0, &mut vals);
             assert_eq!(&vals, &[20]);
         }
@@ -1889,7 +1907,7 @@ mod tests {
         {
             let searcher = reader.searcher();
             let segment = searcher.segment_reader(0u32);
-            let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
+            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
 
             ff_reader.get_vals(0, &mut vals);
             assert_eq!(&vals, &[1, 2]);

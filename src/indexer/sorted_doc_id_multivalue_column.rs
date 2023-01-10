@@ -5,7 +5,6 @@ use fastfield_codecs::Column;
 use super::flat_map_with_buffer::FlatMapWithBufferIter;
 use crate::fastfield::{MultiValueIndex, MultiValuedFastFieldReader};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
-use crate::schema::Field;
 use crate::{DocAddress, SegmentReader};
 
 pub(crate) struct RemappedDocIdMultiValueColumn<'a> {
@@ -20,7 +19,7 @@ impl<'a> RemappedDocIdMultiValueColumn<'a> {
     pub(crate) fn new(
         readers: &'a [SegmentReader],
         doc_id_mapping: &'a SegmentDocIdMapping,
-        field: Field,
+        field: &str,
     ) -> Self {
         // Our values are bitpacked and we need to know what should be
         // our bitwidth and our minimum value before serializing any values.

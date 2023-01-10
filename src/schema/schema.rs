@@ -11,6 +11,7 @@ use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::field_type::ValueParsingError;
+use crate::TantivyError;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -308,8 +309,12 @@ impl Schema {
     }
 
     /// Returns the field option associated with a given name.
-    pub fn get_field(&self, field_name: &str) -> Option<Field> {
-        self.0.fields_map.get(field_name).cloned()
+    pub fn get_field(&self, field_name: &str) -> crate::Result<Field> {
+        self.0
+            .fields_map
+            .get(field_name)
+            .cloned()
+            .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))
     }
 
     /// Create document from a named doc.
@@ -319,7 +324,7 @@ impl Schema {
     ) -> Result<Document, DocParsingError> {
         let mut document = Document::new();
         for (field_name, values) in named_doc.0 {
-            if let Some(field) = self.get_field(&field_name) {
+            if let Ok(field) = self.get_field(&field_name) {
                 for value in values {
                     document.add_field_value(field, value);
                 }
@@ -360,7 +365,7 @@ impl Schema {
     ) -> Result<Document, DocParsingError> {
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj {
-            if let Some(field) = self.get_field(&field_name) {
+            if let Ok(field) = self.get_field(&field_name) {
                 let field_entry = self.get_field_entry(field);
                 let field_type = field_entry.field_type();
                 match json_value {

@@ -10,7 +10,7 @@ pub enum LogicalLiteral {
     Term(Term),
     Phrase(Vec<(usize, Term)>, u32),
     Range {
-        field: Field,
+        field: String,
         value_type: Type,
         lower: Bound<Term>,
         upper: Bound<Term>,

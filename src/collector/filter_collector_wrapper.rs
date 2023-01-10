@@ -130,7 +130,7 @@ where
 
         let fast_field_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(self.field)?;
+            .typed_fast_field_reader(schema.get_field_name(self.field))?;
 
         let segment_collector = self
             .collector
