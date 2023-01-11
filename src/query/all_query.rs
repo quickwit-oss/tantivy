@@ -95,7 +95,7 @@ mod tests {
         let index = create_test_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let weight = AllQuery.weight(EnableScoring::Disabled(&index.schema()))?;
+        let weight = AllQuery.weight(EnableScoring::disabled_from_schema(&index.schema()))?;
         {
             let reader = searcher.segment_reader(0);
             let mut scorer = weight.scorer(reader, 1.0)?;
@@ -118,7 +118,7 @@ mod tests {
         let index = create_test_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let weight = AllQuery.weight(EnableScoring::Disabled(searcher.schema()))?;
+        let weight = AllQuery.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let reader = searcher.segment_reader(0);
         {
             let mut scorer = weight.scorer(reader, 2.0)?;

@@ -678,7 +678,7 @@ impl IndexWriter {
     /// only after calling `commit()`.
     #[doc(hidden)]
     pub fn delete_query(&self, query: Box<dyn Query>) -> crate::Result<Opstamp> {
-        let weight = query.weight(EnableScoring::Disabled(&self.index.schema()))?;
+        let weight = query.weight(EnableScoring::disabled_from_schema(&self.index.schema()))?;
         let opstamp = self.stamper.stamp();
         let delete_operation = DeleteOperation {
             opstamp,
@@ -759,7 +759,8 @@ impl IndexWriter {
             match user_op {
                 UserOperation::Delete(term) => {
                     let query = TermQuery::new(term, IndexRecordOption::Basic);
-                    let weight = query.weight(EnableScoring::Disabled(&self.index.schema()))?;
+                    let weight =
+                        query.weight(EnableScoring::disabled_from_schema(&self.index.schema()))?;
                     let delete_operation = DeleteOperation {
                         opstamp,
                         target: weight,

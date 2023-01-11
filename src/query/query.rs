@@ -15,24 +15,45 @@ pub enum EnableScoring<'a> {
     Enabled(&'a Searcher),
     /// Pass this to disable scoring.
     /// This can improve performance.
-    Disabled(&'a Schema),
+    /// Searcher should be provided if available.
+    Disabled(&'a Schema, Option<&'a Searcher>),
 }
 
 impl<'a> EnableScoring<'a> {
+    /// Create using [Searcher] with scoring enabled.
+    pub fn enabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
+        EnableScoring::Enabled(searcher)
+    }
+
+    /// Create using [Searcher] with scoring disabled.
+    pub fn disabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
+        EnableScoring::Disabled(searcher.schema(), Some(searcher))
+    }
+
+    /// Create using [Schema] with scoring disabled.
+    pub fn disabled_from_schema(schema: &'a Schema) -> EnableScoring<'a> {
+        Self::Disabled(schema, None)
+    }
+
+    /// Returns the seacher if available.
+    pub fn searcher(&self) -> Option<&Searcher> {
+        match self {
+            EnableScoring::Enabled(searcher) => Some(searcher),
+            EnableScoring::Disabled(_schema, searcher_opt) => searcher_opt.to_owned(),
+        }
+    }
+
     /// Returns the schema.
     pub fn schema(&self) -> &Schema {
         match self {
             EnableScoring::Enabled(searcher) => searcher.schema(),
-            EnableScoring::Disabled(schema) => schema,
+            EnableScoring::Disabled(schema, _) => schema,
         }
     }
 
     /// Returns true if the scoring is enabled.
     pub fn is_scoring_enabled(&self) -> bool {
-        match self {
-            EnableScoring::Enabled(_) => true,
-            EnableScoring::Disabled(_) => false,
-        }
+        matches!(self, EnableScoring::Enabled(..))
     }
 }
 
@@ -81,14 +102,14 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
 
     /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> crate::Result<Explanation> {
-        let weight = self.weight(EnableScoring::Enabled(searcher))?;
+        let weight = self.weight(EnableScoring::enabled_from_searcher(searcher))?;
         let reader = searcher.segment_reader(doc_address.segment_ord);
         weight.explain(reader, doc_address.doc_id)
     }
 
     /// Returns the number of documents matching the query.
     fn count(&self, searcher: &Searcher) -> crate::Result<usize> {
-        let weight = self.weight(EnableScoring::Disabled(searcher.schema()))?;
+        let weight = self.weight(EnableScoring::disabled_from_searcher(searcher))?;
         let mut result = 0;
         for reader in searcher.segment_readers() {
             result += weight.count(reader)? as usize;
