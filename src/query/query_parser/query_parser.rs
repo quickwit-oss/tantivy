@@ -13,6 +13,7 @@ use crate::core::Index;
 use crate::indexer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
+use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
     RangeQuery, TermQuery, TermSetQuery,
@@ -335,9 +336,10 @@ impl QueryParser {
     ) -> Result<Term, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
+        let field_supports_ff_range_queries = field_type.is_fast()
+            && is_type_valid_for_fastfield_range_query(field_type.value_type());
 
-        let is_ip_and_fast = field_type.is_ip_addr() && field_type.is_fast();
-        if !field_type.is_indexed() && !is_ip_and_fast {
+        if !field_type.is_indexed() && !field_supports_ff_range_queries {
             return Err(QueryParserError::FieldNotIndexed(
                 field_entry.name().to_string(),
             ));
@@ -855,7 +857,7 @@ mod test {
     use super::{QueryParser, QueryParserError};
     use crate::query::Query;
     use crate::schema::{
-        FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions,
+        FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, FAST,
         INDEXED, STORED, STRING, TEXT,
     };
     use crate::tokenizer::{
@@ -889,6 +891,7 @@ mod test {
         schema_builder.add_json_field("json_not_indexed", STORED);
         schema_builder.add_bool_field("bool", INDEXED);
         schema_builder.add_bool_field("notindexed_bool", STORED);
+        schema_builder.add_u64_field("u64_ff", FAST);
         schema_builder.build()
     }
 
@@ -1342,6 +1345,11 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "float:{-1.5 TO 1.5}",
             r#"(Excluded(Term(type=F64, field=10, -1.5)) TO Excluded(Term(type=F64, field=10, 1.5)))"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "u64_ff:[7 TO 77]",
+            r#"(Included(Term(type=U64, field=18, 7)) TO Included(Term(type=U64, field=18, 77)))"#,
             false,
         );
     }
