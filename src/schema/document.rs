@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
@@ -11,6 +10,7 @@ use yoke::erased::ErasedArcCart;
 use yoke::Yoke;
 
 use super::*;
+use crate::schema::value::MaybeOwnedString;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
@@ -155,7 +155,7 @@ impl Document {
 
     /// Add a text field.
     pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
-        let value = Value::Str(Cow::Owned(text.to_string()));
+        let value = Value::Str(MaybeOwnedString::from_string(text.to_string()));
         self.add_field_value(field, value);
     }
 
@@ -307,7 +307,9 @@ impl Document {
                 } => {
                     let field_value = FieldValue {
                         field: *field,
-                        value: Value::Str(Cow::Owned(pre_tokenized_text.text.to_string())),
+                        value: Value::Str(MaybeOwnedString::from_string(
+                            pre_tokenized_text.text.to_string(),
+                        )),
                     };
                     field_value.serialize(writer)?;
                 }

@@ -1,7 +1,7 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::net::Ipv6Addr;
 
+pub use not_safe::MaybeOwnedString;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
@@ -15,7 +15,7 @@ use crate::DateTime;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a> {
     /// The str type is used for any text information.
-    Str(Cow<'a, str>),
+    Str(MaybeOwnedString<'a>),
     /// Pre-tokenized str type,
     PreTokStr(PreTokenizedString),
     /// Unsigned 64-bits Integer `u64`
@@ -45,7 +45,7 @@ impl<'a> Value<'a> {
     pub fn into_owned(self) -> Value<'static> {
         use Value::*;
         match self {
-            Str(val) => Str(Cow::Owned(val.into_owned())),
+            Str(val) => Str(MaybeOwnedString::from_string(val.into_string())),
             PreTokStr(val) => PreTokStr(val),
             U64(val) => U64(val),
             I64(val) => I64(val),
@@ -118,11 +118,11 @@ impl<'de> Deserialize<'de> for Value<'de> {
 
             // TODO add visit_borrowed_str
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(Value::Str(Cow::Owned(v.to_owned())))
+                Ok(Value::Str(MaybeOwnedString::from_string(v.to_owned())))
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
-                Ok(Value::Str(Cow::Owned(v)))
+                Ok(Value::Str(MaybeOwnedString::from_string(v)))
             }
         }
 
@@ -250,7 +250,7 @@ impl<'a> Value<'a> {
 
 impl From<String> for Value<'static> {
     fn from(s: String) -> Value<'static> {
-        Value::Str(Cow::Owned(s))
+        Value::Str(MaybeOwnedString::from_string(s))
     }
 }
 
@@ -292,7 +292,7 @@ impl From<DateTime> for Value<'static> {
 
 impl<'a> From<&'a str> for Value<'a> {
     fn from(s: &'a str) -> Value<'a> {
-        Value::Str(Cow::Borrowed(s))
+        Value::Str(MaybeOwnedString::from_str(s))
     }
 }
 
@@ -339,14 +339,13 @@ impl From<serde_json::Value> for Value<'static> {
 }
 
 mod binary_serialize {
-    use std::borrow::Cow;
     use std::io::{self, Read, Write};
     use std::net::Ipv6Addr;
 
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use fastfield_codecs::MonotonicallyMappableToU128;
 
-    use super::Value;
+    use super::{MaybeOwnedString, Value};
     use crate::schema::Facet;
     use crate::tokenizer::PreTokenizedString;
     use crate::DateTime;
@@ -372,7 +371,8 @@ mod binary_serialize {
             match *self {
                 Value::Str(ref text) => {
                     TEXT_CODE.serialize(writer)?;
-                    text.serialize(writer)
+                    // TODO impl trait for MaybeOwnedString
+                    text.as_str().to_owned().serialize(writer)
                 }
                 Value::PreTokStr(ref tok_str) => {
                     EXT_CODE.serialize(writer)?;
@@ -434,7 +434,7 @@ mod binary_serialize {
             match type_code {
                 TEXT_CODE => {
                     let text = String::deserialize(reader)?;
-                    Ok(Value::Str(Cow::Owned(text)))
+                    Ok(Value::Str(MaybeOwnedString::from_string(text)))
                 }
                 U64_CODE => {
                     let value = u64::deserialize(reader)?;
@@ -574,5 +574,106 @@ mod tests {
         // The time zone information gets lost by conversion into `Value::Date` and
         // implicitly becomes UTC.
         assert_eq!(serialized_value_json, r#""1996-12-20T01:39:57Z""#);
+    }
+}
+
+mod not_safe {
+    use std::ops::Deref;
+
+    union Ref<'a, T: ?Sized> {
+        shared: &'a T,
+        uniq: &'a mut T,
+    }
+
+    pub struct MaybeOwnedString<'a> {
+        string: Ref<'a, str>,
+        capacity: usize,
+    }
+
+    impl<'a> MaybeOwnedString<'a> {
+        pub fn from_str(string: &'a str) -> MaybeOwnedString<'a> {
+            MaybeOwnedString {
+                string: Ref { shared: string },
+                capacity: 0,
+            }
+        }
+
+        pub fn from_string(mut string: String) -> MaybeOwnedString<'static> {
+            string.shrink_to_fit(); // <= actually important for safety, todo use the Vec .as_ptr instead
+
+            let mut s = std::mem::ManuallyDrop::new(string);
+            let ptr = s.as_mut_ptr();
+            let len = s.len();
+            let capacity = s.capacity();
+
+            let string = unsafe {
+                std::str::from_utf8_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
+            };
+            MaybeOwnedString {
+                string: Ref { uniq: string },
+                capacity,
+            }
+        }
+
+        pub fn into_string(mut self) -> String {
+            if self.capacity != 0 {
+                let string = unsafe { &mut self.string.uniq };
+                unsafe {
+                    return String::from_raw_parts(string.as_mut_ptr(), self.len(), self.capacity);
+                };
+            }
+            self.deref().to_owned()
+        }
+
+        pub fn as_str(&self) -> &str {
+            self.deref()
+        }
+    }
+
+    impl<'a> Deref for MaybeOwnedString<'a> {
+        type Target = str;
+
+        #[inline]
+        fn deref(&self) -> &str {
+            unsafe { self.string.shared }
+        }
+    }
+
+    impl<'a> Drop for MaybeOwnedString<'a> {
+        fn drop(&mut self) {
+            // if capacity is 0, either it's an empty String so there is no dealloc to do, or it's
+            // borrowed
+            if self.capacity != 0 {
+                let string = unsafe { &mut self.string.uniq };
+                unsafe { String::from_raw_parts(string.as_mut_ptr(), self.len(), self.capacity) };
+            }
+        }
+    }
+
+    impl<'a> Clone for MaybeOwnedString<'a> {
+        fn clone(&self) -> Self {
+            if self.capacity == 0 {
+                MaybeOwnedString {
+                    string: Ref {
+                        shared: unsafe { self.string.shared },
+                    },
+                    capacity: 0,
+                }
+            } else {
+                MaybeOwnedString::from_string(self.deref().to_owned())
+            }
+        }
+    }
+
+    impl<'a> std::fmt::Debug for MaybeOwnedString<'a> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.deref())
+        }
+    }
+
+    impl<'a> PartialEq for MaybeOwnedString<'a> {
+        fn eq(&self, other: &Self) -> bool {
+            self.deref() == other.deref()
+        }
     }
 }

@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -10,6 +9,7 @@ use super::ip_options::IpAddrOptions;
 use super::{Cardinality, IntoIpv6Addr};
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
+use crate::schema::value::MaybeOwnedString;
 use crate::schema::{
     DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing,
     TextOptions, Value,
@@ -342,7 +342,7 @@ impl FieldType {
                             })?;
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
-                    FieldType::Str(_) => Ok(Value::Str(Cow::Owned(field_text))),
+                    FieldType::Str(_) => Ok(Value::Str(MaybeOwnedString::from_string(field_text))),
                     FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
                         Err(ValueParsingError::TypeError {
                             expected: "an integer",

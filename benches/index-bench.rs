@@ -9,7 +9,7 @@ use tantivy::schema::{
 use tantivy::{Document, Index, IndexBuilder};
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
-const NUM_REPEATS: usize = 10;
+const NUM_REPEATS: usize = 20;
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let mut schema_builder = tantivy::schema::SchemaBuilder::new();
