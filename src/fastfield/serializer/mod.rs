@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::{self, Write};
 
 pub use fastfield_codecs::Column;
@@ -49,7 +50,7 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn create_auto_detect_u64_fast_field<T: MonotonicallyMappableToU64>(
+    pub fn create_auto_detect_u64_fast_field<T: MonotonicallyMappableToU64 + fmt::Debug>(
         &mut self,
         field: Field,
         fastfield_accessor: impl Column<T>,
@@ -59,7 +60,9 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec will be chosen
     /// automatically.
-    pub fn create_auto_detect_u64_fast_field_with_idx<T: MonotonicallyMappableToU64>(
+    pub fn create_auto_detect_u64_fast_field_with_idx<
+        T: MonotonicallyMappableToU64 + fmt::Debug,
+    >(
         &mut self,
         field: Field,
         fastfield_accessor: impl Column<T>,
@@ -72,7 +75,9 @@ impl CompositeFastFieldSerializer {
 
     /// Serialize data into a new u64 fast field. The best compression codec of the the provided
     /// will be chosen.
-    pub fn create_auto_detect_u64_fast_field_with_idx_and_codecs<T: MonotonicallyMappableToU64>(
+    pub fn create_auto_detect_u64_fast_field_with_idx_and_codecs<
+        T: MonotonicallyMappableToU64 + fmt::Debug,
+    >(
         &mut self,
         field: Field,
         fastfield_accessor: impl Column<T>,
