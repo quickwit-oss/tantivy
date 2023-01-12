@@ -15,8 +15,12 @@ pub enum EnableScoring<'a> {
     Enabled(&'a Searcher),
     /// Pass this to disable scoring.
     /// This can improve performance.
-    /// Searcher should be provided if available.
-    Disabled(&'a Schema, Option<&'a Searcher>),
+    Disabled {
+        /// Schema is required.
+        schema: &'a Schema,
+        /// Searcher should be provided if available.
+        searcher_opt: Option<&'a Searcher>,
+    },
 }
 
 impl<'a> EnableScoring<'a> {
@@ -27,19 +31,25 @@ impl<'a> EnableScoring<'a> {
 
     /// Create using [Searcher] with scoring disabled.
     pub fn disabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
-        EnableScoring::Disabled(searcher.schema(), Some(searcher))
+        EnableScoring::Disabled {
+            schema: searcher.schema(),
+            searcher_opt: Some(searcher),
+        }
     }
 
     /// Create using [Schema] with scoring disabled.
     pub fn disabled_from_schema(schema: &'a Schema) -> EnableScoring<'a> {
-        Self::Disabled(schema, None)
+        Self::Disabled {
+            schema,
+            searcher_opt: None,
+        }
     }
 
     /// Returns the seacher if available.
     pub fn searcher(&self) -> Option<&Searcher> {
         match self {
             EnableScoring::Enabled(searcher) => Some(searcher),
-            EnableScoring::Disabled(_schema, searcher_opt) => searcher_opt.to_owned(),
+            EnableScoring::Disabled { searcher_opt, .. } => searcher_opt.to_owned(),
         }
     }
 
@@ -47,7 +57,7 @@ impl<'a> EnableScoring<'a> {
     pub fn schema(&self) -> &Schema {
         match self {
             EnableScoring::Enabled(searcher) => searcher.schema(),
-            EnableScoring::Disabled(schema, _) => schema,
+            EnableScoring::Disabled { schema, .. } => schema,
         }
     }
 
