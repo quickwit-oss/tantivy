@@ -198,11 +198,10 @@ impl Searcher {
         collector: &C,
         executor: &Executor,
     ) -> crate::Result<C::Fruit> {
-        let scoring_enabled = collector.requires_scoring();
-        let enabled_scoring = if scoring_enabled {
-            EnableScoring::Enabled(self)
+        let enabled_scoring = if collector.requires_scoring() {
+            EnableScoring::enabled_from_searcher(self)
         } else {
-            EnableScoring::Disabled(self.schema())
+            EnableScoring::disabled_from_searcher(self)
         };
         let weight = query.weight(enabled_scoring)?;
         let segment_readers = self.segment_readers();

@@ -158,7 +158,8 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let searcher = index.reader()?.searcher();
-        let term_weight = term_query.weight(EnableScoring::Disabled(searcher.schema()))?;
+        let term_weight =
+            term_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1u32);

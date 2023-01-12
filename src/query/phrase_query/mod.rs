@@ -80,7 +80,7 @@ pub mod tests {
             .collect();
         let phrase_query = PhraseQuery::new(terms);
         let phrase_weight =
-            phrase_query.phrase_weight(EnableScoring::Disabled(searcher.schema()))?;
+            phrase_query.phrase_weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
@@ -361,7 +361,7 @@ pub mod tests {
             let query_parser = QueryParser::for_index(&index, vec![json_field]);
             let phrase_query = query_parser.parse_query(query).unwrap();
             let phrase_weight = phrase_query
-                .weight(EnableScoring::Disabled(searcher.schema()))
+                .weight(EnableScoring::disabled_from_schema(searcher.schema()))
                 .unwrap();
             let mut phrase_scorer = phrase_weight
                 .scorer(searcher.segment_reader(0), 1.0f32)

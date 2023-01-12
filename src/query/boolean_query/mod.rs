@@ -98,7 +98,7 @@ mod tests {
         }
         {
             let query = query_parser.parse_query("+a b")?;
-            let weight = query.weight(EnableScoring::Disabled(searcher.schema()))?;
+            let weight = query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<TermScorer>());
         }

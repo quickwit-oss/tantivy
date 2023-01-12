@@ -96,7 +96,7 @@ mod tests {
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         let term_weight_err =
-            term_query.specialized_weight(EnableScoring::Disabled(searcher.schema()));
+            term_query.specialized_weight(EnableScoring::disabled_from_schema(searcher.schema()));
         assert!(matches!(
             term_weight_err,
             Err(crate::TantivyError::SchemaError(_))
