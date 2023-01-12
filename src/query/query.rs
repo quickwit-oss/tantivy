@@ -45,7 +45,7 @@ impl<'a> EnableScoring<'a> {
         }
     }
 
-    /// Returns the seacher if available.
+    /// Returns the searcher if available.
     pub fn searcher(&self) -> Option<&Searcher> {
         match self {
             EnableScoring::Enabled(searcher) => Some(searcher),
