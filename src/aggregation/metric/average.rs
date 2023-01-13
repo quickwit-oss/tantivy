@@ -1,11 +1,8 @@
 use std::fmt::Debug;
 
-use fastfield_codecs::Column;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::f64_from_fastfield_u64;
-use crate::schema::Type;
-use crate::DocId;
+use super::SegmentStatsCollector;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// A single-value metric aggregation that computes the average of numeric values that are
@@ -36,61 +33,19 @@ impl AverageAggregation {
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub(crate) struct SegmentAverageCollector {
-    pub data: IntermediateAverage,
-    field_type: Type,
-}
-
-impl Debug for SegmentAverageCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AverageCollector")
-            .field("data", &self.data)
-            .finish()
-    }
-}
-
-impl SegmentAverageCollector {
-    pub fn from_req(field_type: Type) -> Self {
-        Self {
-            field_type,
-            data: Default::default(),
-        }
-    }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = field.get_val(docs[0]);
-            let val2 = field.get_val(docs[1]);
-            let val3 = field.get_val(docs[2]);
-            let val4 = field.get_val(docs[3]);
-            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
-            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
-            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
-            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
-            self.data.collect(val1);
-            self.data.collect(val2);
-            self.data.collect(val3);
-            self.data.collect(val4);
-        }
-        for &doc in iter.remainder() {
-            let val = field.get_val(doc);
-            let val = f64_from_fastfield_u64(val, &self.field_type);
-            self.data.collect(val);
-        }
-    }
-}
-
 /// Contains mergeable version of average data.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAverage {
     pub(crate) sum: f64,
-    pub(crate) doc_count: u64,
+    pub(crate) doc_count: u32,
 }
 
 impl IntermediateAverage {
-    pub(crate) fn from_collector(collector: SegmentAverageCollector) -> Self {
-        collector.data
+    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
+        Self {
+            sum: collector.stats.sum,
+            doc_count: collector.stats.count,
+        }
     }
 
     /// Merge average data into this instance.
@@ -105,10 +60,5 @@ impl IntermediateAverage {
         } else {
             Some(self.sum / self.doc_count as f64)
         }
-    }
-    #[inline]
-    fn collect(&mut self, val: f64) {
-        self.doc_count += 1;
-        self.sum += val;
     }
 }
