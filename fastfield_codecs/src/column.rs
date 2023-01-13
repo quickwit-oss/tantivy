@@ -35,6 +35,10 @@ pub trait Column<T: PartialOrd + Debug = u64>: Send + Sync {
     /// Get the positions of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
+    ///
+    /// # Truncation
+    /// `DateTime` has a truncation setting. This function should get passed the truncated values
+    /// to avoid unexpected results.
     #[inline]
     fn get_docids_for_value_range(
         &self,
@@ -137,7 +141,8 @@ impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> Column<T> for VecColumn<'a,
 }
 
 impl<'a, T: Copy + PartialOrd + Default, V> From<&'a V> for VecColumn<'a, T>
-where V: AsRef<[T]> + ?Sized
+where
+    V: AsRef<[T]> + ?Sized,
 {
     fn from(values: &'a V) -> Self {
         let values = values.as_ref();
@@ -248,7 +253,8 @@ where
 pub struct IterColumn<T>(T);
 
 impl<T> From<T> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator
+where
+    T: Iterator + Clone + ExactSizeIterator,
 {
     fn from(iter: T) -> Self {
         IterColumn(iter)
