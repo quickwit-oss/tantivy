@@ -14,9 +14,9 @@ extern crate more_asserts;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-use std::io;
 use std::io::Write;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use common::BinarySerializable;
 use compact_space::CompactSpaceDecompressor;
@@ -132,7 +132,7 @@ impl U128FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128<Item: MonotonicallyMappableToU128>(
+pub fn open_u128<Item: MonotonicallyMappableToU128 + fmt::Debug>(
     bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn Column<Item>>> {
     let (bytes, _format_version) = read_format_version(bytes)?;
@@ -146,7 +146,9 @@ pub fn open_u128<Item: MonotonicallyMappableToU128>(
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::Result<Arc<dyn Column<T>>> {
+pub fn open<T: MonotonicallyMappableToU64 + fmt::Debug>(
+    bytes: OwnedBytes,
+) -> io::Result<Arc<dyn Column<T>>> {
     let (bytes, _format_version) = read_format_version(bytes)?;
     let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
     let header = Header::deserialize(&mut bytes)?;
@@ -159,7 +161,7 @@ pub fn open<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::Result<Arc<
     }
 }
 
-fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64 + fmt::Debug>(
     bytes: OwnedBytes,
     header: &Header,
 ) -> io::Result<Arc<dyn Column<Item>>> {
@@ -320,6 +322,9 @@ mod tests {
     pub fn get_codec_test_datasets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
+        let data = vec![10];
+        data_and_names.push((data, "minimal test"));
+
         let data = (10..=10_000_u64).collect::<Vec<_>>();
         data_and_names.push((data, "simple monotonically increasing"));
 
@@ -327,6 +332,9 @@ mod tests {
             vec![5, 6, 7, 8, 9, 10, 99, 100],
             "offset in linear interpol",
         ));
+
+        data_and_names.push((vec![3, 18446744073709551613, 5], "docid range regression"));
+
         data_and_names.push((vec![5, 50, 3, 13, 1, 1000, 35], "rand small"));
         data_and_names.push((vec![10], "single value"));
 

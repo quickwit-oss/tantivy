@@ -1,3 +1,4 @@
+use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
 
@@ -6,7 +7,7 @@ use tantivy_bitpacker::minmax;
 use crate::monotonic_mapping::StrictlyMonotonicFn;
 
 /// `Column` provides columnar access on a field.
-pub trait Column<T: PartialOrd = u64>: Send + Sync {
+pub trait Column<T: PartialOrd + Debug = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -83,7 +84,7 @@ pub struct VecColumn<'a, T = u64> {
     max_value: T,
 }
 
-impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
+impl<'a, C: Column<T>, T: Copy + PartialOrd + fmt::Debug> Column<T> for &'a C {
     fn get_val(&self, idx: u32) -> T {
         (*self).get_val(idx)
     }
@@ -109,7 +110,7 @@ impl<'a, C: Column<T>, T: Copy + PartialOrd> Column<T> for &'a C {
     }
 }
 
-impl<'a, T: Copy + PartialOrd + Send + Sync> Column<T> for VecColumn<'a, T> {
+impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> Column<T> for VecColumn<'a, T> {
     fn get_val(&self, position: u32) -> T {
         self.values[position as usize]
     }
@@ -177,8 +178,8 @@ pub fn monotonic_map_column<C, T, Input, Output>(
 where
     C: Column<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Send + Sync + Copy + Debug,
+    Output: PartialOrd + Send + Sync + Copy + Debug,
 {
     MonotonicMappingColumn {
         from_column,
@@ -191,8 +192,8 @@ impl<C, T, Input, Output> Column<Output> for MonotonicMappingColumn<C, T, Input>
 where
     C: Column<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Send + Sync + Copy + Debug,
+    Output: PartialOrd + Send + Sync + Copy + Debug,
 {
     #[inline]
     fn get_val(&self, idx: u32) -> Output {
@@ -228,12 +229,15 @@ where
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        self.from_column.get_docids_for_value_range(
-            self.monotonic_mapping.inverse(range.start().clone())
-                ..=self.monotonic_mapping.inverse(range.end().clone()),
-            doc_id_range,
-            positions,
-        )
+        if range.start() > &self.max_value() || range.end() < &self.min_value() {
+            return;
+        }
+        let range = self.monotonic_mapping.inverse_coerce(range);
+        if range.start() > range.end() {
+            return;
+        }
+        self.from_column
+            .get_docids_for_value_range(range, doc_id_range, positions)
     }
 
     // We voluntarily do not implement get_range as it yields a regression,
@@ -254,7 +258,7 @@ where T: Iterator + Clone + ExactSizeIterator
 impl<T> Column<T::Item> for IterColumn<T>
 where
     T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd,
+    T::Item: PartialOrd + fmt::Debug,
 {
     fn get_val(&self, idx: u32) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()

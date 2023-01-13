@@ -455,6 +455,8 @@ impl CompactSpaceDecompressor {
 #[cfg(test)]
 mod tests {
 
+    use std::fmt;
+
     use super::*;
     use crate::format_version::read_format_version;
     use crate::null_index_footer::read_null_index_footer;
@@ -708,7 +710,7 @@ mod tests {
         );
     }
 
-    fn get_positions_for_value_range_helper<C: Column<T> + ?Sized, T: PartialOrd>(
+    fn get_positions_for_value_range_helper<C: Column<T> + ?Sized, T: PartialOrd + fmt::Debug>(
         column: &C,
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,

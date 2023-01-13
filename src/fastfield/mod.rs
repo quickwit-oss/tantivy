@@ -145,7 +145,7 @@ impl FastFieldType {
 mod tests {
 
     use std::collections::HashMap;
-    use std::ops::Range;
+    use std::ops::{Range, RangeInclusive};
     use std::path::Path;
     use std::sync::Arc;
 
@@ -159,7 +159,9 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Cardinality, Document, Field, Schema, SchemaBuilder, FAST, STRING, TEXT};
+    use crate::schema::{
+        Cardinality, Document, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT,
+    };
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
@@ -968,5 +970,118 @@ mod tests {
             assert_eq!(test_fastfield.get_val(i as u32), time.truncate(precision));
         }
         Ok(len)
+    }
+
+    #[test]
+    fn test_gcd_bug_regression_1757() {
+        let mut schema_builder = Schema::builder();
+        let num_field = schema_builder.add_u64_field("url_norm_hash", FAST | INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_for_tests().unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 100u64,
+                })
+                .unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 200u64,
+                })
+                .unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 300u64,
+                })
+                .unwrap();
+
+            writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment = &searcher.segment_readers()[0];
+        let field = segment.fast_fields().u64(num_field).unwrap();
+
+        let numbers = vec![100, 200, 300];
+        let test_range = |range: RangeInclusive<u64>| {
+            let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
+            let mut vec = vec![];
+            field.get_docids_for_value_range(range, 0..u32::MAX, &mut vec);
+            assert_eq!(vec.len(), expexted_count);
+        };
+        test_range(50..=50);
+        test_range(150..=150);
+        test_range(350..=350);
+        test_range(100..=250);
+        test_range(101..=200);
+        test_range(101..=199);
+        test_range(100..=300);
+        test_range(100..=299);
+    }
+
+    #[test]
+    fn test_mapping_bug_docids_for_value_range() {
+        let mut schema_builder = Schema::builder();
+        let num_field = schema_builder.add_u64_field("url_norm_hash", FAST | INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // Values without gcd, but with min_value
+            let mut writer = index.writer_for_tests().unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 1000u64,
+                })
+                .unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 1001u64,
+                })
+                .unwrap();
+            writer
+                .add_document(doc! {
+                    num_field => 1003u64,
+                })
+                .unwrap();
+            writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment = &searcher.segment_readers()[0];
+        let field = segment.fast_fields().u64(num_field).unwrap();
+
+        let numbers = vec![1000, 1001, 1003];
+        let test_range = |range: RangeInclusive<u64>| {
+            let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
+            let mut vec = vec![];
+            field.get_docids_for_value_range(range, 0..u32::MAX, &mut vec);
+            assert_eq!(vec.len(), expexted_count);
+        };
+        let test_range_variant = |start, stop| {
+            let start_range = start..=stop;
+            test_range(start_range);
+            let start_range = start..=(stop - 1);
+            test_range(start_range);
+            let start_range = start..=(stop + 1);
+            test_range(start_range);
+            let start_range = (start - 1)..=stop;
+            test_range(start_range);
+            let start_range = (start - 1)..=(stop - 1);
+            test_range(start_range);
+            let start_range = (start - 1)..=(stop + 1);
+            test_range(start_range);
+            let start_range = (start + 1)..=stop;
+            test_range(start_range);
+            let start_range = (start + 1)..=(stop - 1);
+            test_range(start_range);
+            let start_range = (start + 1)..=(stop + 1);
+            test_range(start_range);
+        };
+        test_range_variant(50, 50);
+        test_range_variant(1000, 1000);
+        test_range_variant(1000, 1002);
     }
 }
