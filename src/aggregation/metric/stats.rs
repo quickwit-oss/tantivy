@@ -40,7 +40,7 @@ impl StatsAggregation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Stats {
     /// The number of documents.
-    pub count: u32,
+    pub count: u64,
     /// The sum of the fast field values.
     pub sum: f64,
     /// The standard deviation of the fast field values. `None` for count == 0.
@@ -74,7 +74,7 @@ impl Stats {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     /// the number of values
-    pub count: u32,
+    pub count: u64,
     /// the sum of the values
     pub sum: f64,
     /// the squared sum of the values

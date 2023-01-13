@@ -37,7 +37,7 @@ impl AverageAggregation {
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAverage {
     pub(crate) sum: f64,
-    pub(crate) doc_count: u32,
+    pub(crate) doc_count: u64,
 }
 
 impl IntermediateAverage {
