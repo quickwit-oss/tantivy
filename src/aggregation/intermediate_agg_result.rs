@@ -204,21 +204,23 @@ pub enum IntermediateAggregationResult {
 /// Holds the intermediate data for metric results
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateMetricResult {
-    /// Average containing intermediate average data result
+    /// Intermediate average result
     Average(IntermediateAverage),
-    /// AverageData variant
+    /// Intermediate stats result
     Stats(IntermediateStats),
 }
 
 impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
     fn from(tree: SegmentMetricResultCollector) -> Self {
         match tree {
-            SegmentMetricResultCollector::Average(collector) => {
-                IntermediateMetricResult::Average(IntermediateAverage::from_collector(collector))
-            }
-            SegmentMetricResultCollector::Stats(collector) => {
-                IntermediateMetricResult::Stats(collector.stats)
-            }
+            SegmentMetricResultCollector::Stats(collector) => match collector.collecting_for {
+                super::metric::SegmentStatsType::Stats => {
+                    IntermediateMetricResult::Stats(collector.stats)
+                }
+                super::metric::SegmentStatsType::Avg => IntermediateMetricResult::Average(
+                    IntermediateAverage::from_collector(collector),
+                ),
+            },
         }
     }
 }

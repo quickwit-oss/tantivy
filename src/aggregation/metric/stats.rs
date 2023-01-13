@@ -40,7 +40,7 @@ impl StatsAggregation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Stats {
     /// The number of documents.
-    pub count: usize,
+    pub count: u64,
     /// The sum of the fast field values.
     pub sum: f64,
     /// The standard deviation of the fast field values. `None` for count == 0.
@@ -73,11 +73,16 @@ impl Stats {
 /// `IntermediateStats` contains the mergeable version for stats.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
-    count: usize,
-    sum: f64,
-    squared_sum: f64,
-    min: f64,
-    max: f64,
+    /// the number of values
+    pub count: u64,
+    /// the sum of the values
+    pub sum: f64,
+    /// the squared sum of the values
+    pub squared_sum: f64,
+    /// the min value of the values
+    pub min: f64,
+    /// the max value of the values
+    pub max: f64,
 }
 impl Default for IntermediateStats {
     fn default() -> Self {
@@ -151,16 +156,24 @@ impl IntermediateStats {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) enum SegmentStatsType {
+    Stats,
+    Avg,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentStatsCollector {
     pub(crate) stats: IntermediateStats,
     field_type: Type,
+    pub(crate) collecting_for: SegmentStatsType,
 }
 
 impl SegmentStatsCollector {
-    pub fn from_req(field_type: Type) -> Self {
+    pub fn from_req(field_type: Type, collecting_for: SegmentStatsType) -> Self {
         Self {
             field_type,
             stats: IntermediateStats::default(),
+            collecting_for,
         }
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {

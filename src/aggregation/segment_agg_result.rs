@@ -15,7 +15,7 @@ use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTer
 use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
-    AverageAggregation, SegmentAverageCollector, SegmentStatsCollector, StatsAggregation,
+    AverageAggregation, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
@@ -163,7 +163,6 @@ impl SegmentAggregationResultsCollector {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentMetricResultCollector {
-    Average(SegmentAverageCollector),
     Stats(SegmentStatsCollector),
 }
 
@@ -171,22 +170,19 @@ impl SegmentMetricResultCollector {
     pub fn from_req_and_validate(req: &MetricAggregationWithAccessor) -> crate::Result<Self> {
         match &req.metric {
             MetricAggregation::Average(AverageAggregation { field: _ }) => {
-                Ok(SegmentMetricResultCollector::Average(
-                    SegmentAverageCollector::from_req(req.field_type),
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Avg),
                 ))
             }
             MetricAggregation::Stats(StatsAggregation { field: _ }) => {
                 Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type),
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats),
                 ))
             }
         }
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
-            SegmentMetricResultCollector::Average(avg_collector) => {
-                avg_collector.collect_block(doc, &*metric.accessor);
-            }
             SegmentMetricResultCollector::Stats(stats_collector) => {
                 stats_collector.collect_block(doc, &*metric.accessor);
             }
