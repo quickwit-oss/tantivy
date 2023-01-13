@@ -43,8 +43,6 @@ pub struct Stats {
     pub count: u64,
     /// The sum of the fast field values.
     pub sum: f64,
-    /// The standard deviation of the fast field values. `None` if count equals zero.
-    pub standard_deviation: Option<f64>,
     /// The min value of the fast field values.
     pub min: Option<f64>,
     /// The max value of the fast field values.
@@ -58,7 +56,6 @@ impl Stats {
         match agg_property {
             "count" => Ok(Some(self.count as f64)),
             "sum" => Ok(Some(self.sum)),
-            "standard_deviation" => Ok(self.standard_deviation),
             "min" => Ok(self.min),
             "max" => Ok(self.max),
             "avg" => Ok(self.avg),
@@ -74,16 +71,14 @@ impl Stats {
 /// results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
-    /// The number of values.
-    pub count: u64,
-    /// The sum of the values.
-    pub sum: f64,
-    /// The sum of the squared values.
-    pub squared_sum: f64,
-    /// The min value of the values.
-    pub min: f64,
-    /// The max value of the values.
-    pub max: f64,
+    /// The number of extracted values.
+    count: u64,
+    /// The sum of the extracted values.
+    sum: f64,
+    /// The min value.
+    min: f64,
+    /// The max value.
+    max: f64,
 }
 
 impl Default for IntermediateStats {
@@ -91,7 +86,6 @@ impl Default for IntermediateStats {
         Self {
             count: 0,
             sum: 0.0,
-            squared_sum: 0.0,
             min: f64::MAX,
             max: f64::MIN,
         }
@@ -99,28 +93,10 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
-    fn avg(&self) -> Option<f64> {
-        if self.count == 0 {
-            None
-        } else {
-            Some(self.sum / (self.count as f64))
-        }
-    }
-
-    fn square_mean(&self) -> f64 {
-        self.squared_sum / (self.count as f64)
-    }
-
-    fn standard_deviation(&self) -> Option<f64> {
-        self.avg()
-            .map(|average| (self.square_mean() - average * average).sqrt())
-    }
-
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
         self.sum += other.sum;
-        self.squared_sum += other.squared_sum;
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
     }
@@ -137,13 +113,17 @@ impl IntermediateStats {
         } else {
             Some(self.max)
         };
+        let avg = if self.count == 0 {
+            None
+        } else {
+            Some(self.sum / (self.count as f64))
+        };
         Stats {
             count: self.count,
             sum: self.sum,
-            standard_deviation: self.standard_deviation(),
             min,
             max,
-            avg: self.avg(),
+            avg,
         }
     }
 
@@ -151,7 +131,6 @@ impl IntermediateStats {
     fn collect(&mut self, value: f64) {
         self.count += 1;
         self.sum += value;
-        self.squared_sum += value * value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -255,7 +234,6 @@ mod tests {
                 "count": 0,
                 "max": Value::Null,
                 "min": Value::Null,
-                "standard_deviation": Value::Null,
                 "sum": 0.0
             })
         );
@@ -332,7 +310,6 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
-                "standard_deviation": 13.65313748796613,
                 "sum": 85.0
             })
         );
@@ -344,7 +321,6 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
-                "standard_deviation": 13.65313748796613,
                 "sum": 85.0
             })
         );
@@ -356,7 +332,6 @@ mod tests {
                 "count": 7,
                 "max": 44.5,
                 "min": 1.0,
-                "standard_deviation": 13.819905785437443,
                 "sum": 85.5
             })
         );
@@ -368,7 +343,6 @@ mod tests {
                 "count": 3,
                 "max": 14.0,
                 "min": 7.0,
-                "standard_deviation": 2.867441755680877,
                 "sum": 32.0
             })
         );
@@ -380,7 +354,6 @@ mod tests {
                 "count": 0,
                 "max": serde_json::Value::Null,
                 "min": serde_json::Value::Null,
-                "standard_deviation": serde_json::Value::Null,
                 "sum": 0.0,
             })
         );

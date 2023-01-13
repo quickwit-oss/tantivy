@@ -1366,7 +1366,6 @@ mod tests {
                     "min": Value::Null,
                     "max": Value::Null,
                     "avg": Value::Null,
-                    "standard_deviation": Value::Null,
                 }
             })
         );
