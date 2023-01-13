@@ -5,8 +5,8 @@ use crate::aggregation::f64_from_fastfield_u64;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
-/// A multi-value metric aggregation that computes stats of numeric values that are
-/// extracted from the aggregated documents.
+/// A multi-value metric aggregation that computes a collection of statistics on numeric values that
+/// are extracted from the aggregated documents.
 /// Supported field types are `u64`, `i64`, and `f64`.
 /// See [`Stats`] for returned statistics.
 ///
@@ -26,11 +26,11 @@ pub struct StatsAggregation {
 }
 
 impl StatsAggregation {
-    /// Create new StatsAggregation from a field.
+    /// Creates a new [`StatsAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
         StatsAggregation { field: field_name }
     }
-    /// Return the field name.
+    /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
         &self.field
     }
@@ -43,13 +43,13 @@ pub struct Stats {
     pub count: u64,
     /// The sum of the fast field values.
     pub sum: f64,
-    /// The standard deviation of the fast field values. `None` for count == 0.
+    /// The standard deviation of the fast field values. `None` if count equals zero.
     pub standard_deviation: Option<f64>,
     /// The min value of the fast field values.
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
-    /// The average of the values. `None` for count == 0.
+    /// The average of the fast field values. `None` if count equals zero.
     pub avg: Option<f64>,
 }
 
@@ -63,27 +63,29 @@ impl Stats {
             "max" => Ok(self.max),
             "avg" => Ok(self.avg),
             _ => Err(TantivyError::InvalidArgument(format!(
-                "unknown property {} on stats metric aggregation",
+                "Unknown property {} on stats metric aggregation",
                 agg_property
             ))),
         }
     }
 }
 
-/// `IntermediateStats` contains the mergeable version for stats.
+/// Intermediate result of the stats aggregation that can be combined with other intermediate
+/// results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
-    /// the number of values
+    /// The number of values.
     pub count: u64,
-    /// the sum of the values
+    /// The sum of the values.
     pub sum: f64,
-    /// the squared sum of the values
+    /// The sum of the squared values.
     pub squared_sum: f64,
-    /// the min value of the values
+    /// The min value of the values.
     pub min: f64,
-    /// the max value of the values
+    /// The max value of the values.
     pub max: f64,
 }
+
 impl Default for IntermediateStats {
     fn default() -> Self {
         Self {
@@ -97,7 +99,7 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
-    pub(crate) fn avg(&self) -> Option<f64> {
+    fn avg(&self) -> Option<f64> {
         if self.count == 0 {
             None
         } else {
@@ -109,12 +111,12 @@ impl IntermediateStats {
         self.squared_sum / (self.count as f64)
     }
 
-    pub(crate) fn standard_deviation(&self) -> Option<f64> {
+    fn standard_deviation(&self) -> Option<f64> {
         self.avg()
             .map(|average| (self.square_mean() - average * average).sqrt())
     }
 
-    /// Merge data from other stats into this instance.
+    /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
         self.sum += other.sum;
@@ -123,7 +125,7 @@ impl IntermediateStats {
         self.max = self.max.max(other.max);
     }
 
-    /// compute final resultimprove_docs
+    /// Computes the final stats value.
     pub fn finalize(&self) -> Stats {
         let min = if self.count == 0 {
             None
@@ -157,23 +159,27 @@ impl IntermediateStats {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentStatsType {
+    Average,
+    Count,
+    Max,
+    Min,
     Stats,
-    Avg,
+    Sum,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentStatsCollector {
-    pub(crate) stats: IntermediateStats,
     field_type: Type,
     pub(crate) collecting_for: SegmentStatsType,
+    pub(crate) stats: IntermediateStats,
 }
 
 impl SegmentStatsCollector {
     pub fn from_req(field_type: Type, collecting_for: SegmentStatsType) -> Self {
         Self {
             field_type,
-            stats: IntermediateStats::default(),
             collecting_for,
+            stats: IntermediateStats::default(),
         }
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
