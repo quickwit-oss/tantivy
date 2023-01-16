@@ -92,7 +92,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// On the rare edge case where a user asks for `(start_key, end_key]`
     /// and `start_key` happens to be the last key of a block, we return a
     /// slice that is the first block was not necessary.
-    fn file_slice_for_range(&self, key_range: impl RangeBounds<[u8]>) -> FileSlice {
+    pub fn file_slice_for_range(&self, key_range: impl RangeBounds<[u8]>) -> FileSlice {
         let start_bound: Bound<usize> = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
                 let Some(first_block_addr) = self.sstable_index.search_block(key) else {
