@@ -1,89 +1,75 @@
-mod column_type_header;
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
+
+#[cfg(test)]
+#[macro_use]
+extern crate more_asserts;
+
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
+
+use std::io;
+
+mod column;
+mod column_index;
+mod column_values;
+mod columnar;
 mod dictionary;
-mod reader;
+mod dynamic_column;
 pub(crate) mod utils;
 mod value;
-mod writer;
 
-pub use column_type_header::Cardinality;
-pub use reader::ColumnarReader;
+pub use columnar::{ColumnarReader, ColumnarWriter};
 pub use value::{NumericalType, NumericalValue};
-pub use writer::ColumnarWriter;
 
-pub type DocId = u32;
+// pub use self::dynamic_column::DynamicColumnHandle;
+
+pub type RowId = u32;
+
+#[derive(Clone, Copy)]
+pub struct DateTime {
+    timestamp_micros: i64,
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct InvalidData;
 
-#[cfg(test)]
-mod tests {
-    use std::ops::Range;
-
-    use common::file_slice::FileSlice;
-
-    use crate::column_type_header::{ColumnType, ColumnTypeAndCardinality};
-    use crate::reader::ColumnarReader;
-    use crate::value::NumericalValue;
-    use crate::{Cardinality, ColumnarWriter};
-
-    #[test]
-    fn test_dataframe_writer_bytes() {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_str(1u32, "my_string", "hello");
-        dataframe_writer.record_str(3u32, "my_string", "helloeee");
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(5, &mut buffer).unwrap();
-        let columnar_fileslice = FileSlice::from(buffer);
-        let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
-        assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
-            columnar.read_columns("my_string").unwrap();
-        assert_eq!(cols.len(), 1);
-        assert_eq!(cols[0].1, 0..158);
-    }
-
-    #[test]
-    fn test_dataframe_writer_bool() {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_bool(1u32, "bool.value", false);
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(5, &mut buffer).unwrap();
-        let columnar_fileslice = FileSlice::from(buffer);
-        let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
-        assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
-            columnar.read_columns("bool.value").unwrap();
-        assert_eq!(cols.len(), 1);
-        assert_eq!(
-            cols[0].0,
-            ColumnTypeAndCardinality {
-                cardinality: Cardinality::Optional,
-                typ: ColumnType::Bool
-            }
-        );
-        assert_eq!(cols[0].1, 0..21);
-    }
-
-    #[test]
-    fn test_dataframe_writer_numerical() {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_numerical(1u32, "srical.value", NumericalValue::U64(12u64));
-        dataframe_writer.record_numerical(2u32, "srical.value", NumericalValue::U64(13u64));
-        dataframe_writer.record_numerical(4u32, "srical.value", NumericalValue::U64(15u64));
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(5, &mut buffer).unwrap();
-        let columnar_fileslice = FileSlice::from(buffer);
-        let columnar = ColumnarReader::open(columnar_fileslice).unwrap();
-        assert_eq!(columnar.num_columns(), 1);
-        let cols: Vec<(ColumnTypeAndCardinality, Range<u64>)> =
-            columnar.read_columns("srical.value").unwrap();
-        assert_eq!(cols.len(), 1);
-        // Right now this 31 bytes are spent as follows
-        //
-        // - header 14 bytes
-        // - vals  8 //< due to padding? could have been 1byte?.
-        // - null footer 6 bytes
-        // - version footer 3 bytes // Should be file-wide
-        assert_eq!(cols[0].1, 0..31);
+impl From<InvalidData> for io::Error {
+    fn from(_: InvalidData) -> Self {
+        io::Error::new(io::ErrorKind::InvalidData, "Invalid data")
     }
 }
+
+/// Enum describing the number of values that can exist per document
+/// (or per row if you will).
+///
+/// The cardinality must fit on 2 bits.
+#[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum Cardinality {
+    /// All documents contain exactly one value.
+    /// `Full` is the default for auto-detecting the Cardinality, since it is the most strict.
+    #[default]
+    Full = 0,
+    /// All documents contain at most one value.
+    Optional = 1,
+    /// All documents may contain any number of values.
+    Multivalued = 2,
+}
+
+impl Cardinality {
+    pub(crate) fn to_code(self) -> u8 {
+        self as u8
+    }
+
+    pub(crate) fn try_from_code(code: u8) -> Result<Cardinality, InvalidData> {
+        match code {
+            0 => Ok(Cardinality::Full),
+            1 => Ok(Cardinality::Optional),
+            2 => Ok(Cardinality::Multivalued),
+            _ => Err(InvalidData),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -107,7 +107,7 @@ unstable = [] # useful for benches.
 quickwit = ["sstable"]
 
 [workspace]
-members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "stacker", "sstable", "columnar", "tokenizer-api"]
+members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "stacker", "sstable", "tokenizer-api"]
 
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points

@@ -7,23 +7,25 @@ use std::io;
 
 use column_operation::ColumnOperation;
 use common::CountingWriter;
-use fastfield_codecs::serialize::ValueIndexInfo;
-use fastfield_codecs::{Column, MonotonicallyMappableToU64, VecColumn};
 use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
-use crate::column_type_header::{ColumnType, ColumnTypeAndCardinality, ColumnTypeCategory};
+use crate::column_index::SerializableColumnIndex;
+use crate::column_values::{ColumnValues, MonotonicallyMappableToU64, VecColumn};
+use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
+use crate::columnar::writer::column_writers::{
+    ColumnWriter, NumericalColumnWriter, StrColumnWriter,
+};
+use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::writer::column_writers::{ColumnWriter, NumericalColumnWriter, StrColumnWriter};
-use crate::writer::value_index::{IndexBuilder, SpareIndexBuilders};
-use crate::{Cardinality, DocId};
+use crate::{Cardinality, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
 #[derive(Default)]
 struct SpareBuffers {
-    value_index_builders: SpareIndexBuilders,
+    value_index_builders: PreallocatedIndexBuilders,
     i64_values: Vec<i64>,
     u64_values: Vec<u64>,
     f64_values: Vec<f64>,
@@ -69,7 +71,7 @@ impl Default for ColumnarWriter {
 impl ColumnarWriter {
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
         &mut self,
-        doc: DocId,
+        doc: RowId,
         column_name: &str,
         numerical_value: T,
     ) {
@@ -88,7 +90,7 @@ impl ColumnarWriter {
         );
     }
 
-    pub fn record_bool(&mut self, doc: DocId, column_name: &str, val: bool) {
+    pub fn record_bool(&mut self, doc: RowId, column_name: &str, val: bool) {
         assert!(
             !column_name.as_bytes().contains(&0u8),
             "key may not contain the 0 byte"
@@ -104,7 +106,7 @@ impl ColumnarWriter {
         );
     }
 
-    pub fn record_str(&mut self, doc: DocId, column_name: &str, value: &str) {
+    pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
         assert!(
             !column_name.as_bytes().contains(&0u8),
             "key may not contain the 0 byte"
@@ -129,7 +131,7 @@ impl ColumnarWriter {
         );
     }
 
-    pub fn serialize(&mut self, num_docs: DocId, wrt: &mut dyn io::Write) -> io::Result<()> {
+    pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
         let mut field_columns: Vec<(&[u8], ColumnTypeCategory, Addr)> = self
             .numerical_field_hash_map
@@ -154,12 +156,8 @@ impl ColumnarWriter {
                 ColumnTypeCategory::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
-                    let column_type_and_cardinality = ColumnTypeAndCardinality {
-                        cardinality,
-                        typ: ColumnType::Bool,
-                    };
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type_and_cardinality);
+                        serializer.serialize_column(column_name, ColumnType::Bool);
                     serialize_bool_column(
                         cardinality,
                         num_docs,
@@ -173,12 +171,8 @@ impl ColumnarWriter {
                     let dictionary_builder =
                         &dictionaries[str_column_writer.dictionary_id as usize];
                     let cardinality = str_column_writer.column_writer.get_cardinality(num_docs);
-                    let column_type_and_cardinality = ColumnTypeAndCardinality {
-                        cardinality,
-                        typ: ColumnType::Bytes,
-                    };
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type_and_cardinality);
+                        serializer.serialize_column(column_name, ColumnType::Bytes);
                     serialize_bytes_column(
                         cardinality,
                         num_docs,
@@ -193,12 +187,8 @@ impl ColumnarWriter {
                         self.numerical_field_hash_map.read(addr);
                     let (numerical_type, cardinality) =
                         numerical_column_writer.column_type_and_cardinality(num_docs);
-                    let column_type_and_cardinality = ColumnTypeAndCardinality {
-                        cardinality,
-                        typ: ColumnType::Numerical(numerical_type),
-                    };
-                    let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type_and_cardinality);
+                    let mut column_serializer = serializer
+                        .serialize_column(column_name, ColumnType::Numerical(numerical_type));
                     serialize_numerical_column(
                         cardinality,
                         num_docs,
@@ -217,7 +207,7 @@ impl ColumnarWriter {
 
 fn serialize_bytes_column(
     cardinality: Cardinality,
-    num_docs: DocId,
+    num_docs: RowId,
     dictionary_builder: &DictionaryBuilder,
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
@@ -256,7 +246,7 @@ fn serialize_bytes_column(
 
 fn serialize_numerical_column(
     cardinality: Cardinality,
-    num_docs: DocId,
+    num_docs: RowId,
     numerical_type: NumericalType,
     op_iterator: impl Iterator<Item = ColumnOperation<NumericalValue>>,
     buffers: &mut SpareBuffers,
@@ -306,7 +296,7 @@ fn serialize_numerical_column(
 
 fn serialize_bool_column(
     cardinality: Cardinality,
-    num_docs: DocId,
+    num_docs: RowId,
     column_operations_it: impl Iterator<Item = ColumnOperation<bool>>,
     buffers: &mut SpareBuffers,
     wrt: &mut impl io::Write,
@@ -332,51 +322,43 @@ fn serialize_column<
 >(
     op_iterator: impl Iterator<Item = ColumnOperation<T>>,
     cardinality: Cardinality,
-    num_docs: DocId,
-    value_index_builders: &mut SpareIndexBuilders,
+    num_docs: RowId,
+    value_index_builders: &mut PreallocatedIndexBuilders,
     values: &mut Vec<T>,
     mut wrt: impl io::Write,
 ) -> io::Result<()>
 where
-    for<'a> VecColumn<'a, T>: Column<T>,
+    for<'a> VecColumn<'a, T>: ColumnValues<T>,
 {
     values.clear();
-    match cardinality {
-        Cardinality::Required => {
+    let serializable_column_index = match cardinality {
+        Cardinality::Full => {
             consume_operation_iterator(
                 op_iterator,
                 value_index_builders.borrow_required_index_builder(),
                 values,
             );
-            fastfield_codecs::serialize(
-                VecColumn::from(&values[..]),
-                &mut wrt,
-                &fastfield_codecs::ALL_CODEC_TYPES[..],
-            )?;
+            SerializableColumnIndex::Full
         }
         Cardinality::Optional => {
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
             let optional_index = optional_index_builder.finish(num_docs);
-            fastfield_codecs::serialize::serialize_new(
-                ValueIndexInfo::SingleValue(Box::new(optional_index)),
-                VecColumn::from(&values[..]),
-                &mut wrt,
-                &fastfield_codecs::ALL_CODEC_TYPES[..],
-            )?;
+            SerializableColumnIndex::Optional(Box::new(optional_index))
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
             let multivalued_index = multivalued_index_builder.finish(num_docs);
-            fastfield_codecs::serialize::serialize_new(
-                ValueIndexInfo::MultiValue(Box::new(multivalued_index)),
-                VecColumn::from(&values[..]),
-                &mut wrt,
-                &fastfield_codecs::ALL_CODEC_TYPES[..],
-            )?;
+            todo!();
+            // SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
-    }
+    };
+    crate::column::serialize_column_u64(
+        serializable_column_index,
+        &VecColumn::from(&values[..]),
+        &mut wrt,
+    )?;
     Ok(())
 }
 
@@ -400,7 +382,7 @@ fn consume_operation_iterator<T: std::fmt::Debug, TIndexBuilder: IndexBuilder>(
     for symbol in operation_iterator {
         match symbol {
             ColumnOperation::NewDoc(doc) => {
-                index_builder.record_doc(doc);
+                index_builder.record_row(doc);
             }
             ColumnOperation::Value(value) => {
                 index_builder.record_value();
@@ -410,6 +392,52 @@ fn consume_operation_iterator<T: std::fmt::Debug, TIndexBuilder: IndexBuilder>(
     }
 }
 
+// /// Serializes the column with the codec with the best estimate on the data.
+// fn serialize_numerical<T: MonotonicallyMappableToU64>(
+//     value_index: ValueIndexInfo,
+//     typed_column: impl Column<T>,
+//     output: &mut impl io::Write,
+//     codecs: &[FastFieldCodecType],
+// ) -> io::Result<()> {
+
+//     let counting_writer = CountingWriter::wrap(output);
+//     serialize_value_index(value_index, output)?;
+//     let value_index_len = counting_writer.written_bytes();
+//     let output = counting_writer.finish();
+
+//     serialize_column(value_index, output)?;
+//     let column = monotonic_map_column(
+//         typed_column,
+//         crate::column::monotonic_mapping::StrictlyMonotonicMappingToInternal::<T>::new(),
+//     );
+//     let header = Header::compute_header(&column, codecs).ok_or_else(|| {
+//         io::Error::new(
+//             io::ErrorKind::InvalidInput,
+//             format!(
+//                 "Data cannot be serialized with this list of codec. {:?}",
+//                 codecs
+//             ),
+//         )
+//     })?;
+//     header.serialize(output)?;
+//     let normalized_column = header.normalize_column(column);
+//     assert_eq!(normalized_column.min_value(), 0u64);
+//     serialize_given_codec(normalized_column, header.codec_type, output)?;
+
+//     let column_header = ColumnFooter {
+//         value_index_len: todo!(),
+//         cardinality: todo!(),
+//     };
+
+//     let null_index_footer = NullIndexFooter {
+//         cardinality: value_index.get_cardinality(),
+//         null_index_codec: NullIndexCodec::Full,
+//         null_index_byte_range: 0..0,
+//     };
+//     append_null_index_footer(output, null_index_footer)?;
+//     Ok(())
+// }
+
 #[cfg(test)]
 mod tests {
     use column_operation::ColumnOperation;
@@ -417,7 +445,6 @@ mod tests {
 
     use super::*;
     use crate::value::NumericalValue;
-    use crate::Cardinality;
 
     #[test]
     fn test_column_writer_required_simple() {
@@ -426,7 +453,7 @@ mod tests {
         column_writer.record(0u32, NumericalValue::from(14i64), &mut arena);
         column_writer.record(1u32, NumericalValue::from(15i64), &mut arena);
         column_writer.record(2u32, NumericalValue::from(-16i64), &mut arena);
-        assert_eq!(column_writer.get_cardinality(3), Cardinality::Required);
+        assert_eq!(column_writer.get_cardinality(3), Cardinality::Full);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
             .operation_iterator(&mut arena, &mut buffer)
