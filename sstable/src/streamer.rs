@@ -19,6 +19,7 @@ where
     automaton: A,
     lower: Bound<Vec<u8>>,
     upper: Bound<Vec<u8>>,
+    limit: Option<u64>,
 }
 
 fn bound_as_byte_slice(bound: &Bound<Vec<u8>>) -> Bound<&[u8]> {
@@ -41,6 +42,7 @@ where
             automaton,
             lower: Bound::Unbounded,
             upper: Bound::Unbounded,
+            limit: None,
         }
     }
 
@@ -68,6 +70,16 @@ where
         self
     }
 
+    /// Load no more data than what's required to to get `limit`
+    /// matching entries.
+    ///
+    /// The resulting [`Streamer`] can still return marginaly
+    /// more than `limit` elements.
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
     /// Creates the stream corresponding to the range
     /// of terms defined using the `StreamerBuilder`.
     pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
@@ -79,7 +91,7 @@ where
         );
         let delta_reader = self
             .term_dict
-            .sstable_delta_reader_for_key_range(key_range)?;
+            .sstable_delta_reader_for_key_range(key_range, self.limit)?;
         Ok(Streamer {
             automaton: self.automaton,
             states: vec![start_state],

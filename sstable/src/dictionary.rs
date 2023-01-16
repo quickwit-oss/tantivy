@@ -69,14 +69,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub(crate) fn sstable_delta_reader_for_key_range(
         &self,
         key_range: impl RangeBounds<[u8]>,
+        limit: Option<u64>,
     ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
-        let slice = self.file_slice_for_range(key_range);
+        let slice = self.file_slice_for_range(key_range, limit);
         let data = slice.read_bytes()?;
         Ok(TSSTable::delta_reader(data))
     }
 
     /// This function returns a file slice covering a set of sstable blocks
-    /// that include the key range passed in arguments.
+    /// that include the key range passed in arguments. Optionally returns
+    /// only block for up to `limit` matching terms.
     ///
     /// It works by identifying
     /// - `first_block`: the block containing the start boudary key
@@ -92,26 +94,71 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// On the rare edge case where a user asks for `(start_key, end_key]`
     /// and `start_key` happens to be the last key of a block, we return a
     /// slice that is the first block was not necessary.
-    pub fn file_slice_for_range(&self, key_range: impl RangeBounds<[u8]>) -> FileSlice {
-        let start_bound: Bound<usize> = match key_range.start_bound() {
+    pub fn file_slice_for_range(
+        &self,
+        key_range: impl RangeBounds<[u8]>,
+        limit: Option<u64>,
+    ) -> FileSlice {
+        let first_block_id = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
-                let Some(first_block_addr) = self.sstable_index.search_block(key) else {
+                let Some(first_block_id) = self.sstable_index.search_block_id(key) else {
                     return FileSlice::empty();
                 };
-                Bound::Included(first_block_addr.byte_range.start)
+                Some(first_block_id)
             }
-            Bound::Unbounded => Bound::Unbounded,
+            Bound::Unbounded => None,
         };
-        let end_bound: Bound<usize> = match key_range.end_bound() {
-            Bound::Included(key) | Bound::Excluded(key) => {
-                if let Some(block_addr) = self.sstable_index.search_block(key) {
-                    Bound::Excluded(block_addr.byte_range.end)
-                } else {
-                    Bound::Unbounded
+
+        let last_block_id = match key_range.end_bound() {
+            Bound::Included(key) | Bound::Excluded(key) => self.sstable_index.search_block_id(key),
+            Bound::Unbounded => None,
+        };
+
+        let start_bound = if let Some(first_block_id) = first_block_id {
+            let Some(block_addr) = self.sstable_index.get_block_addr(first_block_id) else {
+                return FileSlice::empty();
+            };
+            Bound::Included(block_addr.byte_range.start)
+        } else {
+            Bound::Unbounded
+        };
+
+        let last_block_id = if let Some(limit) = limit {
+            let second_block_id = first_block_id.map(|id| id + 1).unwrap_or(0);
+            if let Some(block_addr) = self.sstable_index.get_block_addr(second_block_id) {
+                let ordinal_limit = block_addr.first_ordinal + limit;
+                let range_end = last_block_id.unwrap_or(usize::MAX);
+                let mut iter = second_block_id..range_end;
+                let mut last_required_block = first_block_id.unwrap_or(0);
+                loop {
+                    let Some(block_id) = iter.next() else {
+                        // end bound is before the limit
+                        break last_block_id
+                    };
+                    let Some(block_addr) = self.sstable_index.get_block_addr(block_id) else {
+                        // end of the sstable is before the limit
+                        break last_block_id
+                    };
+                    if block_addr.first_ordinal > ordinal_limit {
+                        // this block starts after the limit, previous block is
+                        // the last to include
+                        break Some(last_required_block);
+                    } else {
+                        // this block is needed too
+                        last_required_block = block_id;
+                    }
                 }
+            } else {
+                last_block_id
             }
-            Bound::Unbounded => Bound::Unbounded,
+        } else {
+            last_block_id
         };
+        let end_bound = last_block_id
+            .and_then(|block_id| self.sstable_index.get_block_addr(block_id))
+            .map(|block_addr| Bound::Excluded(block_addr.byte_range.end))
+            .unwrap_or(Bound::Unbounded);
+
         self.sstable_slice.slice((start_bound, end_bound))
     }
 

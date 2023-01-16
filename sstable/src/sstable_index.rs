@@ -16,10 +16,35 @@ impl SSTableIndex {
     }
 
     pub fn search_block(&self, key: &[u8]) -> Option<BlockAddr> {
-        self.blocks
-            .iter()
-            .find(|block| &block.last_key_or_greater[..] >= key)
-            .map(|block| block.block_addr.clone())
+        self.search_block_id(key)
+            .and_then(|id| self.get_block_addr(id))
+    }
+
+    pub(crate) fn get_block_addr(&self, block_id: usize) -> Option<BlockAddr> {
+        self.blocks.get(block_id)
+            .map(|block_meta| block_meta.block_addr.clone())
+    }
+
+    pub(crate) fn search_block_id(&self, key: &[u8]) -> Option<usize> {
+        let pos = self.blocks
+            .binary_search_by_key(&key, |block| &block.last_key_or_greater);
+        match pos {
+            Ok(mut pos) => {
+                // handle case where multiple blocks handle a single term (is that possible?)
+                while pos != 0 && self.blocks[pos - 1].last_key_or_greater == key {
+                    pos -= 1;
+                }
+                Some(pos)
+            }
+            Err(pos) => {
+                if pos < self.blocks.len() {
+                    Some(pos)
+                } else {
+                    // after end of last block: no block matches
+                    None
+                }
+            },
+        }
     }
 }
 
@@ -30,7 +55,7 @@ pub struct BlockAddr {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BlockMeta {
+pub(crate) struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,
     /// and yet strictly smaller than the first key in the next block.
