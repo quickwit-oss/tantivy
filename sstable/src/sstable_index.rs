@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common_prefix_len, SSTableDataCorruption};
+use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct SSTableIndex {
@@ -21,12 +21,14 @@ impl SSTableIndex {
     }
 
     pub(crate) fn get_block_addr(&self, block_id: usize) -> Option<BlockAddr> {
-        self.blocks.get(block_id)
+        self.blocks
+            .get(block_id)
             .map(|block_meta| block_meta.block_addr.clone())
     }
 
     pub(crate) fn search_block_id(&self, key: &[u8]) -> Option<usize> {
-        let pos = self.blocks
+        let pos = self
+            .blocks
             .binary_search_by_key(&key, |block| &block.last_key_or_greater);
         match pos {
             Ok(mut pos) => {
@@ -43,7 +45,18 @@ impl SSTableIndex {
                     // after end of last block: no block matches
                     None
                 }
-            },
+            }
+        }
+    }
+
+    pub(crate) fn search_term_ordinal(&self, ord: TermOrdinal) -> Option<BlockAddr> {
+        let pos = self
+            .blocks
+            .binary_search_by_key(&ord, |block| block.block_addr.first_ordinal);
+
+        match pos {
+            Ok(pos) => self.get_block_addr(pos),
+            Err(pos) => pos.checked_sub(1).and_then(|pos| self.get_block_addr(pos)),
         }
     }
 }

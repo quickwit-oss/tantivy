@@ -225,21 +225,35 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Regardless of whether the term is found or not,
     /// the buffer may be modified.
     pub fn ord_to_term(&self, ord: TermOrdinal, bytes: &mut Vec<u8>) -> io::Result<bool> {
-        let mut sstable_reader = self.sstable_reader()?;
-        bytes.clear();
-        for _ in 0..(ord + 1) {
+        // find block in which the term would be
+        let Some(block_addr) = self.sstable_index.search_term_ordinal(ord) else {
+            return Ok(false)
+        };
+        let first_ordinal = block_addr.first_ordinal;
+
+        // then search inside that block only
+        let mut sstable_reader = self.sstable_reader_block(block_addr)?;
+        for _ in first_ordinal..(ord + 1) {
             if !sstable_reader.advance().unwrap_or(false) {
                 return Ok(false);
             }
         }
+        bytes.clear();
         bytes.extend_from_slice(sstable_reader.key());
         Ok(true)
     }
 
     /// Returns the number of terms in the dictionary.
     pub fn term_info_from_ord(&self, term_ord: TermOrdinal) -> io::Result<Option<TSSTable::Value>> {
-        let mut sstable_reader = self.sstable_reader()?;
-        for _ in 0..(term_ord + 1) {
+        // find block in which the term would be
+        let Some(block_addr) = self.sstable_index.search_term_ordinal(term_ord) else {
+            return Ok(None)
+        };
+        let first_ordinal = block_addr.first_ordinal;
+
+        // then search inside that block only
+        let mut sstable_reader = self.sstable_reader_block(block_addr)?;
+        for _ in first_ordinal..(term_ord + 1) {
             if !sstable_reader.advance().unwrap_or(false) {
                 return Ok(None);
             }
