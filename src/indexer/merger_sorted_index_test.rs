@@ -13,7 +13,7 @@ mod tests {
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::SingleValue)
+            .set_fast()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
 
@@ -62,7 +62,7 @@ mod tests {
     ) -> crate::Result<Index> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::SingleValue)
+            .set_fast()
             .set_stored()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
@@ -73,7 +73,7 @@ mod tests {
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(),
         );
         let text_field_options = TextOptions::default()
             .set_indexing_options(
@@ -488,7 +488,7 @@ mod bench_sorted_index_merge {
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::SingleValue)
+            .set_fast()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
         let schema = schema_builder.build();

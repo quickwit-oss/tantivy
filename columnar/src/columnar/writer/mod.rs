@@ -85,6 +85,15 @@ fn mutate_or_create_column<V, TMutator>(
 }
 
 impl ColumnarWriter {
+
+    pub fn mem_usage(&self) -> usize {
+        // TODO add dictionary builders.
+        self.arena.mem_usage() +
+        self.numerical_field_hash_map.mem_usage() +
+        self.bool_field_hash_map.mem_usage() +
+        self.bytes_field_hash_map.mem_usage()
+    }
+
     pub fn force_numerical_type(&mut self, column_name: &str, numerical_type: NumericalType) {
         let (hash_map, _) = (&mut self.numerical_field_hash_map, &mut self.arena);
         mutate_or_create_column(

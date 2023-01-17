@@ -276,36 +276,27 @@ impl IndexMerger {
                 | FieldType::Bool(ref options) => {
                     todo!()
                 }
-                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+                FieldType::Date(ref options) => {
+                    if options.is_fast() {
+                        todo!();
                     }
-                    Some(Cardinality::MultiValues) => {
-                        self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                    None => {}
+                    // Some(Cardinality::SingleValue) => {
+                    //     self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+                    // }
+                    // Some(Cardinality::MultiValues) => {
+                    //     self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+                    // }
+                    // None => {}
                 },
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
-                FieldType::IpAddr(options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        self.write_u128_single_fast_field(
-                            field,
-                            fast_field_serializer,
-                            doc_id_mapping,
-                        )?;
+                FieldType::IpAddr(options) =>  {
+                    if options.is_fast() {
+                        todo!();
                     }
-                    Some(Cardinality::MultiValues) => {
-                        self.write_u128_multi_fast_field(
-                            field,
-                            fast_field_serializer,
-                            doc_id_mapping,
-                        )?;
-                    }
-                    None => {}
                 },
 
                 FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
@@ -1094,7 +1085,7 @@ mod tests {
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", INDEXED);
-        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1249,7 +1240,7 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1610,7 +1601,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::SingleValue)
+            .set_fast()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
         let mut index_builder = Index::builder().schema(schema_builder.build());
@@ -1777,7 +1768,7 @@ mod tests {
     fn test_merge_multivalued_int_fields_all_deleted() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::MultiValues)
+            .set_fast()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1814,7 +1805,7 @@ mod tests {
     fn test_merge_multivalued_int_fields_simple() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = NumericOptions::default()
-            .set_fast(Cardinality::MultiValues)
+            .set_fast()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1940,7 +1931,7 @@ mod tests {
     fn merges_f64_fast_fields_correctly() -> crate::Result<()> {
         let mut builder = schema::SchemaBuilder::new();
 
-        let fast_multi = NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let fast_multi = NumericOptions::default().set_fast();
 
         let field = builder.add_f64_field("f64", schema::FAST);
         let multi_field = builder.add_f64_field("f64s", fast_multi);

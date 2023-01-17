@@ -190,7 +190,7 @@ mod tests {
         let ips_field = schema_builder.add_ip_addr_field(
             "ips",
             IpAddrOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
         let text_field = schema_builder.add_text_field("id", STRING | STORED);

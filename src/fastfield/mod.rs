@@ -749,7 +749,7 @@ mod tests {
             "multi_date",
             DateOptions::default()
                 .set_precision(DatePrecision::Microseconds)
-                .set_fast(Cardinality::MultiValues),
+                .set_fast(),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -962,7 +962,7 @@ mod tests {
         .take(1_000)
         .collect();
         let date_options = DateOptions::default()
-            .set_fast(Cardinality::SingleValue)
+            .set_fast()
             .set_precision(precision);
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_date_field("field", date_options);

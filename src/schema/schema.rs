@@ -484,7 +484,6 @@ mod tests {
     use serde_json;
 
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::numeric_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
 
@@ -508,17 +507,17 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let count_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let popularity_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let score_options = NumericOptions::default()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let is_read_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field(
             "author",
@@ -645,10 +644,10 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let count_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let is_read_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -750,13 +749,13 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let count_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let popularity_options = NumericOptions::default()
             .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let score_options = NumericOptions::default()
             .set_indexed()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);
@@ -907,7 +906,7 @@ mod tests {
             .set_stored()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(SingleValue);
+            .set_fast();
         schema_builder.add_text_field("_id", id_options);
         schema_builder.add_date_field("_timestamp", timestamp_options);
 

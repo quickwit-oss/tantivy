@@ -2,7 +2,6 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use super::Cardinality;
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// DateTime Precision
@@ -29,8 +28,7 @@ pub struct DateOptions {
     indexed: bool,
     // This boolean has no effect if the field is not marked as indexed true.
     fieldnorms: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fast: Option<Cardinality>,
+    fast: bool,
     stored: bool,
     // Internal storage precision, used to optimize storage
     // compression on fast fields.
@@ -54,18 +52,9 @@ impl DateOptions {
         self.fieldnorms && self.indexed
     }
 
-    /// Returns true iff the value is a fast field and multivalue.
-    pub fn is_multivalue_fast(&self) -> bool {
-        if let Some(cardinality) = self.fast {
-            cardinality == Cardinality::MultiValues
-        } else {
-            false
-        }
-    }
-
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        self.fast.is_some()
+        self.fast
     }
 
     /// Set the field as stored.
@@ -107,17 +96,9 @@ impl DateOptions {
     /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self, cardinality: Cardinality) -> DateOptions {
-        self.fast = Some(cardinality);
+    pub fn set_fast(mut self) -> DateOptions {
+        self.fast = true;
         self
-    }
-
-    /// Returns the cardinality of the fastfield.
-    ///
-    /// If the field has not been declared as a fastfield, then
-    /// the method returns `None`.
-    pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
-        self.fast
     }
 
     /// Sets the precision for this DateTime field.
@@ -147,10 +128,7 @@ impl From<()> for DateOptions {
 impl From<FastFlag> for DateOptions {
     fn from(_: FastFlag) -> Self {
         DateOptions {
-            indexed: false,
-            fieldnorms: false,
-            stored: false,
-            fast: Some(Cardinality::SingleValue),
+            fast: true,
             ..Default::default()
         }
     }
@@ -159,10 +137,7 @@ impl From<FastFlag> for DateOptions {
 impl From<StoredFlag> for DateOptions {
     fn from(_: StoredFlag) -> Self {
         DateOptions {
-            indexed: false,
-            fieldnorms: false,
             stored: true,
-            fast: None,
             ..Default::default()
         }
     }
@@ -173,8 +148,6 @@ impl From<IndexedFlag> for DateOptions {
         DateOptions {
             indexed: true,
             fieldnorms: true,
-            stored: false,
-            fast: None,
             ..Default::default()
         }
     }
@@ -189,7 +162,7 @@ impl<T: Into<DateOptions>> BitOr<T> for DateOptions {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
-            fast: self.fast.or(other.fast),
+            fast: self.fast | other.fast,
             precision: self.precision,
         }
     }

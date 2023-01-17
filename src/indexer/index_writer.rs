@@ -1398,7 +1398,7 @@ mod tests {
     #[test]
     fn test_sort_by_multivalue_field_error() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let options = NumericOptions::default().set_fast();
         schema_builder.add_u64_field("id", options);
         let schema = schema_builder.build();
 
@@ -1616,7 +1616,7 @@ mod tests {
         let ips_field = schema_builder.add_ip_addr_field(
             "ips",
             IpAddrOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
@@ -1641,13 +1641,13 @@ mod tests {
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_stored(),
         );
         let multi_bools = schema_builder.add_bool_field(
             "multi_bools",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_stored(),
         );
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());

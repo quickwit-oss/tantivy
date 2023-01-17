@@ -182,28 +182,31 @@ impl SegmentWriter {
 
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
-                    for value in values {
-                        let facet = value.as_facet().ok_or_else(make_schema_error)?;
-                        let facet_str = facet.encoded_str();
-                        let mut unordered_term_id_opt = None;
-                        FacetTokenizer
-                            .token_stream(facet_str)
-                            .process(&mut |token| {
-                                term_buffer.set_text(&token.text);
-                                let unordered_term_id =
-                                    postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                                // TODO pass indexing context directly in subscribe function
-                                unordered_term_id_opt = Some(unordered_term_id);
-                            });
-                        if let Some(unordered_term_id) = unordered_term_id_opt {
-                            self.fast_field_writers
-                                .get_term_id_writer_mut(field)
-                                .expect("writer for facet missing")
-                                .add_val(unordered_term_id);
-                        }
-                    }
+                    todo!();
+                    // for value in values {
+                    //     let facet = value.as_facet().ok_or_else(make_schema_error)?;
+                    //     let facet_str = facet.encoded_str();
+                    //     let mut unordered_term_id_opt = None;
+                    //     FacetTokenizer
+                    //         .token_stream(facet_str)
+                    //         .process(&mut |token| {
+                    //             term_buffer.set_text(&token.text);
+                    //             let unordered_term_id =
+                    //                 postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    //             // TODO pass indexing context directly in subscribe function
+                    //             unordered_term_id_opt = Some(unordered_term_id);
+                    //         });
+                    //     if let Some(unordered_term_id) = unordered_term_id_opt {
+                    //         self.fast_field_writers
+                    //             .get_term_id_writer_mut(field)
+                    //             .expect("writer for facet missing")
+                    //             .add_val(unordered_term_id);
+                    //     }
+                    // }
                 }
                 FieldType::Str(_) => {
+                    todo!()
+                    /*
                     let mut indexing_position = IndexingPosition::default();
                     for value in values {
                         let mut token_stream = match value {
@@ -234,6 +237,7 @@ impl SegmentWriter {
                         self.fieldnorms_writer
                             .record(doc_id, field, indexing_position.num_tokens);
                     }
+                    */
                 }
                 FieldType::U64(_) => {
                     let mut num_vals = 0;

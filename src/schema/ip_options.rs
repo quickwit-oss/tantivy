@@ -4,7 +4,6 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
-use super::Cardinality;
 
 /// Trait to convert into an Ipv6Addr.
 pub trait IntoIpv6Addr {
@@ -24,8 +23,7 @@ impl IntoIpv6Addr for IpAddr {
 /// Define how an ip field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct IpAddrOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fast: Option<Cardinality>,
+    fast: bool,
     stored: bool,
     indexed: bool,
     fieldnorms: bool,
@@ -34,7 +32,7 @@ pub struct IpAddrOptions {
 impl IpAddrOptions {
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        self.fast.is_some()
+        self.fast
     }
 
     /// Returns `true` if the ip address should be stored in the doc store.
@@ -50,14 +48,6 @@ impl IpAddrOptions {
     /// Returns true if and only if the value is normed.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
-    }
-
-    /// Returns the cardinality of the fastfield.
-    ///
-    /// If the field has not been declared as a fastfield, then
-    /// the method returns None.
-    pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
-        self.fast
     }
 
     /// Set the field as normed.
@@ -97,8 +87,8 @@ impl IpAddrOptions {
     /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self, cardinality: Cardinality) -> Self {
-        self.fast = Some(cardinality);
+    pub fn set_fast(mut self,) -> Self {
+        self.fast = true;
         self
     }
 }
@@ -115,7 +105,7 @@ impl From<FastFlag> for IpAddrOptions {
             fieldnorms: false,
             indexed: false,
             stored: false,
-            fast: Some(Cardinality::SingleValue),
+            fast: true,
         }
     }
 }
@@ -126,7 +116,7 @@ impl From<StoredFlag> for IpAddrOptions {
             fieldnorms: false,
             indexed: false,
             stored: true,
-            fast: None,
+            fast: false,
         }
     }
 }
@@ -137,7 +127,7 @@ impl From<IndexedFlag> for IpAddrOptions {
             fieldnorms: true,
             indexed: true,
             stored: false,
-            fast: None,
+            fast: false,
         }
     }
 }
@@ -151,7 +141,7 @@ impl<T: Into<IpAddrOptions>> BitOr<T> for IpAddrOptions {
             fieldnorms: self.fieldnorms | other.fieldnorms,
             indexed: self.indexed | other.indexed,
             stored: self.stored | other.stored,
-            fast: self.fast.or(other.fast),
+            fast: self.fast | other.fast,
         }
     }
 }

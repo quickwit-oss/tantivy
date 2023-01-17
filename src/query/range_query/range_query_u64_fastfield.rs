@@ -186,7 +186,7 @@ mod tests {
         let ids_u64_field = schema_builder.add_u64_field(
             "ids",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
 
@@ -194,7 +194,7 @@ mod tests {
         let ids_f64_field = schema_builder.add_f64_field(
             "ids_f64",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
 
@@ -202,7 +202,7 @@ mod tests {
         let ids_i64_field = schema_builder.add_i64_field(
             "ids_i64",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
 

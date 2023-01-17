@@ -113,34 +113,35 @@ pub(crate) fn get_doc_id_mapping_from_field(
     sort_by_field: IndexSortByField,
     segment_writer: &SegmentWriter,
 ) -> crate::Result<DocIdMapping> {
-    let schema = segment_writer.segment_serializer.segment().schema();
-    let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect fastfield, but not strictly required
-    let fast_field = segment_writer
-        .fast_field_writers
-        .get_field_writer(field_id)
-        .ok_or_else(|| {
-            TantivyError::InvalidArgument(format!(
-                "sort index by field is required to be a fast field {:?}",
-                sort_by_field.field
-            ))
-        })?;
+    todo!()
+    // let schema = segment_writer.segment_serializer.segment().schema();
+    // let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect fastfield, but not strictly required
+    // let fast_field = segment_writer
+    //     .fast_field_writers
+    //     .get_field_writer(field_id)
+    //     .ok_or_else(|| {
+    //         TantivyError::InvalidArgument(format!(
+    //             "sort index by field is required to be a fast field {:?}",
+    //             sort_by_field.field
+    //         ))
+    //     })?;
 
-    // create new doc_id to old doc_id index (used in fast_field_writers)
-    let mut doc_id_and_data = fast_field
-        .iter()
-        .enumerate()
-        .map(|el| (el.0 as DocId, el.1))
-        .collect::<Vec<_>>();
-    if sort_by_field.order == Order::Desc {
-        doc_id_and_data.sort_by_key(|k| Reverse(k.1));
-    } else {
-        doc_id_and_data.sort_by_key(|k| k.1);
-    }
-    let new_doc_id_to_old = doc_id_and_data
-        .into_iter()
-        .map(|el| el.0)
-        .collect::<Vec<_>>();
-    Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
+    // // create new doc_id to old doc_id index (used in fast_field_writers)
+    // let mut doc_id_and_data = fast_field
+    //     .iter()
+    //     .enumerate()
+    //     .map(|el| (el.0 as DocId, el.1))
+    //     .collect::<Vec<_>>();
+    // if sort_by_field.order == Order::Desc {
+    //     doc_id_and_data.sort_by_key(|k| Reverse(k.1));
+    // } else {
+    //     doc_id_and_data.sort_by_key(|k| k.1);
+    // }
+    // let new_doc_id_to_old = doc_id_and_data
+    //     .into_iter()
+    //     .map(|el| el.0)
+    //     .collect::<Vec<_>>();
+    // Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
 }
 
 #[cfg(test)]
@@ -161,12 +162,12 @@ mod tests_indexsorting {
         let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
         let my_number = schema_builder.add_u64_field(
             "my_number",
-            NumericOptions::default().set_fast(Cardinality::SingleValue),
+            NumericOptions::default().set_fast(),
         );
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(),
         );
 
         let schema = schema_builder.build();

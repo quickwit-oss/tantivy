@@ -4,7 +4,7 @@
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Cardinality, DateOptions, Schema, Value, INDEXED, STORED, STRING};
+use tantivy::schema::{DateOptions, Schema, Value, INDEXED, STORED, STRING};
 use tantivy::Index;
 
 fn main() -> tantivy::Result<()> {
@@ -12,7 +12,7 @@ fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let opts = DateOptions::from(INDEXED)
         .set_stored()
-        .set_fast(Cardinality::SingleValue)
+        .set_fast()
         .set_precision(tantivy::DatePrecision::Seconds);
     let occurred_at = schema_builder.add_date_field("occurred_at", opts);
     let event_type = schema_builder.add_text_field("event", STRING | STORED);

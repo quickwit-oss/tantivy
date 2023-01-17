@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
+use columnar::{ColumnarWriter, NumericalType};
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
@@ -17,12 +18,14 @@ use crate::DatePrecision;
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
-    term_id_writers: Vec<MultiValuedFastFieldWriter>,
-    single_value_writers: Vec<IntFastFieldWriter>,
-    u128_value_writers: Vec<U128FastFieldWriter>,
-    u128_multi_value_writers: Vec<MultiValueU128FastFieldWriter>,
-    multi_values_writers: Vec<MultiValuedFastFieldWriter>,
-    bytes_value_writers: Vec<BytesFastFieldWriter>,
+    columnar_writer: ColumnarWriter,
+    fast_fields: Vec<Option<String>>,
+    // term_id_writers: Vec<MultiValuedFastFieldWriter>,
+    // single_value_writers: Vec<IntFastFieldWriter>,
+    // u128_value_writers: Vec<U128FastFieldWriter>,
+    // u128_multi_value_writers: Vec<MultiValueU128FastFieldWriter>,
+    // multi_values_writers: Vec<MultiValuedFastFieldWriter>,
+    // bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
 
 pub(crate) fn unexpected_value(expected: &str, actual: &Value) -> crate::TantivyError {
@@ -40,214 +43,96 @@ fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
     }
 }
 
+enum FastFieldTyp {
+    Numerical(NumericalType),
+    Other,
+}
+
+fn fast_numerical_type(field_type: &FieldType) -> Option<FastFieldTyp> {
+    // TODO
+    match field_type {
+        FieldType::U64(numerical_option) => {
+            if numerical_option.is_fast() {
+                Some(FastFieldTyp::Numerical(NumericalType::U64))
+            } else {
+                None
+            }
+        },
+        FieldType::I64(numerical_option) => {
+            if numerical_option.is_fast() {
+                Some(FastFieldTyp::Numerical(NumericalType::I64))
+            } else {
+                None
+            }
+        },
+        FieldType::F64(numerical_option) => {
+            if numerical_option.is_fast() {
+                Some(FastFieldTyp::Numerical(NumericalType::F64))
+            } else {
+                None
+            }
+        },
+        FieldType::Str(str_option) => {
+            if str_option.is_fast() {
+                Some(FastFieldTyp::Other)
+            } else {
+                None
+            }
+        },
+        FieldType::Bool(int_options) => {
+            if int_options.is_fast() {
+                Some(FastFieldTyp::Other)
+            } else {
+                None
+            }
+        },
+        FieldType::Date(date_options) => {
+            if date_options.is_fast() {
+                Some(FastFieldTyp::Other)
+            } else {
+                None
+            }
+        },
+        FieldType::Facet(_) => todo!(),
+        FieldType::Bytes(_) => todo!(),
+        FieldType::JsonObject(_) => todo!(),
+        FieldType::IpAddr(_) => todo!(),
+
+
+    }
+}
+
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
-        let mut u128_value_writers = Vec::new();
-        let mut u128_multi_value_writers = Vec::new();
-        let mut single_value_writers = Vec::new();
-        let mut term_id_writers = Vec::new();
-        let mut multi_values_writers = Vec::new();
-        let mut bytes_value_writers = Vec::new();
-
+        let mut columnar_writer = ColumnarWriter::default();
+        let mut fast_fields = vec![None; schema.num_fields()];
+        // TODO see other types
         for (field, field_entry) in schema.fields() {
-            match field_entry.field_type() {
-                FieldType::I64(ref int_options)
-                | FieldType::U64(ref int_options)
-                | FieldType::F64(ref int_options)
-                | FieldType::Bool(ref int_options) => {
-                    todo!();
-                    // match int_options.get_fastfield_cardinality() {
-                    // Some(Cardinality::SingleValue) => {
-                    //     let mut fast_field_writer = IntFastFieldWriter::new(field, None);
-                    //     let default_value = fast_field_default_value(field_entry);
-                    //     fast_field_writer.set_val_if_missing(default_value);
-                    //     single_value_writers.push(fast_field_writer);
-                    // }
-                    // Some(Cardinality::MultiValues) => {
-                    //     let fast_field_writer = MultiValuedFastFieldWriter::new(
-                    //         field,
-                    //         FastFieldType::Numeric,
-                    //         None,
-                    //     );
-                    //     multi_values_writers.push(fast_field_writer);
-                    // }
-                    // None => {}
-                    // }
+            if let Some(fast_field_typ) =fast_numerical_type(field_entry.field_type()) {
+                match fast_field_typ {
+                    FastFieldTyp::Numerical(numerical_type) => {
+                        columnar_writer.force_numerical_type(field_entry.name(), numerical_type);
+                    },
+                    FastFieldTyp::Other => {},
                 }
-                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        let mut fast_field_writer =
-                            IntFastFieldWriter::new(field, Some(options.get_precision()));
-                        let default_value = fast_field_default_value(field_entry);
-                        fast_field_writer.set_val_if_missing(default_value);
-                        single_value_writers.push(fast_field_writer);
-                    }
-                    Some(Cardinality::MultiValues) => {
-                        let fast_field_writer = MultiValuedFastFieldWriter::new(
-                            field,
-                            FastFieldType::Numeric,
-                            Some(options.get_precision()),
-                        );
-                        multi_values_writers.push(fast_field_writer);
-                    }
-                    None => {}
-                },
-                FieldType::Facet(_) => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::Facet, None);
-                    term_id_writers.push(fast_field_writer);
-                }
-                FieldType::Str(_) if field_entry.is_fast() => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::String, None);
-                    term_id_writers.push(fast_field_writer);
-                }
-                FieldType::Bytes(bytes_option) => {
-                    if bytes_option.is_fast() {
-                        let fast_field_writer = BytesFastFieldWriter::new(field);
-                        bytes_value_writers.push(fast_field_writer);
-                    }
-                }
-                FieldType::IpAddr(opt) => {
-                    if opt.is_fast() {
-                        match opt.get_fastfield_cardinality() {
-                            Some(Cardinality::SingleValue) => {
-                                let fast_field_writer = U128FastFieldWriter::new(field);
-                                u128_value_writers.push(fast_field_writer);
-                            }
-                            Some(Cardinality::MultiValues) => {
-                                let fast_field_writer = MultiValueU128FastFieldWriter::new(field);
-                                u128_multi_value_writers.push(fast_field_writer);
-                            }
-                            None => {}
-                        }
-                    }
-                }
-                FieldType::Str(_) | FieldType::JsonObject(_) => {}
+                fast_fields[field.field_id() as usize] = Some(field_entry.name().to_string());
             }
         }
         FastFieldsWriter {
-            u128_value_writers,
-            u128_multi_value_writers,
-            term_id_writers,
-            single_value_writers,
-            multi_values_writers,
-            bytes_value_writers,
+            columnar_writer,
+            fast_fields,
         }
     }
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.term_id_writers
-            .iter()
-            .map(|w| w.mem_usage())
-            .sum::<usize>()
-            + self
-                .single_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .multi_values_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .bytes_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .u128_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .u128_multi_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
+        self.columnar_writer.mem_usage()
     }
 
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_term_id_writer(&self, field: Field) -> Option<&MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.term_id_writers
-            .iter()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_field_writer(&self, field: Field) -> Option<&IntFastFieldWriter> {
-        // TODO optimize
-        self.single_value_writers
-            .iter()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
-        // TODO optimize
-        self.single_value_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_term_id_writer_mut(
-        &mut self,
-        field: Field,
-    ) -> Option<&mut MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.term_id_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Returns the fast field multi-value writer for the given field.
-    ///
-    /// Returns `None` if the field does not exist, or is not
-    /// configured as a multivalued fastfield in the schema.
-    pub fn get_multivalue_writer_mut(
-        &mut self,
-        field: Field,
-    ) -> Option<&mut MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.multi_values_writers
-            .iter_mut()
-            .find(|multivalue_writer| multivalue_writer.field() == field)
-    }
-
-    /// Returns the bytes fast field writer for the given field.
-    ///
-    /// Returns `None` if the field does not exist, or is not
-    /// configured as a bytes fastfield in the schema.
-    pub fn get_bytes_writer_mut(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
-        // TODO optimize
-        self.bytes_value_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
-        for field_writer in &mut self.term_id_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.single_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.multi_values_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.bytes_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.u128_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.u128_multi_value_writers {
-            field_writer.add_document(doc)?;
+        for field_value in doc.field_values() {
         }
         Ok(())
     }
@@ -260,27 +145,28 @@ impl FastFieldsWriter {
         mapping: &HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        for field_writer in self.term_id_writers {
-            let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        }
-        for field_writer in &self.single_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
+        todo!();
+        // for field_writer in self.term_id_writers {
+        //     let field = field_writer.field();
+        //     field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
+        // }
+        // for field_writer in &self.single_value_writers {
+        //     field_writer.serialize(serializer, doc_id_map)?;
+        // }
 
-        for field_writer in self.multi_values_writers {
-            let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        }
-        for field_writer in self.bytes_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-        for field_writer in self.u128_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-        for field_writer in self.u128_multi_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
+        // for field_writer in self.multi_values_writers {
+        //     let field = field_writer.field();
+        //     field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
+        // }
+        // for field_writer in self.bytes_value_writers {
+        //     field_writer.serialize(serializer, doc_id_map)?;
+        // }
+        // for field_writer in self.u128_value_writers {
+        //     field_writer.serialize(serializer, doc_id_map)?;
+        // }
+        // for field_writer in self.u128_multi_value_writers {
+        //     field_writer.serialize(serializer, doc_id_map)?;
+        // }
 
         Ok(())
     }

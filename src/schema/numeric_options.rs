@@ -116,8 +116,8 @@ impl NumericOptions {
     /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self, fast: bool) -> NumericOptions {
-        self.fast = fast;
+    pub fn set_fast(mut self) -> NumericOptions {
+        self.fast = true;
         self
     }
 }
@@ -202,7 +202,7 @@ mod tests {
             &NumericOptions {
                 indexed: true,
                 fieldnorms: true,
-                fast: None,
+                fast: false,
                 stored: false
             }
         );
@@ -220,7 +220,7 @@ mod tests {
             &NumericOptions {
                 indexed: false,
                 fieldnorms: false,
-                fast: None,
+                fast: false,
                 stored: false
             }
         );
@@ -239,7 +239,7 @@ mod tests {
             &NumericOptions {
                 indexed: true,
                 fieldnorms: false,
-                fast: None,
+                fast: false,
                 stored: false
             }
         );
@@ -259,7 +259,7 @@ mod tests {
             &NumericOptions {
                 indexed: false,
                 fieldnorms: true,
-                fast: None,
+                fast: false,
                 stored: false
             }
         );

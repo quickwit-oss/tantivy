@@ -93,7 +93,7 @@ fn save_new_metas(
 /// let body_field = schema_builder.add_text_field("body", TEXT);
 /// let number_field = schema_builder.add_u64_field(
 ///     "number",
-///     NumericOptions::default().set_fast(Cardinality::SingleValue),
+///     NumericOptions::default().set_fast(),
 /// );
 ///
 /// let schema = schema_builder.build();
