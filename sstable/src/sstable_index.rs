@@ -11,33 +11,35 @@ pub struct SSTableIndex {
 }
 
 impl SSTableIndex {
+    /// Load an index from its binary representation
     pub fn load(data: &[u8]) -> Result<SSTableIndex, SSTableDataCorruption> {
         ciborium::de::from_reader(data).map_err(|_| SSTableDataCorruption)
     }
 
+    /// Get the [`BlockAddr`] of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
     pub fn search_block(&self, key: &[u8]) -> Option<BlockAddr> {
         self.search_block_id(key)
             .and_then(|id| self.get_block_addr(id))
     }
 
+    /// Get the [`BlockAddr`] of the requested block.
     pub(crate) fn get_block_addr(&self, block_id: usize) -> Option<BlockAddr> {
         self.blocks
             .get(block_id)
             .map(|block_meta| block_meta.block_addr.clone())
     }
 
+    /// Get the block id of the block that woudl contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn search_block_id(&self, key: &[u8]) -> Option<usize> {
         let pos = self
             .blocks
             .binary_search_by_key(&key, |block| &block.last_key_or_greater);
         match pos {
-            Ok(mut pos) => {
-                // handle case where multiple blocks handle a single term (is that possible?)
-                while pos != 0 && self.blocks[pos - 1].last_key_or_greater == key {
-                    pos -= 1;
-                }
-                Some(pos)
-            }
+            Ok(pos) => Some(pos),
             Err(pos) => {
                 if pos < self.blocks.len() {
                     Some(pos)
@@ -49,6 +51,13 @@ impl SSTableIndex {
         }
     }
 
+    /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
+    // TODO this could probably return a BlockAddr instead of an Option<>
+    // - first block ord should always be zero, so Err(0) isn't a possible result
+    // of the binary search.
+    // - if Ok(pos), there must be a block with that position
+    // - if Err(pos), there must be a block at pos-1 (but possibly not at pos if
+    // `ord` is located in the very last block/is after the end of the sstable)
     pub(crate) fn search_term_ordinal(&self, ord: TermOrdinal) -> Option<BlockAddr> {
         let pos = self
             .blocks
