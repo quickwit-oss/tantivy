@@ -263,7 +263,7 @@ mod indexer;
 pub mod error;
 pub mod tokenizer;
 
-pub mod aggregation;
+// pub mod aggregation;
 pub mod collector;
 pub mod directory;
 pub mod fastfield;
@@ -1166,4 +1166,5 @@ pub mod tests {
         );
         assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
     }
+
 }

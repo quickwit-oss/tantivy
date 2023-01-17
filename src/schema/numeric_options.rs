@@ -4,18 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
-/// Express whether a field is single-value or multi-valued.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum Cardinality {
-    /// The document must have exactly one value associated with the document.
-    #[serde(rename = "single")]
-    SingleValue,
-    /// The document can have any number of values associated with the document.
-    /// This is more memory and CPU expensive than the `SingleValue` solution.
-    #[serde(rename = "multi")]
-    MultiValues,
-}
-
 #[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
 /// Deprecated use [`NumericOptions`] instead.
 pub type IntOptions = NumericOptions;

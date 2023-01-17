@@ -13,10 +13,11 @@ use crate::core::Index;
 use crate::indexer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
-use crate::query::range_query::is_type_valid_for_fastfield_range_query;
+// use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
-    RangeQuery, TermQuery, TermSetQuery,
+    // RangeQuery,
+     TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -334,6 +335,8 @@ impl QueryParser {
         json_path: &str,
         phrase: &str,
     ) -> Result<Term, QueryParserError> {
+        todo!();
+        /*
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let field_supports_ff_range_queries = field_type.is_fast()
@@ -417,6 +420,7 @@ impl QueryParser {
                 Ok(Term::from_field_ip_addr(field, ip_v6))
             }
         }
+        */
     }
 
     fn compute_logical_ast_for_leaf(
@@ -740,9 +744,11 @@ fn convert_literal_to_query(
             value_type,
             lower,
             upper,
-        } => Box::new(RangeQuery::new_term_bounds(
-            field, value_type, &lower, &upper,
-        )),
+        } => { todo!();
+// Box::new(RangeQuery::new_term_bounds(
+//             field, value_type, &lower, &upper,
+//         ))
+        } ,
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
     }

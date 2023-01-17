@@ -348,8 +348,7 @@ impl SegmentWriter {
     pub fn add_document(&mut self, add_operation: AddOperation) -> crate::Result<()> {
         let doc = add_operation.document;
         self.doc_opstamps.push(add_operation.opstamp);
-        let doc_id = self.max_doc;
-        self.fast_field_writers.add_document(doc_id, &doc)?;
+        self.fast_field_writers.add_document(&doc)?;
         self.index_document(&doc)?;
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc, &self.schema)?;
@@ -410,8 +409,7 @@ fn remap_and_write(
     )?;
     debug!("fastfield-serialize");
     fast_field_writers.serialize(
-        serializer.get_fast_field_serializer(),
-        &term_ord_map,
+        serializer.get_fast_field_write(),
         doc_id_map,
     )?;
 

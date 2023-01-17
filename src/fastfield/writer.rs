@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::io;
 
+use super::FastFieldType;
+use crate::fastfield::{CompositeFastFieldSerializer};
 use columnar::{ColumnarWriter, NumericalType, NumericalValue};
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
-use super::multivalued::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
-use super::FastFieldType;
-use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
-use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema, Value};
+use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Value};
 use crate::termdict::TermOrdinal;
 use crate::{DatePrecision, DocId};
 
@@ -20,6 +19,7 @@ use crate::{DatePrecision, DocId};
 pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
     fast_fields: Vec<Option<String>>, //< TODO see if we can cash the field name hash too.
+    num_docs: DocId,
     // term_id_writers: Vec<MultiValuedFastFieldWriter>,
     // single_value_writers: Vec<IntFastFieldWriter>,
     // u128_value_writers: Vec<U128FastFieldWriter>,
@@ -122,6 +122,7 @@ impl FastFieldsWriter {
         FastFieldsWriter {
             columnar_writer,
             fast_fields,
+            num_docs: 0u32,
         }
     }
 
@@ -131,7 +132,8 @@ impl FastFieldsWriter {
     }
 
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self, doc_id: DocId, doc: &Document) -> crate::Result<()> {
+    pub fn add_document(&mut self,  doc: &Document) -> crate::Result<()> {
+        let doc_id = self.num_docs;
         for field_value in doc.field_values() {
             if let Some(field_name) = self.fast_fields[field_value.field().field_id() as usize].as_ref() {
                 match &field_value.value {
@@ -155,40 +157,20 @@ impl FastFieldsWriter {
                 }
             }
         }
+        self.num_docs += 1;
         Ok(())
     }
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
     pub fn serialize(
-        self,
-        serializer: &mut CompositeFastFieldSerializer,
-        mapping: &HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>,
+        mut self,
+        wrt: &mut dyn io::Write,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        todo!();
-        // for field_writer in self.term_id_writers {
-        //     let field = field_writer.field();
-        //     field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        // }
-        // for field_writer in &self.single_value_writers {
-        //     field_writer.serialize(serializer, doc_id_map)?;
-        // }
-
-        // for field_writer in self.multi_values_writers {
-        //     let field = field_writer.field();
-        //     field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        // }
-        // for field_writer in self.bytes_value_writers {
-        //     field_writer.serialize(serializer, doc_id_map)?;
-        // }
-        // for field_writer in self.u128_value_writers {
-        //     field_writer.serialize(serializer, doc_id_map)?;
-        // }
-        // for field_writer in self.u128_multi_value_writers {
-        //     field_writer.serialize(serializer, doc_id_map)?;
-        // }
-
+        assert!(doc_id_map.is_none()); // TODO handle doc id map
+        let num_docs = self.num_docs;
+        self.columnar_writer.serialize(num_docs, wrt)?;
         Ok(())
     }
 }

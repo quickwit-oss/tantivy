@@ -8,10 +8,13 @@ use std::ops::{Bound, RangeInclusive};
 use common::BinarySerializable;
 use fastfield_codecs::MonotonicallyMappableToU128;
 
-use super::fast_field_range_query::{FastFieldCardinality, RangeDocSet};
 use super::range_query::map_bound;
 use crate::query::{ConstScorer, Explanation, Scorer, Weight};
+<<<<<<< HEAD
 use crate::schema::Cardinality;
+=======
+use crate::schema::Field;
+>>>>>>> fd1deefd12 (Disconnected facet / fast field merges / examples)
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `IPFastFieldRangeWeight` uses the ip address fast field to execute range queries.
@@ -40,6 +43,7 @@ impl IPFastFieldRangeWeight {
 
 impl Weight for IPFastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+<<<<<<< HEAD
         let field_type = reader
             .schema()
             .get_field_entry(reader.schema().get_field(&self.field)?)
@@ -74,6 +78,40 @@ impl Weight for IPFastFieldRangeWeight {
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
         }
+=======
+        todo!();
+        // let field_type = reader.schema().get_field_entry(self.field).field_type();
+        // match field_type.fastfield_cardinality().unwrap() {
+        //     Cardinality::SingleValue => {
+        //         let ip_addr_fast_field = reader.fast_fields().ip_addr(self.field)?;
+        //         let value_range = bound_to_value_range(
+        //             &self.left_bound,
+        //             &self.right_bound,
+        //             ip_addr_fast_field.min_value(),
+        //             ip_addr_fast_field.max_value(),
+        //         );
+        //         let docset = RangeDocSet::new(
+        //             value_range,
+        //             FastFieldCardinality::SingleValue(ip_addr_fast_field),
+        //         );
+        //         Ok(Box::new(ConstScorer::new(docset, boost)))
+        //     }
+        //     Cardinality::MultiValues => {
+        //         let ip_addr_fast_field = reader.fast_fields().ip_addrs(self.field)?;
+        //         let value_range = bound_to_value_range(
+        //             &self.left_bound,
+        //             &self.right_bound,
+        //             ip_addr_fast_field.min_value(),
+        //             ip_addr_fast_field.max_value(),
+        //         );
+        //         let docset = RangeDocSet::new(
+        //             value_range,
+        //             FastFieldCardinality::MultiValue(ip_addr_fast_field),
+        //         );
+        //         Ok(Box::new(ConstScorer::new(docset, boost)))
+        //     }
+        // }
+>>>>>>> fd1deefd12 (Disconnected facet / fast field merges / examples)
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

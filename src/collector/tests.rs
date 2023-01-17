@@ -5,7 +5,6 @@ use fastfield_codecs::Column;
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::BytesFastFieldReader;
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Field, Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
@@ -164,8 +163,8 @@ pub struct FastFieldSegmentCollector {
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: String) -> FastFieldTestCollector {
-        FastFieldTestCollector { field }
+    pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
+        FastFieldTestCollector { field: field.to_string() }
     }
 }
 
@@ -210,64 +209,62 @@ impl SegmentCollector for FastFieldSegmentCollector {
     }
 }
 
-/// Collects in order all of the fast field bytes for all of the
-/// docs in the `DocSet`
-///
-/// This collector is mainly useful for tests.
-pub struct BytesFastFieldTestCollector {
-    field: Field,
-}
+// /// Collects in order all of the fast field bytes for all of the
+// /// docs in the `DocSet`
+// ///
+// /// This collector is mainly useful for tests.
+// pub struct BytesFastFieldTestCollector {
+//     field: Field,
+// }
 
-pub struct BytesFastFieldSegmentCollector {
-    vals: Vec<u8>,
-    reader: BytesFastFieldReader,
-}
+// pub struct BytesFastFieldSegmentCollector {
+//     vals: Vec<u8>,
+//     reader: BytesFastFieldReader,
+// }
 
-impl BytesFastFieldTestCollector {
-    pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
-        BytesFastFieldTestCollector { field }
-    }
-}
+// impl BytesFastFieldTestCollector {
+//     pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
+//         BytesFastFieldTestCollector { field }
+//     }
+// }
 
-impl Collector for BytesFastFieldTestCollector {
-    type Fruit = Vec<u8>;
-    type Child = BytesFastFieldSegmentCollector;
+// impl Collector for BytesFastFieldTestCollector {
+//     type Fruit = Vec<u8>;
+//     type Child = BytesFastFieldSegmentCollector;
 
-    fn for_segment(
-        &self,
-        _segment_local_id: u32,
-        segment_reader: &SegmentReader,
-    ) -> crate::Result<BytesFastFieldSegmentCollector> {
-        let reader = segment_reader
-            .fast_fields()
-            .bytes(segment_reader.schema().get_field_name(self.field))?;
-        Ok(BytesFastFieldSegmentCollector {
-            vals: Vec::new(),
-            reader,
-        })
-    }
+//     fn for_segment(
+//         &self,
+//         _segment_local_id: u32,
+//         segment_reader: &SegmentReader,
+//     ) -> crate::Result<BytesFastFieldSegmentCollector> {
+//         let reader = segment_reader.fast_fields().bytes(self.field)?;
+//         Ok(BytesFastFieldSegmentCollector {
+//             vals: Vec::new(),
+//             reader,
+//         })
+//     }
 
-    fn requires_scoring(&self) -> bool {
-        false
-    }
+//     fn requires_scoring(&self) -> bool {
+//         false
+//     }
 
-    fn merge_fruits(&self, children: Vec<Vec<u8>>) -> crate::Result<Vec<u8>> {
-        Ok(children.into_iter().flat_map(|c| c.into_iter()).collect())
-    }
-}
+//     fn merge_fruits(&self, children: Vec<Vec<u8>>) -> crate::Result<Vec<u8>> {
+//         Ok(children.into_iter().flat_map(|c| c.into_iter()).collect())
+//     }
+// }
 
-impl SegmentCollector for BytesFastFieldSegmentCollector {
-    type Fruit = Vec<u8>;
+// impl SegmentCollector for BytesFastFieldSegmentCollector {
+//     type Fruit = Vec<u8>;
 
-    fn collect(&mut self, doc: u32, _score: Score) {
-        let data = self.reader.get_bytes(doc);
-        self.vals.extend(data);
-    }
+//     fn collect(&mut self, doc: u32, _score: Score) {
+//         let data = self.reader.get_bytes(doc);
+//         self.vals.extend(data);
+//     }
 
-    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        self.vals
-    }
-}
+//     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+//         self.vals
+//     }
+// }
 
 fn make_test_searcher() -> crate::Result<Searcher> {
     let schema = Schema::builder().build();

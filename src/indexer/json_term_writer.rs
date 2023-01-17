@@ -150,7 +150,6 @@ fn index_json_value(
                     json_term_writer.term_buffer,
                     ctx,
                     indexing_position,
-                    None,
                 );
             }
             TextOrDateTime::DateTime(dt) => {

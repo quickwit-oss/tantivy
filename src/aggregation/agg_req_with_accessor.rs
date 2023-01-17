@@ -15,7 +15,7 @@ use super::metric::{
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
 use crate::fastfield::{type_and_cardinality, MultiValuedFastFieldReader};
-use crate::schema::{Cardinality, Type};
+use crate::schema::Type;
 use crate::{InvertedIndexReader, SegmentReader, TantivyError};
 
 #[derive(Clone, Default)]

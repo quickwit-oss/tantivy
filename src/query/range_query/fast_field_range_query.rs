@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use fastfield_codecs::Column;
 
-use crate::fastfield::{MakeZero, MultiValuedFastFieldReader};
+use crate::fastfield::MakeZero;
 use crate::{DocId, DocSet, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids

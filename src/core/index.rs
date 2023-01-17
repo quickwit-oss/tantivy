@@ -19,7 +19,7 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
-use crate::schema::{Cardinality, Field, FieldType, Schema};
+use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
 
@@ -242,12 +242,6 @@ impl IndexBuilder {
                     return Err(TantivyError::InvalidArgument(format!(
                         "Field {} is no fast field. Field needs to be a single value fast field \
                          to be used to sort an index",
-                        sort_by_field.field
-                    )));
-                }
-                if entry.field_type().fastfield_cardinality() != Some(Cardinality::SingleValue) {
-                    return Err(TantivyError::InvalidArgument(format!(
-                        "Only single value fast field Cardinality supported for sorting index {}",
                         sort_by_field.field
                     )));
                 }

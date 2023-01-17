@@ -6,7 +6,6 @@ use std::ops::Range;
 use rustc_hash::FxHashMap;
 use stacker::Addr;
 
-use crate::fastfield::MultiValuedFastFieldWriter;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::recorder::{BufferLender, Recorder};
@@ -135,7 +134,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
         pos: u32,
         term: &Term,
         ctx: &mut IndexingContext,
-    ) -> UnorderedTermId;
+    ) -> UnorderedTermId; // TODO remove UnorderedTermId
 
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
@@ -155,7 +154,6 @@ pub(crate) trait PostingsWriter: Send + Sync {
         term_buffer: &mut Term,
         ctx: &mut IndexingContext,
         indexing_position: &mut IndexingPosition,
-        mut term_id_fast_field_writer_opt: Option<&mut MultiValuedFastFieldWriter>,
     ) {
         let end_of_path_idx = term_buffer.len_bytes();
         let mut num_tokens = 0;
@@ -175,11 +173,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
             term_buffer.append_bytes(token.text.as_bytes());
             let start_position = indexing_position.end_position + token.position as u32;
             end_position = end_position.max(start_position + token.position_length as u32);
-            let unordered_term_id = self.subscribe(doc_id, start_position, term_buffer, ctx);
-            if let Some(term_id_fast_field_writer) = term_id_fast_field_writer_opt.as_mut() {
-                term_id_fast_field_writer.add_val(unordered_term_id);
-            }
-
+            self.subscribe(doc_id, start_position, term_buffer, ctx);
             num_tokens += 1;
         });
 

@@ -143,7 +143,7 @@ pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::numeric_options::NumericOptions;
 #[allow(deprecated)]
-pub use self::numeric_options::{Cardinality, IntOptions};
+pub use self::numeric_options::IntOptions;
 pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::Term;
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};

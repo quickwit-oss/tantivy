@@ -6,10 +6,14 @@ use std::ops::{Bound, RangeInclusive};
 
 use fastfield_codecs::MonotonicallyMappableToU64;
 
-use super::fast_field_range_query::{FastFieldCardinality, RangeDocSet};
+use super::fast_field_range_query::RangeDocSet;
 use super::range_query::map_bound;
 use crate::query::{ConstScorer, Explanation, Scorer, Weight};
+<<<<<<< HEAD
 use crate::schema::Cardinality;
+=======
+use crate::schema::Field;
+>>>>>>> fd1deefd12 (Disconnected facet / fast field merges / examples)
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
@@ -33,6 +37,7 @@ impl FastFieldRangeWeight {
 
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+<<<<<<< HEAD
         let field_type = reader
             .schema()
             .get_field_entry(reader.schema().get_field(&self.field)?)
@@ -63,6 +68,36 @@ impl Weight for FastFieldRangeWeight {
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
         }
+=======
+        todo!();
+        // let field_type = reader.schema().get_field_entry(self.field).field_type();
+        // match field_type.fastfield_cardinality().unwrap() {
+        //     Cardinality::SingleValue => {
+        //         let fast_field = reader.fast_fields().u64_lenient(self.field)?;
+        //         let value_range = bound_to_value_range(
+        //             &self.left_bound,
+        //             &self.right_bound,
+        //             fast_field.min_value(),
+        //             fast_field.max_value(),
+        //         );
+        //         let docset =
+        //             RangeDocSet::new(value_range, FastFieldCardinality::SingleValue(fast_field));
+        //         Ok(Box::new(ConstScorer::new(docset, boost)))
+        //     }
+        //     Cardinality::MultiValues => {
+        //         let fast_field = reader.fast_fields().u64s_lenient(self.field)?;
+        //         let value_range = bound_to_value_range(
+        //             &self.left_bound,
+        //             &self.right_bound,
+        //             fast_field.min_value(),
+        //             fast_field.max_value(),
+        //         );
+        //         let docset =
+        //             RangeDocSet::new(value_range, FastFieldCardinality::MultiValue(fast_field));
+        //         Ok(Box::new(ConstScorer::new(docset, boost)))
+        //     }
+        // }
+>>>>>>> fd1deefd12 (Disconnected facet / fast field merges / examples)
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
