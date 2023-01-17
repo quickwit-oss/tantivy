@@ -144,7 +144,7 @@ mod tests {
     fn test_sstable_index() {
         let mut sstable_builder = SSTableIndexBuilder::default();
         sstable_builder.add_block(b"aaa", 10..20, 0u64);
-        sstable_builder.add_block(b"bbbbbbb", 20..30, 564);
+        sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
@@ -157,13 +157,25 @@ mod tests {
                 byte_range: 30..40
             })
         );
+
+        assert_eq!(sstable_index.locate_with_key(b"aa").unwrap(), 0);
+        assert_eq!(sstable_index.locate_with_key(b"aaa").unwrap(), 0);
+        assert_eq!(sstable_index.locate_with_key(b"aab").unwrap(), 1);
+        assert_eq!(sstable_index.locate_with_key(b"ccc").unwrap(), 2);
+        assert!(sstable_index.locate_with_key(b"e").is_none());
+
+        assert_eq!(sstable_index.locate_with_ord(0), 0);
+        assert_eq!(sstable_index.locate_with_ord(1), 0);
+        assert_eq!(sstable_index.locate_with_ord(4), 0);
+        assert_eq!(sstable_index.locate_with_ord(5), 1);
+        assert_eq!(sstable_index.locate_with_ord(100), 3);
     }
 
     #[test]
     fn test_sstable_with_corrupted_data() {
         let mut sstable_builder = SSTableIndexBuilder::default();
         sstable_builder.add_block(b"aaa", 10..20, 0u64);
-        sstable_builder.add_block(b"bbbbbbb", 20..30, 564);
+        sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();

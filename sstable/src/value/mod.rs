@@ -16,7 +16,7 @@ pub trait ValueReader: Default {
 
     /// Loads a block.
     ///
-    /// Returns the number of bytes that were written.
+    /// Returns the number of bytes that were read.
     fn load(&mut self, data: &[u8]) -> io::Result<usize>;
 }
 

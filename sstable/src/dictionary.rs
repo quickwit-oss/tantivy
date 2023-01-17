@@ -301,3 +301,96 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+    use std::sync::{Arc, Mutex};
+
+    use common::OwnedBytes;
+
+    use super::Dictionary;
+    use crate::MonotonicU64SSTable;
+
+    #[derive(Debug)]
+    struct PermissionedHandle {
+        bytes: OwnedBytes,
+        allowed_range: Mutex<Range<usize>>,
+    }
+
+    impl PermissionedHandle {
+        fn new(bytes: Vec<u8>) -> Self {
+            let bytes = OwnedBytes::new(bytes);
+            PermissionedHandle {
+                allowed_range: Mutex::new(0..bytes.len()),
+                bytes,
+            }
+        }
+
+        fn restrict(&self, range: Range<usize>) {
+            *self.allowed_range.lock().unwrap() = range;
+        }
+    }
+
+    impl common::HasLen for PermissionedHandle {
+        fn len(&self) -> usize {
+            self.bytes.len()
+        }
+    }
+
+    impl common::file_slice::FileHandle for PermissionedHandle {
+        fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
+            let allowed_range = self.allowed_range.lock().unwrap();
+            if !allowed_range.contains(&range.start) || !allowed_range.contains(&(range.end - 1)) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("invalid range, allowed {allowed_range:?}, requested {range:?}"),
+                ));
+            }
+
+            Ok(self.bytes.slice(range))
+        }
+    }
+
+    fn make_test_sstable() -> (Dictionary<MonotonicU64SSTable>, Arc<PermissionedHandle>) {
+        let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+
+        let alphabet = 'A'..='Z';
+        let mut count = 0;
+        // this makes 450k keys, enough to fill multiple blocks.
+        for a in alphabet.clone() {
+            for b in alphabet.clone() {
+                for c in alphabet.clone() {
+                    for d in alphabet.clone() {
+                        builder.insert_cannot_fail(&format!("{a}{b}{c}{d}").into_bytes(), &count);
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        let table = builder.finish().unwrap();
+        let table = Arc::new(PermissionedHandle::new(table));
+        let slice = common::file_slice::FileSlice::new(table.clone());
+
+        let dictionary = Dictionary::<MonotonicU64SSTable>::open(slice).unwrap();
+
+        // if the last block is id 0, tests are meaningless
+        assert_ne!(dictionary.sstable_index.locate_with_ord(u64::MAX), 0);
+        (dictionary, table)
+    }
+
+    #[test]
+    fn test() {
+        let (dic, slice) = make_test_sstable();
+        // TODO test (some of) these:
+        // sstable_reader_block
+        // file_slice_for_range
+        // term_ord
+        // ord_to_term
+        // term_info_from_ord
+        // get
+        // range
+        // steam
+    }
+}
