@@ -258,8 +258,8 @@ impl FieldType {
         //     FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
         //     FieldType::Facet(_) => Some(Cardinality::MultiValues),
         //     FieldType::JsonObject(_) => None,
-        //     FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.get_fastfield_cardinality(),
-        // }
+        //     FieldType::IpAddr(ref ip_addr_options) =>
+        // ip_addr_options.get_fastfield_cardinality(), }
     }
 
     /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).
