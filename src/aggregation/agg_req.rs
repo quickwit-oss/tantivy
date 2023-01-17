@@ -240,7 +240,7 @@ impl BucketAggregationType {
 /// called multi-value numeric metrics aggregation.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MetricAggregation {
-    /// Computes the average.
+    /// Computes the average of the extracted values.
     #[serde(rename = "avg")]
     Average(AverageAggregation),
     /// Counts the number of extracted values.
@@ -252,10 +252,11 @@ pub enum MetricAggregation {
     /// Finds the minimum value.
     #[serde(rename = "min")]
     Min(MinAggregation),
-    /// Calculates stats sum, average, min, max, standard_deviation on a field.
+    /// Computes a collection of statistics (`min`, `max`, `sum`, `count`, and `avg`) over the
+    /// extracted values.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
-    /// Computes the sum.
+    /// Computes the sum of the extracted values.
     #[serde(rename = "sum")]
     Sum(SumAggregation),
 }
