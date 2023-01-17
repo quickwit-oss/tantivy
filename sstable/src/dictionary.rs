@@ -101,7 +101,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     ) -> FileSlice {
         let first_block_id = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
-                let Some(first_block_id) = self.sstable_index.search_block_id(key) else {
+                let Some(first_block_id) = self.sstable_index.locate_with_key(key) else {
                     return FileSlice::empty();
                 };
                 Some(first_block_id)
@@ -110,12 +110,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         };
 
         let last_block_id = match key_range.end_bound() {
-            Bound::Included(key) | Bound::Excluded(key) => self.sstable_index.search_block_id(key),
+            Bound::Included(key) | Bound::Excluded(key) => self.sstable_index.locate_with_key(key),
             Bound::Unbounded => None,
         };
 
         let start_bound = if let Some(first_block_id) = first_block_id {
-            let Some(block_addr) = self.sstable_index.get_block_addr(first_block_id) else {
+            let Some(block_addr) = self.sstable_index.get_block(first_block_id) else {
                 return FileSlice::empty();
             };
             Bound::Included(block_addr.byte_range.start)
@@ -125,7 +125,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         let last_block_id = if let Some(limit) = limit {
             let second_block_id = first_block_id.map(|id| id + 1).unwrap_or(0);
-            if let Some(block_addr) = self.sstable_index.get_block_addr(second_block_id) {
+            if let Some(block_addr) = self.sstable_index.get_block(second_block_id) {
                 let ordinal_limit = block_addr.first_ordinal + limit;
                 let range_end = last_block_id.unwrap_or(usize::MAX);
                 let mut iter = second_block_id..range_end;
@@ -135,7 +135,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                         // end bound is before the limit
                         break last_block_id
                     };
-                    let Some(block_addr) = self.sstable_index.get_block_addr(block_id) else {
+                    let Some(block_addr) = self.sstable_index.get_block(block_id) else {
                         // end of the sstable is before the limit
                         break last_block_id
                     };
@@ -155,7 +155,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             last_block_id
         };
         let end_bound = last_block_id
-            .and_then(|block_id| self.sstable_index.get_block_addr(block_id))
+            .and_then(|block_id| self.sstable_index.get_block(block_id))
             .map(|block_addr| Bound::Excluded(block_addr.byte_range.end))
             .unwrap_or(Bound::Unbounded);
 
@@ -226,9 +226,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// the buffer may be modified.
     pub fn ord_to_term(&self, ord: TermOrdinal, bytes: &mut Vec<u8>) -> io::Result<bool> {
         // find block in which the term would be
-        let Some(block_addr) = self.sstable_index.search_term_ordinal(ord) else {
-            return Ok(false)
-        };
+        let block_addr = self.sstable_index.get_block_with_ord(ord);
         let first_ordinal = block_addr.first_ordinal;
 
         // then search inside that block only
@@ -246,9 +244,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns the number of terms in the dictionary.
     pub fn term_info_from_ord(&self, term_ord: TermOrdinal) -> io::Result<Option<TSSTable::Value>> {
         // find block in which the term would be
-        let Some(block_addr) = self.sstable_index.search_term_ordinal(term_ord) else {
-            return Ok(None)
-        };
+        let block_addr = self.sstable_index.get_block_with_ord(term_ord);
         let first_ordinal = block_addr.first_ordinal;
 
         // then search inside that block only
@@ -263,7 +259,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
-        if let Some(block_addr) = self.sstable_index.search_block(key.as_ref()) {
+        if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {
             let mut sstable_reader = self.sstable_reader_block(block_addr)?;
             let key_bytes = key.as_ref();
             while sstable_reader.advance()? {
@@ -278,7 +274,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Lookups the value corresponding to the key.
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
-        if let Some(block_addr) = self.sstable_index.search_block(key.as_ref()) {
+        if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {
             let mut sstable_reader = self.sstable_reader_block_async(block_addr).await?;
             let key_bytes = key.as_ref();
             while sstable_reader.advance()? {

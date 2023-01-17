@@ -16,16 +16,8 @@ impl SSTableIndex {
         ciborium::de::from_reader(data).map_err(|_| SSTableDataCorruption)
     }
 
-    /// Get the [`BlockAddr`] of the block that would contain `key`.
-    ///
-    /// Returns None if `key` is lexicographically after the last key recorded.
-    pub fn search_block(&self, key: &[u8]) -> Option<BlockAddr> {
-        self.search_block_id(key)
-            .and_then(|id| self.get_block_addr(id))
-    }
-
     /// Get the [`BlockAddr`] of the requested block.
-    pub(crate) fn get_block_addr(&self, block_id: usize) -> Option<BlockAddr> {
+    pub(crate) fn get_block(&self, block_id: usize) -> Option<BlockAddr> {
         self.blocks
             .get(block_id)
             .map(|block_meta| block_meta.block_addr.clone())
@@ -34,7 +26,7 @@ impl SSTableIndex {
     /// Get the block id of the block that woudl contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
-    pub(crate) fn search_block_id(&self, key: &[u8]) -> Option<usize> {
+    pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<usize> {
         let pos = self
             .blocks
             .binary_search_by_key(&key, |block| &block.last_key_or_greater);
@@ -51,22 +43,29 @@ impl SSTableIndex {
         }
     }
 
-    /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    // TODO this could probably return a BlockAddr instead of an Option<>
-    // - first block ord should always be zero, so Err(0) isn't a possible result
-    // of the binary search.
-    // - if Ok(pos), there must be a block with that position
-    // - if Err(pos), there must be a block at pos-1 (but possibly not at pos if
-    // `ord` is located in the very last block/is after the end of the sstable)
-    pub(crate) fn search_term_ordinal(&self, ord: TermOrdinal) -> Option<BlockAddr> {
+    /// Get the [`BlockAddr`] of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
+    pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
+        self.locate_with_key(key).and_then(|id| self.get_block(id))
+    }
+
+    pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> usize {
         let pos = self
             .blocks
             .binary_search_by_key(&ord, |block| block.block_addr.first_ordinal);
 
         match pos {
-            Ok(pos) => self.get_block_addr(pos),
-            Err(pos) => pos.checked_sub(1).and_then(|pos| self.get_block_addr(pos)),
+            Ok(pos) => pos,
+            // Err(0) can't happen as the sstable starts with ordinal zero
+            Err(pos) => pos - 1,
         }
+    }
+
+    /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
+    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
+        // locate_with_ord always returns an index within range
+        self.get_block(self.locate_with_ord(ord)).unwrap()
     }
 }
 
@@ -152,7 +151,7 @@ mod tests {
         sstable_builder.serialize(&mut buffer).unwrap();
         let sstable_index = SSTableIndex::load(&buffer[..]).unwrap();
         assert_eq!(
-            sstable_index.search_block(b"bbbde"),
+            sstable_index.get_block_with_key(b"bbbde"),
             Some(BlockAddr {
                 first_ordinal: 10u64,
                 byte_range: 30..40
