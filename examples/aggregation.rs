@@ -27,7 +27,7 @@ fn main() -> tantivy::Result<()> {
     let score_fieldtype =
         crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
     let highscore_field = schema_builder.add_f64_field("highscore", score_fieldtype.clone());
-    let price_field = schema_builder.add_f64_field("price", score_fieldtype.clone());
+    let price_field = schema_builder.add_f64_field("price", score_fieldtype);
 
     let schema = schema_builder.build();
 
@@ -112,7 +112,7 @@ fn main() -> tantivy::Result<()> {
                 ],
                 ..Default::default()
             }),
-            sub_aggregation: sub_agg_req_1.clone(),
+            sub_aggregation: sub_agg_req_1,
         }),
     )]
     .into_iter()
@@ -123,7 +123,7 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
 
-    let res: Value = serde_json::to_value(&agg_res)?;
+    let res: Value = serde_json::to_value(agg_res)?;
     println!("{}", serde_json::to_string_pretty(&res)?);
 
     Ok(())
