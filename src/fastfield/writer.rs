@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnarWriter, NumericalType};
+use columnar::{ColumnarWriter, NumericalType, NumericalValue};
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
@@ -14,12 +14,12 @@ use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema, Value};
 use crate::termdict::TermOrdinal;
-use crate::DatePrecision;
+use crate::{DatePrecision, DocId};
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
-    fast_fields: Vec<Option<String>>,
+    fast_fields: Vec<Option<String>>, //< TODO see if we can cash the field name hash too.
     // term_id_writers: Vec<MultiValuedFastFieldWriter>,
     // single_value_writers: Vec<IntFastFieldWriter>,
     // u128_value_writers: Vec<U128FastFieldWriter>,
@@ -131,8 +131,29 @@ impl FastFieldsWriter {
     }
 
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
+    pub fn add_document(&mut self, doc_id: DocId, doc: &Document) -> crate::Result<()> {
         for field_value in doc.field_values() {
+            if let Some(field_name) = self.fast_fields[field_value.field().field_id() as usize].as_ref() {
+                match &field_value.value {
+                    Value::U64(u64_val) => {
+                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*u64_val));
+                    },
+                    Value::I64(i64_val) => {
+                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*i64_val));
+                    },
+                    Value::F64(f64_val) => {
+                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*f64_val));
+                    },
+                    Value::Str(_) => todo!(),
+                    Value::PreTokStr(_) => todo!(),
+                    Value::Bool(_) => todo!(),
+                    Value::Date(_) => todo!(),
+                    Value::Facet(_) => todo!(),
+                    Value::Bytes(_) => todo!(),
+                    Value::JsonObject(_) => todo!(),
+                    Value::IpAddr(_) => todo!(),
+                }
+            }
         }
         Ok(())
     }
