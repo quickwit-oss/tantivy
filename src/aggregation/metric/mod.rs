@@ -80,12 +80,12 @@ mod tests {
             "price_stats": { "stats": { "field": "price" } },
             "price_sum": { "sum": { "field": "price" } }
         }"#;
-        let aggregations: Aggregations = serde_json::from_str(&aggregations_json).unwrap();
+        let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
         let collector = AggregationCollector::from_aggs(aggregations, None, index.schema());
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let aggregations_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
-        let aggregations_res_json = serde_json::to_value(&aggregations_res).unwrap();
+        let aggregations_res_json = serde_json::to_value(aggregations_res).unwrap();
 
         assert_eq!(aggregations_res_json["price_avg"]["value"], 2.5);
         assert_eq!(aggregations_res_json["price_count"]["value"], 6.0);
