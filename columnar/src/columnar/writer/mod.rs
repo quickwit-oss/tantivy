@@ -68,20 +68,46 @@ impl Default for ColumnarWriter {
     }
 }
 
+#[inline]
+fn mutate_or_create_column<V, TMutator>(
+    arena_hash_map: &mut ArenaHashMap,
+    column_name: &str,
+    updater: TMutator,
+) where
+    V: Copy + 'static,
+    TMutator: FnMut(Option<V>) -> V,
+{
+    assert!(
+        !column_name.as_bytes().contains(&0u8),
+        "key may not contain the 0 byte"
+    );
+    arena_hash_map.mutate_or_create(column_name.as_bytes(), updater);
+}
+
 impl ColumnarWriter {
+    pub fn force_numerical_type(&mut self, column_name: &str, numerical_type: NumericalType) {
+        let (hash_map, _) = (&mut self.numerical_field_hash_map, &mut self.arena);
+        mutate_or_create_column(
+            hash_map,
+            column_name,
+            |column_opt: Option<NumericalColumnWriter>| {
+                let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
+                column.force_numerical_type(numerical_type);
+                column
+            },
+        );
+    }
+
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
         &mut self,
         doc: RowId,
         column_name: &str,
         numerical_value: T,
     ) {
-        assert!(
-            !column_name.as_bytes().contains(&0u8),
-            "key may not contain the 0 byte"
-        );
         let (hash_map, arena) = (&mut self.numerical_field_hash_map, &mut self.arena);
-        hash_map.mutate_or_create(
-            column_name.as_bytes(),
+        mutate_or_create_column(
+            hash_map,
+            column_name,
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                 column.record_numerical_value(doc, numerical_value.into(), arena);
@@ -91,33 +117,23 @@ impl ColumnarWriter {
     }
 
     pub fn record_bool(&mut self, doc: RowId, column_name: &str, val: bool) {
-        assert!(
-            !column_name.as_bytes().contains(&0u8),
-            "key may not contain the 0 byte"
-        );
         let (hash_map, arena) = (&mut self.bool_field_hash_map, &mut self.arena);
-        hash_map.mutate_or_create(
-            column_name.as_bytes(),
-            |column_opt: Option<ColumnWriter>| {
-                let mut column: ColumnWriter = column_opt.unwrap_or_default();
-                column.record(doc, val, arena);
-                column
-            },
-        );
+        mutate_or_create_column(hash_map, column_name, |column_opt: Option<ColumnWriter>| {
+            let mut column: ColumnWriter = column_opt.unwrap_or_default();
+            column.record(doc, val, arena);
+            column
+        });
     }
 
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
-        assert!(
-            !column_name.as_bytes().contains(&0u8),
-            "key may not contain the 0 byte"
-        );
         let (hash_map, arena, dictionaries) = (
             &mut self.bytes_field_hash_map,
             &mut self.arena,
             &mut self.dictionaries,
         );
-        hash_map.mutate_or_create(
-            column_name.as_bytes(),
+        mutate_or_create_column(
+            hash_map,
+            column_name,
             |column_opt: Option<StrColumnWriter>| {
                 let mut column: StrColumnWriter = column_opt.unwrap_or_else(|| {
                     // Each column has its own dictionary
