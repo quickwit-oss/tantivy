@@ -206,7 +206,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut term_ord = 0u64;
         let key_bytes = key.as_ref();
         let mut sstable_reader = self.sstable_reader()?;
-        while sstable_reader.advance().unwrap_or(false) {
+        while sstable_reader.advance()? {
             if sstable_reader.key() == key_bytes {
                 return Ok(Some(term_ord));
             }
@@ -233,8 +233,8 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         // then search inside that block only
         let mut sstable_reader = self.sstable_reader_block(block_addr)?;
-        for _ in first_ordinal..(ord + 1) {
-            if !sstable_reader.advance().unwrap_or(false) {
+        for _ in first_ordinal..=ord {
+            if !sstable_reader.advance()? {
                 return Ok(false);
             }
         }
@@ -253,8 +253,8 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         // then search inside that block only
         let mut sstable_reader = self.sstable_reader_block(block_addr)?;
-        for _ in first_ordinal..(term_ord + 1) {
-            if !sstable_reader.advance().unwrap_or(false) {
+        for _ in first_ordinal..=term_ord {
+            if !sstable_reader.advance()? {
                 return Ok(None);
             }
         }
@@ -266,7 +266,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         if let Some(block_addr) = self.sstable_index.search_block(key.as_ref()) {
             let mut sstable_reader = self.sstable_reader_block(block_addr)?;
             let key_bytes = key.as_ref();
-            while sstable_reader.advance().unwrap_or(false) {
+            while sstable_reader.advance()? {
                 if sstable_reader.key() == key_bytes {
                     let value = sstable_reader.value().clone();
                     return Ok(Some(value));
@@ -281,7 +281,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         if let Some(block_addr) = self.sstable_index.search_block(key.as_ref()) {
             let mut sstable_reader = self.sstable_reader_block_async(block_addr).await?;
             let key_bytes = key.as_ref();
-            while sstable_reader.advance().unwrap_or(false) {
+            while sstable_reader.advance()? {
                 if sstable_reader.key() == key_bytes {
                     let value = sstable_reader.value().clone();
                     return Ok(Some(value));
