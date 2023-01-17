@@ -243,22 +243,23 @@ impl FieldType {
 
     /// returns true if the field is fast.
     pub fn fastfield_cardinality(&self) -> Option<Cardinality> {
-        match *self {
-            FieldType::Bytes(ref bytes_options) => {
-                bytes_options.is_fast().then_some(Cardinality::SingleValue)
-            }
-            FieldType::Str(ref text_options) => {
-                text_options.is_fast().then_some(Cardinality::MultiValues)
-            }
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality(),
-            FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
-            FieldType::Facet(_) => Some(Cardinality::MultiValues),
-            FieldType::JsonObject(_) => None,
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.get_fastfield_cardinality(),
-        }
+        todo!();
+        // match *self {
+        //     FieldType::Bytes(ref bytes_options) => {
+        //         bytes_options.is_fast().then_some(Cardinality::SingleValue)
+        //     }
+        //     FieldType::Str(ref text_options) => {
+        //         text_options.is_fast().then_some(Cardinality::MultiValues)
+        //     }
+        //     FieldType::U64(ref int_options)
+        //     | FieldType::I64(ref int_options)
+        //     | FieldType::F64(ref int_options)
+        //     | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality(),
+        //     FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
+        //     FieldType::Facet(_) => Some(Cardinality::MultiValues),
+        //     FieldType::JsonObject(_) => None,
+        //     FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.get_fastfield_cardinality(),
+        // }
     }
 
     /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).

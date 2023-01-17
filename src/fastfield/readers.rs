@@ -30,31 +30,32 @@ pub(crate) enum FastType {
 }
 
 pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
-    match field_type {
-        FieldType::U64(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::U64, cardinality)),
-        FieldType::I64(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::I64, cardinality)),
-        FieldType::F64(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::F64, cardinality)),
-        FieldType::Bool(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::Bool, cardinality)),
-        FieldType::Date(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::Date, cardinality)),
-        FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
-        FieldType::Str(options) if options.is_fast() => {
-            Some((FastType::U64, Cardinality::MultiValues))
-        }
-        FieldType::IpAddr(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::U128, cardinality)),
-        _ => None,
-    }
+    todo!();
+    // match field_type {
+    //     FieldType::U64(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::U64, cardinality)),
+    //     FieldType::I64(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::I64, cardinality)),
+    //     FieldType::F64(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::F64, cardinality)),
+    //     FieldType::Bool(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::Bool, cardinality)),
+    //     FieldType::Date(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::Date, cardinality)),
+    //     FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
+    //     FieldType::Str(options) if options.is_fast() => {
+    //         Some((FastType::U64, Cardinality::MultiValues))
+    //     }
+    //     FieldType::IpAddr(options) => options
+    //         .get_fastfield_cardinality()
+    //         .map(|cardinality| (FastType::U128, cardinality)),
+    //     _ => None,
+    // }
 }
 
 impl FastFieldReaders {

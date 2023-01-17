@@ -27,8 +27,7 @@ pub struct NumericOptions {
     indexed: bool,
     // This boolean has no effect if the field is not marked as indexed too.
     fieldnorms: bool, // This attribute only has an effect if indexed is true.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fast: Option<Cardinality>,
+    fast: bool,
     stored: bool,
 }
 
@@ -42,8 +41,7 @@ struct NumericOptionsDeser {
     indexed: bool,
     #[serde(default)]
     fieldnorms: Option<bool>, // This attribute only has an effect if indexed is true.
-    #[serde(default)]
-    fast: Option<Cardinality>,
+    fast: bool,
     stored: bool,
 }
 
@@ -74,18 +72,9 @@ impl NumericOptions {
         self.fieldnorms && self.indexed
     }
 
-    /// Returns true iff the value is a fast field and multivalue.
-    pub fn is_multivalue_fast(&self) -> bool {
-        if let Some(cardinality) = self.fast {
-            cardinality == Cardinality::MultiValues
-        } else {
-            false
-        }
-    }
-
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        self.fast.is_some()
+        self.fast
     }
 
     /// Set the field as stored.
@@ -127,17 +116,9 @@ impl NumericOptions {
     /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self, cardinality: Cardinality) -> NumericOptions {
-        self.fast = Some(cardinality);
+    pub fn set_fast(mut self, fast: bool) -> NumericOptions {
+        self.fast = fast;
         self
-    }
-
-    /// Returns the cardinality of the fastfield.
-    ///
-    /// If the field has not been declared as a fastfield, then
-    /// the method returns `None`.
-    pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
-        self.fast
     }
 }
 
@@ -153,7 +134,7 @@ impl From<FastFlag> for NumericOptions {
             indexed: false,
             fieldnorms: false,
             stored: false,
-            fast: Some(Cardinality::SingleValue),
+            fast: true,
         }
     }
 }
@@ -164,7 +145,7 @@ impl From<StoredFlag> for NumericOptions {
             indexed: false,
             fieldnorms: false,
             stored: true,
-            fast: None,
+            fast: false,
         }
     }
 }
@@ -175,7 +156,7 @@ impl From<IndexedFlag> for NumericOptions {
             indexed: true,
             fieldnorms: true,
             stored: false,
-            fast: None,
+            fast: false,
         }
     }
 }
@@ -189,7 +170,7 @@ impl<T: Into<NumericOptions>> BitOr<T> for NumericOptions {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
-            fast: self.fast.or(other.fast),
+            fast: self.fast | other.fast,
         }
     }
 }

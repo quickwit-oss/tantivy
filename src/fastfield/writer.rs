@@ -56,23 +56,24 @@ impl FastFieldsWriter {
                 | FieldType::U64(ref int_options)
                 | FieldType::F64(ref int_options)
                 | FieldType::Bool(ref int_options) => {
-                    match int_options.get_fastfield_cardinality() {
-                        Some(Cardinality::SingleValue) => {
-                            let mut fast_field_writer = IntFastFieldWriter::new(field, None);
-                            let default_value = fast_field_default_value(field_entry);
-                            fast_field_writer.set_val_if_missing(default_value);
-                            single_value_writers.push(fast_field_writer);
-                        }
-                        Some(Cardinality::MultiValues) => {
-                            let fast_field_writer = MultiValuedFastFieldWriter::new(
-                                field,
-                                FastFieldType::Numeric,
-                                None,
-                            );
-                            multi_values_writers.push(fast_field_writer);
-                        }
-                        None => {}
-                    }
+                    todo!();
+                    // match int_options.get_fastfield_cardinality() {
+                        // Some(Cardinality::SingleValue) => {
+                        //     let mut fast_field_writer = IntFastFieldWriter::new(field, None);
+                        //     let default_value = fast_field_default_value(field_entry);
+                        //     fast_field_writer.set_val_if_missing(default_value);
+                        //     single_value_writers.push(fast_field_writer);
+                        // }
+                        // Some(Cardinality::MultiValues) => {
+                        //     let fast_field_writer = MultiValuedFastFieldWriter::new(
+                        //         field,
+                        //         FastFieldType::Numeric,
+                        //         None,
+                        //     );
+                        //     multi_values_writers.push(fast_field_writer);
+                        // }
+                        // None => {}
+                    // }
                 }
                 FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
