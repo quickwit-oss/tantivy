@@ -4,6 +4,7 @@ mod serializer;
 mod value_index;
 
 use std::io;
+use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
 use common::CountingWriter;
@@ -48,6 +49,7 @@ struct SpareBuffers {
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,
     bool_field_hash_map: ArenaHashMap,
+    ip_addr_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
@@ -85,6 +87,22 @@ impl ColumnarWriter {
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                 column.record_numerical_value(doc, numerical_value.into(), arena);
+                column
+            },
+        );
+    }
+
+    pub fn record_ip_addr(&mut self, doc: RowId, column_name: &str, ip_addr: Ipv6Addr) {
+        assert!(
+            !column_name.as_bytes().contains(&0u8),
+            "key may not contain the 0 byte"
+        );
+        let (hash_map, arena) = (&mut self.ip_addr_field_hash_map, &mut self.arena);
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<ColumnWriter>| {
+                let mut column: ColumnWriter = column_opt.unwrap_or_default();
+                column.record(doc, ip_addr, arena);
                 column
             },
         );

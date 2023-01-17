@@ -11,6 +11,7 @@ pub enum ColumnType {
     Bytes,
     Numerical(NumericalType),
     Bool,
+    IpAddr,
 }
 
 impl ColumnType {

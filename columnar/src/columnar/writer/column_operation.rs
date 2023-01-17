@@ -1,3 +1,5 @@
+use std::net::Ipv6Addr;
+
 use crate::dictionary::UnorderedId;
 use crate::utils::{place_bits, pop_first_byte, select_bits};
 use crate::value::NumericalValue;
@@ -139,6 +141,18 @@ impl SymbolValue for bool {
 
     fn deserialize(bytes: &[u8]) -> Self {
         bytes[0] == 1u8
+    }
+}
+
+impl SymbolValue for Ipv6Addr {
+    fn serialize(self, buffer: &mut [u8]) -> u8 {
+        // maybe not ueseful to use VIntEncoding for the mooment since we only use it for IP addr.
+        // We could roll our own RLE compression but it is overkill. let's stick to 8 bytes.
+        todo!();
+    }
+
+    fn deserialize(bytes: &[u8]) -> Self {
+        todo!();
     }
 }
 
