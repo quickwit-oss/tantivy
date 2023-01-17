@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{IntermediateStats, SegmentStatsCollector};
 
-/// A single-value metric aggregation that computes the average of numeric values that are
+/// A single-value metric aggregation that computes the minimum of numeric values that are
 /// extracted from the aggregated documents.
 /// Supported field types are u64, i64, and f64.
 /// See [super::SingleMetricResult] for return value.
@@ -12,19 +12,19 @@ use super::{IntermediateStats, SegmentStatsCollector};
 /// # JSON Format
 /// ```json
 /// {
-///     "avg": {
+///     "min": {
 ///         "field": "score",
 ///     }
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AverageAggregation {
-    /// The field name to compute the average on.
+pub struct MinAggregation {
+    /// The field name to compute the minimum on.
     pub field: String,
 }
 
-impl AverageAggregation {
-    /// Creates a new [`AverageAggregation`] instance from a field name.
+impl MinAggregation {
+    /// Creates a new [`MinAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
         Self { field: field_name }
     }
@@ -34,26 +34,26 @@ impl AverageAggregation {
     }
 }
 
-/// Intermediate result of the average aggregation that can be combined with other intermediate
+/// Intermediate result of the minimum aggregation that can be combined with other intermediate
 /// results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateAverage {
+pub struct IntermediateMin {
     stats: IntermediateStats,
 }
 
-impl IntermediateAverage {
-    /// Creates a new [`IntermediateAverage`] instance from a [`SegmentStatsCollector`].
+impl IntermediateMin {
+    /// Creates a new [`IntermediateMin`] instance from a [`SegmentStatsCollector`].
     pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
         Self {
             stats: collector.stats,
         }
     }
     /// Merges the other intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateAverage) {
+    pub fn merge_fruits(&mut self, other: IntermediateMin) {
         self.stats.merge_fruits(other.stats);
     }
-    /// Computes the final average value.
+    /// Computes the final minimum value.
     pub fn finalize(&self) -> Option<f64> {
-        self.stats.finalize().avg
+        self.stats.finalize().min
     }
 }

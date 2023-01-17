@@ -15,7 +15,8 @@ use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTer
 use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
-    AverageAggregation, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, SegmentStatsCollector,
+    SegmentStatsType, StatsAggregation, SumAggregation,
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
@@ -169,14 +170,34 @@ pub(crate) enum SegmentMetricResultCollector {
 impl SegmentMetricResultCollector {
     pub fn from_req_and_validate(req: &MetricAggregationWithAccessor) -> crate::Result<Self> {
         match &req.metric {
-            MetricAggregation::Average(AverageAggregation { field: _ }) => {
+            MetricAggregation::Average(AverageAggregation { .. }) => {
                 Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Avg),
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Average),
                 ))
             }
-            MetricAggregation::Stats(StatsAggregation { field: _ }) => {
+            MetricAggregation::Count(CountAggregation { .. }) => {
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count),
+                ))
+            }
+            MetricAggregation::Max(MaxAggregation { .. }) => {
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max),
+                ))
+            }
+            MetricAggregation::Min(MinAggregation { .. }) => {
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min),
+                ))
+            }
+            MetricAggregation::Stats(StatsAggregation { .. }) => {
                 Ok(SegmentMetricResultCollector::Stats(
                     SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats),
+                ))
+            }
+            MetricAggregation::Sum(SumAggregation { .. }) => {
+                Ok(SegmentMetricResultCollector::Stats(
+                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum),
                 ))
             }
         }

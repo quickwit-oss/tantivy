@@ -17,7 +17,10 @@ use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
     GetDocCount, Order, OrderTarget, SegmentHistogramBucketEntry, TermsAggregation,
 };
-use super::metric::{IntermediateAverage, IntermediateStats};
+use super::metric::{
+    IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
+    IntermediateSum,
+};
 use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
@@ -204,22 +207,42 @@ pub enum IntermediateAggregationResult {
 /// Holds the intermediate data for metric results
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateMetricResult {
-    /// Intermediate average result
+    /// Intermediate average result.
     Average(IntermediateAverage),
-    /// Intermediate stats result
+    /// Intermediate count result.
+    Count(IntermediateCount),
+    /// Intermediate max result.
+    Max(IntermediateMax),
+    /// Intermediate min result.
+    Min(IntermediateMin),
+    /// Intermediate stats result.
     Stats(IntermediateStats),
+    /// Intermediate sum result.
+    Sum(IntermediateSum),
 }
 
 impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
     fn from(tree: SegmentMetricResultCollector) -> Self {
         match tree {
             SegmentMetricResultCollector::Stats(collector) => match collector.collecting_for {
+                super::metric::SegmentStatsType::Average => IntermediateMetricResult::Average(
+                    IntermediateAverage::from_collector(collector),
+                ),
+                super::metric::SegmentStatsType::Count => {
+                    IntermediateMetricResult::Count(IntermediateCount::from_collector(collector))
+                }
+                super::metric::SegmentStatsType::Max => {
+                    IntermediateMetricResult::Max(IntermediateMax::from_collector(collector))
+                }
+                super::metric::SegmentStatsType::Min => {
+                    IntermediateMetricResult::Min(IntermediateMin::from_collector(collector))
+                }
                 super::metric::SegmentStatsType::Stats => {
                     IntermediateMetricResult::Stats(collector.stats)
                 }
-                super::metric::SegmentStatsType::Avg => IntermediateMetricResult::Average(
-                    IntermediateAverage::from_collector(collector),
-                ),
+                super::metric::SegmentStatsType::Sum => {
+                    IntermediateMetricResult::Sum(IntermediateSum::from_collector(collector))
+                }
             },
         }
     }
@@ -231,24 +254,45 @@ impl IntermediateMetricResult {
             MetricAggregation::Average(_) => {
                 IntermediateMetricResult::Average(IntermediateAverage::default())
             }
+            MetricAggregation::Count(_) => {
+                IntermediateMetricResult::Count(IntermediateCount::default())
+            }
+            MetricAggregation::Max(_) => IntermediateMetricResult::Max(IntermediateMax::default()),
+            MetricAggregation::Min(_) => IntermediateMetricResult::Min(IntermediateMin::default()),
             MetricAggregation::Stats(_) => {
                 IntermediateMetricResult::Stats(IntermediateStats::default())
             }
+            MetricAggregation::Sum(_) => IntermediateMetricResult::Sum(IntermediateSum::default()),
         }
     }
     fn merge_fruits(&mut self, other: IntermediateMetricResult) {
         match (self, other) {
             (
-                IntermediateMetricResult::Average(avg_data_left),
-                IntermediateMetricResult::Average(avg_data_right),
+                IntermediateMetricResult::Average(avg_left),
+                IntermediateMetricResult::Average(avg_right),
             ) => {
-                avg_data_left.merge_fruits(avg_data_right);
+                avg_left.merge_fruits(avg_right);
+            }
+            (
+                IntermediateMetricResult::Count(count_left),
+                IntermediateMetricResult::Count(count_right),
+            ) => {
+                count_left.merge_fruits(count_right);
+            }
+            (IntermediateMetricResult::Max(max_left), IntermediateMetricResult::Max(max_right)) => {
+                max_left.merge_fruits(max_right);
+            }
+            (IntermediateMetricResult::Min(min_left), IntermediateMetricResult::Min(min_right)) => {
+                min_left.merge_fruits(min_right);
             }
             (
                 IntermediateMetricResult::Stats(stats_left),
                 IntermediateMetricResult::Stats(stats_right),
             ) => {
                 stats_left.merge_fruits(stats_right);
+            }
+            (IntermediateMetricResult::Sum(sum_left), IntermediateMetricResult::Sum(sum_right)) => {
+                sum_left.merge_fruits(sum_right);
             }
             _ => {
                 panic!("incompatible fruit types in tree");

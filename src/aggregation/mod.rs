@@ -216,8 +216,8 @@ impl<T: Clone> VecWithNames<T> {
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
         entries.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut data = vec![];
-        let mut data_names = vec![];
+        let mut data = Vec::with_capacity(entries.len());
+        let mut data_names = Vec::with_capacity(entries.len());
         for entry in entries {
             data_names.push(entry.0);
             data.push(entry.1);
