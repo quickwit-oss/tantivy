@@ -127,26 +127,11 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let second_block_id = first_block_id.map(|id| id + 1).unwrap_or(0);
             if let Some(block_addr) = self.sstable_index.get_block(second_block_id) {
                 let ordinal_limit = block_addr.first_ordinal + limit;
-                let range_end = last_block_id.unwrap_or(usize::MAX);
-                let mut iter = second_block_id..range_end;
-                let mut last_required_block = first_block_id.unwrap_or(0);
-                loop {
-                    let Some(block_id) = iter.next() else {
-                        // end bound is before the limit
-                        break last_block_id
-                    };
-                    let Some(block_addr) = self.sstable_index.get_block(block_id) else {
-                        // end of the sstable is before the limit
-                        break last_block_id
-                    };
-                    if block_addr.first_ordinal > ordinal_limit {
-                        // this block starts after the limit, previous block is
-                        // the last to include
-                        break Some(last_required_block);
-                    } else {
-                        // this block is needed too
-                        last_required_block = block_id;
-                    }
+                let last_block_limit = self.sstable_index.locate_with_ord(ordinal_limit);
+                if let Some(last_block_id) = last_block_id {
+                    Some(last_block_id.min(last_block_limit))
+                } else {
+                    Some(last_block_limit)
                 }
             } else {
                 last_block_id
