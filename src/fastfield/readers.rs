@@ -70,11 +70,12 @@ impl FastFieldReaders {
         self.typed_column_first_or_default(field)
     }
 
+    /// Returns the `date` fast field reader reader associated with `field`.
+    ///
+    /// If `field` is not a date fast field, this method returns an Error.
     pub fn datetime(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<columnar::DateTime>>> {
         self.typed_column_first_or_default(field)
     }
-
-
 
     /// Returns the `ip` fast field reader reader associated to `field`.
     ///
@@ -110,9 +111,6 @@ impl FastFieldReaders {
         self.typed_column_first_or_default(field_name)
     }
 
-    /// Returns the `date` fast field reader reader associated with `field`.
-    ///
-    /// If `field` is not a date fast field, this method returns an Error.
     pub fn date(&self, field_name: &str) -> crate::Result<Arc<dyn Column<DateTime>>> {
         todo!()
         // self.numerical_column(field_name)
