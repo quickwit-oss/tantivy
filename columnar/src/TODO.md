@@ -35,6 +35,7 @@ remove all  doc_id occurences -> row_id
 use the rank & select naming in unit tests branch.
 multi-linear -> blockwise
 linear codec -> simply a multiplication for the index column
+rename columnar to something more explicit, like column_dictionary or columnar_table
 
 # Other
 fix enhance column-cli
