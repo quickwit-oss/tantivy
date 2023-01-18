@@ -823,30 +823,25 @@ mod tests {
     }
 
     #[test]
-    pub fn test_fastfield_bool_default_value() -> crate::Result<()> {
+    pub fn test_fastfield_bool_default_value() {
         let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
-
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_bool_field("field_bool", FAST);
         let schema = schema_builder.build();
-
         {
             let mut write: WritePtr = directory.open_write(path).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write, None)?;
-            write.terminate()?;
+            fast_field_writers.serialize(&mut write, None).unwrap();
+            write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        let composite_file = CompositeFile::open(&file)?;
-        assert_eq!(file.len(), 32);
-        let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
-        assert_eq!(fast_field_reader.get_val(0), false);
-
-        Ok(())
+        assert_eq!(file.len(), 45);
+        let fastfield_readers = FastFieldReaders::open(file).unwrap();
+        let col = fastfield_readers.bool("field_bool").unwrap();
+        assert_eq!(col.get_val(0), false);
     }
 
     fn get_index(docs: &[crate::Document], schema: &Schema) -> crate::Result<RamDirectory> {
@@ -898,13 +893,13 @@ mod tests {
         let directory = get_index(&docs[..], &schema)?;
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
-        let composite_file = CompositeFile::open(&file)?;
-        let file = composite_file.open_read(*FIELD).unwrap();
         let len = file.len();
-        let test_fastfield = open::<DateTime>(file.read_bytes()?)?;
+        let readers = FastFieldReaders::open(file).unwrap();
+        let col = readers.datetime("field").unwrap();
 
         for (i, time) in times.iter().enumerate() {
-            assert_eq!(test_fastfield.get_val(i as u32), time.truncate(precision));
+            let dt: crate::DateTime = col.get_val(i as u32).into();
+            assert_eq!(dt, time.truncate(precision));
         }
         Ok(len)
     }

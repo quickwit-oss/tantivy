@@ -33,7 +33,7 @@ impl FastFieldReaders {
     }
 
     // TODO make opt
-    pub fn typed_column<T>(&self, field: &str) -> crate::Result<columnar::Column<T>>
+    pub fn typed_column_opt<T>(&self, field: &str) -> crate::Result<Option<columnar::Column<T>>>
     where
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
         DynamicColumn: Into<Option<columnar::Column<T>>>,
@@ -44,13 +44,10 @@ impl FastFieldReaders {
             .filter(|column| column.column_type() == column_type)
             .next() else {
             // TODO Option would make more sense.
-            return Err(crate::TantivyError::SchemaError(format!("No fast field of with this name")));
+            return Ok(None);
         };
         let dynamic_column = dynamic_column_handle.open()?;
-        let col: columnar::Column<T> = dynamic_column
-            .into()
-            .ok_or_else(|| crate::TantivyError::SchemaError(format!("Invalid type")))?;
-        Ok(col)
+        Ok(dynamic_column.into())
     }
 
     pub fn typed_column_first_or_default<T>(&self, field: &str) -> crate::Result<Arc<dyn Column<T>>>
@@ -58,8 +55,12 @@ impl FastFieldReaders {
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
         DynamicColumn: Into<Option<columnar::Column<T>>>,
     {
-        let col = self.typed_column(field)?;
-        Ok(col.first_or_default_col(T::default()))
+        let col_opt = self.typed_column_opt(field)?;
+        if let Some(col) = col_opt {
+            Ok(col.first_or_default_col(T::default()))
+        } else {
+            todo!();
+        }
     }
 
     /// Returns the `u64` fast field reader reader associated with `field`.
@@ -68,6 +69,12 @@ impl FastFieldReaders {
     pub fn u64(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<u64>>> {
         self.typed_column_first_or_default(field)
     }
+
+    pub fn datetime(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<columnar::DateTime>>> {
+        self.typed_column_first_or_default(field)
+    }
+
+
 
     /// Returns the `ip` fast field reader reader associated to `field`.
     ///
