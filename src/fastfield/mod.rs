@@ -1014,7 +1014,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let segment = &searcher.segment_readers()[0];
-        let field = segment.fast_fields().u64(num_field).unwrap();
+        let field = segment.fast_fields().u64("url_norm_hash").unwrap();
 
         let numbers = vec![100, 200, 300];
         let test_range = |range: RangeInclusive<u64>| {
@@ -1063,7 +1063,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let segment = &searcher.segment_readers()[0];
-        let field = segment.fast_fields().u64(num_field).unwrap();
+        let field = segment.fast_fields().u64("url_norm_hash").unwrap();
 
         let numbers = vec![1000, 1001, 1003];
         let test_range = |range: RangeInclusive<u64>| {

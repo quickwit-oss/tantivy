@@ -159,7 +159,7 @@ mod tests {
         let searcher = reader.searcher();
         let reader = searcher.segment_reader(0);
 
-        let date_ff_reader = reader.fast_fields().dates(date_field).unwrap();
+        let date_ff_reader = reader.fast_fields().dates("multi_date_field").unwrap();
         let mut docids = vec![];
         date_ff_reader.get_docids_for_value_range(
             DateTime::from_utc(first_time_stamp)..=DateTime::from_utc(two_secs_ahead),
@@ -173,7 +173,7 @@ mod tests {
 
         assert_eq!(
             count_multiples(RangeQuery::new_date(
-                date_field,
+                "multi_date_field".to_string(),
                 DateTime::from_utc(first_time_stamp)..DateTime::from_utc(two_secs_ahead)
             )),
             1
