@@ -363,38 +363,26 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_intfastfield_default_val() -> crate::Result<()> {
-        todo!();
-        // change of spec
-        // let path = Path::new("test");
-        // let directory: RamDirectory = RamDirectory::create();
-        // let mut schema_builder = Schema::builder();
-        // let i64_field = schema_builder.add_i64_field("field", FAST);
-        // let schema = schema_builder.build();
+    fn test_signed_intfastfield_default_val() {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("field", FAST);
+        let schema = schema_builder.build();
 
-        // {
-        //     let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-        //     let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
-        //     let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-        //     let doc = Document::default();
-        //     fast_field_writers.add_document(0, &doc).unwrap();
-        //     fast_field_writers
-        //         .serialize(&mut serializer, &HashMap::new(), None)
-        //         .unwrap();
-        //     serializer.close().unwrap();
-        // }
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            let doc = Document::default();
+            fast_field_writers.add_document(&doc).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
+            write.terminate().unwrap();
+        }
 
-        // let file = directory.open_read(path).unwrap();
-        // {
-        //     let fast_fields_composite = CompositeFile::open(&file).unwrap();
-        //     let data = fast_fields_composite
-        //         .open_read(i64_field)
-        //         .unwrap()
-        //         .read_bytes()?;
-        //     let fast_field_reader = open::<i64>(data)?;
-        //     assert_eq!(fast_field_reader.get_val(0), 0i64);
-        // }
-        // Ok(())
+        let file = directory.open_read(path).unwrap();
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let col = fast_field_readers.i64("field").unwrap();
+        assert_eq!(col.get_val(0), 0i64);
     }
 
     // Warning: this generates the same permutation at each call
@@ -411,51 +399,41 @@ mod tests {
         permutation
     }
 
-    fn test_intfastfield_permutation_with_data(permutation: Vec<u64>) -> crate::Result<()> {
+    fn test_intfastfield_permutation_with_data(permutation: Vec<u64>) {
         let path = Path::new("test");
         let n = permutation.len();
         let directory = RamDirectory::create();
         {
-            let mut write: WritePtr = directory.open_write(Path::new("test"))?;
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for (doc_id, &x) in permutation.iter().enumerate() {
                 fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
-            fast_field_writers.serialize(&mut write, None)?;
-            write.terminate()?;
+            fast_field_writers.serialize(&mut write, None).unwrap();
+            write.terminate().unwrap();
         }
-        let file = directory.open_read(path)?;
-        {
-            let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite
-                .open_read(*FIELD)
-                .unwrap()
-                .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
-
-            for a in 0..n {
-                assert_eq!(fast_field_reader.get_val(a as u32), permutation[a]);
-            }
+        let file = directory.open_read(path).unwrap();
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let col = fast_field_readers.u64("field").unwrap();
+        for a in 0..n {
+            assert_eq!(col.get_val(a as u32), permutation[a]);
         }
-        Ok(())
     }
 
     #[test]
-    fn test_intfastfield_permutation_gcd() -> crate::Result<()> {
+    fn test_intfastfield_permutation_gcd() {
         let permutation = generate_permutation_gcd();
-        test_intfastfield_permutation_with_data(permutation)?;
-        Ok(())
+        test_intfastfield_permutation_with_data(permutation);
     }
 
     #[test]
-    fn test_intfastfield_permutation() -> crate::Result<()> {
+    fn test_intfastfield_permutation() {
         let permutation = generate_permutation();
-        test_intfastfield_permutation_with_data(permutation)?;
-        Ok(())
+        test_intfastfield_permutation_with_data(permutation);
     }
 
     #[test]
-    fn test_merge_missing_date_fast_field() -> crate::Result<()> {
+    fn test_merge_missing_date_fast_field() {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", FAST);
         let schema = schema_builder.build();
@@ -463,11 +441,11 @@ mod tests {
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer
-            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc())))?;
-        index_writer.commit()?;
-        index_writer.add_document(doc!())?;
-        index_writer.commit()?;
-        let reader = index.reader()?;
+            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc()))).unwrap();
+        index_writer.commit().unwrap();
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
         let segment_ids: Vec<SegmentId> = reader
             .searcher()
             .segment_readers()
@@ -476,9 +454,8 @@ mod tests {
             .collect();
         assert_eq!(segment_ids.len(), 2);
         index_writer.merge(&segment_ids[..]).wait().unwrap();
-        reader.reload()?;
+        reader.reload().unwrap();
         assert_eq!(reader.searcher().segment_readers().len(), 1);
-        Ok(())
     }
 
     // fn get_vals_for_docs(ff: &MultiValuedFastFieldReader<u64>, docs: Range<u32>) -> Vec<u64> {
@@ -740,18 +717,9 @@ mod tests {
     //     Ok(())
     // }
 
-    #[test]
-    pub fn test_fastfield_bool() {
-        let test_fastfield: Arc<dyn Column<bool>> =
-            fastfield_codecs::serialize_and_load::<bool>(&[true, false, true, false]);
-        assert_eq!(test_fastfield.get_val(0), true);
-        assert_eq!(test_fastfield.get_val(1), false);
-        assert_eq!(test_fastfield.get_val(2), true);
-        assert_eq!(test_fastfield.get_val(3), false);
-    }
 
     #[test]
-    pub fn test_fastfield_bool_small() -> crate::Result<()> {
+    pub fn test_fastfield_bool_small() {
         let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
 
@@ -775,20 +743,17 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 33);
-        let composite_file = CompositeFile::open(&file)?;
-        let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
-        assert_eq!(fast_field_reader.get_val(0), true);
-        assert_eq!(fast_field_reader.get_val(1), false);
-        assert_eq!(fast_field_reader.get_val(2), true);
-        assert_eq!(fast_field_reader.get_val(3), false);
-
-        Ok(())
+        assert_eq!(file.len(), 178);
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let bool_col = fast_field_readers.bool("field_bool").unwrap();
+        assert_eq!(bool_col.get_val(0), true);
+        assert_eq!(bool_col.get_val(1), false);
+        assert_eq!(bool_col.get_val(2), true);
+        assert_eq!(bool_col.get_val(3), false);
     }
 
     #[test]
-    pub fn test_fastfield_bool_large() -> crate::Result<()> {
+    pub fn test_fastfield_bool_large() {
         let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
 
@@ -800,7 +765,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(path).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-            for doc_id in 0..50 {
+            for _ in 0..50 {
                 fast_field_writers.add_document(&doc!(field=>true)).unwrap();
                 fast_field_writers
                     .add_document(&doc!(field=>false))
@@ -810,16 +775,13 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 45);
-        let composite_file = CompositeFile::open(&file)?;
-        let data = composite_file.open_read(field).unwrap().read_bytes()?;
-        let fast_field_reader = open::<bool>(data)?;
+        assert_eq!(file.len(), 190);
+        let readers = FastFieldReaders::open(file).unwrap();
+        let bool_col = readers.bool("field_bool").unwrap();
         for i in 0..25 {
-            assert_eq!(fast_field_reader.get_val(i * 2), true);
-            assert_eq!(fast_field_reader.get_val(i * 2 + 1), false);
+            assert_eq!(bool_col.get_val(i * 2), true);
+            assert_eq!(bool_col.get_val(i * 2 + 1), false);
         }
-
-        Ok(())
     }
 
     #[test]
@@ -827,7 +789,7 @@ mod tests {
         let path = Path::new("test_bool");
         let directory: RamDirectory = RamDirectory::create();
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_bool_field("field_bool", FAST);
+        schema_builder.add_bool_field("field_bool", FAST);
         let schema = schema_builder.build();
         {
             let mut write: WritePtr = directory.open_write(path).unwrap();
@@ -849,7 +811,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(schema);
-            for (doc_id, doc) in docs.into_iter().enumerate() {
+            for doc in docs {
                 fast_field_writers.add_document(doc).unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
@@ -859,20 +821,16 @@ mod tests {
     }
 
     #[test]
-    pub fn test_gcd_date() -> crate::Result<()> {
+    pub fn test_gcd_date() {
         let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds)?;
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds);
         assert_eq!(size_prec_sec, 5 + 4 + 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
         let size_prec_micro =
-            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds)?;
+            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds);
         assert_eq!(size_prec_micro, 5 + 4 + 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
-        Ok(())
     }
 
-    fn test_gcd_date_with_codec(
-        codec_type: FastFieldCodecType,
-        precision: DatePrecision,
-    ) -> crate::Result<usize> {
+    fn test_gcd_date_with_codec(codec_type: FastFieldCodecType, precision: DatePrecision) -> usize {
         let mut rng = StdRng::seed_from_u64(2u64);
         const T0: i64 = 1_662_345_825_012_529i64;
         const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
@@ -890,7 +848,7 @@ mod tests {
 
         let docs: Vec<Document> = times.iter().map(|time| doc!(field=>*time)).collect();
 
-        let directory = get_index(&docs[..], &schema)?;
+        let directory = get_index(&docs[..], &schema).unwrap();
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
         let len = file.len();
@@ -901,7 +859,7 @@ mod tests {
             let dt: crate::DateTime = col.get_val(i as u32).into();
             assert_eq!(dt, time.truncate(precision));
         }
-        Ok(len)
+        len
     }
 
     #[test]

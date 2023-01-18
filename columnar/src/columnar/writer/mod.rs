@@ -47,6 +47,7 @@ struct SpareBuffers {
 /// ```
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,
+    datetime_field_hash_map: ArenaHashMap,
     bool_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
     arena: MemoryArena,
@@ -61,6 +62,7 @@ impl Default for ColumnarWriter {
             numerical_field_hash_map: ArenaHashMap::new(10_000),
             bool_field_hash_map: ArenaHashMap::new(10_000),
             bytes_field_hash_map: ArenaHashMap::new(10_000),
+            datetime_field_hash_map: ArenaHashMap::new(10_000),
             dictionaries: Vec::new(),
             arena: MemoryArena::default(),
             buffers: SpareBuffers::default(),
@@ -133,6 +135,19 @@ impl ColumnarWriter {
         });
     }
 
+    pub fn record_datetime(&mut self, doc: RowId, column_name: &str, datetime: crate::DateTime) {
+        let (hash_map, arena) = (&mut self.datetime_field_hash_map, &mut self.arena);
+        mutate_or_create_column(
+            hash_map,
+            column_name,
+            |column_opt: Option<NumericalColumnWriter>| {
+                let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
+                column.record_numerical_value(doc, NumericalValue::I64(datetime.timestamp_micros), arena);
+                column
+            },
+        );
+    }
+
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
         let (hash_map, arena, dictionaries) = (
             &mut self.bytes_field_hash_map,
@@ -171,6 +186,11 @@ impl ColumnarWriter {
             self.bool_field_hash_map
                 .iter()
                 .map(|(term, addr, _)| (term, ColumnTypeCategory::Bool, addr)),
+        );
+        field_columns.extend(
+            self.datetime_field_hash_map
+                .iter()
+                .map(|(term, addr, _)| (term, ColumnTypeCategory::DateTime, addr)),
         );
         field_columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);

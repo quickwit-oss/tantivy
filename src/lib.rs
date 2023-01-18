@@ -155,6 +155,14 @@ impl From<columnar::DateTime> for DateTime {
     }
 }
 
+impl From<DateTime> for columnar::DateTime {
+    fn from(datetime: crate::DateTime) -> Self {
+        columnar::DateTime {
+            timestamp_micros: datetime.timestamp_micros,
+        }
+    }
+}
+
 impl DateTime {
     /// Create new from UNIX timestamp in seconds
     pub const fn from_timestamp_secs(seconds: i64) -> Self {

@@ -160,8 +160,20 @@ impl FastFieldsWriter {
                     }
                     Value::Str(_) => todo!(),
                     Value::PreTokStr(_) => todo!(),
-                    Value::Bool(_) => todo!(),
-                    Value::Date(_) => todo!(),
+                    Value::Bool(bool_val) => {
+                        self.columnar_writer.record_bool(
+                            doc_id,
+                            field_name.as_str(),
+                            *bool_val,
+                        );
+                    },
+                    Value::Date(datetime) => {
+                        self.columnar_writer.record_datetime(
+                            doc_id,
+                            field_name.as_str(),
+                            (*datetime).into()
+                        );
+                    },
                     Value::Facet(_) => todo!(),
                     Value::Bytes(_) => todo!(),
                     Value::JsonObject(_) => todo!(),
