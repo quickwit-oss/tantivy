@@ -85,10 +85,22 @@ where
     pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
         // TODO Optimize by skipping to the right first block.
         let start_state = self.automaton.start();
+
         let key_range = (
             bound_as_byte_slice(&self.lower),
             bound_as_byte_slice(&self.upper),
         );
+
+        let first_term = match &key_range.0 {
+            Bound::Included(key) | Bound::Excluded(key) => self
+                .term_dict
+                .sstable_index
+                .get_block_with_key(key)
+                .map(|block| block.first_ordinal)
+                .unwrap_or(0),
+            Bound::Unbounded => 0,
+        };
+
         let delta_reader = self
             .term_dict
             .sstable_delta_reader_for_key_range(key_range, self.limit)?;
@@ -97,7 +109,7 @@ where
             states: vec![start_state],
             delta_reader,
             key: Vec::new(),
-            term_ord: None,
+            term_ord: first_term.checked_sub(1),
             lower_bound: self.lower,
             upper_bound: self.upper,
         })

@@ -188,9 +188,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Returns the ordinal associated with a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
-        let mut term_ord = 0u64;
         let key_bytes = key.as_ref();
-        let mut sstable_reader = self.sstable_reader()?;
+
+        let Some(block_addr) = self.sstable_index.get_block_with_key(key_bytes) else {
+            return Ok(None);
+        };
+
+        let mut term_ord = block_addr.first_ordinal;
+        let mut sstable_reader = self.sstable_reader_block(block_addr)?;
         while sstable_reader.advance()? {
             if sstable_reader.key() == key_bytes {
                 return Ok(Some(term_ord));
@@ -355,18 +360,10 @@ mod tests {
     fn make_test_sstable() -> (Dictionary<MonotonicU64SSTable>, Arc<PermissionedHandle>) {
         let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
 
-        let alphabet = 'A'..='Z';
-        let mut count = 0;
-        // this makes 450k keys, enough to fill multiple blocks.
-        for a in alphabet.clone() {
-            for b in alphabet.clone() {
-                for c in alphabet.clone() {
-                    for d in alphabet.clone() {
-                        builder.insert_cannot_fail(&format!("{a}{b}{c}{d}").into_bytes(), &count);
-                        count += 1;
-                    }
-                }
-            }
+        // this makes 256k keys, enough to fill multiple blocks.
+        for elem in 0..0x3ffff {
+            let key = format!("{elem:05X}").into_bytes();
+            builder.insert_cannot_fail(&key, &elem);
         }
 
         let table = builder.finish().unwrap();
@@ -377,20 +374,124 @@ mod tests {
 
         // if the last block is id 0, tests are meaningless
         assert_ne!(dictionary.sstable_index.locate_with_ord(u64::MAX), 0);
+        assert_eq!(dictionary.num_terms(), 0x3ffff);
         (dictionary, table)
     }
 
     #[test]
-    fn test() {
+    fn test_ord_term_conversion() {
         let (dic, slice) = make_test_sstable();
-        // TODO test (some of) these:
-        // sstable_reader_block
-        // file_slice_for_range
-        // term_ord
-        // ord_to_term
-        // term_info_from_ord
-        // get
-        // range
-        // steam
+
+        let block = dic.sstable_index.get_block_with_ord(100_000);
+        slice.restrict(block.byte_range);
+
+        let mut res = Vec::new();
+
+        // middle of a block
+        assert!(dic.ord_to_term(100_000, &mut res).unwrap());
+        assert_eq!(res, format!("{:05X}", 100_000).into_bytes());
+        assert_eq!(dic.term_info_from_ord(100_000).unwrap().unwrap(), 100_000);
+        assert_eq!(dic.get(&res).unwrap().unwrap(), 100_000);
+        assert_eq!(dic.term_ord(&res).unwrap().unwrap(), 100_000);
+
+        // start of a block
+        assert!(dic.ord_to_term(block.first_ordinal, &mut res).unwrap());
+        assert_eq!(res, format!("{:05X}", block.first_ordinal).into_bytes());
+        assert_eq!(
+            dic.term_info_from_ord(block.first_ordinal)
+                .unwrap()
+                .unwrap(),
+            block.first_ordinal
+        );
+        assert_eq!(dic.get(&res).unwrap().unwrap(), block.first_ordinal);
+        assert_eq!(dic.term_ord(&res).unwrap().unwrap(), block.first_ordinal);
+
+        // end of a block
+        let ordinal = block.first_ordinal - 1;
+        let new_range = dic.sstable_index.get_block_with_ord(ordinal).byte_range;
+        slice.restrict(new_range);
+        assert!(dic.ord_to_term(ordinal, &mut res).unwrap());
+        assert_eq!(res, format!("{:05X}", ordinal).into_bytes());
+        assert_eq!(dic.term_info_from_ord(ordinal).unwrap().unwrap(), ordinal);
+        assert_eq!(dic.get(&res).unwrap().unwrap(), ordinal);
+        assert_eq!(dic.term_ord(&res).unwrap().unwrap(), ordinal);
+
+        // before first block
+        // 1st block must be loaded for key-related operations
+        let block = dic.sstable_index.get_block_with_ord(0);
+        slice.restrict(block.byte_range);
+
+        assert!(dic.get(&b"$$$").unwrap().is_none());
+        assert!(dic.term_ord(&b"$$$").unwrap().is_none());
+
+        // after last block
+        // last block must be loaded for ord related operations
+        let ordinal = 0x40000 + 10;
+        let new_range = dic.sstable_index.get_block_with_ord(ordinal).byte_range;
+        slice.restrict(new_range);
+        assert!(!dic.ord_to_term(ordinal, &mut res).unwrap());
+        assert!(dic.term_info_from_ord(ordinal).unwrap().is_none());
+
+        // last block isn't required to be loaded for key related operations
+        slice.restrict(0..0);
+        assert!(dic.get(&b"~~~").unwrap().is_none());
+        assert!(dic.term_ord(&b"~~~").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_range() {
+        let (dic, slice) = make_test_sstable();
+
+        let start = dic
+            .sstable_index
+            .get_block_with_key(b"10000")
+            .unwrap()
+            .byte_range;
+        let end = dic
+            .sstable_index
+            .get_block_with_key(b"18000")
+            .unwrap()
+            .byte_range;
+        slice.restrict(start.start..end.end);
+
+        let mut stream = dic.range().ge(b"10000").lt(b"18000").into_stream().unwrap();
+
+        for i in 0x10000..0x18000 {
+            assert!(stream.advance());
+            assert_eq!(stream.term_ord(), i);
+            assert_eq!(stream.value(), &i);
+            assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+        }
+        assert!(!stream.advance());
+
+        // verify limiting the number of results reduce the size read
+        slice.restrict(start.start..(end.end - 1));
+
+        let mut stream = dic
+            .range()
+            .ge(b"10000")
+            .lt(b"18000")
+            .limit(0xfff)
+            .into_stream()
+            .unwrap();
+
+        for i in 0x10000..0x10fff {
+            assert!(stream.advance());
+            assert_eq!(stream.term_ord(), i);
+            assert_eq!(stream.value(), &i);
+            assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+        }
+        // there might be more successful elements after, though how many is undefined
+
+        slice.restrict(0..slice.bytes.len());
+
+        let mut stream = dic.stream().unwrap();
+        for i in 0..0x3ffff {
+            assert!(stream.advance());
+            assert_eq!(stream.term_ord(), i);
+            assert_eq!(stream.value(), &i);
+            assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+        }
+        assert!(!stream.advance());
     }
 }
