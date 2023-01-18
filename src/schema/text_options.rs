@@ -30,7 +30,7 @@ impl TextOptions {
         self.stored
     }
 
-    /// Returns true iff the value is a fast field.
+    /// Returns true if the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast
     }
