@@ -95,7 +95,8 @@ impl SegmentReader {
 
         match field_entry.field_type() {
             FieldType::Facet(_) => {
-                let term_ords_reader = self.fast_fields().u64s(field)?;
+                let term_ords_reader =
+                    self.fast_fields().u64s(self.schema.get_field_name(field))?;
                 let termdict = self
                     .termdict_composite
                     .open_read(field)

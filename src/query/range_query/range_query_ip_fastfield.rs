@@ -11,18 +11,18 @@ use fastfield_codecs::MonotonicallyMappableToU128;
 use super::fast_field_range_query::{FastFieldCardinality, RangeDocSet};
 use super::range_query::map_bound;
 use crate::query::{ConstScorer, Explanation, Scorer, Weight};
-use crate::schema::{Cardinality, Field};
+use crate::schema::Cardinality;
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `IPFastFieldRangeWeight` uses the ip address fast field to execute range queries.
 pub struct IPFastFieldRangeWeight {
-    field: Field,
+    field: String,
     left_bound: Bound<Ipv6Addr>,
     right_bound: Bound<Ipv6Addr>,
 }
 
 impl IPFastFieldRangeWeight {
-    pub fn new(field: Field, left_bound: &Bound<Vec<u8>>, right_bound: &Bound<Vec<u8>>) -> Self {
+    pub fn new(field: String, left_bound: &Bound<Vec<u8>>, right_bound: &Bound<Vec<u8>>) -> Self {
         let parse_ip_from_bytes = |data: &Vec<u8>| {
             let ip_u128: u128 =
                 u128::from_be(BinarySerializable::deserialize(&mut &data[..]).unwrap());
@@ -40,10 +40,13 @@ impl IPFastFieldRangeWeight {
 
 impl Weight for IPFastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let field_type = reader.schema().get_field_entry(self.field).field_type();
+        let field_type = reader
+            .schema()
+            .get_field_entry(reader.schema().get_field(&self.field)?)
+            .field_type();
         match field_type.fastfield_cardinality().unwrap() {
             Cardinality::SingleValue => {
-                let ip_addr_fast_field = reader.fast_fields().ip_addr(self.field)?;
+                let ip_addr_fast_field = reader.fast_fields().ip_addr(&self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,
@@ -57,7 +60,7 @@ impl Weight for IPFastFieldRangeWeight {
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
             Cardinality::MultiValues => {
-                let ip_addr_fast_field = reader.fast_fields().ip_addrs(self.field)?;
+                let ip_addr_fast_field = reader.fast_fields().ip_addrs(&self.field)?;
                 let value_range = bound_to_value_range(
                     &self.left_bound,
                     &self.right_bound,

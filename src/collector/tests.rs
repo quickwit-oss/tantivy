@@ -155,7 +155,7 @@ impl SegmentCollector for TestSegmentCollector {
 ///
 /// This collector is mainly useful for tests.
 pub struct FastFieldTestCollector {
-    field: Field,
+    field: String,
 }
 
 pub struct FastFieldSegmentCollector {
@@ -164,7 +164,7 @@ pub struct FastFieldSegmentCollector {
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: Field) -> FastFieldTestCollector {
+    pub fn for_field(field: String) -> FastFieldTestCollector {
         FastFieldTestCollector { field }
     }
 }
@@ -180,7 +180,7 @@ impl Collector for FastFieldTestCollector {
     ) -> crate::Result<FastFieldSegmentCollector> {
         let reader = segment_reader
             .fast_fields()
-            .u64(self.field)
+            .u64(&self.field)
             .expect("Requested field is not a fast field.");
         Ok(FastFieldSegmentCollector {
             vals: Vec::new(),
@@ -238,7 +238,9 @@ impl Collector for BytesFastFieldTestCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
-        let reader = segment_reader.fast_fields().bytes(self.field)?;
+        let reader = segment_reader
+            .fast_fields()
+            .bytes(segment_reader.schema().get_field_name(self.field))?;
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
             reader,

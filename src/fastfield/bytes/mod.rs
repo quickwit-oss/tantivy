@@ -25,7 +25,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let bytes_reader = segment_reader.fast_fields().bytes(bytes_field).unwrap();
+        let bytes_reader = segment_reader.fast_fields().bytes("bytesfield").unwrap();
         assert_eq!(bytes_reader.get_bytes(0), &[0u8, 1, 2, 3]);
         assert!(bytes_reader.get_bytes(1).is_empty());
         assert_eq!(bytes_reader.get_bytes(2), &[255u8]);
@@ -109,8 +109,7 @@ mod tests {
         let searcher = create_index_for_test(FAST)?;
         assert_eq!(searcher.num_docs(), 1);
         let fast_fields = searcher.segment_reader(0u32).fast_fields();
-        let field = searcher.schema().get_field("string_bytes").unwrap();
-        let fast_field_reader = fast_fields.bytes(field).unwrap();
+        let fast_field_reader = fast_fields.bytes("string_bytes").unwrap();
         assert_eq!(fast_field_reader.get_bytes(0u32), b"tantivy");
         Ok(())
     }

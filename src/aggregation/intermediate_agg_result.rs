@@ -26,7 +26,6 @@ use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::schema::Schema;
-use crate::TantivyError;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -658,9 +657,7 @@ impl IntermediateRangeBucketEntry {
 
         // If we have a date type on the histogram buckets, we add the `key_as_string` field as
         // rfc339
-        let field = schema
-            .get_field(&range_req.field)
-            .ok_or_else(|| TantivyError::FieldNotFound(range_req.field.to_string()))?;
+        let field = schema.get_field(&range_req.field)?;
         if schema.get_field_entry(field).field_type().is_date() {
             if let Some(val) = range_bucket_entry.to {
                 let key_as_string = format_date(val as i64)?;

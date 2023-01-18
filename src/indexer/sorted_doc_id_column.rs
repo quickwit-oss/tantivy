@@ -4,7 +4,6 @@ use fastfield_codecs::Column;
 use itertools::Itertools;
 
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
-use crate::schema::Field;
 use crate::SegmentReader;
 
 pub(crate) struct RemappedDocIdColumn<'a> {
@@ -41,7 +40,7 @@ impl<'a> RemappedDocIdColumn<'a> {
     pub(crate) fn new(
         readers: &'a [SegmentReader],
         doc_id_mapping: &'a SegmentDocIdMapping,
-        field: Field,
+        field: &str,
     ) -> Self {
         let (min_value, max_value) = readers
             .iter()
