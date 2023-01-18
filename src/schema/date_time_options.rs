@@ -5,21 +5,16 @@ use serde::{Deserialize, Serialize};
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// DateTime Precision
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DatePrecision {
     /// Seconds precision
+    #[default]
     Seconds,
     /// Milli-seconds precision.
     Milliseconds,
     /// Micro-seconds precision.
     Microseconds,
-}
-
-impl Default for DatePrecision {
-    fn default() -> Self {
-        DatePrecision::Seconds
-    }
 }
 
 /// Defines how DateTime field should be handled by tantivy.

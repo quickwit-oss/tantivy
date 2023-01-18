@@ -50,6 +50,13 @@ impl FastFieldReaders {
         Ok(dynamic_column.into())
     }
 
+    pub fn column_num_bytes(&self, field: &str) -> crate::Result<usize> {
+        Ok(self.columnar.read_columns(field)?
+            .into_iter()
+            .map(|column_handle| column_handle.num_bytes())
+            .sum())
+    }
+
     pub fn typed_column_first_or_default<T>(&self, field: &str) -> crate::Result<Arc<dyn Column<T>>>
     where
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
@@ -73,7 +80,7 @@ impl FastFieldReaders {
     /// Returns the `date` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn datetime(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<columnar::DateTime>>> {
+    pub fn date(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<columnar::DateTime>>> {
         self.typed_column_first_or_default(field)
     }
 
@@ -109,11 +116,6 @@ impl FastFieldReaders {
     /// If `field` is not a i64 fast field, this method returns an Error.
     pub fn i64(&self, field_name: &str) -> crate::Result<Arc<dyn Column<i64>>> {
         self.typed_column_first_or_default(field_name)
-    }
-
-    pub fn date(&self, field_name: &str) -> crate::Result<Arc<dyn Column<DateTime>>> {
-        todo!()
-        // self.numerical_column(field_name)
     }
 
     /// Returns the `f64` fast field reader reader associated with `field`.

@@ -95,10 +95,48 @@ impl ColumnarWriter {
             + self.bytes_field_hash_map.mem_usage()
     }
 
+    pub fn record_column_type(&mut self, column_name: &str, column_type: ColumnType) {
+        match column_type {
+            ColumnType::Str => {
+                mutate_or_create_column(
+                    &mut self.bytes_field_hash_map,
+                    column_name,
+                    |column_opt: Option<StrColumnWriter>| {
+                        column_opt.unwrap_or_default()
+                    });
+            },
+            ColumnType::Bool => {
+                mutate_or_create_column(
+                    &mut self.bool_field_hash_map,
+                    column_name,
+                    |column_opt: Option<ColumnWriter>| {
+                        column_opt.unwrap_or_default()
+                    });
+            },
+            ColumnType::DateTime => {
+                mutate_or_create_column(
+                    &mut self.datetime_field_hash_map,
+                    column_name,
+                    |column_opt: Option<ColumnWriter>| {
+                        column_opt.unwrap_or_default()
+                    });
+            }
+            ColumnType::Numerical(numerical_type) => {
+                mutate_or_create_column(
+                    &mut self.numerical_field_hash_map,
+                    column_name,
+                    |column_opt: Option<NumericalColumnWriter>| {
+                        let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
+                        column.force_numerical_type(numerical_type);
+                        column
+                    });
+            }
+        }
+    }
+
     pub fn force_numerical_type(&mut self, column_name: &str, numerical_type: NumericalType) {
-        let (hash_map, _) = (&mut self.numerical_field_hash_map, &mut self.arena);
         mutate_or_create_column(
-            hash_map,
+            &mut self.numerical_field_hash_map,
             column_name,
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
@@ -140,9 +178,9 @@ impl ColumnarWriter {
         mutate_or_create_column(
             hash_map,
             column_name,
-            |column_opt: Option<NumericalColumnWriter>| {
-                let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
-                column.record_numerical_value(doc, NumericalValue::I64(datetime.timestamp_micros), arena);
+            |column_opt: Option<ColumnWriter>| {
+                let mut column: ColumnWriter = column_opt.unwrap_or_default();
+                column.record(doc, NumericalValue::I64(datetime.timestamp_micros), arena);
                 column
             },
         );
@@ -172,30 +210,30 @@ impl ColumnarWriter {
 
     pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
-        let mut field_columns: Vec<(&[u8], ColumnTypeCategory, Addr)> = self
+        let mut columns: Vec<(&[u8], ColumnTypeCategory, Addr)> = self
             .numerical_field_hash_map
             .iter()
-            .map(|(term, addr, _)| (term, ColumnTypeCategory::Numerical, addr))
+            .map(|(column_name, addr, _)| (column_name, ColumnTypeCategory::Numerical, addr))
             .collect();
-        field_columns.extend(
+        columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, ColumnTypeCategory::Str, addr)),
+                .map(|(column_name, addr, _)| (column_name, ColumnTypeCategory::Str, addr)),
         );
-        field_columns.extend(
+        columns.extend(
             self.bool_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, ColumnTypeCategory::Bool, addr)),
+                .map(|(column_name, addr, _)| (column_name, ColumnTypeCategory::Bool, addr)),
         );
-        field_columns.extend(
+        columns.extend(
             self.datetime_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, ColumnTypeCategory::DateTime, addr)),
+                .map(|(column_name, addr, _)| (column_name, ColumnTypeCategory::DateTime, addr)),
         );
-        field_columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
+        columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
-        for (column_name, bytes_or_numerical, addr) in field_columns {
+        for (column_name, bytes_or_numerical, addr) in columns {
             match bytes_or_numerical {
                 ColumnTypeCategory::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
@@ -216,7 +254,7 @@ impl ColumnarWriter {
                         &dictionaries[str_column_writer.dictionary_id as usize];
                     let cardinality = str_column_writer.column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, ColumnType::Bytes);
+                        serializer.serialize_column(column_name, ColumnType::Str);
                     serialize_bytes_column(
                         cardinality,
                         num_docs,
@@ -243,17 +281,16 @@ impl ColumnarWriter {
                     )?;
                 }
                 ColumnTypeCategory::DateTime => {
-                    let numerical_column_writer: NumericalColumnWriter =
-                        self.numerical_field_hash_map.read(addr);
-                    let (_numerical_type, cardinality) =
-                        numerical_column_writer.column_type_and_cardinality(num_docs);
+                    let column_writer: ColumnWriter =
+                        self.datetime_field_hash_map.read(addr);
+                    let cardinality = column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
                         serializer.serialize_column(column_name, ColumnType::DateTime);
-                    serialize_numerical_column(
+                   serialize_numerical_column(
                         cardinality,
                         num_docs,
                         NumericalType::I64,
-                        numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,
                     )?;

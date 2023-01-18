@@ -27,7 +27,7 @@ pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 
-#[derive(Clone, Copy, PartialOrd, PartialEq, Default)]
+#[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
 pub struct DateTime {
     pub timestamp_micros: i64,
 }

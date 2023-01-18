@@ -29,8 +29,7 @@ pub use self::error::{FastFieldNotAvailableError, Result};
 // pub use self::facet_reader::FacetReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::{Column, CompositeFastFieldSerializer};
-use self::writer::unexpected_value;
-pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
+pub use self::writer::FastFieldsWriter;
 use crate::schema::{Type, Value};
 use crate::DateTime;
 
@@ -118,6 +117,13 @@ impl FastValue for DateTime {
     fn to_type() -> Type {
         Type::Date
     }
+}
+
+fn unexpected_value(expected: &str, actual: &Value) -> crate::TantivyError {
+    crate::TantivyError::SchemaError(format!(
+        "Expected a {:?} in fast field, but got {:?}",
+        expected, actual
+    ))
 }
 
 fn value_to_u64(value: &Value) -> crate::Result<u64> {
@@ -385,6 +391,28 @@ mod tests {
         assert_eq!(col.get_val(0), 0i64);
     }
 
+    #[test]
+    fn test_date_fastfield_default() {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_date_field("date", FAST);
+        let schema = schema_builder.build();
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
+            let doc = Document::default();
+            fast_field_writers.add_document(&doc).unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
+            write.terminate().unwrap();
+        }
+
+        let file = directory.open_read(path).unwrap();
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let col = fast_field_readers.date("date").unwrap();
+        assert_eq!(col.get_val(0), columnar::DateTime::default());
+    }
+
     // Warning: this generates the same permutation at each call
     pub fn generate_permutation() -> Vec<u64> {
         let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
@@ -406,7 +434,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
-            for (doc_id, &x) in permutation.iter().enumerate() {
+            for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
@@ -800,7 +828,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 45);
+        assert_eq!(file.len(), 180);
         let fastfield_readers = FastFieldReaders::open(file).unwrap();
         let col = fastfield_readers.bool("field_bool").unwrap();
         assert_eq!(col.get_val(0), false);
@@ -823,14 +851,14 @@ mod tests {
     #[test]
     pub fn test_gcd_date() {
         let size_prec_sec =
-            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Seconds);
-        assert_eq!(size_prec_sec, 5 + 4 + 28 + (1_000 * 13) / 8); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
-        let size_prec_micro =
-            test_gcd_date_with_codec(FastFieldCodecType::Bitpacked, DatePrecision::Microseconds);
-        assert_eq!(size_prec_micro, 5 + 4 + 26 + (1_000 * 33) / 8); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
+            test_gcd_date_with_codec(DatePrecision::Seconds);
+        assert!((1000 * 13 / 8..100 + 1000*13 / 8).contains(&size_prec_sec)); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
+        let size_prec_micros =
+            test_gcd_date_with_codec(DatePrecision::Microseconds);
+        assert!((1000*33/8..100 + 1000*33/8).contains(&size_prec_micros)); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
     }
 
-    fn test_gcd_date_with_codec(codec_type: FastFieldCodecType, precision: DatePrecision) -> usize {
+    fn test_gcd_date_with_codec(precision: DatePrecision) -> usize {
         let mut rng = StdRng::seed_from_u64(2u64);
         const T0: i64 = 1_662_345_825_012_529i64;
         const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
@@ -851,15 +879,14 @@ mod tests {
         let directory = get_index(&docs[..], &schema).unwrap();
         let path = Path::new("test");
         let file = directory.open_read(path).unwrap();
-        let len = file.len();
         let readers = FastFieldReaders::open(file).unwrap();
-        let col = readers.datetime("field").unwrap();
+        let col = readers.date("field").unwrap();
 
         for (i, time) in times.iter().enumerate() {
             let dt: crate::DateTime = col.get_val(i as u32).into();
             assert_eq!(dt, time.truncate(precision));
         }
-        len
+        readers.column_num_bytes("field").unwrap()
     }
 
     #[test]

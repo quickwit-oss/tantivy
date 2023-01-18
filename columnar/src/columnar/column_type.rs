@@ -8,7 +8,7 @@ use crate::InvalidData;
 /// - bits[3..6]: Numerical type if necessary.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum ColumnType {
-    Bytes,
+    Str,
     Numerical(NumericalType),
     Bool,
     DateTime,
@@ -20,7 +20,7 @@ impl ColumnType {
         let column_type_category;
         let numerical_type_code: u8;
         match self {
-            ColumnType::Bytes => {
+            ColumnType::Str => {
                 column_type_category = ColumnTypeCategory::Str;
                 numerical_type_code = 0u8;
             }
@@ -58,7 +58,7 @@ impl ColumnType {
                 if numerical_type_code != 0u8 {
                     return Err(InvalidData);
                 }
-                Ok(ColumnType::Bytes)
+                Ok(ColumnType::Str)
             }
             ColumnTypeCategory::Numerical => {
                 let numerical_type = NumericalType::try_from_code(numerical_type_code)?;
@@ -134,7 +134,7 @@ impl ColumnTypeCategory {
             0u8 => Ok(Self::Bool),
             1u8 => Ok(Self::Str),
             2u8 => Ok(Self::Numerical),
-            3u8 => Ok(Self::Numerical),
+            3u8 => Ok(Self::DateTime),
             _ => Err(InvalidData),
         }
     }
@@ -156,7 +156,7 @@ mod tests {
                 assert!(column_type_set.insert(column_type));
             }
         }
-        assert_eq!(column_type_set.len(), 2 + 3);
+        assert_eq!(column_type_set.len(), 3 + 3);
     }
 
     #[test]

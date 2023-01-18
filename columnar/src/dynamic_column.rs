@@ -71,7 +71,7 @@ impl DynamicColumnHandle {
 
     fn open_internal(&self, column_bytes: OwnedBytes) -> io::Result<DynamicColumn> {
         let dynamic_column: DynamicColumn = match self.column_type {
-            ColumnType::Bytes => crate::column::open_column_bytes(column_bytes)?.into(),
+            ColumnType::Str => crate::column::open_column_bytes(column_bytes)?.into(),
             ColumnType::Numerical(numerical_type) => match numerical_type {
                 crate::NumericalType::I64 => {
                     crate::column::open_column_u64::<i64>(column_bytes)?.into()
