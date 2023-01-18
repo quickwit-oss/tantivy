@@ -12,9 +12,7 @@ mod tests {
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast()
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
 
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
@@ -71,10 +69,8 @@ mod tests {
         let bytes_field = schema_builder.add_bytes_field("bytes", bytes_options);
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
 
-        let multi_numbers = schema_builder.add_u64_field(
-            "multi_numbers",
-            NumericOptions::default().set_fast(),
-        );
+        let multi_numbers =
+            schema_builder.add_u64_field("multi_numbers", NumericOptions::default().set_fast());
         let text_field_options = TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default()
@@ -363,7 +359,6 @@ mod tests {
     //     )
     //     .unwrap();
 
-
     //     let int_field = index.schema().get_field("intval").unwrap();
     //     let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
     //     let bytes_field = index.schema().get_field("bytes").unwrap();
@@ -490,9 +485,7 @@ mod bench_sorted_index_merge {
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast()
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
         let schema = schema_builder.build();
 

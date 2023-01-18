@@ -12,12 +12,9 @@ use crate::core::{Segment, SegmentReader};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
-use crate::fastfield::{
-    AliveBitSet, Column, CompositeFastFieldSerializer,
-};
+use crate::fastfield::{AliveBitSet, Column, CompositeFastFieldSerializer};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
-use crate::indexer::sorted_doc_id_column::RemappedDocIdColumn;
 // use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
@@ -255,60 +252,57 @@ impl IndexMerger {
     ) -> crate::Result<()> {
         debug_time!("wrie-fast-fields");
         todo!();
-        /*
-
-        for (field, field_entry) in self.schema.fields() {
-            let field_type = field_entry.field_type();
-            match field_type {
-                FieldType::Facet(_) | FieldType::Str(_) if field_type.is_fast() => {
-                    let term_ordinal_mapping = term_ord_mappings.remove(&field).expect(
-                        "Logic Error in Tantivy (Please report). Facet field should have required \
-                         a`term_ordinal_mapping`.",
-                    );
-                    self.write_term_id_fast_field(
-                        field,
-                        &term_ordinal_mapping,
-                        fast_field_serializer,
-                        doc_id_mapping,
-                    )?;
-                }
-                FieldType::U64(ref options)
-                | FieldType::I64(ref options)
-                | FieldType::F64(ref options)
-                | FieldType::Bool(ref options) => {
-                    todo!()
-                }
-                FieldType::Date(ref options) => {
-                    if options.is_fast() {
-                        todo!();
-                    }
-                    // Some(Cardinality::SingleValue) => {
-                    //     self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    // }
-                    // Some(Cardinality::MultiValues) => {
-                    //     self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    // }
-                    // None => {}
-                },
-                FieldType::Bytes(byte_options) => {
-                    if byte_options.is_fast() {
-                        self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                }
-                FieldType::IpAddr(options) =>  {
-                    if options.is_fast() {
-                        todo!();
-                    }
-                },
-
-                FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
-                    // We don't handle json fast field for the moment
-                    // They can be implemented using what is done
-                    // for facets in the future
-                }
-            }
-        }
-        */
+        // for (field, field_entry) in self.schema.fields() {
+        // let field_type = field_entry.field_type();
+        // match field_type {
+        // FieldType::Facet(_) | FieldType::Str(_) if field_type.is_fast() => {
+        // let term_ordinal_mapping = term_ord_mappings.remove(&field).expect(
+        // "Logic Error in Tantivy (Please report). Facet field should have required \
+        // a`term_ordinal_mapping`.",
+        // );
+        // self.write_term_id_fast_field(
+        // field,
+        // &term_ordinal_mapping,
+        // fast_field_serializer,
+        // doc_id_mapping,
+        // )?;
+        // }
+        // FieldType::U64(ref options)
+        // | FieldType::I64(ref options)
+        // | FieldType::F64(ref options)
+        // | FieldType::Bool(ref options) => {
+        // todo!()
+        // }
+        // FieldType::Date(ref options) => {
+        // if options.is_fast() {
+        // todo!();
+        // }
+        // Some(Cardinality::SingleValue) => {
+        //     self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+        // }
+        // Some(Cardinality::MultiValues) => {
+        //     self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+        // }
+        // None => {}
+        // },
+        // FieldType::Bytes(byte_options) => {
+        // if byte_options.is_fast() {
+        // self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+        // }
+        // }
+        // FieldType::IpAddr(options) =>  {
+        // if options.is_fast() {
+        // todo!();
+        // }
+        // },
+        //
+        // FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
+        // We don't handle json fast field for the moment
+        // They can be implemented using what is done
+        // for facets in the future
+        // }
+        // }
+        // }
         Ok(())
     }
 
@@ -356,12 +350,13 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let fast_field_accessor = RemappedDocIdColumn::new(
-            &self.readers,
-            doc_id_mapping,
-            self.schema.get_field_name(field),
-        );
-        fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
+        todo!();
+        // let fast_field_accessor = RemappedDocIdColumn::new(
+        //     &self.readers,
+        //     doc_id_mapping,
+        //     self.schema.get_field_name(field),
+        // );
+        // fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
 
         Ok(())
     }
@@ -817,15 +812,13 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
     use schema::FAST;
 
-    use crate::collector::tests::{
-        FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
-    };
+    use crate::collector::tests::{FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE};
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
-        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
-        TextFieldIndexing, INDEXED, TEXT,
+        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
+        INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
@@ -1015,8 +1008,7 @@ mod tests {
             //         }
             //         scores
             //     })
-            searcher
-                .search(&term_query, &collector)
+            searcher.search(&term_query, &collector)
         };
 
         let empty_vec = Vec::<u64>::new();
@@ -1296,7 +1288,6 @@ mod tests {
         Ok(())
     }
 
-
     // TODO re-enable
     // #[test]
     // fn test_merge_facets_sort_none() {
@@ -1316,8 +1307,8 @@ mod tests {
     //         }),
     //         true,
     //     );
-    //     // In the merge case this will not go through the doc_id mapping code, because the data is
-    //     // sorted and disjunct
+    //     // In the merge case this will not go through the doc_id mapping code, because the data
+    // is     // sorted and disjunct
     //     test_merge_facets(
     //         Some(IndexSettings {
     //             sort_by_field: Some(IndexSortByField {
@@ -1343,8 +1334,8 @@ mod tests {
     //         }),
     //         true,
     //     );
-    //     // In the merge case this will not go through the doc_id mapping code, because the data is
-    //     // sorted and disjunct
+    //     // In the merge case this will not go through the doc_id mapping code, because the data
+    // is     // sorted and disjunct
     //     test_merge_facets(
     //         Some(IndexSettings {
     //             sort_by_field: Some(IndexSortByField {
@@ -1359,8 +1350,8 @@ mod tests {
 
     // force_segment_value_overlap forces the int value for sorting to have overlapping min and max
     // ranges between segments so that merge algorithm can't apply certain optimizations
-    // fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap: bool) {
-    //     let mut schema_builder = schema::Schema::builder();
+    // fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap:
+    // bool) {     let mut schema_builder = schema::Schema::builder();
     //     let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
     //     let int_options = NumericOptions::default()
     //         .set_fast()
@@ -1529,9 +1520,7 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_all_deleted() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast()
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader()?;
@@ -1566,9 +1555,7 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_simple() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast()
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
 

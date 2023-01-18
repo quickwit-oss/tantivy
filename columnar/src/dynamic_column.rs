@@ -6,7 +6,6 @@ use common::{HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column};
 use crate::columnar::ColumnType;
-use crate::DateTime;
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -15,33 +14,35 @@ pub enum DynamicColumn {
     U64(Column<u64>),
     F64(Column<f64>),
     IpAddr(Column<IpAddr>),
-    DateTime(Column<DateTime>),
     Str(BytesColumn),
+    DateTime(Column<crate::DateTime>),
 }
 
-impl From<Column<i64>> for DynamicColumn {
-    fn from(column_i64: Column<i64>) -> Self {
-        DynamicColumn::I64(column_i64)
-    }
+macro_rules! static_dynamic_conversions {
+    ($typ:ty, $enum_name:ident) => {
+        impl Into<Option<Column<$typ>>> for DynamicColumn {
+            fn into(self) -> Option<Column<$typ>> {
+                if let Self::$enum_name(col) = self {
+                    Some(col)
+                } else {
+                    None
+                }
+            }
+        }
+
+        impl From<Column<$typ>> for DynamicColumn {
+            fn from(typed_column: Column<$typ>) -> Self {
+                DynamicColumn::$enum_name(typed_column)
+            }
+        }
+    };
 }
 
-impl From<Column<u64>> for DynamicColumn {
-    fn from(column_u64: Column<u64>) -> Self {
-        DynamicColumn::U64(column_u64)
-    }
-}
-
-impl From<Column<f64>> for DynamicColumn {
-    fn from(column_f64: Column<f64>) -> Self {
-        DynamicColumn::F64(column_f64)
-    }
-}
-
-impl From<Column<bool>> for DynamicColumn {
-    fn from(bool_column: Column<bool>) -> Self {
-        DynamicColumn::Bool(bool_column)
-    }
-}
+static_dynamic_conversions!(bool, Bool);
+static_dynamic_conversions!(u64, U64);
+static_dynamic_conversions!(i64, I64);
+static_dynamic_conversions!(f64, F64);
+static_dynamic_conversions!(crate::DateTime, DateTime);
 
 impl From<BytesColumn> for DynamicColumn {
     fn from(dictionary_encoded_col: BytesColumn) -> Self {
@@ -56,11 +57,13 @@ pub struct DynamicColumnHandle {
 }
 
 impl DynamicColumnHandle {
+    // TODO rename load
     pub fn open(&self) -> io::Result<DynamicColumn> {
         let column_bytes: OwnedBytes = self.file_slice.read_bytes()?;
         self.open_internal(column_bytes)
     }
 
+    // TODO rename load_async
     pub async fn open_async(&self) -> io::Result<DynamicColumn> {
         let column_bytes: OwnedBytes = self.file_slice.read_bytes_async().await?;
         self.open_internal(column_bytes)
@@ -81,6 +84,9 @@ impl DynamicColumnHandle {
                 }
             },
             ColumnType::Bool => crate::column::open_column_u64::<bool>(column_bytes)?.into(),
+            ColumnType::DateTime => {
+                crate::column::open_column_u64::<crate::DateTime>(column_bytes)?.into()
+            }
         };
         Ok(dynamic_column)
     }

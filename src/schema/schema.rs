@@ -505,19 +505,13 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
         let score_options = NumericOptions::default()
             .set_indexed()
             .set_fieldnorm()
             .set_fast();
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field(
             "author",
@@ -642,12 +636,8 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -747,15 +737,9 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast();
-        let score_options = NumericOptions::default()
-            .set_indexed()
-            .set_fast();
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
+        let score_options = NumericOptions::default().set_indexed().set_fast();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);

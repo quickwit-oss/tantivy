@@ -15,9 +15,17 @@ use crate::indexer::{
 };
 // use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
+    AllQuery,
+    BooleanQuery,
+    BoostQuery,
+    EmptyQuery,
+    FuzzyTermQuery,
+    Occur,
+    PhraseQuery,
+    Query,
     // RangeQuery,
-     TermQuery, TermSetQuery,
+    TermQuery,
+    TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -336,91 +344,89 @@ impl QueryParser {
         phrase: &str,
     ) -> Result<Term, QueryParserError> {
         todo!();
-        /*
-        let field_entry = self.schema.get_field_entry(field);
-        let field_type = field_entry.field_type();
-        let field_supports_ff_range_queries = field_type.is_fast()
-            && is_type_valid_for_fastfield_range_query(field_type.value_type());
-
-        if !field_type.is_indexed() && !field_supports_ff_range_queries {
-            return Err(QueryParserError::FieldNotIndexed(
-                field_entry.name().to_string(),
-            ));
-        }
-        if !json_path.is_empty() && field_type.value_type() != Type::Json {
-            return Err(QueryParserError::UnsupportedQuery(format!(
-                "Json path is not supported for field {:?}",
-                field_entry.name()
-            )));
-        }
-        match *field_type {
-            FieldType::U64(_) => {
-                let val: u64 = u64::from_str(phrase)?;
-                Ok(Term::from_field_u64(field, val))
-            }
-            FieldType::I64(_) => {
-                let val: i64 = i64::from_str(phrase)?;
-                Ok(Term::from_field_i64(field, val))
-            }
-            FieldType::F64(_) => {
-                let val: f64 = f64::from_str(phrase)?;
-                Ok(Term::from_field_f64(field, val))
-            }
-            FieldType::Bool(_) => {
-                let val: bool = bool::from_str(phrase)?;
-                Ok(Term::from_field_bool(field, val))
-            }
-            FieldType::Date(_) => {
-                let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
-            }
-            FieldType::Str(ref str_options) => {
-                let option = str_options.get_indexing_options().ok_or_else(|| {
-                    // This should have been seen earlier really.
-                    QueryParserError::FieldNotIndexed(field_entry.name().to_string())
-                })?;
-                let text_analyzer =
-                    self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
-                            field: field_entry.name().to_string(),
-                            tokenizer: option.tokenizer().to_string(),
-                        })?;
-                let mut terms: Vec<Term> = Vec::new();
-                let mut token_stream = text_analyzer.token_stream(phrase);
-                token_stream.process(&mut |token| {
-                    let term = Term::from_field_text(field, &token.text);
-                    terms.push(term);
-                });
-                if terms.len() != 1 {
-                    return Err(QueryParserError::UnsupportedQuery(format!(
-                        "Range query boundary cannot have multiple tokens: {phrase:?}."
-                    )));
-                }
-                Ok(terms.into_iter().next().unwrap())
-            }
-            FieldType::JsonObject(_) => {
-                // Json range are not supported.
-                Err(QueryParserError::UnsupportedQuery(
-                    "Range query are not supported on json field.".to_string(),
-                ))
-            }
-            FieldType::Facet(_) => match Facet::from_text(phrase) {
-                Ok(facet) => Ok(Term::from_facet(field, &facet)),
-                Err(e) => Err(QueryParserError::from(e)),
-            },
-            FieldType::Bytes(_) => {
-                let bytes = BASE64
-                    .decode(phrase)
-                    .map_err(QueryParserError::ExpectedBase64)?;
-                Ok(Term::from_field_bytes(field, &bytes))
-            }
-            FieldType::IpAddr(_) => {
-                let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
-                Ok(Term::from_field_ip_addr(field, ip_v6))
-            }
-        }
-        */
+        // let field_entry = self.schema.get_field_entry(field);
+        // let field_type = field_entry.field_type();
+        // let field_supports_ff_range_queries = field_type.is_fast()
+        // && is_type_valid_for_fastfield_range_query(field_type.value_type());
+        //
+        // if !field_type.is_indexed() && !field_supports_ff_range_queries {
+        // return Err(QueryParserError::FieldNotIndexed(
+        // field_entry.name().to_string(),
+        // ));
+        // }
+        // if !json_path.is_empty() && field_type.value_type() != Type::Json {
+        // return Err(QueryParserError::UnsupportedQuery(format!(
+        // "Json path is not supported for field {:?}",
+        // field_entry.name()
+        // )));
+        // }
+        // match *field_type {
+        // FieldType::U64(_) => {
+        // let val: u64 = u64::from_str(phrase)?;
+        // Ok(Term::from_field_u64(field, val))
+        // }
+        // FieldType::I64(_) => {
+        // let val: i64 = i64::from_str(phrase)?;
+        // Ok(Term::from_field_i64(field, val))
+        // }
+        // FieldType::F64(_) => {
+        // let val: f64 = f64::from_str(phrase)?;
+        // Ok(Term::from_field_f64(field, val))
+        // }
+        // FieldType::Bool(_) => {
+        // let val: bool = bool::from_str(phrase)?;
+        // Ok(Term::from_field_bool(field, val))
+        // }
+        // FieldType::Date(_) => {
+        // let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
+        // Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
+        // }
+        // FieldType::Str(ref str_options) => {
+        // let option = str_options.get_indexing_options().ok_or_else(|| {
+        // This should have been seen earlier really.
+        // QueryParserError::FieldNotIndexed(field_entry.name().to_string())
+        // })?;
+        // let text_analyzer =
+        // self.tokenizer_manager
+        // .get(option.tokenizer())
+        // .ok_or_else(|| QueryParserError::UnknownTokenizer {
+        // field: field_entry.name().to_string(),
+        // tokenizer: option.tokenizer().to_string(),
+        // })?;
+        // let mut terms: Vec<Term> = Vec::new();
+        // let mut token_stream = text_analyzer.token_stream(phrase);
+        // token_stream.process(&mut |token| {
+        // let term = Term::from_field_text(field, &token.text);
+        // terms.push(term);
+        // });
+        // if terms.len() != 1 {
+        // return Err(QueryParserError::UnsupportedQuery(format!(
+        // "Range query boundary cannot have multiple tokens: {phrase:?}."
+        // )));
+        // }
+        // Ok(terms.into_iter().next().unwrap())
+        // }
+        // FieldType::JsonObject(_) => {
+        // Json range are not supported.
+        // Err(QueryParserError::UnsupportedQuery(
+        // "Range query are not supported on json field.".to_string(),
+        // ))
+        // }
+        // FieldType::Facet(_) => match Facet::from_text(phrase) {
+        // Ok(facet) => Ok(Term::from_facet(field, &facet)),
+        // Err(e) => Err(QueryParserError::from(e)),
+        // },
+        // FieldType::Bytes(_) => {
+        // let bytes = BASE64
+        // .decode(phrase)
+        // .map_err(QueryParserError::ExpectedBase64)?;
+        // Ok(Term::from_field_bytes(field, &bytes))
+        // }
+        // FieldType::IpAddr(_) => {
+        // let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
+        // Ok(Term::from_field_ip_addr(field, ip_v6))
+        // }
+        // }
     }
 
     fn compute_logical_ast_for_leaf(
@@ -744,11 +750,12 @@ fn convert_literal_to_query(
             value_type,
             lower,
             upper,
-        } => { todo!();
-// Box::new(RangeQuery::new_term_bounds(
-//             field, value_type, &lower, &upper,
-//         ))
-        } ,
+        } => {
+            todo!();
+            // Box::new(RangeQuery::new_term_bounds(
+            //             field, value_type, &lower, &upper,
+            //         ))
+        }
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
     }

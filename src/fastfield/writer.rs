@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::io;
 
-use super::FastFieldType;
-use crate::fastfield::{CompositeFastFieldSerializer};
 use columnar::{ColumnarWriter, NumericalType, NumericalValue};
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
+use super::FastFieldType;
+use crate::fastfield::CompositeFastFieldSerializer;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Value};
@@ -57,48 +57,46 @@ fn fast_numerical_type(field_type: &FieldType) -> Option<FastFieldTyp> {
             } else {
                 None
             }
-        },
+        }
         FieldType::I64(numerical_option) => {
             if numerical_option.is_fast() {
                 Some(FastFieldTyp::Numerical(NumericalType::I64))
             } else {
                 None
             }
-        },
+        }
         FieldType::F64(numerical_option) => {
             if numerical_option.is_fast() {
                 Some(FastFieldTyp::Numerical(NumericalType::F64))
             } else {
                 None
             }
-        },
+        }
         FieldType::Str(str_option) => {
             if str_option.is_fast() {
                 Some(FastFieldTyp::Other)
             } else {
                 None
             }
-        },
+        }
         FieldType::Bool(int_options) => {
             if int_options.is_fast() {
                 Some(FastFieldTyp::Other)
             } else {
                 None
             }
-        },
+        }
         FieldType::Date(date_options) => {
             if date_options.is_fast() {
                 Some(FastFieldTyp::Other)
             } else {
                 None
             }
-        },
+        }
         FieldType::Facet(_) => todo!(),
         FieldType::Bytes(_) => todo!(),
         FieldType::JsonObject(_) => todo!(),
         FieldType::IpAddr(_) => todo!(),
-
-
     }
 }
 
@@ -109,12 +107,12 @@ impl FastFieldsWriter {
         let mut fast_fields = vec![None; schema.num_fields()];
         // TODO see other types
         for (field, field_entry) in schema.fields() {
-            if let Some(fast_field_typ) =fast_numerical_type(field_entry.field_type()) {
+            if let Some(fast_field_typ) = fast_numerical_type(field_entry.field_type()) {
                 match fast_field_typ {
                     FastFieldTyp::Numerical(numerical_type) => {
                         columnar_writer.force_numerical_type(field_entry.name(), numerical_type);
-                    },
-                    FastFieldTyp::Other => {},
+                    }
+                    FastFieldTyp::Other => {}
                 }
                 fast_fields[field.field_id() as usize] = Some(field_entry.name().to_string());
             }
@@ -132,20 +130,34 @@ impl FastFieldsWriter {
     }
 
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self,  doc: &Document) -> crate::Result<()> {
+    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
         let doc_id = self.num_docs;
         for field_value in doc.field_values() {
-            if let Some(field_name) = self.fast_fields[field_value.field().field_id() as usize].as_ref() {
+            if let Some(field_name) =
+                self.fast_fields[field_value.field().field_id() as usize].as_ref()
+            {
                 match &field_value.value {
                     Value::U64(u64_val) => {
-                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*u64_val));
-                    },
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*u64_val),
+                        );
+                    }
                     Value::I64(i64_val) => {
-                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*i64_val));
-                    },
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*i64_val),
+                        );
+                    }
                     Value::F64(f64_val) => {
-                        self.columnar_writer.record_numerical(doc_id, field_name.as_str(), NumericalValue::from(*f64_val));
-                    },
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*f64_val),
+                        );
+                    }
                     Value::Str(_) => todo!(),
                     Value::PreTokStr(_) => todo!(),
                     Value::Bool(_) => todo!(),

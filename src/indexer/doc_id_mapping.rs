@@ -115,8 +115,8 @@ pub(crate) fn get_doc_id_mapping_from_field(
 ) -> crate::Result<DocIdMapping> {
     todo!()
     // let schema = segment_writer.segment_serializer.segment().schema();
-    // let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect fastfield, but not strictly required
-    // let fast_field = segment_writer
+    // let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect
+    // fastfield, but not strictly required let fast_field = segment_writer
     //     .fast_field_writers
     //     .get_field_writer(field_id)
     //     .ok_or_else(|| {
@@ -160,15 +160,11 @@ mod tests_indexsorting {
 
         let my_text_field = schema_builder.add_text_field("text_field", text_field_options);
         let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
-        let my_number = schema_builder.add_u64_field(
-            "my_number",
-            NumericOptions::default().set_fast(),
-        );
+        let my_number =
+            schema_builder.add_u64_field("my_number", NumericOptions::default().set_fast());
 
-        let multi_numbers = schema_builder.add_u64_field(
-            "multi_numbers",
-            NumericOptions::default().set_fast(),
-        );
+        let multi_numbers =
+            schema_builder.add_u64_field("multi_numbers", NumericOptions::default().set_fast());
 
         let schema = schema_builder.build();
         let mut index_builder = Index::builder().schema(schema);
@@ -458,7 +454,6 @@ mod tests_indexsorting {
     //         index.settings().sort_by_field.as_ref().unwrap().field,
     //         "my_number".to_string()
     //     );
-
 
     //     let searcher = index.reader()?.searcher();
     //     assert_eq!(searcher.segment_readers().len(), 1);

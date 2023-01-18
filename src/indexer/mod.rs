@@ -19,7 +19,7 @@ mod segment_register;
 pub mod segment_serializer;
 pub mod segment_updater;
 mod segment_writer;
-mod sorted_doc_id_column;
+// mod sorted_doc_id_column;
 // mod sorted_doc_id_multivalue_column;
 mod stamper;
 

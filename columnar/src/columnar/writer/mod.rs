@@ -85,13 +85,12 @@ fn mutate_or_create_column<V, TMutator>(
 }
 
 impl ColumnarWriter {
-
     pub fn mem_usage(&self) -> usize {
         // TODO add dictionary builders.
-        self.arena.mem_usage() +
-        self.numerical_field_hash_map.mem_usage() +
-        self.bool_field_hash_map.mem_usage() +
-        self.bytes_field_hash_map.mem_usage()
+        self.arena.mem_usage()
+            + self.numerical_field_hash_map.mem_usage()
+            + self.bool_field_hash_map.mem_usage()
+            + self.bytes_field_hash_map.mem_usage()
     }
 
     pub fn force_numerical_type(&mut self, column_name: &str, numerical_type: NumericalType) {
@@ -218,6 +217,22 @@ impl ColumnarWriter {
                         cardinality,
                         num_docs,
                         numerical_type,
+                        numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        buffers,
+                        &mut column_serializer,
+                    )?;
+                }
+                ColumnTypeCategory::DateTime => {
+                    let numerical_column_writer: NumericalColumnWriter =
+                        self.numerical_field_hash_map.read(addr);
+                    let (_numerical_type, cardinality) =
+                        numerical_column_writer.column_type_and_cardinality(num_docs);
+                    let mut column_serializer =
+                        serializer.serialize_column(column_name, ColumnType::DateTime);
+                    serialize_numerical_column(
+                        cardinality,
+                        num_docs,
+                        NumericalType::I64,
                         numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,

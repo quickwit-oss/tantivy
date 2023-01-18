@@ -153,8 +153,7 @@ impl SegmentReader {
         let schema = segment.schema();
 
         let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
-        let fast_fields_readers =
-            Arc::new(FastFieldReaders::open(fast_fields_data)?);
+        let fast_fields_readers = Arc::new(FastFieldReaders::open(fast_fields_data)?);
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 

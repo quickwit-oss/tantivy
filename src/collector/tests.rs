@@ -57,9 +57,10 @@ pub fn test_filter_collector() -> crate::Result<()> {
 
     assert_eq!(filtered_top_docs.len(), 0);
 
-    fn date_filter(value: DateTime) -> bool {
-        (value.into_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
-            .whole_weeks()
+    fn date_filter(value: columnar::DateTime) -> bool {
+        (crate::DateTime::from(value).into_utc()
+            - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
+        .whole_weeks()
             > 0
     }
 
@@ -164,7 +165,9 @@ pub struct FastFieldSegmentCollector {
 
 impl FastFieldTestCollector {
     pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
-        FastFieldTestCollector { field: field.to_string() }
+        FastFieldTestCollector {
+            field: field.to_string(),
+        }
     }
 }
 

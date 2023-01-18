@@ -147,6 +147,14 @@ pub struct DateTime {
     pub(crate) timestamp_micros: i64,
 }
 
+impl From<columnar::DateTime> for DateTime {
+    fn from(columnar_datetime: columnar::DateTime) -> Self {
+        DateTime {
+            timestamp_micros: columnar_datetime.timestamp_micros,
+        }
+    }
+}
+
 impl DateTime {
     /// Create new from UNIX timestamp in seconds
     pub const fn from_timestamp_secs(seconds: i64) -> Self {
@@ -1166,5 +1174,4 @@ pub mod tests {
         );
         assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
     }
-
 }

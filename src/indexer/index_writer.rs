@@ -813,8 +813,8 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
-        self, IndexRecordOption, IpAddrOptions, NumericOptions,
-        TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        self, IndexRecordOption, IpAddrOptions, NumericOptions, TextFieldIndexing, TextOptions,
+        FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{
@@ -1636,7 +1636,8 @@ mod tests {
     //     );
 
     //     let large_text_field = schema_builder.add_text_field("large_text_field", TEXT | STORED);
-    //     let multi_text_fields = schema_builder.add_text_field("multi_text_fields", TEXT | STORED);
+    //     let multi_text_fields = schema_builder.add_text_field("multi_text_fields", TEXT |
+    // STORED);
 
     //     let multi_numbers = schema_builder.add_u64_field(
     //         "multi_numbers",
@@ -2038,8 +2039,8 @@ mod tests {
 
     //         // Test date
     //         let term =
-    //             Term::from_field_date(date_field, DateTime::from_timestamp_secs(deleted_id as i64));
-    //         assert_eq!(do_search2(term).len() as u64, 0);
+    //             Term::from_field_date(date_field, DateTime::from_timestamp_secs(deleted_id as
+    // i64));         assert_eq!(do_search2(term).len() as u64, 0);
     //     }
     //     // search ip address
     //     //
@@ -2194,39 +2195,38 @@ mod tests {
     // proptest! {
     //     #![proptest_config(ProptestConfig::with_cases(20))]
     //     #[test]
-    //     fn test_delete_with_sort_proptest_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
-    //         assert!(test_operation_strategy(&ops[..], true, false).is_ok());
-    //     }
+    //     fn test_delete_with_sort_proptest_adding(ops in
+    // proptest::collection::vec(adding_operation_strategy(), 1..100)) {         assert!
+    // (test_operation_strategy(&ops[..], true, false).is_ok());     }
     //     #[test]
-    //     fn test_delete_without_sort_proptest_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
-    //         assert!(test_operation_strategy(&ops[..], false, false).is_ok());
-    //     }
+    //     fn test_delete_without_sort_proptest_adding(ops in
+    // proptest::collection::vec(adding_operation_strategy(), 1..100)) {         assert!
+    // (test_operation_strategy(&ops[..], false, false).is_ok());     }
     //     #[test]
-    //     fn test_delete_with_sort_proptest_with_merge_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
-    //         assert!(test_operation_strategy(&ops[..], true, true).is_ok());
-    //     }
+    //     fn test_delete_with_sort_proptest_with_merge_adding(ops in
+    // proptest::collection::vec(adding_operation_strategy(), 1..100)) {         assert!
+    // (test_operation_strategy(&ops[..], true, true).is_ok());     }
     //     #[test]
-    //     fn test_delete_without_sort_proptest_with_merge_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
-    //         assert!(test_operation_strategy(&ops[..], false, true).is_ok());
-    //     }
+    //     fn test_delete_without_sort_proptest_with_merge_adding(ops in
+    // proptest::collection::vec(adding_operation_strategy(), 1..100)) {         assert!
+    // (test_operation_strategy(&ops[..], false, true).is_ok());     }
 
     //     #[test]
-    //     fn test_delete_with_sort_proptest(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
-    //         assert!(test_operation_strategy(&ops[..], true, false).is_ok());
-    //     }
+    //     fn test_delete_with_sort_proptest(ops in
+    // proptest::collection::vec(balanced_operation_strategy(), 1..10)) {         assert!
+    // (test_operation_strategy(&ops[..], true, false).is_ok());     }
     //     #[test]
-    //     fn test_delete_without_sort_proptest(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
-    //         assert!(test_operation_strategy(&ops[..], false, false).is_ok());
-    //     }
+    //     fn test_delete_without_sort_proptest(ops in
+    // proptest::collection::vec(balanced_operation_strategy(), 1..10)) {         assert!
+    // (test_operation_strategy(&ops[..], false, false).is_ok());     }
     //     #[test]
-    //     fn test_delete_with_sort_proptest_with_merge(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
-    //         assert!(test_operation_strategy(&ops[..], true, true).is_ok());
-    //     }
+    //     fn test_delete_with_sort_proptest_with_merge(ops in
+    // proptest::collection::vec(balanced_operation_strategy(), 1..10)) {         assert!
+    // (test_operation_strategy(&ops[..], true, true).is_ok());     }
     //     #[test]
-    //     fn test_delete_without_sort_proptest_with_merge(ops in proptest::collection::vec(balanced_operation_strategy(), 1..100)) {
-    //         assert!(test_operation_strategy(&ops[..], false, true).is_ok());
-    //     }
-
+    //     fn test_delete_without_sort_proptest_with_merge(ops in
+    // proptest::collection::vec(balanced_operation_strategy(), 1..100)) {         assert!
+    // (test_operation_strategy(&ops[..], false, true).is_ok());     }
 
     // }
 

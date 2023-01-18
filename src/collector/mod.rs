@@ -104,7 +104,6 @@ pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
 
 mod tweak_score_top_collector;
 pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
-
 // mod facet_collector;
 // pub use self::facet_collector::{FacetCollector, FacetCounts};
 use crate::query::Weight;

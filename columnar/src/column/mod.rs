@@ -20,7 +20,7 @@ pub struct Column<T> {
 
 use crate::column_index::Set;
 
-impl<T: PartialOrd> Column<T> {
+impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {
     pub fn first(&self, row_id: RowId) -> Option<T> {
         match &self.idx {
             ColumnIndex::Full => Some(self.values.get_val(row_id)),
@@ -32,6 +32,13 @@ impl<T: PartialOrd> Column<T> {
                 todo!();
             }
         }
+    }
+
+    pub fn first_or_default_col(self, default_value: T) -> Arc<dyn ColumnValues<T>> {
+        Arc::new(FirstValueWithDefault {
+            column: self,
+            default_value,
+        })
     }
 }
 
@@ -52,5 +59,29 @@ impl BinarySerializable for Cardinality {
         let cardinality_code = u8::deserialize(reader)?;
         let cardinality = Cardinality::try_from_code(cardinality_code)?;
         Ok(cardinality)
+    }
+}
+
+// TODO simplify or optimize
+struct FirstValueWithDefault<T: Copy> {
+    column: Column<T>,
+    default_value: T,
+}
+
+impl<T: PartialOrd + Send + Sync + Copy + 'static> ColumnValues<T> for FirstValueWithDefault<T> {
+    fn get_val(&self, idx: u32) -> T {
+        self.column.first(idx).unwrap_or(self.default_value)
+    }
+
+    fn min_value(&self) -> T {
+        self.column.values.min_value()
+    }
+
+    fn max_value(&self) -> T {
+        self.column.values.max_value()
+    }
+
+    fn num_vals(&self) -> u32 {
+        self.column.idx.num_rows()
     }
 }

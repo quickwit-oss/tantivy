@@ -12,10 +12,10 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use columnar::{DynamicColumn, HasAssociatedColumnType};
 use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::FastValue;
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
@@ -61,7 +61,7 @@ use crate::{Score, SegmentReader, TantivyError};
 /// # Ok(())
 /// # }
 /// ```
-pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
+pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: Default>
 where TPredicate: 'static + Clone
 {
     field: Field,
@@ -70,7 +70,7 @@ where TPredicate: 'static + Clone
     t_predicate_value: PhantomData<TPredicateValue>,
 }
 
-impl<TCollector, TPredicate, TPredicateValue: FastValue>
+impl<TCollector, TPredicate, TPredicateValue: Default>
     FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
@@ -91,12 +91,13 @@ where
     }
 }
 
-impl<TCollector, TPredicate, TPredicateValue: FastValue> Collector
+impl<TCollector, TPredicate, TPredicateValue: Default> Collector
     for FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
     TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync + Clone,
-    TPredicateValue: FastValue,
+    TPredicateValue: HasAssociatedColumnType,
+    DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>>,
 {
     // That's the type of our result.
     // Our standard deviation will be a float.
@@ -117,20 +118,10 @@ where
                 field_entry.name()
             )));
         }
-        let requested_type = TPredicateValue::to_type();
-        let field_schema_type = field_entry.field_type().value_type();
-        if requested_type != field_schema_type {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is of type {:?}!={:?}",
-                field_entry.name(),
-                requested_type,
-                field_schema_type
-            )));
-        }
 
         let fast_field_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(schema.get_field_name(self.field))?;
+            .typed_column_first_or_default(schema.get_field_name(self.field))?;
 
         let segment_collector = self
             .collector
@@ -159,7 +150,7 @@ where
 pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
 where
     TPredicate: 'static,
-    TPredicateValue: FastValue,
+    DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>>,
 {
     fast_field_reader: Arc<dyn Column<TPredicateValue>>,
     segment_collector: TSegmentCollector,
@@ -171,8 +162,9 @@ impl<TSegmentCollector, TPredicate, TPredicateValue> SegmentCollector
     for FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
 where
     TSegmentCollector: SegmentCollector,
+    TPredicateValue: HasAssociatedColumnType,
     TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
-    TPredicateValue: FastValue,
+    DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>>,
 {
     type Fruit = TSegmentCollector::Fruit;
 

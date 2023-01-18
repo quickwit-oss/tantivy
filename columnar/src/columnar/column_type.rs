@@ -11,6 +11,7 @@ pub enum ColumnType {
     Bytes,
     Numerical(NumericalType),
     Bool,
+    DateTime,
 }
 
 impl ColumnType {
@@ -29,6 +30,10 @@ impl ColumnType {
             }
             ColumnType::Bool => {
                 column_type_category = ColumnTypeCategory::Bool;
+                numerical_type_code = 0u8;
+            }
+            ColumnType::DateTime => {
+                column_type_category = ColumnTypeCategory::DateTime;
                 numerical_type_code = 0u8;
             }
         }
@@ -59,7 +64,47 @@ impl ColumnType {
                 let numerical_type = NumericalType::try_from_code(numerical_type_code)?;
                 Ok(ColumnType::Numerical(numerical_type))
             }
+            ColumnTypeCategory::DateTime => {
+                if numerical_type_code != 0u8 {
+                    return Err(InvalidData);
+                }
+                Ok(ColumnType::DateTime)
+            }
         }
+    }
+}
+
+pub trait HasAssociatedColumnType: 'static + Send + Sync + Copy + PartialOrd {
+    fn column_type() -> ColumnType;
+}
+
+impl HasAssociatedColumnType for u64 {
+    fn column_type() -> ColumnType {
+        ColumnType::Numerical(NumericalType::U64)
+    }
+}
+
+impl HasAssociatedColumnType for i64 {
+    fn column_type() -> ColumnType {
+        ColumnType::Numerical(NumericalType::I64)
+    }
+}
+
+impl HasAssociatedColumnType for f64 {
+    fn column_type() -> ColumnType {
+        ColumnType::Numerical(NumericalType::F64)
+    }
+}
+
+impl HasAssociatedColumnType for bool {
+    fn column_type() -> ColumnType {
+        ColumnType::Bool
+    }
+}
+
+impl HasAssociatedColumnType for crate::DateTime {
+    fn column_type() -> ColumnType {
+        ColumnType::DateTime
     }
 }
 
@@ -76,6 +121,7 @@ pub(crate) enum ColumnTypeCategory {
     Bool = 0u8,
     Str = 1u8,
     Numerical = 2u8,
+    DateTime = 3u8,
 }
 
 impl ColumnTypeCategory {
@@ -88,6 +134,7 @@ impl ColumnTypeCategory {
             0u8 => Ok(Self::Bool),
             1u8 => Ok(Self::Str),
             2u8 => Ok(Self::Numerical),
+            3u8 => Ok(Self::Numerical),
             _ => Err(InvalidData),
         }
     }

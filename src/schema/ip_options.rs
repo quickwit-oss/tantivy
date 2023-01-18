@@ -87,7 +87,7 @@ impl IpAddrOptions {
     /// If more than one value is associated with a fast field, only the last one is
     /// kept.
     #[must_use]
-    pub fn set_fast(mut self,) -> Self {
+    pub fn set_fast(mut self) -> Self {
         self.fast = true;
         self
     }

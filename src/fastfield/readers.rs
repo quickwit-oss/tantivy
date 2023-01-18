@@ -2,7 +2,9 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
-use columnar::ColumnarReader;
+use columnar::{
+    ColumnType, ColumnValues, ColumnarReader, DynamicColumn, HasAssociatedColumnType, NumericalType,
+};
 use fastfield_codecs::{open, open_u128, Column};
 
 use crate::directory::{CompositeFile, FileSlice};
@@ -19,73 +21,52 @@ use crate::{DateTime, TantivyError};
 pub struct FastFieldReaders {
     columnar: Arc<ColumnarReader>,
 }
-#[derive(Eq, PartialEq, Debug)]
-pub(crate) enum FastType {
-    I64,
-    U64,
-    U128,
-    F64,
-    Bool,
-    Date,
-}
-
-pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<FastType> {
-    todo!();
-    // match field_type {
-    //     FieldType::U64(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::U64, cardinality)),
-    //     FieldType::I64(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::I64, cardinality)),
-    //     FieldType::F64(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::F64, cardinality)),
-    //     FieldType::Bool(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::Bool, cardinality)),
-    //     FieldType::Date(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::Date, cardinality)),
-    //     FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
-    //     FieldType::Str(options) if options.is_fast() => {
-    //         Some((FastType::U64, Cardinality::MultiValues))
-    //     }
-    //     FieldType::IpAddr(options) => options
-    //         .get_fastfield_cardinality()
-    //         .map(|cardinality| (FastType::U128, cardinality)),
-    //     _ => None,
-    // }
-}
 
 impl FastFieldReaders {
     pub(crate) fn open(fast_field_file: FileSlice) -> io::Result<FastFieldReaders> {
         let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
-        Ok(FastFieldReaders {
-            columnar,
-        })
+        Ok(FastFieldReaders { columnar })
     }
 
     pub(crate) fn space_usage(&self) -> PerFieldSpaceUsage {
         todo!()
     }
 
-    pub fn column(&self, column_name: &str) {
-        todo!()
+    // TODO make opt
+    pub fn typed_column<T>(&self, field: &str) -> crate::Result<columnar::Column<T>>
+    where
+        T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
+        DynamicColumn: Into<Option<columnar::Column<T>>>,
+    {
+        let column_type = T::column_type();
+        let Some(dynamic_column_handle) = self.columnar.read_columns(field)?
+            .into_iter()
+            .filter(|column| column.column_type() == column_type)
+            .next() else {
+            // TODO Option would make more sense.
+            return Err(crate::TantivyError::SchemaError(format!("No fast field of with this name")));
+        };
+        let dynamic_column = dynamic_column_handle.open()?;
+        let col: columnar::Column<T> = dynamic_column
+            .into()
+            .ok_or_else(|| crate::TantivyError::SchemaError(format!("Invalid type")))?;
+        Ok(col)
     }
 
-    pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
-        &self,
-        field_name: &str,
-    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
-        todo!();
+    pub fn typed_column_first_or_default<T>(&self, field: &str) -> crate::Result<Arc<dyn Column<T>>>
+    where
+        T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
+        DynamicColumn: Into<Option<columnar::Column<T>>>,
+    {
+        let col = self.typed_column(field)?;
+        Ok(col.first_or_default_col(T::default()))
     }
 
     /// Returns the `u64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns an Error.
-    pub fn u64(&self, field: &str) -> crate::Result<Arc<dyn Column<u64>>> {
-        todo!();
+    pub fn u64(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<u64>>> {
+        self.typed_column_first_or_default(field)
     }
 
     /// Returns the `ip` fast field reader reader associated to `field`.
@@ -111,14 +92,15 @@ impl FastFieldReaders {
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
     pub fn u64_lenient(&self, field_name: &str) -> crate::Result<Arc<dyn Column<u64>>> {
-        self.typed_fast_field_reader(field_name)
+        todo!();
+        // self.typed_fast_field_reader(field_name)
     }
 
     /// Returns the `i64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
     pub fn i64(&self, field_name: &str) -> crate::Result<Arc<dyn Column<i64>>> {
-        todo!()
+        self.typed_column_first_or_default(field_name)
     }
 
     /// Returns the `date` fast field reader reader associated with `field`.
@@ -126,41 +108,42 @@ impl FastFieldReaders {
     /// If `field` is not a date fast field, this method returns an Error.
     pub fn date(&self, field_name: &str) -> crate::Result<Arc<dyn Column<DateTime>>> {
         todo!()
+        // self.numerical_column(field_name)
     }
 
     /// Returns the `f64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
     pub fn f64(&self, field_name: &str) -> crate::Result<Arc<dyn Column<f64>>> {
-        todo!();
+        self.typed_column_first_or_default(field_name)
     }
 
     /// Returns the `bool` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a bool fast field, this method returns an Error.
     pub fn bool(&self, field_name: &str) -> crate::Result<Arc<dyn Column<bool>>> {
-        todo!()
+        self.typed_column_first_or_default(field_name)
     }
 
     // Returns the `bytes` fast field reader associated with `field`.
     //
     // If `field` is not a bytes fast field, returns an Error.
     // pub fn bytes(&self, field: Field) -> crate::Result<BytesFastFieldReader> {
-        // let field_entry = self.schema.get_field_entry(field);
-        // if let FieldType::Bytes(bytes_option) = field_entry.field_type() {
-        //     if !bytes_option.is_fast() {
-        //         return Err(crate::TantivyError::SchemaError(format!(
-        //             "Field {:?} is not a fast field.",
-        //             field_entry.name()
-        //         )));
-        //     }
-        //     let fast_field_idx_file = self.fast_field_data(field, 0)?;
-        //     let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
-        //     let idx_reader = open(fast_field_idx_bytes)?;
-        //     let data = self.fast_field_data(field, 1)?;
-        //     BytesFastFieldReader::open(idx_reader, data)
-        // } else {
-        //     Err(FastFieldNotAvailableError::new(field_entry).into())
-        // }
+    // let field_entry = self.schema.get_field_entry(field);
+    // if let FieldType::Bytes(bytes_option) = field_entry.field_type() {
+    //     if !bytes_option.is_fast() {
+    //         return Err(crate::TantivyError::SchemaError(format!(
+    //             "Field {:?} is not a fast field.",
+    //             field_entry.name()
+    //         )));
+    //     }
+    //     let fast_field_idx_file = self.fast_field_data(field, 0)?;
+    //     let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
+    //     let idx_reader = open(fast_field_idx_bytes)?;
+    //     let data = self.fast_field_data(field, 1)?;
+    //     BytesFastFieldReader::open(idx_reader, data)
+    // } else {
+    //     Err(FastFieldNotAvailableError::new(field_entry).into())
+    // }
     // }
 }

@@ -154,10 +154,11 @@ impl CustomScorer<u64> for ScorerByField {
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
         //
         // The conversion will then happen only on the top-K docs.
-        let ff_reader = segment_reader
-            .fast_fields()
-            .typed_fast_field_reader(segment_reader.schema().get_field_name(self.field))?;
-        Ok(ScorerByFastFieldReader { ff_reader })
+        todo!();
+        // let ff_reader = segment_reader
+        //     .fast_fields()
+        //     .typed_column(&self.field)?;
+        // Ok(ScorerByFastFieldReader { ff_reader })
     }
 }
 

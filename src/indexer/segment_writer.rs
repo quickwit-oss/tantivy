@@ -408,10 +408,7 @@ fn remap_and_write(
         serializer.get_postings_serializer(),
     )?;
     debug!("fastfield-serialize");
-    fast_field_writers.serialize(
-        serializer.get_fast_field_write(),
-        doc_id_map,
-    )?;
+    fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
 
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {

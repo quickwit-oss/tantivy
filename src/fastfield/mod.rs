@@ -27,7 +27,6 @@ pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveB
 // pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 // pub use self::facet_reader::FacetReader;
-
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::{Column, CompositeFastFieldSerializer};
 use self::writer::unexpected_value;
@@ -171,9 +170,7 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{
-        Document, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT,
-    };
+    use crate::schema::{Document, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT};
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
@@ -183,7 +180,6 @@ mod tests {
         schema_builder.build()
     });
     pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
-
 
     #[test]
     pub fn test_convert_i64_u64() {
@@ -207,27 +203,25 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>2u64))
                 .unwrap();
-            fast_field_writers
-                .serialize(&mut write, None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 164);
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        // let column = fast_field_readers.u64("field").unwrap();
-        // assert_eq!(column.get_val(0), 13u64);
-        // assert_eq!(column.get_val(1), 14u64);
-        // assert_eq!(column.get_val(2), 2u64);
+        let column = fast_field_readers.u64("field").unwrap();
+        assert_eq!(column.get_val(0), 13u64);
+        assert_eq!(column.get_val(1), 14u64);
+        assert_eq!(column.get_val(2), 2u64);
         Ok(())
     }
 
     #[test]
-    fn test_intfastfield_large() -> crate::Result<()> {
+    fn test_intfastfield_large() {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
         {
-            let mut write: WritePtr = directory.open_write(Path::new("test"))?;
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             fast_field_writers
                 .add_document(&doc!(*FIELD=>4u64))
@@ -256,36 +250,28 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>215u64))
                 .unwrap();
-            fast_field_writers.serialize(&mut write, None)?;
-            write.terminate()?;
+            fast_field_writers.serialize(&mut write, None).unwrap();
+            write.terminate().unwrap();
         }
-        let file = directory.open_read(path)?;
-        assert_eq!(file.len(), 62);
-        {
-            let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite
-                .open_read(*FIELD)
-                .unwrap()
-                .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
-            assert_eq!(fast_field_reader.get_val(0), 4u64);
-            assert_eq!(fast_field_reader.get_val(1), 14_082_001u64);
-            assert_eq!(fast_field_reader.get_val(2), 3_052u64);
-            assert_eq!(fast_field_reader.get_val(3), 9002u64);
-            assert_eq!(fast_field_reader.get_val(4), 15_001u64);
-            assert_eq!(fast_field_reader.get_val(5), 777u64);
-            assert_eq!(fast_field_reader.get_val(6), 1_002u64);
-            assert_eq!(fast_field_reader.get_val(7), 1_501u64);
-            assert_eq!(fast_field_reader.get_val(8), 215u64);
-        }
-        Ok(())
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 192);
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let col = fast_field_readers.u64("field").unwrap();
+        assert_eq!(col.get_val(0), 4u64);
+        assert_eq!(col.get_val(1), 14_082_001u64);
+        assert_eq!(col.get_val(2), 3_052u64);
+        assert_eq!(col.get_val(3), 9002u64);
+        assert_eq!(col.get_val(4), 15_001u64);
+        assert_eq!(col.get_val(5), 777u64);
+        assert_eq!(col.get_val(6), 1_002u64);
+        assert_eq!(col.get_val(7), 1_501u64);
+        assert_eq!(col.get_val(8), 215u64);
     }
 
     #[test]
-    fn test_intfastfield_null_amplitude() -> crate::Result<()> {
+    fn test_intfastfield_null_amplitude() {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
-
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
@@ -294,29 +280,20 @@ mod tests {
                     .add_document(&doc!(*FIELD=>100_000u64))
                     .unwrap();
             }
-            fast_field_writers
-                .serialize(&mut write,  None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 35);
-        {
-            let fast_fields_composite = CompositeFile::open(&file).unwrap();
-            let data = fast_fields_composite
-                .open_read(*FIELD)
-                .unwrap()
-                .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
-            for doc in 0..10_000 {
-                assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
-            }
+        assert_eq!(file.len(), 165);
+        let fast_field_readers = FastFieldReaders::open(file).unwrap();
+        let fast_field_reader = fast_field_readers.u64("field").unwrap();
+        for doc in 0..10_000 {
+            assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
         }
-        Ok(())
     }
 
     #[test]
-    fn test_intfastfield_large_numbers() -> crate::Result<()> {
+    fn test_intfastfield_large_numbers() {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
 
@@ -327,34 +304,23 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>0u64))
                 .unwrap();
-            for doc_id in 1u64..10_001u64 {
+            for doc_id in 1u64..10_000u64 {
                 fast_field_writers
                     .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id as u64))
                     .unwrap();
             }
-            fast_field_writers
-                .serialize(&mut write,  None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 80049);
+        assert_eq!(file.len(), 80173);
         {
-            let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite
-                .open_read(*FIELD)
-                .unwrap()
-                .read_bytes()?;
-            let fast_field_reader = open::<u64>(data)?;
-            assert_eq!(fast_field_reader.get_val(0), 0u64);
-            for doc in 1..10_001 {
-                assert_eq!(
-                    fast_field_reader.get_val(doc),
-                    5_000_000_000_000_000_000u64 + doc as u64 - 1u64
-                );
+            let fast_field_readers = FastFieldReaders::open(file).unwrap();
+            let col = fast_field_readers.u64("field").unwrap();
+            for doc in 1..10_000 {
+                assert_eq!(col.get_val(doc), 5_000_000_000_000_000_000u64 + doc as u64);
             }
         }
-        Ok(())
     }
 
     #[test]
@@ -373,29 +339,22 @@ mod tests {
                 doc.add_i64(i64_field, i);
                 fast_field_writers.add_document(&doc).unwrap();
             }
-            fast_field_writers
-                .serialize(&mut write, None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 49_usize);
+        assert_eq!(file.len(), 179_usize);
 
         {
-            let fast_fields_composite = CompositeFile::open(&file)?;
-            let data = fast_fields_composite
-                .open_read(i64_field)
-                .unwrap()
-                .read_bytes()?;
-            let fast_field_reader = open::<i64>(data)?;
-
-            assert_eq!(fast_field_reader.min_value(), -100i64);
-            assert_eq!(fast_field_reader.max_value(), 9_999i64);
+            let fast_field_readers = FastFieldReaders::open(file).unwrap();
+            let col = fast_field_readers.i64("field").unwrap();
+            assert_eq!(col.min_value(), -100i64);
+            assert_eq!(col.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
-                assert_eq!(fast_field_reader.get_val(doc as u32), i);
+                assert_eq!(col.get_val(doc as u32), i);
             }
             let mut buffer = vec![0i64; 100];
-            fast_field_reader.get_range(53, &mut buffer[..]);
+            col.get_range(53, &mut buffer[..]);
             for i in 0..100 {
                 assert_eq!(buffer[i], -100i64 + 53i64 + i as i64);
             }
@@ -533,105 +492,103 @@ mod tests {
     //     all
     // }
 
-    /*
-    #[test]
-    fn test_text_fastfield() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let text_field = schema_builder.add_text_field("text", TEXT | FAST);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-
-        {
-            // first segment
-            let mut index_writer = index.writer_for_tests()?;
-            index_writer.set_merge_policy(Box::new(NoMergePolicy));
-            index_writer.add_document(doc!(
-                text_field => "BBBBB AAAAA", // term_ord 1,2
-            ))?;
-            index_writer.add_document(doc!())?;
-            index_writer.add_document(doc!(
-                text_field => "AAAAA", // term_ord 0
-            ))?;
-            index_writer.add_document(doc!(
-                text_field => "AAAAA BBBBB", // term_ord 0
-            ))?;
-            index_writer.add_document(doc!(
-                text_field => "zumberthree", // term_ord 2, after merge term_ord 3
-            ))?;
-
-            index_writer.add_document(doc!())?;
-            index_writer.commit()?;
-
-            let reader = index.reader()?;
-            let searcher = reader.searcher();
-            assert_eq!(searcher.segment_readers().len(), 1);
-            let segment_reader = searcher.segment_reader(0);
-            let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s("text").unwrap();
-
-            assert_eq!(
-                get_vals_for_docs(&text_fast_field, 0..5),
-                vec![1, 0, 0, 0, 1, 2]
-            );
-
-            let mut out = vec![];
-            text_fast_field.get_vals(3, &mut out);
-            assert_eq!(out, vec![0, 1]);
-
-            let inverted_index = segment_reader.inverted_index(text_field)?;
-            assert_eq!(inverted_index.terms().num_terms(), 3);
-            let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
-            // default tokenizer applies lower case
-            assert_eq!(bytes, "aaaaa".as_bytes());
-        }
-
-        {
-            // second segment
-            let mut index_writer = index.writer_for_tests()?;
-
-            index_writer.add_document(doc!(
-                text_field => "AAAAA", // term_ord 0
-            ))?;
-
-            index_writer.add_document(doc!(
-                text_field => "CCCCC AAAAA", // term_ord 1, after merge 2
-            ))?;
-
-            index_writer.add_document(doc!())?;
-            index_writer.commit()?;
-
-            let reader = index.reader()?;
-            let searcher = reader.searcher();
-            assert_eq!(searcher.segment_readers().len(), 2);
-            let segment_reader = searcher.segment_reader(1);
-            let fast_fields = segment_reader.fast_fields();
-            let text_fast_field = fast_fields.u64s("text").unwrap();
-
-            assert_eq!(get_vals_for_docs(&text_fast_field, 0..3), vec![0, 1, 0]);
-        }
-        // Merging the segments
-        {
-            let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
-            index_writer.merge(&segment_ids).wait()?;
-            index_writer.wait_merging_threads()?;
-        }
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let segment_reader = searcher.segment_reader(0);
-        let fast_fields = segment_reader.fast_fields();
-        let text_fast_field = fast_fields.u64s("text").unwrap();
-
-        assert_eq!(
-            get_vals_for_docs(&text_fast_field, 0..8),
-            vec![1, 0, 0, 0, 1, 3 /* next segment */, 0, 2, 0]
-        );
-
-        Ok(())
-    }
-    */
+    // #[test]
+    // fn test_text_fastfield() -> crate::Result<()> {
+    // let mut schema_builder = Schema::builder();
+    // let text_field = schema_builder.add_text_field("text", TEXT | FAST);
+    // let schema = schema_builder.build();
+    // let index = Index::create_in_ram(schema);
+    //
+    // {
+    // first segment
+    // let mut index_writer = index.writer_for_tests()?;
+    // index_writer.set_merge_policy(Box::new(NoMergePolicy));
+    // index_writer.add_document(doc!(
+    // text_field => "BBBBB AAAAA", // term_ord 1,2
+    // ))?;
+    // index_writer.add_document(doc!())?;
+    // index_writer.add_document(doc!(
+    // text_field => "AAAAA", // term_ord 0
+    // ))?;
+    // index_writer.add_document(doc!(
+    // text_field => "AAAAA BBBBB", // term_ord 0
+    // ))?;
+    // index_writer.add_document(doc!(
+    // text_field => "zumberthree", // term_ord 2, after merge term_ord 3
+    // ))?;
+    //
+    // index_writer.add_document(doc!())?;
+    // index_writer.commit()?;
+    //
+    // let reader = index.reader()?;
+    // let searcher = reader.searcher();
+    // assert_eq!(searcher.segment_readers().len(), 1);
+    // let segment_reader = searcher.segment_reader(0);
+    // let fast_fields = segment_reader.fast_fields();
+    // let text_fast_field = fast_fields.u64s("text").unwrap();
+    //
+    // assert_eq!(
+    // get_vals_for_docs(&text_fast_field, 0..5),
+    // vec![1, 0, 0, 0, 1, 2]
+    // );
+    //
+    // let mut out = vec![];
+    // text_fast_field.get_vals(3, &mut out);
+    // assert_eq!(out, vec![0, 1]);
+    //
+    // let inverted_index = segment_reader.inverted_index(text_field)?;
+    // assert_eq!(inverted_index.terms().num_terms(), 3);
+    // let mut bytes = vec![];
+    // assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+    // default tokenizer applies lower case
+    // assert_eq!(bytes, "aaaaa".as_bytes());
+    // }
+    //
+    // {
+    // second segment
+    // let mut index_writer = index.writer_for_tests()?;
+    //
+    // index_writer.add_document(doc!(
+    // text_field => "AAAAA", // term_ord 0
+    // ))?;
+    //
+    // index_writer.add_document(doc!(
+    // text_field => "CCCCC AAAAA", // term_ord 1, after merge 2
+    // ))?;
+    //
+    // index_writer.add_document(doc!())?;
+    // index_writer.commit()?;
+    //
+    // let reader = index.reader()?;
+    // let searcher = reader.searcher();
+    // assert_eq!(searcher.segment_readers().len(), 2);
+    // let segment_reader = searcher.segment_reader(1);
+    // let fast_fields = segment_reader.fast_fields();
+    // let text_fast_field = fast_fields.u64s("text").unwrap();
+    //
+    // assert_eq!(get_vals_for_docs(&text_fast_field, 0..3), vec![0, 1, 0]);
+    // }
+    // Merging the segments
+    // {
+    // let segment_ids = index.searchable_segment_ids()?;
+    // let mut index_writer = index.writer_for_tests()?;
+    // index_writer.merge(&segment_ids).wait()?;
+    // index_writer.wait_merging_threads()?;
+    // }
+    //
+    // let reader = index.reader()?;
+    // let searcher = reader.searcher();
+    // let segment_reader = searcher.segment_reader(0);
+    // let fast_fields = segment_reader.fast_fields();
+    // let text_fast_field = fast_fields.u64s("text").unwrap();
+    //
+    // assert_eq!(
+    // get_vals_for_docs(&text_fast_field, 0..8),
+    // vec![1, 0, 0, 0, 1, 3 /* next segment */, 0, 2, 0]
+    // );
+    //
+    // Ok(())
+    // }
 
     // #[test]
     // fn test_string_fastfield() -> crate::Result<()> {
@@ -660,7 +617,6 @@ mod tests {
 
     //         index_writer.add_document(doc!())?;
     //         index_writer.commit()?;
-
 
     //         let reader = index.reader()?;
     //         let searcher = reader.searcher();
@@ -692,7 +648,6 @@ mod tests {
 
     //         index_writer.add_document(doc!())?;
     //         index_writer.commit()?;
-
 
     //         let reader = index.reader()?;
     //         let searcher = reader.searcher();
@@ -816,9 +771,7 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(field=>false))
                 .unwrap();
-            fast_field_writers
-                .serialize(&mut write,  None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -853,9 +806,7 @@ mod tests {
                     .add_document(&doc!(field=>false))
                     .unwrap();
             }
-            fast_field_writers
-                .serialize(&mut write, None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -898,10 +849,7 @@ mod tests {
         Ok(())
     }
 
-    fn get_index(
-        docs: &[crate::Document],
-        schema: &Schema,
-    ) -> crate::Result<RamDirectory> {
+    fn get_index(docs: &[crate::Document], schema: &Schema) -> crate::Result<RamDirectory> {
         let directory: RamDirectory = RamDirectory::create();
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
@@ -909,9 +857,7 @@ mod tests {
             for (doc_id, doc) in docs.into_iter().enumerate() {
                 fast_field_writers.add_document(doc).unwrap();
             }
-            fast_field_writers
-                .serialize(&mut write, None)
-                .unwrap();
+            fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
         }
         Ok(directory)
@@ -942,9 +888,7 @@ mod tests {
         })
         .take(1_000)
         .collect();
-        let date_options = DateOptions::default()
-            .set_fast()
-            .set_precision(precision);
+        let date_options = DateOptions::default().set_fast().set_precision(precision);
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_date_field("field", date_options);
         let schema = schema_builder.build();

@@ -194,6 +194,20 @@ impl MonotonicallyMappableToU64 for i64 {
     }
 }
 
+impl MonotonicallyMappableToU64 for crate::DateTime {
+    #[inline(always)]
+    fn to_u64(self) -> u64 {
+        common::i64_to_u64(self.timestamp_micros)
+    }
+
+    #[inline(always)]
+    fn from_u64(val: u64) -> Self {
+        crate::DateTime {
+            timestamp_micros: common::u64_to_i64(val),
+        }
+    }
+}
+
 impl MonotonicallyMappableToU64 for bool {
     #[inline(always)]
     fn to_u64(self) -> u64 {
