@@ -1,6 +1,8 @@
+use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+use columnar::ColumnarReader;
 use fastfield_codecs::{open, open_u128, Column};
 
 use crate::directory::{CompositeFile, FileSlice};
@@ -15,8 +17,7 @@ use crate::{DateTime, TantivyError};
 /// and just wraps several `HashMap`.
 #[derive(Clone)]
 pub struct FastFieldReaders {
-    schema: Schema,
-    fast_fields_composite: CompositeFile,
+    columnar: Arc<ColumnarReader>,
 }
 #[derive(Eq, PartialEq, Debug)]
 pub(crate) enum FastType {
@@ -58,38 +59,19 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<FastType> {
 }
 
 impl FastFieldReaders {
-    pub(crate) fn new(schema: Schema, fast_fields_composite: CompositeFile) -> FastFieldReaders {
-        FastFieldReaders {
-            schema,
-            fast_fields_composite,
-        }
+    pub(crate) fn open(fast_field_file: FileSlice) -> io::Result<FastFieldReaders> {
+        let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
+        Ok(FastFieldReaders {
+            columnar,
+        })
     }
 
     pub(crate) fn space_usage(&self) -> PerFieldSpaceUsage {
-        self.fast_fields_composite.space_usage()
+        todo!()
     }
 
-    #[doc(hidden)]
-    pub fn fast_field_data(&self, field: Field, idx: usize) -> crate::Result<FileSlice> {
-        self.fast_fields_composite
-            .open_read_with_idx(field, idx)
-            .ok_or_else(|| {
-                let field_name = self.schema.get_field_entry(field).name();
-                TantivyError::SchemaError(format!("Field({}) data was not found", field_name))
-            })
-    }
-
-    pub(crate) fn typed_fast_field_reader_with_idx<TFastValue: FastValue>(
-        &self,
-        field_name: &str,
-        index: usize,
-    ) -> crate::Result<Arc<dyn Column<TFastValue>>> {
-        let field = self.schema.get_field(field_name)?;
-
-        let fast_field_slice = self.fast_field_data(field, index)?;
-        let bytes = fast_field_slice.read_bytes()?;
-        let column = fastfield_codecs::open(bytes)?;
-        Ok(column)
+    pub fn column(&self, column_name: &str) {
+        todo!()
     }
 
     pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
