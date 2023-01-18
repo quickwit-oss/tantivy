@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnarWriter, NumericalType, NumericalValue, ColumnType};
+use columnar::{ColumnType, ColumnarWriter, NumericalType, NumericalValue};
 use common;
 use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
@@ -11,7 +11,7 @@ use super::FastFieldType;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
-use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Value, Type};
+use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Type, Value};
 use crate::termdict::TermOrdinal;
 use crate::{DatePrecision, DocId};
 
@@ -28,7 +28,10 @@ impl FastFieldsWriter {
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let mut columnar_writer = ColumnarWriter::default();
         let mut fast_fields: Vec<Option<String>> = vec![None; schema.num_fields()];
-        let mut date_precisions: Vec<DatePrecision> = std::iter::repeat_with(DatePrecision::default).take(schema.num_fields()).collect();
+        let mut date_precisions: Vec<DatePrecision> =
+            std::iter::repeat_with(DatePrecision::default)
+                .take(schema.num_fields())
+                .collect();
         // TODO see other types
         for (field_id, field_entry) in schema.fields() {
             if !field_entry.field_type().is_fast() {
@@ -44,7 +47,9 @@ impl FastFieldsWriter {
                 Type::Date => ColumnType::DateTime,
                 Type::Facet => ColumnType::Str,
                 Type::Bytes => todo!(),
-                Type::Json => { continue; },
+                Type::Json => {
+                    continue;
+                }
                 Type::IpAddr => todo!(),
             };
             if let FieldType::Date(date_options) = field_entry.field_type() {
@@ -52,7 +57,12 @@ impl FastFieldsWriter {
             }
             columnar_writer.record_column_type(field_entry.name(), column_type);
         }
-        FastFieldsWriter { columnar_writer, fast_field_names: fast_fields, num_docs: 0u32, date_precisions }
+        FastFieldsWriter {
+            columnar_writer,
+            fast_field_names: fast_fields,
+            num_docs: 0u32,
+            date_precisions,
+        }
     }
 
     /// The memory used (inclusive childs)
@@ -92,21 +102,19 @@ impl FastFieldsWriter {
                     Value::Str(_) => todo!(),
                     Value::PreTokStr(_) => todo!(),
                     Value::Bool(bool_val) => {
-                        self.columnar_writer.record_bool(
-                            doc_id,
-                            field_name.as_str(),
-                            *bool_val,
-                        );
-                    },
+                        self.columnar_writer
+                            .record_bool(doc_id, field_name.as_str(), *bool_val);
+                    }
                     Value::Date(datetime) => {
-                        let date_precision = self.date_precisions[field_value.field().field_id() as usize];
+                        let date_precision =
+                            self.date_precisions[field_value.field().field_id() as usize];
                         let truncated_datetime = datetime.truncate(date_precision);
                         self.columnar_writer.record_datetime(
                             doc_id,
                             field_name.as_str(),
-                            truncated_datetime.into()
+                            truncated_datetime.into(),
                         );
-                    },
+                    }
                     Value::Facet(_) => todo!(),
                     Value::Bytes(_) => todo!(),
                     Value::JsonObject(_) => todo!(),

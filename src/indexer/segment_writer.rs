@@ -139,7 +139,6 @@ impl SegmentWriter {
             self.ctx,
             self.fast_field_writers,
             &self.fieldnorms_writer,
-            &self.schema,
             self.segment_serializer,
             mapping.as_ref(),
         )?;
@@ -182,31 +181,21 @@ impl SegmentWriter {
 
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
-                    todo!();
-                    // for value in values {
-                    //     let facet = value.as_facet().ok_or_else(make_schema_error)?;
-                    //     let facet_str = facet.encoded_str();
-                    //     let mut unordered_term_id_opt = None;
-                    //     FacetTokenizer
-                    //         .token_stream(facet_str)
-                    //         .process(&mut |token| {
-                    //             term_buffer.set_text(&token.text);
-                    //             let unordered_term_id =
-                    //                 postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                    //             // TODO pass indexing context directly in subscribe function
-                    //             unordered_term_id_opt = Some(unordered_term_id);
-                    //         });
-                    //     if let Some(unordered_term_id) = unordered_term_id_opt {
-                    //         self.fast_field_writers
-                    //             .get_term_id_writer_mut(field)
-                    //             .expect("writer for facet missing")
-                    //             .add_val(unordered_term_id);
-                    //     }
-                    // }
+                    for value in values {
+                        let facet = value.as_facet().ok_or_else(make_schema_error)?;
+                        let facet_str = facet.encoded_str();
+                        let mut facet_tokenizer = FacetTokenizer.token_stream(facet_str);
+                        let mut indexing_position = IndexingPosition::default();
+                        postings_writer.index_text(
+                            doc_id,
+                            &mut *facet_tokenizer,
+                            term_buffer,
+                            ctx,
+                            &mut indexing_position,
+                        );
+                    }
                 }
                 FieldType::Str(_) => {
-                    todo!()
-                    /*
                     let mut indexing_position = IndexingPosition::default();
                     for value in values {
                         let mut token_stream = match value {
@@ -230,14 +219,12 @@ impl SegmentWriter {
                             term_buffer,
                             ctx,
                             &mut indexing_position,
-                            self.fast_field_writers.get_term_id_writer_mut(field),
                         );
                     }
                     if field_entry.has_fieldnorms() {
                         self.fieldnorms_writer
                             .record(doc_id, field, indexing_position.num_tokens);
                     }
-                    */
                 }
                 FieldType::U64(_) => {
                     let mut num_vals = 0;
@@ -387,7 +374,6 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    schema: &Schema,
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
@@ -399,12 +385,11 @@ fn remap_and_write(
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    let term_ord_map = serialize_postings(
+    serialize_postings(
         ctx,
         per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
-        schema,
         serializer.get_postings_serializer(),
     )?;
     debug!("fastfield-serialize");

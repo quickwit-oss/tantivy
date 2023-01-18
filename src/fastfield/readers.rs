@@ -3,7 +3,8 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use columnar::{
-    ColumnType, ColumnValues, ColumnarReader, DynamicColumn, HasAssociatedColumnType, NumericalType,
+    ColumnType, ColumnValues, ColumnarReader, DynamicColumn, DynamicColumnHandle,
+    HasAssociatedColumnType, NumericalType,
 };
 use fastfield_codecs::{open, open_u128, Column};
 
@@ -32,18 +33,17 @@ impl FastFieldReaders {
         todo!()
     }
 
-    // TODO make opt
-    pub fn typed_column_opt<T>(&self, field: &str) -> crate::Result<Option<columnar::Column<T>>>
+    pub fn typed_column_opt<T>(
+        &self,
+        field_name: &str,
+    ) -> crate::Result<Option<columnar::Column<T>>>
     where
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + Default + 'static,
         DynamicColumn: Into<Option<columnar::Column<T>>>,
     {
         let column_type = T::column_type();
-        let Some(dynamic_column_handle) = self.columnar.read_columns(field)?
-            .into_iter()
-            .filter(|column| column.column_type() == column_type)
-            .next() else {
-            // TODO Option would make more sense.
+        let Some(dynamic_column_handle) = self.column_handle(field_name, column_type)?
+        else {
             return Ok(None);
         };
         let dynamic_column = dynamic_column_handle.open()?;
@@ -51,7 +51,9 @@ impl FastFieldReaders {
     }
 
     pub fn column_num_bytes(&self, field: &str) -> crate::Result<usize> {
-        Ok(self.columnar.read_columns(field)?
+        Ok(self
+            .columnar
+            .read_columns(field)?
             .into_iter()
             .map(|column_handle| column_handle.num_bytes())
             .sum())
@@ -101,14 +103,27 @@ impl FastFieldReaders {
         todo!();
     }
 
-    /// Returns the `u64` fast field reader reader associated with `field`, regardless of whether
-    /// the given field is effectively of type `u64` or not.
-    ///
-    /// If not, the fastfield reader will returns the u64-value associated with the original
-    /// FastValue.
-    pub fn u64_lenient(&self, field_name: &str) -> crate::Result<Arc<dyn Column<u64>>> {
-        todo!();
-        // self.typed_fast_field_reader(field_name)
+    pub fn column_handle(
+        &self,
+        field_name: &str,
+        column_type: ColumnType,
+    ) -> crate::Result<Option<DynamicColumnHandle>> {
+        let dynamic_column_handle_opt = self
+            .columnar
+            .read_columns(field_name)?
+            .into_iter()
+            .filter(|column| column.column_type() == column_type)
+            .next();
+        Ok(dynamic_column_handle_opt)
+    }
+
+    pub fn u64_lenient(&self, field_name: &str) -> crate::Result<Option<columnar::Column<u64>>> {
+        for col in self.columnar.read_columns(field_name)? {
+            if let Some(col_u64) = col.open_u64_lenient()? {
+                return Ok(Some(col_u64));
+            }
+        }
+        Ok(None)
     }
 
     /// Returns the `i64` fast field reader reader associated with `field`.

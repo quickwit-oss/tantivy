@@ -4,7 +4,7 @@ use fastdivide::DividerU64;
 use fastfield_codecs::Column;
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::FastValue;
+use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::schema::Type;
 use crate::{DocId, Score};
 
@@ -87,14 +87,14 @@ impl HistogramComputer {
 }
 pub struct SegmentHistogramCollector {
     histogram_computer: HistogramComputer,
-    ff_reader: Arc<dyn Column<u64>>,
+    column_u64: Arc<dyn Column<u64>>,
 }
 
 impl SegmentCollector for SegmentHistogramCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let value = self.ff_reader.get_val(doc);
+        let value = self.column_u64.get_val(doc);
         self.histogram_computer.add_value(value);
     }
 
@@ -112,14 +112,18 @@ impl Collector for HistogramCollector {
         _segment_local_id: crate::SegmentOrdinal,
         segment: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let ff_reader = segment.fast_fields().u64_lenient(&self.field)?;
+        let column_opt = segment.fast_fields().u64_lenient(&self.field)?;
+        let column = column_opt.ok_or_else(|| FastFieldNotAvailableError {
+            field_name: self.field.clone(),
+        })?;
+        let column_u64 = column.first_or_default_col(0u64);
         Ok(SegmentHistogramCollector {
             histogram_computer: HistogramComputer {
                 counts: vec![0; self.num_buckets],
                 min_value: self.min_value,
                 divider: self.divider,
             },
-            ff_reader,
+            column_u64,
         })
     }
 

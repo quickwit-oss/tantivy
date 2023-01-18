@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// DateTime Precision
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
+#[derive(
+    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum DatePrecision {
     /// Seconds precision

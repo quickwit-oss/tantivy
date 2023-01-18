@@ -6,6 +6,7 @@ use sstable::{Dictionary, VoidSSTable};
 
 use crate::column::Column;
 use crate::column_index::ColumnIndex;
+use crate::RowId;
 
 /// Dictionary encoded column.
 #[derive(Clone)]
@@ -23,6 +24,10 @@ impl BytesColumn {
 
     pub fn term_ords(&self) -> &Column<u64> {
         &self.term_ord_column
+    }
+
+    pub fn num_rows(&self) -> RowId {
+        self.term_ord_column.num_rows()
     }
 }
 

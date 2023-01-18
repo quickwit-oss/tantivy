@@ -8,7 +8,7 @@ use common::BinarySerializable;
 pub use dictionary_encoded::BytesColumn;
 pub use serialize::{open_column_bytes, open_column_u64, serialize_column_u64};
 
-use crate::column_index::ColumnIndex;
+use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::ColumnValues;
 use crate::{Cardinality, RowId};
 
@@ -18,7 +18,15 @@ pub struct Column<T> {
     pub values: Arc<dyn ColumnValues<T>>,
 }
 
-use crate::column_index::Set;
+impl<T: PartialOrd> Column<T> {
+    pub fn num_rows(&self) -> RowId {
+        match &self.idx {
+            ColumnIndex::Full => self.values.num_vals(),
+            ColumnIndex::Optional(optional_idx) => optional_idx.num_rows(),
+            ColumnIndex::Multivalued(_) => todo!(),
+        }
+    }
+}
 
 impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {
     pub fn first(&self, row_id: RowId) -> Option<T> {
@@ -82,6 +90,10 @@ impl<T: PartialOrd + Send + Sync + Copy + 'static> ColumnValues<T> for FirstValu
     }
 
     fn num_vals(&self) -> u32 {
-        self.column.idx.num_rows()
+        match &self.column.idx {
+            ColumnIndex::Full => self.column.values.num_vals(),
+            ColumnIndex::Optional(optional_idx) => optional_idx.num_rows(),
+            ColumnIndex::Multivalued(_) => todo!(),
+        }
     }
 }

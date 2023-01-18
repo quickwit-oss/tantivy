@@ -101,25 +101,22 @@ impl ColumnarWriter {
                 mutate_or_create_column(
                     &mut self.bytes_field_hash_map,
                     column_name,
-                    |column_opt: Option<StrColumnWriter>| {
-                        column_opt.unwrap_or_default()
-                    });
-            },
+                    |column_opt: Option<StrColumnWriter>| column_opt.unwrap_or_default(),
+                );
+            }
             ColumnType::Bool => {
                 mutate_or_create_column(
                     &mut self.bool_field_hash_map,
                     column_name,
-                    |column_opt: Option<ColumnWriter>| {
-                        column_opt.unwrap_or_default()
-                    });
-            },
+                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+                );
+            }
             ColumnType::DateTime => {
                 mutate_or_create_column(
                     &mut self.datetime_field_hash_map,
                     column_name,
-                    |column_opt: Option<ColumnWriter>| {
-                        column_opt.unwrap_or_default()
-                    });
+                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+                );
             }
             ColumnType::Numerical(numerical_type) => {
                 mutate_or_create_column(
@@ -129,7 +126,8 @@ impl ColumnarWriter {
                         let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                         column.force_numerical_type(numerical_type);
                         column
-                    });
+                    },
+                );
             }
         }
     }
@@ -175,15 +173,11 @@ impl ColumnarWriter {
 
     pub fn record_datetime(&mut self, doc: RowId, column_name: &str, datetime: crate::DateTime) {
         let (hash_map, arena) = (&mut self.datetime_field_hash_map, &mut self.arena);
-        mutate_or_create_column(
-            hash_map,
-            column_name,
-            |column_opt: Option<ColumnWriter>| {
-                let mut column: ColumnWriter = column_opt.unwrap_or_default();
-                column.record(doc, NumericalValue::I64(datetime.timestamp_micros), arena);
-                column
-            },
-        );
+        mutate_or_create_column(hash_map, column_name, |column_opt: Option<ColumnWriter>| {
+            let mut column: ColumnWriter = column_opt.unwrap_or_default();
+            column.record(doc, NumericalValue::I64(datetime.timestamp_micros), arena);
+            column
+        });
     }
 
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
@@ -281,12 +275,11 @@ impl ColumnarWriter {
                     )?;
                 }
                 ColumnTypeCategory::DateTime => {
-                    let column_writer: ColumnWriter =
-                        self.datetime_field_hash_map.read(addr);
+                    let column_writer: ColumnWriter = self.datetime_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
                         serializer.serialize_column(column_name, ColumnType::DateTime);
-                   serialize_numerical_column(
+                    serialize_numerical_column(
                         cardinality,
                         num_docs,
                         NumericalType::I64,

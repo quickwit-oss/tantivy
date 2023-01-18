@@ -12,7 +12,9 @@ use crate::core::{Segment, SegmentReader};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
-use crate::fastfield::{AliveBitSet, Column, CompositeFastFieldSerializer};
+use crate::fastfield::{
+    AliveBitSet, Column, CompositeFastFieldSerializer, FastFieldNotAvailableError,
+};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 // use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;
@@ -251,7 +253,12 @@ impl IndexMerger {
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("wrie-fast-fields");
-        todo!();
+        for (_field, field_entry) in self.schema.fields() {
+            if field_entry.is_fast() {
+                todo!();
+            }
+        }
+
         // for (field, field_entry) in self.schema.fields() {
         // let field_type = field_entry.field_type();
         // match field_type {
@@ -389,8 +396,13 @@ impl IndexMerger {
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Arc<dyn Column>> {
         reader.schema().get_field(&sort_by_field.field)?;
-        let value_accessor = reader.fast_fields().u64_lenient(&sort_by_field.field)?;
-        Ok(value_accessor)
+        let value_accessor = reader
+            .fast_fields()
+            .u64_lenient(&sort_by_field.field)?
+            .ok_or_else(|| FastFieldNotAvailableError {
+                field_name: sort_by_field.field.to_string(),
+            })?;
+        Ok(value_accessor.first_or_default_col(0u64))
     }
     /// Collecting value_accessors into a vec to bind the lifetime.
     pub(crate) fn get_reader_with_sort_field_accessor(

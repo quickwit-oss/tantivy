@@ -469,7 +469,8 @@ mod tests {
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer
-            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc()))).unwrap();
+            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc())))
+            .unwrap();
         index_writer.commit().unwrap();
         index_writer.add_document(doc!()).unwrap();
         index_writer.commit().unwrap();
@@ -745,7 +746,6 @@ mod tests {
     //     Ok(())
     // }
 
-
     #[test]
     pub fn test_fastfield_bool_small() {
         let path = Path::new("test_bool");
@@ -850,12 +850,13 @@ mod tests {
 
     #[test]
     pub fn test_gcd_date() {
-        let size_prec_sec =
-            test_gcd_date_with_codec(DatePrecision::Seconds);
-        assert!((1000 * 13 / 8..100 + 1000*13 / 8).contains(&size_prec_sec)); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
-        let size_prec_micros =
-            test_gcd_date_with_codec(DatePrecision::Microseconds);
-        assert!((1000*33/8..100 + 1000*33/8).contains(&size_prec_micros)); // 33 bits per val = ceil(log_2(number of microsecsseconds in 2hours);
+        let size_prec_sec = test_gcd_date_with_codec(DatePrecision::Seconds);
+        assert!((1000 * 13 / 8..100 + 1000 * 13 / 8).contains(&size_prec_sec)); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
+        let size_prec_micros = test_gcd_date_with_codec(DatePrecision::Microseconds);
+        assert!((1000 * 33 / 8..100 + 1000 * 33 / 8).contains(&size_prec_micros)); // 33 bits per
+                                                                                   // val = ceil(log_2(number
+                                                                                   // of microsecsseconds
+                                                                                   // in 2hours);
     }
 
     fn test_gcd_date_with_codec(precision: DatePrecision) -> usize {

@@ -27,14 +27,4 @@ impl<'a> ColumnIndex<'a> {
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
         }
     }
-
-    pub fn num_rows(&self) -> RowId {
-        match self {
-            ColumnIndex::Full => {
-                todo!()
-            }
-            ColumnIndex::Optional(optional_index) => optional_index.num_rows(),
-            ColumnIndex::Multivalued(multivalued_index) => multivalued_index.num_vals() - 1,
-        }
-    }
 }
