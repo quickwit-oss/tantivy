@@ -6,7 +6,10 @@ use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::BytesColumn;
-pub use serialize::{open_column_bytes, open_column_u64, serialize_column_u64};
+pub use serialize::{
+    open_column_bytes, open_column_u128, open_column_u64, serialize_column_u128,
+    serialize_column_u64,
+};
 
 use crate::column_index::ColumnIndex;
 use crate::column_values::ColumnValues;

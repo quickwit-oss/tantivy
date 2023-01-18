@@ -1,3 +1,5 @@
+use std::net::Ipv6Addr;
+
 use crate::dictionary::UnorderedId;
 use crate::utils::{place_bits, pop_first_byte, select_bits};
 use crate::value::NumericalValue;
@@ -25,12 +27,12 @@ struct ColumnOperationMetadata {
 
 impl ColumnOperationMetadata {
     fn to_code(self) -> u8 {
-        place_bits::<0, 4>(self.len) | place_bits::<4, 8>(self.op_type.to_code())
+        place_bits::<0, 6>(self.len) | place_bits::<6, 8>(self.op_type.to_code())
     }
 
     fn try_from_code(code: u8) -> Result<Self, InvalidData> {
-        let len = select_bits::<0, 4>(code);
-        let typ_code = select_bits::<4, 8>(code);
+        let len = select_bits::<0, 6>(code);
+        let typ_code = select_bits::<6, 8>(code);
         let column_type = ColumnOperationType::try_from_code(typ_code)?;
         Ok(ColumnOperationMetadata {
             op_type: column_type,
@@ -142,9 +144,21 @@ impl SymbolValue for bool {
     }
 }
 
+impl SymbolValue for Ipv6Addr {
+    fn serialize(self, buffer: &mut [u8]) -> u8 {
+        buffer[0..16].copy_from_slice(&self.octets());
+        16
+    }
+
+    fn deserialize(bytes: &[u8]) -> Self {
+        let octets: [u8; 16] = bytes[0..16].try_into().unwrap();
+        Ipv6Addr::from(octets)
+    }
+}
+
 #[derive(Default)]
 struct MiniBuffer {
-    pub bytes: [u8; 10],
+    pub bytes: [u8; 17],
     pub len: u8,
 }
 

@@ -1,3 +1,6 @@
+use std::net::{IpAddr, Ipv6Addr};
+
+use crate::column_values::MonotonicallyMappableToU128;
 use crate::columnar::ColumnType;
 use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 use crate::value::NumericalValue;
@@ -34,6 +37,34 @@ fn test_dataframe_writer_bool() {
     let DynamicColumn::Bool(bool_col) = dyn_bool_col else { panic!(); };
     let vals: Vec<Option<bool>> = (0..5).map(|row_id| bool_col.first(row_id)).collect();
     assert_eq!(&vals, &[None, Some(false), None, Some(true), None,]);
+}
+
+#[test]
+fn test_dataframe_writer_ip_addr() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_ip_addr(1, "ip_addr", Ipv6Addr::from_u128(1001));
+    dataframe_writer.record_ip_addr(3, "ip_addr", Ipv6Addr::from_u128(1050));
+    let mut buffer: Vec<u8> = Vec::new();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    let columnar = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar.num_columns(), 1);
+    let cols: Vec<DynamicColumnHandle> = columnar.read_columns("ip_addr").unwrap();
+    assert_eq!(cols.len(), 1);
+    // assert_eq!(cols[0].num_bytes(), 29);
+    assert_eq!(cols[0].column_type(), ColumnType::IpAddr);
+    let dyn_bool_col = cols[0].open().unwrap();
+    let DynamicColumn::IpAddr(ip_col) = dyn_bool_col else { panic!(); };
+    let vals: Vec<Option<Ipv6Addr>> = (0..5).map(|row_id| ip_col.first(row_id)).collect();
+    assert_eq!(
+        &vals,
+        &[
+            None,
+            Some(Ipv6Addr::from_u128(1001)),
+            None,
+            Some(Ipv6Addr::from_u128(1050)),
+            None,
+        ]
+    );
 }
 
 #[test]

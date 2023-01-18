@@ -11,6 +11,7 @@ pub enum ColumnType {
     Bytes,
     Numerical(NumericalType),
     Bool,
+    IpAddr,
 }
 
 impl ColumnType {
@@ -31,6 +32,10 @@ impl ColumnType {
                 column_type_category = ColumnTypeCategory::Bool;
                 numerical_type_code = 0u8;
             }
+            ColumnType::IpAddr => {
+                column_type_category = ColumnTypeCategory::IpAddr;
+                numerical_type_code = 0u8;
+            }
         }
         place_bits::<0, 3>(column_type_category.to_code()) | place_bits::<3, 6>(numerical_type_code)
     }
@@ -48,6 +53,12 @@ impl ColumnType {
                     return Err(InvalidData);
                 }
                 Ok(ColumnType::Bool)
+            }
+            ColumnTypeCategory::IpAddr => {
+                if numerical_type_code != 0u8 {
+                    return Err(InvalidData);
+                }
+                Ok(ColumnType::IpAddr)
             }
             ColumnTypeCategory::Str => {
                 if numerical_type_code != 0u8 {
@@ -76,6 +87,7 @@ pub(crate) enum ColumnTypeCategory {
     Bool = 0u8,
     Str = 1u8,
     Numerical = 2u8,
+    IpAddr = 3u8,
 }
 
 impl ColumnTypeCategory {
@@ -88,6 +100,7 @@ impl ColumnTypeCategory {
             0u8 => Ok(Self::Bool),
             1u8 => Ok(Self::Str),
             2u8 => Ok(Self::Numerical),
+            3u8 => Ok(Self::IpAddr),
             _ => Err(InvalidData),
         }
     }
