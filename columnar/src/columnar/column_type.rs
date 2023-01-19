@@ -64,6 +64,17 @@ impl From<NumericalType> for ColumnType {
 }
 
 impl ColumnType {
+    /// get column type category
+    pub(crate) fn column_type_category(self) -> ColumnTypeCategory {
+        match self {
+            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 => ColumnTypeCategory::Numerical,
+            ColumnType::Bytes => ColumnTypeCategory::Bytes,
+            ColumnType::Str => ColumnTypeCategory::Str,
+            ColumnType::Bool => ColumnTypeCategory::Bool,
+            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
+        }
+    }
+
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
             ColumnType::I64 => Some(NumericalType::I64),
@@ -173,6 +184,23 @@ impl From<ColumnType> for ColumnTypeCategory {
             ColumnType::DateTime => ColumnTypeCategory::DateTime,
         }
     }
+}
+
+/// Column types are grouped into different categories that
+/// corresponds to the different types of `JsonValue` types.
+///
+/// The columnar writer will apply coercion rules to make sure that
+/// at most one column exist per `ColumnTypeCategory`.
+///
+/// See also [README.md].
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[repr(u8)]
+pub enum ColumnTypeCategory {
+    Bool = 0u8,
+    Str = 1u8,
+    Numerical = 2u8,
+    IpAddr = 3u8,
+    Bytes = 4u8,
 }
 
 #[cfg(test)]

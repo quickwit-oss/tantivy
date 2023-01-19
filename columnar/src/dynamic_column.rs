@@ -1,11 +1,14 @@
 use std::io;
 use std::net::Ipv6Addr;
+use std::sync::Arc;
 
 use common::file_slice::FileSlice;
 use common::{HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column, StrColumn};
+use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
+use crate::DateTime;
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -14,9 +17,117 @@ pub enum DynamicColumn {
     U64(Column<u64>),
     F64(Column<f64>),
     IpAddr(Column<Ipv6Addr>),
-    DateTime(Column<crate::DateTime>),
+    DateTime(Column<DateTime>),
     Bytes(BytesColumn),
     Str(StrColumn),
+}
+
+impl DynamicColumn {
+    pub fn is_numerical(&self) -> bool {
+        self.is_u64() || self.is_i64() || self.is_f64()
+    }
+    pub fn is_f64(&self) -> bool {
+        matches!(self, DynamicColumn::F64(_))
+    }
+    pub fn is_u64(&self) -> bool {
+        matches!(self, DynamicColumn::U64(_))
+    }
+    pub fn is_i64(&self) -> bool {
+        matches!(self, DynamicColumn::I64(_))
+    }
+
+    pub fn coerce_to_f64(self) -> Option<DynamicColumn> {
+        match self {
+            DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
+                idx: column.idx,
+                values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
+            })),
+            DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
+                idx: column.idx,
+                values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
+            })),
+            DynamicColumn::F64(_) => Some(self),
+            _ => None,
+        }
+    }
+    pub fn coerce_to_i64(self) -> Option<DynamicColumn> {
+        match self {
+            DynamicColumn::U64(column) => {
+                if column.max_value() > i64::MAX as u64 {
+                    return None;
+                }
+                Some(DynamicColumn::I64(Column {
+                    idx: column.idx,
+                    values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
+                }))
+            }
+            DynamicColumn::I64(_) => Some(self),
+            _ => None,
+        }
+    }
+    pub fn coerce_to_u64(self) -> Option<DynamicColumn> {
+        match self {
+            DynamicColumn::I64(column) => {
+                if column.min_value() < 0 {
+                    return None;
+                }
+                Some(DynamicColumn::U64(Column {
+                    idx: column.idx,
+                    values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
+                }))
+            }
+            DynamicColumn::U64(_) => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct MapI64ToF64;
+impl StrictlyMonotonicFn<i64, f64> for MapI64ToF64 {
+    #[inline(always)]
+    fn mapping(&self, inp: i64) -> f64 {
+        inp as f64
+    }
+    #[inline(always)]
+    fn inverse(&self, out: f64) -> i64 {
+        out as i64
+    }
+}
+
+pub struct MapU64ToF64;
+impl StrictlyMonotonicFn<u64, f64> for MapU64ToF64 {
+    #[inline(always)]
+    fn mapping(&self, inp: u64) -> f64 {
+        inp as f64
+    }
+    #[inline(always)]
+    fn inverse(&self, out: f64) -> u64 {
+        out as u64
+    }
+}
+
+pub struct MapU64ToI64;
+impl StrictlyMonotonicFn<u64, i64> for MapU64ToI64 {
+    #[inline(always)]
+    fn mapping(&self, inp: u64) -> i64 {
+        inp as i64
+    }
+    #[inline(always)]
+    fn inverse(&self, out: i64) -> u64 {
+        out as u64
+    }
+}
+
+pub struct MapI64ToU64;
+impl StrictlyMonotonicFn<i64, u64> for MapI64ToU64 {
+    #[inline(always)]
+    fn mapping(&self, inp: i64) -> u64 {
+        inp as u64
+    }
+    #[inline(always)]
+    fn inverse(&self, out: u64) -> i64 {
+        out as i64
+    }
 }
 
 macro_rules! static_dynamic_conversions {

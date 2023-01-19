@@ -78,6 +78,32 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     }
 }
 
+impl<T: Copy + PartialOrd> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T>> {
+    fn get_val(&self, idx: u32) -> T {
+        self.as_ref().get_val(idx)
+    }
+
+    fn min_value(&self) -> T {
+        self.as_ref().min_value()
+    }
+
+    fn max_value(&self) -> T {
+        self.as_ref().max_value()
+    }
+
+    fn num_vals(&self) -> u32 {
+        self.as_ref().num_vals()
+    }
+
+    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
+        self.as_ref().iter()
+    }
+
+    fn get_range(&self, start: u64, output: &mut [T]) {
+        self.as_ref().get_range(start, output)
+    }
+}
+
 impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd> ColumnValues<T> for &'a C {
     fn get_val(&self, idx: u32) -> T {
         (*self).get_val(idx)

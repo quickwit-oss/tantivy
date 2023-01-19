@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::io;
 
+use super::column_type::ColumnTypeCategory;
 use crate::columnar::ColumnarReader;
+use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
+use crate::ColumnarWriter;
 
 pub enum MergeDocOrder {
     /// Columnar tables are simply stacked one above the other.
@@ -30,4 +34,136 @@ pub fn merge_columnar(
             todo!();
         }
     }
+}
+
+pub fn collect_columns(
+    columnar_readers: &[&ColumnarReader],
+) -> io::Result<HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>> {
+    // Each column name may have multiple types of column associated.
+    // For merging we are interested in the same column type category since they can be merged.
+    let mut field_name_to_group: HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>> =
+        HashMap::new();
+
+    for columnar_reader in columnar_readers {
+        let column_name_and_handle = columnar_reader.list_columns()?;
+        for (column_name, handle) in column_name_and_handle {
+            let column_type_to_handles = field_name_to_group
+                .entry(column_name.to_string())
+                .or_default();
+
+            let columns = column_type_to_handles
+                .entry(handle.column_type().column_type_category())
+                .or_default();
+            columns.push(handle.open()?);
+        }
+    }
+
+    normalize_columns(&mut field_name_to_group);
+
+    Ok(field_name_to_group)
+}
+
+/// Cast numerical type columns to the same type
+pub(crate) fn normalize_columns(
+    map: &mut HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>,
+) {
+    for (_field_name, type_category_to_columns) in map.iter_mut() {
+        for (type_category, columns) in type_category_to_columns {
+            if type_category == &ColumnTypeCategory::Numerical {
+                let casted_columns = cast_to_common_numerical_column(&columns);
+                *columns = casted_columns;
+            }
+        }
+    }
+}
+
+/// Receives a list of columns of numerical types (u64, i64, f64)
+///
+/// Returns a list of `DynamicColumn` which are all of the same numerical type
+fn cast_to_common_numerical_column(columns: &[DynamicColumn]) -> Vec<DynamicColumn> {
+    assert!(columns.iter().all(|column| column.is_numerical()));
+    let coerce_to_i64: Vec<_> = columns
+        .iter()
+        .map(|column| column.clone().coerce_to_i64())
+        .collect();
+
+    if coerce_to_i64.iter().all(|column| column.is_some()) {
+        return coerce_to_i64
+            .into_iter()
+            .map(|column| column.unwrap())
+            .collect();
+    }
+
+    let coerce_to_u64: Vec<_> = columns
+        .iter()
+        .map(|column| column.clone().coerce_to_u64())
+        .collect();
+
+    if coerce_to_u64.iter().all(|column| column.is_some()) {
+        return coerce_to_u64
+            .into_iter()
+            .map(|column| column.unwrap())
+            .collect();
+    }
+
+    columns
+        .iter()
+        .map(|column| {
+            column
+                .clone()
+                .coerce_to_f64()
+                .expect("couldn't cast column to f64")
+        })
+        .collect()
+}
+
+#[test]
+fn test_column_coercion() {
+    // i64 type
+    let columnar1 = {
+        let mut dataframe_writer = ColumnarWriter::default();
+        dataframe_writer.record_numerical(1u32, "numbers", 1i64);
+        let mut buffer: Vec<u8> = Vec::new();
+        dataframe_writer.serialize(2, &mut buffer).unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    };
+    // u64 type
+    let columnar2 = {
+        let mut dataframe_writer = ColumnarWriter::default();
+        dataframe_writer.record_numerical(1u32, "numbers", u64::MAX - 100);
+        let mut buffer: Vec<u8> = Vec::new();
+        dataframe_writer.serialize(2, &mut buffer).unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    };
+
+    // f64 type
+    let columnar3 = {
+        let mut dataframe_writer = ColumnarWriter::default();
+        dataframe_writer.record_numerical(1u32, "numbers", 30.5);
+        let mut buffer: Vec<u8> = Vec::new();
+        dataframe_writer.serialize(2, &mut buffer).unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    };
+
+    let column_map = collect_columns(&[&columnar1, &columnar2, &columnar3]).unwrap();
+    assert_eq!(column_map.len(), 1);
+    let cat_to_columns = column_map.get("numbers").unwrap();
+    assert_eq!(cat_to_columns.len(), 1);
+
+    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+    assert!(numerical.iter().all(|column| column.is_f64()));
+
+    let column_map = collect_columns(&[&columnar1, &columnar1]).unwrap();
+    assert_eq!(column_map.len(), 1);
+    let cat_to_columns = column_map.get("numbers").unwrap();
+    assert_eq!(cat_to_columns.len(), 1);
+    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+    assert!(numerical.iter().all(|column| column.is_i64()));
+
+    let column_map = collect_columns(&[&columnar2, &columnar2]).unwrap();
+    assert_eq!(column_map.len(), 1);
+    let cat_to_columns = column_map.get("numbers").unwrap();
+    assert_eq!(cat_to_columns.len(), 1);
+    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+    assert!(numerical.iter().all(|column| column.is_u64()));
 }

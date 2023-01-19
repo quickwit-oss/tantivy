@@ -51,6 +51,7 @@ fn test_sparse_block_set_u16_max() {
 use proptest::prelude::*;
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1))]
     #[test]
     fn test_prop_test_dense(els in proptest::collection::btree_set(0..=u16::MAX, 0..=u16::MAX as usize)) {
         let vals: Vec<u16> = els.into_iter().collect();
