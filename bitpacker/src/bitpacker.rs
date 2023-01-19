@@ -135,7 +135,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8 + 7);
+        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8);
         let bitunpacker = BitUnpacker::new(num_bits);
         (bitunpacker, vals, data)
     }
@@ -159,13 +159,7 @@ mod test {
     use proptest::prelude::*;
 
     fn num_bits_strategy() -> impl Strategy<Value = u8> {
-        prop_oneof!(
-            Just(0),
-            Just(1),
-            2u8..56u8,
-            Just(56),
-            Just(64),
-        )
+        prop_oneof!(Just(0), Just(1), 2u8..56u8, Just(56), Just(64),)
     }
 
     fn vals_strategy() -> impl Strategy<Value = (u8, Vec<u64>)> {
@@ -189,12 +183,11 @@ mod test {
         bitpacker.flush(&mut buffer).unwrap();
         assert_eq!(buffer.len(), (vals.len() * num_bits as usize + 7) / 8);
         let bitunpacker = BitUnpacker::new(num_bits);
-        let max_val =
-            if num_bits == 64 {
-                u64::MAX
-            } else {
-                (1u64 << num_bits) - 1
-            };
+        let max_val = if num_bits == 64 {
+            u64::MAX
+        } else {
+            (1u64 << num_bits) - 1
+        };
         for (i, val) in vals.iter().copied().enumerate() {
             assert!(val <= max_val);
             assert_eq!(bitunpacker.get(i as u32, &buffer), val);

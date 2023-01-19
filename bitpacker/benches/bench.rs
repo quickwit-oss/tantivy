@@ -6,11 +6,8 @@ extern crate test;
 mod tests {
     use rand::seq::IteratorRandom;
     use rand::thread_rng;
-    use tantivy_bitpacker::BitPacker;
-    use tantivy_bitpacker::BitUnpacker;
-    use tantivy_bitpacker::BlockedBitpacker;
+    use tantivy_bitpacker::{BitPacker, BitUnpacker, BlockedBitpacker};
     use test::Bencher;
-
 
     #[inline(never)]
     fn create_bitpacked_data(bit_width: u8, num_els: u32) -> Vec<u8> {

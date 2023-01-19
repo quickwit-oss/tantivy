@@ -402,8 +402,8 @@ mod tests {
         let mut buffer = Vec::new();
         let col = VecColumn::from(&[false, true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
-        // 5 bytes of header, 1 byte of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 3 + 5 + 8 + 4 + 2);
+        // 5 bytes of header, 1 byte of value
+        assert_eq!(buffer.len(), 3 + 5 + 1 + 4 + 2);
     }
 
     #[test]
@@ -411,8 +411,8 @@ mod tests {
         let mut buffer = Vec::new();
         let col = VecColumn::from(&[true][..]);
         serialize(col, &mut buffer, &ALL_CODEC_TYPES).unwrap();
-        // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 3 + 5 + 7 + 4 + 2);
+        // 5 bytes of header, 0 bytes of value
+        assert_eq!(buffer.len(), 3 + 5 + 4 + 2);
     }
 
     #[test]
@@ -422,6 +422,6 @@ mod tests {
         let col = VecColumn::from(&vals[..]);
         serialize(col, &mut buffer, &[FastFieldCodecType::Bitpacked]).unwrap();
         // Values are stored over 3 bits.
-        assert_eq!(buffer.len(), 3 + 7 + (3 * 80 / 8) + 7 + 4 + 2);
+        assert_eq!(buffer.len(), 3 + 7 + (3 * 80 / 8) + 4 + 2);
     }
 }
