@@ -4,13 +4,27 @@ use crate::column_values::MonotonicallyMappableToU128;
 use crate::columnar::ColumnType;
 use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 use crate::value::NumericalValue;
-use crate::{Cardinality, ColumnarReader, ColumnarWriter};
+use crate::{Cardinality, ColumnarReader, ColumnarWriter, RowId};
+
+#[test]
+fn test_dataframe_writer_str() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_str(1u32, "my_string", "hello");
+    dataframe_writer.record_str(3u32, "my_string", "helloeee");
+    let mut buffer: Vec<u8> = Vec::new();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    let columnar = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar.num_columns(), 1);
+    let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
+    assert_eq!(cols.len(), 1);
+    assert_eq!(cols[0].num_bytes(), 165);
+}
 
 #[test]
 fn test_dataframe_writer_bytes() {
     let mut dataframe_writer = ColumnarWriter::default();
-    dataframe_writer.record_str(1u32, "my_string", "hello");
-    dataframe_writer.record_str(3u32, "my_string", "helloeee");
+    dataframe_writer.record_bytes(1u32, "my_string", b"hello");
+    dataframe_writer.record_bytes(3u32, "my_string", b"helloeee");
     let mut buffer: Vec<u8> = Vec::new();
     dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
@@ -98,7 +112,7 @@ fn test_dataframe_writer_numerical() {
 }
 
 #[test]
-fn test_dictionary_encoded() {
+fn test_dictionary_encoded_str() {
     let mut buffer = Vec::new();
     let mut columnar_writer = ColumnarWriter::default();
     columnar_writer.record_str(1, "my.column", "a");
@@ -111,18 +125,65 @@ fn test_dictionary_encoded() {
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
     assert_eq!(col_handles.len(), 1);
     let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else  { panic!(); };
+    let index: Vec<Option<u64>> = (0..5)
+        .map(|row_id| str_col.term_ords().first(row_id))
+        .collect();
+    assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
-    let mut term_buffer = Vec::new();
-    let term_ords = str_col.term_ords();
+    let mut term_buffer = String::new();
+    let term_ords = str_col.ordinal_dictionary();
     assert_eq!(term_ords.first(0), None);
     assert_eq!(term_ords.first(1), Some(0));
-    str_col.dictionary.ord_to_term(0u64, &mut term_buffer).unwrap();
+    str_col.ord_to_str(0u64, &mut term_buffer).unwrap();
+    assert_eq!(term_buffer, "a");
+    assert_eq!(term_ords.first(2), None);
+    assert_eq!(term_ords.first(3), Some(2));
+    str_col.ord_to_str(2u64, &mut term_buffer).unwrap();
+    assert_eq!(term_buffer, "c");
+    assert_eq!(term_ords.first(4), Some(1));
+    str_col.ord_to_str(1u64, &mut term_buffer).unwrap();
+    assert_eq!(term_buffer, "b");
+}
+
+#[test]
+fn test_dictionary_encoded_bytes() {
+    let mut buffer = Vec::new();
+    let mut columnar_writer = ColumnarWriter::default();
+    columnar_writer.record_bytes(1, "my.column", b"a");
+    columnar_writer.record_bytes(3, "my.column", b"c");
+    columnar_writer.record_bytes(3, "my.column2", b"different_column!");
+    columnar_writer.record_bytes(4, "my.column", b"b");
+    columnar_writer.serialize(5, &mut buffer).unwrap();
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar_reader.num_columns(), 2);
+    let col_handles = columnar_reader.read_columns("my.column").unwrap();
+    assert_eq!(col_handles.len(), 1);
+    let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else  { panic!(); };
+    let index: Vec<Option<u64>> = (0..5)
+        .map(|row_id| bytes_col.term_ords().first(row_id))
+        .collect();
+    assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
+    assert_eq!(bytes_col.num_rows(), 5);
+    let mut term_buffer = Vec::new();
+    let term_ords = bytes_col.term_ords();
+    assert_eq!(term_ords.first(0), None);
+    assert_eq!(term_ords.first(1), Some(0));
+    bytes_col
+        .dictionary
+        .ord_to_term(0u64, &mut term_buffer)
+        .unwrap();
     assert_eq!(term_buffer, b"a");
     assert_eq!(term_ords.first(2), None);
     assert_eq!(term_ords.first(3), Some(2));
-    str_col.dictionary.ord_to_term(2u64, &mut term_buffer).unwrap();
+    bytes_col
+        .dictionary
+        .ord_to_term(2u64, &mut term_buffer)
+        .unwrap();
     assert_eq!(term_buffer, b"c");
     assert_eq!(term_ords.first(4), Some(1));
-    str_col.dictionary.ord_to_term(1u64, &mut term_buffer).unwrap();
+    bytes_col
+        .dictionary
+        .ord_to_term(1u64, &mut term_buffer)
+        .unwrap();
     assert_eq!(term_buffer, b"b");
 }

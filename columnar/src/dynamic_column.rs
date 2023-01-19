@@ -4,7 +4,7 @@ use std::net::Ipv6Addr;
 use common::file_slice::FileSlice;
 use common::{HasLen, OwnedBytes};
 
-use crate::column::{BytesColumn, Column};
+use crate::column::{BytesColumn, Column, StrColumn};
 use crate::columnar::ColumnType;
 use crate::DateTime;
 
@@ -16,7 +16,8 @@ pub enum DynamicColumn {
     F64(Column<f64>),
     IpAddr(Column<Ipv6Addr>),
     DateTime(Column<DateTime>),
-    Str(BytesColumn),
+    Bytes(BytesColumn),
+    Str(StrColumn),
 }
 
 impl From<Column<i64>> for DynamicColumn {
@@ -45,6 +46,12 @@ impl From<Column<bool>> for DynamicColumn {
 
 impl From<BytesColumn> for DynamicColumn {
     fn from(dictionary_encoded_col: BytesColumn) -> Self {
+        DynamicColumn::Bytes(dictionary_encoded_col)
+    }
+}
+
+impl From<StrColumn> for DynamicColumn {
+    fn from(dictionary_encoded_col: StrColumn) -> Self {
         DynamicColumn::Str(dictionary_encoded_col)
     }
 }
@@ -74,7 +81,10 @@ impl DynamicColumnHandle {
 
     fn open_internal(&self, column_bytes: OwnedBytes) -> io::Result<DynamicColumn> {
         let dynamic_column: DynamicColumn = match self.column_type {
-            ColumnType::Bytes => crate::column::open_column_bytes(column_bytes)?.into(),
+            ColumnType::Bytes => {
+                crate::column::open_column_bytes::<BytesColumn>(column_bytes)?.into()
+            }
+            ColumnType::Str => crate::column::open_column_bytes::<StrColumn>(column_bytes)?.into(),
             ColumnType::Numerical(numerical_type) => match numerical_type {
                 crate::NumericalType::I64 => {
                     crate::column::open_column_u64::<i64>(column_bytes)?.into()

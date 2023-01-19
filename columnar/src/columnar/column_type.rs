@@ -9,6 +9,7 @@ use crate::InvalidData;
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum ColumnType {
     Bytes,
+    Str,
     Numerical(NumericalType),
     Bool,
     IpAddr,
@@ -21,6 +22,10 @@ impl ColumnType {
         let numerical_type_code: u8;
         match self {
             ColumnType::Bytes => {
+                column_type_category = ColumnTypeCategory::Bytes;
+                numerical_type_code = 0u8;
+            }
+            ColumnType::Str => {
                 column_type_category = ColumnTypeCategory::Str;
                 numerical_type_code = 0u8;
             }
@@ -64,11 +69,17 @@ impl ColumnType {
                 if numerical_type_code != 0u8 {
                     return Err(InvalidData);
                 }
-                Ok(ColumnType::Bytes)
+                Ok(ColumnType::Str)
             }
             ColumnTypeCategory::Numerical => {
                 let numerical_type = NumericalType::try_from_code(numerical_type_code)?;
                 Ok(ColumnType::Numerical(numerical_type))
+            }
+            ColumnTypeCategory::Bytes => {
+                if numerical_type_code != 0u8 {
+                    return Err(InvalidData);
+                }
+                Ok(ColumnType::Bytes)
             }
         }
     }
@@ -88,6 +99,7 @@ pub(crate) enum ColumnTypeCategory {
     Str = 1u8,
     Numerical = 2u8,
     IpAddr = 3u8,
+    Bytes = 4u8,
 }
 
 impl ColumnTypeCategory {
@@ -101,6 +113,7 @@ impl ColumnTypeCategory {
             1u8 => Ok(Self::Str),
             2u8 => Ok(Self::Numerical),
             3u8 => Ok(Self::IpAddr),
+            4u8 => Ok(Self::Bytes),
             _ => Err(InvalidData),
         }
     }
@@ -122,7 +135,7 @@ mod tests {
                 assert!(column_type_set.insert(column_type));
             }
         }
-        assert_eq!(column_type_set.len(), 2 + 3);
+        assert_eq!(column_type_set.len(), 3 + 4);
     }
 
     #[test]

@@ -17,12 +17,12 @@ use crate::column_values::{
 };
 use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
 use crate::columnar::writer::column_writers::{
-    ColumnWriter, NumericalColumnWriter, StrColumnWriter,
+    ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
 };
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::{Cardinality, RowId};
+use crate::{column, Cardinality, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
@@ -54,6 +54,7 @@ pub struct ColumnarWriter {
     bool_field_hash_map: ArenaHashMap,
     ip_addr_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
+    str_field_hash_map: ArenaHashMap,
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
     dictionaries: Vec<DictionaryBuilder>,
@@ -67,6 +68,7 @@ impl Default for ColumnarWriter {
             bool_field_hash_map: ArenaHashMap::new(10_000),
             ip_addr_field_hash_map: ArenaHashMap::new(10_000),
             bytes_field_hash_map: ArenaHashMap::new(10_000),
+            str_field_hash_map: ArenaHashMap::new(10_000),
             dictionaries: Vec::new(),
             arena: MemoryArena::default(),
             buffers: SpareBuffers::default(),
@@ -134,18 +136,18 @@ impl ColumnarWriter {
             "key may not contain the 0 byte"
         );
         let (hash_map, arena, dictionaries) = (
-            &mut self.bytes_field_hash_map,
+            &mut self.str_field_hash_map,
             &mut self.arena,
             &mut self.dictionaries,
         );
         hash_map.mutate_or_create(
             column_name.as_bytes(),
-            |column_opt: Option<StrColumnWriter>| {
-                let mut column: StrColumnWriter = column_opt.unwrap_or_else(|| {
+            |column_opt: Option<StrOrBytesColumnWriter>| {
+                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
                     // Each column has its own dictionary
                     let dictionary_id = dictionaries.len() as u32;
                     dictionaries.push(DictionaryBuilder::default());
-                    StrColumnWriter::with_dictionary_id(dictionary_id)
+                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
                 });
                 column.record_bytes(doc, value.as_bytes(), dictionaries, arena);
                 column
@@ -153,6 +155,30 @@ impl ColumnarWriter {
         );
     }
 
+    pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
+        assert!(
+            !column_name.as_bytes().contains(&0u8),
+            "key may not contain the 0 byte"
+        );
+        let (hash_map, arena, dictionaries) = (
+            &mut self.bytes_field_hash_map,
+            &mut self.arena,
+            &mut self.dictionaries,
+        );
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<StrOrBytesColumnWriter>| {
+                let mut column: StrOrBytesColumnWriter = column_opt.unwrap_or_else(|| {
+                    // Each column has its own dictionary
+                    let dictionary_id = dictionaries.len() as u32;
+                    dictionaries.push(DictionaryBuilder::default());
+                    StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
+                });
+                column.record_bytes(doc, value, dictionaries, arena);
+                column
+            },
+        );
+    }
     pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
         let mut field_columns: Vec<(&[u8], ColumnTypeCategory, Addr)> = self
@@ -162,6 +188,11 @@ impl ColumnarWriter {
             .collect();
         field_columns.extend(
             self.bytes_field_hash_map
+                .iter()
+                .map(|(term, addr, _)| (term, ColumnTypeCategory::Bytes, addr)),
+        );
+        field_columns.extend(
+            self.str_field_hash_map
                 .iter()
                 .map(|(term, addr, _)| (term, ColumnTypeCategory::Str, addr)),
         );
@@ -180,8 +211,8 @@ impl ColumnarWriter {
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
 
-        for (column_name, bytes_or_numerical, addr) in field_columns {
-            match bytes_or_numerical {
+        for (column_name, column_type, addr) in field_columns {
+            match column_type {
                 ColumnTypeCategory::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
@@ -208,14 +239,19 @@ impl ColumnarWriter {
                         &mut column_serializer,
                     )?;
                 }
-                ColumnTypeCategory::Str => {
-                    let str_column_writer: StrColumnWriter = self.bytes_field_hash_map.read(addr);
+                ColumnTypeCategory::Bytes | ColumnTypeCategory::Str => {
+                    let (column_type, str_column_writer): (ColumnType, StrOrBytesColumnWriter) =
+                        if column_type == ColumnTypeCategory::Bytes {
+                            (ColumnType::Bytes, self.bytes_field_hash_map.read(addr))
+                        } else {
+                            (ColumnType::Str, self.str_field_hash_map.read(addr))
+                        };
                     let dictionary_builder =
                         &dictionaries[str_column_writer.dictionary_id as usize];
                     let cardinality = str_column_writer.column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, ColumnType::Bytes);
-                    serialize_bytes_column(
+                        serializer.serialize_column(column_name, column_type);
+                    serialize_bytes_or_str_column(
                         cardinality,
                         num_docs,
                         dictionary_builder,
@@ -247,7 +283,7 @@ impl ColumnarWriter {
     }
 }
 
-fn serialize_bytes_column(
+fn serialize_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
     dictionary_builder: &DictionaryBuilder,

@@ -176,14 +176,14 @@ impl NumericalColumnWriter {
 }
 
 #[derive(Copy, Clone, Default)]
-pub(crate) struct StrColumnWriter {
+pub(crate) struct StrOrBytesColumnWriter {
     pub(crate) dictionary_id: u32,
     pub(crate) column_writer: ColumnWriter,
 }
 
-impl StrColumnWriter {
-    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrColumnWriter {
-        StrColumnWriter {
+impl StrOrBytesColumnWriter {
+    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
+        StrOrBytesColumnWriter {
             dictionary_id,
             column_writer: Default::default(),
         }
