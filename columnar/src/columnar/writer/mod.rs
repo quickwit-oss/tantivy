@@ -22,7 +22,7 @@ use crate::columnar::writer::column_writers::{
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
-use crate::{column, Cardinality, RowId};
+use crate::{Cardinality, RowId};
 
 /// This is a set of buffers that are used to temporarily write the values into before passing them
 /// to the fast field codecs.
@@ -310,7 +310,7 @@ fn serialize_bytes_or_str_column(
             ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),
         }
     });
-    serialize_column(
+    serialize_column_mappable_to_u64(
         operation_iterator,
         cardinality,
         num_docs,
@@ -339,7 +339,7 @@ fn serialize_numerical_column(
     } = buffers;
     match numerical_type {
         NumericalType::I64 => {
-            serialize_column(
+            serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<i64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -349,7 +349,7 @@ fn serialize_numerical_column(
             )?;
         }
         NumericalType::U64 => {
-            serialize_column(
+            serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<u64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -359,7 +359,7 @@ fn serialize_numerical_column(
             )?;
         }
         NumericalType::F64 => {
-            serialize_column(
+            serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<f64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -384,7 +384,7 @@ fn serialize_bool_column(
         bool_values,
         ..
     } = buffers;
-    serialize_column(
+    serialize_column_mappable_to_u64(
         column_operations_it,
         cardinality,
         num_docs,
@@ -451,12 +451,11 @@ where
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let _multivalued_index = multivalued_index_builder.finish(num_docs);
-            todo!();
-            // SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            let multivalued_index = multivalued_index_builder.finish(num_docs);
+            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
     };
-    crate::column::serialize_column_u128(
+    crate::column::serialize_column_mappable_to_u128(
         serializable_column_index,
         || values.iter().cloned(),
         values.len() as u32,
@@ -465,7 +464,7 @@ where
     Ok(())
 }
 
-fn serialize_column<
+fn serialize_column_mappable_to_u64<
     T: Copy + Default + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU64 + PartialOrd,
 >(
     op_iterator: impl Iterator<Item = ColumnOperation<T>>,
@@ -497,9 +496,8 @@ where
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let _multivalued_index = multivalued_index_builder.finish(num_docs);
-            todo!();
-            // SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            let multivalued_index = multivalued_index_builder.finish(num_docs);
+            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
     };
     crate::column::serialize_column_u64(

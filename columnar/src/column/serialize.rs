@@ -9,11 +9,11 @@ use crate::column::{BytesColumn, Column};
 use crate::column_index::{serialize_column_index, SerializableColumnIndex};
 use crate::column_values::serialize::serialize_column_values_u128;
 use crate::column_values::{
-    serialize_column_values, ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-    ALL_CODEC_TYPES,
+    serialize_column_values, ColumnValues, FastFieldCodecType, MonotonicallyMappableToU128,
+    MonotonicallyMappableToU64,
 };
 
-pub fn serialize_column_u128<
+pub fn serialize_column_mappable_to_u128<
     F: Fn() -> I,
     I: Iterator<Item = T>,
     T: MonotonicallyMappableToU128,
@@ -39,7 +39,14 @@ pub fn serialize_column_u64<T: MonotonicallyMappableToU64>(
     output: &mut impl Write,
 ) -> io::Result<()> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
-    serialize_column_values(column_values, &ALL_CODEC_TYPES[..], output)?;
+    serialize_column_values(
+        column_values,
+        &[
+            FastFieldCodecType::Bitpacked,
+            FastFieldCodecType::BlockwiseLinear,
+        ],
+        output,
+    )?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
 }

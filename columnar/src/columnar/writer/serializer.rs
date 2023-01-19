@@ -5,7 +5,6 @@ use common::CountingWriter;
 use sstable::value::RangeValueWriter;
 use sstable::RangeSSTable;
 
-use crate::column;
 use crate::columnar::ColumnType;
 
 pub struct ColumnarSerializer<W: io::Write> {

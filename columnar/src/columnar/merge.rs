@@ -15,10 +15,10 @@ pub enum MergeDocOrder {
     Complex(()),
 }
 
-pub fn merge(
-    columnar_readers: &[ColumnarReader],
+pub fn merge_columnar(
+    _columnar_readers: &[ColumnarReader],
     mapping: MergeDocOrder,
-    output: &mut impl io::Write,
+    _output: &mut impl io::Write,
 ) -> io::Result<()> {
     match mapping {
         MergeDocOrder::Stack => {

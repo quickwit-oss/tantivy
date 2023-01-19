@@ -46,16 +46,6 @@ impl<'a> SerializableOptionalIndex<'a> for SingleValueArrayIndex<'a> {
 }
 
 impl OptionalIndexBuilder {
-    fn num_non_nulls(&self) -> u32 {
-        self.docs.len() as u32
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.docs.iter().copied())
-    }
-}
-
-impl OptionalIndexBuilder {
     pub fn finish<'a>(&'a mut self, num_rows: RowId) -> impl SerializableOptionalIndex + 'a {
         debug_assert!(self
             .docs
@@ -96,7 +86,7 @@ pub struct MultivaluedIndexBuilder {
 impl MultivaluedIndexBuilder {
     pub fn finish(&mut self, num_docs: RowId) -> impl ColumnValues<u32> + '_ {
         self.start_offsets
-            .resize(num_docs as usize, self.total_num_vals_seen);
+            .resize(num_docs as usize + 1, self.total_num_vals_seen);
         VecColumn {
             values: &&self.start_offsets[..],
             min_value: 0,
@@ -188,7 +178,7 @@ mod tests {
                 .finish(4u32)
                 .iter()
                 .collect::<Vec<u32>>(),
-            vec![0, 0, 2, 3]
+            vec![0, 0, 2, 3, 3]
         );
         multivalued_value_index_builder.reset();
         multivalued_value_index_builder.record_row(2u32);
@@ -199,7 +189,7 @@ mod tests {
                 .finish(4u32)
                 .iter()
                 .collect::<Vec<u32>>(),
-            vec![0, 0, 0, 2]
+            vec![0, 0, 0, 2, 2]
         );
     }
 }

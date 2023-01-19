@@ -1,10 +1,10 @@
-use std::net::{IpAddr, Ipv6Addr};
+use std::net::Ipv6Addr;
 
 use crate::column_values::MonotonicallyMappableToU128;
 use crate::columnar::ColumnType;
 use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 use crate::value::NumericalValue;
-use crate::{Cardinality, ColumnarReader, ColumnarWriter, RowId};
+use crate::{Cardinality, ColumnarReader, ColumnarWriter};
 
 #[test]
 fn test_dataframe_writer_str() {
@@ -51,6 +51,31 @@ fn test_dataframe_writer_bool() {
     let DynamicColumn::Bool(bool_col) = dyn_bool_col else { panic!(); };
     let vals: Vec<Option<bool>> = (0..5).map(|row_id| bool_col.first(row_id)).collect();
     assert_eq!(&vals, &[None, Some(false), None, Some(true), None,]);
+}
+
+#[test]
+fn test_dataframe_writer_u64_multivalued() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(2u32, "divisor", 2u64);
+    dataframe_writer.record_numerical(3u32, "divisor", 3u64);
+    dataframe_writer.record_numerical(4u32, "divisor", 2u64);
+    dataframe_writer.record_numerical(5u32, "divisor", 5u64);
+    dataframe_writer.record_numerical(6u32, "divisor", 2u64);
+    dataframe_writer.record_numerical(6u32, "divisor", 3u64);
+    let mut buffer: Vec<u8> = Vec::new();
+    dataframe_writer.serialize(7, &mut buffer).unwrap();
+    let columnar = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar.num_columns(), 1);
+    let cols: Vec<DynamicColumnHandle> = columnar.read_columns("divisor").unwrap();
+    assert_eq!(cols.len(), 1);
+    assert_eq!(cols[0].num_bytes(), 43);
+    let dyn_i64_col = cols[0].open().unwrap();
+    let DynamicColumn::I64(divisor_col) = dyn_i64_col else { panic!(); };
+    assert_eq!(
+        divisor_col.get_cardinality(),
+        crate::Cardinality::Multivalued
+    );
+    assert_eq!(divisor_col.num_rows(), 7);
 }
 
 #[test]
@@ -125,13 +150,11 @@ fn test_dictionary_encoded_str() {
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
     assert_eq!(col_handles.len(), 1);
     let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else  { panic!(); };
-    let index: Vec<Option<u64>> = (0..5)
-        .map(|row_id| str_col.term_ords().first(row_id))
-        .collect();
+    let index: Vec<Option<u64>> = (0..5).map(|row_id| str_col.ords().first(row_id)).collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
     let mut term_buffer = String::new();
-    let term_ords = str_col.ordinal_dictionary();
+    let term_ords = str_col.ords();
     assert_eq!(term_ords.first(0), None);
     assert_eq!(term_ords.first(1), Some(0));
     str_col.ord_to_str(0u64, &mut term_buffer).unwrap();
@@ -160,12 +183,12 @@ fn test_dictionary_encoded_bytes() {
     assert_eq!(col_handles.len(), 1);
     let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else  { panic!(); };
     let index: Vec<Option<u64>> = (0..5)
-        .map(|row_id| bytes_col.term_ords().first(row_id))
+        .map(|row_id| bytes_col.ords().first(row_id))
         .collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(bytes_col.num_rows(), 5);
     let mut term_buffer = Vec::new();
-    let term_ords = bytes_col.term_ords();
+    let term_ords = bytes_col.ords();
     assert_eq!(term_ords.first(0), None);
     assert_eq!(term_ords.first(1), Some(0));
     bytes_col

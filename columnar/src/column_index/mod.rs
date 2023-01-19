@@ -2,6 +2,7 @@ mod multivalued_index;
 mod optional_index;
 mod serialize;
 
+use std::ops::Range;
 use std::sync::Arc;
 
 pub use optional_index::{OptionalIndex, SerializableOptionalIndex, Set};
@@ -14,8 +15,12 @@ use crate::{Cardinality, RowId};
 pub enum ColumnIndex<'a> {
     Full,
     Optional(OptionalIndex),
-    // TODO remove the Arc<dyn> apart from serialization this is not
-    // dynamic at all.
+    // TODO Remove the static by fixing the codec if possible.
+    /// The column values enclosed contains for all row_id,
+    /// the value start_index.
+    ///
+    /// In addition, at index num_rows, an extra value is added
+    /// containing the overal number of values.
     Multivalued(Arc<dyn ColumnValues<RowId> + 'a>),
 }
 
@@ -28,13 +33,21 @@ impl<'a> ColumnIndex<'a> {
         }
     }
 
-    pub fn num_rows(&self) -> RowId {
+    pub fn value_row_ids(&self, row_id: RowId) -> Range<RowId> {
         match self {
-            ColumnIndex::Full => {
-                todo!()
+            ColumnIndex::Full => row_id..row_id + 1,
+            ColumnIndex::Optional(optional_index) => {
+                if let Some(val) = optional_index.rank_if_exists(row_id) {
+                    val..val + 1
+                } else {
+                    0..0
+                }
             }
-            ColumnIndex::Optional(optional_index) => optional_index.num_rows(),
-            ColumnIndex::Multivalued(multivalued_index) => multivalued_index.num_vals() - 1,
+            ColumnIndex::Multivalued(multivalued_index) => {
+                let start = multivalued_index.get_val(row_id);
+                let end = multivalued_index.get_val(row_id + 1);
+                start..end
+            }
         }
     }
 }
