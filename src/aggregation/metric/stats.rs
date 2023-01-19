@@ -7,14 +7,13 @@ use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes a collection of statistics on numeric values that
 /// are extracted from the aggregated documents.
-/// Supported field types are `u64`, `i64`, and `f64`.
 /// See [`Stats`] for returned statistics.
 ///
 /// # JSON Format
 /// ```json
 /// {
 ///     "stats": {
-///         "field": "score",
+///         "field": "score"
 ///     }
 ///  }
 /// ```
