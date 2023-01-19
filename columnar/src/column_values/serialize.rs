@@ -296,7 +296,7 @@ pub mod tests {
         serialize_column_values(&col, &ALL_CODEC_TYPES, &mut buffer).unwrap();
         // TODO put the header as a footer so that it serves as a padding.
         // 5 bytes of header, 1 byte of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 1 + 7);
+        assert_eq!(buffer.len(), 5 + 1);
     }
 
     #[test]
@@ -305,7 +305,7 @@ pub mod tests {
         let col = VecColumn::from(&[true][..]);
         serialize_column_values(&col, &ALL_CODEC_TYPES, &mut buffer).unwrap();
         // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5 + 7);
+        assert_eq!(buffer.len(), 5);
     }
 
     #[test]
@@ -315,6 +315,6 @@ pub mod tests {
         let col = VecColumn::from(&vals[..]);
         serialize_column_values(&col, &[FastFieldCodecType::Bitpacked], &mut buffer).unwrap();
         // Values are stored over 3 bits.
-        assert_eq!(buffer.len(), 7 + (3 * 80 / 8) + 7);
+        assert_eq!(buffer.len(), 7 + (3 * 80 / 8));
     }
 }
