@@ -1,6 +1,6 @@
 use crate::InvalidData;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum NumericalValue {
     I64(i64),
     U64(u64),
@@ -24,18 +24,6 @@ impl From<f64> for NumericalValue {
         NumericalValue::F64(val)
     }
 }
-
-impl NumericalValue {
-    pub fn numerical_type(&self) -> NumericalType {
-        match self {
-            NumericalValue::F64(_) => NumericalType::F64,
-            NumericalValue::I64(_) => NumericalType::I64,
-            NumericalValue::U64(_) => NumericalType::U64,
-        }
-    }
-}
-
-impl Eq for NumericalValue {}
 
 #[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq)]
 #[repr(u8)]

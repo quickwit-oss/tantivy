@@ -85,17 +85,9 @@ impl DynamicColumnHandle {
                 crate::column::open_column_bytes::<BytesColumn>(column_bytes)?.into()
             }
             ColumnType::Str => crate::column::open_column_bytes::<StrColumn>(column_bytes)?.into(),
-            ColumnType::Numerical(numerical_type) => match numerical_type {
-                crate::NumericalType::I64 => {
-                    crate::column::open_column_u64::<i64>(column_bytes)?.into()
-                }
-                crate::NumericalType::U64 => {
-                    crate::column::open_column_u64::<u64>(column_bytes)?.into()
-                }
-                crate::NumericalType::F64 => {
-                    crate::column::open_column_u64::<f64>(column_bytes)?.into()
-                }
-            },
+            ColumnType::I64 => crate::column::open_column_u64::<i64>(column_bytes)?.into(),
+            ColumnType::U64 => crate::column::open_column_u64::<u64>(column_bytes)?.into(),
+            ColumnType::F64 => crate::column::open_column_u64::<f64>(column_bytes)?.into(),
             ColumnType::Bool => crate::column::open_column_u64::<bool>(column_bytes)?.into(),
             ColumnType::IpAddr => crate::column::open_column_u128::<Ipv6Addr>(column_bytes)?.into(),
         };
