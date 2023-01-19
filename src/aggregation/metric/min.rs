@@ -6,14 +6,13 @@ use super::{IntermediateStats, SegmentStatsCollector};
 
 /// A single-value metric aggregation that computes the minimum of numeric values that are
 /// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
 /// See [super::SingleMetricResult] for return value.
 ///
 /// # JSON Format
 /// ```json
 /// {
 ///     "min": {
-///         "field": "score",
+///         "field": "score"
 ///     }
 /// }
 /// ```

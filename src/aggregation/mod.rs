@@ -1,6 +1,5 @@
 //! # Aggregations
 //!
-//!
 //! An aggregation summarizes your data as statistics on buckets or metrics.
 //!
 //! Aggregations can provide answer to questions like:
@@ -41,6 +40,10 @@
 //! - [Metric](metric)
 //!     - [Average](metric::AverageAggregation)
 //!     - [Stats](metric::StatsAggregation)
+//!     - [Min](metric::MinAggregation)
+//!     - [Max](metric::MaxAggregation)
+//!     - [Sum](metric::SumAggregation)
+//!     - [Count](metric::CountAggregation)
 //!
 //! # Example
 //! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
@@ -75,7 +78,7 @@
 //! }
 //! ```
 //! # Example JSON
-//! Requests are compatible with the elasticsearch json request format.
+//! Requests are compatible with the elasticsearch JSON request format.
 //!
 //! ```
 //! use tantivy::aggregation::agg_req::Aggregations;
