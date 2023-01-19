@@ -39,7 +39,7 @@ pub use self::column::{monotonic_map_column, ColumnValues, IterColumn, VecColumn
 pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 #[cfg(test)]
-pub use self::serialize::serialize_and_load;
+pub use self::serialize::tests::serialize_and_load;
 pub use self::serialize::{serialize_column_values, NormalizedHeader};
 use crate::column_values::bitpacked::BitpackedCodec;
 use crate::column_values::blockwise_linear::BlockwiseLinearCodec;
@@ -197,13 +197,6 @@ pub(crate) trait FastFieldCodec: 'static {
     /// computational complexity.
     fn estimate(column: &dyn ColumnValues) -> Option<f32>;
 }
-
-/// The list of all available codecs for u64 convertible data.
-pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
-    FastFieldCodecType::Bitpacked,
-    FastFieldCodecType::BlockwiseLinear,
-    FastFieldCodecType::Linear,
-];
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {

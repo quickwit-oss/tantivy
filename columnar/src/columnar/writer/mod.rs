@@ -15,7 +15,7 @@ use crate::column_index::SerializableColumnIndex;
 use crate::column_values::{
     ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
 };
-use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
+use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
 };
@@ -74,6 +74,22 @@ impl Default for ColumnarWriter {
             buffers: SpareBuffers::default(),
         }
     }
+}
+
+/// Column types are grouped into different categories that
+/// corresponds to the different types of `JsonValue` types.
+///
+/// The columnar writer will apply coercion rules to make sure that
+/// at most one column exist per `ColumnTypeCategory`.
+///
+/// See also [README.md].
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+enum ColumnTypeCategory {
+    Bool,
+    Str,
+    Numerical,
+    IpAddr,
+    Bytes,
 }
 
 impl ColumnarWriter {
@@ -265,8 +281,8 @@ impl ColumnarWriter {
                         self.numerical_field_hash_map.read(addr);
                     let (numerical_type, cardinality) =
                         numerical_column_writer.column_type_and_cardinality(num_docs);
-                    let mut column_serializer = serializer
-                        .serialize_column(column_name, ColumnType::Numerical(numerical_type));
+                    let mut column_serializer =
+                        serializer.serialize_column(column_name, ColumnType::from(numerical_type));
                     serialize_numerical_column(
                         cardinality,
                         num_docs,
@@ -310,7 +326,7 @@ fn serialize_bytes_or_str_column(
             ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),
         }
     });
-    serialize_column_mappable_to_u64(
+    send_to_serialize_column_mappable_to_u64(
         operation_iterator,
         cardinality,
         num_docs,
@@ -339,7 +355,7 @@ fn serialize_numerical_column(
     } = buffers;
     match numerical_type {
         NumericalType::I64 => {
-            serialize_column_mappable_to_u64(
+            send_to_serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<i64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -349,7 +365,7 @@ fn serialize_numerical_column(
             )?;
         }
         NumericalType::U64 => {
-            serialize_column_mappable_to_u64(
+            send_to_serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<u64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -359,7 +375,7 @@ fn serialize_numerical_column(
             )?;
         }
         NumericalType::F64 => {
-            serialize_column_mappable_to_u64(
+            send_to_serialize_column_mappable_to_u64(
                 coerce_numerical_symbol::<f64>(op_iterator),
                 cardinality,
                 num_docs,
@@ -384,7 +400,7 @@ fn serialize_bool_column(
         bool_values,
         ..
     } = buffers;
-    serialize_column_mappable_to_u64(
+    send_to_serialize_column_mappable_to_u64(
         column_operations_it,
         cardinality,
         num_docs,
@@ -407,7 +423,7 @@ fn serialize_ip_addr_column(
         ip_addr_values,
         ..
     } = buffers;
-    serialize_column_u128(
+    send_to_serialize_column_mappable_to_u128(
         column_operations_it,
         cardinality,
         num_docs,
@@ -418,7 +434,7 @@ fn serialize_ip_addr_column(
     Ok(())
 }
 
-fn serialize_column_u128<
+fn send_to_serialize_column_mappable_to_u128<
     T: Copy + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU128 + PartialOrd,
 >(
     op_iterator: impl Iterator<Item = ColumnOperation<T>>,
@@ -464,7 +480,7 @@ where
     Ok(())
 }
 
-fn serialize_column_mappable_to_u64<
+fn send_to_serialize_column_mappable_to_u64<
     T: Copy + Default + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU64 + PartialOrd,
 >(
     op_iterator: impl Iterator<Item = ColumnOperation<T>>,
@@ -500,7 +516,7 @@ where
             SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
     };
-    crate::column::serialize_column_u64(
+    crate::column::serialize_column_mappable_to_u64(
         serializable_column_index,
         &VecColumn::from(&values[..]),
         &mut wrt,
@@ -538,59 +554,12 @@ fn consume_operation_iterator<T: std::fmt::Debug, TIndexBuilder: IndexBuilder>(
     }
 }
 
-// /// Serializes the column with the codec with the best estimate on the data.
-// fn serialize_numerical<T: MonotonicallyMappableToU64>(
-//     value_index: ValueIndexInfo,
-//     typed_column: impl Column<T>,
-//     output: &mut impl io::Write,
-//     codecs: &[FastFieldCodecType],
-// ) -> io::Result<()> {
-
-//     let counting_writer = CountingWriter::wrap(output);
-//     serialize_value_index(value_index, output)?;
-//     let value_index_len = counting_writer.written_bytes();
-//     let output = counting_writer.finish();
-
-//     serialize_column(value_index, output)?;
-//     let column = monotonic_map_column(
-//         typed_column,
-//         crate::column::monotonic_mapping::StrictlyMonotonicMappingToInternal::<T>::new(),
-//     );
-//     let header = Header::compute_header(&column, codecs).ok_or_else(|| {
-//         io::Error::new(
-//             io::ErrorKind::InvalidInput,
-//             format!(
-//                 "Data cannot be serialized with this list of codec. {:?}",
-//                 codecs
-//             ),
-//         )
-//     })?;
-//     header.serialize(output)?;
-//     let normalized_column = header.normalize_column(column);
-//     assert_eq!(normalized_column.min_value(), 0u64);
-//     serialize_given_codec(normalized_column, header.codec_type, output)?;
-
-//     let column_header = ColumnFooter {
-//         value_index_len: todo!(),
-//         cardinality: todo!(),
-//     };
-
-//     let null_index_footer = NullIndexFooter {
-//         cardinality: value_index.get_cardinality(),
-//         null_index_codec: NullIndexCodec::Full,
-//         null_index_byte_range: 0..0,
-//     };
-//     append_null_index_footer(output, null_index_footer)?;
-//     Ok(())
-// }
-
 #[cfg(test)]
 mod tests {
-    use column_operation::ColumnOperation;
     use stacker::MemoryArena;
 
-    use super::*;
-    use crate::value::NumericalValue;
+    use crate::columnar::writer::column_operation::ColumnOperation;
+    use crate::{Cardinality, NumericalValue};
 
     #[test]
     fn test_column_writer_required_simple() {

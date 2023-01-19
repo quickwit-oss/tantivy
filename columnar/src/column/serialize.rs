@@ -33,7 +33,7 @@ pub fn serialize_column_mappable_to_u128<
     Ok(())
 }
 
-pub fn serialize_column_u64<T: MonotonicallyMappableToU64>(
+pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
     column_index: SerializableColumnIndex<'_>,
     column_values: &impl ColumnValues<T>,
     output: &mut impl Write,

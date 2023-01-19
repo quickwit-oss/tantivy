@@ -19,9 +19,8 @@
 
 use std::io;
 use std::num::NonZeroU64;
-use std::sync::Arc;
 
-use common::{BinarySerializable, OwnedBytes, VInt};
+use common::{BinarySerializable, VInt};
 use log::warn;
 
 use super::bitpacked::BitpackedCodec;
@@ -33,7 +32,7 @@ use super::monotonic_mapping::{
 };
 use super::{
     monotonic_map_column, ColumnValues, FastFieldCodec, FastFieldCodecType,
-    MonotonicallyMappableToU64, U128FastFieldCodecType, VecColumn, ALL_CODEC_TYPES,
+    MonotonicallyMappableToU64, U128FastFieldCodecType,
 };
 use crate::column_values::compact_space::CompactSpaceCompressor;
 
@@ -248,20 +247,29 @@ pub(crate) fn serialize_given_codec(
     Ok(())
 }
 
-/// Helper function to serialize a column (autodetect from all codecs) and then open it
-pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
-    column: &[T],
-) -> Arc<dyn ColumnValues<T>> {
-    let mut buffer = Vec::new();
-    super::serialize_column_values(&VecColumn::from(&column), &ALL_CODEC_TYPES, &mut buffer)
-        .unwrap();
-    super::open_u64_mapped(OwnedBytes::new(buffer)).unwrap()
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub mod tests {
+    use std::sync::Arc;
 
+    use common::OwnedBytes;
+
+    use super::*;
+    use crate::column_values::{open_u64_mapped, VecColumn};
+
+    const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
+        FastFieldCodecType::Bitpacked,
+        FastFieldCodecType::Linear,
+        FastFieldCodecType::BlockwiseLinear,
+    ];
+
+    /// Helper function to serialize a column (autodetect from all codecs) and then open it
+    pub fn serialize_and_load<T: MonotonicallyMappableToU64 + Ord + Default>(
+        column: &[T],
+    ) -> Arc<dyn ColumnValues<T>> {
+        let mut buffer = Vec::new();
+        serialize_column_values(&VecColumn::from(&column), &ALL_CODEC_TYPES, &mut buffer).unwrap();
+        open_u64_mapped(OwnedBytes::new(buffer)).unwrap()
+    }
     #[test]
     fn test_serialize_deserialize_u128_header() {
         let original = U128Header {
