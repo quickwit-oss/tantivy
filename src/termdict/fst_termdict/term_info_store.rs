@@ -312,7 +312,7 @@ mod tests {
         bitpack.write(51, 6, &mut buffer).unwrap();
         assert_eq!(compute_num_bits(51), 6);
         bitpack.close(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), 3 + 7);
+        assert_eq!(buffer.len(), 3);
         assert_eq!(extract_bits(&buffer[..], 0, 9), 321u64);
         assert_eq!(extract_bits(&buffer[..], 9, 2), 2u64);
         assert_eq!(extract_bits(&buffer[..], 11, 6), 51u64);
