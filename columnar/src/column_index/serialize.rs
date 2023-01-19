@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 
-use common::OwnedBytes;
+use common::{CountingWriter, OwnedBytes};
 
 use crate::column_index::multivalued_index::{serialize_multivalued_index, MultivaluedIndex};
 use crate::column_index::optional_index::serialize_optional_index;
@@ -29,19 +29,21 @@ impl<'a> SerializableColumnIndex<'a> {
 pub fn serialize_column_index(
     column_index: SerializableColumnIndex,
     output: &mut impl Write,
-) -> io::Result<()> {
+) -> io::Result<u32> {
+    let mut output = CountingWriter::wrap(output);
     let cardinality = column_index.get_cardinality().to_code();
     output.write_all(&[cardinality])?;
     match column_index {
         SerializableColumnIndex::Full => {}
         SerializableColumnIndex::Optional(optional_index) => {
-            serialize_optional_index(&*optional_index, output)?
+            serialize_optional_index(&*optional_index, &mut output)?
         }
         SerializableColumnIndex::Multivalued(multivalued_index) => {
-            serialize_multivalued_index(multivalued_index, output)?
+            serialize_multivalued_index(multivalued_index, &mut output)?
         }
     }
-    Ok(())
+    let column_index_num_bytes = output.written_bytes() as u32;
+    Ok(column_index_num_bytes)
 }
 
 pub fn open_column_index(mut bytes: OwnedBytes) -> io::Result<ColumnIndex<'static>> {

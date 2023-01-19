@@ -35,6 +35,7 @@ use super::{
     monotonic_map_column, ColumnValues, FastFieldCodec, FastFieldCodecType,
     MonotonicallyMappableToU64, U128FastFieldCodecType, VecColumn, ALL_CODEC_TYPES,
 };
+use crate::column_values::compact_space::CompactSpaceCompressor;
 
 /// The normalized header gives some parameters after applying the following
 /// normalization of the vector:
@@ -182,32 +183,23 @@ pub(crate) fn estimate<T: MonotonicallyMappableToU64>(
     }
 }
 
-// TODO
 /// Serializes u128 values with the compact space codec.
-// pub fn serialize_u128_new<F: Fn() -> I, I: Iterator<Item = u128>>(
-//     value_index: ColumnIndex,
-//     iter_gen: F,
-//     num_vals: u32,
-//     output: &mut impl io::Write,
-// ) -> io::Result<()> {
-//     let header = U128Header {
-//         num_vals,
-//         codec_type: U128FastFieldCodecType::CompactSpace,
-//     };
-//     header.serialize(output)?;
-//     let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
-//     compressor.compress_into(iter_gen(), output).unwrap();
+pub fn serialize_column_values_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
+    iter_gen: F,
+    num_vals: u32,
+    output: &mut impl io::Write,
+) -> io::Result<()> {
+    let header = U128Header {
+        num_vals,
+        codec_type: U128FastFieldCodecType::CompactSpace,
+    };
+    header.serialize(output)?;
 
-//     let null_index_footer = ColumnFooter {
-//         cardinality: value_index.get_cardinality(),
-//         null_index_codec: NullIndexCodec::Full,
-//         null_index_byte_range: 0..0,
-//     };
-//     append_null_index_footer(output, null_index_footer)?;
-//     append_format_version(output)?;
+    let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
+    compressor.compress_into(iter_gen(), output)?;
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 /// Serializes the column with the codec with the best estimate on the data.
 pub fn serialize_column_values<T: MonotonicallyMappableToU64>(

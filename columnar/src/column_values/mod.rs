@@ -28,7 +28,7 @@ mod compact_space;
 mod line;
 mod linear;
 pub(crate) mod monotonic_mapping;
-// mod monotonic_mapping_u128;
+pub(crate) mod monotonic_mapping_u128;
 
 mod column;
 mod column_with_cardinality;
@@ -37,7 +37,7 @@ pub mod serialize;
 
 pub use self::column::{monotonic_map_column, ColumnValues, IterColumn, VecColumn};
 pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
-// pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
+pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 pub use self::serialize::{serialize_and_load, serialize_column_values, NormalizedHeader};
 use crate::column_values::bitpacked::BitpackedCodec;
 use crate::column_values::blockwise_linear::BlockwiseLinearCodec;
@@ -135,6 +135,19 @@ impl U128FastFieldCodecType {
 //     //     StrictlyMonotonicMappingToInternal::<Item>::new().into();
 //     // Ok(Arc::new(monotonic_map_column(reader, inverted)))
 // }
+
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_u128_mapped<T: MonotonicallyMappableToU128>(
+    mut bytes: OwnedBytes,
+) -> io::Result<Arc<dyn ColumnValues<T>>> {
+    let header = U128Header::deserialize(&mut bytes)?;
+    assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
+    let reader = CompactSpaceDecompressor::open(bytes)?;
+
+    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<T>> =
+        StrictlyMonotonicMappingToInternal::<T>::new().into();
+    Ok(Arc::new(monotonic_map_column(reader, inverted)))
+}
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
 pub fn open_u64_mapped<T: MonotonicallyMappableToU64>(

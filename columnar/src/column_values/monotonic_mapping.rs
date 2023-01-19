@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use fastdivide::DividerU64;
 
+use super::MonotonicallyMappableToU128;
 use crate::RowId;
 
 /// Monotonic maps a value to u64 value space.
@@ -80,21 +81,20 @@ impl<T> StrictlyMonotonicMappingToInternal<T> {
     }
 }
 
-// TODO
-// impl<External: MonotonicallyMappableToU128, T: MonotonicallyMappableToU128>
-//     StrictlyMonotonicFn<External, u128> for StrictlyMonotonicMappingToInternal<T>
-// where T: MonotonicallyMappableToU128
-// {
-//     #[inline(always)]
-//     fn mapping(&self, inp: External) -> u128 {
-//         External::to_u128(inp)
-//     }
+impl<External: MonotonicallyMappableToU128, T: MonotonicallyMappableToU128>
+    StrictlyMonotonicFn<External, u128> for StrictlyMonotonicMappingToInternal<T>
+where T: MonotonicallyMappableToU128
+{
+    #[inline(always)]
+    fn mapping(&self, inp: External) -> u128 {
+        External::to_u128(inp)
+    }
 
-//     #[inline(always)]
-//     fn inverse(&self, out: u128) -> External {
-//         External::from_u128(out)
-//     }
-// }
+    #[inline(always)]
+    fn inverse(&self, out: u128) -> External {
+        External::from_u128(out)
+    }
+}
 
 impl<External: MonotonicallyMappableToU64, T: MonotonicallyMappableToU64>
     StrictlyMonotonicFn<External, u64> for StrictlyMonotonicMappingToInternal<T>

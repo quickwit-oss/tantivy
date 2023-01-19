@@ -1,5 +1,5 @@
 use std::io;
-use std::net::IpAddr;
+use std::net::Ipv6Addr;
 
 use common::file_slice::FileSlice;
 use common::{HasLen, OwnedBytes};
@@ -14,7 +14,7 @@ pub enum DynamicColumn {
     I64(Column<i64>),
     U64(Column<u64>),
     F64(Column<f64>),
-    IpAddr(Column<IpAddr>),
+    IpAddr(Column<Ipv6Addr>),
     DateTime(Column<DateTime>),
     Str(BytesColumn),
 }
@@ -46,6 +46,12 @@ impl From<Column<bool>> for DynamicColumn {
 impl From<BytesColumn> for DynamicColumn {
     fn from(dictionary_encoded_col: BytesColumn) -> Self {
         DynamicColumn::Str(dictionary_encoded_col)
+    }
+}
+
+impl From<Column<Ipv6Addr>> for DynamicColumn {
+    fn from(column: Column<Ipv6Addr>) -> Self {
+        DynamicColumn::IpAddr(column)
     }
 }
 
@@ -81,6 +87,7 @@ impl DynamicColumnHandle {
                 }
             },
             ColumnType::Bool => crate::column::open_column_u64::<bool>(column_bytes)?.into(),
+            ColumnType::IpAddr => crate::column::open_column_u128::<Ipv6Addr>(column_bytes)?.into(),
         };
         Ok(dynamic_column)
     }

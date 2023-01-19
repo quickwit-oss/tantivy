@@ -4,6 +4,7 @@ mod serializer;
 mod value_index;
 
 use std::io;
+use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
 use common::CountingWriter;
@@ -11,7 +12,9 @@ use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
 use crate::column_index::SerializableColumnIndex;
-use crate::column_values::{ColumnValues, MonotonicallyMappableToU64, VecColumn};
+use crate::column_values::{
+    ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
+};
 use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrColumnWriter,
@@ -30,6 +33,7 @@ struct SpareBuffers {
     u64_values: Vec<u64>,
     f64_values: Vec<f64>,
     bool_values: Vec<bool>,
+    ip_addr_values: Vec<Ipv6Addr>,
 }
 
 /// Makes it possible to create a new columnar.
@@ -48,6 +52,7 @@ struct SpareBuffers {
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,
     bool_field_hash_map: ArenaHashMap,
+    ip_addr_field_hash_map: ArenaHashMap,
     bytes_field_hash_map: ArenaHashMap,
     arena: MemoryArena,
     // Dictionaries used to store dictionary-encoded values.
@@ -60,6 +65,7 @@ impl Default for ColumnarWriter {
         ColumnarWriter {
             numerical_field_hash_map: ArenaHashMap::new(10_000),
             bool_field_hash_map: ArenaHashMap::new(10_000),
+            ip_addr_field_hash_map: ArenaHashMap::new(10_000),
             bytes_field_hash_map: ArenaHashMap::new(10_000),
             dictionaries: Vec::new(),
             arena: MemoryArena::default(),
@@ -85,6 +91,22 @@ impl ColumnarWriter {
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                 column.record_numerical_value(doc, numerical_value.into(), arena);
+                column
+            },
+        );
+    }
+
+    pub fn record_ip_addr(&mut self, doc: RowId, column_name: &str, ip_addr: Ipv6Addr) {
+        assert!(
+            !column_name.as_bytes().contains(&0u8),
+            "key may not contain the 0 byte"
+        );
+        let (hash_map, arena) = (&mut self.ip_addr_field_hash_map, &mut self.arena);
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<ColumnWriter>| {
+                let mut column: ColumnWriter = column_opt.unwrap_or_default();
+                column.record(doc, ip_addr, arena);
                 column
             },
         );
@@ -148,9 +170,16 @@ impl ColumnarWriter {
                 .iter()
                 .map(|(term, addr, _)| (term, ColumnTypeCategory::Bool, addr)),
         );
+        field_columns.extend(
+            self.ip_addr_field_hash_map
+                .iter()
+                .map(|(term, addr, _)| (term, ColumnTypeCategory::IpAddr, addr)),
+        );
+
         field_columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
+
         for (column_name, bytes_or_numerical, addr) in field_columns {
             match bytes_or_numerical {
                 ColumnTypeCategory::Bool => {
@@ -159,6 +188,19 @@ impl ColumnarWriter {
                     let mut column_serializer =
                         serializer.serialize_column(column_name, ColumnType::Bool);
                     serialize_bool_column(
+                        cardinality,
+                        num_docs,
+                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
+                        buffers,
+                        &mut column_serializer,
+                    )?;
+                }
+                ColumnTypeCategory::IpAddr => {
+                    let column_writer: ColumnWriter = self.ip_addr_field_hash_map.read(addr);
+                    let cardinality = column_writer.get_cardinality(num_docs);
+                    let mut column_serializer =
+                        serializer.serialize_column(column_name, ColumnType::IpAddr);
+                    serialize_ip_addr_column(
                         cardinality,
                         num_docs,
                         column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
@@ -317,6 +359,76 @@ fn serialize_bool_column(
     Ok(())
 }
 
+fn serialize_ip_addr_column(
+    cardinality: Cardinality,
+    num_docs: RowId,
+    column_operations_it: impl Iterator<Item = ColumnOperation<Ipv6Addr>>,
+    buffers: &mut SpareBuffers,
+    wrt: &mut impl io::Write,
+) -> io::Result<()> {
+    let SpareBuffers {
+        value_index_builders,
+        ip_addr_values,
+        ..
+    } = buffers;
+    serialize_column_u128(
+        column_operations_it,
+        cardinality,
+        num_docs,
+        value_index_builders,
+        ip_addr_values,
+        wrt,
+    )?;
+    Ok(())
+}
+
+fn serialize_column_u128<
+    T: Copy + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU128 + PartialOrd,
+>(
+    op_iterator: impl Iterator<Item = ColumnOperation<T>>,
+    cardinality: Cardinality,
+    num_docs: RowId,
+    value_index_builders: &mut PreallocatedIndexBuilders,
+    values: &mut Vec<T>,
+    mut wrt: impl io::Write,
+) -> io::Result<()>
+where
+    for<'a> VecColumn<'a, T>: ColumnValues<T>,
+{
+    values.clear();
+    // TODO: split index and values
+    let serializable_column_index = match cardinality {
+        Cardinality::Full => {
+            consume_operation_iterator(
+                op_iterator,
+                value_index_builders.borrow_required_index_builder(),
+                values,
+            );
+            SerializableColumnIndex::Full
+        }
+        Cardinality::Optional => {
+            let optional_index_builder = value_index_builders.borrow_optional_index_builder();
+            consume_operation_iterator(op_iterator, optional_index_builder, values);
+            let optional_index = optional_index_builder.finish(num_docs);
+            SerializableColumnIndex::Optional(Box::new(optional_index))
+        }
+        Cardinality::Multivalued => {
+            let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
+            consume_operation_iterator(op_iterator, multivalued_index_builder, values);
+            let _multivalued_index = multivalued_index_builder.finish(num_docs);
+            todo!();
+            // SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+        }
+    };
+    crate::column::serialize_column_u128(
+        serializable_column_index,
+        || values.iter().cloned(),
+        values.len() as u32,
+        &mut wrt,
+    )?;
+    Ok(())
+}
+
 fn serialize_column<
     T: Copy + Default + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU64 + PartialOrd,
 >(
@@ -349,7 +461,7 @@ where
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let multivalued_index = multivalued_index_builder.finish(num_docs);
+            let _multivalued_index = multivalued_index_builder.finish(num_docs);
             todo!();
             // SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
