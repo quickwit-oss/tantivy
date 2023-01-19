@@ -8,6 +8,13 @@ use crate::column::Column;
 use crate::RowId;
 
 /// Dictionary encoded column.
+///
+/// The column simply gives access to a regular u64-column that, in
+/// which the values are term-ordinals.
+///
+/// These ordinals are ids uniquely identify the bytes that are stored in
+/// the column. These ordinals are small, and sorted in the same order
+/// as the term_ord_column.
 #[derive(Clone)]
 pub struct BytesColumn {
     pub(crate) dictionary: Arc<Dictionary<VoidSSTable>>,
@@ -15,17 +22,21 @@ pub struct BytesColumn {
 }
 
 impl BytesColumn {
+    /// Fills the given `output` buffer with the term associated to the ordinal `ord`.
+    ///
     /// Returns `false` if the term does not exist (e.g. `term_ord` is greater or equal to the
     /// overll number of terms).
-    pub fn ord_to_bytes(&self, term_ord: u64, output: &mut Vec<u8>) -> io::Result<bool> {
-        self.dictionary.ord_to_term(term_ord, output)
+    pub fn ord_to_bytes(&self, ord: u64, output: &mut Vec<u8>) -> io::Result<bool> {
+        self.dictionary.ord_to_term(ord, output)
     }
 
+    /// Returns the number of rows in the column.
     pub fn num_rows(&self) -> RowId {
         self.term_ord_column.num_rows()
     }
 
-    pub fn term_ords(&self) -> &Column<u64> {
+    /// Returns the column of ordinals
+    pub fn ords(&self) -> &Column<u64> {
         &self.term_ord_column
     }
 }
@@ -40,6 +51,7 @@ impl From<BytesColumn> for StrColumn {
 }
 
 impl StrColumn {
+    /// Fills the buffer
     pub fn ord_to_str(&self, term_ord: u64, output: &mut String) -> io::Result<bool> {
         unsafe {
             let buf = output.as_mut_vec();
@@ -54,14 +66,6 @@ impl StrColumn {
             }
         }
         Ok(true)
-    }
-
-    pub fn num_rows(&self) -> RowId {
-        self.term_ord_column.num_rows()
-    }
-
-    pub fn ordinal_dictionary(&self) -> &Column<u64> {
-        &self.0.term_ord_column
     }
 }
 

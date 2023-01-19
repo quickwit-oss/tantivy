@@ -3,17 +3,18 @@ use std::io::Write;
 
 use common::{CountingWriter, OwnedBytes};
 
-use crate::column_index::multivalued_index::{serialize_multivalued_index, MultivaluedIndex};
+use crate::column_index::multivalued_index::serialize_multivalued_index;
 use crate::column_index::optional_index::serialize_optional_index;
 use crate::column_index::{ColumnIndex, SerializableOptionalIndex};
-use crate::Cardinality;
+use crate::column_values::ColumnValues;
+use crate::{Cardinality, RowId};
 
 pub enum SerializableColumnIndex<'a> {
     Full,
     Optional(Box<dyn SerializableOptionalIndex<'a> + 'a>),
     // TODO remove the Arc<dyn> apart from serialization this is not
     // dynamic at all.
-    Multivalued(MultivaluedIndex),
+    Multivalued(Box<dyn ColumnValues<RowId> + 'a>),
 }
 
 impl<'a> SerializableColumnIndex<'a> {
@@ -39,7 +40,7 @@ pub fn serialize_column_index(
             serialize_optional_index(&*optional_index, &mut output)?
         }
         SerializableColumnIndex::Multivalued(multivalued_index) => {
-            serialize_multivalued_index(multivalued_index, &mut output)?
+            serialize_multivalued_index(&*multivalued_index, &mut output)?
         }
     }
     let column_index_num_bytes = output.written_bytes() as u32;

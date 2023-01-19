@@ -5,11 +5,11 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use common::BinarySerializable;
+pub use dictionary_encoded::{BytesColumn, StrColumn};
 pub use serialize::{
-    open_column_bytes, open_column_u128, open_column_u64, serialize_column_u128,
+    open_column_bytes, open_column_u128, open_column_u64, serialize_column_mappable_to_u128,
     serialize_column_u64,
 };
-pub use dictionary_encoded::{BytesColumn, StrColumn};
 
 use crate::column_index::ColumnIndex;
 use crate::column_values::ColumnValues;
@@ -21,20 +21,28 @@ pub struct Column<T> {
     pub values: Arc<dyn ColumnValues<T>>,
 }
 
-use crate::column_index::Set;
+impl<T: PartialOrd> Column<T> {
+    pub fn num_rows(&self) -> RowId {
+        match &self.idx {
+            ColumnIndex::Full => self.values.num_vals() as u32,
+            ColumnIndex::Optional(optional_index) => optional_index.num_rows(),
+            ColumnIndex::Multivalued(col_index) => {
+                // The multivalued index contains all value start row_id,
+                // and one extra value at the end with the overall number of rows.
+                col_index.num_vals() - 1
+            }
+        }
+    }
+}
 
 impl<T: PartialOrd> Column<T> {
     pub fn first(&self, row_id: RowId) -> Option<T> {
-        match &self.idx {
-            ColumnIndex::Full => Some(self.values.get_val(row_id)),
-            ColumnIndex::Optional(opt_idx) => {
-                let value_row_idx = opt_idx.rank_if_exists(row_id)?;
-                Some(self.values.get_val(value_row_idx))
-            }
-            ColumnIndex::Multivalued(_multivalued_index) => {
-                todo!();
-            }
-        }
+        self.values(row_id).next()
+    }
+
+    pub fn values(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
+        self.value_row_ids(row_id)
+            .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
 }
 

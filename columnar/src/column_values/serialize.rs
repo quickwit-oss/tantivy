@@ -161,28 +161,6 @@ impl BinarySerializable for Header {
     }
 }
 
-/// Return estimated compression for given codec in the value range [0.0..1.0], where 1.0 means no
-/// compression.
-pub(crate) fn estimate<T: MonotonicallyMappableToU64>(
-    typed_column: impl ColumnValues<T>,
-    codec_type: FastFieldCodecType,
-) -> Option<f32> {
-    let column = monotonic_map_column(typed_column, StrictlyMonotonicMappingToInternal::<T>::new());
-    let min_value = column.min_value();
-    let gcd = super::gcd::find_gcd(column.iter().map(|val| val - min_value))
-        .filter(|gcd| gcd.get() > 1u64);
-    let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(
-        gcd.map(|gcd| gcd.get()).unwrap_or(1u64),
-        min_value,
-    );
-    let normalized_column = monotonic_map_column(&column, mapping);
-    match codec_type {
-        FastFieldCodecType::Bitpacked => BitpackedCodec::estimate(&normalized_column),
-        FastFieldCodecType::Linear => LinearCodec::estimate(&normalized_column),
-        FastFieldCodecType::BlockwiseLinear => BlockwiseLinearCodec::estimate(&normalized_column),
-    }
-}
-
 /// Serializes u128 values with the compact space codec.
 pub fn serialize_column_values_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
     iter_gen: F,
@@ -194,7 +172,6 @@ pub fn serialize_column_values_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
         codec_type: U128FastFieldCodecType::CompactSpace,
     };
     header.serialize(output)?;
-
     let compressor = CompactSpaceCompressor::train_from(iter_gen(), num_vals);
     compressor.compress_into(iter_gen(), output)?;
 

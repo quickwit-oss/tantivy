@@ -18,10 +18,10 @@ mod dynamic_column;
 pub(crate) mod utils;
 mod value;
 
-pub use columnar::{ColumnarReader, ColumnarWriter};
+pub use columnar::{merge_columnar, ColumnarReader, ColumnarWriter, MergeDocOrder};
 pub use value::{NumericalType, NumericalValue};
 
-// pub use self::dynamic_column::DynamicColumnHandle;
+pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 
