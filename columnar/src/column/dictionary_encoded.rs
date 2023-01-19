@@ -33,8 +33,3 @@ impl Deref for BytesColumn {
         &**self.term_ords()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{ColumnarReader, ColumnarWriter};
-}
