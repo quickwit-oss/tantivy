@@ -51,6 +51,7 @@ impl ColumnType {
             _ => Err(InvalidData),
         }
     }
+    DateTime = 7u8,
 }
 
 impl From<NumericalType> for ColumnType {
@@ -72,6 +73,7 @@ impl ColumnType {
             ColumnType::Str => ColumnTypeCategory::Str,
             ColumnType::Bool => ColumnTypeCategory::Bool,
             ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
+            ColumnType::DateTime => ColumnTypeCategory::DateTime,
         }
     }
 
@@ -201,6 +203,7 @@ pub enum ColumnTypeCategory {
     Numerical = 2u8,
     IpAddr = 3u8,
     Bytes = 4u8,
+    DateTime = 5u8,
 }
 
 #[cfg(test)]

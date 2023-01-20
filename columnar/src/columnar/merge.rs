@@ -3,8 +3,7 @@ use std::io;
 
 use super::column_type::ColumnTypeCategory;
 use crate::columnar::ColumnarReader;
-use crate::dynamic_column::{DynamicColumn, DynamicColumnHandle};
-use crate::ColumnarWriter;
+use crate::dynamic_column::DynamicColumn;
 
 pub enum MergeDocOrder {
     /// Columnar tables are simply stacked one above the other.
@@ -81,7 +80,9 @@ pub(crate) fn normalize_columns(
 ///
 /// Returns a list of `DynamicColumn` which are all of the same numerical type
 fn cast_to_common_numerical_column(columns: &[DynamicColumn]) -> Vec<DynamicColumn> {
-    assert!(columns.iter().all(|column| column.is_numerical()));
+    assert!(columns
+        .iter()
+        .all(|column| column.column_type().numerical_type().is_some()));
     let coerce_to_i64: Vec<_> = columns
         .iter()
         .map(|column| column.clone().coerce_to_i64())
@@ -117,53 +118,59 @@ fn cast_to_common_numerical_column(columns: &[DynamicColumn]) -> Vec<DynamicColu
         .collect()
 }
 
-#[test]
-fn test_column_coercion() {
-    // i64 type
-    let columnar1 = {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_numerical(1u32, "numbers", 1i64);
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(2, &mut buffer).unwrap();
-        ColumnarReader::open(buffer).unwrap()
-    };
-    // u64 type
-    let columnar2 = {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_numerical(1u32, "numbers", u64::MAX - 100);
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(2, &mut buffer).unwrap();
-        ColumnarReader::open(buffer).unwrap()
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ColumnarWriter;
 
-    // f64 type
-    let columnar3 = {
-        let mut dataframe_writer = ColumnarWriter::default();
-        dataframe_writer.record_numerical(1u32, "numbers", 30.5);
-        let mut buffer: Vec<u8> = Vec::new();
-        dataframe_writer.serialize(2, &mut buffer).unwrap();
-        ColumnarReader::open(buffer).unwrap()
-    };
+    #[test]
+    fn test_column_coercion() {
+        // i64 type
+        let columnar1 = {
+            let mut dataframe_writer = ColumnarWriter::default();
+            dataframe_writer.record_numerical(1u32, "numbers", 1i64);
+            let mut buffer: Vec<u8> = Vec::new();
+            dataframe_writer.serialize(2, &mut buffer).unwrap();
+            ColumnarReader::open(buffer).unwrap()
+        };
+        // u64 type
+        let columnar2 = {
+            let mut dataframe_writer = ColumnarWriter::default();
+            dataframe_writer.record_numerical(1u32, "numbers", u64::MAX - 100);
+            let mut buffer: Vec<u8> = Vec::new();
+            dataframe_writer.serialize(2, &mut buffer).unwrap();
+            ColumnarReader::open(buffer).unwrap()
+        };
 
-    let column_map = collect_columns(&[&columnar1, &columnar2, &columnar3]).unwrap();
-    assert_eq!(column_map.len(), 1);
-    let cat_to_columns = column_map.get("numbers").unwrap();
-    assert_eq!(cat_to_columns.len(), 1);
+        // f64 type
+        let columnar3 = {
+            let mut dataframe_writer = ColumnarWriter::default();
+            dataframe_writer.record_numerical(1u32, "numbers", 30.5);
+            let mut buffer: Vec<u8> = Vec::new();
+            dataframe_writer.serialize(2, &mut buffer).unwrap();
+            ColumnarReader::open(buffer).unwrap()
+        };
 
-    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
-    assert!(numerical.iter().all(|column| column.is_f64()));
+        let column_map = collect_columns(&[&columnar1, &columnar2, &columnar3]).unwrap();
+        assert_eq!(column_map.len(), 1);
+        let cat_to_columns = column_map.get("numbers").unwrap();
+        assert_eq!(cat_to_columns.len(), 1);
 
-    let column_map = collect_columns(&[&columnar1, &columnar1]).unwrap();
-    assert_eq!(column_map.len(), 1);
-    let cat_to_columns = column_map.get("numbers").unwrap();
-    assert_eq!(cat_to_columns.len(), 1);
-    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
-    assert!(numerical.iter().all(|column| column.is_i64()));
+        let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+        assert!(numerical.iter().all(|column| column.is_f64()));
 
-    let column_map = collect_columns(&[&columnar2, &columnar2]).unwrap();
-    assert_eq!(column_map.len(), 1);
-    let cat_to_columns = column_map.get("numbers").unwrap();
-    assert_eq!(cat_to_columns.len(), 1);
-    let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
-    assert!(numerical.iter().all(|column| column.is_u64()));
+        let column_map = collect_columns(&[&columnar1, &columnar1]).unwrap();
+        assert_eq!(column_map.len(), 1);
+        let cat_to_columns = column_map.get("numbers").unwrap();
+        assert_eq!(cat_to_columns.len(), 1);
+        let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+        assert!(numerical.iter().all(|column| column.is_i64()));
+
+        let column_map = collect_columns(&[&columnar2, &columnar2]).unwrap();
+        assert_eq!(column_map.len(), 1);
+        let cat_to_columns = column_map.get("numbers").unwrap();
+        assert_eq!(cat_to_columns.len(), 1);
+        let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
+        assert!(numerical.iter().all(|column| column.is_u64()));
+    }
 }

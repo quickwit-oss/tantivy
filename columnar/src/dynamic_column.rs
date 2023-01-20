@@ -8,7 +8,7 @@ use common::{HasLen, OwnedBytes};
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::DateTime;
+use crate::{DateTime, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -23,17 +23,31 @@ pub enum DynamicColumn {
 }
 
 impl DynamicColumn {
+    pub fn column_type(&self) -> ColumnType {
+        match self {
+            DynamicColumn::Bool(_) => ColumnType::Bool,
+            DynamicColumn::I64(_) => ColumnType::I64,
+            DynamicColumn::U64(_) => ColumnType::U64,
+            DynamicColumn::F64(_) => ColumnType::F64,
+            DynamicColumn::IpAddr(_) => ColumnType::IpAddr,
+            DynamicColumn::DateTime(_) => ColumnType::DateTime,
+            DynamicColumn::Bytes(_) => ColumnType::Bytes,
+            DynamicColumn::Str(_) => ColumnType::Str,
+        }
+    }
+
     pub fn is_numerical(&self) -> bool {
-        self.is_u64() || self.is_i64() || self.is_f64()
+        self.column_type().numerical_type().is_some()
     }
+
     pub fn is_f64(&self) -> bool {
-        matches!(self, DynamicColumn::F64(_))
-    }
-    pub fn is_u64(&self) -> bool {
-        matches!(self, DynamicColumn::U64(_))
+        self.column_type().numerical_type() == Some(NumericalType::F64)
     }
     pub fn is_i64(&self) -> bool {
-        matches!(self, DynamicColumn::I64(_))
+        self.column_type().numerical_type() == Some(NumericalType::I64)
+    }
+    pub fn is_u64(&self) -> bool {
+        self.column_type().numerical_type() == Some(NumericalType::U64)
     }
 
     pub fn coerce_to_f64(self) -> Option<DynamicColumn> {
@@ -82,7 +96,7 @@ impl DynamicColumn {
     }
 }
 
-pub struct MapI64ToF64;
+struct MapI64ToF64;
 impl StrictlyMonotonicFn<i64, f64> for MapI64ToF64 {
     #[inline(always)]
     fn mapping(&self, inp: i64) -> f64 {
@@ -94,7 +108,7 @@ impl StrictlyMonotonicFn<i64, f64> for MapI64ToF64 {
     }
 }
 
-pub struct MapU64ToF64;
+struct MapU64ToF64;
 impl StrictlyMonotonicFn<u64, f64> for MapU64ToF64 {
     #[inline(always)]
     fn mapping(&self, inp: u64) -> f64 {
@@ -106,7 +120,7 @@ impl StrictlyMonotonicFn<u64, f64> for MapU64ToF64 {
     }
 }
 
-pub struct MapU64ToI64;
+struct MapU64ToI64;
 impl StrictlyMonotonicFn<u64, i64> for MapU64ToI64 {
     #[inline(always)]
     fn mapping(&self, inp: u64) -> i64 {
@@ -118,7 +132,7 @@ impl StrictlyMonotonicFn<u64, i64> for MapU64ToI64 {
     }
 }
 
-pub struct MapI64ToU64;
+struct MapI64ToU64;
 impl StrictlyMonotonicFn<i64, u64> for MapI64ToU64 {
     #[inline(always)]
     fn mapping(&self, inp: i64) -> u64 {
