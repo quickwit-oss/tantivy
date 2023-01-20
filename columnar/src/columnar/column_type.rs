@@ -4,6 +4,7 @@ use crate::value::NumericalType;
 use crate::InvalidData;
 
 /// The column type represents the column type.
+/// Any changes need to be propagated to `COLUMN_TYPES`.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum ColumnType {
@@ -17,6 +18,7 @@ pub enum ColumnType {
     DateTime = 7u8,
 }
 
+// The order needs to match _exactly_ the order in the enum
 const COLUMN_TYPES: [ColumnType; 8] = [
     ColumnType::I64,
     ColumnType::U64,
