@@ -8,7 +8,7 @@ use crate::schema::FieldEntry;
 #[derive(Debug, Error)]
 #[error("Fast field not available: '{field_name:?}'")]
 pub struct FastFieldNotAvailableError {
-    field_name: String,
+    pub(crate) field_name: String,
 }
 
 impl FastFieldNotAvailableError {

@@ -73,7 +73,6 @@ impl ColumnarReader {
     ///
     /// There can be more than one column associated to a given column name, provided they have
     /// different types.
-    // TODO fix ugly API
     pub fn read_columns(&self, column_name: &str) -> io::Result<Vec<DynamicColumnHandle>> {
         // Each column is a associated to a given `column_key`,
         // that starts by `column_name\0column_header`.
@@ -118,5 +117,48 @@ impl ColumnarReader {
     /// Return the number of columns in the columnar.
     pub fn num_columns(&self) -> usize {
         self.column_dictionary.num_terms()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ColumnType, ColumnarReader, ColumnarWriter};
+
+    #[test]
+    fn test_list_columns() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("col1", ColumnType::Str, false);
+        columnar_writer.record_column_type("col2", ColumnType::U64, false);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let columns = columnar.list_columns().unwrap();
+        assert_eq!(columns.len(), 2);
+        assert_eq!(&columns[0].0, "col1");
+        assert_eq!(columns[0].1.column_type(), ColumnType::Str);
+        assert_eq!(&columns[1].0, "col2");
+        assert_eq!(columns[1].1.column_type(), ColumnType::U64);
+    }
+
+    #[test]
+    fn test_list_columns_strict_typing_prevents_coercion() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("count", ColumnType::U64, false);
+        columnar_writer.record_numerical(1, "count", 1u64);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let columns = columnar.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(&columns[0].0, "count");
+        assert_eq!(columns[0].1.column_type(), ColumnType::U64);
+    }
+
+    #[test]
+    #[should_panic(expect = "Input type forbidden")]
+    fn test_list_columns_strict_typing_panics_on_wrong_types() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("count", ColumnType::U64, false);
+        columnar_writer.record_numerical(1, "count", 1i64);
     }
 }

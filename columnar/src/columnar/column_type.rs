@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::net::Ipv6Addr;
 
 use crate::value::NumericalType;
@@ -91,7 +92,7 @@ impl ColumnType {
 }
 
 // TODO remove if possible
-pub trait HasAssociatedColumnType: 'static + Send + Sync + Copy + PartialOrd {
+pub trait HasAssociatedColumnType: 'static + Debug + Send + Sync + Copy + PartialOrd {
     fn column_type() -> ColumnType;
     fn default_value() -> Self;
 }

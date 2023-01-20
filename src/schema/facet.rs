@@ -41,7 +41,7 @@ pub enum FacetParseError {
 /// its facet. In the example above, `/electronics/tv_and_video/`
 /// and `/electronics`.
 #[derive(Clone, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct Facet(String);
+pub struct Facet(pub(crate) String);
 
 impl Facet {
     /// Returns a new instance of the "root facet"
@@ -143,12 +143,6 @@ impl Facet {
             facet_string.push_str(&step.to_string());
         }
         Facet(facet_string)
-    }
-
-    /// Accessor for the inner buffer of the `Facet`.
-    pub(crate) fn set_facet_str(&mut self, facet_str: &str) {
-        self.0.clear();
-        self.0.push_str(facet_str);
     }
 
     /// Returns `true` if other is a `strict` subfacet of `self`.

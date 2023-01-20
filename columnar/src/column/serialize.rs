@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
@@ -33,7 +34,7 @@ pub fn serialize_column_mappable_to_u128<
     Ok(())
 }
 
-pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
+pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64 + Debug>(
     column_index: SerializableColumnIndex<'_>,
     column_values: &impl ColumnValues<T>,
     output: &mut impl Write,

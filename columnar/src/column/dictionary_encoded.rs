@@ -35,9 +35,21 @@ impl BytesColumn {
         self.term_ord_column.num_rows()
     }
 
+    pub fn term_ords(&self, row_id: RowId) -> impl Iterator<Item = u64> + '_ {
+        self.term_ord_column.values(row_id)
+    }
+
     /// Returns the column of ordinals
     pub fn ords(&self) -> &Column<u64> {
         &self.term_ord_column
+    }
+
+    pub fn num_terms(&self) -> usize {
+        self.dictionary.num_terms()
+    }
+
+    pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {
+        self.dictionary.as_ref()
     }
 }
 

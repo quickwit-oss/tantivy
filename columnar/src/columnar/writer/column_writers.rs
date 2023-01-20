@@ -168,7 +168,12 @@ impl CompatibleNumericalTypes {
                 }
             },
             CompatibleNumericalTypes::StaticType(typ) => {
-                assert_eq!(numerical_value.numerical_type(), *typ);
+                assert_eq!(
+                    numerical_value.numerical_type(),
+                    *typ,
+                    "Input type forbidden. This column has been forced to type {typ:?}, received \
+                     {numerical_value:?}"
+                );
             }
         }
     }
@@ -213,6 +218,14 @@ impl NumericalColumnWriter {
 pub(crate) struct StrOrBytesColumnWriter {
     pub(crate) dictionary_id: u32,
     pub(crate) column_writer: ColumnWriter,
+    // If true, when facing a multivalued cardinality,
+    // values associated to a given document will be sorted.
+    //
+    // This is useful for facets.
+    //
+    // If false, the order of appearance in the document will be
+    // observed.
+    pub(crate) sort_values_within_row: bool,
 }
 
 impl StrOrBytesColumnWriter {
@@ -220,6 +233,7 @@ impl StrOrBytesColumnWriter {
         StrOrBytesColumnWriter {
             dictionary_id,
             column_writer: Default::default(),
+            sort_values_within_row: false,
         }
     }
 

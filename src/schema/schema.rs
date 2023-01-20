@@ -159,10 +159,10 @@ impl SchemaBuilder {
     }
 
     /// Adds a facet field to the schema.
-    pub fn add_facet_field<T: Into<FacetOptions>>(
+    pub fn add_facet_field(
         &mut self,
         field_name: &str,
-        facet_options: T,
+        facet_options: impl Into<FacetOptions>,
     ) -> Field {
         let field_entry = FieldEntry::new_facet(field_name.to_string(), facet_options.into());
         self.add_field(field_entry)
@@ -484,7 +484,6 @@ mod tests {
     use serde_json;
 
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::numeric_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
 
@@ -506,19 +505,13 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
         let score_options = NumericOptions::default()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(Cardinality::SingleValue);
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field(
             "author",
@@ -567,7 +560,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -577,7 +570,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -587,7 +580,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": false
     }
   },
@@ -597,7 +590,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -643,12 +636,8 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -748,15 +737,9 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let score_options = NumericOptions::default()
-            .set_indexed()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
+        let score_options = NumericOptions::default().set_indexed().set_fast();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);
@@ -907,7 +890,7 @@ mod tests {
             .set_stored()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(SingleValue);
+            .set_fast();
         schema_builder.add_text_field("_id", id_options);
         schema_builder.add_date_field("_timestamp", timestamp_options);
 
@@ -931,7 +914,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -964,7 +947,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": true,
       "precision": "seconds"
     }
@@ -988,7 +971,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }

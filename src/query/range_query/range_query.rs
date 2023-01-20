@@ -3,27 +3,17 @@ use std::ops::{Bound, Range};
 
 use common::{BinarySerializable, BitSet};
 
+use super::map_bound;
 use super::range_query_u64_fastfield::FastFieldRangeWeight;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
+use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::range_query::range_query_ip_fastfield::IPFastFieldRangeWeight;
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DateTime, DocId, Score};
-
-pub(crate) fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
-    bound: &Bound<TFrom>,
-    transform: &Transform,
-) -> Bound<TTo> {
-    use self::Bound::*;
-    match bound {
-        Excluded(ref from_val) => Excluded(transform(from_val)),
-        Included(ref from_val) => Included(transform(from_val)),
-        Unbounded => Unbounded,
-    }
-}
 
 /// `RangeQuery` matches all documents that have at least one term within a defined range.
 ///
@@ -285,14 +275,6 @@ impl RangeQuery {
     }
 }
 
-pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
-    match typ {
-        Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
-        Type::IpAddr => true,
-        Type::Str | Type::Facet | Type::Bytes | Type::Json => false,
-    }
-}
-
 /// Returns true if the type maps to a u64 fast field
 pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     match typ {
@@ -462,7 +444,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(2, 6_000_000)?;
+            let mut index_writer = index.writer_with_num_threads(2, 60_000_000)?;
 
             for i in 1..100 {
                 let mut doc = Document::new();
@@ -478,6 +460,7 @@ mod tests {
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
 
@@ -523,7 +506,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(2, 60_000_000).unwrap();
 
             for i in 1..100 {
                 let mut doc = Document::new();
@@ -539,6 +522,7 @@ mod tests {
         }
         let reader = index.reader()?;
         let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
 
@@ -621,7 +605,7 @@ mod tests {
         let ip_addr_2 = IpAddr::from_str("127.0.0.20").unwrap().into_ipv6_addr();
 
         {
-            let mut index_writer = index.writer(3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             for _ in 0..1_000 {
                 index_writer
                     .add_document(doc!(
@@ -638,11 +622,11 @@ mod tests {
                     ))
                     .unwrap();
             }
-
             index_writer.commit().unwrap();
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
 
         let get_num_hits = |query| {
             let (_top_docs, count) = searcher

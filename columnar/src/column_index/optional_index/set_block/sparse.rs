@@ -1,4 +1,4 @@
-use crate::column_index::optional_index::{Set, SetCodec, SelectCursor};
+use crate::column_index::optional_index::{SelectCursor, Set, SetCodec};
 
 pub struct SparseBlockCodec;
 
@@ -32,7 +32,6 @@ impl<'a> SelectCursor<u16> for SparseBlock<'a> {
 }
 
 impl<'a> Set<u16> for SparseBlock<'a> {
-
     type SelectCursor<'b> = Self where Self: 'b;
 
     #[inline(always)]
@@ -52,10 +51,9 @@ impl<'a> Set<u16> for SparseBlock<'a> {
     }
 
     #[inline(always)]
-    fn select_cursor<'b>(&'b self,) -> Self::SelectCursor<'b> {
+    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b> {
         *self
     }
-
 }
 
 #[inline(always)]
