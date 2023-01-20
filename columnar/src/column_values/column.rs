@@ -1,5 +1,7 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
+use std::sync::Arc;
 
 use tantivy_bitpacker::minmax;
 
@@ -26,7 +28,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     ///
     /// Must panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    #[inline]
+    #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
         for (out, idx) in output.iter_mut().zip(start..) {
             *out = self.get_val(idx as u32);
@@ -36,7 +38,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Get the positions of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
-    #[inline]
+    #[inline(always)]
     fn get_docids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
@@ -44,7 +46,6 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         positions: &mut Vec<u32>,
     ) {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
-
         for idx in doc_id_range.start..doc_id_range.end {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
@@ -78,33 +79,39 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     }
 }
 
-impl<T: Copy + PartialOrd> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T>> {
+impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
+    #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
     }
 
+    #[inline(always)]
     fn min_value(&self) -> T {
         self.as_ref().min_value()
     }
 
+    #[inline(always)]
     fn max_value(&self) -> T {
         self.as_ref().max_value()
     }
 
+    #[inline(always)]
     fn num_vals(&self) -> u32 {
         self.as_ref().num_vals()
     }
 
+    #[inline(always)]
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
         self.as_ref().iter()
     }
 
+    #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
         self.as_ref().get_range(start, output)
     }
 }
 
-impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd> ColumnValues<T> for &'a C {
+impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd + Debug> ColumnValues<T> for &'a C {
     fn get_val(&self, idx: u32) -> T {
         (*self).get_val(idx)
     }
@@ -137,7 +144,7 @@ pub struct VecColumn<'a, T = u64> {
     pub(crate) max_value: T,
 }
 
-impl<'a, T: Copy + PartialOrd + Send + Sync> ColumnValues<T> for VecColumn<'a, T> {
+impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> ColumnValues<T> for VecColumn<'a, T> {
     fn get_val(&self, position: u32) -> T {
         self.values[position as usize]
     }
@@ -205,8 +212,8 @@ pub fn monotonic_map_column<C, T, Input, Output>(
 where
     C: ColumnValues<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Debug + Send + Sync + Clone,
+    Output: PartialOrd + Debug + Send + Sync + Clone,
 {
     MonotonicMappingColumn {
         from_column,
@@ -219,8 +226,8 @@ impl<C, T, Input, Output> ColumnValues<Output> for MonotonicMappingColumn<C, T, 
 where
     C: ColumnValues<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Send + Debug + Sync + Clone,
+    Output: PartialOrd + Send + Debug + Sync + Clone,
 {
     #[inline]
     fn get_val(&self, idx: u32) -> Output {
@@ -282,7 +289,7 @@ where T: Iterator + Clone + ExactSizeIterator
 impl<T> ColumnValues<T::Item> for IterColumn<T>
 where
     T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd,
+    T::Item: PartialOrd + Debug,
 {
     fn get_val(&self, idx: u32) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()

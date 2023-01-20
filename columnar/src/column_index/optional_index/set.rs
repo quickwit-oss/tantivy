@@ -13,11 +13,25 @@ pub trait SetCodec {
     fn open<'a>(data: &'a [u8]) -> Self::Reader<'a>;
 }
 
+/// Stateful object that makes it possible to compute several select in a row,
+/// provided the rank passed as argument are increasing.
+pub trait SelectCursor<T> {
+    // May panic if rank is greater than the number of elements in the Set,
+    // or if rank is < than value provided in the previous call.
+    fn select(&mut self, rank: T) -> T;
+}
+
 pub trait Set<T> {
+    type SelectCursor<'b>: SelectCursor<T>
+    where Self: 'b;
+
     /// Returns true if the elements is contained in the Set
     fn contains(&self, el: T) -> bool;
 
-    /// If the set contains `el` returns its position in the sortd set of elements.
+    /// Returns the number of rows in the set that are < `el`
+    fn rank(&self, el: T) -> T;
+
+    /// If the set contains `el` returns the element rank.
     /// If the set does not contain the element, it returns `None`.
     fn rank_if_exists(&self, el: T) -> Option<T>;
 
@@ -28,11 +42,6 @@ pub trait Set<T> {
     /// May panic if rank is greater than the number of elements in the Set.
     fn select(&self, rank: T) -> T;
 
-    /// Batch version of select.
-    /// `ranks` is assumed to be sorted.
-    ///
-    /// # Panics
-    ///
-    /// May panic if rank is greater than the number of elements in the Set.
-    fn select_batch(&self, ranks: &[T], outputs: &mut [T]);
+    /// Creates a brand new select cursor.
+    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b>;
 }

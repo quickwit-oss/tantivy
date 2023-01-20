@@ -1,5 +1,4 @@
-use crate::column_index::SerializableOptionalIndex;
-use crate::column_values::{ColumnValues, VecColumn};
+use crate::iterable::Iterable;
 use crate::RowId;
 
 /// The `IndexBuilder` interprets a sequence of
@@ -29,34 +28,15 @@ pub struct OptionalIndexBuilder {
     docs: Vec<RowId>,
 }
 
-struct SingleValueArrayIndex<'a> {
-    // RowIds with a value, in a strictly increasing order
-    row_ids: &'a [RowId],
-    num_rows: RowId,
-}
-
-impl<'a> SerializableOptionalIndex<'a> for SingleValueArrayIndex<'a> {
-    fn num_rows(&self) -> RowId {
-        self.num_rows
-    }
-
-    fn non_null_rows(&self) -> Box<dyn Iterator<Item = RowId> + 'a> {
-        Box::new(self.row_ids.iter().copied())
-    }
-}
-
 impl OptionalIndexBuilder {
-    pub fn finish<'a>(&'a mut self, num_rows: RowId) -> impl SerializableOptionalIndex + 'a {
+    pub fn finish<'a>(&'a mut self, num_rows: RowId) -> impl Iterable<RowId> + 'a {
         debug_assert!(self
             .docs
             .last()
             .copied()
             .map(|last_doc| last_doc < num_rows)
             .unwrap_or(true));
-        SingleValueArrayIndex {
-            row_ids: &self.docs[..],
-            num_rows,
-        }
+        &self.docs[..]
     }
 
     fn reset(&mut self) {
@@ -84,14 +64,10 @@ pub struct MultivaluedIndexBuilder {
 }
 
 impl MultivaluedIndexBuilder {
-    pub fn finish(&mut self, num_docs: RowId) -> impl ColumnValues<u32> + '_ {
+    pub fn finish(&mut self, num_docs: RowId) -> &[u32] {
         self.start_offsets
             .resize(num_docs as usize + 1, self.total_num_vals_seen);
-        VecColumn {
-            values: &&self.start_offsets[..],
-            min_value: 0,
-            max_value: self.start_offsets.last().copied().unwrap_or(0),
-        }
+        &self.start_offsets[..]
     }
 
     fn reset(&mut self) {
@@ -149,7 +125,7 @@ mod tests {
         assert_eq!(
             &opt_value_index_builder
                 .finish(1u32)
-                .non_null_rows()
+                .boxed_iter()
                 .collect::<Vec<u32>>(),
             &[0]
         );
@@ -159,7 +135,7 @@ mod tests {
         assert_eq!(
             &opt_value_index_builder
                 .finish(2u32)
-                .non_null_rows()
+                .boxed_iter()
                 .collect::<Vec<u32>>(),
             &[1]
         );
@@ -177,6 +153,7 @@ mod tests {
             multivalued_value_index_builder
                 .finish(4u32)
                 .iter()
+                .copied()
                 .collect::<Vec<u32>>(),
             vec![0, 0, 2, 3, 3]
         );
@@ -188,6 +165,7 @@ mod tests {
             multivalued_value_index_builder
                 .finish(4u32)
                 .iter()
+                .copied()
                 .collect::<Vec<u32>>(),
             vec![0, 0, 0, 2, 2]
         );

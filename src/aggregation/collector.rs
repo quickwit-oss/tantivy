@@ -4,7 +4,10 @@ use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::SegmentAggregationResultsCollector;
+use super::segment_agg_result::{
+    build_segment_agg_collector, GenericSegmentAggregationResultsCollector,
+    SegmentAggregationCollector,
+};
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
 use crate::schema::Schema;
@@ -137,7 +140,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
-    result: SegmentAggregationResultsCollector,
+    result: Box<dyn SegmentAggregationCollector>,
     error: Option<TantivyError>,
 }
 
@@ -151,8 +154,7 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let aggs_with_accessor =
             get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
-        let result =
-            SegmentAggregationResultsCollector::from_req_and_validate(&aggs_with_accessor)?;
+        let result = build_segment_agg_collector(&aggs_with_accessor)?;
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,

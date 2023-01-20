@@ -22,6 +22,7 @@ use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
 use crate::column_values::compact_space::build_compact_space::get_compact_space;
 use crate::column_values::ColumnValues;
+use crate::RowId;
 
 mod blank_range;
 mod build_compact_space;
@@ -55,7 +56,7 @@ impl RangeMapping {
 }
 
 impl BinarySerializable for CompactSpace {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.ranges_mapping.len() as u64).serialize(writer)?;
 
         let mut prev_value = 0;
@@ -158,23 +159,30 @@ impl CompactSpace {
 pub struct CompactSpaceCompressor {
     params: IPCodecParams,
 }
+
 #[derive(Debug, Clone)]
 pub struct IPCodecParams {
     compact_space: CompactSpace,
     bit_unpacker: BitUnpacker,
     min_value: u128,
     max_value: u128,
-    num_vals: u32,
+    num_vals: RowId,
     num_bits: u8,
 }
 
 impl CompactSpaceCompressor {
-    /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
-    pub fn train_from(iter: impl Iterator<Item = u128>, num_vals: u32) -> Self {
-        let mut values_sorted = BTreeSet::new();
-        values_sorted.extend(iter);
-        let total_num_values = num_vals;
+    pub fn num_vals(&self) -> RowId {
+        self.params.num_vals
+    }
 
+    /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
+    pub fn train_from(iter: impl Iterator<Item = u128>) -> Self {
+        let mut values_sorted = BTreeSet::new();
+        let mut total_num_values = 0u32;
+        for val in iter {
+            total_num_values += 1u32;
+            values_sorted.insert(val);
+        }
         let compact_space =
             get_compact_space(&values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
         let amplitude_compact_space = compact_space.amplitude_compact_space();
@@ -247,7 +255,7 @@ pub struct CompactSpaceDecompressor {
 }
 
 impl BinarySerializable for IPCodecParams {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // header flags for future optional dictionary encoding
         let footer_flags = 0u64;
         footer_flags.serialize(writer)?;
@@ -450,364 +458,352 @@ impl CompactSpaceDecompressor {
     }
 }
 
-// TODO reenable what can be reenabled.
-// #[cfg(test)]
-// mod tests {
-//
-// use super::*;
-// use crate::column::format_version::read_format_version;
-// use crate::column::column_footer::read_null_index_footer;
-// use crate::column::serialize::U128Header;
-// use crate::column::{open_u128, serialize_u128};
-//
-// #[test]
-// fn compact_space_test() {
-// let ips = &[
-// 2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
-// ]
-// .into_iter()
-// .collect();
-// let compact_space = get_compact_space(ips, ips.len() as u32, 11);
-// let amplitude = compact_space.amplitude_compact_space();
-// assert_eq!(amplitude, 17);
-// assert_eq!(1, compact_space.u128_to_compact(2).unwrap());
-// assert_eq!(2, compact_space.u128_to_compact(3).unwrap());
-// assert_eq!(compact_space.u128_to_compact(100).unwrap_err(), 1);
-//
-// for (num1, num2) in (0..3).tuple_windows() {
-// assert_eq!(
-// compact_space.get_range_mapping(num1).compact_end() + 1,
-// compact_space.get_range_mapping(num2).compact_start
-// );
-// }
-//
-// let mut output: Vec<u8> = Vec::new();
-// compact_space.serialize(&mut output).unwrap();
-//
-// assert_eq!(
-// compact_space,
-// CompactSpace::deserialize(&mut &output[..]).unwrap()
-// );
-//
-// for ip in ips {
-// let compact = compact_space.u128_to_compact(*ip).unwrap();
-// assert_eq!(compact_space.compact_to_u128(compact), *ip);
-// }
-// }
-//
-// #[test]
-// fn compact_space_amplitude_test() {
-// let ips = &[100000u128, 1000000].into_iter().collect();
-// let compact_space = get_compact_space(ips, ips.len() as u32, 1);
-// let amplitude = compact_space.amplitude_compact_space();
-// assert_eq!(amplitude, 2);
-// }
-//
-// fn test_all(mut data: OwnedBytes, expected: &[u128]) {
-// let _header = U128Header::deserialize(&mut data);
-// let decompressor = CompactSpaceDecompressor::open(data).unwrap();
-// for (idx, expected_val) in expected.iter().cloned().enumerate() {
-// let val = decompressor.get(idx as u32);
-// assert_eq!(val, expected_val);
-//
-// let test_range = |range: RangeInclusive<u128>| {
-// let expected_positions = expected
-// .iter()
-// .positions(|val| range.contains(val))
-// .map(|pos| pos as u32)
-// .collect::<Vec<_>>();
-// let mut positions = Vec::new();
-// decompressor.get_positions_for_value_range(
-// range,
-// 0..decompressor.num_vals(),
-// &mut positions,
-// );
-// assert_eq!(positions, expected_positions);
-// };
-//
-// test_range(expected_val.saturating_sub(1)..=expected_val);
-// test_range(expected_val..=expected_val);
-// test_range(expected_val..=expected_val.saturating_add(1));
-// test_range(expected_val.saturating_sub(1)..=expected_val.saturating_add(1));
-// }
-// }
-//
-// fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
-// let mut out = Vec::new();
-// serialize_u128(
-// || u128_vals.iter().cloned(),
-// u128_vals.len() as u32,
-// &mut out,
-// )
-// .unwrap();
-//
-// let data = OwnedBytes::new(out);
-// let (data, _format_version) = read_format_version(data).unwrap();
-// let (data, _null_index_footer) = read_null_index_footer(data).unwrap();
-// test_all(data.clone(), u128_vals);
-//
-// data
-// }
-//
-// #[test]
-// fn test_range_1() {
-// let vals = &[
-// 1u128,
-// 100u128,
-// 3u128,
-// 99999u128,
-// 100000u128,
-// 100001u128,
-// 4_000_211_221u128,
-// 4_000_211_222u128,
-// 333u128,
-// ];
-// let mut data = test_aux_vals(vals);
-//
-// let _header = U128Header::deserialize(&mut data);
-// let decomp = CompactSpaceDecompressor::open(data).unwrap();
-// let complete_range = 0..vals.len() as u32;
-// for (pos, val) in vals.iter().enumerate() {
-// let val = *val;
-// let pos = pos as u32;
-// let mut positions = Vec::new();
-// decomp.get_positions_for_value_range(val..=val, pos..pos + 1, &mut positions);
-// assert_eq!(positions, vec![pos]);
-// }
-//
-// handle docid range out of bounds
-// let positions: Vec<u32> = get_positions_for_value_range_helper(&decomp, 0..=1, 1..u32::MAX);
-// assert!(positions.is_empty());
-//
-// let positions =
-// get_positions_for_value_range_helper(&decomp, 0..=1, complete_range.clone());
-// assert_eq!(positions, vec![0]);
-// let positions =
-// get_positions_for_value_range_helper(&decomp, 0..=2, complete_range.clone());
-// assert_eq!(positions, vec![0]);
-// let positions =
-// get_positions_for_value_range_helper(&decomp, 0..=3, complete_range.clone());
-// assert_eq!(positions, vec![0, 2]);
-// assert_eq!(
-// get_positions_for_value_range_helper(
-// &decomp,
-// 99999u128..=99999u128,
-// complete_range.clone()
-// ),
-// vec![3]
-// );
-// assert_eq!(
-// get_positions_for_value_range_helper(
-// &decomp,
-// 99999u128..=100000u128,
-// complete_range.clone()
-// ),
-// vec![3, 4]
-// );
-// assert_eq!(
-// get_positions_for_value_range_helper(
-// &decomp,
-// 99998u128..=100000u128,
-// complete_range.clone()
-// ),
-// vec![3, 4]
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 99998u128..=99999u128,
-// complete_range.clone()
-// ),
-// &[3]
-// );
-// assert!(get_positions_for_value_range_helper(
-// &decomp,
-// 99998u128..=99998u128,
-// complete_range.clone()
-// )
-// .is_empty());
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 333u128..=333u128,
-// complete_range.clone()
-// ),
-// &[8]
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 332u128..=333u128,
-// complete_range.clone()
-// ),
-// &[8]
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 332u128..=334u128,
-// complete_range.clone()
-// ),
-// &[8]
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 333u128..=334u128,
-// complete_range.clone()
-// ),
-// &[8]
-// );
-//
-// assert_eq!(
-// &get_positions_for_value_range_helper(
-// &decomp,
-// 4_000_211_221u128..=5_000_000_000u128,
-// complete_range
-// ),
-// &[6, 7]
-// );
-// }
-//
-// #[test]
-// fn test_empty() {
-// let vals = &[];
-// let data = test_aux_vals(vals);
-// let _decomp = CompactSpaceDecompressor::open(data).unwrap();
-// }
-//
-// #[test]
-// fn test_range_2() {
-// let vals = &[
-// 100u128,
-// 99999u128,
-// 100000u128,
-// 100001u128,
-// 4_000_211_221u128,
-// 4_000_211_222u128,
-// 333u128,
-// ];
-// let mut data = test_aux_vals(vals);
-// let _header = U128Header::deserialize(&mut data);
-// let decomp = CompactSpaceDecompressor::open(data).unwrap();
-// let complete_range = 0..vals.len() as u32;
-// assert!(
-// &get_positions_for_value_range_helper(&decomp, 0..=5, complete_range.clone())
-// .is_empty(),
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(&decomp, 0..=100, complete_range.clone()),
-// &[0]
-// );
-// assert_eq!(
-// &get_positions_for_value_range_helper(&decomp, 0..=105, complete_range),
-// &[0]
-// );
-// }
-//
-// fn get_positions_for_value_range_helper<C: Column<T> + ?Sized, T: PartialOrd>(
-// column: &C,
-// value_range: RangeInclusive<T>,
-// doc_id_range: Range<u32>,
-// ) -> Vec<u32> {
-// let mut positions = Vec::new();
-// column.get_docids_for_value_range(value_range, doc_id_range, &mut positions);
-// positions
-// }
-//
-// #[test]
-// fn test_range_3() {
-// let vals = &[
-// 200u128,
-// 201,
-// 202,
-// 203,
-// 204,
-// 204,
-// 206,
-// 207,
-// 208,
-// 209,
-// 210,
-// 1_000_000,
-// 5_000_000_000,
-// ];
-// let mut out = Vec::new();
-// serialize_u128(|| vals.iter().cloned(), vals.len() as u32, &mut out).unwrap();
-// let decomp = open_u128::<u128>(OwnedBytes::new(out)).unwrap();
-// let complete_range = 0..vals.len() as u32;
-//
-// assert_eq!(
-// get_positions_for_value_range_helper(&*decomp, 199..=200, complete_range.clone()),
-// vec![0]
-// );
-//
-// assert_eq!(
-// get_positions_for_value_range_helper(&*decomp, 199..=201, complete_range.clone()),
-// vec![0, 1]
-// );
-//
-// assert_eq!(
-// get_positions_for_value_range_helper(&*decomp, 200..=200, complete_range.clone()),
-// vec![0]
-// );
-//
-// assert_eq!(
-// get_positions_for_value_range_helper(&*decomp, 1_000_000..=1_000_000, complete_range),
-// vec![11]
-// );
-// }
-//
-// #[test]
-// fn test_bug1() {
-// let vals = &[9223372036854775806];
-// let _data = test_aux_vals(vals);
-// }
-//
-// #[test]
-// fn test_bug2() {
-// let vals = &[340282366920938463463374607431768211455u128];
-// let _data = test_aux_vals(vals);
-// }
-//
-// #[test]
-// fn test_bug3() {
-// let vals = &[340282366920938463463374607431768211454];
-// let _data = test_aux_vals(vals);
-// }
-//
-// #[test]
-// fn test_bug4() {
-// let vals = &[340282366920938463463374607431768211455, 0];
-// let _data = test_aux_vals(vals);
-// }
-//
-// #[test]
-// fn test_first_large_gaps() {
-// let vals = &[1_000_000_000u128; 100];
-// let _data = test_aux_vals(vals);
-// }
-// use itertools::Itertools;
-// use proptest::prelude::*;
-//
-// fn num_strategy() -> impl Strategy<Value = u128> {
-// prop_oneof![
-// 1 => prop::num::u128::ANY.prop_map(|num| u128::MAX - (num % 10) ),
-// 1 => prop::num::u128::ANY.prop_map(|num| i64::MAX as u128 + 5 - (num % 10) ),
-// 1 => prop::num::u128::ANY.prop_map(|num| i128::MAX as u128 + 5 - (num % 10) ),
-// 1 => prop::num::u128::ANY.prop_map(|num| num % 10 ),
-// 20 => prop::num::u128::ANY,
-// ]
-// }
-//
-// proptest! {
-// #![proptest_config(ProptestConfig::with_cases(10))]
-//
-// #[test]
-// fn compress_decompress_random(vals in proptest::collection::vec(num_strategy()
-// , 1..1000)) {
-// let _data = test_aux_vals(&vals);
-// }
-// }
-// }
-//
+#[cfg(test)]
+mod tests {
+
+    use itertools::Itertools;
+
+    use super::*;
+    use crate::column_values::serialize::U128Header;
+    use crate::column_values::{open_u128_mapped, serialize_column_values_u128};
+
+    #[test]
+    fn compact_space_test() {
+        let ips = &[
+            2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
+        ]
+        .into_iter()
+        .collect();
+        let compact_space = get_compact_space(ips, ips.len() as u32, 11);
+        let amplitude = compact_space.amplitude_compact_space();
+        assert_eq!(amplitude, 17);
+        assert_eq!(1, compact_space.u128_to_compact(2).unwrap());
+        assert_eq!(2, compact_space.u128_to_compact(3).unwrap());
+        assert_eq!(compact_space.u128_to_compact(100).unwrap_err(), 1);
+
+        for (num1, num2) in (0..3).tuple_windows() {
+            assert_eq!(
+                compact_space.get_range_mapping(num1).compact_end() + 1,
+                compact_space.get_range_mapping(num2).compact_start
+            );
+        }
+
+        let mut output: Vec<u8> = Vec::new();
+        compact_space.serialize(&mut output).unwrap();
+
+        assert_eq!(
+            compact_space,
+            CompactSpace::deserialize(&mut &output[..]).unwrap()
+        );
+
+        for ip in ips {
+            let compact = compact_space.u128_to_compact(*ip).unwrap();
+            assert_eq!(compact_space.compact_to_u128(compact), *ip);
+        }
+    }
+
+    #[test]
+    fn compact_space_amplitude_test() {
+        let ips = &[100000u128, 1000000].into_iter().collect();
+        let compact_space = get_compact_space(ips, ips.len() as u32, 1);
+        let amplitude = compact_space.amplitude_compact_space();
+        assert_eq!(amplitude, 2);
+    }
+
+    fn test_all(mut data: OwnedBytes, expected: &[u128]) {
+        let _header = U128Header::deserialize(&mut data);
+        let decompressor = CompactSpaceDecompressor::open(data).unwrap();
+        for (idx, expected_val) in expected.iter().cloned().enumerate() {
+            let val = decompressor.get(idx as u32);
+            assert_eq!(val, expected_val);
+
+            let test_range = |range: RangeInclusive<u128>| {
+                let expected_positions = expected
+                    .iter()
+                    .positions(|val| range.contains(val))
+                    .map(|pos| pos as u32)
+                    .collect::<Vec<_>>();
+                let mut positions = Vec::new();
+                decompressor.get_positions_for_value_range(
+                    range,
+                    0..decompressor.num_vals(),
+                    &mut positions,
+                );
+                assert_eq!(positions, expected_positions);
+            };
+
+            test_range(expected_val.saturating_sub(1)..=expected_val);
+            test_range(expected_val..=expected_val);
+            test_range(expected_val..=expected_val.saturating_add(1));
+            test_range(expected_val.saturating_sub(1)..=expected_val.saturating_add(1));
+        }
+    }
+
+    fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
+        let mut out = Vec::new();
+        serialize_column_values_u128(&u128_vals, &mut out).unwrap();
+        let data = OwnedBytes::new(out);
+        test_all(data.clone(), u128_vals);
+        data
+    }
+
+    #[test]
+    fn test_range_1() {
+        let vals = &[
+            1u128,
+            100u128,
+            3u128,
+            99999u128,
+            100000u128,
+            100001u128,
+            4_000_211_221u128,
+            4_000_211_222u128,
+            333u128,
+        ];
+        let mut data = test_aux_vals(vals);
+
+        let _header = U128Header::deserialize(&mut data);
+        let decomp = CompactSpaceDecompressor::open(data).unwrap();
+        let complete_range = 0..vals.len() as u32;
+        for (pos, val) in vals.iter().enumerate() {
+            let val = *val;
+            let pos = pos as u32;
+            let mut positions = Vec::new();
+            decomp.get_positions_for_value_range(val..=val, pos..pos + 1, &mut positions);
+            assert_eq!(positions, vec![pos]);
+        }
+
+        // handle docid range out of bounds
+        let positions: Vec<u32> = get_positions_for_value_range_helper(&decomp, 0..=1, 1..u32::MAX);
+        assert!(positions.is_empty());
+
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=1, complete_range.clone());
+        assert_eq!(positions, vec![0]);
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=2, complete_range.clone());
+        assert_eq!(positions, vec![0]);
+        let positions =
+            get_positions_for_value_range_helper(&decomp, 0..=3, complete_range.clone());
+        assert_eq!(positions, vec![0, 2]);
+        assert_eq!(
+            get_positions_for_value_range_helper(
+                &decomp,
+                99999u128..=99999u128,
+                complete_range.clone()
+            ),
+            vec![3]
+        );
+        assert_eq!(
+            get_positions_for_value_range_helper(
+                &decomp,
+                99999u128..=100000u128,
+                complete_range.clone()
+            ),
+            vec![3, 4]
+        );
+        assert_eq!(
+            get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=100000u128,
+                complete_range.clone()
+            ),
+            vec![3, 4]
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=99999u128,
+                complete_range.clone()
+            ),
+            &[3]
+        );
+        assert!(get_positions_for_value_range_helper(
+            &decomp,
+            99998u128..=99998u128,
+            complete_range.clone()
+        )
+        .is_empty());
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                333u128..=333u128,
+                complete_range.clone()
+            ),
+            &[8]
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                332u128..=333u128,
+                complete_range.clone()
+            ),
+            &[8]
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                332u128..=334u128,
+                complete_range.clone()
+            ),
+            &[8]
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                333u128..=334u128,
+                complete_range.clone()
+            ),
+            &[8]
+        );
+
+        assert_eq!(
+            &get_positions_for_value_range_helper(
+                &decomp,
+                4_000_211_221u128..=5_000_000_000u128,
+                complete_range
+            ),
+            &[6, 7]
+        );
+    }
+
+    #[test]
+    fn test_empty() {
+        let vals = &[];
+        let data = test_aux_vals(vals);
+        let _decomp = CompactSpaceDecompressor::open(data).unwrap();
+    }
+
+    #[test]
+    fn test_range_2() {
+        let vals = &[
+            100u128,
+            99999u128,
+            100000u128,
+            100001u128,
+            4_000_211_221u128,
+            4_000_211_222u128,
+            333u128,
+        ];
+        let mut data = test_aux_vals(vals);
+        let _header = U128Header::deserialize(&mut data);
+        let decomp = CompactSpaceDecompressor::open(data).unwrap();
+        let complete_range = 0..vals.len() as u32;
+        assert!(
+            &get_positions_for_value_range_helper(&decomp, 0..=5, complete_range.clone())
+                .is_empty(),
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(&decomp, 0..=100, complete_range.clone()),
+            &[0]
+        );
+        assert_eq!(
+            &get_positions_for_value_range_helper(&decomp, 0..=105, complete_range),
+            &[0]
+        );
+    }
+
+    fn get_positions_for_value_range_helper<C: ColumnValues<T> + ?Sized, T: PartialOrd>(
+        column: &C,
+        value_range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+    ) -> Vec<u32> {
+        let mut positions = Vec::new();
+        column.get_docids_for_value_range(value_range, doc_id_range, &mut positions);
+        positions
+    }
+
+    #[test]
+    fn test_range_3() {
+        let vals = &[
+            200u128,
+            201,
+            202,
+            203,
+            204,
+            204,
+            206,
+            207,
+            208,
+            209,
+            210,
+            1_000_000,
+            5_000_000_000,
+        ];
+        let mut out = Vec::new();
+        serialize_column_values_u128(&&vals[..], &mut out).unwrap();
+        let decomp = open_u128_mapped(OwnedBytes::new(out)).unwrap();
+        let complete_range = 0..vals.len() as u32;
+
+        assert_eq!(
+            get_positions_for_value_range_helper(&*decomp, 199..=200, complete_range.clone()),
+            vec![0]
+        );
+
+        assert_eq!(
+            get_positions_for_value_range_helper(&*decomp, 199..=201, complete_range.clone()),
+            vec![0, 1]
+        );
+
+        assert_eq!(
+            get_positions_for_value_range_helper(&*decomp, 200..=200, complete_range.clone()),
+            vec![0]
+        );
+
+        assert_eq!(
+            get_positions_for_value_range_helper(&*decomp, 1_000_000..=1_000_000, complete_range),
+            vec![11]
+        );
+    }
+
+    #[test]
+    fn test_bug1() {
+        let vals = &[9223372036854775806];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_bug2() {
+        let vals = &[340282366920938463463374607431768211455u128];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_bug3() {
+        let vals = &[340282366920938463463374607431768211454];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_bug4() {
+        let vals = &[340282366920938463463374607431768211455, 0];
+        let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_first_large_gaps() {
+        let vals = &[1_000_000_000u128; 100];
+        let _data = test_aux_vals(vals);
+    }
+
+    use proptest::prelude::*;
+
+    fn num_strategy() -> impl Strategy<Value = u128> {
+        prop_oneof![
+            1 => prop::num::u128::ANY.prop_map(|num| u128::MAX - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| i64::MAX as u128 + 5 - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| i128::MAX as u128 + 5 - (num % 10) ),
+            1 => prop::num::u128::ANY.prop_map(|num| num % 10 ),
+            20 => prop::num::u128::ANY,
+        ]
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+
+        #[test]
+        fn compress_decompress_random(vals in proptest::collection::vec(num_strategy() , 1..1000)) {
+            let _data = test_aux_vals(&vals);
+        }
+    }
+}

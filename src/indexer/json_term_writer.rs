@@ -1,4 +1,4 @@
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
 use murmurhash32::murmurhash2;
 use rustc_hash::FxHashMap;
 
@@ -150,7 +150,6 @@ fn index_json_value(
                     json_term_writer.term_buffer,
                     ctx,
                     indexing_position,
-                    None,
                 );
             }
             TextOrDateTime::DateTime(dt) => {

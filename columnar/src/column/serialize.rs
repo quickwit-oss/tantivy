@@ -8,43 +8,31 @@ use sstable::Dictionary;
 use crate::column::{BytesColumn, Column};
 use crate::column_index::{serialize_column_index, SerializableColumnIndex};
 use crate::column_values::serialize::serialize_column_values_u128;
-use crate::column_values::{
-    serialize_column_values, ColumnValues, FastFieldCodecType, MonotonicallyMappableToU128,
-    MonotonicallyMappableToU64,
-};
+use crate::column_values::u64_based::{serialize_u64_based_column_values, CodecType};
+use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use crate::iterable::Iterable;
+use crate::StrColumn;
 
-pub fn serialize_column_mappable_to_u128<
-    F: Fn() -> I,
-    I: Iterator<Item = T>,
-    T: MonotonicallyMappableToU128,
->(
+pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
     column_index: SerializableColumnIndex<'_>,
-    column_values: F,
-    num_vals: u32,
+    iterable: &dyn Iterable<T>,
     output: &mut impl Write,
 ) -> io::Result<()> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
-    serialize_column_values_u128(
-        || column_values().map(|val| val.to_u128()),
-        num_vals,
-        output,
-    )?;
+    serialize_column_values_u128(iterable, output)?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
 }
 
 pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
     column_index: SerializableColumnIndex<'_>,
-    column_values: &impl ColumnValues<T>,
+    column_values: &impl Iterable<T>,
     output: &mut impl Write,
 ) -> io::Result<()> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
-    serialize_column_values(
+    serialize_u64_based_column_values(
         column_values,
-        &[
-            FastFieldCodecType::Bitpacked,
-            FastFieldCodecType::BlockwiseLinear,
-        ],
+        &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
         output,
     )?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
@@ -61,7 +49,8 @@ pub fn open_column_u64<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::
     );
     let (column_index_data, column_values_data) = body.split(column_index_num_bytes as usize);
     let column_index = crate::column_index::open_column_index(column_index_data)?;
-    let column_values = crate::column_values::open_u64_mapped(column_values_data)?;
+    let column_values =
+        crate::column_values::u64_based::load_u64_based_column_values(column_values_data)?;
     Ok(Column {
         idx: column_index,
         values: column_values,
@@ -87,15 +76,19 @@ pub fn open_column_u128<T: MonotonicallyMappableToU128>(
     })
 }
 
-pub fn open_column_bytes<T: From<BytesColumn>>(data: OwnedBytes) -> io::Result<T> {
+pub fn open_column_bytes(data: OwnedBytes) -> io::Result<BytesColumn> {
     let (body, dictionary_len_bytes) = data.rsplit(4);
     let dictionary_len = u32::from_le_bytes(dictionary_len_bytes.as_slice().try_into().unwrap());
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
     let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes)?;
-    let bytes_column = BytesColumn {
+    Ok(BytesColumn {
         dictionary,
         term_ord_column,
-    };
-    Ok(bytes_column.into())
+    })
+}
+
+pub fn open_column_str(data: OwnedBytes) -> io::Result<StrColumn> {
+    let bytes_column = open_column_bytes(data)?;
+    Ok(StrColumn::wrap(bytes_column))
 }

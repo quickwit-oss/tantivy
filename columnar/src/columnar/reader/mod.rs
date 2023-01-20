@@ -6,6 +6,7 @@ use sstable::{Dictionary, RangeSSTable};
 
 use crate::columnar::{format_version, ColumnType};
 use crate::dynamic_column::DynamicColumnHandle;
+use crate::RowId;
 
 fn io_invalid_data(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
@@ -13,9 +14,11 @@ fn io_invalid_data(msg: String) -> io::Error {
 
 /// The ColumnarReader makes it possible to access a set of columns
 /// associated to field names.
+#[derive(Clone)]
 pub struct ColumnarReader {
     column_dictionary: Dictionary<RangeSSTable>,
     column_data: FileSlice,
+    num_rows: RowId,
 }
 
 impl ColumnarReader {
@@ -27,21 +30,25 @@ impl ColumnarReader {
 
     fn open_inner(file_slice: FileSlice) -> io::Result<ColumnarReader> {
         let (file_slice_without_sstable_len, footer_slice) = file_slice
-            .split_from_end(mem::size_of::<u64>() + format_version::VERSION_FOOTER_NUM_BYTES);
+            .split_from_end(mem::size_of::<u64>() + 4 + format_version::VERSION_FOOTER_NUM_BYTES);
         let footer_bytes = footer_slice.read_bytes()?;
-        let (mut sstable_len_bytes, version_footer_bytes) =
-            footer_bytes.rsplit(format_version::VERSION_FOOTER_NUM_BYTES);
+        let sstable_len = u64::deserialize(&mut &footer_bytes[0..8])?;
+        let num_rows = u32::deserialize(&mut &footer_bytes[8..12])?;
         let version_footer_bytes: [u8; format_version::VERSION_FOOTER_NUM_BYTES] =
-            version_footer_bytes.as_slice().try_into().unwrap();
+            footer_bytes[12..].try_into().unwrap();
         let _version = format_version::parse_footer(version_footer_bytes)?;
-        let sstable_len = u64::deserialize(&mut sstable_len_bytes)?;
         let (column_data, sstable) =
             file_slice_without_sstable_len.split_from_end(sstable_len as usize);
         let column_dictionary = Dictionary::open(sstable)?;
         Ok(ColumnarReader {
             column_dictionary,
             column_data,
+            num_rows,
         })
+    }
+
+    pub fn num_rows(&self) -> RowId {
+        self.num_rows
     }
 
     // TODO Add unit tests
@@ -73,7 +80,6 @@ impl ColumnarReader {
     ///
     /// There can be more than one column associated to a given column name, provided they have
     /// different types.
-    // TODO fix ugly API
     pub fn read_columns(&self, column_name: &str) -> io::Result<Vec<DynamicColumnHandle>> {
         // Each column is a associated to a given `column_key`,
         // that starts by `column_name\0column_header`.
@@ -118,5 +124,48 @@ impl ColumnarReader {
     /// Return the number of columns in the columnar.
     pub fn num_columns(&self) -> usize {
         self.column_dictionary.num_terms()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ColumnType, ColumnarReader, ColumnarWriter};
+
+    #[test]
+    fn test_list_columns() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("col1", ColumnType::Str, false);
+        columnar_writer.record_column_type("col2", ColumnType::U64, false);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let columns = columnar.list_columns().unwrap();
+        assert_eq!(columns.len(), 2);
+        assert_eq!(&columns[0].0, "col1");
+        assert_eq!(columns[0].1.column_type(), ColumnType::Str);
+        assert_eq!(&columns[1].0, "col2");
+        assert_eq!(columns[1].1.column_type(), ColumnType::U64);
+    }
+
+    #[test]
+    fn test_list_columns_strict_typing_prevents_coercion() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("count", ColumnType::U64, false);
+        columnar_writer.record_numerical(1, "count", 1u64);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        let columns = columnar.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(&columns[0].0, "count");
+        assert_eq!(columns[0].1.column_type(), ColumnType::U64);
+    }
+
+    #[test]
+    #[should_panic(expect = "Input type forbidden")]
+    fn test_list_columns_strict_typing_panics_on_wrong_types() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("count", ColumnType::U64, false);
+        columnar_writer.record_numerical(1, "count", 1i64);
     }
 }

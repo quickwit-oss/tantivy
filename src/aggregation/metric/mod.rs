@@ -43,13 +43,13 @@ mod tests {
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::AggregationCollector;
     use crate::query::AllQuery;
-    use crate::schema::{Cardinality, NumericOptions, Schema};
+    use crate::schema::{NumericOptions, Schema};
     use crate::Index;
 
     #[test]
     fn test_metric_aggregations() {
         let mut schema_builder = Schema::builder();
-        let field_options = NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let field_options = NumericOptions::default().set_fast();
         let field = schema_builder.add_f64_field("price", field_options);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();

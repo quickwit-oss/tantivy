@@ -7,83 +7,74 @@
 //! - Encode data in different codecs.
 //! - Monotonically map values to u64/u128
 
-#[cfg(test)]
-mod tests;
-
+use std::fmt::Debug;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
 use common::{BinarySerializable, OwnedBytes};
 use compact_space::CompactSpaceDecompressor;
-use monotonic_mapping::{
-    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
-    StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
-};
-use serialize::{Header, U128Header};
+pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
+use monotonic_mapping::{StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal};
+pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
+use serialize::U128Header;
 
-mod bitpacked;
-mod blockwise_linear;
 mod compact_space;
-mod line;
-mod linear;
 pub(crate) mod monotonic_mapping;
 pub(crate) mod monotonic_mapping_u128;
+mod stats;
+pub(crate) mod u64_based;
 
 mod column;
-mod column_with_cardinality;
-mod gcd;
 pub mod serialize;
 
+pub use serialize::serialize_column_values_u128;
+pub use stats::Stats;
+pub use u64_based::{
+    load_u64_based_column_values, serialize_and_load_u64_based_column_values,
+    serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
+};
+
 pub use self::column::{monotonic_map_column, ColumnValues, IterColumn, VecColumn};
-pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
-pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
-#[cfg(test)]
-pub use self::serialize::tests::serialize_and_load;
-pub use self::serialize::{serialize_column_values, NormalizedHeader};
-use crate::column_values::bitpacked::BitpackedCodec;
-use crate::column_values::blockwise_linear::BlockwiseLinearCodec;
-use crate::column_values::linear::LinearCodec;
+use crate::iterable::Iterable;
+use crate::{ColumnIndex, MergeRowOrder};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
-#[repr(u8)]
-/// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
-pub enum FastFieldCodecType {
-    /// Bitpack all values in the value range. The number of bits is defined by the amplitude
-    /// `column.max_value() - column.min_value()`
-    Bitpacked = 1,
-    /// Linear interpolation puts a line between the first and last value and then bitpacks the
-    /// values by the offset from the line. The number of bits is defined by the max deviation from
-    /// the line.
-    Linear = 2,
-    /// Same as [`FastFieldCodecType::Linear`], but encodes in blocks of 512 elements.
-    BlockwiseLinear = 3,
+pub(crate) struct MergedColumnValues<'a, T> {
+    pub(crate) column_indexes: &'a [Option<ColumnIndex>],
+    pub(crate) column_values: &'a [Option<Arc<dyn ColumnValues<T>>>],
+    pub(crate) merge_row_order: &'a MergeRowOrder,
 }
 
-impl BinarySerializable for FastFieldCodecType {
-    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
-        self.to_code().serialize(wrt)
-    }
-
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let code = u8::deserialize(reader)?;
-        let codec_type: Self = Self::from_code(code)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
-        Ok(codec_type)
-    }
-}
-
-impl FastFieldCodecType {
-    pub(crate) fn to_code(self) -> u8 {
-        self as u8
-    }
-
-    pub(crate) fn from_code(code: u8) -> Option<Self> {
-        match code {
-            1 => Some(Self::Bitpacked),
-            2 => Some(Self::Linear),
-            3 => Some(Self::BlockwiseLinear),
-            _ => None,
+impl<'a, T: Copy + PartialOrd + Debug> Iterable<T> for MergedColumnValues<'a, T> {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
+        match self.merge_row_order {
+            MergeRowOrder::Stack(_) => {
+                Box::new(self
+                    .column_values
+                    .iter()
+                    .flatten()
+                    .flat_map(|column_value| column_value.iter()))
+            },
+            MergeRowOrder::Shuffled(shuffle_merge_order) => {
+                Box::new(shuffle_merge_order
+                    .iter_new_to_old_row_addrs()
+                    .flat_map(|row_addr| {
+                        let Some(column_index) = self.column_indexes[row_addr.segment_ord as usize].as_ref() else {
+                            return None;
+                        };
+                        let Some(column_values) = self.column_values[row_addr.segment_ord as usize].as_ref() else {
+                            return None;
+                        };
+                        let value_range = column_index.value_row_ids(row_addr.row_id);
+                        Some((value_range, column_values))
+                    })
+                    .flat_map(|(value_range, column_values)| {
+                        value_range
+                            .into_iter()
+                            .map(|val| column_values.get_val(val))
+                    })
+                )
+            },
         }
     }
 }
@@ -98,7 +89,7 @@ pub enum U128FastFieldCodecType {
 }
 
 impl BinarySerializable for U128FastFieldCodecType {
-    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, wrt: &mut W) -> io::Result<()> {
         self.to_code().serialize(wrt)
     }
 
@@ -124,7 +115,7 @@ impl U128FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128_mapped<T: MonotonicallyMappableToU128>(
+pub fn open_u128_mapped<T: MonotonicallyMappableToU128 + Debug>(
     mut bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
     let header = U128Header::deserialize(&mut bytes)?;
@@ -134,68 +125,6 @@ pub fn open_u128_mapped<T: MonotonicallyMappableToU128>(
     let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<T>> =
         StrictlyMonotonicMappingToInternal::<T>::new().into();
     Ok(Arc::new(monotonic_map_column(reader, inverted)))
-}
-
-/// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u64_mapped<T: MonotonicallyMappableToU64>(
-    mut bytes: OwnedBytes,
-) -> io::Result<Arc<dyn ColumnValues<T>>> {
-    let header = Header::deserialize(&mut bytes)?;
-    match header.codec_type {
-        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
-        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
-        FastFieldCodecType::BlockwiseLinear => {
-            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
-        }
-    }
-}
-
-fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
-    header: &Header,
-) -> io::Result<Arc<dyn ColumnValues<Item>>> {
-    let normalized_header = header.normalized();
-    let reader = C::open_from_bytes(bytes, normalized_header)?;
-    let min_value = header.min_value;
-    if let Some(gcd) = header.gcd {
-        let mapping = StrictlyMonotonicMappingInverter::from(
-            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
-        );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
-    } else {
-        let mapping = StrictlyMonotonicMappingInverter::from(
-            StrictlyMonotonicMappingToInternalBaseval::new(min_value),
-        );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
-    }
-}
-
-/// The FastFieldSerializerEstimate trait is required on all variants
-/// of fast field compressions, to decide which one to choose.
-pub(crate) trait FastFieldCodec: 'static {
-    /// A codex needs to provide a unique name and id, which is
-    /// used for debugging and de/serialization.
-    const CODEC_TYPE: FastFieldCodecType;
-
-    type Reader: ColumnValues<u64> + 'static;
-
-    /// Reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader>;
-
-    /// Serializes the data using the serializer into write.
-    ///
-    /// The column iterator should be preferred over using column `get_val` method for
-    /// performance reasons.
-    fn serialize(column: &dyn ColumnValues, write: &mut impl Write) -> io::Result<()>;
-
-    /// Returns an estimate of the compression ratio.
-    /// If the codec is not applicable, returns `None`.
-    ///
-    /// The baseline is uncompressed 64bit data.
-    ///
-    /// It could make sense to also return a value representing
-    /// computational complexity.
-    fn estimate(column: &dyn ColumnValues) -> Option<f32>;
 }
 
 #[cfg(all(test, feature = "unstable"))]

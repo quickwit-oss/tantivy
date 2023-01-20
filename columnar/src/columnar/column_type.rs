@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::net::Ipv6Addr;
 
 use crate::value::NumericalType;
@@ -7,7 +8,7 @@ use crate::InvalidData;
 ///
 /// - bits[0..3]: Column category type.
 /// - bits[3..6]: Numerical type if necessary.
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum ColumnType {
     I64 = 0u8,
@@ -64,18 +65,6 @@ impl From<NumericalType> for ColumnType {
 }
 
 impl ColumnType {
-    /// get column type category
-    pub(crate) fn column_type_category(self) -> ColumnTypeCategory {
-        match self {
-            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 => ColumnTypeCategory::Numerical,
-            ColumnType::Bytes => ColumnTypeCategory::Bytes,
-            ColumnType::Str => ColumnTypeCategory::Str,
-            ColumnType::Bool => ColumnTypeCategory::Bool,
-            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
-            ColumnType::DateTime => ColumnTypeCategory::DateTime,
-        }
-    }
-
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
             ColumnType::I64 => Some(NumericalType::I64),
@@ -91,7 +80,7 @@ impl ColumnType {
 }
 
 // TODO remove if possible
-pub trait HasAssociatedColumnType: 'static + Send + Sync + Copy + PartialOrd {
+pub trait HasAssociatedColumnType: 'static + Debug + Send + Sync + Copy + PartialOrd {
     fn column_type() -> ColumnType;
     fn default_value() -> Self;
 }

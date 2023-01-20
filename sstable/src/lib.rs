@@ -117,6 +117,7 @@ impl SSTable for MonotonicU64SSTable {
 /// `range_sstable[k1].end == range_sstable[k2].start`.
 ///
 /// The first range is not required to start at `0`.
+#[derive(Clone, Copy, Debug)]
 pub struct RangeSSTable;
 
 impl SSTable for RangeSSTable {

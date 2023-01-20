@@ -228,7 +228,7 @@ impl Document {
 }
 
 impl BinarySerializable for Document {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let field_values = self.field_values();
         VInt(field_values.len() as u64).serialize(writer)?;
         for field_value in field_values {
