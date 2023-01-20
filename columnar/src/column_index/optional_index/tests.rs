@@ -41,9 +41,10 @@ fn test_with_random_sets_simple() {
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let ranks: Vec<u32> = (65_472u32..65_473u32).collect();
     let els: Vec<u32> = ranks.iter().copied().map(|rank| rank + 10).collect();
-    let mut output = vec![0u32; ranks.len()];
-    null_index.select_batch(&ranks[..], &mut output[..]);
-    assert_eq!(&output, &els);
+    let mut select_cursor = null_index.select_cursor();
+    for (rank, el) in ranks.iter().copied().zip(els.iter().copied()) {
+        assert_eq!(select_cursor.select(rank), el);
+    }
 }
 
 #[test]
@@ -91,11 +92,10 @@ fn test_null_index(data: &[bool]) {
         .filter(|(_pos, val)| **val)
         .map(|(pos, _val)| pos as u32)
         .collect();
-    let ids: Vec<u32> = (0..orig_idx_with_value.len() as u32).collect();
-    let mut output = vec![0u32; ids.len()];
-    null_index.select_batch(&ids[..], &mut output);
-    // assert_eq!(&output[0..100], &orig_idx_with_value[0..100]);
-    assert_eq!(output, orig_idx_with_value);
+    let mut select_iter = null_index.select_cursor();
+    for i in 0..orig_idx_with_value.len() {
+        assert_eq!(select_iter.select(i as u32), orig_idx_with_value[i]);
+    }
 
     let step_size = (orig_idx_with_value.len() / 100).max(1);
     for (dense_idx, orig_idx) in orig_idx_with_value.iter().enumerate().step_by(step_size) {
@@ -115,9 +115,9 @@ fn test_optional_index_test_translation() {
     let iter = &[true, false, true, false];
     serialize_optional_index(&&iter[..], &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
-    let mut output = vec![0u32; 2];
-    null_index.select_batch(&[0, 1], &mut output);
-    assert_eq!(output, &[0, 2]);
+    let mut select_cursor = null_index.select_cursor();
+    assert_eq!(select_cursor.select(0), 0);
+    assert_eq!(select_cursor.select(1), 2);
 }
 
 #[test]
@@ -175,7 +175,6 @@ mod bench {
             .map(|_| rng.gen_bool(fill_ratio))
             .collect();
         serialize_optional_index(&&vals[..], &mut out).unwrap();
-
         let codec = open_optional_index(OwnedBytes::new(out)).unwrap();
         codec
     }
@@ -311,7 +310,8 @@ mod bench {
         };
         let mut output = vec![0u32; idxs.len()];
         bench.iter(|| {
-            codec.select_batch(&idxs[..], &mut output);
+            output.copy_from_slice(&idxs[..]);
+            codec.select_batch(&mut output);
         });
     }
 

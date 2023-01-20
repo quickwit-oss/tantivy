@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use common::BinarySerializable;
 
-use crate::column_index::optional_index::{Set, SetCodec, ELEMENTS_PER_BLOCK};
+use crate::column_index::optional_index::{Set, SetCodec, SelectCursor, ELEMENTS_PER_BLOCK};
 
 #[inline(always)]
 fn get_bit_at(input: u64, n: u16) -> bool {
@@ -105,7 +105,24 @@ impl DenseMiniBlock {
 #[derive(Copy, Clone)]
 pub struct DenseBlock<'a>(&'a [u8]);
 
+pub struct DenseBlockSelectCursor<'a> {
+    block_id: u16,
+    dense_block: DenseBlock<'a>,
+}
+
+impl<'a> SelectCursor<u16> for DenseBlockSelectCursor<'a> {
+    #[inline]
+    fn select(&mut self, rank: u16) -> u16 {
+        self.block_id = self.dense_block.find_miniblock_containing_rank(rank, self.block_id).unwrap();
+        let index_block = self.dense_block.mini_block(self.block_id);
+        let in_block_rank = rank - index_block.rank;
+        self.block_id * ELEMENTS_PER_MINI_BLOCK + select_u64(index_block.bitvec, in_block_rank)
+    }
+}
+
 impl<'a> Set<u16> for DenseBlock<'a> {
+    type SelectCursor<'b> = DenseBlockSelectCursor<'a> where Self: 'b;
+
     #[inline(always)]
     fn contains(&self, el: u16) -> bool {
         let mini_block_id = el / ELEMENTS_PER_MINI_BLOCK;
@@ -136,34 +153,12 @@ impl<'a> Set<u16> for DenseBlock<'a> {
         block_id * ELEMENTS_PER_MINI_BLOCK + select_u64(index_block.bitvec, in_block_rank)
     }
 
-    fn select_batch(&self, ranks: &[u16], outputs: &mut [u16]) {
-        let orig_ids = self.select_iter(ranks.iter().copied());
-        for (output, original_id) in outputs.iter_mut().zip(orig_ids) {
-            *output = original_id;
+    #[inline(always)]
+    fn select_cursor<'b>(&'b self,) -> Self::SelectCursor<'b> {
+        DenseBlockSelectCursor {
+            block_id: 0,
+            dense_block: *self,
         }
-    }
-}
-
-impl<'a> DenseBlock<'a> {
-    /// Iterator verison of select.
-    ///
-    /// # Panics
-    /// Panics if one of the rank is higher than the number of elements in the set.
-    pub fn select_iter<'b>(
-        &self,
-        rank_it: impl Iterator<Item = u16> + 'b,
-    ) -> impl Iterator<Item = u16> + 'b
-    where
-        Self: 'b,
-    {
-        let mut block_id = 0u16;
-        let me = *self;
-        rank_it.map(move |rank| {
-            block_id = me.find_miniblock_containing_rank(rank, block_id).unwrap();
-            let index_block = me.mini_block(block_id);
-            let in_block_rank = rank - index_block.rank;
-            block_id * ELEMENTS_PER_MINI_BLOCK + select_u64(index_block.bitvec, in_block_rank)
-        })
     }
 }
 

@@ -5,8 +5,8 @@ use std::sync::Arc;
 mod set;
 mod set_block;
 
-use common::{BinarySerializable, GroupByIteratorExtended, OwnedBytes, VInt};
-pub use set::{Set, SetCodec};
+use common::{BinarySerializable, OwnedBytes, VInt};
+pub use set::{Set, SetCodec, SelectCursor};
 use set_block::{
     DenseBlock, DenseBlockCodec, SparseBlock, SparseBlockCodec, DENSE_BLOCK_NUM_BYTES,
 };
@@ -115,7 +115,59 @@ fn row_addr_from_row_id(row_id: RowId) -> RowAddr {
     }
 }
 
+enum BlockSelectCursor<'a> {
+    Dense(<DenseBlock<'a> as Set<u16>>::SelectCursor<'a>),
+    Sparse(<SparseBlock<'a> as Set<u16>>::SelectCursor<'a>),
+}
+
+impl<'a> BlockSelectCursor<'a> {
+    fn select(&mut self, rank: u16) -> u16 {
+        match self {
+            BlockSelectCursor::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
+            BlockSelectCursor::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
+        }
+    }
+
+}
+pub struct OptionalIndexSelectCursor<'a> {
+    current_block_cursor: BlockSelectCursor<'a>,
+    current_block_id: u16,
+    // The current block is guaranteed to contain ranks < end_rank.
+    current_block_end_rank: RowId,
+    optional_index: &'a OptionalIndex,
+    block_doc_idx_start: RowId,
+    num_null_rows_before_block: RowId,
+}
+
+impl<'a> OptionalIndexSelectCursor<'a> {
+    fn search_and_load_block(&mut self, rank: RowId) {
+        if rank < self.current_block_end_rank {
+            // we are already in the right block
+            return;
+        }
+        self.current_block_id = self.optional_index.find_block(rank, self.current_block_id);
+        self.current_block_end_rank = self.optional_index.block_metas.get(self.current_block_id as usize + 1).map(|block_meta| block_meta.non_null_rows_before_block).unwrap_or(u32::MAX);
+        self.block_doc_idx_start = (self.current_block_id as u32) * ELEMENTS_PER_BLOCK;
+        let block_meta = self.optional_index.block_metas[self.current_block_id as usize];
+        self.num_null_rows_before_block = block_meta.non_null_rows_before_block;
+        let block: Block<'_> = self.optional_index.block(block_meta);
+        self.current_block_cursor = match block {
+            Block::Dense(dense_block) => BlockSelectCursor::Dense(dense_block.select_cursor()),
+            Block::Sparse(sparse_block) => BlockSelectCursor::Sparse(sparse_block.select_cursor()),
+        };
+    }
+}
+
+impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor<'a> {
+    fn select(&mut self, rank: RowId) -> RowId {
+        self.search_and_load_block(rank);
+        let index_in_block = (rank - self.num_null_rows_before_block) as u16;
+        self.current_block_cursor.select(index_in_block) as RowId + self.block_doc_idx_start
+    }
+}
+
 impl Set<RowId> for OptionalIndex {
+    type SelectCursor<'b> = OptionalIndexSelectCursor<'b> where Self: 'b;
     // Check if value at position is not null.
     #[inline]
     fn contains(&self, row_id: RowId) -> bool {
@@ -148,7 +200,7 @@ impl Set<RowId> for OptionalIndex {
     #[inline]
     fn select(&self, rank: RowId) -> RowId {
         let block_pos = self.find_block(rank, 0);
-        let block_doc_idx_start = block_pos * ELEMENTS_PER_BLOCK;
+        let block_doc_idx_start = (block_pos as u32) * ELEMENTS_PER_BLOCK;
         let block_meta = self.block_metas[block_pos as usize];
         let block: Block<'_> = self.block(block_meta);
         let index_in_block = (rank - block_meta.non_null_rows_before_block) as u16;
@@ -159,39 +211,27 @@ impl Set<RowId> for OptionalIndex {
         block_doc_idx_start + in_block_rank as u32
     }
 
-    fn select_batch(&self, ranks: &[u32], output_idxs: &mut [u32]) {
-        let mut block_pos = 0u32;
-        let mut start = 0;
-        let group_by_it = ranks.iter().copied().group_by(move |codec_idx| {
-            block_pos = self.find_block(*codec_idx, block_pos);
-            block_pos
-        });
-        for (block_pos, block_iter) in group_by_it {
-            let block_doc_idx_start = block_pos * ELEMENTS_PER_BLOCK;
-            let block_meta = self.block_metas[block_pos as usize];
-            let block: Block<'_> = self.block(block_meta);
-            let offset = block_meta.non_null_rows_before_block;
-            let indexes_in_block_iter =
-                block_iter.map(move |codec_idx| (codec_idx - offset) as u16);
-            match block {
-                Block::Dense(dense_block) => {
-                    for in_offset in dense_block.select_iter(indexes_in_block_iter) {
-                        output_idxs[start] = in_offset as u32 + block_doc_idx_start;
-                        start += 1;
-                    }
-                }
-                Block::Sparse(sparse_block) => {
-                    for in_offset in sparse_block.select_iter(indexes_in_block_iter) {
-                        output_idxs[start] = in_offset as u32 + block_doc_idx_start;
-                        start += 1;
-                    }
-                }
-            };
+    fn select_cursor<'b>(&'b self) -> OptionalIndexSelectCursor<'b> {
+        OptionalIndexSelectCursor {
+            current_block_cursor: BlockSelectCursor::Sparse(SparseBlockCodec::open(b"").select_cursor()),
+            current_block_id: 0u16,
+            current_block_end_rank: 0u32, //< this is sufficient to force the first load
+            optional_index: self,
+            block_doc_idx_start: 0u32,
+            num_null_rows_before_block: 0u32,
         }
     }
 }
 
 impl OptionalIndex {
+
+    pub fn select_batch(&self, ranks: &mut [RowId]) {
+        let mut select_cursor = self.select_cursor();
+        for rank in ranks.iter_mut() {
+            *rank = select_cursor.select(*rank);
+        }
+    }
+
     #[inline]
     fn block<'a>(&'a self, block_meta: BlockMeta) -> Block<'a> {
         let BlockMeta {
@@ -214,14 +254,14 @@ impl OptionalIndex {
     }
 
     #[inline]
-    fn find_block(&self, dense_idx: u32, start_block_pos: u32) -> u32 {
-        for block_pos in start_block_pos..self.block_metas.len() as u32 {
+    fn find_block(&self, dense_idx: u32, start_block_pos: u16) -> u16 {
+        for block_pos in start_block_pos..self.block_metas.len() as u16 {
             let offset = self.block_metas[block_pos as usize].non_null_rows_before_block;
             if offset > dense_idx {
-                return block_pos - 1;
+                return block_pos - 1u16;
             }
         }
-        self.block_metas.len() as u32 - 1u32
+        self.block_metas.len() as u16 - 1u16
     }
 
     // TODO Add a good API for the codec_idx to original_idx translation.
