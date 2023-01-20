@@ -61,7 +61,6 @@ stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
 tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
 tantivy-bitpacker = 		{ version= "0.3", path="./bitpacker" }
 common = 								{ version= "0.5", path = "./common/", package = "tantivy-common" }
-fastfield_codecs = 			{ version= "0.3", path="./fastfield_codecs", default-features = false }
 tokenizer-api = { version="0.1", path="./tokenizer-api", package="tantivy-tokenizer-api" }
 
 [target.'cfg(windows)'.dependencies]
@@ -108,7 +107,7 @@ unstable = [] # useful for benches.
 quickwit = ["sstable"]
 
 [workspace]
-members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
+members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
 
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points

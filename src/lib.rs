@@ -147,6 +147,22 @@ pub struct DateTime {
     pub(crate) timestamp_micros: i64,
 }
 
+impl From<columnar::DateTime> for DateTime {
+    fn from(columnar_datetime: columnar::DateTime) -> Self {
+        DateTime {
+            timestamp_micros: columnar_datetime.timestamp_micros,
+        }
+    }
+}
+
+impl From<DateTime> for columnar::DateTime {
+    fn from(datetime: crate::DateTime) -> Self {
+        columnar::DateTime {
+            timestamp_micros: datetime.timestamp_micros,
+        }
+    }
+}
+
 impl DateTime {
     /// Create new from UNIX timestamp in seconds
     pub const fn from_timestamp_secs(seconds: i64) -> Self {
@@ -263,7 +279,7 @@ mod indexer;
 pub mod error;
 pub mod tokenizer;
 
-pub mod aggregation;
+// pub mod aggregation;
 pub mod collector;
 pub mod directory;
 pub mod fastfield;

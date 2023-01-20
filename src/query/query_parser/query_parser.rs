@@ -13,10 +13,19 @@ use crate::core::Index;
 use crate::indexer::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
-use crate::query::range_query::is_type_valid_for_fastfield_range_query;
+use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhraseQuery, Query,
-    RangeQuery, TermQuery, TermSetQuery,
+    AllQuery,
+    BooleanQuery,
+    BoostQuery,
+    EmptyQuery,
+    FuzzyTermQuery,
+    Occur,
+    PhraseQuery,
+    Query,
+    // RangeQuery,
+    TermQuery,
+    TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,

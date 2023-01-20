@@ -1,13 +1,13 @@
-use core::fmt;
+use core::fmt::Debug;
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use columnar::Column;
 
-use crate::fastfield::{MakeZero, MultiValuedFastFieldReader};
+use crate::fastfield::MakeZero;
 use crate::{DocId, DocSet, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids
+#[derive(Debug)]
 struct VecCursor {
     docs: Vec<u32>,
     current_pos: usize,
@@ -40,26 +40,10 @@ impl VecCursor {
     }
 }
 
-pub(crate) enum FastFieldCardinality<T: MakeZero> {
-    SingleValue(Arc<dyn Column<T>>),
-    MultiValue(MultiValuedFastFieldReader<T>),
-}
-
-impl<T: MakeZero + PartialOrd + Copy + fmt::Debug> FastFieldCardinality<T> {
-    fn num_docs(&self) -> u32 {
-        match self {
-            FastFieldCardinality::SingleValue(single_value) => single_value.num_vals(),
-            FastFieldCardinality::MultiValue(multi_value) => {
-                multi_value.get_index_reader().num_docs()
-            }
-        }
-    }
-}
-
 pub(crate) struct RangeDocSet<T: MakeZero> {
     /// The range filter on the values.
     value_range: RangeInclusive<T>,
-    fast_field: FastFieldCardinality<T>,
+    column: Column<T>,
     /// The next docid start range to fetch (inclusive).
     next_fetch_start: u32,
     /// Number of docs range checked in a batch.
@@ -77,11 +61,11 @@ pub(crate) struct RangeDocSet<T: MakeZero> {
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
-impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> RangeDocSet<T> {
-    pub(crate) fn new(value_range: RangeInclusive<T>, fast_field: FastFieldCardinality<T>) -> Self {
+impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
+    pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
         let mut range_docset = Self {
             value_range,
-            fast_field,
+            column,
             loaded_docs: VecCursor::new(),
             next_fetch_start: 0,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
@@ -122,36 +106,24 @@ impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> RangeDocSet<T> {
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.fast_field.num_docs();
+        let limit = self.column.values.num_vals();
         let mut end = self.next_fetch_start + horizon;
         if end >= limit {
             end = limit;
             finished_to_end = true;
         }
 
-        match &self.fast_field {
-            FastFieldCardinality::MultiValue(multi) => {
-                let last_value = self.loaded_docs.last_value();
-
-                multi.get_docids_for_value_range(
-                    self.value_range.clone(),
-                    self.next_fetch_start..end,
-                    self.loaded_docs.get_cleared_data(),
-                );
-                // In case of multivalues, we may have an overlap of the same docid between fetching
-                // blocks
-                if let Some(last_value) = last_value {
-                    while self.loaded_docs.current() == Some(last_value) {
-                        self.loaded_docs.next();
-                    }
-                }
-            }
-            FastFieldCardinality::SingleValue(single) => {
-                single.get_docids_for_value_range(
-                    self.value_range.clone(),
-                    self.next_fetch_start..end,
-                    self.loaded_docs.get_cleared_data(),
-                );
+        let last_value = self.loaded_docs.last_value();
+        let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
+        self.column.values.get_docids_for_value_range(
+            self.value_range.clone(),
+            self.next_fetch_start..end,
+            doc_buffer,
+        );
+        self.column.idx.select_batch_in_place(doc_buffer);
+        if let Some(last_value) = last_value {
+            while self.loaded_docs.current() == Some(last_value) {
+                self.loaded_docs.next();
             }
         }
         self.next_fetch_start = end;
@@ -160,18 +132,17 @@ impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> RangeDocSet<T> {
     }
 }
 
-impl<T: MakeZero + Send + PartialOrd + Copy + fmt::Debug> DocSet for RangeDocSet<T> {
+impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSet<T> {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
-            docid
-        } else {
-            if self.next_fetch_start >= self.fast_field.num_docs() {
-                return TERMINATED;
-            }
-            self.fetch_block();
-            self.loaded_docs.current().unwrap_or(TERMINATED)
+            return docid;
         }
+        if self.next_fetch_start >= self.column.values.num_vals() {
+            return TERMINATED;
+        }
+        self.fetch_block();
+        self.loaded_docs.current().unwrap_or(TERMINATED)
     }
 
     #[inline]

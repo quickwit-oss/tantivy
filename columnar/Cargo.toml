@@ -19,9 +19,9 @@ common = { path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.3", path = "../bitpacker/" }
 
 [dev-dependencies]
-proptest = "1.0.0"
-more-asserts = "0.3.1"
-rand = "0.8.5"
+proptest = "1"
+more-asserts = "0.3.0"
+rand = "0.8.3"
 
 [features]
 unstable = []

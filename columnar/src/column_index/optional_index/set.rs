@@ -13,7 +13,6 @@ pub trait SetCodec {
     fn open<'a>(data: &'a [u8]) -> Self::Reader<'a>;
 }
 
-
 /// Stateful object that makes it possible to compute several select in a row,
 /// provided the rank passed as argument are increasing.
 pub trait SelectCursor<T> {
@@ -23,8 +22,8 @@ pub trait SelectCursor<T> {
 }
 
 pub trait Set<T> {
-    type SelectCursor<'b>: SelectCursor<T> where Self: 'b;
-
+    type SelectCursor<'b>: SelectCursor<T>
+    where Self: 'b;
 
     /// Returns true if the elements is contained in the Set
     fn contains(&self, el: T) -> bool;
@@ -41,5 +40,5 @@ pub trait Set<T> {
     fn select(&self, rank: T) -> T;
 
     /// Creates a brand new select cursor.
-    fn select_cursor<'b>(&'b self,) -> Self::SelectCursor<'b>;
+    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b>;
 }

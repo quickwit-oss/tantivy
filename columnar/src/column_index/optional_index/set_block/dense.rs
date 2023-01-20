@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use common::BinarySerializable;
 
-use crate::column_index::optional_index::{Set, SetCodec, SelectCursor, ELEMENTS_PER_BLOCK};
+use crate::column_index::optional_index::{SelectCursor, Set, SetCodec, ELEMENTS_PER_BLOCK};
 
 #[inline(always)]
 fn get_bit_at(input: u64, n: u16) -> bool {
@@ -113,7 +113,10 @@ pub struct DenseBlockSelectCursor<'a> {
 impl<'a> SelectCursor<u16> for DenseBlockSelectCursor<'a> {
     #[inline]
     fn select(&mut self, rank: u16) -> u16 {
-        self.block_id = self.dense_block.find_miniblock_containing_rank(rank, self.block_id).unwrap();
+        self.block_id = self
+            .dense_block
+            .find_miniblock_containing_rank(rank, self.block_id)
+            .unwrap();
         let index_block = self.dense_block.mini_block(self.block_id);
         let in_block_rank = rank - index_block.rank;
         self.block_id * ELEMENTS_PER_MINI_BLOCK + select_u64(index_block.bitvec, in_block_rank)
@@ -154,7 +157,7 @@ impl<'a> Set<u16> for DenseBlock<'a> {
     }
 
     #[inline(always)]
-    fn select_cursor<'b>(&'b self,) -> Self::SelectCursor<'b> {
+    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b> {
         DenseBlockSelectCursor {
             block_id: 0,
             dense_block: *self,

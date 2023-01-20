@@ -1,6 +1,7 @@
 mod dictionary_encoded;
 mod serialize;
 
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -17,11 +18,11 @@ use crate::{Cardinality, RowId};
 
 #[derive(Clone)]
 pub struct Column<T> {
-    pub idx: ColumnIndex<'static>,
+    pub idx: ColumnIndex,
     pub values: Arc<dyn ColumnValues<T>>,
 }
 
-impl<T: PartialOrd> Column<T> {
+impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     pub fn num_rows(&self) -> RowId {
         match &self.idx {
             ColumnIndex::Full => self.values.num_vals() as u32,
@@ -29,7 +30,7 @@ impl<T: PartialOrd> Column<T> {
             ColumnIndex::Multivalued(col_index) => {
                 // The multivalued index contains all value start row_id,
                 // and one extra value at the end with the overall number of rows.
-                col_index.num_vals() - 1
+                col_index.num_rows()
             }
         }
     }
@@ -37,12 +38,11 @@ impl<T: PartialOrd> Column<T> {
     pub fn min_value(&self) -> T {
         self.values.min_value()
     }
+
     pub fn max_value(&self) -> T {
         self.values.max_value()
     }
-}
 
-impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {
     pub fn first(&self, row_id: RowId) -> Option<T> {
         self.values(row_id).next()
     }
@@ -61,7 +61,7 @@ impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {
 }
 
 impl<T> Deref for Column<T> {
-    type Target = ColumnIndex<'static>;
+    type Target = ColumnIndex;
 
     fn deref(&self) -> &Self::Target {
         &self.idx
@@ -86,7 +86,9 @@ struct FirstValueWithDefault<T: Copy> {
     default_value: T,
 }
 
-impl<T: PartialOrd + Send + Sync + Copy + 'static> ColumnValues<T> for FirstValueWithDefault<T> {
+impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
+    for FirstValueWithDefault<T>
+{
     fn get_val(&self, idx: u32) -> T {
         self.column.first(idx).unwrap_or(self.default_value)
     }

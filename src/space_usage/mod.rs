@@ -219,9 +219,16 @@ pub struct PerFieldSpaceUsage {
 }
 
 impl PerFieldSpaceUsage {
-    pub(crate) fn new(fields: HashMap<Field, FieldUsage>) -> PerFieldSpaceUsage {
-        let total = fields.values().map(FieldUsage::total).sum();
-        PerFieldSpaceUsage { fields, total }
+    pub(crate) fn new(fields: Vec<FieldUsage>) -> PerFieldSpaceUsage {
+        let total = fields.iter().map(FieldUsage::total).sum();
+        let field_usage_map: HashMap<Field, FieldUsage> = fields
+            .into_iter()
+            .map(|field_usage| (field_usage.field(), field_usage))
+            .collect();
+        PerFieldSpaceUsage {
+            fields: field_usage_map,
+            total,
+        }
     }
 
     /// Per field space usage

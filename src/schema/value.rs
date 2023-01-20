@@ -319,8 +319,8 @@ mod binary_serialize {
     use std::io::{self, Read, Write};
     use std::net::Ipv6Addr;
 
+    use columnar::MonotonicallyMappableToU128;
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
-    use fastfield_codecs::MonotonicallyMappableToU128;
 
     use super::Value;
     use crate::schema::Facet;

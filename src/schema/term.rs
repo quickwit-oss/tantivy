@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
 
-use fastfield_codecs::MonotonicallyMappableToU128;
+use columnar::MonotonicallyMappableToU128;
 
 use super::Field;
 use crate::fastfield::FastValue;
