@@ -5,24 +5,23 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+itertools = "0.10.5"
+log = "0.4.17"
+fnv = "1.0.7"
+fastdivide = "0.4.0"
+rand = { version = "0.8.5", optional = true }
+measure_time = { version = "0.8.2", optional = true }
+prettytable-rs = { version = "0.10.0", optional = true }
+
 stacker = { path = "../stacker", package="tantivy-stacker"}
-serde_json = "1"
-thiserror = "1"
-fnv = "1"
 sstable = { path = "../sstable", package = "tantivy-sstable" }
 common = { path = "../common", package = "tantivy-common" }
-itertools = "0.10"
-log = "0.4"
 tantivy-bitpacker = { version= "0.3", path = "../bitpacker/" }
-prettytable-rs = {version="0.10.0", optional= true}
-rand = {version="0.8.3", optional= true}
-fastdivide = "0.4"
-measure_time = { version="0.8.2", optional=true}
 
 [dev-dependencies]
-proptest = "1"
-more-asserts = "0.3.0"
-rand = "0.8.3"
+proptest = "1.0.0"
+more-asserts = "0.3.1"
+rand = "0.8.5"
 
 [features]
 unstable = []
