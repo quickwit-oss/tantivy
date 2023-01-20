@@ -137,7 +137,7 @@ mod tests {
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
             DateOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed()
                 .set_fieldnorm()
                 .set_precision(DatePrecision::Microseconds)
@@ -188,7 +188,7 @@ mod tests {
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
             DateOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 // TODO: Test different precision after fixing https://github.com/quickwit-oss/tantivy/issues/1783
                 .set_precision(DatePrecision::Microseconds)
                 .set_indexed()
@@ -307,7 +307,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field_options = NumericOptions::default()
             .set_indexed()
-            .set_fast(Cardinality::MultiValues);
+            .set_fast();
         let item_field = schema_builder.add_i64_field("items", field_options);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

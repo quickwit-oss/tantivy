@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use fastdivide::DividerU64;
@@ -7,7 +8,7 @@ use crate::RowId;
 
 /// Monotonic maps a value to u64 value space.
 /// Monotonic mapping enables `PartialOrd` on u64 space without conversion to original space.
-pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Copy + Send + Sync {
+pub trait MonotonicallyMappableToU64: 'static + PartialOrd + Debug + Copy + Send + Sync {
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.

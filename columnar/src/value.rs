@@ -1,4 +1,4 @@
-use crate::{Column, ColumnType, InvalidData};
+use crate::InvalidData;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum NumericalValue {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::column_index::optional_index::set_block::dense::DENSE_BLOCK_NUM_BYTES;
 use crate::column_index::optional_index::set_block::{DenseBlockCodec, SparseBlockCodec};
-use crate::column_index::optional_index::{Set, SetCodec, SelectCursor};
+use crate::column_index::optional_index::{SelectCursor, Set, SetCodec};
 
 fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
     let mut buffer = Vec::new();

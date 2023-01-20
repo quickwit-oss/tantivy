@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
 
@@ -8,7 +9,7 @@ use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
 /// `ColumnValues` provides access to a dense field column.
 ///
 /// `Column` are just a wrapper over `ColumnValues` and a `ColumnIndex`.
-pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
+pub trait ColumnValues<T: PartialOrd + Debug = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -44,7 +45,6 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         positions: &mut Vec<u32>,
     ) {
         let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
-
         for idx in doc_id_range.start..doc_id_range.end {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
@@ -78,7 +78,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     }
 }
 
-impl<T: Copy + PartialOrd> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T>> {
+impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T>> {
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
     }
@@ -104,7 +104,7 @@ impl<T: Copy + PartialOrd> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T
     }
 }
 
-impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd> ColumnValues<T> for &'a C {
+impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd + Debug> ColumnValues<T> for &'a C {
     fn get_val(&self, idx: u32) -> T {
         (*self).get_val(idx)
     }
@@ -137,7 +137,7 @@ pub struct VecColumn<'a, T = u64> {
     pub(crate) max_value: T,
 }
 
-impl<'a, T: Copy + PartialOrd + Send + Sync> ColumnValues<T> for VecColumn<'a, T> {
+impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> ColumnValues<T> for VecColumn<'a, T> {
     fn get_val(&self, position: u32) -> T {
         self.values[position as usize]
     }
@@ -205,8 +205,8 @@ pub fn monotonic_map_column<C, T, Input, Output>(
 where
     C: ColumnValues<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Debug + Send + Sync + Clone,
+    Output: PartialOrd + Debug + Send + Sync + Clone,
 {
     MonotonicMappingColumn {
         from_column,
@@ -219,8 +219,8 @@ impl<C, T, Input, Output> ColumnValues<Output> for MonotonicMappingColumn<C, T, 
 where
     C: ColumnValues<Input>,
     T: StrictlyMonotonicFn<Input, Output> + Send + Sync,
-    Input: PartialOrd + Send + Sync + Clone,
-    Output: PartialOrd + Send + Sync + Clone,
+    Input: PartialOrd + Send + Debug + Sync + Clone,
+    Output: PartialOrd + Send + Debug + Sync + Clone,
 {
     #[inline]
     fn get_val(&self, idx: u32) -> Output {
@@ -282,7 +282,7 @@ where T: Iterator + Clone + ExactSizeIterator
 impl<T> ColumnValues<T::Item> for IterColumn<T>
 where
     T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd,
+    T::Item: PartialOrd + Debug,
 {
     fn get_val(&self, idx: u32) -> T::Item {
         self.0.clone().nth(idx as usize).unwrap()

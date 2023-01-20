@@ -6,7 +6,7 @@ mod set;
 mod set_block;
 
 use common::{BinarySerializable, OwnedBytes, VInt};
-pub use set::{Set, SetCodec, SelectCursor};
+pub use set::{SelectCursor, Set, SetCodec};
 use set_block::{
     DenseBlock, DenseBlockCodec, SparseBlock, SparseBlockCodec, DENSE_BLOCK_NUM_BYTES,
 };
@@ -127,7 +127,6 @@ impl<'a> BlockSelectCursor<'a> {
             BlockSelectCursor::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
         }
     }
-
 }
 pub struct OptionalIndexSelectCursor<'a> {
     current_block_cursor: BlockSelectCursor<'a>,
@@ -146,7 +145,12 @@ impl<'a> OptionalIndexSelectCursor<'a> {
             return;
         }
         self.current_block_id = self.optional_index.find_block(rank, self.current_block_id);
-        self.current_block_end_rank = self.optional_index.block_metas.get(self.current_block_id as usize + 1).map(|block_meta| block_meta.non_null_rows_before_block).unwrap_or(u32::MAX);
+        self.current_block_end_rank = self
+            .optional_index
+            .block_metas
+            .get(self.current_block_id as usize + 1)
+            .map(|block_meta| block_meta.non_null_rows_before_block)
+            .unwrap_or(u32::MAX);
         self.block_doc_idx_start = (self.current_block_id as u32) * ELEMENTS_PER_BLOCK;
         let block_meta = self.optional_index.block_metas[self.current_block_id as usize];
         self.num_null_rows_before_block = block_meta.non_null_rows_before_block;
@@ -213,7 +217,9 @@ impl Set<RowId> for OptionalIndex {
 
     fn select_cursor<'b>(&'b self) -> OptionalIndexSelectCursor<'b> {
         OptionalIndexSelectCursor {
-            current_block_cursor: BlockSelectCursor::Sparse(SparseBlockCodec::open(b"").select_cursor()),
+            current_block_cursor: BlockSelectCursor::Sparse(
+                SparseBlockCodec::open(b"").select_cursor(),
+            ),
             current_block_id: 0u16,
             current_block_end_rank: 0u32, //< this is sufficient to force the first load
             optional_index: self,
@@ -224,7 +230,6 @@ impl Set<RowId> for OptionalIndex {
 }
 
 impl OptionalIndex {
-
     pub fn select_batch(&self, ranks: &mut [RowId]) {
         let mut select_cursor = self.select_cursor();
         for rank in ranks.iter_mut() {

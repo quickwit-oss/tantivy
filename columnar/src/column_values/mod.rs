@@ -10,6 +10,7 @@
 #[cfg(test)]
 mod tests;
 
+use std::fmt::Debug;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
@@ -124,7 +125,7 @@ impl U128FastFieldCodecType {
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128_mapped<T: MonotonicallyMappableToU128>(
+pub fn open_u128_mapped<T: MonotonicallyMappableToU128 + Debug>(
     mut bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
     let header = U128Header::deserialize(&mut bytes)?;
@@ -137,7 +138,7 @@ pub fn open_u128_mapped<T: MonotonicallyMappableToU128>(
 }
 
 /// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u64_mapped<T: MonotonicallyMappableToU64>(
+pub fn open_u64_mapped<T: MonotonicallyMappableToU64 + Debug>(
     mut bytes: OwnedBytes,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
     let header = Header::deserialize(&mut bytes)?;
@@ -150,7 +151,7 @@ pub fn open_u64_mapped<T: MonotonicallyMappableToU64>(
     }
 }
 
-fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64>(
+fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64 + Debug>(
     bytes: OwnedBytes,
     header: &Header,
 ) -> io::Result<Arc<dyn ColumnValues<Item>>> {

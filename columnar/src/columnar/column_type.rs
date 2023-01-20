@@ -1,7 +1,8 @@
+use std::fmt::Debug;
 use std::net::Ipv6Addr;
 
 use crate::value::NumericalType;
-use crate::{column, Column, DynamicColumn, InvalidData, StrColumn};
+use crate::InvalidData;
 
 /// The column type represents the column type and can fit on 6-bits.
 ///
@@ -91,7 +92,7 @@ impl ColumnType {
 }
 
 // TODO remove if possible
-pub trait HasAssociatedColumnType: 'static + Send + Sync + Copy + PartialOrd {
+pub trait HasAssociatedColumnType: 'static + Debug + Send + Sync + Copy + PartialOrd {
     fn column_type() -> ColumnType;
     fn default_value() -> Self;
 }

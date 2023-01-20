@@ -19,6 +19,7 @@ pub(crate) mod utils;
 mod value;
 
 pub use column::{BytesColumn, Column, StrColumn};
+pub use column_index::ColumnIndex;
 pub use column_values::ColumnValues;
 pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,

@@ -17,6 +17,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+use std::fmt::Debug;
 use std::io;
 use std::num::NonZeroU64;
 
@@ -178,7 +179,7 @@ pub fn serialize_column_values_u128<F: Fn() -> I, I: Iterator<Item = u128>>(
 }
 
 /// Serializes the column with the codec with the best estimate on the data.
-pub fn serialize_column_values<T: MonotonicallyMappableToU64>(
+pub fn serialize_column_values<T: MonotonicallyMappableToU64 + Debug>(
     typed_column: impl ColumnValues<T>,
     codecs: &[FastFieldCodecType],
     output: &mut impl io::Write,

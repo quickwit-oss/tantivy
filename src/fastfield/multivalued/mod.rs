@@ -38,7 +38,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field(
             "multifield",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -74,7 +74,7 @@ mod tests {
         let date_field = schema_builder.add_date_field(
             "multi_date_field",
             DateOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed()
                 .set_fieldnorm()
                 .set_stored(),
@@ -215,7 +215,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_i64_field(
             "multifield",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -246,7 +246,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let bool_field = schema_builder.add_bool_field(
             "multifield",
-            NumericOptions::default().set_fast(Cardinality::MultiValues),
+            NumericOptions::default().set_fast(),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -278,7 +278,7 @@ mod tests {
         let field = schema_builder.add_u64_field(
             "multifield",
             NumericOptions::default()
-                .set_fast(Cardinality::MultiValues)
+                .set_fast()
                 .set_indexed(),
         );
         let schema = schema_builder.build();
@@ -424,7 +424,7 @@ mod bench {
         let mut builder = crate::schema::SchemaBuilder::new();
 
         let fast_multi =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::MultiValues);
+            crate::schema::NumericOptions::default().set_fast();
         let multi_field = builder.add_f64_field("f64s", fast_multi);
 
         let index = crate::Index::create_in_ram(builder.build());
@@ -504,7 +504,7 @@ mod bench {
         let path = Path::new("test");
         let directory: RamDirectory = RamDirectory::create();
         let field = {
-            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let options = NumericOptions::default().set_fast();
             let mut schema_builder = Schema::builder();
             let field = schema_builder.add_u64_field("field", options);
             let schema = schema_builder.build();
@@ -562,7 +562,7 @@ mod bench {
 
         b.iter(|| {
             let directory: RamDirectory = RamDirectory::create();
-            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let options = NumericOptions::default().set_fast();
             let mut schema_builder = Schema::builder();
             let field = schema_builder.add_u64_field("field", options);
             let schema = schema_builder.build();
@@ -595,7 +595,7 @@ mod bench {
 
         b.iter(|| {
             let directory: RamDirectory = RamDirectory::create();
-            let options = NumericOptions::default().set_fast(Cardinality::MultiValues);
+            let options = NumericOptions::default().set_fast();
             let mut schema_builder = Schema::builder();
             let field = schema_builder.add_u64_field("field", options);
             let schema = schema_builder.build();

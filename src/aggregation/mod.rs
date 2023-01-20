@@ -433,13 +433,13 @@ mod tests {
         let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
         let string_field_id = schema_builder.add_text_field("string_id", STRING | FAST);
         let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+            crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let fraction_field = schema_builder.add_f64_field(
             "fraction_f64",
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue),
+            crate::schema::NumericOptions::default().set_fast(),
         );
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -657,12 +657,12 @@ mod tests {
         let date_field = schema_builder.add_date_field("date", FAST);
         schema_builder.add_text_field("dummy_text", STRING);
         let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+            crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
 
         let multivalue =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::MultiValues);
+            crate::schema::NumericOptions::default().set_fast();
         let scores_field_i64 = schema_builder.add_i64_field("scores_i64", multivalue);
 
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
@@ -1190,7 +1190,7 @@ mod tests {
             let text_field_few_terms =
                 schema_builder.add_text_field("text_few_terms", STRING | FAST);
             let score_fieldtype =
-                crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+                crate::schema::NumericOptions::default().set_fast();
             let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
             let score_field_f64 =
                 schema_builder.add_f64_field("score_f64", score_fieldtype.clone());

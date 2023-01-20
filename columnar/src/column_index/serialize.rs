@@ -47,7 +47,7 @@ pub fn serialize_column_index(
     Ok(column_index_num_bytes)
 }
 
-pub fn open_column_index(mut bytes: OwnedBytes) -> io::Result<ColumnIndex<'static>> {
+pub fn open_column_index(mut bytes: OwnedBytes) -> io::Result<ColumnIndex> {
     if bytes.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
@@ -64,8 +64,8 @@ pub fn open_column_index(mut bytes: OwnedBytes) -> io::Result<ColumnIndex<'stati
             Ok(ColumnIndex::Optional(optional_index))
         }
         Cardinality::Multivalued => {
-            let multivalued_index = super::multivalued_index::open_multivalued_index(bytes)?;
-            Ok(ColumnIndex::Multivalued(multivalued_index))
+            let multivalue_index = super::multivalued_index::open_multivalued_index(bytes)?;
+            Ok(ColumnIndex::Multivalued(multivalue_index))
         }
     }
 }

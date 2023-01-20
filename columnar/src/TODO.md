@@ -9,6 +9,9 @@
     - indexing
     - aggregations
     - merge
+* replug facets
+* replug range queries
++ mutlivaued range queries restrat frm the beginning all of the time.
 
 # Perf and Size
 * re-add ZSTD compression for dictionaries
@@ -37,6 +40,12 @@ use the rank & select naming in unit tests branch.
 multi-linear -> blockwise
 linear codec -> simply a multiplication for the index column
 rename columnar to something more explicit, like column_dictionary or columnar_table
+remove old column from the fast field API.
+remove the Column traits alias.
+rename fastfield -> column
+document changes
+rationalization FastFieldValue, HasColumnType
+
 
 # Other
 fix enhance column-cli
@@ -44,4 +53,3 @@ fix enhance column-cli
 # Santa claus
 
 autodetect datetime ipaddr, plug customizable tokenizer.
-
