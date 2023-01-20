@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::io;
 
-use super::column_type::ColumnTypeCategory;
 use crate::columnar::ColumnarReader;
 use crate::dynamic_column::DynamicColumn;
+use crate::ColumnType;
 
 pub enum MergeDocOrder {
     /// Columnar tables are simply stacked one above the other.
@@ -35,7 +35,40 @@ pub fn merge_columnar(
     }
 }
 
-pub fn collect_columns(
+/// Column types are grouped into different categories.
+/// After merge, all columns belonging to the same category are coerced to
+/// the same column type.
+///
+/// In practise, today, only Numerical colummns are coerced into one type today.
+///
+/// See also [README.md].
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[repr(u8)]
+enum ColumnTypeCategory {
+    Bool,
+    Str,
+    Numerical,
+    DateTime,
+    Bytes,
+    IpAddr,
+}
+
+impl From<ColumnType> for ColumnTypeCategory {
+    fn from(column_type: ColumnType) -> Self {
+        match column_type {
+            ColumnType::I64 => ColumnTypeCategory::Numerical,
+            ColumnType::U64 => ColumnTypeCategory::Numerical,
+            ColumnType::F64 => ColumnTypeCategory::Numerical,
+            ColumnType::Bytes => ColumnTypeCategory::Bytes,
+            ColumnType::Str => ColumnTypeCategory::Str,
+            ColumnType::Bool => ColumnTypeCategory::Bool,
+            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
+            ColumnType::DateTime => ColumnTypeCategory::DateTime,
+        }
+    }
+}
+
+fn collect_columns(
     columnar_readers: &[&ColumnarReader],
 ) -> io::Result<HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
@@ -51,7 +84,7 @@ pub fn collect_columns(
                 .or_default();
 
             let columns = column_type_to_handles
-                .entry(handle.column_type().column_type_category())
+                .entry(handle.column_type().into())
                 .or_default();
             columns.push(handle.open()?);
         }
@@ -62,10 +95,9 @@ pub fn collect_columns(
     Ok(field_name_to_group)
 }
 
-/// Cast numerical type columns to the same type
-pub(crate) fn normalize_columns(
-    map: &mut HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>,
-) {
+/// Coerce numerical type columns to the same type
+/// TODO rename to `coerce_columns`
+fn normalize_columns(map: &mut HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>) {
     for (_field_name, type_category_to_columns) in map.iter_mut() {
         for (type_category, columns) in type_category_to_columns {
             if type_category == &ColumnTypeCategory::Numerical {
