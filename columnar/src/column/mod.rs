@@ -33,6 +33,13 @@ impl<T: PartialOrd> Column<T> {
             }
         }
     }
+
+    pub fn min_value(&self) -> T {
+        self.values.min_value()
+    }
+    pub fn max_value(&self) -> T {
+        self.values.max_value()
+    }
 }
 
 impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {

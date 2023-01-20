@@ -64,6 +64,18 @@ impl From<NumericalType> for ColumnType {
 }
 
 impl ColumnType {
+    /// get column type category
+    pub(crate) fn column_type_category(self) -> ColumnTypeCategory {
+        match self {
+            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 => ColumnTypeCategory::Numerical,
+            ColumnType::Bytes => ColumnTypeCategory::Bytes,
+            ColumnType::Str => ColumnTypeCategory::Str,
+            ColumnType::Bool => ColumnTypeCategory::Bool,
+            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
+            ColumnType::DateTime => ColumnTypeCategory::DateTime,
+        }
+    }
+
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
             ColumnType::I64 => Some(NumericalType::I64),
@@ -149,9 +161,9 @@ impl HasAssociatedColumnType for Ipv6Addr {
 /// at most one column exist per `ColumnTypeCategory`.
 ///
 /// See also [README.md].
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[repr(u8)]
-pub(crate) enum ColumnTypeCategory {
+pub enum ColumnTypeCategory {
     Bool,
     Str,
     Numerical,
