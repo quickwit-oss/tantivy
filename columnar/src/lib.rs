@@ -18,16 +18,21 @@ mod dynamic_column;
 pub(crate) mod utils;
 mod value;
 
-pub use columnar::{merge_columnar, ColumnarReader, ColumnarWriter, MergeDocOrder};
+pub use column::{BytesColumn, Column, StrColumn};
+pub use column_values::ColumnValues;
+pub use columnar::{
+    merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
+    MergeDocOrder,
+};
 pub use value::{NumericalType, NumericalValue};
 
 pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
 pub struct DateTime {
-    timestamp_micros: i64,
+    pub timestamp_micros: i64,
 }
 
 #[derive(Copy, Clone, Debug)]
