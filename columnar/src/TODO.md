@@ -26,6 +26,7 @@ Add alignment?
 Consider another codec to bridge the gap between few and 5k elements
 
 # Cleanup and rationalization
+remove the 6 bit limitation of columntype. use 4 + 4 bits instead.
 in benchmark, unify percent vs ratio, f32 vs f64.
 investigate if should have better errors? io::Error is overused at the moment.
 rename rank/select in unit tests

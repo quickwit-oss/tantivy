@@ -1,7 +1,7 @@
 use std::net::Ipv6Addr;
 
 use crate::value::NumericalType;
-use crate::InvalidData;
+use crate::{column, Column, DynamicColumn, InvalidData, StrColumn};
 
 /// The column type represents the column type and can fit on 6-bits.
 ///
