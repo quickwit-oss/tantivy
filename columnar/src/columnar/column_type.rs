@@ -51,7 +51,6 @@ impl ColumnType {
             _ => Err(InvalidData),
         }
     }
-    DateTime = 7u8,
 }
 
 impl From<NumericalType> for ColumnType {
@@ -162,9 +161,9 @@ impl HasAssociatedColumnType for Ipv6Addr {
 /// at most one column exist per `ColumnTypeCategory`.
 ///
 /// See also [README.md].
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[repr(u8)]
-pub(crate) enum ColumnTypeCategory {
+pub enum ColumnTypeCategory {
     Bool,
     Str,
     Numerical,
@@ -186,24 +185,6 @@ impl From<ColumnType> for ColumnTypeCategory {
             ColumnType::DateTime => ColumnTypeCategory::DateTime,
         }
     }
-}
-
-/// Column types are grouped into different categories that
-/// corresponds to the different types of `JsonValue` types.
-///
-/// The columnar writer will apply coercion rules to make sure that
-/// at most one column exist per `ColumnTypeCategory`.
-///
-/// See also [README.md].
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[repr(u8)]
-pub enum ColumnTypeCategory {
-    Bool = 0u8,
-    Str = 1u8,
-    Numerical = 2u8,
-    IpAddr = 3u8,
-    Bytes = 4u8,
-    DateTime = 5u8,
 }
 
 #[cfg(test)]

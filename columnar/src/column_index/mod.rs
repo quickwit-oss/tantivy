@@ -44,8 +44,9 @@ impl<'a> ColumnIndex<'a> {
                 }
             }
             ColumnIndex::Multivalued(multivalued_index) => {
-                let start = multivalued_index.get_val(row_id);
-                let end = multivalued_index.get_val(row_id + 1);
+                let multivalued_index_ref = &**multivalued_index;
+                let start: u32 = multivalued_index_ref.get_val(row_id);
+                let end: u32 = multivalued_index_ref.get_val(row_id + 1);
                 start..end
             }
         }
