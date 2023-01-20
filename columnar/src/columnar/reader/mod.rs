@@ -44,7 +44,7 @@ impl ColumnarReader {
         })
     }
 
-    // TODO fix ugly API
+    // TODO Add unit tests
     pub fn list_columns(&self) -> io::Result<Vec<(String, DynamicColumnHandle)>> {
         let mut stream = self.column_dictionary.stream()?;
         let mut results = Vec::new();
@@ -55,7 +55,8 @@ impl ColumnarReader {
                 .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
             let range = stream.value().clone();
             let column_name =
-                String::from_utf8_lossy(&key_bytes[..key_bytes.len() - 1]).to_string();
+                // The last two bytes are respectively the 0u8 separator and the column_type.
+                String::from_utf8_lossy(&key_bytes[..key_bytes.len() - 2]).to_string();
             let file_slice = self
                 .column_data
                 .slice(range.start as usize..range.end as usize);

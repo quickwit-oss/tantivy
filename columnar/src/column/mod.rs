@@ -35,7 +35,7 @@ impl<T: PartialOrd> Column<T> {
     }
 }
 
-impl<T: PartialOrd> Column<T> {
+impl<T: PartialOrd + Copy + Send + Sync + 'static> Column<T> {
     pub fn first(&self, row_id: RowId) -> Option<T> {
         self.values(row_id).next()
     }
@@ -43,6 +43,13 @@ impl<T: PartialOrd> Column<T> {
     pub fn values(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
         self.value_row_ids(row_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
+    }
+
+    pub fn first_or_default_col(self, default_value: T) -> Arc<dyn ColumnValues<T>> {
+        Arc::new(FirstValueWithDefault {
+            column: self,
+            default_value,
+        })
     }
 }
 
@@ -63,5 +70,33 @@ impl BinarySerializable for Cardinality {
         let cardinality_code = u8::deserialize(reader)?;
         let cardinality = Cardinality::try_from_code(cardinality_code)?;
         Ok(cardinality)
+    }
+}
+
+// TODO simplify or optimize
+struct FirstValueWithDefault<T: Copy> {
+    column: Column<T>,
+    default_value: T,
+}
+
+impl<T: PartialOrd + Send + Sync + Copy + 'static> ColumnValues<T> for FirstValueWithDefault<T> {
+    fn get_val(&self, idx: u32) -> T {
+        self.column.first(idx).unwrap_or(self.default_value)
+    }
+
+    fn min_value(&self) -> T {
+        self.column.values.min_value()
+    }
+
+    fn max_value(&self) -> T {
+        self.column.values.max_value()
+    }
+
+    fn num_vals(&self) -> u32 {
+        match &self.column.idx {
+            ColumnIndex::Full => self.column.values.num_vals(),
+            ColumnIndex::Optional(optional_idx) => optional_idx.num_rows(),
+            ColumnIndex::Multivalued(_) => todo!(),
+        }
     }
 }

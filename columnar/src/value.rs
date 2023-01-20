@@ -7,6 +7,16 @@ pub enum NumericalValue {
     F64(f64),
 }
 
+impl NumericalValue {
+    pub fn numerical_type(&self) -> NumericalType {
+        match self {
+            NumericalValue::I64(_) => NumericalType::I64,
+            NumericalValue::U64(_) => NumericalType::U64,
+            NumericalValue::F64(_) => NumericalType::F64,
+        }
+    }
+}
+
 impl From<u64> for NumericalValue {
     fn from(val: u64) -> NumericalValue {
         NumericalValue::U64(val)
@@ -91,6 +101,13 @@ impl Coerce for f64 {
             NumericalValue::U64(val) => val as f64,
             NumericalValue::F64(val) => val,
         }
+    }
+}
+
+impl Coerce for crate::DateTime {
+    fn coerce(value: NumericalValue) -> Self {
+        let timestamp_micros = i64::coerce(value);
+        crate::DateTime { timestamp_micros }
     }
 }
 
