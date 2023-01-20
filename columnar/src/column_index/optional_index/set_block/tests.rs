@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::column_index::optional_index::set_block::set_block::DENSE_BLOCK_NUM_BYTES;
+use crate::column_index::optional_index::set_block::dense::DENSE_BLOCK_NUM_BYTES;
 use crate::column_index::optional_index::set_block::{DenseBlockCodec, SparseBlockCodec};
 use crate::column_index::optional_index::{Set, SetCodec};
 
