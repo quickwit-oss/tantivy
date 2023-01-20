@@ -3,24 +3,22 @@ use std::net::Ipv6Addr;
 use crate::value::NumericalType;
 use crate::InvalidData;
 
-/// The column type represents the column type and can fit on 6-bits.
-///
-/// - bits[0..3]: Column category type.
-/// - bits[3..6]: Numerical type if necessary.
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
+/// The column type represents the column type.
+/// Any changes need to be propagated to `COLUMN_TYPES`.
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum ColumnType {
     I64 = 0u8,
     U64 = 1u8,
     F64 = 2u8,
-    Bytes = 10u8,
-    Str = 14u8,
-    Bool = 18u8,
-    IpAddr = 22u8,
-    DateTime = 26u8,
+    Bytes = 3u8,
+    Str = 4u8,
+    Bool = 5u8,
+    IpAddr = 6u8,
+    DateTime = 7u8,
 }
 
-#[cfg(test)]
+// The order needs to match _exactly_ the order in the enum
 const COLUMN_TYPES: [ColumnType; 8] = [
     ColumnType::I64,
     ColumnType::U64,
@@ -38,18 +36,7 @@ impl ColumnType {
     }
 
     pub(crate) fn try_from_code(code: u8) -> Result<ColumnType, InvalidData> {
-        use ColumnType::*;
-        match code {
-            0u8 => Ok(I64),
-            1u8 => Ok(U64),
-            2u8 => Ok(F64),
-            10u8 => Ok(Bytes),
-            14u8 => Ok(Str),
-            18u8 => Ok(Bool),
-            22u8 => Ok(IpAddr),
-            26u8 => Ok(Self::DateTime),
-            _ => Err(InvalidData),
-        }
+        COLUMN_TYPES.get(code as usize).copied().ok_or(InvalidData)
     }
 }
 
@@ -64,18 +51,6 @@ impl From<NumericalType> for ColumnType {
 }
 
 impl ColumnType {
-    /// get column type category
-    pub(crate) fn column_type_category(self) -> ColumnTypeCategory {
-        match self {
-            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 => ColumnTypeCategory::Numerical,
-            ColumnType::Bytes => ColumnTypeCategory::Bytes,
-            ColumnType::Str => ColumnTypeCategory::Str,
-            ColumnType::Bool => ColumnTypeCategory::Bool,
-            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
-            ColumnType::DateTime => ColumnTypeCategory::DateTime,
-        }
-    }
-
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
             ColumnType::I64 => Some(NumericalType::I64),
@@ -154,70 +129,20 @@ impl HasAssociatedColumnType for Ipv6Addr {
     }
 }
 
-/// Column types are grouped into different categories that
-/// corresponds to the different types of `JsonValue` types.
-///
-/// The columnar writer will apply coercion rules to make sure that
-/// at most one column exist per `ColumnTypeCategory`.
-///
-/// See also [README.md].
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[repr(u8)]
-pub enum ColumnTypeCategory {
-    Bool,
-    Str,
-    Numerical,
-    DateTime,
-    Bytes,
-    IpAddr,
-}
-
-impl From<ColumnType> for ColumnTypeCategory {
-    fn from(column_type: ColumnType) -> Self {
-        match column_type {
-            ColumnType::I64 => ColumnTypeCategory::Numerical,
-            ColumnType::U64 => ColumnTypeCategory::Numerical,
-            ColumnType::F64 => ColumnTypeCategory::Numerical,
-            ColumnType::Bytes => ColumnTypeCategory::Bytes,
-            ColumnType::Str => ColumnTypeCategory::Str,
-            ColumnType::Bool => ColumnTypeCategory::Bool,
-            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
-            ColumnType::DateTime => ColumnTypeCategory::DateTime,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
     use crate::Cardinality;
 
     #[test]
     fn test_column_type_to_code() {
-        let mut column_type_set: HashSet<ColumnType> = HashSet::new();
-        for code in u8::MIN..=u8::MAX {
-            if let Ok(column_type) = ColumnType::try_from_code(code) {
-                assert_eq!(column_type.to_code(), code);
-                assert!(column_type_set.insert(column_type));
+        for (code, expected_column_type) in super::COLUMN_TYPES.iter().copied().enumerate() {
+            if let Ok(column_type) = ColumnType::try_from_code(code as u8) {
+                assert_eq!(column_type, expected_column_type);
             }
         }
-        assert_eq!(column_type_set.len(), super::COLUMN_TYPES.len());
-    }
-
-    #[test]
-    fn test_column_category_sort_consistent_with_column_type_sort() {
-        // This is a very important property because we
-        // we need to serialize colunmn in the right order.
-        let mut column_types: Vec<ColumnType> = super::COLUMN_TYPES.iter().copied().collect();
-        column_types.sort_by_key(|col| col.to_code());
-        let column_categories: Vec<ColumnTypeCategory> = column_types
-            .into_iter()
-            .map(ColumnTypeCategory::from)
-            .collect();
-        for (prev, next) in column_categories.iter().zip(column_categories.iter()) {
-            assert!(prev <= next);
+        for code in COLUMN_TYPES.len() as u8..=u8::MAX {
+            assert!(ColumnType::try_from_code(code as u8).is_err());
         }
     }
 
