@@ -1,4 +1,4 @@
-use crate::column_index::optional_index::{Set, SetCodec};
+use crate::column_index::optional_index::{Set, SetCodec, SelectCursor};
 
 pub struct SparseBlockCodec;
 
@@ -24,7 +24,17 @@ impl SetCodec for SparseBlockCodec {
 #[derive(Copy, Clone)]
 pub struct SparseBlock<'a>(&'a [u8]);
 
+impl<'a> SelectCursor<u16> for SparseBlock<'a> {
+    #[inline]
+    fn select(&mut self, rank: u16) -> u16 {
+        <SparseBlock<'a> as Set<u16>>::select(self, rank)
+    }
+}
+
 impl<'a> Set<u16> for SparseBlock<'a> {
+
+    type SelectCursor<'b> = Self where Self: 'b;
+
     #[inline(always)]
     fn contains(&self, el: u16) -> bool {
         self.binary_search(el).is_ok()
@@ -41,12 +51,11 @@ impl<'a> Set<u16> for SparseBlock<'a> {
         u16::from_le_bytes(self.0[offset..offset + 2].try_into().unwrap())
     }
 
-    fn select_batch(&self, ranks: &[u16], outputs: &mut [u16]) {
-        let orig_ids = self.select_iter(ranks.iter().copied());
-        for (output, original_id) in outputs.iter_mut().zip(orig_ids) {
-            *output = original_id;
-        }
+    #[inline(always)]
+    fn select_cursor<'b>(&'b self,) -> Self::SelectCursor<'b> {
+        *self
     }
+
 }
 
 #[inline(always)]
@@ -95,18 +104,5 @@ impl<'a> SparseBlock<'a> {
             size = right - left;
         }
         Err(left)
-    }
-
-    pub fn select_iter<'b>(
-        &self,
-        iter: impl Iterator<Item = u16> + 'b,
-    ) -> impl Iterator<Item = u16> + 'b
-    where
-        Self: 'b,
-    {
-        iter.map(|codec_id| {
-            let offset = codec_id as usize * 2;
-            u16::from_le_bytes(self.0[offset..offset + 2].try_into().unwrap())
-        })
     }
 }
