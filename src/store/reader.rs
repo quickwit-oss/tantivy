@@ -114,7 +114,10 @@ impl Sum for CacheStats {
 
 impl StoreReader {
     /// Opens a store reader
-    pub fn open(store_file: FileSlice, cache_size: usize) -> io::Result<StoreReader> {
+    ///
+    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
+    /// The size of blocks is configurable, this should be reflexted in the
+    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<StoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -125,8 +128,8 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: NonZeroUsize::new(cache_size)
-                    .map(|cache_size| Mutex::new(LruCache::new(cache_size))),
+                cache: NonZeroUsize::new(cache_num_blocks)
+                    .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },

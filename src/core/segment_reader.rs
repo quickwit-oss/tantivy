@@ -134,9 +134,12 @@ impl SegmentReader {
         &self.fieldnorm_readers
     }
 
-    /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self, cache_size: usize) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone(), cache_size)
+    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
+    ///
+    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
+    /// The size of blocks is configurable, this should be reflexted in the
+    pub fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone(), cache_num_blocks)
     }
 
     /// Open a new segment for reading.

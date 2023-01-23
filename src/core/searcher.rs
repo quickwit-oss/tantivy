@@ -249,7 +249,7 @@ impl SearcherInner {
         index: Index,
         segment_readers: Vec<SegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
-        doc_store_cache_size: usize,
+        doc_store_cache_num_blocks: usize,
     ) -> io::Result<SearcherInner> {
         assert_eq!(
             &segment_readers
@@ -261,7 +261,7 @@ impl SearcherInner {
         );
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_size))
+            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
             .collect::<io::Result<Vec<_>>>()?;
 
         Ok(SearcherInner {
