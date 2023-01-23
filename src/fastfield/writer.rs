@@ -1,16 +1,9 @@
-use std::collections::HashMap;
 use std::io;
 
-use columnar::{ColumnType, ColumnarWriter, NumericalType, NumericalValue};
-use common;
-use rustc_hash::FxHashMap;
-use tantivy_bitpacker::BlockedBitpacker;
+use columnar::{ColumnType, ColumnarWriter, NumericalValue};
 
-use super::FastFieldType;
 use crate::indexer::doc_id_mapping::DocIdMapping;
-use crate::postings::UnorderedTermId;
-use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Type, Value};
-use crate::termdict::TermOrdinal;
+use crate::schema::{Document, FieldType, Schema, Type, Value};
 use crate::{DatePrecision, DocId};
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
@@ -120,7 +113,13 @@ impl FastFieldsWriter {
                             truncated_datetime.into(),
                         );
                     }
-                    Value::Facet(_) => todo!(),
+                    Value::Facet(facet) => {
+                        self.columnar_writer.record_str(
+                            doc_id,
+                            field_name.as_str(),
+                            facet.encoded_str(),
+                        );
+                    }
                     Value::JsonObject(_) => todo!(),
                     Value::IpAddr(ip_addr) => {
                         self.columnar_writer

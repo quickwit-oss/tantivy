@@ -78,7 +78,7 @@ pub(crate) fn serialize_postings(
     Ok(())
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct IndexingPosition {
     pub num_tokens: u32,
     pub end_position: u32,

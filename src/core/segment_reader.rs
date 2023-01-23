@@ -7,9 +7,9 @@ use fail::fail_point;
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
-use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FastFieldReaders};
+use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::schema::{Field, FieldType, IndexRecordOption, Schema};
+use crate::schema::{Field, FieldType, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
@@ -90,8 +90,19 @@ impl SegmentReader {
     }
 
     /// Accessor to the `FacetReader` associated with a given `Field`.
-    pub fn facet_reader(&self, field: Field) -> crate::Result<()> {
-        todo!();
+    pub fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
+        let schema = self.schema();
+        let field = schema.get_field(field_name)?;
+        let field_entry = schema.get_field_entry(field);
+        if field_entry.field_type().value_type() != Type::Facet {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "`{field_name}` is not a facet field.`"
+            )));
+        }
+        let Some(facet_column) = self.fast_fields().str_column_opt(field_name)? else {
+            panic!("Facet Field `{field_name}` is missing. This should not happen");
+        };
+        Ok(FacetReader::new(facet_column))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.

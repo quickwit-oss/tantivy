@@ -9,6 +9,7 @@ use columnar::{
 use fastfield_codecs::Column;
 
 use crate::directory::FileSlice;
+use crate::fastfield::FacetReader;
 use crate::space_usage::PerFieldSpaceUsage;
 
 /// Provides access to all of the BitpackedFastFieldReader.

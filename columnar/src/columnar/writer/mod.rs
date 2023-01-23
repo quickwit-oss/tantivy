@@ -532,7 +532,7 @@ fn serialize_ip_addr_column(
 }
 
 fn send_to_serialize_column_mappable_to_u128<
-    T: Copy + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU128 + PartialOrd,
+    T: Copy + Ord + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU128 + PartialOrd,
 >(
     op_iterator: impl Iterator<Item = ColumnOperation<T>>,
     cardinality: Cardinality,

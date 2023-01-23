@@ -39,6 +39,10 @@ impl BytesColumn {
     pub fn ords(&self) -> &Column<u64> {
         &self.term_ord_column
     }
+
+    pub fn num_terms(&self) -> usize {
+        self.dictionary.num_terms()
+    }
 }
 
 #[derive(Clone)]

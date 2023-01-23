@@ -27,7 +27,7 @@ pub use fastfield_codecs::Column;
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 // pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
-// pub use self::facet_reader::FacetReader;
+pub use self::facet_reader::FacetReader;
 pub use self::readers::FastFieldReaders;
 pub use self::writer::FastFieldsWriter;
 use crate::schema::{Type, Value};
@@ -36,7 +36,7 @@ use crate::DateTime;
 mod alive_bitset;
 // mod bytes;
 mod error;
-// mod facet_reader;
+mod facet_reader;
 mod readers;
 mod writer;
 
