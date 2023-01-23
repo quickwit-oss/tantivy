@@ -29,6 +29,7 @@ struct NumericOptionsDeser {
     indexed: bool,
     #[serde(default)]
     fieldnorms: Option<bool>, // This attribute only has an effect if indexed is true.
+    #[serde(default)]
     fast: bool,
     stored: bool,
 }

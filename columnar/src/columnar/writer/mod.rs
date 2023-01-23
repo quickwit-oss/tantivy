@@ -103,70 +103,6 @@ impl ColumnarWriter {
             + self.datetime_field_hash_map.mem_usage()
     }
 
-    pub fn record_str_or_bytes(
-        &mut self,
-        column_name: &str,
-        column_type: ColumnType,
-        sort_values_within_row: bool,
-    ) {
-        match column_type {
-            ColumnType::Str | ColumnType::Bytes => {
-                let (hash_map, dictionaries) = (
-                    if column_type == ColumnType::Str {
-                        &mut self.str_field_hash_map
-                    } else {
-                        &mut self.bytes_field_hash_map
-                    },
-                    &mut self.dictionaries,
-                );
-                mutate_or_create_column(
-                    hash_map,
-                    column_name,
-                    |column_opt: Option<StrOrBytesColumnWriter>| {
-                        if let Some(column_writer) = column_opt {
-                            column_writer
-                        } else {
-                            let dictionary_id = dictionaries.len() as u32;
-                            dictionaries.push(DictionaryBuilder::default());
-                            StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
-                        }
-                    },
-                );
-            }
-            ColumnType::Bool => {
-                mutate_or_create_column(
-                    &mut self.bool_field_hash_map,
-                    column_name,
-                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
-                );
-            }
-            ColumnType::DateTime => {
-                mutate_or_create_column(
-                    &mut self.datetime_field_hash_map,
-                    column_name,
-                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
-                );
-            }
-            ColumnType::I64 | ColumnType::F64 | ColumnType::U64 => {
-                let numerical_type = column_type.numerical_type().unwrap();
-                mutate_or_create_column(
-                    &mut self.numerical_field_hash_map,
-                    column_name,
-                    |column_opt: Option<NumericalColumnWriter>| {
-                        let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
-                        column.force_numerical_type(numerical_type);
-                        column
-                    },
-                );
-            }
-            ColumnType::IpAddr => mutate_or_create_column(
-                &mut self.ip_addr_field_hash_map,
-                column_name,
-                |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
-            ),
-        }
-    }
-
     /// Records a column type. This is useful to bypass the coercion process,
     /// makes sure the empty is present in the resulting columnar, or set
     /// the `sort_values_within_row`.
@@ -205,7 +141,7 @@ impl ColumnarWriter {
                             dictionaries.push(DictionaryBuilder::default());
                             StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
                         };
-                        column_writer.sort_values_within_row = true;
+                        column_writer.sort_values_within_row = sort_values_within_row;
                         column_writer
                     },
                 );

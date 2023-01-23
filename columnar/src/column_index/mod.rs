@@ -14,10 +14,6 @@ use crate::{Cardinality, RowId};
 pub enum ColumnIndex {
     Full,
     Optional(OptionalIndex),
-    // TODO Remove the static by fixing the codec if possible.
-    /// The column values enclosed contains for all row_id,
-    /// the value start_index.
-    ///
     /// In addition, at index num_rows, an extra value is added
     /// containing the overal number of values.
     Multivalued(MultiValueIndex),

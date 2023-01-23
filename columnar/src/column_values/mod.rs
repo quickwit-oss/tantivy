@@ -34,7 +34,6 @@ pub(crate) mod monotonic_mapping;
 pub(crate) mod monotonic_mapping_u128;
 
 mod column;
-mod column_with_cardinality;
 mod gcd;
 pub mod serialize;
 

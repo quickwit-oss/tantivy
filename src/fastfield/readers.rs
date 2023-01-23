@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
@@ -9,8 +10,8 @@ use columnar::{
 use fastfield_codecs::Column;
 
 use crate::directory::FileSlice;
-use crate::fastfield::FacetReader;
-use crate::space_usage::PerFieldSpaceUsage;
+use crate::schema::{Field, Schema};
+use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///
@@ -27,8 +28,20 @@ impl FastFieldReaders {
         Ok(FastFieldReaders { columnar })
     }
 
-    pub(crate) fn space_usage(&self) -> PerFieldSpaceUsage {
-        todo!()
+    pub(crate) fn space_usage(&self, schema: &Schema) -> io::Result<PerFieldSpaceUsage> {
+        let mut per_field_usages: Vec<FieldUsage> = Default::default();
+        for (field, field_entry) in schema.fields() {
+            let column_handles = self.columnar.read_columns(field_entry.name())?;
+            let num_bytes: usize = column_handles
+                .iter()
+                .map(|column_handle| column_handle.num_bytes())
+                .sum();
+            let mut field_usage = FieldUsage::empty(field);
+            field_usage.add_field_idx(0, num_bytes);
+            per_field_usages.push(field_usage);
+        }
+        // TODO fix space usage for JSON fields.
+        Ok(PerFieldSpaceUsage::new(per_field_usages))
     }
 
     pub fn typed_column_opt<T>(
@@ -83,7 +96,9 @@ impl FastFieldReaders {
         if let Some(col) = col_opt {
             Ok(col.first_or_default_col(T::default_value()))
         } else {
-            todo!();
+            Err(crate::TantivyError::SchemaError(format!(
+                "Field `{field}` is missing or is not configured as a fast field."
+            )))
         }
     }
 
@@ -159,26 +174,4 @@ impl FastFieldReaders {
     pub fn bool(&self, field_name: &str) -> crate::Result<Arc<dyn Column<bool>>> {
         self.typed_column_first_or_default(field_name)
     }
-
-    // Returns the `bytes` fast field reader associated with `field`.
-    //
-    // If `field` is not a bytes fast field, returns an Error.
-    // pub fn bytes(&self, field: Field) -> crate::Result<BytesFastFieldReader> {
-    // let field_entry = self.schema.get_field_entry(field);
-    // if let FieldType::Bytes(bytes_option) = field_entry.field_type() {
-    //     if !bytes_option.is_fast() {
-    //         return Err(crate::TantivyError::SchemaError(format!(
-    //             "Field {:?} is not a fast field.",
-    //             field_entry.name()
-    //         )));
-    //     }
-    //     let fast_field_idx_file = self.fast_field_data(field, 0)?;
-    //     let fast_field_idx_bytes = fast_field_idx_file.read_bytes()?;
-    //     let idx_reader = open(fast_field_idx_bytes)?;
-    //     let data = self.fast_field_data(field, 1)?;
-    //     BytesFastFieldReader::open(idx_reader, data)
-    // } else {
-    //     Err(FastFieldNotAvailableError::new(field_entry).into())
-    // }
-    // }
 }

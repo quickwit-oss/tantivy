@@ -25,6 +25,7 @@ pub struct DateOptions {
     indexed: bool,
     // This boolean has no effect if the field is not marked as indexed true.
     fieldnorms: bool,
+    #[serde(default)]
     fast: bool,
     stored: bool,
     // Internal storage precision, used to optimize storage
@@ -212,6 +213,7 @@ mod tests {
             serde_json::json!({
                 "precision": "milliseconds",
                 "indexed": true,
+                "fast": false,
                 "fieldnorms": false,
                 "stored": false
             })

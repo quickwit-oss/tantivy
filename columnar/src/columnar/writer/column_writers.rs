@@ -168,7 +168,12 @@ impl CompatibleNumericalTypes {
                 }
             },
             CompatibleNumericalTypes::StaticType(typ) => {
-                assert_eq!(numerical_value.numerical_type(), *typ);
+                assert_eq!(
+                    numerical_value.numerical_type(),
+                    *typ,
+                    "Input type forbidden. This column has been forced to type {typ:?}, received \
+                     {numerical_value:?}"
+                );
             }
         }
     }

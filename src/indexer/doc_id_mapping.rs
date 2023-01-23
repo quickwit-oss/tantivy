@@ -116,7 +116,8 @@ pub(crate) fn get_doc_id_mapping_from_field(
     todo!()
     // let schema = segment_writer.segment_serializer.segment().schema();
     // let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect
-    // fastfield, but not strictly required let fast_field = segment_writer
+    // fastfield, but not strictly required
+    // let fast_field = segment_writer
     //     .fast_field_writers
     //     .get_field_writer(field_id)
     //     .ok_or_else(|| {

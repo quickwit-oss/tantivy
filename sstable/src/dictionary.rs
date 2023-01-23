@@ -9,7 +9,7 @@ use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
 use crate::streamer::{Streamer, StreamerBuilder};
-use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal};
+use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
 
 /// An SSTable is a sorted map that associates sorted `&[u8]` keys
 /// to any kind of typed values.
@@ -30,7 +30,7 @@ use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal};
 /// block boundary.
 ///
 /// (See also README.md)
-pub struct Dictionary<TSSTable: SSTable> {
+pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
     pub sstable_slice: FileSlice,
     pub sstable_index: SSTableIndex,
     num_terms: u64,

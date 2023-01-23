@@ -167,13 +167,12 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// # assert!(example().is_ok());
 /// ```
 pub struct FacetCollector {
-    field: Field,
+    field_name: String,
     facets: BTreeSet<Facet>,
 }
 
 pub struct FacetSegmentCollector {
     reader: FacetReader,
-    facet_ords_buf: Vec<u64>,
     // facet_ord -> collapse facet_id
     collapse_mapping: Vec<usize>,
     // collapse facet_id -> count
@@ -182,6 +181,7 @@ pub struct FacetSegmentCollector {
     collapse_facet_ords: Vec<u64>,
 }
 
+#[derive(Debug)]
 enum SkipResult {
     Found,
     NotFound,
@@ -216,9 +216,9 @@ impl FacetCollector {
     ///
     /// This function does not check whether the field
     /// is of the proper type.
-    pub fn for_field(field: Field) -> FacetCollector {
+    pub fn for_field(field_name: impl ToString) -> FacetCollector {
         FacetCollector {
-            field,
+            field_name: field_name.to_string(),
             facets: BTreeSet::default(),
         }
     }
@@ -259,7 +259,7 @@ impl Collector for FacetCollector {
         _: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<FacetSegmentCollector> {
-        let facet_reader = reader.facet_reader(self.field)?;
+        let facet_reader = reader.facet_reader(&self.field_name)?;
 
         let mut collapse_mapping = Vec::new();
         let mut counts = Vec::new();
@@ -308,7 +308,6 @@ impl Collector for FacetCollector {
 
         Ok(FacetSegmentCollector {
             reader: facet_reader,
-            facet_ords_buf: Vec::with_capacity(255),
             collapse_mapping,
             counts,
             collapse_facet_ords,
@@ -334,9 +333,8 @@ impl SegmentCollector for FacetSegmentCollector {
     type Fruit = FacetCounts;
 
     fn collect(&mut self, doc: DocId, _: Score) {
-        self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
-        for &facet_ord in &self.facet_ords_buf {
+        for facet_ord in self.reader.facet_ords(doc) {
             let collapsed_ord = self.collapse_mapping[facet_ord as usize];
             self.counts[collapsed_ord] += u64::from(collapsed_ord != previous_collapsed_ord);
             previous_collapsed_ord = collapsed_ord;
@@ -451,8 +449,36 @@ mod tests {
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{Document, Facet, FacetOptions, Field, IndexRecordOption, Schema};
+    use crate::schema::{Document, Facet, FacetOptions, IndexRecordOption, Schema};
     use crate::Term;
+
+    #[test]
+    fn test_facet_collector_simple() {
+        let mut schema_builder = Schema::builder();
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from("/facet/a")))
+            .unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from("/facet/b")))
+            .unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from("/facet/b")))
+            .unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from("/facet/c")))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let mut facet_collector = FacetCollector::for_field("facet");
+        facet_collector.add_facet("/facet");
+        let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector).unwrap();
+        let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 1);
+        assert_eq!(facets, vec![(&Facet::from("/facet/a"), 2)]);
+    }
 
     #[test]
     fn test_facet_collector_drilldown() -> crate::Result<()> {
@@ -481,7 +507,7 @@ mod tests {
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut facet_collector = FacetCollector::for_field(facet_field);
+        let mut facet_collector = FacetCollector::for_field("facet");
         facet_collector.add_facet(Facet::from("/top1"));
         let counts = searcher.search(&AllQuery, &facet_collector)?;
 
@@ -511,7 +537,7 @@ mod tests {
         expected = "Tried to add a facet which is a descendant of an already added facet."
     )]
     fn test_misused_facet_collector() {
-        let mut facet_collector = FacetCollector::for_field(Field::from_field_id(0));
+        let mut facet_collector = FacetCollector::for_field("facet");
         facet_collector.add_facet(Facet::from("/country"));
         facet_collector.add_facet(Facet::from("/country/europe"));
     }
@@ -533,7 +559,7 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 1);
-        let mut facet_collector = FacetCollector::for_field(facet_field);
+        let mut facet_collector = FacetCollector::for_field("facets");
         facet_collector.add_facet("/subjects");
         let counts = searcher.search(&AllQuery, &facet_collector)?;
         let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
@@ -593,7 +619,7 @@ mod tests {
 
     #[test]
     fn test_non_used_facet_collector() {
-        let mut facet_collector = FacetCollector::for_field(Field::from_field_id(0));
+        let mut facet_collector = FacetCollector::for_field("facet");
         facet_collector.add_facet(Facet::from("/country"));
         facet_collector.add_facet(Facet::from("/countryeurope"));
     }
@@ -630,7 +656,7 @@ mod tests {
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
 
-        let mut facet_collector = FacetCollector::for_field(facet_field);
+        let mut facet_collector = FacetCollector::for_field("facet");
         facet_collector.add_facet("/facet");
         let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector).unwrap();
 
@@ -670,7 +696,7 @@ mod tests {
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
-        let mut facet_collector = FacetCollector::for_field(facet_field);
+        let mut facet_collector = FacetCollector::for_field("facet");
         facet_collector.add_facet("/facet");
         let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector)?;
 

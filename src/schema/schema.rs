@@ -159,10 +159,10 @@ impl SchemaBuilder {
     }
 
     /// Adds a facet field to the schema.
-    pub fn add_facet_field<T: Into<FacetOptions>>(
+    pub fn add_facet_field(
         &mut self,
         field_name: &str,
-        facet_options: T,
+        facet_options: impl Into<FacetOptions>,
     ) -> Field {
         let field_entry = FieldEntry::new_facet(field_name.to_string(), facet_options.into());
         self.add_field(field_entry)
@@ -560,7 +560,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -570,7 +570,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -580,7 +580,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": false
     }
   },
@@ -590,7 +590,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -914,7 +914,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -947,7 +947,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": true,
       "precision": "seconds"
     }
@@ -971,7 +971,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }

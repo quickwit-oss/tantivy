@@ -25,7 +25,6 @@ use columnar::MonotonicallyMappableToU64;
 pub use fastfield_codecs::Column;
 
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
-// pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::readers::FastFieldReaders;
@@ -34,7 +33,6 @@ use crate::schema::{Type, Value};
 use crate::DateTime;
 
 mod alive_bitset;
-// mod bytes;
 mod error;
 mod facet_reader;
 mod readers;
@@ -136,26 +134,6 @@ fn value_to_u64(value: &Value) -> crate::Result<u64> {
     Ok(value)
 }
 
-/// The fast field type
-pub enum FastFieldType {
-    /// Numeric type, e.g. f64.
-    Numeric,
-    /// Fast field stores string ids.
-    String,
-    /// Fast field stores string ids for facets.
-    Facet,
-}
-
-impl FastFieldType {
-    fn is_storing_term_ids(&self) -> bool {
-        matches!(self, FastFieldType::String | FastFieldType::Facet)
-    }
-
-    fn is_facet(&self) -> bool {
-        matches!(self, FastFieldType::Facet)
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -173,7 +151,9 @@ mod tests {
     use super::*;
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
-    use crate::schema::{Document, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT};
+    use crate::schema::{
+        Document, Facet, FacetOptions, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT,
+    };
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
@@ -597,6 +577,47 @@ mod tests {
         // get_vals_for_docs(&text_fast_field, 0..8),
         // vec![1, 0, 0, 0, 1, 3 /* next segment */, 0, 2, 0]
         // );
+    }
+
+    #[test]
+    fn test_string_fastfield_simple() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(text_field=>"hello happy tax payer", text_field=>"aaa this string comes lexicographically before the other one.")).unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let str_column = segment_reader
+            .fast_fields()
+            .str_column_opt("text")
+            .unwrap()
+            .unwrap();
+        // The string values are not sorted here.
+        let term_ords: Vec<u64> = str_column.term_ords(0u32).collect();
+        assert_eq!(&term_ords, &[1, 0]);
+    }
+
+    #[test]
+    fn test_facet_fastfield_simple() {
+        let mut schema_builder = Schema::builder();
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(facet_field=>Facet::from("/a/2"), facet_field=>Facet::from("/a/1")))
+            .unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let facet_reader = segment_reader.facet_reader("facet").unwrap();
+        // facets, contrary to strings are sorted.
+        let mut facet_ords = Vec::new();
+        facet_ords.extend(facet_reader.facet_ords(0u32));
+        assert_eq!(&facet_ords, &[0, 1]);
     }
 
     // #[test]

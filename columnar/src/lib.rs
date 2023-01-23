@@ -30,6 +30,7 @@ pub use value::{NumericalType, NumericalValue};
 pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
+pub use sstable::Dictionary;
 
 #[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
 pub struct DateTime {

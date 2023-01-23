@@ -1163,9 +1163,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
 
-        // writing the segment
-        let mut index_writer = index.writer(12_000_000)?;
-        // create 8 segments with 100 tiny docs
+        let mut index_writer = index.writer_for_tests()?;
         for _doc in 0..100 {
             index_writer.add_document(doc!(text_field => "a"))?;
         }
