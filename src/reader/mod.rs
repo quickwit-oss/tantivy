@@ -151,7 +151,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 }
 
 struct InnerIndexReader {
-    doc_store_cache_size: usize,
+    doc_store_cache_num_blocks: usize,
     index: Index,
     warming_state: WarmingState,
     searcher: arc_swap::ArcSwap<SearcherInner>,
@@ -178,7 +178,7 @@ impl InnerIndexReader {
             &searcher_generation_inventory,
         )?;
         Ok(InnerIndexReader {
-            doc_store_cache_size,
+            doc_store_cache_num_blocks: doc_store_cache_size,
             index,
             warming_state,
             searcher: ArcSwap::from(searcher),
@@ -214,7 +214,7 @@ impl InnerIndexReader {
 
     fn create_searcher(
         index: &Index,
-        doc_store_cache_size: usize,
+        doc_store_cache_num_blocks: usize,
         warming_state: &WarmingState,
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
@@ -232,7 +232,7 @@ impl InnerIndexReader {
             index.clone(),
             segment_readers,
             searcher_generation,
-            doc_store_cache_size,
+            doc_store_cache_num_blocks,
         )?);
 
         warming_state.warm_new_searcher_generation(&searcher.clone().into())?;
@@ -242,7 +242,7 @@ impl InnerIndexReader {
     fn reload(&self) -> crate::Result<()> {
         let searcher = Self::create_searcher(
             &self.index,
-            self.doc_store_cache_size,
+            self.doc_store_cache_num_blocks,
             &self.warming_state,
             &self.searcher_generation_counter,
             &self.searcher_generation_inventory,
