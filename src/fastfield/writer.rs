@@ -29,7 +29,8 @@ impl FastFieldsWriter {
                 continue;
             }
             fast_fields[field_id.field_id() as usize] = Some(field_entry.name().to_string());
-            let column_type = match field_entry.field_type().value_type() {
+            let value_type = field_entry.field_type().value_type();
+            let column_type = match value_type {
                 Type::Str => ColumnType::Str,
                 Type::U64 => ColumnType::U64,
                 Type::I64 => ColumnType::I64,
@@ -46,7 +47,12 @@ impl FastFieldsWriter {
             if let FieldType::Date(date_options) = field_entry.field_type() {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
-            columnar_writer.record_column_type(field_entry.name(), column_type);
+            let sort_values_within_row = value_type == Type::Facet;
+            columnar_writer.record_column_type(
+                field_entry.name(),
+                column_type,
+                sort_values_within_row,
+            );
         }
         FastFieldsWriter {
             columnar_writer,

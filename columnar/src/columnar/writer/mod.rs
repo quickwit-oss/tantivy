@@ -29,10 +29,7 @@ use crate::{Cardinality, RowId};
 #[derive(Default)]
 struct SpareBuffers {
     value_index_builders: PreallocatedIndexBuilders,
-    i64_values: Vec<i64>,
     u64_values: Vec<u64>,
-    f64_values: Vec<f64>,
-    bool_values: Vec<bool>,
     ip_addr_values: Vec<Ipv6Addr>,
 }
 
@@ -106,7 +103,12 @@ impl ColumnarWriter {
             + self.datetime_field_hash_map.mem_usage()
     }
 
-    pub fn record_column_type(&mut self, column_name: &str, column_type: ColumnType) {
+    pub fn record_str_or_bytes(
+        &mut self,
+        column_name: &str,
+        column_type: ColumnType,
+        sort_values_within_row: bool,
+    ) {
         match column_type {
             ColumnType::Str | ColumnType::Bytes => {
                 let (hash_map, dictionaries) = (
@@ -165,16 +167,81 @@ impl ColumnarWriter {
         }
     }
 
-    pub fn force_numerical_type(&mut self, column_name: &str, numerical_type: NumericalType) {
-        mutate_or_create_column(
-            &mut self.numerical_field_hash_map,
-            column_name,
-            |column_opt: Option<NumericalColumnWriter>| {
-                let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
-                column.force_numerical_type(numerical_type);
-                column
-            },
-        );
+    /// Records a column type. This is useful to bypass the coercion process,
+    /// makes sure the empty is present in the resulting columnar, or set
+    /// the `sort_values_within_row`.
+    ///
+    /// `sort_values_within_row` is only allowed for `Bytes` or `Str` columns.
+    pub fn record_column_type(
+        &mut self,
+        column_name: &str,
+        column_type: ColumnType,
+        sort_values_within_row: bool,
+    ) {
+        if sort_values_within_row {
+            assert!(
+                column_type == ColumnType::Bytes || column_type == ColumnType::Str,
+                "sort_values_within_row is only allowed for Bytes and Str columns",
+            );
+        }
+        match column_type {
+            ColumnType::Str | ColumnType::Bytes => {
+                let (hash_map, dictionaries) = (
+                    if column_type == ColumnType::Str {
+                        &mut self.str_field_hash_map
+                    } else {
+                        &mut self.bytes_field_hash_map
+                    },
+                    &mut self.dictionaries,
+                );
+                mutate_or_create_column(
+                    hash_map,
+                    column_name,
+                    |column_opt: Option<StrOrBytesColumnWriter>| {
+                        let mut column_writer = if let Some(column_writer) = column_opt {
+                            column_writer
+                        } else {
+                            let dictionary_id = dictionaries.len() as u32;
+                            dictionaries.push(DictionaryBuilder::default());
+                            StrOrBytesColumnWriter::with_dictionary_id(dictionary_id)
+                        };
+                        column_writer.sort_values_within_row = true;
+                        column_writer
+                    },
+                );
+            }
+            ColumnType::Bool => {
+                mutate_or_create_column(
+                    &mut self.bool_field_hash_map,
+                    column_name,
+                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+                );
+            }
+            ColumnType::DateTime => {
+                mutate_or_create_column(
+                    &mut self.datetime_field_hash_map,
+                    column_name,
+                    |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+                );
+            }
+            ColumnType::I64 | ColumnType::F64 | ColumnType::U64 => {
+                let numerical_type = column_type.numerical_type().unwrap();
+                mutate_or_create_column(
+                    &mut self.numerical_field_hash_map,
+                    column_name,
+                    |column_opt: Option<NumericalColumnWriter>| {
+                        let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
+                        column.force_numerical_type(numerical_type);
+                        column
+                    },
+                );
+            }
+            ColumnType::IpAddr => mutate_or_create_column(
+                &mut self.ip_addr_field_hash_map,
+                column_name,
+                |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
+            ),
+        }
     }
 
     pub fn record_numerical<T: Into<NumericalValue> + Copy>(
@@ -353,6 +420,7 @@ impl ColumnarWriter {
                     serialize_bytes_or_str_column(
                         cardinality,
                         num_docs,
+                        str_column_writer.sort_values_within_row,
                         dictionary_builder,
                         str_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
@@ -399,6 +467,7 @@ impl ColumnarWriter {
 fn serialize_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
+    sort_values_within_row: bool,
     dictionary_builder: &DictionaryBuilder,
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
@@ -427,6 +496,7 @@ fn serialize_bytes_or_str_column(
         operation_iterator,
         cardinality,
         num_docs,
+        sort_values_within_row,
         value_index_builders,
         u64_values,
         &mut wrt,
@@ -446,8 +516,6 @@ fn serialize_numerical_column(
     let SpareBuffers {
         value_index_builders,
         u64_values,
-        i64_values,
-        f64_values,
         ..
     } = buffers;
     match numerical_type {
@@ -456,8 +524,9 @@ fn serialize_numerical_column(
                 coerce_numerical_symbol::<i64>(op_iterator),
                 cardinality,
                 num_docs,
+                false,
                 value_index_builders,
-                i64_values,
+                u64_values,
                 wrt,
             )?;
         }
@@ -466,6 +535,7 @@ fn serialize_numerical_column(
                 coerce_numerical_symbol::<u64>(op_iterator),
                 cardinality,
                 num_docs,
+                false,
                 value_index_builders,
                 u64_values,
                 wrt,
@@ -476,8 +546,9 @@ fn serialize_numerical_column(
                 coerce_numerical_symbol::<f64>(op_iterator),
                 cardinality,
                 num_docs,
+                false,
                 value_index_builders,
-                f64_values,
+                u64_values,
                 wrt,
             )?;
         }
@@ -494,15 +565,19 @@ fn serialize_bool_column(
 ) -> io::Result<()> {
     let SpareBuffers {
         value_index_builders,
-        bool_values,
+        u64_values,
         ..
     } = buffers;
     send_to_serialize_column_mappable_to_u64(
-        column_operations_it,
+        column_operations_it.map(|bool_column_operation| match bool_column_operation {
+            ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),
+            ColumnOperation::Value(bool_val) => ColumnOperation::Value(bool_val.to_u64()),
+        }),
         cardinality,
         num_docs,
+        false,
         value_index_builders,
-        bool_values,
+        u64_values,
         wrt,
     )?;
     Ok(())
@@ -577,18 +652,29 @@ where
     Ok(())
 }
 
-fn send_to_serialize_column_mappable_to_u64<
-    T: Copy + Default + std::fmt::Debug + Send + Sync + MonotonicallyMappableToU64 + PartialOrd,
->(
-    op_iterator: impl Iterator<Item = ColumnOperation<T>>,
+fn sort_values_within_row_in_place(
+    multivalued_index: &impl ColumnValues<RowId>,
+    values: &mut Vec<u64>,
+) {
+    let mut start_index: usize = 0;
+    for end_index in multivalued_index.iter() {
+        let end_index = end_index as usize;
+        values[start_index..end_index].sort_unstable();
+        start_index = end_index;
+    }
+}
+
+fn send_to_serialize_column_mappable_to_u64(
+    op_iterator: impl Iterator<Item = ColumnOperation<u64>>,
     cardinality: Cardinality,
     num_docs: RowId,
+    sort_values_within_row: bool,
     value_index_builders: &mut PreallocatedIndexBuilders,
-    values: &mut Vec<T>,
+    values: &mut Vec<u64>,
     mut wrt: impl io::Write,
 ) -> io::Result<()>
 where
-    for<'a> VecColumn<'a, T>: ColumnValues<T>,
+    for<'a> VecColumn<'a, u64>: ColumnValues<u64>,
 {
     values.clear();
     let serializable_column_index = match cardinality {
@@ -610,6 +696,9 @@ where
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
             let multivalued_index = multivalued_index_builder.finish(num_docs);
+            if sort_values_within_row {
+                sort_values_within_row_in_place(&multivalued_index, values);
+            }
             SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
         }
     };
@@ -623,17 +712,17 @@ where
 
 fn coerce_numerical_symbol<T>(
     operation_iterator: impl Iterator<Item = ColumnOperation<NumericalValue>>,
-) -> impl Iterator<Item = ColumnOperation<T>>
-where T: Coerce {
+) -> impl Iterator<Item = ColumnOperation<u64>>
+where T: Coerce + MonotonicallyMappableToU64 {
     operation_iterator.map(|symbol| match symbol {
         ColumnOperation::NewDoc(doc) => ColumnOperation::NewDoc(doc),
         ColumnOperation::Value(numerical_value) => {
-            ColumnOperation::Value(Coerce::coerce(numerical_value))
+            ColumnOperation::Value(T::coerce(numerical_value).to_u64())
         }
     })
 }
 
-fn consume_operation_iterator<T: std::fmt::Debug, TIndexBuilder: IndexBuilder>(
+fn consume_operation_iterator<T: Ord, TIndexBuilder: IndexBuilder>(
     operation_iterator: impl Iterator<Item = ColumnOperation<T>>,
     index_builder: &mut TIndexBuilder,
     values: &mut Vec<T>,
