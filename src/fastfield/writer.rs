@@ -3,12 +3,10 @@ use std::io;
 
 use columnar::{ColumnType, ColumnarWriter, NumericalType, NumericalValue};
 use common;
-use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use tantivy_bitpacker::BlockedBitpacker;
 
 use super::FastFieldType;
-use crate::fastfield::CompositeFastFieldSerializer;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field, FieldEntry, FieldType, Schema, Type, Value};

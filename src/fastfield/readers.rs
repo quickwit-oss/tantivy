@@ -4,15 +4,12 @@ use std::sync::Arc;
 
 use columnar::{
     BytesColumn, ColumnType, ColumnValues, ColumnarReader, DynamicColumn, DynamicColumnHandle,
-    HasAssociatedColumnType, NumericalType, StrColumn,
+    HasAssociatedColumnType, StrColumn,
 };
-use fastfield_codecs::{open, open_u128, Column};
+use fastfield_codecs::Column;
 
-use crate::directory::{CompositeFile, FileSlice};
-use crate::fastfield::{FastFieldNotAvailableError, FastValue};
-use crate::schema::{Field, FieldType, Schema};
+use crate::directory::FileSlice;
 use crate::space_usage::PerFieldSpaceUsage;
-use crate::{DateTime, TantivyError};
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///

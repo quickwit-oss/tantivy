@@ -5,9 +5,8 @@
 use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
-use columnar::Column;
+use columnar::{Column, MonotonicallyMappableToU128};
 use common::BinarySerializable;
-use fastfield_codecs::MonotonicallyMappableToU128;
 
 use super::map_bound;
 use crate::query::range_query::fast_field_range_query::RangeDocSet;

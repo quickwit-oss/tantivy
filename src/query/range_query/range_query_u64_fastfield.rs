@@ -4,7 +4,7 @@
 
 use std::ops::{Bound, RangeInclusive};
 
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
 
 use super::fast_field_range_query::RangeDocSet;
 use super::map_bound;

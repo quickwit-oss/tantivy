@@ -14,208 +14,206 @@ extern crate more_asserts;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-use std::io::Write;
-use std::sync::Arc;
-use std::{fmt, io};
+// use common::{BinarySerializable, OwnedBytes};
+// use compact_space::CompactSpaceDecompressor;
+// use format_version::read_format_version;
+// use monotonic_mapping::{
+//     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
+//     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
+// };
+// use null_index_footer::read_null_index_footer;
+// use serialize::{Header, U128Header};
 
-use common::{BinarySerializable, OwnedBytes};
-use compact_space::CompactSpaceDecompressor;
-use format_version::read_format_version;
-use monotonic_mapping::{
-    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
-    StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
-};
-use null_index_footer::read_null_index_footer;
-use serialize::{Header, U128Header};
-
-mod bitpacked;
-mod blockwise_linear;
-mod compact_space;
-mod format_version;
-mod line;
-mod linear;
-mod monotonic_mapping;
-mod monotonic_mapping_u128;
-#[allow(dead_code)]
-mod null_index;
-mod null_index_footer;
+// mod bitpacked;
+// mod blockwise_linear;
+// mod compact_space;
+// mod format_version;
+// mod line;
+// mod linear;
+// mod monotonic_mapping;
+// mod monotonic_mapping_u128;
+// #[allow(dead_code)]
+// mod null_index;
+// mod null_index_footer;
 
 mod column;
-mod gcd;
-pub mod serialize;
+pub use column::Column;
 
-use self::bitpacked::BitpackedCodec;
-use self::blockwise_linear::BlockwiseLinearCodec;
-pub use self::column::{monotonic_map_column, Column, IterColumn, VecColumn};
-use self::linear::LinearCodec;
-pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
-pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
-pub use self::serialize::{
-    estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
-};
+// mod gcd;
+// pub mod serialize;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
-#[repr(u8)]
-/// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
-pub enum FastFieldCodecType {
-    /// Bitpack all values in the value range. The number of bits is defined by the amplitude
-    /// `column.max_value() - column.min_value()`
-    Bitpacked = 1,
-    /// Linear interpolation puts a line between the first and last value and then bitpacks the
-    /// values by the offset from the line. The number of bits is defined by the max deviation from
-    /// the line.
-    Linear = 2,
-    /// Same as [`FastFieldCodecType::Linear`], but encodes in blocks of 512 elements.
-    BlockwiseLinear = 3,
-}
+// use self::bitpacked::BitpackedCodec;
+// use self::blockwise_linear::BlockwiseLinearCodec;
+// pub use self::column::{monotonic_map_column, Column, IterColumn, VecColumn};
+// use self::linear::LinearCodec;
+// pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
+// pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
+// pub use self::serialize::{
+//     estimate, serialize, serialize_and_load, serialize_u128, NormalizedHeader,
+// };
 
-impl BinarySerializable for FastFieldCodecType {
-    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
-        self.to_code().serialize(wrt)
-    }
+// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+// #[repr(u8)]
+// /// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted
+// data. pub enum FastFieldCodecType {
+//     /// Bitpack all values in the value range. The number of bits is defined by the amplitude
+//     /// `column.max_value() - column.min_value()`
+//     Bitpacked = 1,
+//     /// Linear interpolation puts a line between the first and last value and then bitpacks the
+//     /// values by the offset from the line. The number of bits is defined by the max deviation
+// from     /// the line.
+//     Linear = 2,
+//     /// Same as [`FastFieldCodecType::Linear`], but encodes in blocks of 512 elements.
+//     BlockwiseLinear = 3,
+// }
 
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let code = u8::deserialize(reader)?;
-        let codec_type: Self = Self::from_code(code)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
-        Ok(codec_type)
-    }
-}
+// impl BinarySerializable for FastFieldCodecType {
+//     fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+//         self.to_code().serialize(wrt)
+//     }
 
-impl FastFieldCodecType {
-    pub(crate) fn to_code(self) -> u8 {
-        self as u8
-    }
+//     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+//         let code = u8::deserialize(reader)?;
+//         let codec_type: Self = Self::from_code(code)
+//             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code
+// `{code}.`"))?;         Ok(codec_type)
+//     }
+// }
 
-    pub(crate) fn from_code(code: u8) -> Option<Self> {
-        match code {
-            1 => Some(Self::Bitpacked),
-            2 => Some(Self::Linear),
-            3 => Some(Self::BlockwiseLinear),
-            _ => None,
-        }
-    }
-}
+// impl FastFieldCodecType {
+//     pub(crate) fn to_code(self) -> u8 {
+//         self as u8
+//     }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
-#[repr(u8)]
-/// Available codecs to use to encode the u128 (via [`MonotonicallyMappableToU128`]) converted data.
-pub enum U128FastFieldCodecType {
-    /// This codec takes a large number space (u128) and reduces it to a compact number space, by
-    /// removing the holes.
-    CompactSpace = 1,
-}
+//     pub(crate) fn from_code(code: u8) -> Option<Self> {
+//         match code {
+//             1 => Some(Self::Bitpacked),
+//             2 => Some(Self::Linear),
+//             3 => Some(Self::BlockwiseLinear),
+//             _ => None,
+//         }
+//     }
+// }
 
-impl BinarySerializable for U128FastFieldCodecType {
-    fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
-        self.to_code().serialize(wrt)
-    }
+// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+// #[repr(u8)]
+// /// Available codecs to use to encode the u128 (via [`MonotonicallyMappableToU128`]) converted
+// data. pub enum U128FastFieldCodecType {
+//     /// This codec takes a large number space (u128) and reduces it to a compact number space, by
+//     /// removing the holes.
+//     CompactSpace = 1,
+// }
 
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let code = u8::deserialize(reader)?;
-        let codec_type: Self = Self::from_code(code)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
-        Ok(codec_type)
-    }
-}
+// impl BinarySerializable for U128FastFieldCodecType {
+//     fn serialize<W: Write>(&self, wrt: &mut W) -> io::Result<()> {
+//         self.to_code().serialize(wrt)
+//     }
 
-impl U128FastFieldCodecType {
-    pub(crate) fn to_code(self) -> u8 {
-        self as u8
-    }
+//     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+//         let code = u8::deserialize(reader)?;
+//         let codec_type: Self = Self::from_code(code)
+//             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code
+// `{code}.`"))?;         Ok(codec_type)
+//     }
+// }
 
-    pub(crate) fn from_code(code: u8) -> Option<Self> {
-        match code {
-            1 => Some(Self::CompactSpace),
-            _ => None,
-        }
-    }
-}
+// impl U128FastFieldCodecType {
+//     pub(crate) fn to_code(self) -> u8 {
+//         self as u8
+//     }
 
-/// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open_u128<Item: MonotonicallyMappableToU128 + fmt::Debug>(
-    bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<Item>>> {
-    let (bytes, _format_version) = read_format_version(bytes)?;
-    let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
-    let header = U128Header::deserialize(&mut bytes)?;
-    assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
-    let reader = CompactSpaceDecompressor::open(bytes)?;
-    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
-        StrictlyMonotonicMappingToInternal::<Item>::new().into();
-    Ok(Arc::new(monotonic_map_column(reader, inverted)))
-}
+//     pub(crate) fn from_code(code: u8) -> Option<Self> {
+//         match code {
+//             1 => Some(Self::CompactSpace),
+//             _ => None,
+//         }
+//     }
+// }
 
-/// Returns the correct codec reader wrapped in the `Arc` for the data.
-pub fn open<T: MonotonicallyMappableToU64 + fmt::Debug>(
-    bytes: OwnedBytes,
-) -> io::Result<Arc<dyn Column<T>>> {
-    let (bytes, _format_version) = read_format_version(bytes)?;
-    let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
-    let header = Header::deserialize(&mut bytes)?;
-    match header.codec_type {
-        FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes, &header),
-        FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes, &header),
-        FastFieldCodecType::BlockwiseLinear => {
-            open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
-        }
-    }
-}
+// /// Returns the correct codec reader wrapped in the `Arc` for the data.
+// pub fn open_u128<Item: MonotonicallyMappableToU128 + fmt::Debug>(
+//     bytes: OwnedBytes,
+// ) -> io::Result<Arc<dyn Column<Item>>> {
+//     let (bytes, _format_version) = read_format_version(bytes)?;
+//     let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
+//     let header = U128Header::deserialize(&mut bytes)?;
+//     assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
+//     let reader = CompactSpaceDecompressor::open(bytes)?;
+//     let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<Item>> =
+//         StrictlyMonotonicMappingToInternal::<Item>::new().into();
+//     Ok(Arc::new(monotonic_map_column(reader, inverted)))
+// }
 
-fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64 + fmt::Debug>(
-    bytes: OwnedBytes,
-    header: &Header,
-) -> io::Result<Arc<dyn Column<Item>>> {
-    let normalized_header = header.normalized();
-    let reader = C::open_from_bytes(bytes, normalized_header)?;
-    let min_value = header.min_value;
-    if let Some(gcd) = header.gcd {
-        let mapping = StrictlyMonotonicMappingInverter::from(
-            StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
-        );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
-    } else {
-        let mapping = StrictlyMonotonicMappingInverter::from(
-            StrictlyMonotonicMappingToInternalBaseval::new(min_value),
-        );
-        Ok(Arc::new(monotonic_map_column(reader, mapping)))
-    }
-}
+// /// Returns the correct codec reader wrapped in the `Arc` for the data.
+// pub fn open<T: MonotonicallyMappableToU64 + fmt::Debug>(
+//     bytes: OwnedBytes,
+// ) -> io::Result<Arc<dyn Column<T>>> {
+//     let (bytes, _format_version) = read_format_version(bytes)?;
+//     let (mut bytes, _null_index_footer) = read_null_index_footer(bytes)?;
+//     let header = Header::deserialize(&mut bytes)?;
+//     match header.codec_type {
+//         FastFieldCodecType::Bitpacked => open_specific_codec::<BitpackedCodec, _>(bytes,
+// &header),         FastFieldCodecType::Linear => open_specific_codec::<LinearCodec, _>(bytes,
+// &header),         FastFieldCodecType::BlockwiseLinear => {
+//             open_specific_codec::<BlockwiseLinearCodec, _>(bytes, &header)
+//         }
+//     }
+// }
 
-/// The FastFieldSerializerEstimate trait is required on all variants
-/// of fast field compressions, to decide which one to choose.
-trait FastFieldCodec: 'static {
-    /// A codex needs to provide a unique name and id, which is
-    /// used for debugging and de/serialization.
-    const CODEC_TYPE: FastFieldCodecType;
+// fn open_specific_codec<C: FastFieldCodec, Item: MonotonicallyMappableToU64 + fmt::Debug>(
+//     bytes: OwnedBytes,
+//     header: &Header,
+// ) -> io::Result<Arc<dyn Column<Item>>> {
+//     let normalized_header = header.normalized();
+//     let reader = C::open_from_bytes(bytes, normalized_header)?;
+//     let min_value = header.min_value;
+//     if let Some(gcd) = header.gcd {
+//         let mapping = StrictlyMonotonicMappingInverter::from(
+//             StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd.get(), min_value),
+//         );
+//         Ok(Arc::new(monotonic_map_column(reader, mapping)))
+//     } else {
+//         let mapping = StrictlyMonotonicMappingInverter::from(
+//             StrictlyMonotonicMappingToInternalBaseval::new(min_value),
+//         );
+//         Ok(Arc::new(monotonic_map_column(reader, mapping)))
+//     }
+// }
 
-    type Reader: Column<u64> + 'static;
+// /// The FastFieldSerializerEstimate trait is required on all variants
+// /// of fast field compressions, to decide which one to choose.
+// trait FastFieldCodec: 'static {
+//     /// A codex needs to provide a unique name and id, which is
+//     /// used for debugging and de/serialization.
+//     const CODEC_TYPE: FastFieldCodecType;
 
-    /// Reads the metadata and returns the CodecReader
-    fn open_from_bytes(bytes: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader>;
+//     type Reader: Column<u64> + 'static;
 
-    /// Serializes the data using the serializer into write.
-    ///
-    /// The column iterator should be preferred over using column `get_val` method for
-    /// performance reasons.
-    fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()>;
+//     /// Reads the metadata and returns the CodecReader
+//     fn open_from_bytes(bytes: OwnedBytes, header: NormalizedHeader) -> io::Result<Self::Reader>;
 
-    /// Returns an estimate of the compression ratio.
-    /// If the codec is not applicable, returns `None`.
-    ///
-    /// The baseline is uncompressed 64bit data.
-    ///
-    /// It could make sense to also return a value representing
-    /// computational complexity.
-    fn estimate(column: &dyn Column) -> Option<f32>;
-}
+//     /// Serializes the data using the serializer into write.
+//     ///
+//     /// The column iterator should be preferred over using column `get_val` method for
+//     /// performance reasons.
+//     fn serialize(column: &dyn Column, write: &mut impl Write) -> io::Result<()>;
 
-/// The list of all available codecs for u64 convertible data.
-pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
-    FastFieldCodecType::Bitpacked,
-    FastFieldCodecType::BlockwiseLinear,
-    FastFieldCodecType::Linear,
-];
+//     /// Returns an estimate of the compression ratio.
+//     /// If the codec is not applicable, returns `None`.
+//     ///
+//     /// The baseline is uncompressed 64bit data.
+//     ///
+//     /// It could make sense to also return a value representing
+//     /// computational complexity.
+//     fn estimate(column: &dyn Column) -> Option<f32>;
+// }
+
+// /// The list of all available codecs for u64 convertible data.
+// pub const ALL_CODEC_TYPES: [FastFieldCodecType; 3] = [
+//     FastFieldCodecType::Bitpacked,
+//     FastFieldCodecType::BlockwiseLinear,
+//     FastFieldCodecType::Linear,
+// ];
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,4 @@
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
 use murmurhash32::murmurhash2;
 use rustc_hash::FxHashMap;
 

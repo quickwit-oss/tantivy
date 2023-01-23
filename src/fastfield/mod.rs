@@ -21,14 +21,14 @@
 
 use std::net::Ipv6Addr;
 
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
+pub use fastfield_codecs::Column;
 
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 // pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 // pub use self::facet_reader::FacetReader;
 pub use self::readers::FastFieldReaders;
-pub use self::serializer::{Column, CompositeFastFieldSerializer};
 pub use self::writer::FastFieldsWriter;
 use crate::schema::{Type, Value};
 use crate::DateTime;
@@ -38,7 +38,6 @@ mod alive_bitset;
 mod error;
 // mod facet_reader;
 mod readers;
-mod serializer;
 mod writer;
 
 /// Trait for types that provide a zero value.
@@ -71,7 +70,7 @@ impl MakeZero for Ipv6Addr {
 /// Trait for types that are allowed for fast fields:
 /// (u64, i64 and f64, bool, DateTime).
 pub trait FastValue:
-    MonotonicallyMappableToU64 + Copy + Send + Sync + PartialOrd + 'static
+    Copy + Send + Sync + columnar::MonotonicallyMappableToU64 + PartialOrd + 'static
 {
     /// Returns the `schema::Type` for this FastValue.
     fn to_type() -> Type;
@@ -100,21 +99,21 @@ impl FastValue for bool {
         Type::Bool
     }
 }
+impl FastValue for DateTime {
+    fn to_type() -> Type {
+        Type::Date
+    }
+}
 
-impl MonotonicallyMappableToU64 for DateTime {
+impl columnar::MonotonicallyMappableToU64 for DateTime {
     fn to_u64(self) -> u64 {
         self.timestamp_micros.to_u64()
     }
 
     fn from_u64(val: u64) -> Self {
-        let timestamp_micros = i64::from_u64(val);
-        DateTime { timestamp_micros }
-    }
-}
-
-impl FastValue for DateTime {
-    fn to_type() -> Type {
-        Type::Date
+        DateTime {
+            timestamp_micros: MonotonicallyMappableToU64::from_u64(val),
+        }
     }
 }
 
@@ -166,7 +165,6 @@ mod tests {
     use std::sync::Arc;
 
     use common::{HasLen, TerminatingWrite};
-    use fastfield_codecs::{open, FastFieldCodecType};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;

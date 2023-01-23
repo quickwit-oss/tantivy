@@ -17,10 +17,12 @@ use std::sync::Arc;
 
 use common::{BinarySerializable, OwnedBytes};
 use compact_space::CompactSpaceDecompressor;
+pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 use monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     StrictlyMonotonicMappingToInternalBaseval, StrictlyMonotonicMappingToInternalGCDBaseval,
 };
+pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
 use serialize::{Header, U128Header};
 
 mod bitpacked;
@@ -37,8 +39,6 @@ mod gcd;
 pub mod serialize;
 
 pub use self::column::{monotonic_map_column, ColumnValues, IterColumn, VecColumn};
-pub use self::monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
-pub use self::monotonic_mapping_u128::MonotonicallyMappableToU128;
 #[cfg(test)]
 pub use self::serialize::tests::serialize_and_load;
 pub use self::serialize::{serialize_column_values, NormalizedHeader};

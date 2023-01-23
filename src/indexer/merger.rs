@@ -1,20 +1,15 @@
 use std::collections::HashMap;
-use std::io::Write;
 use std::sync::Arc;
 
-use fastfield_codecs::VecColumn;
 use itertools::Itertools;
 use measure_time::debug_time;
 
-use super::flat_map_with_buffer::FlatMapWithBufferIter;
 // use super::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueIndexColumn;
 use crate::core::{Segment, SegmentReader};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
-use crate::fastfield::{
-    AliveBitSet, Column, CompositeFastFieldSerializer, FastFieldNotAvailableError,
-};
+use crate::fastfield::{AliveBitSet, Column, FastFieldNotAvailableError};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 // use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;

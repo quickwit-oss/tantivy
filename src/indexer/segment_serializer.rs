@@ -2,7 +2,6 @@ use common::TerminatingWrite;
 
 use crate::core::{Segment, SegmentComponent};
 use crate::directory::WritePtr;
-use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::postings::InvertedIndexSerializer;
 use crate::store::StoreWriter;
