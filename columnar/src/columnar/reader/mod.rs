@@ -13,6 +13,7 @@ fn io_invalid_data(msg: String) -> io::Error {
 
 /// The ColumnarReader makes it possible to access a set of columns
 /// associated to field names.
+#[derive(Clone)]
 pub struct ColumnarReader {
     column_dictionary: Dictionary<RangeSSTable>,
     column_data: FileSlice,

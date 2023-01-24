@@ -66,6 +66,12 @@ pub enum Cardinality {
 }
 
 impl Cardinality {
+    pub fn is_optional(&self) -> bool {
+        matches!(self, Cardinality::Optional)
+    }
+    pub fn is_multivalue(&self) -> bool {
+        matches!(self, Cardinality::Multivalued)
+    }
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }

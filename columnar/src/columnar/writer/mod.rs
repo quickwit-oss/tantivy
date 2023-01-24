@@ -8,7 +8,7 @@ use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
 use common::CountingWriter;
-use serializer::ColumnarSerializer;
+pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
 use crate::column_index::SerializableColumnIndex;

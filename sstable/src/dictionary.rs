@@ -30,6 +30,7 @@ use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, 
 /// block boundary.
 ///
 /// (See also README.md)
+#[derive(Debug, Clone)]
 pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
     pub sstable_slice: FileSlice,
     pub sstable_index: SSTableIndex,

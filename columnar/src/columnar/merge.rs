@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::io;
 
-use super::column_type::ColumnTypeCategory;
 use crate::columnar::ColumnarReader;
+use crate::columnar::column_type::ColumnTypeCategory;
 use crate::dynamic_column::DynamicColumn;
+use super::writer::ColumnarSerializer;
+use crate::{Cardinality, ColumnType};
 
 pub enum MergeDocOrder {
     /// Columnar tables are simply stacked one above the other.
@@ -19,24 +21,67 @@ pub enum MergeDocOrder {
 }
 
 pub fn merge_columnar(
-    _columnar_readers: &[ColumnarReader],
+    columnar_readers: &[ColumnarReader],
     mapping: MergeDocOrder,
-    _output: &mut impl io::Write,
+    output: &mut impl io::Write,
 ) -> io::Result<()> {
-    match mapping {
-        MergeDocOrder::Stack => {
-            // implement me :)
-            todo!();
-        }
-        MergeDocOrder::Complex(_) => {
-            // for later
-            todo!();
+    let mut serializer = ColumnarSerializer::new(output);
+
+    // TODO handle dictionary merge for Str/Bytes column
+    let field_name_to_group = group_columns_for_merge(columnar_readers)?;
+    for (column_name, category_to_columns) in field_name_to_group {
+        for (_category, columns_to_merge) in category_to_columns {
+            let column_type = columns_to_merge[0].column_type();
+            let mut column_serialzier =
+                serializer.serialize_column(column_name.as_bytes(), column_type);
+            merge_columns(
+                column_type,
+                &columns_to_merge,
+                &mapping,
+                &mut column_serialzier,
+            )?;
         }
     }
+    serializer.finalize()?;
+
+    Ok(())
 }
 
-pub fn collect_columns(
-    columnar_readers: &[&ColumnarReader],
+pub fn detect_cardinality(columns: &[DynamicColumn]) -> Cardinality {
+    if columns
+        .iter()
+        .any(|column| column.get_cardinality().is_multivalue())
+    {
+        return Cardinality::Multivalued;
+    }
+    if columns
+        .iter()
+        .any(|column| column.get_cardinality().is_optional())
+    {
+        return Cardinality::Optional;
+    }
+    Cardinality::Full
+}
+
+pub fn compute_num_docs(columns: &[DynamicColumn], mapping: &MergeDocOrder) -> usize {
+    // TODO handle deletes
+
+    0
+}
+
+pub fn merge_columns(
+    column_type: ColumnType,
+    columns: &[DynamicColumn],
+    mapping: &MergeDocOrder,
+    column_serializer: &mut impl io::Write,
+) -> io::Result<()> {
+    let cardinality = detect_cardinality(columns);
+
+    Ok(())
+}
+
+pub fn group_columns_for_merge(
+    columnar_readers: &[ColumnarReader],
 ) -> io::Result<HashMap<String, HashMap<ColumnTypeCategory, Vec<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
     // For merging we are interested in the same column type category since they can be merged.
@@ -85,26 +130,20 @@ fn cast_to_common_numerical_column(columns: &[DynamicColumn]) -> Vec<DynamicColu
         .all(|column| column.column_type().numerical_type().is_some()));
     let coerce_to_i64: Vec<_> = columns
         .iter()
-        .map(|column| column.clone().coerce_to_i64())
+        .filter_map(|column| column.clone().coerce_to_i64())
         .collect();
 
-    if coerce_to_i64.iter().all(|column| column.is_some()) {
-        return coerce_to_i64
-            .into_iter()
-            .map(|column| column.unwrap())
-            .collect();
+    if coerce_to_i64.len() == columns.len() {
+        return coerce_to_i64;
     }
 
     let coerce_to_u64: Vec<_> = columns
         .iter()
-        .map(|column| column.clone().coerce_to_u64())
+        .filter_map(|column| column.clone().coerce_to_u64())
         .collect();
 
-    if coerce_to_u64.iter().all(|column| column.is_some()) {
-        return coerce_to_u64
-            .into_iter()
-            .map(|column| column.unwrap())
-            .collect();
+    if coerce_to_u64.len() == columns.len() {
+        return coerce_to_u64;
     }
 
     columns
@@ -151,7 +190,9 @@ mod tests {
             ColumnarReader::open(buffer).unwrap()
         };
 
-        let column_map = collect_columns(&[&columnar1, &columnar2, &columnar3]).unwrap();
+        let column_map =
+            group_columns_for_merge(&[columnar1.clone(), columnar2.clone(), columnar3.clone()])
+                .unwrap();
         assert_eq!(column_map.len(), 1);
         let cat_to_columns = column_map.get("numbers").unwrap();
         assert_eq!(cat_to_columns.len(), 1);
@@ -159,14 +200,14 @@ mod tests {
         let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
         assert!(numerical.iter().all(|column| column.is_f64()));
 
-        let column_map = collect_columns(&[&columnar1, &columnar1]).unwrap();
+        let column_map = group_columns_for_merge(&[columnar1.clone(), columnar1.clone()]).unwrap();
         assert_eq!(column_map.len(), 1);
         let cat_to_columns = column_map.get("numbers").unwrap();
         assert_eq!(cat_to_columns.len(), 1);
         let numerical = cat_to_columns.get(&ColumnTypeCategory::Numerical).unwrap();
         assert!(numerical.iter().all(|column| column.is_i64()));
 
-        let column_map = collect_columns(&[&columnar2, &columnar2]).unwrap();
+        let column_map = group_columns_for_merge(&[columnar2.clone(), columnar2.clone()]).unwrap();
         assert_eq!(column_map.len(), 1);
         let cat_to_columns = column_map.get("numbers").unwrap();
         assert_eq!(cat_to_columns.len(), 1);
