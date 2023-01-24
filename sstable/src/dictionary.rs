@@ -37,6 +37,21 @@ pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
     phantom_data: PhantomData<TSSTable>,
 }
 
+impl Dictionary<VoidSSTable> {
+    pub fn build_for_tests(terms: &[&str]) -> Dictionary {
+        let mut terms = terms.to_vec();
+        terms.sort();
+        let mut buffer = Vec::new();
+        let mut dictionary_writer = Self::builder(&mut buffer).unwrap();
+        for term in terms {
+            dictionary_writer.insert(term, &()).unwrap();
+        }
+        dictionary_writer.finish().unwrap();
+        let dictionary = Dictionary::from_bytes(OwnedBytes::new(buffer)).unwrap();
+        dictionary
+    }
+}
+
 impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub fn builder<W: io::Write>(wrt: W) -> io::Result<crate::Writer<W, TSSTable::ValueWriter>> {
         Ok(TSSTable::writer(wrt))

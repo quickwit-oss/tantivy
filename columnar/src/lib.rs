@@ -25,12 +25,14 @@ pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeDocOrder,
 };
+use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
 pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 pub use sstable::Dictionary;
+pub type Streamer<'a> = sstable::Streamer<'a, VoidSSTable>;
 
 #[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
 pub struct DateTime {
