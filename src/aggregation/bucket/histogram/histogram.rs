@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use fastfield_codecs::Column;
+use columnar::Column;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -283,7 +283,7 @@ impl SegmentHistogramCollector {
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
-        accessor: &dyn Column<u64>,
+        accessor: &Column<u64>,
     ) -> crate::Result<Self> {
         req.validate()?;
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
@@ -335,7 +335,7 @@ impl SegmentHistogramCollector {
     #[inline]
     pub(crate) fn collect_block(
         &mut self,
-        doc: &[DocId],
+        docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
     ) -> crate::Result<()> {
@@ -346,64 +346,20 @@ impl SegmentHistogramCollector {
         let get_bucket_num =
             |val| (get_bucket_num_f64(val, interval, offset) as i64 - first_bucket_num) as usize;
 
-        let accessor = bucket_with_accessor
-            .accessor
-            .as_single()
-            .expect("unexpected fast field cardinatility");
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val0 = self.f64_from_fastfield_u64(accessor.get_val(docs[0]));
-            let val1 = self.f64_from_fastfield_u64(accessor.get_val(docs[1]));
-            let val2 = self.f64_from_fastfield_u64(accessor.get_val(docs[2]));
-            let val3 = self.f64_from_fastfield_u64(accessor.get_val(docs[3]));
+        let accessor = &bucket_with_accessor.accessor;
+        for doc in docs {
+            for val in accessor.values(*doc) {
+                let val = self.f64_from_fastfield_u64(val);
 
-            let bucket_pos0 = get_bucket_num(val0);
-            let bucket_pos1 = get_bucket_num(val1);
-            let bucket_pos2 = get_bucket_num(val2);
-            let bucket_pos3 = get_bucket_num(val3);
-
-            self.increment_bucket_if_in_bounds(
-                val0,
-                &bounds,
-                bucket_pos0,
-                docs[0],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val1,
-                &bounds,
-                bucket_pos1,
-                docs[1],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val2,
-                &bounds,
-                bucket_pos2,
-                docs[2],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-            self.increment_bucket_if_in_bounds(
-                val3,
-                &bounds,
-                bucket_pos3,
-                docs[3],
-                &bucket_with_accessor.sub_aggregation,
-            )?;
-        }
-        for &doc in iter.remainder() {
-            let val = f64_from_fastfield_u64(accessor.get_val(doc), &self.field_type);
-            if !bounds.contains(val) {
-                continue;
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    *doc,
+                    &bucket_with_accessor.sub_aggregation,
+                )?;
             }
-            let bucket_pos = (get_bucket_num_f64(val, self.interval, self.offset) as i64
-                - self.first_bucket_num) as usize;
-
-            debug_assert_eq!(
-                self.buckets[bucket_pos].key,
-                get_bucket_val(val, self.interval, self.offset)
-            );
-            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
         }
         if force_flush {
             if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {

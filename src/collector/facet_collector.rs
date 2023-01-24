@@ -829,7 +829,7 @@ mod bench {
         let reader = index.reader().unwrap();
         b.iter(|| {
             let searcher = reader.searcher();
-            let facet_collector = FacetCollector::for_field(facet_field);
+            let facet_collector = FacetCollector::for_field("facet");
             searcher.search(&AllQuery, &facet_collector).unwrap();
         });
     }

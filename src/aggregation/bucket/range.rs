@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -257,35 +257,18 @@ impl SegmentRangeCollector {
     #[inline]
     pub(crate) fn collect_block(
         &mut self,
-        doc: &[DocId],
+        docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
         force_flush: bool,
     ) -> crate::Result<()> {
-        let mut iter = doc.chunks_exact(4);
-        let accessor = bucket_with_accessor
-            .accessor
-            .as_single()
-            .expect("unexpected fast field cardinality");
-        for docs in iter.by_ref() {
-            let val1 = accessor.get_val(docs[0]);
-            let val2 = accessor.get_val(docs[1]);
-            let val3 = accessor.get_val(docs[2]);
-            let val4 = accessor.get_val(docs[3]);
-            let bucket_pos1 = self.get_bucket_pos(val1);
-            let bucket_pos2 = self.get_bucket_pos(val2);
-            let bucket_pos3 = self.get_bucket_pos(val3);
-            let bucket_pos4 = self.get_bucket_pos(val4);
+        let accessor = &bucket_with_accessor.accessor;
+        for doc in docs {
+            for val in accessor.values(*doc) {
+                let bucket_pos = self.get_bucket_pos(val);
+                self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
+            }
+        }
 
-            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation)?;
-            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation)?;
-        }
-        for &doc in iter.remainder() {
-            let val = accessor.get_val(doc);
-            let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(bucket_pos, doc, &bucket_with_accessor.sub_aggregation)?;
-        }
         if force_flush {
             for bucket in &mut self.buckets {
                 if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
@@ -434,7 +417,7 @@ pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> crate::Resu
 #[cfg(test)]
 mod tests {
 
-    use fastfield_codecs::MonotonicallyMappableToU64;
+    use columnar::MonotonicallyMappableToU64;
     use serde_json::Value;
 
     use super::*;

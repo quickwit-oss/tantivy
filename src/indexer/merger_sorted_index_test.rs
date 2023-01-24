@@ -476,12 +476,11 @@ mod bench_sorted_index_merge {
 
     use std::sync::Arc;
 
-    use fastfield_codecs::Column;
     use test::{self, Bencher};
 
     use crate::core::Index;
     use crate::indexer::merger::IndexMerger;
-    use crate::schema::{Cardinality, NumericOptions, Schema};
+    use crate::schema::{NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
@@ -512,42 +511,42 @@ mod bench_sorted_index_merge {
         index
     }
 
-    #[bench]
-    fn create_sorted_index_walk_overkmerge_on_merge_fastfield(
-        b: &mut Bencher,
-    ) -> crate::Result<()> {
-        let sort_by_field = IndexSortByField {
-            field: "intval".to_string(),
-            order: Order::Desc,
-        };
-        let index = create_index(Some(sort_by_field.clone()));
-        let segments = index.searchable_segments().unwrap();
-        let merger: IndexMerger =
-            IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
-        let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
-        b.iter(|| {
-            let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
-                let reader = &merger.readers[doc_addr.segment_ord as usize];
-                let u64_reader: Arc<dyn Column<u64>> = reader
-                    .fast_fields()
-                    .typed_fast_field_reader("intval")
-                    .expect(
-                        "Failed to find a reader for single fast field. This is a tantivy bug and \
-                         it should never happen.",
-                    );
-                (doc_addr.doc_id, reader, u64_reader)
-            });
-            // add values in order of the new doc_ids
-            let mut val = 0;
-            for (doc_id, _reader, field_reader) in sorted_doc_ids {
-                val = field_reader.get_val(doc_id);
-            }
+    //#[bench]
+    // fn create_sorted_index_walk_overkmerge_on_merge_fastfield(
+    // b: &mut Bencher,
+    //) -> crate::Result<()> {
+    // let sort_by_field = IndexSortByField {
+    // field: "intval".to_string(),
+    // order: Order::Desc,
+    //};
+    // let index = create_index(Some(sort_by_field.clone()));
+    // let segments = index.searchable_segments().unwrap();
+    // let merger: IndexMerger =
+    // IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
+    // let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
+    // b.iter(|| {
+    // let sorted_doc_ids = doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
+    // let reader = &merger.readers[doc_addr.segment_ord as usize];
+    // let u64_reader: Arc<dyn Column<u64>> = reader
+    //.fast_fields()
+    //.typed_fast_field_reader("intval")
+    //.expect(
+    //"Failed to find a reader for single fast field. This is a tantivy bug and \
+    // it should never happen.",
+    //);
+    //(doc_addr.doc_id, reader, u64_reader)
+    //});
+    //// add values in order of the new doc_ids
+    // let mut val = 0;
+    // for (doc_id, _reader, field_reader) in sorted_doc_ids {
+    // val = field_reader.get_val(doc_id);
+    //}
 
-            val
-        });
+    // val
+    //});
 
-        Ok(())
-    }
+    // Ok(())
+    //}
     #[bench]
     fn create_sorted_index_create_doc_id_mapping(b: &mut Bencher) -> crate::Result<()> {
         let sort_by_field = IndexSortByField {

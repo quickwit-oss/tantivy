@@ -172,8 +172,8 @@ pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
     MAX_BUCKET_COUNT,
 };
+use columnar::MonotonicallyMappableToU64;
 pub(crate) use date::format_date;
-use fastfield_codecs::MonotonicallyMappableToU64;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -247,9 +247,6 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()
-    }
-    fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
-        self.keys().zip(self.values.iter())
     }
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
@@ -337,7 +334,7 @@ mod tests {
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
-    use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::{DateTime, Index, Term};
 
     fn get_avg_req(field_name: &str) -> Aggregation {
@@ -432,8 +429,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
         let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
         let string_field_id = schema_builder.add_text_field("string_id", STRING | FAST);
-        let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast();
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
@@ -656,13 +652,11 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", FAST);
         schema_builder.add_text_field("dummy_text", STRING);
-        let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast();
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
 
-        let multivalue =
-            crate::schema::NumericOptions::default().set_fast();
+        let multivalue = crate::schema::NumericOptions::default().set_fast();
         let scores_field_i64 = schema_builder.add_i64_field("scores_i64", multivalue);
 
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
@@ -1177,7 +1171,7 @@ mod tests {
         use crate::aggregation::metric::StatsAggregation;
         use crate::query::AllQuery;
 
-        fn get_test_index_bench(merge_segments: bool) -> crate::Result<Index> {
+        fn get_test_index_bench(_merge_segments: bool) -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
             let text_fieldtype = crate::schema::TextOptions::default()
                 .set_indexing_options(
@@ -1189,20 +1183,19 @@ mod tests {
                 schema_builder.add_text_field("text_many_terms", STRING | FAST);
             let text_field_few_terms =
                 schema_builder.add_text_field("text_few_terms", STRING | FAST);
-            let score_fieldtype =
-                crate::schema::NumericOptions::default().set_fast();
+            let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
             let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
             let score_field_f64 =
                 schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
             let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
             let index = Index::create_from_tempdir(schema_builder.build())?;
             let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
-            let many_terms_data = (0..15_000)
+            let many_terms_data = (0..150_000)
                 .map(|num| format!("author{}", num))
                 .collect::<Vec<_>>();
             {
                 let mut rng = thread_rng();
-                let mut index_writer = index.writer_for_tests()?;
+                let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
                 // writing the segment
                 for _ in 0..1_000_000 {
                     let val: f64 = rng.gen_range(0.0..1_000_000.0);
@@ -1216,14 +1209,6 @@ mod tests {
                     ))?;
                 }
                 index_writer.commit()?;
-            }
-            if merge_segments {
-                let segment_ids = index
-                    .searchable_segment_ids()
-                    .expect("Searchable segments failed.");
-                let mut index_writer = index.writer_for_tests()?;
-                index_writer.merge(&segment_ids).wait()?;
-                index_writer.wait_merging_threads()?;
             }
 
             Ok(index)
@@ -1363,6 +1348,41 @@ mod tests {
                             ..Default::default()
                         }),
                         sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+
+                let searcher = reader.searcher();
+                searcher.search(&AllQuery, &collector).unwrap()
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_terms_many_with_sub_agg(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let sub_agg_req: Aggregations = vec![(
+                    "average_f64".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score_f64".to_string()),
+                    )),
+                )]
+                .into_iter()
+                .collect();
+
+                let agg_req: Aggregations = vec![(
+                    "my_texts".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
                     }),
                 )]
                 .into_iter()

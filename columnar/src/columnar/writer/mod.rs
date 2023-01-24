@@ -367,7 +367,7 @@ impl ColumnarWriter {
                     serialize_bytes_or_str_column(
                         cardinality,
                         num_docs,
-                        str_column_writer.sort_values_within_row,
+                        str_or_bytes_column_writer.sort_values_within_row,
                         dictionary_builder,
                         str_or_bytes_column_writer
                             .operation_iterator(arena, &mut symbol_byte_buffer),

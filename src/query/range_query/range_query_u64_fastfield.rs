@@ -86,7 +86,7 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::ops::{Bound, RangeInclusive};
 
     use proptest::prelude::ProptestConfig;
@@ -191,7 +191,7 @@ mod tests {
         assert!(test_id_range_for_docs(ops).is_ok());
     }
 
-    fn create_index_from_docs(docs: &[Doc]) -> Index {
+    pub fn create_index_from_docs(docs: &[Doc]) -> Index {
         let mut schema_builder = Schema::builder();
         let id_u64_field = schema_builder.add_u64_field("id", INDEXED | STORED | FAST);
         let ids_u64_field =

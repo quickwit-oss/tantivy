@@ -1,4 +1,4 @@
-use fastfield_codecs::Column;
+use columnar::Column;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::f64_from_fastfield_u64;
@@ -160,26 +160,13 @@ impl SegmentStatsCollector {
             stats: IntermediateStats::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = field.get_val(docs[0]);
-            let val2 = field.get_val(docs[1]);
-            let val3 = field.get_val(docs[2]);
-            let val4 = field.get_val(docs[3]);
-            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
-            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
-            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
-            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
-            self.stats.collect(val1);
-            self.stats.collect(val2);
-            self.stats.collect(val3);
-            self.stats.collect(val4);
-        }
-        for &doc in iter.remainder() {
-            let val = field.get_val(doc);
-            let val = f64_from_fastfield_u64(val, &self.field_type);
-            self.stats.collect(val);
+    pub(crate) fn collect_block(&mut self, docs: &[DocId], field: &Column<u64>) {
+        // TODO special case for Required, Optional column type
+        for doc in docs {
+            for val in field.values(*doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+            }
         }
     }
 }

@@ -88,7 +88,7 @@ fn bound_to_value_range(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use proptest::prelude::ProptestConfig;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};
@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(count, 2);
     }
 
-    fn create_index_from_docs(docs: &[Doc]) -> Index {
+    pub fn create_index_from_docs(docs: &[Doc]) -> Index {
         let mut schema_builder = Schema::builder();
         let ip_field = schema_builder.add_ip_addr_field("ip", STORED | FAST);
         let ips_field = schema_builder.add_ip_addr_field("ips", FAST | INDEXED);

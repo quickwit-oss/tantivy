@@ -78,7 +78,7 @@ impl SegmentAggregationResultsCollector {
     pub(crate) fn from_req_and_validate(req: &AggregationsWithAccessor) -> crate::Result<Self> {
         let buckets = req
             .buckets
-            .entries()
+            .iter()
             .map(|(key, req)| {
                 Ok((
                     key.to_string(),
@@ -88,7 +88,7 @@ impl SegmentAggregationResultsCollector {
             .collect::<crate::Result<Vec<(String, _)>>>()?;
         let metrics = req
             .metrics
-            .entries()
+            .iter()
             .map(|(key, req)| {
                 Ok((
                     key.to_string(),
@@ -205,7 +205,7 @@ impl SegmentMetricResultCollector {
     pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Stats(stats_collector) => {
-                stats_collector.collect_block(doc, &*metric.accessor);
+                stats_collector.collect_block(doc, &metric.accessor);
             }
         }
     }
@@ -247,9 +247,7 @@ impl SegmentBucketResultCollector {
                     terms_req,
                     &req.sub_aggregation,
                     req.field_type,
-                    req.accessor
-                        .as_multi()
-                        .expect("unexpected fast field cardinality"),
+                    &req.accessor,
                 )?,
             ))),
             BucketAggregationType::Range(range_req) => {
@@ -265,9 +263,7 @@ impl SegmentBucketResultCollector {
                     histogram,
                     &req.sub_aggregation,
                     req.field_type,
-                    req.accessor
-                        .as_single()
-                        .expect("unexpected fast field cardinality"),
+                    &req.accessor,
                 )?,
             ))),
         }
