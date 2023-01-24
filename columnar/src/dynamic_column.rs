@@ -8,7 +8,7 @@ use common::{HasLen, OwnedBytes};
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::{DateTime, NumericalType};
+use crate::{Cardinality, DateTime, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -23,6 +23,18 @@ pub enum DynamicColumn {
 }
 
 impl DynamicColumn {
+    pub fn get_cardinality(&self) -> Cardinality {
+        match self {
+            DynamicColumn::Bool(c) => c.get_cardinality(),
+            DynamicColumn::I64(c) => c.get_cardinality(),
+            DynamicColumn::U64(c) => c.get_cardinality(),
+            DynamicColumn::F64(c) => c.get_cardinality(),
+            DynamicColumn::IpAddr(c) => c.get_cardinality(),
+            DynamicColumn::DateTime(c) => c.get_cardinality(),
+            DynamicColumn::Bytes(c) => c.ords().get_cardinality(),
+            DynamicColumn::Str(c) => c.ords().get_cardinality(),
+        }
+    }
     pub fn column_type(&self) -> ColumnType {
         match self {
             DynamicColumn::Bool(_) => ColumnType::Bool,

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct SSTableIndex {
     blocks: Vec<BlockMeta>,
 }
@@ -75,7 +75,7 @@ pub struct BlockAddr {
     pub first_ordinal: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,

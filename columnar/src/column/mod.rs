@@ -22,6 +22,9 @@ pub struct Column<T> {
 }
 
 impl<T: PartialOrd> Column<T> {
+    pub fn get_cardinality(&self) -> Cardinality {
+        self.idx.get_cardinality()
+    }
     pub fn num_rows(&self) -> RowId {
         match &self.idx {
             ColumnIndex::Full => self.values.num_vals() as u32,

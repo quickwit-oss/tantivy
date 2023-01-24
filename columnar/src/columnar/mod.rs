@@ -1,6 +1,7 @@
 mod column_type;
 mod format_version;
 mod merge;
+mod merge_index;
 mod reader;
 mod writer;
 
