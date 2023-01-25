@@ -191,7 +191,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
 }
 
 impl BinarySerializable for Facet {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         <String as BinarySerializable>::serialize(&self.0, writer)
     }
 

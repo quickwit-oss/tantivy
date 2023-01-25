@@ -2,6 +2,7 @@ mod dictionary_encoded;
 mod serialize;
 
 use std::fmt::Debug;
+use std::io::Write;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -13,13 +14,27 @@ pub use serialize::{
 };
 
 use crate::column_index::ColumnIndex;
-use crate::column_values::ColumnValues;
-use crate::{Cardinality, RowId};
+use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
+use crate::column_values::{monotonic_map_column, ColumnValues};
+use crate::{Cardinality, MonotonicallyMappableToU64, RowId};
 
 #[derive(Clone)]
-pub struct Column<T> {
+pub struct Column<T = u64> {
     pub idx: ColumnIndex,
     pub values: Arc<dyn ColumnValues<T>>,
+}
+
+impl<T: MonotonicallyMappableToU64> Column<T> {
+    pub fn to_u64_monotonic(self) -> Column<u64> {
+        let values = Arc::new(monotonic_map_column(
+            self.values,
+            StrictlyMonotonicMappingToInternal::<T>::new(),
+        ));
+        Column {
+            idx: self.idx,
+            values,
+        }
+    }
 }
 
 impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
@@ -72,7 +87,7 @@ impl<T> Deref for Column<T> {
 }
 
 impl BinarySerializable for Cardinality {
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
         self.to_code().serialize(writer)
     }
 

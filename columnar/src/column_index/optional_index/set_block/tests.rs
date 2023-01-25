@@ -17,6 +17,10 @@ fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
     for val in 0u16..=u16::MAX {
         assert_eq!(tested_set.contains(val), hash_set.contains_key(&val));
         assert_eq!(tested_set.rank_if_exists(val), hash_set.get(&val).copied());
+        assert_eq!(
+            tested_set.rank(val),
+            vals.iter().cloned().take_while(|v| *v < val).count() as u16
+        );
     }
     for rank in 0..vals.len() {
         assert_eq!(tested_set.select(rank as u16), vals[rank]);

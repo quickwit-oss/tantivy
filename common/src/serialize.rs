@@ -5,12 +5,37 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 
 use crate::{Endianness, VInt};
 
+#[derive(Default)]
+struct Counter(u64);
+
+impl io::Write for Counter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0 += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.0 += buf.len() as u64;
+        Ok(())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {
     /// Serialize
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()>;
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()>;
     /// Deserialize
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self>;
+
+    fn num_bytes(&self) -> u64 {
+        let mut counter = Counter::default();
+        self.serialize(&mut counter).unwrap();
+        counter.0
+    }
 }
 
 pub trait DeserializeFrom<T: BinarySerializable> {
@@ -34,7 +59,7 @@ pub trait FixedSize: BinarySerializable {
 }
 
 impl BinarySerializable for () {
-    fn serialize<W: Write>(&self, _: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, _: &mut W) -> io::Result<()> {
         Ok(())
     }
     fn deserialize<R: Read>(_: &mut R) -> io::Result<Self> {
@@ -47,7 +72,7 @@ impl FixedSize for () {
 }
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.len() as u64).serialize(writer)?;
         for it in self {
             it.serialize(writer)?;
@@ -66,7 +91,7 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
 }
 
 impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for (Left, Right) {
-    fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, write: &mut W) -> io::Result<()> {
         self.0.serialize(write)?;
         self.1.serialize(write)
     }
@@ -81,7 +106,7 @@ impl<Left: BinarySerializable + FixedSize, Right: BinarySerializable + FixedSize
 }
 
 impl BinarySerializable for u32 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u32::<Endianness>(*self)
     }
 
@@ -95,7 +120,7 @@ impl FixedSize for u32 {
 }
 
 impl BinarySerializable for u16 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u16::<Endianness>(*self)
     }
 
@@ -109,7 +134,7 @@ impl FixedSize for u16 {
 }
 
 impl BinarySerializable for u64 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u64::<Endianness>(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -122,7 +147,7 @@ impl FixedSize for u64 {
 }
 
 impl BinarySerializable for u128 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u128::<Endianness>(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -135,7 +160,7 @@ impl FixedSize for u128 {
 }
 
 impl BinarySerializable for f32 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_f32::<Endianness>(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -148,7 +173,7 @@ impl FixedSize for f32 {
 }
 
 impl BinarySerializable for i64 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_i64::<Endianness>(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -161,7 +186,7 @@ impl FixedSize for i64 {
 }
 
 impl BinarySerializable for f64 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_f64::<Endianness>(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -174,7 +199,7 @@ impl FixedSize for f64 {
 }
 
 impl BinarySerializable for u8 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u8(*self)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<u8> {
@@ -187,7 +212,7 @@ impl FixedSize for u8 {
 }
 
 impl BinarySerializable for bool {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u8(u8::from(*self))
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
@@ -208,7 +233,7 @@ impl FixedSize for bool {
 }
 
 impl BinarySerializable for String {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
         VInt(data.len() as u64).serialize(writer)?;
         writer.write_all(data)

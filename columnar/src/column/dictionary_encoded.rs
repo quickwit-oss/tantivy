@@ -1,5 +1,6 @@
 use std::io;
 use std::ops::Deref;
+use std::str::Bytes;
 use std::sync::Arc;
 
 use sstable::{Dictionary, VoidSSTable};
@@ -59,6 +60,12 @@ pub struct StrColumn(BytesColumn);
 impl From<BytesColumn> for StrColumn {
     fn from(bytes_col: BytesColumn) -> Self {
         StrColumn(bytes_col)
+    }
+}
+
+impl From<StrColumn> for BytesColumn {
+    fn from(str_column: StrColumn) -> BytesColumn {
+        str_column.0
     }
 }
 

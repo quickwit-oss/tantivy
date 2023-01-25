@@ -22,7 +22,7 @@ impl FileAddr {
 }
 
 impl BinarySerializable for FileAddr {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.field.serialize(writer)?;
         VInt(self.idx as u64).serialize(writer)?;
         Ok(())

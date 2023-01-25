@@ -344,7 +344,7 @@ mod binary_serialize {
     const TOK_STR_CODE: u8 = 0;
 
     impl BinarySerializable for Value {
-        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
             match *self {
                 Value::Str(ref text) => {
                     TEXT_CODE.serialize(writer)?;

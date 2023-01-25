@@ -18,7 +18,7 @@ const MID_POINT: u64 = (1u64 << 32) - 1u64;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Line {
     slope: u64,
-    intercept: u64,
+    pub(crate) intercept: u64,
 }
 
 /// Compute the line slope.
@@ -81,7 +81,7 @@ impl Line {
     }
 
     // Intercept is only computed from provided positions
-    fn train_from(
+    pub fn train_from(
         first_val: u64,
         last_val: u64,
         num_vals: u32,
@@ -145,6 +145,7 @@ impl Line {
     ///
     /// This function is only invariable by translation if all of the
     /// `ys` are packaged into half of the space. (See heuristic below)
+    /// TODO USE array
     pub fn train(ys: &dyn ColumnValues) -> Self {
         let first_val = ys.iter().next().unwrap();
         let last_val = ys.iter().nth(ys.num_vals() as usize - 1).unwrap();
@@ -158,7 +159,7 @@ impl Line {
 }
 
 impl BinarySerializable for Line {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.slope).serialize(writer)?;
         VInt(self.intercept).serialize(writer)?;
         Ok(())

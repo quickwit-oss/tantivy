@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::ops::Range;
 use std::sync::Arc;
 
 mod set;
@@ -11,6 +10,7 @@ use set_block::{
     DenseBlock, DenseBlockCodec, SparseBlock, SparseBlockCodec, DENSE_BLOCK_NUM_BYTES,
 };
 
+use crate::iterable::Iterable;
 use crate::{InvalidData, RowId};
 
 /// The threshold for for number of elements after which we switch to dense block encoding.
@@ -95,6 +95,12 @@ impl OptionalIndex {
 
     pub fn num_non_nulls(&self) -> RowId {
         self.num_non_null_rows
+    }
+
+    pub fn iter_rows<'a>(&'a self) -> impl Iterator<Item = RowId> + 'a {
+        // TODO optimize
+        let mut select_batch = self.select_cursor();
+        (0..self.num_non_null_rows).map(move |rank| select_batch.select(rank))
     }
 }
 
@@ -184,6 +190,21 @@ impl Set<RowId> for OptionalIndex {
             Block::Dense(dense_block) => dense_block.contains(in_block_row_id),
             Block::Sparse(sparse_block) => sparse_block.contains(in_block_row_id),
         }
+    }
+
+    #[inline]
+    fn rank(&self, row_id: RowId) -> RowId {
+        let RowAddr {
+            block_id,
+            in_block_row_id,
+        } = row_addr_from_row_id(row_id);
+        let block_meta = self.block_metas[block_id as usize];
+        let block = self.block(block_meta);
+        let block_offset_row_id = match block {
+            Block::Dense(dense_block) => dense_block.rank(in_block_row_id),
+            Block::Sparse(sparse_block) => sparse_block.rank(in_block_row_id),
+        } as u32;
+        block_meta.non_null_rows_before_block + block_offset_row_id
     }
 
     #[inline]
@@ -300,7 +321,7 @@ impl OptionalIndexCodec {
 }
 
 impl BinarySerializable for OptionalIndexCodec {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[self.to_code()])
     }
 
@@ -322,12 +343,13 @@ fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -
 }
 
 pub fn serialize_optional_index<'a, W: io::Write>(
-    serializable_optional_index: &dyn SerializableOptionalIndex<'a>,
+    non_null_rows: &dyn Iterable<RowId>,
+    num_rows: RowId,
     output: &mut W,
 ) -> io::Result<()> {
-    VInt(serializable_optional_index.num_rows() as u64).serialize(output)?;
+    VInt(num_rows as u64).serialize(output)?;
 
-    let mut rows_it = serializable_optional_index.non_null_rows();
+    let mut rows_it = non_null_rows.boxed_iter();
     let mut block_metadata: Vec<SerializedBlockMeta> = Vec::new();
     let mut current_block = Vec::new();
 
@@ -478,20 +500,6 @@ pub fn open_optional_index(bytes: OwnedBytes) -> io::Result<OptionalIndex> {
         block_metas: block_metas.into(),
     };
     Ok(optional_index)
-}
-
-pub trait SerializableOptionalIndex<'a> {
-    fn num_rows(&self) -> RowId;
-    fn non_null_rows(&self) -> Box<dyn Iterator<Item = RowId> + 'a>;
-}
-
-impl SerializableOptionalIndex<'static> for Range<u32> {
-    fn num_rows(&self) -> RowId {
-        self.end
-    }
-    fn non_null_rows(&self) -> Box<dyn Iterator<Item = RowId> + 'static> {
-        Box::new(self.clone())
-    }
 }
 
 #[cfg(test)]

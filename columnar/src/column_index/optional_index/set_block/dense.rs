@@ -149,6 +149,15 @@ impl<'a> Set<u16> for DenseBlock<'a> {
     }
 
     #[inline(always)]
+    fn rank(&self, el: u16) -> u16 {
+        let block_pos = el / ELEMENTS_PER_MINI_BLOCK;
+        let index_block = self.mini_block(block_pos);
+        let pos_in_block_bit_vec = el % ELEMENTS_PER_MINI_BLOCK;
+        let ones_in_block = rank_u64(index_block.bitvec, pos_in_block_bit_vec);
+        index_block.rank + ones_in_block
+    }
+
+    #[inline(always)]
     fn select(&self, rank: u16) -> u16 {
         let block_id = self.find_miniblock_containing_rank(rank, 0).unwrap();
         let index_block = self.mini_block(block_id);

@@ -1,10 +1,12 @@
+mod merge;
 mod multivalued_index;
 mod optional_index;
 mod serialize;
 
 use std::ops::Range;
 
-pub use optional_index::{OptionalIndex, SerializableOptionalIndex, Set};
+pub use merge::stack_column_index;
+pub use optional_index::{OptionalIndex, Set};
 pub use serialize::{open_column_index, serialize_column_index, SerializableColumnIndex};
 
 use crate::column_index::multivalued_index::MultiValueIndex;

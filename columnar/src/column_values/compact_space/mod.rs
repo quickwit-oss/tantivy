@@ -55,7 +55,7 @@ impl RangeMapping {
 }
 
 impl BinarySerializable for CompactSpace {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.ranges_mapping.len() as u64).serialize(writer)?;
 
         let mut prev_value = 0;
@@ -247,7 +247,7 @@ pub struct CompactSpaceDecompressor {
 }
 
 impl BinarySerializable for IPCodecParams {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         // header flags for future optional dictionary encoding
         let footer_flags = 0u64;
         footer_flags.serialize(writer)?;

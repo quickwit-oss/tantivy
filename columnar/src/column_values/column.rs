@@ -1,15 +1,17 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
+use std::sync::Arc;
 
 use tantivy_bitpacker::minmax;
 
 use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
+use crate::iterable::Iterable;
 
 /// `ColumnValues` provides access to a dense field column.
 ///
 /// `Column` are just a wrapper over `ColumnValues` and a `ColumnIndex`.
-pub trait ColumnValues<T: PartialOrd + Debug = u64>: Send + Sync {
+pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -27,7 +29,7 @@ pub trait ColumnValues<T: PartialOrd + Debug = u64>: Send + Sync {
     ///
     /// Must panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    #[inline]
+    #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
         for (out, idx) in output.iter_mut().zip(start..) {
             *out = self.get_val(idx as u32);
@@ -37,7 +39,7 @@ pub trait ColumnValues<T: PartialOrd + Debug = u64>: Send + Sync {
     /// Get the positions of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
-    #[inline]
+    #[inline(always)]
     fn get_docids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
@@ -78,27 +80,39 @@ pub trait ColumnValues<T: PartialOrd + Debug = u64>: Send + Sync {
     }
 }
 
-impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for std::sync::Arc<dyn ColumnValues<T>> {
+impl<'a, T: Ord> Iterable<T> for &'a [Arc<dyn ColumnValues<T>>] {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
+        Box::new(self.iter().flat_map(|column_value| column_value.iter()))
+    }
+}
+
+impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
+    #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
     }
 
+    #[inline(always)]
     fn min_value(&self) -> T {
         self.as_ref().min_value()
     }
 
+    #[inline(always)]
     fn max_value(&self) -> T {
         self.as_ref().max_value()
     }
 
+    #[inline(always)]
     fn num_vals(&self) -> u32 {
         self.as_ref().num_vals()
     }
 
+    #[inline(always)]
     fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
         self.as_ref().iter()
     }
 
+    #[inline(always)]
     fn get_range(&self, start: u64, output: &mut [T]) {
         self.as_ref().get_range(start, output)
     }

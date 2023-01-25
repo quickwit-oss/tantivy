@@ -28,7 +28,10 @@ pub trait Set<T> {
     /// Returns true if the elements is contained in the Set
     fn contains(&self, el: T) -> bool;
 
-    /// If the set contains `el` returns its position in the sortd set of elements.
+    /// Returns the number of rows in the set that are < `el`
+    fn rank(&self, el: T) -> T;
+
+    /// If the set contains `el` returns the element rank.
     /// If the set does not contain the element, it returns `None`.
     fn rank_if_exists(&self, el: T) -> Option<T>;
 

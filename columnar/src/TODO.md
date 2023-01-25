@@ -12,6 +12,9 @@
 * replug facets
 * replug range queries
 + mutlivaued range queries restrat frm the beginning all of the time.
+* review line.
+* removal of all rows of a column in the schema due to deletes
+* Plugging JSON
 
 # Perf and Size
 * re-add ZSTD compression for dictionaries
@@ -47,6 +50,7 @@ remove the Column traits alias.
 rename fastfield -> column
 document changes
 rationalization FastFieldValue, HasColumnType
+isolate u128_based and uniform naming
 
 
 # Other

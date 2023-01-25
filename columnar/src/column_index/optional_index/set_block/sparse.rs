@@ -45,6 +45,11 @@ impl<'a> Set<u16> for SparseBlock<'a> {
     }
 
     #[inline(always)]
+    fn rank(&self, el: u16) -> u16 {
+        self.binary_search(el).unwrap_or_else(|el| el)
+    }
+
+    #[inline(always)]
     fn select(&self, rank: u16) -> u16 {
         let offset = rank as usize * 2;
         u16::from_le_bytes(self.0[offset..offset + 2].try_into().unwrap())

@@ -39,7 +39,7 @@ impl FixedSize for TermInfo {
 }
 
 impl BinarySerializable for TermInfo {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.doc_freq.serialize(writer)?;
         (self.postings_range.start as u64).serialize(writer)?;
         self.posting_num_bytes().serialize(writer)?;

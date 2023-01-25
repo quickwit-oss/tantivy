@@ -11,10 +11,11 @@ use std::io;
 
 mod column;
 mod column_index;
-mod column_values;
+pub mod column_values;
 mod columnar;
 mod dictionary;
 mod dynamic_column;
+mod iterable;
 pub(crate) mod utils;
 mod value;
 
@@ -23,8 +24,9 @@ pub use column_index::ColumnIndex;
 pub use column_values::{ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeDocOrder,
+    MergeRowOrder, StackMergeOrder,
 };
+pub(crate) use iterable::{map_iterable, Iterable};
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 

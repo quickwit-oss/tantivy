@@ -5,16 +5,18 @@ use std::sync::Arc;
 
 use common::OwnedBytes;
 
-use crate::column_values::{ColumnValues, FastFieldCodecType};
+use crate::column_values::u64_based::CodecType;
+use crate::column_values::ColumnValues;
+use crate::iterable::Iterable;
 use crate::RowId;
 
 pub fn serialize_multivalued_index(
-    multivalued_index: &dyn ColumnValues<RowId>,
+    multivalued_index: &dyn Iterable<RowId>,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    crate::column_values::serialize_column_values(
+    crate::column_values::u64_based::serialize_u64_based_column_values(
         &*multivalued_index,
-        &[FastFieldCodecType::Bitpacked, FastFieldCodecType::Linear],
+        &[CodecType::Bitpacked, CodecType::Linear],
         output,
     )?;
     Ok(())
@@ -22,7 +24,7 @@ pub fn serialize_multivalued_index(
 
 pub fn open_multivalued_index(bytes: OwnedBytes) -> io::Result<MultiValueIndex> {
     let start_index_column: Arc<dyn ColumnValues<RowId>> =
-        crate::column_values::open_u64_mapped(bytes)?;
+        crate::column_values::u64_based::load_u64_based_column_values(bytes)?;
     Ok(MultiValueIndex { start_index_column })
 }
 
@@ -30,7 +32,7 @@ pub fn open_multivalued_index(bytes: OwnedBytes) -> io::Result<MultiValueIndex> 
 /// Index to resolve value range for given doc_id.
 /// Starts at 0.
 pub struct MultiValueIndex {
-    start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
+    pub start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
 }
 
 impl From<Arc<dyn ColumnValues<RowId>>> for MultiValueIndex {

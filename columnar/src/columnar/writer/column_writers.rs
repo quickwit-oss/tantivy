@@ -114,7 +114,7 @@ impl NumericalColumnWriter {
 /// State used to store what types are still acceptable
 /// after having seen a set of numerical values.
 #[derive(Clone, Copy)]
-enum CompatibleNumericalTypes {
+pub(crate) enum CompatibleNumericalTypes {
     Dynamic {
         all_values_within_i64_range: bool,
         all_values_within_u64_range: bool,
@@ -132,7 +132,7 @@ impl Default for CompatibleNumericalTypes {
 }
 
 impl CompatibleNumericalTypes {
-    fn is_type_accepted(&self, numerical_type: NumericalType) -> bool {
+    pub fn is_type_accepted(&self, numerical_type: NumericalType) -> bool {
         match self {
             CompatibleNumericalTypes::Dynamic {
                 all_values_within_i64_range,
@@ -148,7 +148,7 @@ impl CompatibleNumericalTypes {
         }
     }
 
-    fn accept_value(&mut self, numerical_value: NumericalValue) {
+    pub fn accept_value(&mut self, numerical_value: NumericalValue) {
         match self {
             CompatibleNumericalTypes::Dynamic {
                 all_values_within_i64_range,

@@ -37,7 +37,7 @@ proptest! {
 fn test_with_random_sets_simple() {
     let vals = 10..BLOCK_SIZE * 2;
     let mut out: Vec<u8> = Vec::new();
-    serialize_optional_index(&vals.clone(), &mut out).unwrap();
+    serialize_optional_index(&vals.clone(), 100, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let ranks: Vec<u32> = (65_472u32..65_473u32).collect();
     let els: Vec<u32> = ranks.iter().copied().map(|rank| rank + 10).collect();
@@ -66,12 +66,8 @@ fn test_optional_index_one_block_true() {
     test_null_index(&iter[..]);
 }
 
-impl<'a> SerializableOptionalIndex<'a> for &'a [bool] {
-    fn num_rows(&self) -> RowId {
-        self.len() as u32
-    }
-
-    fn non_null_rows(&self) -> Box<dyn Iterator<Item = RowId> + 'a> {
+impl<'a> Iterable<RowId> for &'a [bool] {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = RowId> + 'a> {
         Box::new(
             self.iter()
                 .cloned()
@@ -84,7 +80,7 @@ impl<'a> SerializableOptionalIndex<'a> for &'a [bool] {
 
 fn test_null_index(data: &[bool]) {
     let mut out: Vec<u8> = Vec::new();
-    serialize_optional_index(&data, &mut out).unwrap();
+    serialize_optional_index(&data, data.len() as RowId, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let orig_idx_with_value: Vec<u32> = data
         .iter()
@@ -113,7 +109,7 @@ fn test_null_index(data: &[bool]) {
 fn test_optional_index_test_translation() {
     let mut out = vec![];
     let iter = &[true, false, true, false];
-    serialize_optional_index(&&iter[..], &mut out).unwrap();
+    serialize_optional_index(&&iter[..], iter.len() as u32, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let mut select_cursor = null_index.select_cursor();
     assert_eq!(select_cursor.select(0), 0);
@@ -124,7 +120,7 @@ fn test_optional_index_test_translation() {
 fn test_optional_index_translate() {
     let mut out = vec![];
     let iter = &[true, false, true, false];
-    serialize_optional_index(&&iter[..], &mut out).unwrap();
+    serialize_optional_index(&&iter[..], iter.len() as RowId, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     assert_eq!(null_index.rank_if_exists(0), Some(0));
     assert_eq!(null_index.rank_if_exists(2), Some(1));
@@ -134,7 +130,7 @@ fn test_optional_index_translate() {
 fn test_optional_index_small() {
     let mut out = vec![];
     let iter = &[true, false, true, false];
-    serialize_optional_index(&&iter[..], &mut out).unwrap();
+    serialize_optional_index(&&iter[..], iter.len() as RowId, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     assert!(null_index.contains(0));
     assert!(!null_index.contains(1));
@@ -149,13 +145,66 @@ fn test_optional_index_large() {
     docs.extend((0..=1).map(|_idx| true));
 
     let mut out = vec![];
-    serialize_optional_index(&&docs[..], &mut out).unwrap();
+    serialize_optional_index(&&docs[..], docs.len() as RowId, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     assert!(!null_index.contains(0));
     assert!(!null_index.contains(100));
     assert!(!null_index.contains(ELEMENTS_PER_BLOCK - 1));
     assert!(null_index.contains(ELEMENTS_PER_BLOCK));
     assert!(null_index.contains(ELEMENTS_PER_BLOCK + 1));
+}
+
+fn test_optional_index_iter_aux(row_ids: &[RowId], num_rows: RowId) {
+    let mut buffer: Vec<u8> = Vec::new();
+    serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
+    let null_index = open_optional_index(OwnedBytes::new(buffer)).unwrap();
+    assert_eq!(null_index.num_rows(), num_rows);
+    assert!(null_index.iter_rows().eq(row_ids.iter().copied()));
+}
+
+#[test]
+fn test_optional_index_iter_empty() {
+    test_optional_index_iter_aux(&[], 0u32);
+}
+
+fn test_optional_index_rank_aux(row_ids: &[RowId]) {
+    let mut buffer: Vec<u8> = Vec::new();
+    let num_rows = row_ids.last().copied().unwrap_or(0u32) + 1;
+    serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
+    let null_index = open_optional_index(OwnedBytes::new(buffer)).unwrap();
+    assert_eq!(null_index.num_rows(), num_rows);
+    for (row_id, row_val) in row_ids.iter().copied().enumerate() {
+        assert_eq!(null_index.rank(row_val), row_id as u32);
+        assert_eq!(null_index.rank_if_exists(row_val), Some(row_id as u32));
+        if row_val > 0 && !null_index.contains(&row_val - 1) {
+            assert_eq!(null_index.rank(row_val - 1), row_id as u32);
+        }
+        assert_eq!(null_index.rank(row_val + 1), row_id as u32 + 1);
+    }
+}
+
+#[test]
+fn test_optional_index_rank() {
+    test_optional_index_rank_aux(&[1u32]);
+    test_optional_index_rank_aux(&[0u32, 1u32]);
+    let mut block = Vec::new();
+    block.push(3u32);
+    block.extend((0..BLOCK_SIZE).map(|i| i + BLOCK_SIZE + 1));
+    test_optional_index_rank_aux(&block);
+}
+
+#[test]
+fn test_optional_index_iter_empty_one() {
+    test_optional_index_iter_aux(&[1], 2u32);
+    test_optional_index_iter_aux(&[100_000], 200_000u32);
+}
+
+#[test]
+fn test_optional_index_iter_dense_block() {
+    let mut block = Vec::new();
+    block.push(3u32);
+    block.extend((0..BLOCK_SIZE).map(|i| i + BLOCK_SIZE + 1));
+    test_optional_index_iter_aux(&block, 3 * BLOCK_SIZE);
 }
 
 #[cfg(all(test, feature = "unstable"))]

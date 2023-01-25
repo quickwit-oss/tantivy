@@ -48,6 +48,14 @@ impl DynamicColumn {
         }
     }
 
+    pub fn coerce_numerical(self, target_numerical_type: NumericalType) -> Option<Self> {
+        match target_numerical_type {
+            NumericalType::I64 => self.coerce_to_i64(),
+            NumericalType::U64 => self.coerce_to_u64(),
+            NumericalType::F64 => self.coerce_to_f64(),
+        }
+    }
+
     pub fn is_numerical(&self) -> bool {
         self.column_type().numerical_type().is_some()
     }
@@ -62,7 +70,7 @@ impl DynamicColumn {
         self.column_type().numerical_type() == Some(NumericalType::U64)
     }
 
-    pub fn coerce_to_f64(self) -> Option<DynamicColumn> {
+    fn coerce_to_f64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
                 idx: column.idx,
@@ -76,7 +84,7 @@ impl DynamicColumn {
             _ => None,
         }
     }
-    pub fn coerce_to_i64(self) -> Option<DynamicColumn> {
+    fn coerce_to_i64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::U64(column) => {
                 if column.max_value() > i64::MAX as u64 {
@@ -91,7 +99,7 @@ impl DynamicColumn {
             _ => None,
         }
     }
-    pub fn coerce_to_u64(self) -> Option<DynamicColumn> {
+    fn coerce_to_u64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => {
                 if column.min_value() < 0 {
