@@ -8,6 +8,7 @@ mod const_score_query;
 mod disjunction_max_query;
 mod empty_query;
 mod exclude;
+mod exists_query;
 mod explanation;
 mod fuzzy_query;
 mod intersection;
@@ -52,6 +53,7 @@ pub use self::query::{EnableScoring, Query, QueryClone};
 pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;
+pub use self::exists_query::ExistsQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{
     DisjunctionMaxCombiner, ScoreCombiner, SumCombiner, SumWithCoordsCombiner,
