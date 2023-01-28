@@ -76,8 +76,8 @@ impl Weight for ExistsWeight {
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
         let inverted_index = reader.inverted_index(self.field)?;
-        let term_dict = inverted_index.terms();
-        let mut term_stream = term_dict.range().into_stream()?;
+        let mut term_stream = inverted_index.terms().stream()?;
+
         while term_stream.advance() {
             let term_info = term_stream.value();
 
