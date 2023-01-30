@@ -11,7 +11,9 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
-use crate::aggregation::segment_agg_result::{BucketCount, SegmentAggregationResultsCollector};
+use crate::aggregation::segment_agg_result::{
+    BucketCount, GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
+};
 use crate::aggregation::{
     f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
 };
@@ -114,7 +116,7 @@ impl From<Range<u64>> for InternalRangeAggregationRange {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct SegmentRangeAndBucketEntry {
     range: Range<u64>,
     bucket: SegmentRangeBucketEntry,
@@ -122,18 +124,18 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SegmentRangeCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentRangeAndBucketEntry>,
     field_type: Type,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
-    pub sub_aggregation: Option<SegmentAggregationResultsCollector>,
+    pub sub_aggregation: Option<GenericSegmentAggregationResultsCollector>,
     /// The from range of the bucket. Equals `f64::MIN` when `None`.
     pub from: Option<f64>,
     /// The to range of the bucket. Equals `f64::MAX` when `None`. Open interval, `to` is not
@@ -227,9 +229,11 @@ impl SegmentRangeCollector {
                 let sub_aggregation = if sub_aggregation.is_empty() {
                     None
                 } else {
-                    Some(SegmentAggregationResultsCollector::from_req_and_validate(
-                        sub_aggregation,
-                    )?)
+                    Some(
+                        GenericSegmentAggregationResultsCollector::from_req_and_validate(
+                            sub_aggregation,
+                        )?,
+                    )
                 };
 
                 Ok(SegmentRangeAndBucketEntry {

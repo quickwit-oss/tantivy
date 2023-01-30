@@ -13,7 +13,9 @@ use crate::aggregation::agg_result::BucketEntry;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::aggregation::segment_agg_result::{
+    GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
+};
 use crate::aggregation::{f64_from_fastfield_u64, format_date};
 use crate::schema::{Schema, Type};
 use crate::{DocId, TantivyError};
@@ -184,7 +186,7 @@ pub(crate) struct SegmentHistogramBucketEntry {
 impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: SegmentAggregationResultsCollector,
+        sub_aggregation: GenericSegmentAggregationResultsCollector,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         Ok(IntermediateHistogramBucketEntry {
@@ -198,11 +200,11 @@ impl SegmentHistogramBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentHistogramBucketEntry>,
-    sub_aggregations: Option<Vec<SegmentAggregationResultsCollector>>,
+    sub_aggregations: Option<Vec<GenericSegmentAggregationResultsCollector>>,
     field_type: Type,
     interval: f64,
     offset: f64,
@@ -300,7 +302,7 @@ impl SegmentHistogramCollector {
             None
         } else {
             let sub_aggregation =
-                SegmentAggregationResultsCollector::from_req_and_validate(sub_aggregation)?;
+                GenericSegmentAggregationResultsCollector::from_req_and_validate(sub_aggregation)?;
             Some(buckets.iter().map(|_| sub_aggregation.clone()).collect())
         };
 

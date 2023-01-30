@@ -222,24 +222,23 @@ pub enum IntermediateMetricResult {
 
 impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
     fn from(tree: SegmentMetricResultCollector) -> Self {
+        use super::metric::SegmentStatsType;
         match tree {
             SegmentMetricResultCollector::Stats(collector) => match collector.collecting_for {
-                super::metric::SegmentStatsType::Average => IntermediateMetricResult::Average(
+                SegmentStatsType::Average => IntermediateMetricResult::Average(
                     IntermediateAverage::from_collector(collector),
                 ),
-                super::metric::SegmentStatsType::Count => {
+                SegmentStatsType::Count => {
                     IntermediateMetricResult::Count(IntermediateCount::from_collector(collector))
                 }
-                super::metric::SegmentStatsType::Max => {
+                SegmentStatsType::Max => {
                     IntermediateMetricResult::Max(IntermediateMax::from_collector(collector))
                 }
-                super::metric::SegmentStatsType::Min => {
+                SegmentStatsType::Min => {
                     IntermediateMetricResult::Min(IntermediateMin::from_collector(collector))
                 }
-                super::metric::SegmentStatsType::Stats => {
-                    IntermediateMetricResult::Stats(collector.stats)
-                }
-                super::metric::SegmentStatsType::Sum => {
+                SegmentStatsType::Stats => IntermediateMetricResult::Stats(collector.stats),
+                SegmentStatsType::Sum => {
                     IntermediateMetricResult::Sum(IntermediateSum::from_collector(collector))
                 }
             },

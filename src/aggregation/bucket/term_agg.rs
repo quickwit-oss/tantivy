@@ -12,7 +12,10 @@ use crate::aggregation::agg_req_with_accessor::{
 use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationResultsCollector;
+use crate::aggregation::segment_agg_result::{
+    build_segment_agg_collector, GenericSegmentAggregationResultsCollector,
+    SegmentAggregationCollector,
+};
 use crate::error::DataCorruption;
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
@@ -196,17 +199,16 @@ impl TermsAggregationInternal {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default)]
 /// Container to store term_ids and their buckets.
 struct TermBuckets {
     pub(crate) entries: FxHashMap<u32, TermBucketEntry>,
-    blueprint: Option<SegmentAggregationResultsCollector>,
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, Default)]
 struct TermBucketEntry {
     doc_count: u64,
-    sub_aggregations: Option<Box<SegmentAggregationResultsCollector>>,
+    sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
 }
 
 impl Debug for TermBucketEntry {
@@ -218,7 +220,7 @@ impl Debug for TermBucketEntry {
 }
 
 impl TermBucketEntry {
-    fn from_blueprint(blueprint: &Option<Box<SegmentAggregationResultsCollector>>) -> Self {
+    fn from_blueprint(blueprint: &Option<Box<dyn SegmentAggregationCollector>>) -> Self {
         Self {
             doc_count: 0,
             sub_aggregations: blueprint.clone(),
@@ -247,18 +249,7 @@ impl TermBuckets {
         sub_aggregation: &AggregationsWithAccessor,
         _max_term_id: usize,
     ) -> crate::Result<Self> {
-        let has_sub_aggregations = sub_aggregation.is_empty();
-
-        let blueprint = if has_sub_aggregations {
-            let sub_aggregation =
-                SegmentAggregationResultsCollector::from_req_and_validate(sub_aggregation)?;
-            Some(sub_aggregation)
-        } else {
-            None
-        };
-
         Ok(TermBuckets {
-            blueprint,
             entries: Default::default(),
         })
     }
@@ -275,13 +266,12 @@ impl TermBuckets {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SegmentTermCollector {
     /// The buckets containing the aggregation data.
     term_buckets: TermBuckets,
     req: TermsAggregationInternal,
-    field_type: Type,
-    blueprint: Option<Box<SegmentAggregationResultsCollector>>,
+    blueprint: Option<Box<dyn SegmentAggregationCollector>>,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -293,12 +283,8 @@ impl SegmentTermCollector {
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
         sub_aggregations: &AggregationsWithAccessor,
-        field_type: Type,
-        accessor: &Column<u64>,
     ) -> crate::Result<Self> {
-        let max_term_id = accessor.max_value();
-        let term_buckets =
-            TermBuckets::from_req_and_validate(sub_aggregations, max_term_id as usize)?;
+        let term_buckets = TermBuckets::default();
 
         if let Some(custom_order) = req.order.as_ref() {
             // Validate sub aggregtion exists
@@ -316,9 +302,8 @@ impl SegmentTermCollector {
 
         let has_sub_aggregations = !sub_aggregations.is_empty();
         let blueprint = if has_sub_aggregations {
-            let sub_aggregation =
-                SegmentAggregationResultsCollector::from_req_and_validate(sub_aggregations)?;
-            Some(Box::new(sub_aggregation))
+            let sub_aggregation = build_segment_agg_collector(sub_aggregations)?;
+            Some(sub_aggregation)
         } else {
             None
         };
@@ -326,7 +311,6 @@ impl SegmentTermCollector {
         Ok(SegmentTermCollector {
             req: TermsAggregationInternal::from_req(req),
             term_buckets,
-            field_type,
             blueprint,
         })
     }

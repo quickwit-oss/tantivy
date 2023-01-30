@@ -182,7 +182,7 @@ use crate::schema::Type;
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct VecWithNames<T: Clone> {
-    values: Vec<T>,
+    pub(crate) values: Vec<T>,
     keys: Vec<String>,
 }
 
@@ -1396,7 +1396,7 @@ mod tests {
         }
 
         #[bench]
-        fn bench_aggregation_terms_many(b: &mut Bencher) {
+        fn bench_aggregation_terms_many2(b: &mut Bencher) {
             let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
 

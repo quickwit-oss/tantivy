@@ -1,9 +1,16 @@
 use columnar::Column;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::f64_from_fastfield_u64;
+use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResults, IntermediateMetricResult,
+};
+use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::{f64_from_fastfield_u64, VecWithNames};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
+
+use super::*;
 
 /// A multi-value metric aggregation that computes a collection of statistics on numeric values that
 /// are extracted from the aggregated documents.
@@ -168,6 +175,66 @@ impl SegmentStatsCollector {
                 self.stats.collect(val1);
             }
         }
+    }
+}
+
+impl SegmentAggregationCollector for SegmentStatsCollector {
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let name = agg_with_accessor.metrics.keys[0].to_string();
+
+        let intermediate_metric_result = match self.collecting_for {
+            SegmentStatsType::Average => {
+                IntermediateMetricResult::Average(IntermediateAverage::from_collector(*self))
+            }
+            SegmentStatsType::Count => {
+                IntermediateMetricResult::Count(IntermediateCount::from_collector(*self))
+            }
+            SegmentStatsType::Max => {
+                IntermediateMetricResult::Max(IntermediateMax::from_collector(*self))
+            }
+            SegmentStatsType::Min => {
+                IntermediateMetricResult::Min(IntermediateMin::from_collector(*self))
+            }
+            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+            SegmentStatsType::Sum => {
+                IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
+            }
+        };
+
+        let metrics = Some(VecWithNames::from_entries(vec![(
+            name,
+            intermediate_metric_result,
+        )]));
+
+        Ok(IntermediateAggregationResults {
+            metrics,
+            buckets: None,
+        })
+    }
+
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let accessor = &agg_with_accessor.metrics.values[0].accessor;
+        for val in accessor.values(doc) {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.stats.collect(val1);
+        }
+
+        Ok(())
+    }
+
+    fn flush_staged_docs(
+        &mut self,
+        _agg_with_accessor: &AggregationsWithAccessor,
+        _force_flush: bool,
+    ) -> crate::Result<()> {
+        Ok(())
     }
 }
 
