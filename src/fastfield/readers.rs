@@ -26,6 +26,10 @@ impl FastFieldReaders {
         Ok(FastFieldReaders { columnar })
     }
 
+    pub(crate) fn columnar(&self) -> &ColumnarReader {
+        self.columnar.as_ref()
+    }
+
     pub(crate) fn space_usage(&self, schema: &Schema) -> io::Result<PerFieldSpaceUsage> {
         let mut per_field_usages: Vec<FieldUsage> = Default::default();
         for (field, field_entry) in schema.fields() {

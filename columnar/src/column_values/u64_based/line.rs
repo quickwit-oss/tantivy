@@ -17,7 +17,7 @@ const MID_POINT: u64 = (1u64 << 32) - 1u64;
 /// `y = m * x >> 32 + b`
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Line {
-    slope: u64,
+    pub(crate) slope: u64,
     pub(crate) intercept: u64,
 }
 

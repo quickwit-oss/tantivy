@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use columnar::ColumnValues;
+use columnar::{ColumnValues, ColumnarReader, MergeRowOrder, StackMergeOrder};
 use itertools::Itertools;
 use measure_time::debug_time;
 
@@ -248,13 +248,17 @@ impl IndexMerger {
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        debug_time!("wrie-fast-fields");
-        for (_field, field_entry) in self.schema.fields() {
-            if field_entry.is_fast() {
-                todo!();
-            }
+        debug_time!("write-fast-fields");
+        let columnars: Vec<&ColumnarReader> = self
+            .readers
+            .iter()
+            .map(|reader| reader.fast_fields().columnar())
+            .collect();
+        if !doc_id_mapping.is_trivial() {
+            todo!()
         }
-
+        let merge_row_order = MergeRowOrder::Stack(StackMergeOrder::from_columnars(&columnars[..]));
+        columnar::merge_columnar(&columnars[..], merge_row_order, fast_field_wrt)?;
         // for (field, field_entry) in self.schema.fields() {
         // let field_type = field_entry.field_type();
         // match field_type {

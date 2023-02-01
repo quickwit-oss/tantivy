@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub fn merge_columnar(
-    columnar_readers: &[ColumnarReader],
+    columnar_readers: &[&ColumnarReader],
     mapping: MergeRowOrder,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
@@ -127,7 +127,7 @@ pub fn merge_column(
 }
 
 fn group_columns_for_merge(
-    columnar_readers: &[ColumnarReader],
+    columnar_readers: &[&ColumnarReader],
 ) -> io::Result<BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
     // For merging we are interested in the same column type category since they can be merged.

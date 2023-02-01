@@ -24,7 +24,7 @@ fn test_column_coercion_to_u64() {
     // u64 type
     let columnar2 = make_columnar("numbers", &[u64::MAX]);
     let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge(&[columnar1, columnar2]).unwrap();
+        group_columns_for_merge(&[&columnar1, &columnar2]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
 }
@@ -34,7 +34,7 @@ fn test_column_no_coercion_if_all_the_same() {
     let columnar1 = make_columnar("numbers", &[1u64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge(&[columnar1, columnar2]).unwrap();
+        group_columns_for_merge(&[&columnar1, &columnar2]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
 }
@@ -44,7 +44,7 @@ fn test_column_coercion_to_i64() {
     let columnar1 = make_columnar("numbers", &[-1i64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge(&[columnar1, columnar2]).unwrap();
+        group_columns_for_merge(&[&columnar1, &columnar2]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::I64)));
 }
@@ -54,7 +54,7 @@ fn test_missing_column() {
     let columnar1 = make_columnar("numbers", &[-1i64]);
     let columnar2 = make_columnar("numbers2", &[2u64]);
     let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge(&[columnar1, columnar2]).unwrap();
+        group_columns_for_merge(&[&columnar1, &columnar2]).unwrap();
     assert_eq!(column_map.len(), 2);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::I64)));
     {
@@ -141,7 +141,7 @@ fn test_merge_columnar_numbers() {
         &[&[], &[NumericalValue::from(-3f64)]],
     )]);
     let mut buffer = Vec::new();
-    let columnars = &[columnar1, columnar2];
+    let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::from_columnars(columnars);
     crate::columnar::merge_columnar(
         columnars,
@@ -166,7 +166,7 @@ fn test_merge_columnar_texts() {
     let columnar1 = make_text_columnar_multiple_columns(&[("texts", &[&["a"]])]);
     let columnar2 = make_text_columnar_multiple_columns(&[("texts", &[&[], &["b"]])]);
     let mut buffer = Vec::new();
-    let columnars = &[columnar1, columnar2];
+    let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::from_columnars(columnars);
     crate::columnar::merge_columnar(
         columnars,
@@ -210,7 +210,7 @@ fn test_merge_columnar_byte() {
     let columnar1 = make_byte_columnar_multiple_columns(&[("bytes", &[&[b"bbbb"], &[b"baaa"]])]);
     let columnar2 = make_byte_columnar_multiple_columns(&[("bytes", &[&[], &[b"a"]])]);
     let mut buffer = Vec::new();
-    let columnars = &[columnar1, columnar2];
+    let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::from_columnars(columnars);
     crate::columnar::merge_columnar(
         columnars,

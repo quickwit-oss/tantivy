@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use fastdivide::DividerU64;
 
-use crate::column_values::u64_based::Stats;
+use crate::column_values::Stats;
 use crate::RowId;
 
 /// Compute the gcd of two non null numbers.
@@ -21,34 +21,50 @@ fn compute_gcd(mut large: NonZeroU64, mut small: NonZeroU64) -> NonZeroU64 {
 
 #[derive(Default)]
 pub struct StatsCollector {
-    pub(crate) min_max_opt: Option<(u64, u64)>,
-    pub(crate) num_rows: RowId,
-    pub(crate) gcd_opt: Option<(NonZeroU64, DividerU64)>,
+    min_max_opt: Option<(u64, u64)>,
+    num_rows: RowId,
+    // We measure the GCD of the difference between the values and the minimal value.
+    // This is the same as computing the difference between the values and the first value.
+    //
+    // This way, we can compress i64-converted-to-u64 (e.g. timestamp that were supplied in
+    // seconds, only to be converted in microseconds).
+    increment_gcd_opt: Option<(NonZeroU64, DividerU64)>,
+    first_value_opt: Option<u64>,
 }
 
 impl StatsCollector {
     pub fn stats(&self) -> Stats {
         let (min_value, max_value) = self.min_max_opt.unwrap_or((0u64, 0u64));
-        let gcd = if let Some((gcd, _)) = self.gcd_opt {
-            gcd.get()
+        let increment_gcd = if let Some((increment_gcd, _)) = self.increment_gcd_opt {
+            increment_gcd
         } else {
-            1u64
+            NonZeroU64::new(1u64).unwrap()
         };
         Stats {
             min_value,
             max_value,
             num_rows: self.num_rows,
-            gcd,
+            gcd: increment_gcd,
         }
     }
 
     #[inline]
-    fn update_gcd(&mut self, non_zero_value: NonZeroU64) {
-        let Some((gcd, gcd_divider)) = self.gcd_opt else {
-            self.set_gcd(non_zero_value);
+    fn update_increment_gcd(&mut self, value: u64) {
+        let Some(first_value) = self.first_value_opt else {
+            // We set the first value and just quit.
+            self.first_value_opt = Some(value);
+            return;
+        };
+        let Some(non_zero_value) = NonZeroU64::new(value.abs_diff(first_value)) else {
+            // We can simply skip 0 values.
+            return;
+        };
+        let Some((gcd, gcd_divider)) = self.increment_gcd_opt else {
+            self.set_increment_gcd(non_zero_value);
             return;
         };
         if gcd.get() == 1 {
+            // It won't see any update now.
             return;
         }
         let remainder =
@@ -57,12 +73,12 @@ impl StatsCollector {
             return;
         }
         let new_gcd = compute_gcd(non_zero_value, gcd);
-        self.set_gcd(new_gcd);
+        self.set_increment_gcd(new_gcd);
     }
 
-    fn set_gcd(&mut self, gcd: NonZeroU64) {
+    fn set_increment_gcd(&mut self, gcd: NonZeroU64) {
         let new_divider = DividerU64::divide_by(gcd.get());
-        self.gcd_opt = Some((gcd, new_divider));
+        self.increment_gcd_opt = Some((gcd, new_divider));
     }
 
     pub fn collect(&mut self, value: u64) {
@@ -72,10 +88,7 @@ impl StatsCollector {
             (value, value)
         });
         self.num_rows += 1;
-        let Some(non_zero_value) = NonZeroU64::new(value) else {
-            return;
-        };
-        self.update_gcd(non_zero_value);
+        self.update_increment_gcd(value);
     }
 }
 
@@ -95,7 +108,7 @@ mod tests {
     }
 
     fn find_gcd(vals: impl Iterator<Item = u64>) -> u64 {
-        compute_stats(vals).gcd
+        compute_stats(vals).gcd.get()
     }
 
     #[test]
@@ -123,6 +136,8 @@ mod tests {
         assert_eq!(find_gcd([15, 16, 10].into_iter()), 1);
         assert_eq!(find_gcd([0, 5, 5, 5].into_iter()), 5);
         assert_eq!(find_gcd([0, 0].into_iter()), 1);
+        assert_eq!(find_gcd([1, 10, 4, 1, 7, 10].into_iter()), 3);
+        assert_eq!(find_gcd([1, 10, 0, 4, 1, 7, 10].into_iter()), 1);
     }
 
     #[test]
@@ -130,7 +145,7 @@ mod tests {
         assert_eq!(
             compute_stats([].into_iter()),
             Stats {
-                gcd: 1,
+                gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 0,
                 num_rows: 0
@@ -139,7 +154,7 @@ mod tests {
         assert_eq!(
             compute_stats([0, 1].into_iter()),
             Stats {
-                gcd: 1,
+                gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 1,
                 num_rows: 2
@@ -148,25 +163,34 @@ mod tests {
         assert_eq!(
             compute_stats([0, 1].into_iter()),
             Stats {
-                gcd: 1,
+                gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 1,
                 num_rows: 2
             }
         );
         assert_eq!(
-            compute_stats([10, 30].into_iter()),
+            compute_stats([10, 20, 30].into_iter()),
             Stats {
-                gcd: 10,
+                gcd: NonZeroU64::new(10).unwrap(),
                 min_value: 10,
                 max_value: 30,
-                num_rows: 2
+                num_rows: 3
+            }
+        );
+        assert_eq!(
+            compute_stats([10, 50, 10, 30].into_iter()),
+            Stats {
+                gcd: NonZeroU64::new(20).unwrap(),
+                min_value: 10,
+                max_value: 50,
+                num_rows: 4
             }
         );
         assert_eq!(
             compute_stats([10, 0, 30].into_iter()),
             Stats {
-                gcd: 10,
+                gcd: NonZeroU64::new(10).unwrap(),
                 min_value: 0,
                 max_value: 30,
                 num_rows: 3

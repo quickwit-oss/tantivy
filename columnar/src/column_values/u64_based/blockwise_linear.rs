@@ -86,8 +86,8 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
     }
     fn estimate(&self, stats: &Stats) -> Option<u64> {
         let mut estimate = 4 + stats.num_bytes() + self.meta_num_bytes + self.values_num_bytes;
-        if stats.gcd > 1 {
-            let estimate_gain_from_gcd = (stats.gcd as f32).log2() * stats.num_rows as f32 / 8.0f32;
+        if stats.gcd.get() > 1 {
+            let estimate_gain_from_gcd = (stats.gcd.get() as f32).log2().floor() * stats.num_rows as f32 / 8.0f32;
             estimate = estimate.saturating_sub(estimate_gain_from_gcd as u64);
         }
         Some(estimate)
@@ -110,7 +110,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
 
         let mut bit_packer = BitPacker::new();
 
-        let gcd_divider = DividerU64::divide_by(stats.gcd);
+        let gcd_divider = DividerU64::divide_by(stats.gcd.get());
 
         for _ in 0..num_blocks {
             buffer.clear();
@@ -121,10 +121,10 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
             );
 
             for buffer_val in buffer.iter_mut() {
-                *buffer_val = gcd_divider.divide(*buffer_val);
+                *buffer_val = gcd_divider.divide(*buffer_val - stats.min_value);
             }
 
-            let line = Line::train(&VecColumn::from(&buffer));
+            let mut line = Line::train(&VecColumn::from(&buffer));
 
             assert!(!buffer.is_empty());
 
@@ -132,6 +132,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
                 let interpolated_val = line.eval(i as u32);
                 *buffer_val = buffer_val.wrapping_sub(interpolated_val);
             }
+
             let bit_width = buffer.iter().copied().map(compute_num_bits).max().unwrap();
 
             for &buffer_val in &buffer {
@@ -205,7 +206,8 @@ impl ColumnValues for BlockwiseLinearReader {
         let interpoled_val: u64 = block.line.eval(idx_within_block);
         let block_bytes = &self.data[block.data_start_offset..];
         let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
-        self.stats.gcd * interpoled_val.wrapping_add(bitpacked_diff)
+        // TODO optimize me! the line parameters could be tweaked to include the multiplication and remove the dependency.
+        self.stats.min_value + self.stats.gcd.get().wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
     }
 
     #[inline(always)]
@@ -259,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn bitpacked_fast_field_rand() {
+    fn test_blockwise_linear_fast_field_rand() {
         for _ in 0..500 {
             let mut data = (0..1 + rand::random::<u8>() as usize)
                 .map(|_| rand::random::<i64>() as u64 / 2)

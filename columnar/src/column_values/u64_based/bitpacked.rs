@@ -19,7 +19,7 @@ pub struct BitpackedReader {
 impl ColumnValues for BitpackedReader {
     #[inline(always)]
     fn get_val(&self, doc: u32) -> u64 {
-        self.stats.min_value + self.stats.gcd * self.bit_unpacker.get(doc, &self.data)
+        self.stats.min_value + self.stats.gcd.get() * self.bit_unpacker.get(doc, &self.data)
     }
 
     #[inline]
@@ -60,7 +60,7 @@ impl ColumnCodecEstimator for BitpackedCodecEstimator {
         stats.serialize(wrt)?;
         let num_bits = num_bits(stats);
         let mut bit_packer = BitPacker::new();
-        let divider = DividerU64::divide_by(stats.gcd);
+        let divider = DividerU64::divide_by(stats.gcd.get());
         for val in vals {
             bit_packer.write(divider.divide(val - stats.min_value), num_bits, wrt)?;
         }

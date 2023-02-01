@@ -133,8 +133,8 @@ pub mod tests {
             &mut buffer,
         )
         .unwrap();
-        // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
-        assert_eq!(buffer.len(), 5);
+        // 6 bytes of header, 0 bytes of value, 7 bytes of padding.
+        assert_eq!(buffer.len(), 6);
     }
 
     #[test]

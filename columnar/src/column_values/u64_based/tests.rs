@@ -67,6 +67,8 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
         );
         assert_eq!(expected_positions, positions);
     }
+    dbg!(estimation);
+    dbg!(actual_compression);
     if actual_compression > 20 {
         assert!(relative_difference(estimation, actual_compression) < 0.10f32);
     }

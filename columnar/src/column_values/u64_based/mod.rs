@@ -6,13 +6,10 @@ mod stats_collector;
 
 use std::io;
 use std::io::Write;
-use std::marker::PhantomData;
-use std::ops::Range;
 use std::sync::Arc;
 
-use common::{BinarySerializable, OwnedBytes, VInt};
+use common::{BinarySerializable, OwnedBytes};
 
-use crate::column_values::monotonic_map_column;
 use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };
@@ -20,46 +17,9 @@ use crate::column_values::u64_based::bitpacked::BitpackedCodec;
 use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;
 use crate::column_values::u64_based::linear::LinearCodec;
 use crate::column_values::u64_based::stats_collector::StatsCollector;
+use crate::column_values::{monotonic_map_column, Stats};
 use crate::iterable::Iterable;
-use crate::{ColumnValues, MonotonicallyMappableToU64, RowId};
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Stats {
-    gcd: u64,
-    min_value: u64,
-    max_value: u64,
-    num_rows: RowId,
-}
-
-impl Stats {
-    fn amplitude(&self) -> u64 {
-        self.max_value - self.min_value
-    }
-}
-
-impl BinarySerializable for Stats {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.gcd).serialize(writer)?;
-        VInt(self.min_value / self.gcd).serialize(writer)?;
-        VInt(self.amplitude() / self.gcd).serialize(writer)?;
-        VInt(self.num_rows as u64).serialize(writer)?;
-        Ok(())
-    }
-
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let gcd = VInt::deserialize(reader)?.0;
-        let min_value = VInt::deserialize(reader)?.0 * gcd;
-        let amplitude = VInt::deserialize(reader)?.0 * gcd;
-        let max_value = min_value + amplitude;
-        let num_rows = VInt::deserialize(reader)?.0 as RowId;
-        Ok(Stats {
-            min_value,
-            max_value,
-            num_rows,
-            gcd,
-        })
-    }
-}
+use crate::{ColumnValues, MonotonicallyMappableToU64};
 
 pub trait ColumnCodecEstimator<T = u64>: 'static {
     fn collect(&mut self, value: u64);

@@ -22,12 +22,14 @@ use serialize::U128Header;
 mod compact_space;
 pub(crate) mod monotonic_mapping;
 pub(crate) mod monotonic_mapping_u128;
+mod stats;
 pub(crate) mod u64_based;
 
 mod column;
 pub mod serialize;
 
 pub use serialize::serialize_column_values_u128;
+pub use stats::Stats;
 pub use u64_based::{
     load_u64_based_column_values, serialize_and_load_u64_based_column_values,
     serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
