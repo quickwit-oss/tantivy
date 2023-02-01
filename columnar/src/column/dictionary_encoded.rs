@@ -1,6 +1,5 @@
 use std::io;
 use std::ops::Deref;
-use std::str::Bytes;
 use std::sync::Arc;
 
 use sstable::{Dictionary, VoidSSTable};
@@ -70,11 +69,17 @@ impl From<StrColumn> for BytesColumn {
 }
 
 impl StrColumn {
+    pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {
+        self.0.dictionary.as_ref()
+    }
+
     /// Fills the buffer
     pub fn ord_to_str(&self, term_ord: u64, output: &mut String) -> io::Result<bool> {
         unsafe {
             let buf = output.as_mut_vec();
-            self.0.dictionary.ord_to_term(term_ord, buf)?;
+            if !self.0.dictionary.ord_to_term(term_ord, buf)? {
+                return Ok(false);
+            }
             // TODO consider remove checks if it hurts performance.
             if std::str::from_utf8(buf.as_slice()).is_err() {
                 buf.clear();

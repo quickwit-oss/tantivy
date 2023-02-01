@@ -113,8 +113,8 @@ pub mod tests {
     #[test]
     fn test_fastfield_bool_size_bitwidth_1() {
         let mut buffer = Vec::new();
-        serialize_u64_based_column_values::<bool>(
-            &&[false, true][..],
+        serialize_u64_based_column_values(
+            || [false, true].into_iter(),
             &ALL_U64_CODEC_TYPES,
             &mut buffer,
         )
@@ -127,8 +127,12 @@ pub mod tests {
     #[test]
     fn test_fastfield_bool_bit_size_bitwidth_0() {
         let mut buffer = Vec::new();
-        serialize_u64_based_column_values::<bool>(&&[true][..], &ALL_U64_CODEC_TYPES, &mut buffer)
-            .unwrap();
+        serialize_u64_based_column_values(
+            || [false, true].into_iter(),
+            &ALL_U64_CODEC_TYPES,
+            &mut buffer,
+        )
+        .unwrap();
         // 5 bytes of header, 0 bytes of value, 7 bytes of padding.
         assert_eq!(buffer.len(), 5);
     }
@@ -137,8 +141,12 @@ pub mod tests {
     fn test_fastfield_gcd() {
         let mut buffer = Vec::new();
         let vals: Vec<u64> = (0..80).map(|val| (val % 7) * 1_000u64).collect();
-        serialize_u64_based_column_values(&&vals[..], &[CodecType::Bitpacked], &mut buffer)
-            .unwrap();
+        serialize_u64_based_column_values(
+            || vals.iter().cloned(),
+            &[CodecType::Bitpacked],
+            &mut buffer,
+        )
+        .unwrap();
         // Values are stored over 3 bits.
         assert_eq!(buffer.len(), 6 + (3 * 80 / 8));
     }

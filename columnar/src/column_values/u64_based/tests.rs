@@ -7,7 +7,7 @@ fn test_serialize_and_load_simple() {
     let mut buffer = Vec::new();
     let vals = &[1u64, 2u64, 5u64];
     serialize_u64_based_column_values(
-        &&vals[..],
+        || vals.iter().cloned(),
         &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
         &mut buffer,
     )
@@ -243,7 +243,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     let mut vals: Vec<i64> = (-4..=(num_vals as i64) - 5).map(|val| val * 1000).collect();
     let mut buffer: Vec<u8> = Vec::new();
     crate::column_values::serialize_u64_based_column_values(
-        &&vals[..],
+        || vals.iter().cloned(),
         &[codec_type],
         &mut buffer,
     )?;
@@ -260,7 +260,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     vals.pop();
     vals.push(1001i64);
     crate::column_values::serialize_u64_based_column_values(
-        &&vals[..],
+        || vals.iter().cloned(),
         &[codec_type],
         &mut buffer_without_gcd,
     )?;
@@ -286,7 +286,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     let mut vals: Vec<u64> = (1..=num_vals).map(|i| i as u64 * 1000u64).collect();
     let mut buffer: Vec<u8> = Vec::new();
     crate::column_values::serialize_u64_based_column_values(
-        &&vals[..],
+        || vals.iter().cloned(),
         &[codec_type],
         &mut buffer,
     )?;
@@ -303,7 +303,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     vals.pop();
     vals.push(1001u64);
     crate::column_values::serialize_u64_based_column_values(
-        &&vals[..],
+        || vals.iter().cloned(),
         &[codec_type],
         &mut buffer_without_gcd,
     )?;

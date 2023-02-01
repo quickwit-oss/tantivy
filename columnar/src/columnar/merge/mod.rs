@@ -1,4 +1,6 @@
+mod merge_dict_column;
 mod merge_mapping;
+mod term_merger;
 
 // mod sorted_doc_id_column;
 
@@ -12,6 +14,7 @@ pub use merge_mapping::{MergeRowOrder, StackMergeOrder};
 use super::writer::ColumnarSerializer;
 use crate::column::{serialize_column_mappable_to_u128, serialize_column_mappable_to_u64};
 use crate::columnar::column_type::ColumnTypeCategory;
+use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
 use crate::columnar::writer::CompatibleNumericalTypes;
 use crate::columnar::ColumnarReader;
 use crate::dynamic_column::DynamicColumn;
@@ -26,7 +29,6 @@ pub fn merge_columnar(
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
 
-    // TODO handle dictionary merge for Str/Bytes column
     let columns_to_merge = group_columns_for_merge(columnar_readers)?;
     for ((column_name, column_type), columns) in columns_to_merge {
         let mut column_serializer =
@@ -101,22 +103,24 @@ pub fn merge_column(
             )?;
         }
         ColumnType::Bytes | ColumnType::Str => {
-            let mut bytes_columns: Vec<Option<BytesColumn>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut bytes_columns: Vec<BytesColumn> = Vec::with_capacity(columns.len());
             for dynamic_column_opt in columns {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
-                        bytes_columns.push(Some(str_column.into()));
+                        column_indexes.push(Some(str_column.term_ord_column.idx.clone()));
+                        bytes_columns.push(str_column.into());
                     }
                     Some(DynamicColumn::Bytes(bytes_column)) => {
-                        bytes_columns.push(Some(bytes_column));
+                        column_indexes.push(Some(bytes_column.term_ord_column.idx.clone()));
+                        bytes_columns.push(bytes_column);
                     }
-                    None => bytes_columns.push(None),
-                    _ => {
-                        panic!("This should never happen.");
-                    }
+                    _ => column_indexes.push(None),
                 }
             }
-            todo!();
+            let merged_column_index =
+                crate::column_index::stack_column_index(&column_indexes[..], merge_row_order);
+            merge_bytes_or_str_column(merged_column_index, &bytes_columns, wrt)?;
         }
     }
     Ok(())

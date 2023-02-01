@@ -15,7 +15,7 @@ pub fn serialize_multivalued_index(
     output: &mut impl Write,
 ) -> io::Result<()> {
     crate::column_values::u64_based::serialize_u64_based_column_values(
-        &*multivalued_index,
+        || multivalued_index.boxed_iter(),
         &[CodecType::Bitpacked, CodecType::Linear],
         output,
     )?;

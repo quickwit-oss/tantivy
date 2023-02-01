@@ -27,6 +27,23 @@ impl<U> Iterable<U> for &dyn Iterable<U> {
     }
 }
 
+impl<F, T> Iterable<T> for F
+where F: Fn() -> Box<dyn Iterator<Item = T>>
+{
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
+        self()
+    }
+}
+
+// impl<F, I, T> Iterable<T> for F
+// where
+// I: Iterator<Item = T>,
+// F: Fn() -> I,
+//{
+// fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
+// Box::new(self())
+//}
+
 pub fn map_iterable<U, V>(
     original_iterable: impl Iterable<U>,
     transform: impl Fn(U) -> V,
