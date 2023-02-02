@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{column, RowId, ColumnarReader};
+use crate::{column, ColumnarReader, RowId};
 
 pub struct StackMergeOrder {
     // This does not start at 0. The first row is the number of

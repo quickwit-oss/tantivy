@@ -1,5 +1,6 @@
-use std::{io, num::NonZeroU64};
+use std::io;
 use std::io::Write;
+use std::num::NonZeroU64;
 
 use common::{BinarySerializable, VInt};
 
@@ -31,7 +32,8 @@ impl BinarySerializable for Stats {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let min_value = VInt::deserialize(reader)?.0;
         let gcd = VInt::deserialize(reader)?.0;
-        let gcd= NonZeroU64::new(gcd).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "GCD of 0 is forbidden"))?;
+        let gcd = NonZeroU64::new(gcd)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "GCD of 0 is forbidden"))?;
         let amplitude = VInt::deserialize(reader)?.0 * gcd.get();
         let max_value = min_value + amplitude;
         let num_rows = VInt::deserialize(reader)?.0 as RowId;
@@ -63,23 +65,32 @@ mod tests {
 
     #[test]
     fn test_stats_serialization() {
-        test_stats_ser_deser_aux(&(Stats {
-            gcd: NonZeroU64::new(3).unwrap(),
-            min_value: 1,
-            max_value: 3001,
-            num_rows: 10,
-        }), 5);
-        test_stats_ser_deser_aux(&(Stats {
-            gcd: NonZeroU64::new(1_000).unwrap(),
-            min_value: 1,
-            max_value: 3001,
-            num_rows: 10,
-        }), 5);
-        test_stats_ser_deser_aux(&(Stats {
-            gcd: NonZeroU64::new(1).unwrap(),
-            min_value: 0,
-            max_value: 0,
-            num_rows: 0,
-        }), 4);
+        test_stats_ser_deser_aux(
+            &(Stats {
+                gcd: NonZeroU64::new(3).unwrap(),
+                min_value: 1,
+                max_value: 3001,
+                num_rows: 10,
+            }),
+            5,
+        );
+        test_stats_ser_deser_aux(
+            &(Stats {
+                gcd: NonZeroU64::new(1_000).unwrap(),
+                min_value: 1,
+                max_value: 3001,
+                num_rows: 10,
+            }),
+            5,
+        );
+        test_stats_ser_deser_aux(
+            &(Stats {
+                gcd: NonZeroU64::new(1).unwrap(),
+                min_value: 0,
+                max_value: 0,
+                num_rows: 0,
+            }),
+            4,
+        );
     }
 }

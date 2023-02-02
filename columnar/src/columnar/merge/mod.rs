@@ -19,7 +19,8 @@ use crate::columnar::writer::CompatibleNumericalTypes;
 use crate::columnar::ColumnarReader;
 use crate::dynamic_column::DynamicColumn;
 use crate::{
-    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, NumericalType, NumericalValue,
+    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, MonotonicallyMappableToU128,
+    NumericalType, NumericalValue,
 };
 
 pub fn merge_columnar(
@@ -97,7 +98,11 @@ pub fn merge_column(
                 crate::column_index::stack_column_index(&column_indexes[..], merge_row_order);
             serialize_column_mappable_to_u128(
                 merged_column_index,
-                &&column_values[..],
+                &|| {
+                    column_values
+                        .iter()
+                        .flat_map(|column_value| column_value.iter())
+                },
                 num_values,
                 wrt,
             )?;

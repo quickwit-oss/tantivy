@@ -1,20 +1,12 @@
 # zero to one
-* merges
-* full still needs a num_values
-* replug u128
-* add dictionary encoded stuff
-* fix multivalued
-* find a way to make columnar work with strict types
-* plug to tantivy
-    - indexing
-    - aggregations
-    - merge
-* replug facets
-* replug range queries
-+ mutlivaued range queries restrat frm the beginning all of the time.
-* review line.
+* merges with non trivial mapping (deletes / sort)
+* emission of the sort mapping.
++ muttivaued range queries restrat frm the beginning all of the time.
+* revisit line codec
 * removal of all rows of a column in the schema due to deletes
 * Plugging JSON
+replug examples
+
 
 # Perf and Size
 * re-add ZSTD compression for dictionaries
@@ -22,7 +14,6 @@ no systematic monotonic mapping
 consider removing multilinear
 f32?
 adhoc solution for bool?
-
 add metrics helper for aggregate. sum(row_id)
 review inline absence/presence
 improv perf of select using PDEP
@@ -30,7 +21,6 @@ compare with roaring bitmap/elias fano etc etc.
 SIMD range? (see blog post)
 Add alignment?
 Consider another codec to bridge the gap between few and 5k elements
-replug examples
 replug fast_field_codecs bench
 
 # Cleanup and rationalization

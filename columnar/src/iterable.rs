@@ -1,3 +1,4 @@
+use std::iter::Map;
 use std::marker::PhantomData;
 use std::ops::Range;
 
@@ -44,15 +45,15 @@ where F: Fn() -> Box<dyn Iterator<Item = T>>
 // Box::new(self())
 //}
 
-pub fn map_iterable<U, V>(
-    original_iterable: impl Iterable<U>,
-    transform: impl Fn(U) -> V,
-) -> impl Iterable<V> {
-    Mapped {
-        original_iterable,
-        transform,
-        input_type: PhantomData::<U>::default(),
-    }
+pub fn map_iterable<U, V, F, I>(
+    original_iterable: impl Fn() -> I,
+    transform: F,
+) -> impl Fn() -> std::iter::Map<I, F>
+where
+    F: Fn(U) -> V + Clone,
+    I: Iterator<Item = U>,
+{
+    move || original_iterable().map(transform.clone())
 }
 
 impl<'a, T: Copy> Iterable<T> for &'a [T] {

@@ -28,9 +28,8 @@ fn get_u128_column_random() -> Arc<dyn ColumnValues<u128>> {
 
 fn get_u128_column_from_data(data: &[u128]) -> Arc<dyn ColumnValues<u128>> {
     let mut out = vec![];
-    let iter_gen = || data.iter().cloned();
     tantivy_columnar::column_values::serialize_column_values_u128(
-        iter_gen,
+        &(|| data.iter().copied()),
         data.len() as u32,
         &mut out,
     )

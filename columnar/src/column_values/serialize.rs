@@ -64,8 +64,8 @@ fn normalize_column<C: ColumnValues>(
 }
 
 /// Serializes u128 values with the compact space codec.
-pub fn serialize_column_values_u128(
-    iterable: &dyn Iterable<u128>,
+pub fn serialize_column_values_u128<I: Iterator<Item = u128>>(
+    iterable: &dyn Fn() -> I,
     num_vals: u32,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
@@ -74,8 +74,8 @@ pub fn serialize_column_values_u128(
         codec_type: U128FastFieldCodecType::CompactSpace,
     };
     header.serialize(output)?;
-    let compressor = CompactSpaceCompressor::train_from(iterable.boxed_iter(), num_vals);
-    compressor.compress_into(iterable.boxed_iter(), output)?;
+    let compressor = CompactSpaceCompressor::train_from(iterable(), num_vals);
+    compressor.compress_into(iterable(), output)?;
 
     Ok(())
 }

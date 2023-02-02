@@ -87,7 +87,8 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
     fn estimate(&self, stats: &Stats) -> Option<u64> {
         let mut estimate = 4 + stats.num_bytes() + self.meta_num_bytes + self.values_num_bytes;
         if stats.gcd.get() > 1 {
-            let estimate_gain_from_gcd = (stats.gcd.get() as f32).log2().floor() * stats.num_rows as f32 / 8.0f32;
+            let estimate_gain_from_gcd =
+                (stats.gcd.get() as f32).log2().floor() * stats.num_rows as f32 / 8.0f32;
             estimate = estimate.saturating_sub(estimate_gain_from_gcd as u64);
         }
         Some(estimate)
@@ -206,8 +207,14 @@ impl ColumnValues for BlockwiseLinearReader {
         let interpoled_val: u64 = block.line.eval(idx_within_block);
         let block_bytes = &self.data[block.data_start_offset..];
         let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
-        // TODO optimize me! the line parameters could be tweaked to include the multiplication and remove the dependency.
-        self.stats.min_value + self.stats.gcd.get().wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
+        // TODO optimize me! the line parameters could be tweaked to include the multiplication and
+        // remove the dependency.
+        self.stats.min_value
+            + self
+                .stats
+                .gcd
+                .get()
+                .wrapping_mul(interpoled_val.wrapping_add(bitpacked_diff))
     }
 
     #[inline(always)]

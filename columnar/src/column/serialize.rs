@@ -13,12 +13,15 @@ use crate::column_values::u64_based::{serialize_u64_based_column_values, CodecTy
 use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use crate::iterable::{map_iterable, Iterable};
 
-pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
+pub fn serialize_column_mappable_to_u128<I, T: MonotonicallyMappableToU128>(
     column_index: SerializableColumnIndex<'_>,
-    iterable: &dyn Iterable<T>,
+    iterable: &dyn Fn() -> I,
     num_vals: u32,
     output: &mut impl Write,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+    I: Iterator<Item = T>,
+{
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
     let u128_iterable = map_iterable(iterable, MonotonicallyMappableToU128::to_u128);
     serialize_column_values_u128(&u128_iterable, num_vals, output)?;

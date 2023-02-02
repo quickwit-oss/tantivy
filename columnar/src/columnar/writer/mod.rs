@@ -587,7 +587,7 @@ where
     };
     crate::column::serialize_column_mappable_to_u128(
         serializable_column_index,
-        &&values[..],
+        &|| values.iter().copied(),
         values.len() as u32,
         &mut wrt,
     )?;
