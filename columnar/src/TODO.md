@@ -21,10 +21,8 @@ compare with roaring bitmap/elias fano etc etc.
 SIMD range? (see blog post)
 Add alignment?
 Consider another codec to bridge the gap between few and 5k elements
-replug fast_field_codecs bench
 
 # Cleanup and rationalization
-remove the 6 bit limitation of columntype. use 4 + 4 bits instead.
 in benchmark, unify percent vs ratio, f32 vs f64.
 investigate if should have better errors? io::Error is overused at the moment.
 rename rank/select in unit tests
@@ -35,17 +33,13 @@ use the rank & select naming in unit tests branch.
 multi-linear -> blockwise
 linear codec -> simply a multiplication for the index column
 rename columnar to something more explicit, like column_dictionary or columnar_table
-remove old column from the fast field API.
-remove the Column traits alias.
 rename fastfield -> column
 document changes
 rationalization FastFieldValue, HasColumnType
 isolate u128_based and uniform naming
 
-
 # Other
 fix enhance column-cli
 
 # Santa claus
-
 autodetect datetime ipaddr, plug customizable tokenizer.
