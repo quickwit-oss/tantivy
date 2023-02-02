@@ -86,29 +86,6 @@ pub struct IndexMerger {
     max_doc: u32,
 }
 
-struct TermOrdinalMapping {
-    per_segment_new_term_ordinals: Vec<Vec<TermOrdinal>>,
-}
-
-impl TermOrdinalMapping {
-    fn new(max_term_ords: Vec<TermOrdinal>) -> TermOrdinalMapping {
-        TermOrdinalMapping {
-            per_segment_new_term_ordinals: max_term_ords
-                .into_iter()
-                .map(|max_term_ord| vec![TermOrdinal::default(); max_term_ord as usize])
-                .collect(),
-        }
-    }
-
-    fn register_from_to(&mut self, segment_ord: usize, from_ord: TermOrdinal, to_ord: TermOrdinal) {
-        self.per_segment_new_term_ordinals[segment_ord][from_ord as usize] = to_ord;
-    }
-
-    fn get_segment(&self, segment_ord: usize) -> &[TermOrdinal] {
-        &(self.per_segment_new_term_ordinals[segment_ord])[..]
-    }
-}
-
 struct DeltaComputer {
     buffer: Vec<u32>,
 }
@@ -257,59 +234,8 @@ impl IndexMerger {
         if !doc_id_mapping.is_trivial() {
             todo!()
         }
-        let merge_row_order = MergeRowOrder::Stack(StackMergeOrder::from_columnars(&columnars[..]));
+        let merge_row_order = MergeRowOrder::Stack(StackMergeOrder::stack(&columnars[..]));
         columnar::merge_columnar(&columnars[..], merge_row_order, fast_field_wrt)?;
-        // for (field, field_entry) in self.schema.fields() {
-        // let field_type = field_entry.field_type();
-        // match field_type {
-        // FieldType::Facet(_) | FieldType::Str(_) if field_type.is_fast() => {
-        // let term_ordinal_mapping = term_ord_mappings.remove(&field).expect(
-        // "Logic Error in Tantivy (Please report). Facet field should have required \
-        // a`term_ordinal_mapping`.",
-        // );
-        // self.write_term_id_fast_field(
-        // field,
-        // &term_ordinal_mapping,
-        // fast_field_serializer,
-        // doc_id_mapping,
-        // )?;
-        // }
-        // FieldType::U64(ref options)
-        // | FieldType::I64(ref options)
-        // | FieldType::F64(ref options)
-        // | FieldType::Bool(ref options) => {
-        // todo!()
-        // }
-        // FieldType::Date(ref options) => {
-        // if options.is_fast() {
-        // todo!();
-        // }
-        // Some(Cardinality::SingleValue) => {
-        //     self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-        // }
-        // Some(Cardinality::MultiValues) => {
-        //     self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-        // }
-        // None => {}
-        // },
-        // FieldType::Bytes(byte_options) => {
-        // if byte_options.is_fast() {
-        // self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-        // }
-        // }
-        // FieldType::IpAddr(options) =>  {
-        // if options.is_fast() {
-        // todo!();
-        // }
-        // },
-        //
-        // FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
-        // We don't handle json fast field for the moment
-        // They can be implemented using what is done
-        // for facets in the future
-        // }
-        // }
-        // }
         Ok(())
     }
 
@@ -374,7 +300,7 @@ impl IndexMerger {
     /// doc_id.
     /// ReaderWithOrdinal will include the ordinal position of the
     /// reader in self.readers.
-    pub(crate) fn generate_doc_id_mapping(
+    pub(crate) fn generate_doc_id_mapping_with_sort_by_field(
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<SegmentDocIdMapping> {
@@ -454,7 +380,7 @@ impl IndexMerger {
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<Option<TermOrdinalMapping>> {
+    ) -> crate::Result<()> {
         debug_time!("write-postings-for-field");
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
@@ -566,12 +492,6 @@ impl IndexMerger {
 
             let to_term_ord = field_serializer.new_term(term_bytes, total_doc_freq)?;
 
-            if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
-                for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
-                    term_ord_mapping.register_from_to(segment_ord, from_term_ord, to_term_ord);
-                }
-            }
-
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
             for (segment_ord, mut segment_postings) in
@@ -622,7 +542,7 @@ impl IndexMerger {
             field_serializer.close_term()?;
         }
         field_serializer.close()?;
-        Ok(term_ord_mapping_opt)
+        Ok(())
     }
 
     fn write_postings(
@@ -630,8 +550,7 @@ impl IndexMerger {
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
-        let mut term_ordinal_mappings = HashMap::new();
+    ) {
         for (field, field_entry) in self.schema.fields() {
             let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             if field_entry.is_indexed() {
@@ -646,7 +565,7 @@ impl IndexMerger {
                 }
             }
         }
-        Ok(term_ordinal_mappings)
+        Ok(())
     }
 
     fn write_storable_fields(
@@ -731,7 +650,7 @@ impl IndexMerger {
             if self.is_disjunct_and_sorted_on_sort_property(sort_by_field)? {
                 self.get_doc_id_from_concatenated_data()?
             } else {
-                self.generate_doc_id_mapping(sort_by_field)?
+                self.generate_doc_id_mapping_with_sort_by_field(sort_by_field)?
             }
         } else {
             self.get_doc_id_from_concatenated_data()?

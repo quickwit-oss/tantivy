@@ -1,12 +1,12 @@
 use std::io::{self, Write};
 
 use common::CountingWriter;
-use itertools::Itertools;
 use sstable::{SSTable, TermOrdinal};
 
 use super::term_merger::TermMerger;
-use crate::column_index::{serialize_column_index, SerializableColumnIndex};
-use crate::column_values::{serialize_u64_based_column_values, CodecType};
+use crate::column::serialize_column_mappable_to_u64;
+use crate::column_index::SerializableColumnIndex;
+use crate::iterable::Iterable;
 use crate::BytesColumn;
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]
@@ -21,45 +21,38 @@ pub fn merge_bytes_or_str_column(
     let term_ord_mapping = serialize_merged_dict(bytes_columns, &mut output)?;
     let dictionary_num_bytes: u32 = output.written_bytes() as u32;
     let output = output.finish();
-
-    serialize_bytes_or_str_column(column_index, bytes_columns, &term_ord_mapping, output)?;
-
+    let remapped_term_ordinals_values = RemappedTermOrdinalsValues {
+        bytes_columns,
+        term_ord_mapping: &term_ord_mapping,
+    };
+    serialize_column_mappable_to_u64(column_index, &remapped_term_ordinals_values, output)?;
+    // serialize_bytes_or_str_column(column_index, bytes_columns, &term_ord_mapping, output)?;
     output.write_all(&dictionary_num_bytes.to_le_bytes())?;
     Ok(())
 }
 
-fn serialize_bytes_or_str_column(
-    column_index: SerializableColumnIndex<'_>,
-    bytes_columns: &[BytesColumn],
-    term_ord_mapping: &TermOrdinalMapping,
-    output: &mut impl Write,
-) -> io::Result<()> {
-    let column_index_num_bytes = serialize_column_index(column_index, output)?;
+struct RemappedTermOrdinalsValues<'a> {
+    bytes_columns: &'a [BytesColumn],
+    term_ord_mapping: &'a TermOrdinalMapping,
+}
 
-    let column_values = move || {
-        let iter = bytes_columns
+impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+        let iter = self
+            .bytes_columns
             .iter()
             .enumerate()
             .flat_map(|(segment_ord, byte_column)| {
-                let segment_ord = term_ord_mapping.get_segment(segment_ord);
+                let segment_ord = self.term_ord_mapping.get_segment(segment_ord);
                 byte_column
                     .ords()
                     .values
                     .iter()
                     .map(move |term_ord| segment_ord[term_ord as usize])
             });
-        iter
-    };
-
-    serialize_u64_based_column_values(
-        column_values,
-        &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
-        output,
-    )?;
-
-    output.write_all(&column_index_num_bytes.to_le_bytes())?;
-
-    Ok(())
+        // TODO see if we can better decompose the mapping / and the stacking
+        Box::new(iter)
+    }
 }
 
 fn serialize_merged_dict(
@@ -89,7 +82,6 @@ fn serialize_merged_dict(
         current_term_ord += 1;
     }
     sstable_builder.finish()?;
-
     Ok(term_ord_mapping)
 }
 

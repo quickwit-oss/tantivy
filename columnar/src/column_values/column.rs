@@ -80,7 +80,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     }
 }
 
-impl<'a, T: Ord> Iterable<T> for &'a [Arc<dyn ColumnValues<T>>] {
+impl<'a, T: PartialOrd> Iterable<T> for &'a [Arc<dyn ColumnValues<T>>] {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
         Box::new(self.iter().flat_map(|column_value| column_value.iter()))
     }

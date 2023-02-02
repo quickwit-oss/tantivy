@@ -125,7 +125,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
                 *buffer_val = gcd_divider.divide(*buffer_val - stats.min_value);
             }
 
-            let mut line = Line::train(&VecColumn::from(&buffer));
+            let line = Line::train(&VecColumn::from(&buffer));
 
             assert!(!buffer.is_empty());
 

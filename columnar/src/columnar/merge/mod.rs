@@ -13,6 +13,7 @@ pub use merge_mapping::{MergeRowOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
 use crate::column::{serialize_column_mappable_to_u128, serialize_column_mappable_to_u64};
+use crate::column_index::stack_column_index;
 use crate::columnar::column_type::ColumnTypeCategory;
 use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
 use crate::columnar::writer::CompatibleNumericalTypes;
@@ -98,11 +99,7 @@ pub fn merge_column(
                 crate::column_index::stack_column_index(&column_indexes[..], merge_row_order);
             serialize_column_mappable_to_u128(
                 merged_column_index,
-                &|| {
-                    column_values
-                        .iter()
-                        .flat_map(|column_value| column_value.iter())
-                },
+                &&column_values[..],
                 num_values,
                 wrt,
             )?;

@@ -142,7 +142,7 @@ fn test_merge_columnar_numbers() {
     )]);
     let mut buffer = Vec::new();
     let columnars = &[&columnar1, &columnar2];
-    let stack_merge_order = StackMergeOrder::from_columnars(columnars);
+    let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
         MergeRowOrder::Stack(stack_merge_order),
@@ -167,7 +167,7 @@ fn test_merge_columnar_texts() {
     let columnar2 = make_text_columnar_multiple_columns(&[("texts", &[&[], &["b"]])]);
     let mut buffer = Vec::new();
     let columnars = &[&columnar1, &columnar2];
-    let stack_merge_order = StackMergeOrder::from_columnars(columnars);
+    let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
         MergeRowOrder::Stack(stack_merge_order),
@@ -211,7 +211,7 @@ fn test_merge_columnar_byte() {
     let columnar2 = make_byte_columnar_multiple_columns(&[("bytes", &[&[], &[b"a"]])]);
     let mut buffer = Vec::new();
     let columnars = &[&columnar1, &columnar2];
-    let stack_merge_order = StackMergeOrder::from_columnars(columnars);
+    let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
         columnars,
         MergeRowOrder::Stack(stack_merge_order),

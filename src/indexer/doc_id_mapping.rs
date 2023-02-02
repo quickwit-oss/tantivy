@@ -37,6 +37,11 @@ impl SegmentDocIdMapping {
     /// This flags means the segments are simply stacked in the order of their ordinal.
     /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
     ///
+    /// The different segment may present some deletes, in which case it is expressed by skipping a
+    /// `DocId`. [(0, 1), (0, 3)] <--- here doc_id=0 and doc_id=1 have been deleted
+    ///
+    /// Being trivial is equivalent to having the `new_doc_id_to_old_doc_addr` array sorted.
+    ///
     /// This allows for some optimization.
     pub(crate) fn is_trivial(&self) -> bool {
         self.is_trivial

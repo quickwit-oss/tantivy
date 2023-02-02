@@ -9,7 +9,7 @@ pub struct StackMergeOrder {
 }
 
 impl StackMergeOrder {
-    pub fn from_columnars(columnars: &[&ColumnarReader]) -> StackMergeOrder {
+    pub fn stack(columnars: &[&ColumnarReader]) -> StackMergeOrder {
         let mut cumulated_row_ids: Vec<RowId> = Vec::with_capacity(columnars.len());
         let mut cumulated_row_id = 0;
         for columnar in columnars {

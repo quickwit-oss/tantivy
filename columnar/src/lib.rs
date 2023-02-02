@@ -26,7 +26,6 @@ pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, StackMergeOrder,
 };
-pub(crate) use iterable::{map_iterable, Iterable};
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 

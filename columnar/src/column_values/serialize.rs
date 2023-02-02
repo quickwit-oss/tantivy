@@ -1,21 +1,12 @@
 use std::fmt::Debug;
 use std::io;
-use std::num::NonZeroU64;
 
 use common::{BinarySerializable, VInt};
-use log::warn;
 
-use super::monotonic_mapping::{
-    StrictlyMonotonicFn, StrictlyMonotonicMappingToInternal,
-    StrictlyMonotonicMappingToInternalGCDBaseval,
-};
-use super::{
-    monotonic_map_column, u64_based, ColumnValues, MonotonicallyMappableToU64,
-    U128FastFieldCodecType,
-};
 use crate::column_values::compact_space::CompactSpaceCompressor;
-use crate::column_values::u64_based::CodecType;
+use crate::column_values::U128FastFieldCodecType;
 use crate::iterable::Iterable;
+use crate::MonotonicallyMappableToU128;
 
 /// The normalized header gives some parameters after applying the following
 /// normalization of the vector:
@@ -53,19 +44,9 @@ impl BinarySerializable for U128Header {
     }
 }
 
-fn normalize_column<C: ColumnValues>(
-    from_column: C,
-    min_value: u64,
-    gcd: Option<NonZeroU64>,
-) -> impl ColumnValues {
-    let gcd = gcd.map(|gcd| gcd.get()).unwrap_or(1);
-    let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(gcd, min_value);
-    monotonic_map_column(from_column, mapping)
-}
-
 /// Serializes u128 values with the compact space codec.
-pub fn serialize_column_values_u128<I: Iterator<Item = u128>>(
-    iterable: &dyn Fn() -> I,
+pub fn serialize_column_values_u128<T: MonotonicallyMappableToU128>(
+    iterable: &dyn Iterable<T>,
     num_vals: u32,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
@@ -74,9 +55,18 @@ pub fn serialize_column_values_u128<I: Iterator<Item = u128>>(
         codec_type: U128FastFieldCodecType::CompactSpace,
     };
     header.serialize(output)?;
-    let compressor = CompactSpaceCompressor::train_from(iterable(), num_vals);
-    compressor.compress_into(iterable(), output)?;
-
+    let compressor = CompactSpaceCompressor::train_from(
+        iterable
+            .boxed_iter()
+            .map(MonotonicallyMappableToU128::to_u128),
+        num_vals,
+    );
+    compressor.compress_into(
+        iterable
+            .boxed_iter()
+            .map(MonotonicallyMappableToU128::to_u128),
+        output,
+    )?;
     Ok(())
 }
 
@@ -113,8 +103,8 @@ pub mod tests {
     #[test]
     fn test_fastfield_bool_size_bitwidth_1() {
         let mut buffer = Vec::new();
-        serialize_u64_based_column_values(
-            || [false, true].into_iter(),
+        serialize_u64_based_column_values::<bool>(
+            &&[false, true][..],
             &ALL_U64_CODEC_TYPES,
             &mut buffer,
         )
@@ -127,8 +117,8 @@ pub mod tests {
     #[test]
     fn test_fastfield_bool_bit_size_bitwidth_0() {
         let mut buffer = Vec::new();
-        serialize_u64_based_column_values(
-            || [false, true].into_iter(),
+        serialize_u64_based_column_values::<bool>(
+            &&[false, true][..],
             &ALL_U64_CODEC_TYPES,
             &mut buffer,
         )
@@ -141,12 +131,8 @@ pub mod tests {
     fn test_fastfield_gcd() {
         let mut buffer = Vec::new();
         let vals: Vec<u64> = (0..80).map(|val| (val % 7) * 1_000u64).collect();
-        serialize_u64_based_column_values(
-            || vals.iter().cloned(),
-            &[CodecType::Bitpacked],
-            &mut buffer,
-        )
-        .unwrap();
+        serialize_u64_based_column_values(&&vals[..], &[CodecType::Bitpacked], &mut buffer)
+            .unwrap();
         // Values are stored over 3 bits.
         assert_eq!(buffer.len(), 6 + (3 * 80 / 8));
     }

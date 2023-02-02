@@ -115,22 +115,18 @@ impl CodecType {
     }
 }
 
-pub fn serialize_u64_based_column_values<T: MonotonicallyMappableToU64, F, I>(
-    vals: F,
+pub fn serialize_u64_based_column_values<'a, T: MonotonicallyMappableToU64>(
+    vals: &dyn Iterable<T>,
     codec_types: &[CodecType],
     wrt: &mut dyn Write,
-) -> io::Result<()>
-where
-    I: Iterator<Item = T>,
-    F: Fn() -> I,
-{
+) -> io::Result<()> {
     let mut stats_collector = StatsCollector::default();
     let mut estimators: Vec<(CodecType, Box<dyn ColumnCodecEstimator>)> =
         Vec::with_capacity(codec_types.len());
     for &codec_type in codec_types {
         estimators.push((codec_type, codec_type.estimator()));
     }
-    for val in vals() {
+    for val in vals.boxed_iter() {
         let val_u64 = val.to_u64();
         stats_collector.collect(val_u64);
         for (_, estimator) in &mut estimators {
@@ -154,7 +150,7 @@ where
     best_codec.to_code().serialize(wrt)?;
     best_codec_estimator.serialize(
         &stats,
-        &mut vals().map(MonotonicallyMappableToU64::to_u64),
+        &mut vals.boxed_iter().map(MonotonicallyMappableToU64::to_u64),
         wrt,
     )?;
     Ok(())
@@ -178,7 +174,7 @@ pub fn serialize_and_load_u64_based_column_values<T: MonotonicallyMappableToU64>
     codec_types: &[CodecType],
 ) -> Arc<dyn ColumnValues<T>> {
     let mut buffer = Vec::new();
-    serialize_u64_based_column_values(|| vals.boxed_iter(), codec_types, &mut buffer).unwrap();
+    serialize_u64_based_column_values(vals, codec_types, &mut buffer).unwrap();
     load_u64_based_column_values::<T>(OwnedBytes::new(buffer)).unwrap()
 }
 
