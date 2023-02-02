@@ -19,7 +19,7 @@ use crate::columnar::writer::CompatibleNumericalTypes;
 use crate::columnar::ColumnarReader;
 use crate::dynamic_column::DynamicColumn;
 use crate::{
-    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, MonotonicallyMappableToU128,
+    BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues,
     NumericalType, NumericalValue,
 };
 
@@ -78,7 +78,10 @@ pub fn merge_column(
             }
             let merged_column_index =
                 crate::column_index::stack_column_index(&column_indexes[..], merge_row_order);
-            serialize_column_mappable_to_u64(merged_column_index, &&column_values[..], wrt)?;
+            let stacked_columns_iterable = || column_values
+                .iter()
+                .flat_map(|column| column.iter());
+            serialize_column_mappable_to_u64(merged_column_index, &stacked_columns_iterable, wrt)?;
         }
         ColumnType::IpAddr => {
             let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());

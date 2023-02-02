@@ -3,7 +3,7 @@ use std::io::Write;
 
 use common::{CountingWriter, OwnedBytes};
 
-use crate::column_index::multivalued_index::serialize_multivalued_index;
+use crate::column_index::multivalued_index::{serialize_multivalued_index, self};
 use crate::column_index::optional_index::serialize_optional_index;
 use crate::column_index::ColumnIndex;
 use crate::iterable::Iterable;
@@ -12,12 +12,12 @@ use crate::{Cardinality, RowId};
 pub enum SerializableColumnIndex<'a> {
     Full,
     Optional {
-        non_null_row_ids: Box<dyn Iterable<RowId> + 'a>,
+        non_null_row_ids: Box<dyn Fn() -> Box<dyn Iterator<Item=RowId> + 'a> + 'a>,
         num_rows: RowId,
     },
     // TODO remove the Arc<dyn> apart from serialization this is not
     // dynamic at all.
-    Multivalued(Box<dyn Iterable<RowId> + 'a>),
+    Multivalued(&'a dyn Fn() -> Box<dyn Iterator<Item=RowId> + 'a>),
 }
 
 impl<'a> SerializableColumnIndex<'a> {
@@ -30,8 +30,8 @@ impl<'a> SerializableColumnIndex<'a> {
     }
 }
 
-pub fn serialize_column_index(
-    column_index: SerializableColumnIndex,
+pub fn serialize_column_index<'a>(
+    column_index: SerializableColumnIndex<'a>,
     output: &mut impl Write,
 ) -> io::Result<u32> {
     let mut output = CountingWriter::wrap(output);
@@ -44,7 +44,8 @@ pub fn serialize_column_index(
             num_rows,
         } => serialize_optional_index(non_null_row_ids.as_ref(), num_rows, &mut output)?,
         SerializableColumnIndex::Multivalued(multivalued_index) => {
-            serialize_multivalued_index(&*multivalued_index, &mut output)?
+            let multivalued_index_ref: &'a dyn Fn() -> Box<dyn Iterator<Item=RowId> + 'a> = multivalued_index.as_ref();
+            serialize_multivalued_index(multivalued_index_ref, &mut output)?
         }
     }
     let column_index_num_bytes = output.written_bytes() as u32;

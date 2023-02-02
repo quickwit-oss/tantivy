@@ -29,14 +29,15 @@ where
     Ok(())
 }
 
-pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64 + Debug>(
+pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64 + Debug, I>(
     column_index: SerializableColumnIndex<'_>,
-    column_values: &impl Iterable<T>,
+    column_values: &dyn Fn() -> I,
     output: &mut impl Write,
-) -> io::Result<()> {
+) -> io::Result<()>
+where I: Iterator<Item=T> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
     serialize_u64_based_column_values(
-        || column_values.boxed_iter(),
+        column_values,
         &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
         output,
     )?;

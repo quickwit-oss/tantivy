@@ -1,4 +1,3 @@
-use crate::iterable::Iterable;
 use crate::RowId;
 
 /// The `IndexBuilder` interprets a sequence of
@@ -29,7 +28,7 @@ pub struct OptionalIndexBuilder {
 }
 
 impl OptionalIndexBuilder {
-    pub fn finish<'a>(&'a mut self, num_rows: RowId) -> impl Iterable<RowId> + 'a {
+    pub fn finish<'a>(&'a mut self, num_rows: RowId) -> &'a [RowId] {
         debug_assert!(self
             .docs
             .last()
@@ -123,20 +122,14 @@ mod tests {
         opt_value_index_builder.record_row(0u32);
         opt_value_index_builder.record_value();
         assert_eq!(
-            &opt_value_index_builder
-                .finish(1u32)
-                .boxed_iter()
-                .collect::<Vec<u32>>(),
+            &opt_value_index_builder.finish(1u32),
             &[0]
         );
         opt_value_index_builder.reset();
         opt_value_index_builder.record_row(1u32);
         opt_value_index_builder.record_value();
         assert_eq!(
-            &opt_value_index_builder
-                .finish(2u32)
-                .boxed_iter()
-                .collect::<Vec<u32>>(),
+            &opt_value_index_builder.finish(2u32),
             &[1]
         );
     }

@@ -20,7 +20,7 @@ use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
 };
-use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
+use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders, OptionalIndexBuilder};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
 use crate::value::{Coerce, NumericalType, NumericalValue};
 use crate::{Cardinality, RowId};
@@ -572,17 +572,17 @@ where
         Cardinality::Optional => {
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
-            let optional_index = optional_index_builder.finish(num_rows);
+            let non_null_rows: &[u32] = optional_index_builder.finish(num_rows);
             SerializableColumnIndex::Optional {
                 num_rows,
-                non_null_row_ids: Box::new(optional_index),
+                non_null_row_ids: Box::new(|| Box::new(non_null_rows.iter().copied())),
             }
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
             let multivalued_index = multivalued_index_builder.finish(num_rows);
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            SerializableColumnIndex::Multivalued(Box::new(|| Box::new(multivalued_index.iter().copied())))
         }
     };
     crate::column::serialize_column_mappable_to_u128(
@@ -603,17 +603,17 @@ fn sort_values_within_row_in_place(multivalued_index: &[RowId], values: &mut Vec
     }
 }
 
-fn send_to_serialize_column_mappable_to_u64(
+fn send_to_serialize_column_mappable_to_u64<'a>(
     op_iterator: impl Iterator<Item = ColumnOperation<u64>>,
     cardinality: Cardinality,
     num_rows: RowId,
     sort_values_within_row: bool,
-    value_index_builders: &mut PreallocatedIndexBuilders,
+    value_index_builders: &'a mut PreallocatedIndexBuilders,
     values: &mut Vec<u64>,
     mut wrt: impl io::Write,
 ) -> io::Result<()>
 where
-    for<'a> VecColumn<'a, u64>: ColumnValues<u64>,
+    for<'b> VecColumn<'b, u64>: ColumnValues<u64>,
 {
     values.clear();
     let serializable_column_index = match cardinality {
@@ -626,11 +626,11 @@ where
             SerializableColumnIndex::Full
         }
         Cardinality::Optional => {
-            let optional_index_builder = value_index_builders.borrow_optional_index_builder();
+            let optional_index_builder: &'a mut OptionalIndexBuilder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
-            let optional_index = optional_index_builder.finish(num_rows);
+            let optional_index: &'a [u32] = optional_index_builder.finish(num_rows);
             SerializableColumnIndex::Optional {
-                non_null_row_ids: Box::new(optional_index),
+                non_null_row_ids: Box::new(move || Box::new(optional_index.iter().copied())),
                 num_rows,
             }
         }
@@ -641,12 +641,12 @@ where
             if sort_values_within_row {
                 sort_values_within_row_in_place(multivalued_index, values);
             }
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            SerializableColumnIndex::Multivalued(Box::new(|| Box::new(multivalued_index.iter().copied())))
         }
     };
     crate::column::serialize_column_mappable_to_u64(
         serializable_column_index,
-        &&values[..],
+        &|| values.iter().copied(),
         &mut wrt,
     )?;
     Ok(())

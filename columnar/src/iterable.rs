@@ -1,4 +1,3 @@
-use std::iter::Map;
 use std::marker::PhantomData;
 use std::ops::Range;
 
@@ -35,15 +34,6 @@ where F: Fn() -> Box<dyn Iterator<Item = T>>
         self()
     }
 }
-
-// impl<F, I, T> Iterable<T> for F
-// where
-// I: Iterator<Item = T>,
-// F: Fn() -> I,
-//{
-// fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
-// Box::new(self())
-//}
 
 pub fn map_iterable<U, V, F, I>(
     original_iterable: impl Fn() -> I,

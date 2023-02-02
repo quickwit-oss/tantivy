@@ -25,19 +25,22 @@ pub fn stack_column_index<'a>(
     let cardinality = detect_cardinality(columns);
     match cardinality {
         Cardinality::Full => SerializableColumnIndex::Full,
-        Cardinality::Optional => SerializableColumnIndex::Optional {
-            non_null_row_ids: Box::new(StackedOptionalIndex {
+        Cardinality::Optional =>  {
+            let stacked_optional_index: StackedOptionalIndex<'a> = StackedOptionalIndex {
                 columns,
                 stack_merge_order,
-            }),
-            num_rows: stack_merge_order.num_rows(),
+            };
+            SerializableColumnIndex::Optional {
+                non_null_row_ids: Box::new(move || Box::new(stacked_optional_index.iter())),
+                num_rows: stack_merge_order.num_rows(),
+            }
         },
         Cardinality::Multivalued => {
             let stacked_multivalued_index = StackedMultivaluedIndex {
                 columns,
                 stack_merge_order,
             };
-            SerializableColumnIndex::Multivalued(Box::new(stacked_multivalued_index))
+            SerializableColumnIndex::Multivalued(Box::new(move || stacked_multivalued_index.boxed_iter()))
         }
     }
 }
@@ -47,8 +50,8 @@ struct StackedOptionalIndex<'a> {
     stack_merge_order: &'a StackMergeOrder,
 }
 
-impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
-    fn boxed_iter(&self) -> Box<dyn Iterator<Item = RowId> + 'a> {
+impl<'a> StackedOptionalIndex<'a> {
+    fn iter(&self) -> impl Iterator<Item=RowId> + 'a {
         Box::new(
             self.columns
                 .iter()
@@ -100,8 +103,8 @@ fn convert_column_opt_to_multivalued_index<'a>(
     }
 }
 
-impl<'a> Iterable<RowId> for StackedMultivaluedIndex<'a> {
-    fn boxed_iter(&self) -> Box<dyn Iterator<Item = RowId> + '_> {
+impl<'a> StackedMultivaluedIndex<'a> {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = RowId> + 'a> {
         let multivalued_indexes =
             self.columns
                 .iter()

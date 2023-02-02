@@ -7,15 +7,14 @@ use common::OwnedBytes;
 
 use crate::column_values::u64_based::CodecType;
 use crate::column_values::ColumnValues;
-use crate::iterable::Iterable;
 use crate::RowId;
 
-pub fn serialize_multivalued_index(
-    multivalued_index: &dyn Iterable<RowId>,
+pub fn serialize_multivalued_index<'a>(
+    multivalued_index: &'a dyn Fn() -> Box<dyn Iterator<Item=RowId> + 'a>,
     output: &mut impl Write,
 ) -> io::Result<()> {
     crate::column_values::u64_based::serialize_u64_based_column_values(
-        || multivalued_index.boxed_iter(),
+        multivalued_index,
         &[CodecType::Bitpacked, CodecType::Linear],
         output,
     )?;

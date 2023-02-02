@@ -343,13 +343,13 @@ fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -
 }
 
 pub fn serialize_optional_index<'a, W: io::Write>(
-    non_null_rows: &dyn Iterable<RowId>,
+    non_null_rows: &dyn Fn() -> Box<dyn Iterator<Item=RowId> + 'a>,
     num_rows: RowId,
     output: &mut W,
 ) -> io::Result<()> {
     VInt(num_rows as u64).serialize(output)?;
 
-    let mut rows_it = non_null_rows.boxed_iter();
+    let mut rows_it = non_null_rows();
     let mut block_metadata: Vec<SerializedBlockMeta> = Vec::new();
     let mut current_block = Vec::new();
 
