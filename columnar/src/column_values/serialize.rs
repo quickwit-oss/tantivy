@@ -77,6 +77,7 @@ pub mod tests {
         self, serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
         ALL_U64_CODEC_TYPES,
     };
+    use crate::column_values::CodecType;
 
     #[test]
     fn test_serialize_deserialize_u128_header() {

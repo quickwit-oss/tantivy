@@ -222,7 +222,6 @@ impl IndexMerger {
     fn write_fast_fields(
         &self,
         fast_field_wrt: &mut WritePtr,
-        mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write-fast-fields");
@@ -400,14 +399,6 @@ impl IndexMerger {
             max_term_ords.push(terms.num_terms() as u64);
         }
 
-        let mut term_ord_mapping_opt = match field_type {
-            FieldType::Facet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
-            FieldType::Str(options) if options.is_fast() => {
-                Some(TermOrdinalMapping::new(max_term_ords))
-            }
-            _ => None,
-        };
-
         let mut merged_terms = TermMerger::new(field_term_streams);
 
         // map from segment doc ids to the resulting merged segment doc id.
@@ -550,19 +541,17 @@ impl IndexMerger {
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) {
+    ) -> crate::Result<()> {
         for (field, field_entry) in self.schema.fields() {
             let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             if field_entry.is_indexed() {
-                if let Some(term_ordinal_mapping) = self.write_postings_for_field(
+                self.write_postings_for_field(
                     field,
                     field_entry.field_type(),
                     serializer,
                     fieldnorm_reader,
                     doc_id_mapping,
-                )? {
-                    term_ordinal_mappings.insert(field, term_ordinal_mapping);
-                }
+                );
             }
         }
         Ok(())
@@ -664,17 +653,13 @@ impl IndexMerger {
             .segment()
             .open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-        let term_ord_mappings = self.write_postings(
+        self.write_postings(
             serializer.get_postings_serializer(),
             fieldnorm_readers,
             &doc_id_mapping,
         )?;
         debug!("write-fastfields");
-        self.write_fast_fields(
-            serializer.get_fast_field_write(),
-            term_ord_mappings,
-            &doc_id_mapping,
-        )?;
+        self.write_fast_fields(serializer.get_fast_field_write(), &doc_id_mapping)?;
         debug!("write-storagefields");
         self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
         debug!("close-serializer");
