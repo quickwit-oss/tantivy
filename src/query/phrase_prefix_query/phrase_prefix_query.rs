@@ -1,6 +1,8 @@
-use super::PhrasePrefixWeight;
+use std::ops::Bound;
+
+use super::{prefix_end, PhrasePrefixWeight};
 use crate::query::bm25::Bm25Weight;
-use crate::query::{EnableScoring, Query, Weight};
+use crate::query::{EnableScoring, Query, RangeQuery, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
 
 /// `PhrasePrefixQuery` matches a specific sequence of words followed by term of which only a
@@ -50,11 +52,9 @@ impl PhrasePrefixQuery {
 
     /// Creates a new `PhrasePrefixQuery` given a list of terms, their offsets and a slop
     pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhrasePrefixQuery {
-        // TODO: for now we use an PhraseQuery, so we need at least 3 terms =>
-        // use a term query if only 2 terms (full + prefix) are provided
         assert!(
-            terms.len() > 2,
-            "A phrase query is required to have strictly more than one term."
+            !terms.is_empty(),
+            "A phrase prefix query is required to have at least one term."
         );
         terms.sort_by_key(|&(offset, _)| offset);
         let field = terms[0].1.field();
@@ -92,6 +92,7 @@ impl PhrasePrefixQuery {
 
     /// `Term`s in the phrase without the associated offsets.
     pub fn phrase_terms(&self) -> Vec<Term> {
+        // TODO should we include the last term too?
         self.phrase_terms
             .iter()
             .map(|(_, term)| term.clone())
@@ -102,10 +103,15 @@ impl PhrasePrefixQuery {
     ///
     /// This function is the same as [`Query::weight()`] except it returns
     /// a specialized type [`PhraseQueryWeight`] instead of a Boxed trait.
+    /// If the query was only one term long, this returns `None` wherease [`Query::weight`]
+    /// returns a boxed [`RangeWeight`]
     pub(crate) fn phrase_query_weight(
         &self,
         enable_scoring: EnableScoring<'_>,
-    ) -> crate::Result<PhrasePrefixWeight> {
+    ) -> crate::Result<Option<PhrasePrefixWeight>> {
+        if self.phrase_terms.is_empty() {
+            return Ok(None);
+        }
         let schema = enable_scoring.schema();
         let field_entry = schema.get_field_entry(self.field);
         let has_positions = field_entry
@@ -134,7 +140,7 @@ impl PhrasePrefixQuery {
         if self.slop > 0 {
             weight.slop(self.slop);
         }
-        Ok(weight)
+        Ok(Some(weight))
     }
 }
 
@@ -143,8 +149,29 @@ impl Query for PhrasePrefixQuery {
     ///
     /// See [`Weight`].
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        let phrase_weight = self.phrase_query_weight(enable_scoring)?;
-        Ok(Box::new(phrase_weight))
+        if let Some(phrase_weight) = self.phrase_query_weight(enable_scoring)? {
+            Ok(Box::new(phrase_weight))
+        } else {
+            let end_term = if let Some(end_value) = prefix_end(&self.prefix.1.value_bytes()) {
+                let mut end_term = Term::with_capacity(end_value.len());
+                end_term.set_field_and_type(self.field, self.prefix.1.typ());
+                end_term.append_bytes(&end_value);
+                Bound::Excluded(end_term)
+            } else {
+                Bound::Unbounded
+            };
+
+            RangeQuery::new_term_bounds(
+                enable_scoring
+                    .schema()
+                    .get_field_name(self.field)
+                    .to_owned(),
+                self.prefix.1.typ(),
+                &Bound::Included(self.prefix.1.clone()),
+                &end_term,
+            )
+            .weight(enable_scoring)
+        }
     }
 
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {

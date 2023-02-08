@@ -1,4 +1,4 @@
-use super::PhrasePrefixScorer;
+use super::{prefix_end, PhrasePrefixScorer};
 use crate::core::SegmentReader;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
@@ -14,20 +14,6 @@ pub struct PhrasePrefixWeight {
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
     max_expansions: u32,
-}
-
-fn prefix_end(prefix_start: &[u8]) -> Option<Vec<u8>> {
-    let mut res = prefix_start.to_owned();
-    while !res.is_empty() {
-        let end = res.len() - 1;
-        if res[end] == u8::MAX {
-            res.pop();
-        } else {
-            res[end] += 1;
-            return Some(res);
-        }
-    }
-    None
 }
 
 impl PhrasePrefixWeight {
@@ -177,7 +163,7 @@ mod tests {
     use super::*;
     use crate::core::Index;
     use crate::docset::TERMINATED;
-    use crate::query::{EnableScoring, PhrasePrefixQuery};
+    use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
     use crate::schema::{Schema, TEXT};
     use crate::{DocSet, Term};
 
@@ -198,14 +184,6 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_end() {
-        assert_eq!(prefix_end(b"aaa"), Some(b"aab".to_vec()));
-        assert_eq!(prefix_end(b"aa\xff"), Some(b"ab".to_vec()));
-        assert_eq!(prefix_end(b"a\xff\xff"), Some(b"b".to_vec()));
-        assert_eq!(prefix_end(b"\xff\xff\xff"), None);
-    }
-
-    #[test]
     pub fn test_phrase_count_long() -> crate::Result<()> {
         let index = create_index(&[
             "aa bb dd cc",
@@ -221,7 +199,10 @@ mod tests {
             Term::from_field_text(text_field, "c"),
         ]);
         let enable_scoring = EnableScoring::Enabled(&searcher);
-        let phrase_weight = phrase_query.phrase_query_weight(enable_scoring).unwrap();
+        let phrase_weight = phrase_query
+            .phrase_query_weight(enable_scoring)
+            .unwrap()
+            .unwrap();
         let mut phrase_scorer = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
@@ -236,7 +217,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    pub fn test_phrase_count_short() -> crate::Result<()> {
+    pub fn test_phrase_count_mid() -> crate::Result<()> {
         let index = create_index(&["aa dd cc", "aa aa bb c dd aa bb cc aa dc", " aa bb cd"])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
@@ -246,7 +227,10 @@ mod tests {
             Term::from_field_text(text_field, "b"),
         ]);
         let enable_scoring = EnableScoring::Enabled(&searcher);
-        let phrase_weight = phrase_query.phrase_query_weight(enable_scoring).unwrap();
+        let phrase_weight = phrase_query
+            .phrase_query_weight(enable_scoring)
+            .unwrap()
+            .unwrap();
         let mut phrase_scorer = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
@@ -255,6 +239,27 @@ mod tests {
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_count_short() -> crate::Result<()> {
+        let index = create_index(&["aa dd", "aa aa bb c dd aa bb cc aa dc", " aa bb cd"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = PhrasePrefixQuery::new(vec![Term::from_field_text(text_field, "c")]);
+        let enable_scoring = EnableScoring::Enabled(&searcher);
+        assert!(phrase_query
+            .phrase_query_weight(enable_scoring)
+            .unwrap()
+            .is_none());
+        let weight = phrase_query.weight(enable_scoring).unwrap();
+        let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.advance(), 2);
+        assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }
