@@ -96,9 +96,10 @@ impl TermQuery {
             return Err(crate::TantivyError::SchemaError(error_msg));
         }
         let bm25_weight = match enable_scoring {
-            EnableScoring::Enabled(searcher) => {
-                Bm25Weight::for_terms(searcher, &[self.term.clone()])?
-            }
+            EnableScoring::Enabled {
+                statistics_provider,
+                ..
+            } => Bm25Weight::for_terms(statistics_provider, &[self.term.clone()])?,
             EnableScoring::Disabled { .. } => {
                 Bm25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32)
             }

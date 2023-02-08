@@ -132,7 +132,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             Term::from_field_text(text_field, "b"),
         ]);
-        let enable_scoring = EnableScoring::Enabled(&searcher);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?

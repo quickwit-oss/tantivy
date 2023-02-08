@@ -55,7 +55,7 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("+a")?;
         let searcher = index.reader()?.searcher();
-        let weight = query.weight(EnableScoring::Enabled(&searcher))?;
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert!(scorer.is::<TermScorer>());
         Ok(())
@@ -68,13 +68,13 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let query = query_parser.parse_query("+a +b +c")?;
-            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<Intersection<TermScorer>>());
         }
         {
             let query = query_parser.parse_query("+a +(b c)")?;
-            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<Intersection<Box<dyn Scorer>>>());
         }
@@ -88,7 +88,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let query = query_parser.parse_query("+a b")?;
-            let weight = query.weight(EnableScoring::Enabled(&searcher))?;
+            let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
             assert!(scorer.is::<RequiredOptionalScorer<
                 Box<dyn Scorer>,
@@ -243,7 +243,7 @@ mod tests {
         let boolean_query =
             BooleanQuery::new(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
         let boolean_weight = boolean_query
-            .weight(EnableScoring::Enabled(&searcher))
+            .weight(EnableScoring::enabled_from_searcher(&searcher))
             .unwrap();
         {
             let mut boolean_scorer = boolean_weight.scorer(searcher.segment_reader(0u32), 1.0)?;

@@ -34,7 +34,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
         );
-        let term_weight = term_query.weight(EnableScoring::Enabled(&searcher))?;
+        let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
         assert_eq!(term_scorer.doc(), 0);
@@ -62,7 +62,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
         );
-        let term_weight = term_query.weight(EnableScoring::Enabled(&searcher))?;
+        let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
         for i in 0u32..COMPRESSION_BLOCK_SIZE as u32 {
