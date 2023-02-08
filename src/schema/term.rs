@@ -366,7 +366,7 @@ where B: AsRef<[u8]>
     ///
     /// If the term is a string, its value is utf-8 encoded.
     /// If the term is a u64, its value is encoded according
-    /// to `byteorder::LittleEndian`.
+    /// to `byteorder::BigEndian`.
     pub fn value_bytes(&self) -> &[u8] {
         &self.0.as_ref()[TERM_METADATA_LENGTH..]
     }
