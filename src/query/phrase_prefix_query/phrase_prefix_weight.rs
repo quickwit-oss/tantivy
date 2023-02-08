@@ -12,7 +12,6 @@ pub struct PhrasePrefixWeight {
     phrase_terms: Vec<(usize, Term)>,
     prefix: (usize, Term),
     similarity_weight_opt: Option<Bm25Weight>,
-    slop: u32,
     max_expansions: u32,
 }
 
@@ -25,12 +24,10 @@ impl PhrasePrefixWeight {
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
     ) -> PhrasePrefixWeight {
-        let slop = 0;
         PhrasePrefixWeight {
             phrase_terms,
             prefix,
             similarity_weight_opt,
-            slop,
             max_expansions,
         }
     }
@@ -118,14 +115,9 @@ impl PhrasePrefixWeight {
             term_postings_list,
             similarity_weight_opt,
             fieldnorm_reader,
-            self.slop,
             suffixes,
             self.prefix.0,
         )))
-    }
-
-    pub fn slop(&mut self, slop: u32) {
-        self.slop = slop;
     }
 }
 

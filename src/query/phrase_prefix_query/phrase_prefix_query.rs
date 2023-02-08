@@ -17,9 +17,6 @@ use crate::schema::{Field, IndexRecordOption, Term};
 ///
 /// **This is my favorite part of the job.**
 ///
-/// [Slop](PhrasePrefixQuery::set_slop) allows leniency in term proximity
-/// for some performance tradeof.
-///
 /// Using a `PhrasePrefixQuery` on a field requires positions
 /// to be indexed for this field.
 #[derive(Clone, Debug)]
@@ -27,7 +24,6 @@ pub struct PhrasePrefixQuery {
     field: Field,
     phrase_terms: Vec<(usize, Term)>,
     prefix: (usize, Term),
-    slop: u32,
     max_expansions: u32,
 }
 
@@ -46,12 +42,7 @@ impl PhrasePrefixQuery {
     /// Creates a new `PhrasePrefixQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> PhrasePrefixQuery {
-        PhrasePrefixQuery::new_with_offset_and_slop(terms, 0)
-    }
-
-    /// Creates a new `PhrasePrefixQuery` given a list of terms, their offsets and a slop
-    pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhrasePrefixQuery {
+    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhrasePrefixQuery {
         assert!(
             !terms.is_empty(),
             "A phrase prefix query is required to have at least one term."
@@ -66,18 +57,8 @@ impl PhrasePrefixQuery {
             field,
             prefix: terms.pop().unwrap(),
             phrase_terms: terms,
-            slop,
             max_expansions: 50,
         }
-    }
-
-    /// Slop allowed for the phrase.
-    ///
-    /// The query will match if its terms are separated by `slop` terms at most.
-    /// By default the slop is 0 meaning query terms need to be adjacent.
-    pub fn set_slop(&mut self, value: u32) {
-        // TODO slop isn't used for the last term yet
-        self.slop = value;
     }
 
     /// Maximum number of terms to which the last provided term will expand.
@@ -131,15 +112,12 @@ impl PhrasePrefixQuery {
             EnableScoring::Enabled(searcher) => Some(Bm25Weight::for_terms(searcher, &terms)?),
             EnableScoring::Disabled { .. } => None,
         };
-        let mut weight = PhrasePrefixWeight::new(
+        let weight = PhrasePrefixWeight::new(
             self.phrase_terms.clone(),
             self.prefix.clone(),
             bm25_weight_opt,
             self.max_expansions,
         );
-        if self.slop > 0 {
-            weight.slop(self.slop);
-        }
         Ok(Some(weight))
     }
 }
