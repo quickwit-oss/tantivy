@@ -216,7 +216,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     pub fn test_phrase_count_mid() -> crate::Result<()> {
         let index = create_index(&["aa dd cc", "aa aa bb c dd aa bb cc aa dc", " aa bb cd"])?;
         let schema = index.schema();
