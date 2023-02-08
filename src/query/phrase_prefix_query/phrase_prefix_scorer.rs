@@ -2,7 +2,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::phrase_query::{intersection_count, PhraseScorer};
+use crate::query::phrase_query::{intersection_count, intersection_count_with_slop, PhraseScorer};
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
@@ -11,6 +11,7 @@ pub struct PhrasePrefixScorer<TPostings: Postings> {
     suffixes: Vec<TPostings>,
     suffix_offset: u32,
     phrase_count: u32,
+    slop: u32,
 }
 
 impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
@@ -43,6 +44,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
             suffixes,
             suffix_offset: (max_offset - suffixe_pos) as u32,
             phrase_count: 0,
+            slop,
         };
         if !res.matches_prefix() {
             res.advance();
@@ -66,7 +68,11 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
             let doc = suffix.seek(current_doc);
             if doc == current_doc {
                 suffix.positions_with_offset(self.suffix_offset, &mut positions);
-                count += intersection_count(pos_matching, &positions);
+                if self.slop == 0 {
+                    count += intersection_count(pos_matching, &positions);
+                } else {
+                    count += intersection_count_with_slop(pos_matching, &positions, self.slop);
+                }
             }
         }
         self.phrase_count = count as u32;

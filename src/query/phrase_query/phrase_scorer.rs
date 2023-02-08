@@ -183,7 +183,7 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     count
 }
 
-fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize {
+pub(crate) fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
