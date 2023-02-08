@@ -113,11 +113,18 @@ impl PhrasePrefixWeight {
         while stream.advance() && (suffixes.len() as u32) < self.max_expansions {
             new_term.clear_with_type(new_term.typ());
             new_term.append_bytes(stream.key());
-            // TODO optimize when no deletes
-            if let Some(postings) =
-                inv_index.read_postings(&new_term, IndexRecordOption::WithFreqsAndPositions)?
-            {
-                suffixes.push(postings);
+            if reader.has_deletes() {
+                if let Some(postings) =
+                    inv_index.read_postings(&new_term, IndexRecordOption::WithFreqsAndPositions)?
+                {
+                    suffixes.push(postings);
+                }
+            } else {
+                if let Some(postings) = inv_index
+                    .read_postings_no_deletes(&new_term, IndexRecordOption::WithFreqsAndPositions)?
+                {
+                    suffixes.push(postings);
+                }
             }
         }
 
@@ -167,8 +174,6 @@ impl Weight for PhrasePrefixWeight {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
     use crate::core::Index;
     use crate::docset::TERMINATED;

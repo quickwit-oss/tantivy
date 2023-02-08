@@ -1,12 +1,9 @@
-use std::cmp::Ordering;
-
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::phrase_query::{intersection_count, PhraseScorer};
-use crate::query::{Intersection, Scorer};
-use crate::schema::Term;
+use crate::query::Scorer;
 use crate::{DocId, Score};
 
 pub struct PhrasePrefixScorer<TPostings: Postings> {
