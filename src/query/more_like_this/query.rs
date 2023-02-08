@@ -44,7 +44,7 @@ impl MoreLikeThisQuery {
 impl Query for MoreLikeThisQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let searcher = match enable_scoring {
-            EnableScoring::Enabled(searcher) => searcher,
+            EnableScoring::Enabled { searcher, .. } => searcher,
             EnableScoring::Disabled { .. } => {
                 let err = "MoreLikeThisQuery requires to enable scoring.".to_string();
                 return Err(crate::TantivyError::InvalidArgument(err));

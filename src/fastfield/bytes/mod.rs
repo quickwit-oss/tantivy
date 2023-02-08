@@ -82,7 +82,8 @@ mod tests {
         let field = searcher.schema().get_field("string_bytes").unwrap();
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-        let term_weight = term_query.specialized_weight(EnableScoring::Enabled(&searcher))?;
+        let term_weight =
+            term_query.specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let term_scorer = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         Ok(())
