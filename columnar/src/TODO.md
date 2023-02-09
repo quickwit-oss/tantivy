@@ -1,10 +1,13 @@
 # zero to one
+
 * revisit line codec
 * removal of all rows of a column in the schema due to deletes
+* add columns from schema on merge
 * Plugging JSON
 * replug examples
 * move datetime to quickwit common
 * switch to nanos
+* reintroduce the gcd map.
 
 # Perf and Size
 * remove alloc in `ord_to_term`
@@ -21,7 +24,6 @@ compare with roaring bitmap/elias fano etc etc.
 SIMD range? (see blog post)
 Add alignment?
 Consider another codec to bridge the gap between few and 5k elements
-fix performance of test_range_for_docs_prop
 
 # Cleanup and rationalization
 in benchmark, unify percent vs ratio, f32 vs f64.
