@@ -333,6 +333,7 @@ mod tests {
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
+    use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::{DateTime, Index, Term};
@@ -441,6 +442,7 @@ mod tests {
         {
             // let mut index_writer = index.writer_for_tests()?;
             let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for values in segment_and_values {
                 for (i, term) in values {
                     let i = *i;
@@ -1162,6 +1164,9 @@ mod tests {
     #[cfg(all(test, feature = "unstable"))]
     mod bench {
 
+        use crate::aggregation::bucket::CustomOrder;
+        use crate::aggregation::bucket::Order;
+        use crate::aggregation::bucket::OrderTarget;
         use rand::prelude::SliceRandom;
         use rand::{thread_rng, Rng};
         use test::{self, Bencher};
@@ -1406,6 +1411,36 @@ mod tests {
                     Aggregation::Bucket(BucketAggregation {
                         bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                             field: "text_many_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+
+                let searcher = reader.searcher();
+                searcher.search(&AllQuery, &collector).unwrap()
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_terms_many_order_by_term(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let agg_req: Aggregations = vec![(
+                    "my_texts".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            order: Some(CustomOrder {
+                                order: Order::Desc,
+                                target: OrderTarget::Key,
+                            }),
                             ..Default::default()
                         }),
                         sub_aggregation: Default::default(),

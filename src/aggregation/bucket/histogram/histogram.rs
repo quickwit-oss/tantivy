@@ -64,7 +64,6 @@ use crate::{DocId, TantivyError};
 ///
 /// Response
 /// See [`BucketEntry`](crate::aggregation::agg_result::BucketEntry)
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HistogramAggregation {
     /// The field to aggregate on.

@@ -328,7 +328,14 @@ impl SegmentTermCollector {
 
         match self.req.order.target {
             OrderTarget::Key => {
-                // defer order and cut_off after loading the texts from the dictionary
+                // We rely on the fact, that term ordinals match the order of the strings
+                // TODO: We could have a special collector, that keeps only TOP n results at any
+                // time.
+                if self.req.order.order == Order::Desc {
+                    entries.sort_unstable_by_key(|bucket| std::cmp::Reverse(bucket.0));
+                } else {
+                    entries.sort_unstable_by_key(|bucket| bucket.0);
+                }
             }
             OrderTarget::SubAggregation(_name) => {
                 // don't sort and cut off since it's hard to make assumptions on the quality of the
@@ -344,12 +351,11 @@ impl SegmentTermCollector {
             }
         }
 
-        let (term_doc_count_before_cutoff, mut sum_other_doc_count) =
-            if order_by_key || order_by_sub_aggregation {
-                (0, 0)
-            } else {
-                cut_off_buckets(&mut entries, self.req.segment_size as usize)
-            };
+        let (term_doc_count_before_cutoff, mut sum_other_doc_count) = if order_by_sub_aggregation {
+            (0, 0)
+        } else {
+            cut_off_buckets(&mut entries, self.req.segment_size as usize)
+        };
 
         let inverted_index = agg_with_accessor
             .str_dict_column
@@ -372,6 +378,7 @@ impl SegmentTermCollector {
             );
         }
         if self.req.min_doc_count == 0 {
+            // TODO: Handle rev streaming for descending sorting by keys
             let mut stream = term_dict.dictionary().stream()?;
             while let Some((key, _ord)) = stream.next() {
                 if dict.len() >= self.req.segment_size as usize {
