@@ -210,10 +210,12 @@ impl CompatibleNumericalTypes {
 }
 
 impl NumericalColumnWriter {
-    pub fn column_type_and_cardinality(&self, num_docs: RowId) -> (NumericalType, Cardinality) {
-        let numerical_type = self.compatible_numerical_types.to_numerical_type();
-        let cardinality = self.column_writer.get_cardinality(num_docs);
-        (numerical_type, cardinality)
+    pub fn numerical_type(&self) -> NumericalType {
+        self.compatible_numerical_types.to_numerical_type()
+    }
+
+    pub fn cardinality(&self, num_docs: RowId) -> Cardinality {
+        self.column_writer.get_cardinality(num_docs)
     }
 
     pub fn record_numerical_value(
