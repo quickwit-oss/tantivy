@@ -22,7 +22,7 @@ impl FileAddr {
 }
 
 impl BinarySerializable for FileAddr {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.field.serialize(writer)?;
         VInt(self.idx as u64).serialize(writer)?;
         Ok(())
@@ -169,12 +169,11 @@ impl CompositeFile {
     }
 
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
-        let mut fields = HashMap::new();
+        let mut fields = Vec::new();
         for (&field_addr, byte_range) in &self.offsets_index {
-            fields
-                .entry(field_addr.field)
-                .or_insert_with(|| FieldUsage::empty(field_addr.field))
-                .add_field_idx(field_addr.idx, byte_range.len());
+            let mut field_usage = FieldUsage::empty(field_addr.field);
+            field_usage.add_field_idx(field_addr.idx, byte_range.len());
+            fields.push(field_usage);
         }
         PerFieldSpaceUsage::new(fields)
     }

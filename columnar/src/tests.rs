@@ -12,7 +12,7 @@ fn test_dataframe_writer_str() {
     dataframe_writer.record_str(1u32, "my_string", "hello");
     dataframe_writer.record_str(3u32, "my_string", "helloeee");
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
@@ -26,7 +26,7 @@ fn test_dataframe_writer_bytes() {
     dataframe_writer.record_bytes(1u32, "my_string", b"hello");
     dataframe_writer.record_bytes(3u32, "my_string", b"helloeee");
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
@@ -40,7 +40,7 @@ fn test_dataframe_writer_bool() {
     dataframe_writer.record_bool(1u32, "bool.value", false);
     dataframe_writer.record_bool(3u32, "bool.value", true);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("bool.value").unwrap();
@@ -63,7 +63,7 @@ fn test_dataframe_writer_u64_multivalued() {
     dataframe_writer.record_numerical(6u32, "divisor", 2u64);
     dataframe_writer.record_numerical(6u32, "divisor", 3u64);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(7, &mut buffer).unwrap();
+    dataframe_writer.serialize(7, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("divisor").unwrap();
@@ -84,7 +84,7 @@ fn test_dataframe_writer_ip_addr() {
     dataframe_writer.record_ip_addr(1, "ip_addr", Ipv6Addr::from_u128(1001));
     dataframe_writer.record_ip_addr(3, "ip_addr", Ipv6Addr::from_u128(1050));
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("ip_addr").unwrap();
@@ -113,7 +113,7 @@ fn test_dataframe_writer_numerical() {
     dataframe_writer.record_numerical(2u32, "srical.value", NumericalValue::U64(13u64));
     dataframe_writer.record_numerical(4u32, "srical.value", NumericalValue::U64(15u64));
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(6, &mut buffer).unwrap();
+    dataframe_writer.serialize(6, None, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("srical.value").unwrap();
@@ -144,7 +144,7 @@ fn test_dictionary_encoded_str() {
     columnar_writer.record_str(3, "my.column", "c");
     columnar_writer.record_str(3, "my.column2", "different_column!");
     columnar_writer.record_str(4, "my.column", "b");
-    columnar_writer.serialize(5, &mut buffer).unwrap();
+    columnar_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
@@ -176,7 +176,7 @@ fn test_dictionary_encoded_bytes() {
     columnar_writer.record_bytes(3, "my.column", b"c");
     columnar_writer.record_bytes(3, "my.column2", b"different_column!");
     columnar_writer.record_bytes(4, "my.column", b"b");
-    columnar_writer.serialize(5, &mut buffer).unwrap();
+    columnar_writer.serialize(5, None, &mut buffer).unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();

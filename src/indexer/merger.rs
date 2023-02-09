@@ -1,27 +1,22 @@
-use std::collections::HashMap;
-use std::io::Write;
 use std::sync::Arc;
 
-use fastfield_codecs::VecColumn;
+use columnar::{
+    ColumnValues, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
+};
+use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
-use super::flat_map_with_buffer::FlatMapWithBufferIter;
-use super::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueIndexColumn;
 use crate::core::{Segment, SegmentReader};
+use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
-use crate::fastfield::{
-    get_fastfield_codecs_for_multivalue, AliveBitSet, Column, CompositeFastFieldSerializer,
-    MultiValueIndex, MultiValuedFastFieldReader,
-};
+use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
-use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
-use crate::indexer::sorted_doc_id_column::RemappedDocIdColumn;
-use crate::indexer::sorted_doc_id_multivalue_column::RemappedDocIdMultiValueColumn;
+use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
-use crate::schema::{Cardinality, Field, FieldType, Schema};
+use crate::schema::{Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
@@ -91,29 +86,6 @@ pub struct IndexMerger {
     max_doc: u32,
 }
 
-struct TermOrdinalMapping {
-    per_segment_new_term_ordinals: Vec<Vec<TermOrdinal>>,
-}
-
-impl TermOrdinalMapping {
-    fn new(max_term_ords: Vec<TermOrdinal>) -> TermOrdinalMapping {
-        TermOrdinalMapping {
-            per_segment_new_term_ordinals: max_term_ords
-                .into_iter()
-                .map(|max_term_ord| vec![TermOrdinal::default(); max_term_ord as usize])
-                .collect(),
-        }
-    }
-
-    fn register_from_to(&mut self, segment_ord: usize, from_ord: TermOrdinal, to_ord: TermOrdinal) {
-        self.per_segment_new_term_ordinals[segment_ord][from_ord as usize] = to_ord;
-    }
-
-    fn get_segment(&self, segment_ord: usize) -> &[TermOrdinal] {
-        &(self.per_segment_new_term_ordinals[segment_ord])[..]
-    }
-}
-
 struct DeltaComputer {
     buffer: Vec<u32>,
 }
@@ -135,6 +107,31 @@ impl DeltaComputer {
             last_pos = cur_pos;
         }
         &self.buffer[..positions.len()]
+    }
+}
+
+fn convert_to_merge_order<'a>(
+    columnars: &[&'a ColumnarReader],
+    doc_id_mapping: SegmentDocIdMapping,
+) -> MergeRowOrder {
+    match doc_id_mapping.mapping_type() {
+        MappingType::Stacked => MergeRowOrder::Stack(StackMergeOrder::stack(columnars)),
+        MappingType::StackedWithDeletes | MappingType::Shuffled => {
+            // RUST/LLVM is amazing. The following conversion is actually a no-op:
+            // no allocation, no copy.
+            let new_row_id_to_old_row_id: Vec<RowAddr> = doc_id_mapping
+                .new_doc_id_to_old_doc_addr
+                .into_iter()
+                .map(|doc_addr| RowAddr {
+                    segment_ord: doc_addr.segment_ord,
+                    row_id: doc_addr.doc_id,
+                })
+                .collect();
+            MergeRowOrder::Shuffled(ShuffleMergeOrder {
+                new_row_id_to_old_row_id,
+                alive_bitsets: doc_id_mapping.alive_bitsets,
+            })
+        }
     }
 }
 
@@ -229,7 +226,6 @@ impl IndexMerger {
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
         for field in fields {
             fieldnorms_data.clear();
-
             let fieldnorms_readers: Vec<FieldNormReader> = self
                 .readers
                 .iter()
@@ -240,7 +236,6 @@ impl IndexMerger {
                 let fieldnorm_id = fieldnorms_reader.fieldnorm_id(old_doc_addr.doc_id);
                 fieldnorms_data.push(fieldnorm_id);
             }
-
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
         }
         fieldnorms_serializer.close()?;
@@ -249,200 +244,17 @@ impl IndexMerger {
 
     fn write_fast_fields(
         &self,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
-        doc_id_mapping: &SegmentDocIdMapping,
+        fast_field_wrt: &mut WritePtr,
+        doc_id_mapping: SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write-fast-fields");
-
-        for (field, field_entry) in self.schema.fields() {
-            let field_type = field_entry.field_type();
-            match field_type {
-                FieldType::Facet(_) | FieldType::Str(_) if field_type.is_fast() => {
-                    let term_ordinal_mapping = term_ord_mappings.remove(&field).expect(
-                        "Logic Error in Tantivy (Please report). Facet field should have required \
-                         a`term_ordinal_mapping`.",
-                    );
-                    self.write_term_id_fast_field(
-                        field,
-                        &term_ordinal_mapping,
-                        fast_field_serializer,
-                        doc_id_mapping,
-                    )?;
-                }
-                FieldType::U64(ref options)
-                | FieldType::I64(ref options)
-                | FieldType::F64(ref options)
-                | FieldType::Bool(ref options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                    Some(Cardinality::MultiValues) => {
-                        self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                    None => {}
-                },
-                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                    Some(Cardinality::MultiValues) => {
-                        self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                    None => {}
-                },
-                FieldType::Bytes(byte_options) => {
-                    if byte_options.is_fast() {
-                        self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
-                    }
-                }
-                FieldType::IpAddr(options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        self.write_u128_single_fast_field(
-                            field,
-                            fast_field_serializer,
-                            doc_id_mapping,
-                        )?;
-                    }
-                    Some(Cardinality::MultiValues) => {
-                        self.write_u128_multi_fast_field(
-                            field,
-                            fast_field_serializer,
-                            doc_id_mapping,
-                        )?;
-                    }
-                    None => {}
-                },
-
-                FieldType::JsonObject(_) | FieldType::Facet(_) | FieldType::Str(_) => {
-                    // We don't handle json fast field for the moment
-                    // They can be implemented using what is done
-                    // for facets in the future
-                }
-            }
-        }
-        Ok(())
-    }
-
-    // used to merge `u128` single fast fields.
-    fn write_u128_multi_fast_field(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        let segment_and_ff_readers: Vec<(&SegmentReader, MultiValuedFastFieldReader<u128>)> = self
+        let columnars: Vec<&ColumnarReader> = self
             .readers
             .iter()
-            .map(|segment_reader| {
-                let ff_reader: MultiValuedFastFieldReader<u128> = segment_reader
-                    .fast_fields()
-                    .u128s(self.schema.get_field_name(field))
-                    .expect(
-                        "Failed to find index for multivalued field. This is a bug in tantivy, \
-                         please report.",
-                    );
-                (segment_reader, ff_reader)
-            })
-            .collect::<Vec<_>>();
-
-        Self::write_1_n_fast_field_idx_generic(
-            field,
-            fast_field_serializer,
-            doc_id_mapping,
-            &segment_and_ff_readers
-                .iter()
-                .map(|(segment_reader, u64s_reader)| {
-                    (*segment_reader, u64s_reader.get_index_reader())
-                })
-                .collect::<Vec<_>>(),
-        )?;
-
-        let num_vals = segment_and_ff_readers
-            .iter()
-            .map(|(segment_reader, reader)| {
-                // TODO implement generic version, implement reverse scan, all - deletes
-                if let Some(alive_bitset) = segment_reader.alive_bitset() {
-                    alive_bitset
-                        .iter_alive()
-                        .map(|doc| reader.num_vals(doc))
-                        .sum()
-                } else {
-                    reader.total_num_vals()
-                }
-            })
-            .sum();
-
-        let fast_field_readers = segment_and_ff_readers
-            .into_iter()
-            .map(|(_, ff_reader)| ff_reader)
-            .collect::<Vec<_>>();
-
-        let iter_gen = || {
-            doc_id_mapping
-                .iter_old_doc_addrs()
-                .flat_map_with_buffer(|doc_addr, buffer| {
-                    let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
-                    fast_field_reader.get_vals(doc_addr.doc_id, buffer);
-                })
-        };
-
-        fast_field_serializer.create_u128_fast_field_with_idx(field, iter_gen, num_vals, 1)?;
-
-        Ok(())
-    }
-
-    // used to merge `u128` single fast fields.
-    fn write_u128_single_fast_field(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        let fast_field_readers = self
-            .readers
-            .iter()
-            .map(|reader| {
-                let u128_reader: Arc<dyn Column<u128>> = reader
-                    .fast_fields()
-                    .u128(self.schema.get_field_name(field))
-                    .expect(
-                        "Failed to find a reader for single fast field. This is a tantivy bug and \
-                         it should never happen.",
-                    );
-                u128_reader
-            })
-            .collect::<Vec<_>>();
-
-        let iter_gen = || {
-            doc_id_mapping.iter_old_doc_addrs().map(|doc_addr| {
-                let fast_field_reader = &fast_field_readers[doc_addr.segment_ord as usize];
-                fast_field_reader.get_val(doc_addr.doc_id)
-            })
-        };
-        fast_field_serializer.create_u128_fast_field_with_idx(
-            field,
-            iter_gen,
-            doc_id_mapping.len() as u32,
-            0,
-        )?;
-        Ok(())
-    }
-
-    // used both to merge field norms, `u64/i64` single fast fields.
-    fn write_single_fast_field(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        let fast_field_accessor = RemappedDocIdColumn::new(
-            &self.readers,
-            doc_id_mapping,
-            self.schema.get_field_name(field),
-        );
-        fast_field_serializer.create_auto_detect_u64_fast_field(field, fast_field_accessor)?;
-
+            .map(|reader| reader.fast_fields().columnar())
+            .collect();
+        let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
+        columnar::merge_columnar(&columnars[..], merge_row_order, fast_field_wrt)?;
         Ok(())
     }
 
@@ -472,16 +284,21 @@ impl IndexMerger {
     pub(crate) fn get_sort_field_accessor(
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Arc<dyn Column>> {
+    ) -> crate::Result<Arc<dyn ColumnValues>> {
         reader.schema().get_field(&sort_by_field.field)?;
-        let value_accessor = reader.fast_fields().u64_lenient(&sort_by_field.field)?;
-        Ok(value_accessor)
+        let value_accessor = reader
+            .fast_fields()
+            .u64_lenient(&sort_by_field.field)?
+            .ok_or_else(|| FastFieldNotAvailableError {
+                field_name: sort_by_field.field.to_string(),
+            })?;
+        Ok(value_accessor.first_or_default_col(0u64))
     }
     /// Collecting value_accessors into a vec to bind the lifetime.
     pub(crate) fn get_reader_with_sort_field_accessor(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Vec<(SegmentOrdinal, Arc<dyn Column>)>> {
+    ) -> crate::Result<Vec<(SegmentOrdinal, Arc<dyn ColumnValues>)>> {
         let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
@@ -502,7 +319,7 @@ impl IndexMerger {
     /// doc_id.
     /// ReaderWithOrdinal will include the ordinal position of the
     /// reader in self.readers.
-    pub(crate) fn generate_doc_id_mapping(
+    pub(crate) fn generate_doc_id_mapping_with_sort_by_field(
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<SegmentDocIdMapping> {
@@ -547,112 +364,23 @@ impl IndexMerger {
                     segment_ord,
                 }),
         );
-        Ok(SegmentDocIdMapping::new(sorted_doc_ids, false))
-    }
 
-    // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
-    // `MultiValuedFastFieldReader`
-    //
-    fn write_1_n_fast_field_idx_generic(
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-        segment_and_ff_readers: &[(&SegmentReader, &MultiValueIndex)],
-    ) -> crate::Result<()> {
-        let column =
-            RemappedDocIdMultiValueIndexColumn::new(segment_and_ff_readers, doc_id_mapping);
-
-        fast_field_serializer.create_auto_detect_u64_fast_field(field, column)?;
-        Ok(())
-    }
-    /// Returns the fastfield index (index for the data, not the data).
-    fn write_multi_value_fast_field_idx(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        let segment_and_ff_readers = self
+        let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = self
             .readers
             .iter()
-            .map(|reader| {
-                let u64s_reader: MultiValuedFastFieldReader<u64> = reader
-                    .fast_fields()
-                    .typed_fast_field_multi_reader::<u64>(self.schema.get_field_name(field))
-                    .expect(
-                        "Failed to find index for multivalued field. This is a bug in tantivy, \
-                         please report.",
-                    );
-                (reader, u64s_reader)
-            })
-            .collect::<Vec<_>>();
-
-        Self::write_1_n_fast_field_idx_generic(
-            field,
-            fast_field_serializer,
-            doc_id_mapping,
-            &segment_and_ff_readers
-                .iter()
-                .map(|(segment_reader, u64s_reader)| {
-                    (*segment_reader, u64s_reader.get_index_reader())
-                })
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    fn write_term_id_fast_field(
-        &self,
-        field: Field,
-        term_ordinal_mappings: &TermOrdinalMapping,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        debug_time!("write-term-id-fast-field");
-
-        // Multifastfield consists of 2 fastfields.
-        // The first serves as an index into the second one and is strictly increasing.
-        // The second contains the actual values.
-
-        // First we merge the idx fast field.
-        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
-
-        let fast_field_reader = self
-            .readers
-            .iter()
-            .map(|reader| {
-                let ff_reader: MultiValuedFastFieldReader<u64> = reader
-                    .fast_fields()
-                    .u64s(self.schema.get_field_name(field))
-                    .expect("Could not find multivalued u64 fast value reader.");
-                ff_reader
-            })
-            .collect::<Vec<_>>();
-        // We can now write the actual fast field values.
-        // In the case of hierarchical facets, they are actually term ordinals.
-        {
-            let mut vals = Vec::new();
-            let mut buffer = Vec::new();
-            for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
-                let term_ordinal_mapping: &[TermOrdinal] =
-                    term_ordinal_mappings.get_segment(old_doc_addr.segment_ord as usize);
-
-                let ff_reader = &fast_field_reader[old_doc_addr.segment_ord as usize];
-                ff_reader.get_vals(old_doc_addr.doc_id, &mut buffer);
-                for &prev_term_ord in &buffer {
-                    let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
-                    vals.push(new_term_ord);
+            .map(|segment_reader| {
+                if let Some(alive_bitset) = segment_reader.alive_bitset() {
+                    Some(alive_bitset.bitset().clone())
+                } else {
+                    None
                 }
-            }
-
-            let col = VecColumn::from(&vals[..]);
-            fast_field_serializer.create_auto_detect_u64_fast_field_with_idx_and_codecs(
-                field,
-                col,
-                1,
-                &get_fastfield_codecs_for_multivalue(),
-            )?;
-        }
-        Ok(())
+            })
+            .collect();
+        Ok(SegmentDocIdMapping::new(
+            sorted_doc_ids,
+            MappingType::Shuffled,
+            alive_bitsets,
+        ))
     }
 
     /// Creates a mapping if the segments are stacked. this is helpful to merge codelines between
@@ -677,89 +405,39 @@ impl IndexMerger {
                     })
                 }),
         );
-        Ok(SegmentDocIdMapping::new(mapping, true))
-    }
-    fn write_multi_fast_field(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        // Multifastfield consists of 2 fastfields.
-        // The first serves as an index into the second one and is strictly increasing.
-        // The second contains the actual values.
 
-        // First we merge the idx fast field.
-
-        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
-
-        let fastfield_accessor = RemappedDocIdMultiValueColumn::new(
-            &self.readers,
-            doc_id_mapping,
-            self.schema.get_field_name(field),
-        );
-        fast_field_serializer.create_auto_detect_u64_fast_field_with_idx_and_codecs(
-            field,
-            fastfield_accessor,
-            1,
-            &get_fastfield_codecs_for_multivalue(),
-        )?;
-
-        Ok(())
-    }
-
-    fn write_bytes_fast_field(
-        &self,
-        field: Field,
-        fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<()> {
-        let segment_and_ff_readers = self
+        let has_deletes: bool = self.readers.iter().any(SegmentReader::has_deletes);
+        let mapping_type = if has_deletes {
+            MappingType::StackedWithDeletes
+        } else {
+            MappingType::Stacked
+        };
+        let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = self
             .readers
             .iter()
             .map(|reader| {
-                let bytes_reader = reader
-                    .fast_fields()
-                    .bytes(self.schema.get_field_name(field))
-                    .expect(
-                        "Failed to find index for bytes field. This is a bug in tantivy, please \
-                         report.",
-                    );
-                (reader, bytes_reader)
+                if let Some(bitset) = reader.alive_bitset() {
+                    Some(bitset.bitset().clone())
+                } else {
+                    None
+                }
             })
-            .collect::<Vec<_>>();
-        Self::write_1_n_fast_field_idx_generic(
-            field,
-            fast_field_serializer,
-            doc_id_mapping,
-            &segment_and_ff_readers
-                .iter()
-                .map(|(segment_reader, u64s_reader)| {
-                    (*segment_reader, u64s_reader.get_index_reader())
-                })
-                .collect::<Vec<_>>(),
-        )?;
-
-        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field(field);
-
-        for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
-            let bytes_reader = &segment_and_ff_readers[old_doc_addr.segment_ord as usize].1;
-            let val = bytes_reader.get_bytes(old_doc_addr.doc_id);
-            serialize_vals.write_all(val)?;
-        }
-
-        serialize_vals.flush()?;
-        Ok(())
+            .collect();
+        Ok(SegmentDocIdMapping::new(
+            mapping,
+            mapping_type,
+            alive_bitsets,
+        ))
     }
 
     fn write_postings_for_field(
         &self,
         indexed_field: Field,
-        field_type: &FieldType,
+        _field_type: &FieldType,
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<Option<TermOrdinalMapping>> {
+    ) -> crate::Result<()> {
         debug_time!("write-postings-for-field");
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
@@ -778,14 +456,6 @@ impl IndexMerger {
             field_term_streams.push(terms.stream()?);
             max_term_ords.push(terms.num_terms() as u64);
         }
-
-        let mut term_ord_mapping_opt = match field_type {
-            FieldType::Facet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
-            FieldType::Str(options) if options.is_fast() => {
-                Some(TermOrdinalMapping::new(max_term_ords))
-            }
-            _ => None,
-        };
 
         let mut merged_terms = TermMerger::new(field_term_streams);
 
@@ -869,13 +539,7 @@ impl IndexMerger {
                 continue;
             }
 
-            let to_term_ord = field_serializer.new_term(term_bytes, total_doc_freq)?;
-
-            if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
-                for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
-                    term_ord_mapping.register_from_to(segment_ord, from_term_ord, to_term_ord);
-                }
-            }
+            field_serializer.new_term(term_bytes, total_doc_freq)?;
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
@@ -927,7 +591,7 @@ impl IndexMerger {
             field_serializer.close_term()?;
         }
         field_serializer.close()?;
-        Ok(term_ord_mapping_opt)
+        Ok(())
     }
 
     fn write_postings(
@@ -935,23 +599,20 @@ impl IndexMerger {
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
         doc_id_mapping: &SegmentDocIdMapping,
-    ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
-        let mut term_ordinal_mappings = HashMap::new();
+    ) -> crate::Result<()> {
         for (field, field_entry) in self.schema.fields() {
             let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             if field_entry.is_indexed() {
-                if let Some(term_ordinal_mapping) = self.write_postings_for_field(
+                self.write_postings_for_field(
                     field,
                     field_entry.field_type(),
                     serializer,
                     fieldnorm_reader,
                     doc_id_mapping,
-                )? {
-                    term_ordinal_mappings.insert(field, term_ordinal_mapping);
-                }
+                )?;
             }
         }
-        Ok(term_ordinal_mappings)
+        Ok(())
     }
 
     fn write_storable_fields(
@@ -1036,7 +697,7 @@ impl IndexMerger {
             if self.is_disjunct_and_sorted_on_sort_property(sort_by_field)? {
                 self.get_doc_id_from_concatenated_data()?
             } else {
-                self.generate_doc_id_mapping(sort_by_field)?
+                self.generate_doc_id_mapping_with_sort_by_field(sort_by_field)?
             }
         } else {
             self.get_doc_id_from_concatenated_data()?
@@ -1050,19 +711,17 @@ impl IndexMerger {
             .segment()
             .open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-        let term_ord_mappings = self.write_postings(
+        self.write_postings(
             serializer.get_postings_serializer(),
             fieldnorm_readers,
             &doc_id_mapping,
         )?;
-        debug!("write-fastfields");
-        self.write_fast_fields(
-            serializer.get_fast_field_serializer(),
-            term_ord_mappings,
-            &doc_id_mapping,
-        )?;
+
         debug!("write-storagefields");
         self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
+        debug!("write-fastfields");
+        self.write_fast_fields(serializer.get_fast_field_write(), doc_id_mapping)?;
+
         debug!("close-serializer");
         serializer.close()?;
         Ok(self.max_doc)
@@ -1071,7 +730,8 @@ impl IndexMerger {
 
 #[cfg(test)]
 mod tests {
-    use byteorder::{BigEndian, ReadBytesExt};
+
+    use columnar::Column;
     use schema::FAST;
 
     use crate::collector::tests::{
@@ -1081,12 +741,12 @@ mod tests {
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
-        Cardinality, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
-        TextFieldIndexing, INDEXED, TEXT,
+        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
+        INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
-        assert_nearly_equals, schema, DateTime, DocAddress, DocSet, IndexSettings,
+        assert_nearly_equals, schema, DateTime, DocAddress, DocId, DocSet, IndexSettings,
         IndexSortByField, IndexWriter, Order, Searcher, SegmentId,
     };
 
@@ -1100,7 +760,7 @@ mod tests {
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", INDEXED);
-        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1218,19 +878,17 @@ mod tests {
                     Some("a b c g")
                 );
             }
+
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    searcher.search(
-                        &query,
-                        &FastFieldTestCollector::for_field("score".to_string()),
-                    )
+                    searcher.search(&query, &FastFieldTestCollector::for_field("score"))
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
                     searcher.search(
                         &query,
-                        &BytesFastFieldTestCollector::for_field(bytes_score_field),
+                        &BytesFastFieldTestCollector::for_field("score_bytes"),
                     )
                 };
                 assert_eq!(
@@ -1255,25 +913,26 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let score_fieldtype = schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests()?;
         let reader = index.reader().unwrap();
         let search_term = |searcher: &Searcher, term: Term| {
-            let collector = FastFieldTestCollector::for_field("score".to_string());
-            let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
+            let collector = FastFieldTestCollector::for_field("score");
+            // let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
             let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-            searcher
-                .search(&term_query, &(collector, bytes_collector))
-                .map(|(scores, bytes)| {
-                    let mut score_bytes = &bytes[..];
-                    for &score in &scores {
-                        assert_eq!(score as u32, score_bytes.read_u32::<BigEndian>().unwrap());
-                    }
-                    scores
-                })
+            // searcher
+            //     .search(&term_query, &(collector, bytes_collector))
+            //     .map(|(scores, bytes)| {
+            //         let mut score_bytes = &bytes[..];
+            //         for &score in &scores {
+            //             assert_eq!(score as u32, score_bytes.read_u32::<BigEndian>().unwrap());
+            //         }
+            //         scores
+            //     })
+            searcher.search(&term_query, &collector)
         };
 
         let empty_vec = Vec::<u64>::new();
@@ -1552,6 +1211,7 @@ mod tests {
         }
         Ok(())
     }
+
     #[test]
     fn test_merge_facets_sort_none() {
         test_merge_facets(None, true)
@@ -1570,7 +1230,7 @@ mod tests {
             }),
             true,
         );
-        // In the merge case this will not go through the doc_id mapping code, because the data is
+        // In the merge case this will not go through the doc_id mapping code, because the data
         // sorted and disjunct
         test_merge_facets(
             Some(IndexSettings {
@@ -1597,7 +1257,7 @@ mod tests {
             }),
             true,
         );
-        // In the merge case this will not go through the doc_id mapping code, because the data is
+        // In the merge case this will not go through the doc_id mapping code, because the data
         // sorted and disjunct
         test_merge_facets(
             Some(IndexSettings {
@@ -1610,14 +1270,13 @@ mod tests {
             false,
         );
     }
+
     // force_segment_value_overlap forces the int value for sorting to have overlapping min and max
     // ranges between segments so that merge algorithm can't apply certain optimizations
     fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap: bool) {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
-        let int_options = NumericOptions::default()
-            .set_fast(Cardinality::SingleValue)
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
         let mut index_builder = Index::builder().schema(schema_builder.build());
         if let Some(settings) = index_settings {
@@ -1678,7 +1337,7 @@ mod tests {
         reader.reload().unwrap();
         let test_searcher = |expected_num_docs: usize, expected: &[(&str, u64)]| {
             let searcher = reader.searcher();
-            let mut facet_collector = FacetCollector::for_field(facet_field);
+            let mut facet_collector = FacetCollector::for_field("facet");
             facet_collector.add_facet(Facet::from("/top"));
             let (count, facet_counts) = searcher
                 .search(&AllQuery, &(Count, facet_collector))
@@ -1782,9 +1441,7 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_all_deleted() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast(Cardinality::MultiValues)
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader()?;
@@ -1819,11 +1476,16 @@ mod tests {
     #[test]
     fn test_merge_multivalued_int_fields_simple() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let int_options = NumericOptions::default()
-            .set_fast(Cardinality::MultiValues)
-            .set_indexed();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
+
+        let mut vals: Vec<u64> = Vec::new();
+        let mut test_vals = move |col: &Column<u64>, doc: DocId, expected: &[u64]| {
+            vals.clear();
+            vals.extend(col.values(doc));
+            assert_eq!(&vals[..], expected);
+        };
 
         {
             let mut index_writer = index.writer_for_tests()?;
@@ -1850,49 +1512,42 @@ mod tests {
         }
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut vals: Vec<u64> = Vec::new();
 
         {
             let segment = searcher.segment_reader(0u32);
-            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
-
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1, 2, 3]);
-
-            ff_reader.get_vals(2, &mut vals);
-            assert_eq!(&vals, &[4, 5]);
-
-            ff_reader.get_vals(3, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(4, &mut vals);
-            assert_eq!(&vals, &[1, 5]);
-
-            ff_reader.get_vals(5, &mut vals);
-            assert_eq!(&vals, &[3]);
-
-            ff_reader.get_vals(6, &mut vals);
-            assert_eq!(&vals, &[17]);
+            let column = segment
+                .fast_fields()
+                .column_opt::<u64>("intvals")
+                .unwrap()
+                .unwrap();
+            test_vals(&column, 0, &[1, 2]);
+            test_vals(&column, 1, &[1, 2, 3]);
+            test_vals(&column, 2, &[4, 5]);
+            test_vals(&column, 3, &[1, 2]);
+            test_vals(&column, 4, &[1, 5]);
+            test_vals(&column, 5, &[3]);
+            test_vals(&column, 6, &[17]);
         }
 
         {
             let segment = searcher.segment_reader(1u32);
-            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[28, 27]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1_000]);
+            let col = segment
+                .fast_fields()
+                .column_opt::<u64>("intvals")
+                .unwrap()
+                .unwrap();
+            test_vals(&col, 0, &[28, 27]);
+            test_vals(&col, 1, &[1000]);
         }
 
         {
             let segment = searcher.segment_reader(2u32);
-            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[20]);
+            let col = segment
+                .fast_fields()
+                .column_opt::<u64>("intvals")
+                .unwrap()
+                .unwrap();
+            test_vals(&col, 0, &[20]);
         }
 
         // Merging the segments
@@ -1907,37 +1562,21 @@ mod tests {
         {
             let searcher = reader.searcher();
             let segment = searcher.segment_reader(0u32);
-            let ff_reader = segment.fast_fields().u64s("intvals").unwrap();
-
-            ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1, 2, 3]);
-
-            ff_reader.get_vals(2, &mut vals);
-            assert_eq!(&vals, &[4, 5]);
-
-            ff_reader.get_vals(3, &mut vals);
-            assert_eq!(&vals, &[1, 2]);
-
-            ff_reader.get_vals(4, &mut vals);
-            assert_eq!(&vals, &[1, 5]);
-
-            ff_reader.get_vals(5, &mut vals);
-            assert_eq!(&vals, &[3]);
-
-            ff_reader.get_vals(6, &mut vals);
-            assert_eq!(&vals, &[17]);
-
-            ff_reader.get_vals(7, &mut vals);
-            assert_eq!(&vals, &[28, 27]);
-
-            ff_reader.get_vals(8, &mut vals);
-            assert_eq!(&vals, &[1_000]);
-
-            ff_reader.get_vals(9, &mut vals);
-            assert_eq!(&vals, &[20]);
+            let col = segment
+                .fast_fields()
+                .column_opt::<u64>("intvals")
+                .unwrap()
+                .unwrap();
+            test_vals(&col, 0, &[1, 2]);
+            test_vals(&col, 1, &[1, 2, 3]);
+            test_vals(&col, 2, &[4, 5]);
+            test_vals(&col, 3, &[1, 2]);
+            test_vals(&col, 4, &[1, 5]);
+            test_vals(&col, 5, &[3]);
+            test_vals(&col, 6, &[17]);
+            test_vals(&col, 7, &[28, 27]);
+            test_vals(&col, 8, &[1000]);
+            test_vals(&col, 9, &[20]);
         }
         Ok(())
     }
@@ -1946,7 +1585,7 @@ mod tests {
     fn merges_f64_fast_fields_correctly() -> crate::Result<()> {
         let mut builder = schema::SchemaBuilder::new();
 
-        let fast_multi = NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let fast_multi = NumericOptions::default().set_fast();
 
         let field = builder.add_f64_field("f64", schema::FAST);
         let multi_field = builder.add_f64_field("f64s", fast_multi);

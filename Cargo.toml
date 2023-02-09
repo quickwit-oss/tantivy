@@ -23,7 +23,7 @@ regex = { version = "1.5.5", default-features = false, features = ["std", "unico
 aho-corasick = "0.7"
 tantivy-fst = "0.4.0"
 memmap2 = { version = "0.5.3", optional = true }
-lz4_flex = { version = "0.9.2", default-features = false, features = ["checked-decode"], optional = true }
+lz4_flex = { version = "0.10", default-features = false, features = ["checked-decode"], optional = true }
 brotli = { version = "3.3.4", optional = true }
 zstd = { version = "0.12", optional = true, default-features = false }
 snap = { version = "1.0.5", optional = true }
@@ -59,9 +59,8 @@ columnar = { version="0.1", path="./columnar", package ="tantivy-columnar" }
 sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optional = true }
 stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
 tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
-tantivy-bitpacker = 		{ version= "0.3", path="./bitpacker" }
-common = 								{ version= "0.5", path = "./common/", package = "tantivy-common" }
-fastfield_codecs = 			{ version= "0.3", path="./fastfield_codecs", default-features = false }
+tantivy-bitpacker = { version= "0.3", path="./bitpacker" }
+common = { version= "0.5", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version="0.1", path="./tokenizer-api", package="tantivy-tokenizer-api" }
 
 [target.'cfg(windows)'.dependencies]
@@ -108,7 +107,7 @@ unstable = [] # useful for benches.
 quickwit = ["sstable"]
 
 [workspace]
-members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
+members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
 
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points

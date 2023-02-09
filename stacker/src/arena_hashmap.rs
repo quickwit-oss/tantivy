@@ -209,6 +209,25 @@ impl ArenaHashMap {
         }
     }
 
+    /// Get a value associated to a key.
+    pub fn get<V>(&self, key: &[u8]) -> Option<V>
+    where V: Copy + 'static {
+        let hash = murmurhash2(key);
+        let mut probe = self.probe(hash);
+        loop {
+            let bucket = probe.next_probe();
+            let kv: KeyValue = self.table[bucket];
+            if kv.is_empty() {
+                return None;
+            } else if kv.hash == hash {
+                if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
+                    let v = self.memory_arena.read(val_addr);
+                    return Some(v);
+                }
+            }
+        }
+    }
+
     /// `update` create a new entry for a given key if it does not exist
     /// or updates the existing entry.
     ///
@@ -219,14 +238,13 @@ impl ArenaHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
-    pub fn mutate_or_create<V, TMutator>(
+    pub fn mutate_or_create<V>(
         &mut self,
         key: &[u8],
-        mut updater: TMutator,
+        mut updater: impl FnMut(Option<V>) -> V,
     ) -> UnorderedId
     where
         V: Copy + 'static,
-        TMutator: FnMut(Option<V>) -> V,
     {
         if self.is_saturated() {
             self.resize();

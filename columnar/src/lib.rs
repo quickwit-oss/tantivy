@@ -11,28 +11,46 @@ use std::io;
 
 mod column;
 mod column_index;
-mod column_values;
+pub mod column_values;
 mod columnar;
 mod dictionary;
 mod dynamic_column;
+mod iterable;
 pub(crate) mod utils;
 mod value;
 
 pub use column::{BytesColumn, Column, StrColumn};
-pub use column_values::ColumnValues;
+pub use column_index::ColumnIndex;
+pub use column_values::{ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeDocOrder,
+    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder,
 };
+use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
 pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 
+#[derive(Clone, Copy)]
+pub struct RowAddr {
+    pub segment_ord: u32,
+    pub row_id: RowId,
+}
+
+pub use sstable::Dictionary;
+pub type Streamer<'a> = sstable::Streamer<'a, VoidSSTable>;
+
 #[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
 pub struct DateTime {
     pub timestamp_micros: i64,
+}
+
+impl DateTime {
+    pub fn into_timestamp_micros(self) -> i64 {
+        self.timestamp_micros
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -62,6 +80,12 @@ pub enum Cardinality {
 }
 
 impl Cardinality {
+    pub fn is_optional(&self) -> bool {
+        matches!(self, Cardinality::Optional)
+    }
+    pub fn is_multivalue(&self) -> bool {
+        matches!(self, Cardinality::Multivalued)
+    }
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }

@@ -2,9 +2,8 @@
 
 use std::rc::Rc;
 use std::sync::atomic::AtomicU32;
-use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use columnar::{Column, StrColumn};
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
@@ -14,9 +13,8 @@ use super::metric::{
 };
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::fastfield::{type_and_cardinality, MultiValuedFastFieldReader};
-use crate::schema::{Cardinality, Type};
-use crate::{InvertedIndexReader, SegmentReader, TantivyError};
+use crate::schema::Type;
+use crate::{SegmentReader, TantivyError};
 
 #[derive(Clone, Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -38,37 +36,11 @@ impl AggregationsWithAccessor {
 }
 
 #[derive(Clone)]
-pub(crate) enum FastFieldAccessor {
-    Multi(MultiValuedFastFieldReader<u64>),
-    Single(Arc<dyn Column<u64>>),
-}
-impl FastFieldAccessor {
-    pub fn as_single(&self) -> Option<&dyn Column<u64>> {
-        match self {
-            FastFieldAccessor::Multi(_) => None,
-            FastFieldAccessor::Single(reader) => Some(&**reader),
-        }
-    }
-    pub fn into_single(self) -> Option<Arc<dyn Column<u64>>> {
-        match self {
-            FastFieldAccessor::Multi(_) => None,
-            FastFieldAccessor::Single(reader) => Some(reader),
-        }
-    }
-    pub fn as_multi(&self) -> Option<&MultiValuedFastFieldReader<u64>> {
-        match self {
-            FastFieldAccessor::Multi(reader) => Some(reader),
-            FastFieldAccessor::Single(_) => None,
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct BucketAggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. So eventually this needs to be Option or moved.
-    pub(crate) accessor: FastFieldAccessor,
-    pub(crate) inverted_index: Option<Arc<InvertedIndexReader>>,
+    pub(crate) accessor: Column<u64>,
+    pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: Type,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
@@ -83,20 +55,19 @@ impl BucketAggregationWithAccessor {
         bucket_count: Rc<AtomicU32>,
         max_bucket_count: u32,
     ) -> crate::Result<BucketAggregationWithAccessor> {
-        let mut inverted_index = None;
+        let mut str_dict_column = None;
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
                 field: field_name, ..
-            }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
+            }) => get_ff_reader_and_validate(reader, field_name)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
-            }) => get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?,
+            }) => get_ff_reader_and_validate(reader, field_name)?,
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
-                let field = reader.schema().get_field(field_name)?;
-                inverted_index = Some(reader.inverted_index(field)?);
-                get_ff_reader_and_validate(reader, field_name, Cardinality::MultiValues)?
+                str_dict_column = reader.fast_fields().str(&field_name)?;
+                get_ff_reader_and_validate(reader, field_name)?
             }
         };
         let sub_aggregation = sub_aggregation.clone();
@@ -110,7 +81,7 @@ impl BucketAggregationWithAccessor {
                 max_bucket_count,
             )?,
             bucket_agg: bucket.clone(),
-            inverted_index,
+            str_dict_column,
             bucket_count: BucketCount {
                 bucket_count,
                 max_bucket_count,
@@ -124,7 +95,7 @@ impl BucketAggregationWithAccessor {
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: Type,
-    pub accessor: Arc<dyn Column>,
+    pub accessor: Column<u64>,
 }
 
 impl MetricAggregationWithAccessor {
@@ -139,13 +110,10 @@ impl MetricAggregationWithAccessor {
             | MetricAggregation::Min(MinAggregation { field: field_name })
             | MetricAggregation::Stats(StatsAggregation { field: field_name })
             | MetricAggregation::Sum(SumAggregation { field: field_name }) => {
-                let (accessor, field_type) =
-                    get_ff_reader_and_validate(reader, field_name, Cardinality::SingleValue)?;
+                let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {
-                    accessor: accessor
-                        .into_single()
-                        .expect("unexpected fast field cardinality"),
+                    accessor,
                     field_type,
                     metric: metric.clone(),
                 })
@@ -190,32 +158,22 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
 fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
-    cardinality: Cardinality,
-) -> crate::Result<(FastFieldAccessor, Type)> {
+) -> crate::Result<(columnar::Column<u64>, Type)> {
     let field = reader.schema().get_field(field_name)?;
-    let field_type = reader.schema().get_field_entry(field).field_type();
-
-    if let Some((_ff_type, field_cardinality)) = type_and_cardinality(field_type) {
-        if cardinality != field_cardinality {
-            return Err(TantivyError::InvalidArgument(format!(
-                "Invalid field cardinality on field {} expected {:?}, but got {:?}",
-                field_name, cardinality, field_cardinality
-            )));
-        }
-    } else {
-        return Err(TantivyError::InvalidArgument(format!(
-            "Only fast fields of type f64, u64, i64 are supported, but got {:?} ",
-            field_type.value_type()
-        )));
-    };
+    // TODO we should get type metadata from columnar
+    let field_type = reader
+        .schema()
+        .get_field_entry(field)
+        .field_type()
+        .value_type();
+    // TODO Do validation
 
     let ff_fields = reader.fast_fields();
-    match cardinality {
-        Cardinality::SingleValue => ff_fields
-            .u64_lenient(field_name)
-            .map(|field| (FastFieldAccessor::Single(field), field_type.value_type())),
-        Cardinality::MultiValues => ff_fields
-            .u64s_lenient(field_name)
-            .map(|field| (FastFieldAccessor::Multi(field), field_type.value_type())),
-    }
+    let ff_field = ff_fields.u64_lenient(field_name)?.ok_or_else(|| {
+        TantivyError::InvalidArgument(format!(
+            "No numerical fast field found for field: {}",
+            field_name
+        ))
+    })?;
+    Ok((ff_field, field_type))
 }

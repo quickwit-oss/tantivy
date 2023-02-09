@@ -1,11 +1,12 @@
 use std::io;
 use std::io::Write;
 
-use common::CountingWriter;
+use common::{BinarySerializable, CountingWriter};
 use sstable::value::RangeValueWriter;
 use sstable::RangeSSTable;
 
 use crate::columnar::ColumnType;
+use crate::RowId;
 
 pub struct ColumnarSerializer<W: io::Write> {
     wrt: CountingWriter<W>,
@@ -46,11 +47,12 @@ impl<W: io::Write> ColumnarSerializer<W> {
         }
     }
 
-    pub(crate) fn finalize(mut self) -> io::Result<()> {
+    pub(crate) fn finalize(mut self, num_rows: RowId) -> io::Result<()> {
         let sstable_bytes: Vec<u8> = self.sstable_range.finish()?;
         let sstable_num_bytes: u64 = sstable_bytes.len() as u64;
         self.wrt.write_all(&sstable_bytes)?;
         self.wrt.write_all(&sstable_num_bytes.to_le_bytes()[..])?;
+        num_rows.serialize(&mut self.wrt)?;
         self.wrt
             .write_all(&super::super::format_version::footer())?;
         self.wrt.flush()?;

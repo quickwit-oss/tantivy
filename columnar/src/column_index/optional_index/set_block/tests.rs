@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::column_index::optional_index::set_block::{
-    DenseBlockCodec, SparseBlockCodec, DENSE_BLOCK_NUM_BYTES,
-};
-use crate::column_index::optional_index::{Set, SetCodec};
+use crate::column_index::optional_index::set_block::dense::DENSE_BLOCK_NUM_BYTES;
+use crate::column_index::optional_index::set_block::{DenseBlockCodec, SparseBlockCodec};
+use crate::column_index::optional_index::{SelectCursor, Set, SetCodec};
 
 fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
     let mut buffer = Vec::new();
@@ -18,6 +17,10 @@ fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
     for val in 0u16..=u16::MAX {
         assert_eq!(tested_set.contains(val), hash_set.contains_key(&val));
         assert_eq!(tested_set.rank_if_exists(val), hash_set.get(&val).copied());
+        assert_eq!(
+            tested_set.rank(val),
+            vals.iter().cloned().take_while(|v| *v < val).count() as u16
+        );
     }
     for rank in 0..vals.len() {
         assert_eq!(tested_set.select(rank as u16), vals[rank]);
@@ -75,12 +78,10 @@ fn test_simple_translate_codec_codec_idx_to_original_idx_dense() {
         .unwrap();
     let tested_set = DenseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
-    assert_eq!(
-        &tested_set
-            .select_iter([0, 1, 2, 5].iter().copied())
-            .collect::<Vec<u16>>(),
-        &[1, 3, 17, 30_001]
-    );
+    let mut select_cursor = tested_set.select_cursor();
+    assert_eq!(select_cursor.select(0), 1);
+    assert_eq!(select_cursor.select(1), 3);
+    assert_eq!(select_cursor.select(2), 17);
 }
 
 #[test]
@@ -89,12 +90,10 @@ fn test_simple_translate_codec_idx_to_original_idx_sparse() {
     SparseBlockCodec::serialize([1, 3, 17].iter().copied(), &mut buffer).unwrap();
     let tested_set = SparseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
-    assert_eq!(
-        &tested_set
-            .select_iter([0, 1, 2].iter().copied())
-            .collect::<Vec<u16>>(),
-        &[1, 3, 17]
-    );
+    let mut select_cursor = tested_set.select_cursor();
+    assert_eq!(SelectCursor::select(&mut select_cursor, 0), 1);
+    assert_eq!(SelectCursor::select(&mut select_cursor, 1), 3);
+    assert_eq!(SelectCursor::select(&mut select_cursor, 2), 17);
 }
 
 #[test]
@@ -103,10 +102,8 @@ fn test_simple_translate_codec_idx_to_original_idx_dense() {
     DenseBlockCodec::serialize(0u16..150u16, &mut buffer).unwrap();
     let tested_set = DenseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
-    let rg = 0u16..150u16;
-    let els: Vec<u16> = rg.clone().collect();
-    assert_eq!(
-        &tested_set.select_iter(rg.clone()).collect::<Vec<u16>>(),
-        &els
-    );
+    let mut select_cursor = tested_set.select_cursor();
+    for i in 0..150 {
+        assert_eq!(i, select_cursor.select(i));
+    }
 }

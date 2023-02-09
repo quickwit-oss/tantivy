@@ -1,7 +1,13 @@
-use fastfield_codecs::Column;
+use columnar::Column;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::f64_from_fastfield_u64;
+use super::*;
+use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResults, IntermediateMetricResult,
+};
+use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::{f64_from_fastfield_u64, VecWithNames};
 use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
@@ -160,27 +166,74 @@ impl SegmentStatsCollector {
             stats: IntermediateStats::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = field.get_val(docs[0]);
-            let val2 = field.get_val(docs[1]);
-            let val3 = field.get_val(docs[2]);
-            let val4 = field.get_val(docs[3]);
-            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
-            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
-            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
-            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
+    pub(crate) fn collect_block(&mut self, docs: &[DocId], field: &Column<u64>) {
+        // TODO special case for Required, Optional column type
+        for doc in docs {
+            for val in field.values(*doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+            }
+        }
+    }
+}
+
+impl SegmentAggregationCollector for SegmentStatsCollector {
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let name = agg_with_accessor.metrics.keys[0].to_string();
+
+        let intermediate_metric_result = match self.collecting_for {
+            SegmentStatsType::Average => {
+                IntermediateMetricResult::Average(IntermediateAverage::from_collector(*self))
+            }
+            SegmentStatsType::Count => {
+                IntermediateMetricResult::Count(IntermediateCount::from_collector(*self))
+            }
+            SegmentStatsType::Max => {
+                IntermediateMetricResult::Max(IntermediateMax::from_collector(*self))
+            }
+            SegmentStatsType::Min => {
+                IntermediateMetricResult::Min(IntermediateMin::from_collector(*self))
+            }
+            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+            SegmentStatsType::Sum => {
+                IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
+            }
+        };
+
+        let metrics = Some(VecWithNames::from_entries(vec![(
+            name,
+            intermediate_metric_result,
+        )]));
+
+        Ok(IntermediateAggregationResults {
+            metrics,
+            buckets: None,
+        })
+    }
+
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let accessor = &agg_with_accessor.metrics.values[0].accessor;
+        for val in accessor.values(doc) {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val1);
-            self.stats.collect(val2);
-            self.stats.collect(val3);
-            self.stats.collect(val4);
         }
-        for &doc in iter.remainder() {
-            let val = field.get_val(doc);
-            let val = f64_from_fastfield_u64(val, &self.field_type);
-            self.stats.collect(val);
-        }
+
+        Ok(())
+    }
+
+    fn flush_staged_docs(
+        &mut self,
+        _agg_with_accessor: &AggregationsWithAccessor,
+        _force_flush: bool,
+    ) -> crate::Result<()> {
+        Ok(())
     }
 }
 

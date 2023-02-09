@@ -8,7 +8,7 @@ use common::{HasLen, OwnedBytes};
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::{DateTime, NumericalType};
+use crate::{Cardinality, DateTime, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -23,6 +23,18 @@ pub enum DynamicColumn {
 }
 
 impl DynamicColumn {
+    pub fn get_cardinality(&self) -> Cardinality {
+        match self {
+            DynamicColumn::Bool(c) => c.get_cardinality(),
+            DynamicColumn::I64(c) => c.get_cardinality(),
+            DynamicColumn::U64(c) => c.get_cardinality(),
+            DynamicColumn::F64(c) => c.get_cardinality(),
+            DynamicColumn::IpAddr(c) => c.get_cardinality(),
+            DynamicColumn::DateTime(c) => c.get_cardinality(),
+            DynamicColumn::Bytes(c) => c.ords().get_cardinality(),
+            DynamicColumn::Str(c) => c.ords().get_cardinality(),
+        }
+    }
     pub fn column_type(&self) -> ColumnType {
         match self {
             DynamicColumn::Bool(_) => ColumnType::Bool,
@@ -33,6 +45,14 @@ impl DynamicColumn {
             DynamicColumn::DateTime(_) => ColumnType::DateTime,
             DynamicColumn::Bytes(_) => ColumnType::Bytes,
             DynamicColumn::Str(_) => ColumnType::Str,
+        }
+    }
+
+    pub fn coerce_numerical(self, target_numerical_type: NumericalType) -> Option<Self> {
+        match target_numerical_type {
+            NumericalType::I64 => self.coerce_to_i64(),
+            NumericalType::U64 => self.coerce_to_u64(),
+            NumericalType::F64 => self.coerce_to_f64(),
         }
     }
 
@@ -50,7 +70,7 @@ impl DynamicColumn {
         self.column_type().numerical_type() == Some(NumericalType::U64)
     }
 
-    pub fn coerce_to_f64(self) -> Option<DynamicColumn> {
+    fn coerce_to_f64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
                 idx: column.idx,
@@ -64,7 +84,7 @@ impl DynamicColumn {
             _ => None,
         }
     }
-    pub fn coerce_to_i64(self) -> Option<DynamicColumn> {
+    fn coerce_to_i64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::U64(column) => {
                 if column.max_value() > i64::MAX as u64 {
@@ -79,7 +99,7 @@ impl DynamicColumn {
             _ => None,
         }
     }
-    pub fn coerce_to_u64(self) -> Option<DynamicColumn> {
+    fn coerce_to_u64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => {
                 if column.min_value() < 0 {
@@ -215,10 +235,8 @@ impl DynamicColumnHandle {
 
     fn open_internal(&self, column_bytes: OwnedBytes) -> io::Result<DynamicColumn> {
         let dynamic_column: DynamicColumn = match self.column_type {
-            ColumnType::Bytes => {
-                crate::column::open_column_bytes::<BytesColumn>(column_bytes)?.into()
-            }
-            ColumnType::Str => crate::column::open_column_bytes::<StrColumn>(column_bytes)?.into(),
+            ColumnType::Bytes => crate::column::open_column_bytes(column_bytes)?.into(),
+            ColumnType::Str => crate::column::open_column_str(column_bytes)?.into(),
             ColumnType::I64 => crate::column::open_column_u64::<i64>(column_bytes)?.into(),
             ColumnType::U64 => crate::column::open_column_u64::<u64>(column_bytes)?.into(),
             ColumnType::F64 => crate::column::open_column_u64::<f64>(column_bytes)?.into(),

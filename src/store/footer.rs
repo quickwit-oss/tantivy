@@ -16,7 +16,7 @@ pub struct DocStoreFooter {
 /// - compressor id: 1 byte
 /// - reserved for future use: 15 bytes
 impl BinarySerializable for DocStoreFooter {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         BinarySerializable::serialize(&DOC_STORE_VERSION, writer)?;
         BinarySerializable::serialize(&self.offset, writer)?;
         BinarySerializable::serialize(&self.decompressor.get_id(), writer)?;

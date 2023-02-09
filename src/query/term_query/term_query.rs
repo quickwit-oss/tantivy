@@ -133,7 +133,7 @@ mod tests {
     use std::net::{IpAddr, Ipv6Addr};
     use std::str::FromStr;
 
-    use fastfield_codecs::MonotonicallyMappableToU128;
+    use columnar::MonotonicallyMappableToU128;
 
     use crate::collector::{Count, TopDocs};
     use crate::query::{Query, QueryParser, TermQuery};

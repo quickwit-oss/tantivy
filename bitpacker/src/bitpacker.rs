@@ -19,7 +19,7 @@ impl BitPacker {
     }
 
     #[inline]
-    pub fn write<TWrite: io::Write>(
+    pub fn write<TWrite: io::Write + ?Sized>(
         &mut self,
         val: u64,
         num_bits: u8,
@@ -43,7 +43,7 @@ impl BitPacker {
         Ok(())
     }
 
-    pub fn flush<TWrite: io::Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
+    pub fn flush<TWrite: io::Write + ?Sized>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
             let num_bytes = (self.mini_buffer_written + 7) / 8;
             let bytes = self.mini_buffer.to_le_bytes();
@@ -54,7 +54,7 @@ impl BitPacker {
         Ok(())
     }
 
-    pub fn close<TWrite: io::Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
+    pub fn close<TWrite: io::Write + ?Sized>(&mut self, output: &mut TWrite) -> io::Result<()> {
         self.flush(output)?;
         Ok(())
     }

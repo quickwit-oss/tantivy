@@ -35,27 +35,49 @@ impl BytesColumn {
         self.term_ord_column.num_rows()
     }
 
+    pub fn term_ords(&self, row_id: RowId) -> impl Iterator<Item = u64> + '_ {
+        self.term_ord_column.values(row_id)
+    }
+
     /// Returns the column of ordinals
     pub fn ords(&self) -> &Column<u64> {
         &self.term_ord_column
+    }
+
+    pub fn num_terms(&self) -> usize {
+        self.dictionary.num_terms()
+    }
+
+    pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {
+        self.dictionary.as_ref()
     }
 }
 
 #[derive(Clone)]
 pub struct StrColumn(BytesColumn);
 
-impl From<BytesColumn> for StrColumn {
-    fn from(bytes_col: BytesColumn) -> Self {
-        StrColumn(bytes_col)
+impl From<StrColumn> for BytesColumn {
+    fn from(str_column: StrColumn) -> BytesColumn {
+        str_column.0
     }
 }
 
 impl StrColumn {
+    pub(crate) fn wrap(bytes_column: BytesColumn) -> StrColumn {
+        StrColumn(bytes_column)
+    }
+
+    pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {
+        self.0.dictionary.as_ref()
+    }
+
     /// Fills the buffer
     pub fn ord_to_str(&self, term_ord: u64, output: &mut String) -> io::Result<bool> {
         unsafe {
             let buf = output.as_mut_vec();
-            self.0.dictionary.ord_to_term(term_ord, buf)?;
+            if !self.0.dictionary.ord_to_term(term_ord, buf)? {
+                return Ok(false);
+            }
             // TODO consider remove checks if it hurts performance.
             if std::str::from_utf8(buf.as_slice()).is_err() {
                 buf.clear();

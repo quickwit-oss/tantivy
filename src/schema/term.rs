@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
 
-use fastfield_codecs::MonotonicallyMappableToU128;
+use columnar::MonotonicallyMappableToU128;
 
 use super::Field;
 use crate::fastfield::FastValue;
@@ -366,7 +366,7 @@ where B: AsRef<[u8]>
     ///
     /// If the term is a string, its value is utf-8 encoded.
     /// If the term is a u64, its value is encoded according
-    /// to `byteorder::LittleEndian`.
+    /// to `byteorder::BigEndian`.
     pub fn value_bytes(&self) -> &[u8] {
         &self.0.as_ref()[TERM_METADATA_LENGTH..]
     }
@@ -375,7 +375,7 @@ where B: AsRef<[u8]>
     ///
     /// Do NOT rely on this byte representation in the index.
     /// This value is likely to change in the future.
-    pub(crate) fn as_slice(&self) -> &[u8] {
+    pub fn as_slice(&self) -> &[u8] {
         self.0.as_ref()
     }
 }

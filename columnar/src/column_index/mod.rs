@@ -1,35 +1,55 @@
+mod merge;
 mod multivalued_index;
 mod optional_index;
 mod serialize;
 
 use std::ops::Range;
-use std::sync::Arc;
 
-pub use optional_index::{OptionalIndex, SerializableOptionalIndex, Set};
+pub use merge::merge_column_index;
+pub use optional_index::{OptionalIndex, Set};
 pub use serialize::{open_column_index, serialize_column_index, SerializableColumnIndex};
 
-use crate::column_values::ColumnValues;
+use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, RowId};
 
 #[derive(Clone)]
-pub enum ColumnIndex<'a> {
+pub enum ColumnIndex {
     Full,
     Optional(OptionalIndex),
-    // TODO Remove the static by fixing the codec if possible.
-    /// The column values enclosed contains for all row_id,
-    /// the value start_index.
-    ///
     /// In addition, at index num_rows, an extra value is added
     /// containing the overal number of values.
-    Multivalued(Arc<dyn ColumnValues<RowId> + 'a>),
+    Multivalued(MultiValueIndex),
 }
 
-impl<'a> ColumnIndex<'a> {
+impl From<OptionalIndex> for ColumnIndex {
+    fn from(optional_index: OptionalIndex) -> ColumnIndex {
+        ColumnIndex::Optional(optional_index)
+    }
+}
+
+impl From<MultiValueIndex> for ColumnIndex {
+    fn from(multi_value_index: MultiValueIndex) -> ColumnIndex {
+        ColumnIndex::Multivalued(multi_value_index)
+    }
+}
+
+impl ColumnIndex {
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
             ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Optional(_) => Cardinality::Optional,
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+        }
+    }
+
+    /// Returns true if and only if there are at least one value associated to the row.
+    pub fn has_value(&self, row_id: RowId) -> bool {
+        match self {
+            ColumnIndex::Full => true,
+            ColumnIndex::Optional(optional_index) => optional_index.contains(row_id),
+            ColumnIndex::Multivalued(multivalued_index) => {
+                multivalued_index.range(row_id).len() > 0
+            }
         }
     }
 
@@ -43,11 +63,22 @@ impl<'a> ColumnIndex<'a> {
                     0..0
                 }
             }
+            ColumnIndex::Multivalued(multivalued_index) => multivalued_index.range(row_id),
+        }
+    }
+
+    pub fn select_batch_in_place(&self, rank_ids: &mut Vec<RowId>) {
+        match self {
+            ColumnIndex::Full => {
+                // No need to do anything:
+                // value_idx and row_idx are the same.
+            }
+            ColumnIndex::Optional(optional_index) => {
+                optional_index.select_batch(&mut rank_ids[..]);
+            }
             ColumnIndex::Multivalued(multivalued_index) => {
-                let multivalued_index_ref = &**multivalued_index;
-                let start: u32 = multivalued_index_ref.get_val(row_id);
-                let end: u32 = multivalued_index_ref.get_val(row_id + 1);
-                start..end
+                // TODO important: avoid using 0u32, and restart from the beginning all of the time.
+                multivalued_index.select_batch_in_place(0u32, rank_ids)
             }
         }
     }

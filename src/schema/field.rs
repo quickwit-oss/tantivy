@@ -23,7 +23,7 @@ impl Field {
 }
 
 impl BinarySerializable for Field {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.0.serialize(writer)
     }
 

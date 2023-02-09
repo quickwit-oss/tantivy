@@ -21,7 +21,7 @@ struct TermInfoBlockMeta {
 }
 
 impl BinarySerializable for TermInfoBlockMeta {
-    fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, write: &mut W) -> io::Result<()> {
         self.offset.serialize(write)?;
         self.ref_term_info.serialize(write)?;
         write.write_all(&[
@@ -272,7 +272,7 @@ impl TermInfoStoreWriter {
         Ok(())
     }
 
-    pub fn serialize<W: io::Write>(&mut self, write: &mut W) -> io::Result<()> {
+    pub fn serialize<W: io::Write + ?Sized>(&mut self, write: &mut W) -> io::Result<()> {
         if !self.term_infos.is_empty() {
             self.flush_block()?;
         }
