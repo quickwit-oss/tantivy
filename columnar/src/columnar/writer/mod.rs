@@ -45,7 +45,7 @@ struct SpareBuffers {
 /// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
 /// let mut wrt: Vec<u8> =  Vec::new();
-/// columnar_writer.serialize(2u32, &mut wrt).unwrap();
+/// columnar_writer.serialize(2u32, None, &mut wrt).unwrap();
 /// ```
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,

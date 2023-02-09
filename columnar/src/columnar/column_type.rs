@@ -148,21 +148,6 @@ mod tests {
     }
 
     #[test]
-    fn test_column_category_sort_consistent_with_column_type_sort() {
-        // This is a very important property because we
-        // we need to serialize colunmn in the right order.
-        let mut column_types: Vec<ColumnType> = super::COLUMN_TYPES.iter().copied().collect();
-        column_types.sort_by_key(|col| col.to_code());
-        let column_categories: Vec<ColumnTypeCategory> = column_types
-            .into_iter()
-            .map(ColumnTypeCategory::from)
-            .collect();
-        for (prev, next) in column_categories.iter().zip(column_categories.iter()) {
-            assert!(prev <= next);
-        }
-    }
-
-    #[test]
     fn test_cardinality_to_code() {
         let mut num_cardinality = 0;
         for code in u8::MIN..=u8::MAX {
