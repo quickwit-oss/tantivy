@@ -14,7 +14,6 @@ pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 use super::writer::ColumnarSerializer;
 use crate::column::{serialize_column_mappable_to_u128, serialize_column_mappable_to_u64};
 use crate::column_values::MergedColumnValues;
-use crate::columnar::column_type::ColumnTypeCategory;
 use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
 use crate::columnar::writer::CompatibleNumericalTypes;
 use crate::columnar::ColumnarReader;
@@ -22,6 +21,38 @@ use crate::dynamic_column::DynamicColumn;
 use crate::{
     BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, NumericalType, NumericalValue,
 };
+
+/// Column types are grouped into different categories.
+/// After merge, all columns belonging to the same category are coerced to
+/// the same column type.
+///
+/// In practise, today, only Numerical colummns are coerced into one type today.
+///
+/// See also [README.md].
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum ColumnTypeCategory {
+    Bool,
+    Str,
+    Numerical,
+    DateTime,
+    Bytes,
+    IpAddr,
+}
+
+impl From<ColumnType> for ColumnTypeCategory {
+    fn from(column_type: ColumnType) -> Self {
+        match column_type {
+            ColumnType::I64 => ColumnTypeCategory::Numerical,
+            ColumnType::U64 => ColumnTypeCategory::Numerical,
+            ColumnType::F64 => ColumnTypeCategory::Numerical,
+            ColumnType::Bytes => ColumnTypeCategory::Bytes,
+            ColumnType::Str => ColumnTypeCategory::Str,
+            ColumnType::Bool => ColumnTypeCategory::Bool,
+            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
+            ColumnType::DateTime => ColumnTypeCategory::DateTime,
+        }
+    }
+}
 
 pub fn merge_columnar(
     columnar_readers: &[&ColumnarReader],

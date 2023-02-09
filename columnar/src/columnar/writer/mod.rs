@@ -16,7 +16,7 @@ use crate::column_index::SerializableColumnIndex;
 use crate::column_values::{
     ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
 };
-use crate::columnar::column_type::{ColumnType, ColumnTypeCategory};
+use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
 };
@@ -403,14 +403,12 @@ impl ColumnarWriter {
                     )?;
                 }
                 ColumnType::Bytes | ColumnType::Str => {
-                    let (column_type, str_or_bytes_column_writer): (
-                        ColumnType,
-                        StrOrBytesColumnWriter,
-                    ) = if column_type == ColumnType::Bytes {
-                        (ColumnType::Bytes, self.bytes_field_hash_map.read(addr))
-                    } else {
-                        (ColumnType::Str, self.str_field_hash_map.read(addr))
-                    };
+                    let str_or_bytes_column_writer: StrOrBytesColumnWriter =
+                        if column_type == ColumnType::Bytes {
+                            self.bytes_field_hash_map.read(addr)
+                        } else {
+                            self.str_field_hash_map.read(addr)
+                        };
                     let dictionary_builder =
                         &dictionaries[str_or_bytes_column_writer.dictionary_id as usize];
                     let cardinality = str_or_bytes_column_writer

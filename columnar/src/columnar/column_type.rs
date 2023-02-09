@@ -4,10 +4,8 @@ use std::net::Ipv6Addr;
 use crate::value::NumericalType;
 use crate::InvalidData;
 
-/// The column type represents the column type and can fit on 6-bits.
-///
-/// - bits[0..3]: Column category type.
-/// - bits[3..6]: Numerical type if necessary.
+/// The column type represents the column type.
+/// Any changes need to be propagated to `COLUMN_TYPES`.
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum ColumnType {
@@ -129,39 +127,6 @@ impl HasAssociatedColumnType for Ipv6Addr {
 
     fn default_value() -> Self {
         Ipv6Addr::from([0u8; 16])
-    }
-}
-
-/// Column types are grouped into different categories that
-/// corresponds to the different types of `JsonValue` types.
-///
-/// The columnar writer will apply coercion rules to make sure that
-/// at most one column exist per `ColumnTypeCategory`.
-///
-/// See also [README.md].
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[repr(u8)]
-pub enum ColumnTypeCategory {
-    Bool,
-    Str,
-    Numerical,
-    DateTime,
-    Bytes,
-    IpAddr,
-}
-
-impl From<ColumnType> for ColumnTypeCategory {
-    fn from(column_type: ColumnType) -> Self {
-        match column_type {
-            ColumnType::I64 => ColumnTypeCategory::Numerical,
-            ColumnType::U64 => ColumnTypeCategory::Numerical,
-            ColumnType::F64 => ColumnTypeCategory::Numerical,
-            ColumnType::Bytes => ColumnTypeCategory::Bytes,
-            ColumnType::Str => ColumnTypeCategory::Str,
-            ColumnType::Bool => ColumnTypeCategory::Bool,
-            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
-            ColumnType::DateTime => ColumnTypeCategory::DateTime,
-        }
     }
 }
 
