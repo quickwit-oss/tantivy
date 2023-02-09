@@ -819,20 +819,23 @@ mod tests {
         // This is a bit of a contrived example.
         let tokens = PreTokenizedString {
             text: "contrived-example".to_string(), //< I can't think of a use case where this corner case happens in real life.
-            tokens: vec![Token { // Not the last token, yet ends after the last token.
-                offset_from: 0,
-                offset_to: 14,
-                position: 0,
-                text: "long_token".to_string(),
-                position_length: 3,
-            },
-            Token {
-                offset_from: 0,
-                offset_to: 14,
-                position: 1,
-                text: "short".to_string(),
-                position_length: 1,
-            }],
+            tokens: vec![
+                Token {
+                    // Not the last token, yet ends after the last token.
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 0,
+                    text: "long_token".to_string(),
+                    position_length: 3,
+                },
+                Token {
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 1,
+                    text: "short".to_string(),
+                    position_length: 1,
+                },
+            ],
         };
         doc.add_pre_tokenized_text(text, tokens);
         doc.add_text(text, "hello");
