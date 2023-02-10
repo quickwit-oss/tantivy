@@ -49,4 +49,17 @@ impl IndexRecordOption {
             IndexRecordOption::WithFreqsAndPositions => true,
         }
     }
+
+    /// Downgrades to the next level if provided `IndexRecordOption` is unavailable.
+    pub fn downgrade(&self, other: IndexRecordOption) -> IndexRecordOption {
+        use IndexRecordOption::*;
+
+        match (other, self) {
+            (WithFreqsAndPositions, WithFreqsAndPositions) => WithFreqsAndPositions,
+            (WithFreqs, WithFreqs) => WithFreqs,
+            (WithFreqsAndPositions, WithFreqs) => WithFreqs,
+            (WithFreqs, WithFreqsAndPositions) => WithFreqs,
+            _ => Basic,
+        }
+    }
 }
