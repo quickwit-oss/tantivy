@@ -13,10 +13,10 @@ use common::{BinarySerializable, OwnedBytes};
 use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };
-use crate::column_values::u64_based::bitpacked::BitpackedCodec;
-use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;
-use crate::column_values::u64_based::linear::LinearCodec;
-use crate::column_values::u64_based::stats_collector::StatsCollector;
+pub use crate::column_values::u64_based::bitpacked::BitpackedCodec;
+pub use crate::column_values::u64_based::blockwise_linear::BlockwiseLinearCodec;
+pub use crate::column_values::u64_based::linear::LinearCodec;
+pub use crate::column_values::u64_based::stats_collector::StatsCollector;
 use crate::column_values::{monotonic_map_column, Stats};
 use crate::iterable::Iterable;
 use crate::{ColumnValues, MonotonicallyMappableToU64};

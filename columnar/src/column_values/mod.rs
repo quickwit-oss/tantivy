@@ -137,6 +137,8 @@ mod bench {
     use test::{self, Bencher};
 
     use super::*;
+    use crate::column_values::serialize::NormalizedHeader;
+    use crate::column_values::u64_based::*;
 
     fn get_data() -> Vec<u64> {
         let mut rng = StdRng::seed_from_u64(2u64);
@@ -152,23 +154,30 @@ mod bench {
         data
     }
 
+    fn compute_stats(vals: impl Iterator<Item = u64>) -> Stats {
+        let mut stats_collector = StatsCollector::default();
+        for val in vals {
+            stats_collector.collect(val);
+        }
+        stats_collector.stats()
+    }
+
     #[inline(never)]
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn get_reader_for_bench<Codec: FastFieldCodec>(data: &[u64]) -> Codec::Reader {
+    fn get_reader_for_bench<Codec: ColumnCodec>(data: &[u64]) -> Codec::Reader {
         let mut bytes = Vec::new();
-        let min_value = *data.iter().min().unwrap();
-        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
-        let col = VecColumn::from(&data);
-        let normalized_header = NormalizedHeader {
-            num_vals: col.num_vals(),
-            max_value: col.max_value(),
-        };
-        Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
-        Codec::open_from_bytes(OwnedBytes::new(bytes), normalized_header).unwrap()
+        let stats = compute_stats(data.iter().cloned());
+        let mut codec_serializer = Codec::estimator();
+        for val in data {
+            codec_serializer.collect(*val);
+        }
+        codec_serializer.serialize(&stats, Box::new(data.iter().copied()).as_mut(), &mut bytes);
+
+        Codec::load(OwnedBytes::new(bytes)).unwrap()
     }
-    fn bench_get<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+    fn bench_get<Codec: ColumnCodec>(b: &mut Bencher, data: &[u64]) {
         let col = get_reader_for_bench::<Codec>(data);
         b.iter(|| {
             let mut sum = 0u64;
@@ -192,18 +201,22 @@ mod bench {
         });
     }
 
-    fn bench_get_dynamic<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
+    fn bench_get_dynamic<Codec: ColumnCodec>(b: &mut Bencher, data: &[u64]) {
         let col = Arc::new(get_reader_for_bench::<Codec>(data));
         bench_get_dynamic_helper(b, col);
     }
-    fn bench_create<Codec: FastFieldCodec>(b: &mut Bencher, data: &[u64]) {
-        let min_value = *data.iter().min().unwrap();
-        let data = data.iter().map(|el| *el - min_value).collect::<Vec<_>>();
+    fn bench_create<Codec: ColumnCodec>(b: &mut Bencher, data: &[u64]) {
+        let stats = compute_stats(data.iter().cloned());
 
         let mut bytes = Vec::new();
         b.iter(|| {
             bytes.clear();
-            Codec::serialize(&VecColumn::from(&data), &mut bytes).unwrap();
+            let mut codec_serializer = Codec::estimator();
+            for val in data.iter().take(1024) {
+                codec_serializer.collect(*val);
+            }
+
+            codec_serializer.serialize(&stats, Box::new(data.iter().copied()).as_mut(), &mut bytes)
         });
     }
 
