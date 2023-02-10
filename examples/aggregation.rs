@@ -24,8 +24,7 @@ fn main() -> tantivy::Result<()> {
         )
         .set_stored();
     let text_field = schema_builder.add_text_field("text", text_fieldtype);
-    let score_fieldtype =
-        crate::schema::NumericOptions::default().set_fast();
+    let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
     let highscore_field = schema_builder.add_f64_field("highscore", score_fieldtype.clone());
     let price_field = schema_builder.add_f64_field("price", score_fieldtype);
 
