@@ -135,6 +135,8 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<SegmentPostings> {
+        let option = option.downgrade(self.record_option);
+
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
         let position_reader = {
             if option.has_positions() {

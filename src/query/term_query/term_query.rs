@@ -109,6 +109,7 @@ impl TermQuery {
         } else {
             IndexRecordOption::Basic
         };
+
         Ok(TermWeight::new(
             self.term.clone(),
             index_record_option,
