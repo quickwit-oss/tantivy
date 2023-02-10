@@ -90,7 +90,7 @@ impl CheckpointBlock {
             return Ok(());
         }
         let mut doc = read_u32_vint(data);
-        let mut start_offset = read_u32_vint(data) as usize;
+        let mut start_offset = VInt::deserialize_u64(data)? as usize;
         for _ in 0..len {
             let num_docs = read_u32_vint(data);
             let block_num_bytes = read_u32_vint(data) as usize;
@@ -143,6 +143,15 @@ mod tests {
         let checkpoints = vec![Checkpoint {
             doc_range: 10..12,
             byte_range: 100..120,
+        }];
+        test_aux_ser_deser(&checkpoints)
+    }
+
+    #[test]
+    fn test_block_serialize_large_byte_range() -> io::Result<()> {
+        let checkpoints = vec![Checkpoint {
+            doc_range: 10..12,
+            byte_range: 8_000_000_000..9_000_000_000,
         }];
         test_aux_ser_deser(&checkpoints)
     }
