@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use common::DateTime;
 use fastdivide::DividerU64;
 
 use super::MonotonicallyMappableToU128;
@@ -195,7 +196,7 @@ impl MonotonicallyMappableToU64 for i64 {
     }
 }
 
-impl MonotonicallyMappableToU64 for crate::DateTime {
+impl MonotonicallyMappableToU64 for DateTime {
     #[inline(always)]
     fn to_u64(self) -> u64 {
         common::i64_to_u64(self.into_timestamp_micros())
@@ -203,7 +204,7 @@ impl MonotonicallyMappableToU64 for crate::DateTime {
 
     #[inline(always)]
     fn from_u64(val: u64) -> Self {
-        crate::DateTime::from_timestamp_micros(common::u64_to_i64(val))
+        DateTime::from_timestamp_micros(common::u64_to_i64(val))
     }
 }
 

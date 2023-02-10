@@ -1,3 +1,5 @@
+use common::DateTime;
+
 use crate::InvalidData;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -104,10 +106,10 @@ impl Coerce for f64 {
     }
 }
 
-impl Coerce for crate::DateTime {
+impl Coerce for DateTime {
     fn coerce(value: NumericalValue) -> Self {
         let timestamp_micros = i64::coerce(value);
-        crate::DateTime::from_timestamp_micros(timestamp_micros)
+        DateTime::from_timestamp_micros(timestamp_micros)
     }
 }
 

@@ -105,7 +105,7 @@ impl FastFieldReaders {
     /// Returns the `date` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn date(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<columnar::DateTime>>> {
+    pub fn date(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<common::DateTime>>> {
         self.column_first_or_default(field)
     }
 

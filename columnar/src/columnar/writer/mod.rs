@@ -266,7 +266,7 @@ impl ColumnarWriter {
         });
     }
 
-    pub fn record_datetime(&mut self, doc: RowId, column_name: &str, datetime: crate::DateTime) {
+    pub fn record_datetime(&mut self, doc: RowId, column_name: &str, datetime: common::DateTime) {
         let (hash_map, arena) = (&mut self.datetime_field_hash_map, &mut self.arena);
         mutate_or_create_column(hash_map, column_name, |column_opt: Option<ColumnWriter>| {
             let mut column: ColumnWriter = column_opt.unwrap_or_default();

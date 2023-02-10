@@ -356,7 +356,7 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
         let col = fast_field_readers.date("date").unwrap();
-        assert_eq!(col.get_val(0), columnar::DateTime::default());
+        assert_eq!(col.get_val(0), DateTime::default());
     }
 
     // Warning: this generates the same permutation at each call
@@ -415,7 +415,7 @@ mod tests {
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer
-            .add_document(doc!(date_field =>DateTime::from_utc(OffsetDateTime::now_utc())))
+            .add_document(doc!(date_field => DateTime::from_utc(OffsetDateTime::now_utc())))
             .unwrap();
         index_writer.commit().unwrap();
         index_writer.add_document(doc!()).unwrap();
@@ -713,12 +713,12 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
         let date_fast_field = fast_fields
-            .column_opt::<columnar::DateTime>("date")
+            .column_opt::<DateTime>("date")
             .unwrap()
             .unwrap()
             .first_or_default_col(Default::default());
         let dates_fast_field = fast_fields
-            .column_opt::<columnar::DateTime>("multi_date")
+            .column_opt::<DateTime>("multi_date")
             .unwrap()
             .unwrap();
         let mut dates = vec![];
@@ -883,7 +883,7 @@ mod tests {
         let col = readers.date("field").unwrap();
 
         for (i, time) in times.iter().enumerate() {
-            let dt: crate::DateTime = col.get_val(i as u32).into();
+            let dt: DateTime = col.get_val(i as u32).into();
             assert_eq!(dt, time.truncate(precision));
         }
         readers.column_num_bytes("field").unwrap()
