@@ -322,7 +322,6 @@ impl SegmentTermCollector {
         let mut entries: Vec<(u32, TermBucketEntry)> =
             self.term_buckets.entries.into_iter().collect();
 
-        let order_by_key = self.req.order.target == OrderTarget::Key;
         let order_by_sub_aggregation =
             matches!(self.req.order.target, OrderTarget::SubAggregation(_));
 
@@ -351,7 +350,7 @@ impl SegmentTermCollector {
             }
         }
 
-        let (term_doc_count_before_cutoff, mut sum_other_doc_count) = if order_by_sub_aggregation {
+        let (term_doc_count_before_cutoff, sum_other_doc_count) = if order_by_sub_aggregation {
             (0, 0)
         } else {
             cut_off_buckets(&mut entries, self.req.segment_size as usize)
@@ -391,20 +390,6 @@ impl SegmentTermCollector {
                     dict.insert(key.to_owned(), Default::default());
                 }
             }
-        }
-
-        if order_by_key {
-            let mut dict_entries = dict.into_iter().collect_vec();
-            if self.req.order.order == Order::Desc {
-                dict_entries.sort_unstable_by(|(key1, _), (key2, _)| key1.cmp(key2));
-            } else {
-                dict_entries.sort_unstable_by(|(key1, _), (key2, _)| key2.cmp(key1));
-            }
-            let (_, sum_other_docs) =
-                cut_off_buckets(&mut dict_entries, self.req.segment_size as usize);
-
-            sum_other_doc_count += sum_other_docs;
-            dict = dict_entries.into_iter().collect();
         }
 
         Ok(IntermediateBucketResult::Terms(
@@ -857,14 +842,14 @@ mod tests {
         ];
         let index = get_test_index_from_values_and_terms(merge_segments, &segment_and_terms)?;
 
-        // key desc
+        // key asc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Desc,
+                        order: Order::Asc,
                         target: OrderTarget::Key,
                     }),
                     ..Default::default()
@@ -891,7 +876,7 @@ mod tests {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Desc,
+                        order: Order::Asc,
                         target: OrderTarget::Key,
                     }),
                     size: Some(2),
@@ -915,14 +900,14 @@ mod tests {
 
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 3);
 
-        // key desc and segment_size cut_off
+        // key asc and segment_size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Desc,
+                        order: Order::Asc,
                         target: OrderTarget::Key,
                     }),
                     size: Some(2),
@@ -945,14 +930,14 @@ mod tests {
             serde_json::Value::Null
         );
 
-        // key asc
+        // key desc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Asc,
+                        order: Order::Desc,
                         target: OrderTarget::Key,
                     }),
                     ..Default::default()
@@ -972,14 +957,14 @@ mod tests {
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 5);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
 
-        // key asc, size cut_off
+        // key desc, size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Asc,
+                        order: Order::Desc,
                         target: OrderTarget::Key,
                     }),
                     size: Some(2),
@@ -1002,14 +987,14 @@ mod tests {
         );
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 5);
 
-        // key asc, segment_size cut_off
+        // key desc, segment_size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
             Aggregation::Bucket(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "string_id".to_string(),
                     order: Some(CustomOrder {
-                        order: Order::Asc,
+                        order: Order::Desc,
                         target: OrderTarget::Key,
                     }),
                     size: Some(2),

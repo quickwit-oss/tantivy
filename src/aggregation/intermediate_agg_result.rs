@@ -498,7 +498,7 @@ impl IntermediateTermBucketResult {
         match req.order.target {
             OrderTarget::Key => {
                 buckets.sort_by(|left, right| {
-                    if req.order.order == Order::Desc {
+                    if req.order.order == Order::Asc {
                         left.key.partial_cmp(&right.key)
                     } else {
                         right.key.partial_cmp(&left.key)
