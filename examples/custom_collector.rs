@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use fastfield_codecs::Column;
+use columnar::column_values::ColumnValues;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
@@ -97,7 +97,7 @@ impl Collector for StatsCollector {
 }
 
 struct StatsSegmentCollector {
-    fast_field_reader: Arc<dyn Column<u64>>,
+    fast_field_reader: Arc<dyn ColumnValues>,
     stats: Stats,
 }
 
