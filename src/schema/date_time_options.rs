@@ -1,23 +1,9 @@
 use std::ops::BitOr;
 
+pub use common::DatePrecision;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
-
-/// DateTime Precision
-#[derive(
-    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum DatePrecision {
-    /// Seconds precision
-    #[default]
-    Seconds,
-    /// Milli-seconds precision.
-    Milliseconds,
-    /// Micro-seconds precision.
-    Microseconds,
-}
 
 /// Defines how DateTime field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]

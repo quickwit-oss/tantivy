@@ -107,7 +107,7 @@ impl Coerce for f64 {
 impl Coerce for crate::DateTime {
     fn coerce(value: NumericalValue) -> Self {
         let timestamp_micros = i64::coerce(value);
-        crate::DateTime { timestamp_micros }
+        crate::DateTime::from_timestamp_micros(timestamp_micros)
     }
 }
 

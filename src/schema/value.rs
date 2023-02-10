@@ -380,9 +380,7 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    let DateTime {
-                        timestamp_micros, ..
-                    } = val;
+                    let timestamp_micros = val.into_timestamp_micros();
                     timestamp_micros.serialize(writer)
                 }
                 Value::Facet(ref facet) => {

@@ -5,12 +5,14 @@ use std::ops::Deref;
 pub use byteorder::LittleEndian as Endianness;
 
 mod bitset;
+mod datetime;
 pub mod file_slice;
 mod group_by;
 mod serialize;
 mod vint;
 mod writer;
 pub use bitset::*;
+pub use datetime::{DatePrecision, DateTime};
 pub use group_by::GroupByIteratorExtended;
 pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};

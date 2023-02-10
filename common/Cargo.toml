@@ -16,6 +16,8 @@ repository = "https://github.com/quickwit-oss/tantivy"
 byteorder = "1.4.3"
 ownedbytes = { version= "0.5", path="../ownedbytes" }
 async-trait = "0.1"
+time = { version = "0.3.10", features = ["serde-well-known"] }
+serde = { version = "1.0.136", features = ["derive"] }
 
 [dev-dependencies]
 proptest = "1.0.0"

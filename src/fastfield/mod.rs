@@ -103,18 +103,6 @@ impl FastValue for DateTime {
     }
 }
 
-impl columnar::MonotonicallyMappableToU64 for DateTime {
-    fn to_u64(self) -> u64 {
-        self.timestamp_micros.to_u64()
-    }
-
-    fn from_u64(val: u64) -> Self {
-        DateTime {
-            timestamp_micros: MonotonicallyMappableToU64::from_u64(val),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
