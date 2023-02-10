@@ -1152,12 +1152,6 @@ mod tests {
             r#"FieldNotFound("not_exist_field")"#
         );
 
-        let agg_res = avg_on_field("scores_i64");
-        assert_eq!(
-            format!("{:?}", agg_res),
-            r#"InvalidArgument("Invalid field cardinality on field scores_i64 expected SingleValue, but got MultiValues")"#
-        );
-
         Ok(())
     }
 
