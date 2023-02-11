@@ -42,16 +42,7 @@ pub struct RowAddr {
 pub use sstable::Dictionary;
 pub type Streamer<'a> = sstable::Streamer<'a, VoidSSTable>;
 
-#[derive(Clone, Copy, PartialOrd, PartialEq, Default, Debug)]
-pub struct DateTime {
-    pub timestamp_micros: i64,
-}
-
-impl DateTime {
-    pub fn into_timestamp_micros(self) -> i64 {
-        self.timestamp_micros
-    }
-}
+pub use common::DateTime;
 
 #[derive(Copy, Clone, Debug)]
 pub struct InvalidData;

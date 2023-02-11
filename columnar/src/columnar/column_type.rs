@@ -111,7 +111,7 @@ impl HasAssociatedColumnType for bool {
     }
 }
 
-impl HasAssociatedColumnType for crate::DateTime {
+impl HasAssociatedColumnType for common::DateTime {
     fn column_type() -> ColumnType {
         ColumnType::DateTime
     }

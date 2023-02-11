@@ -3,12 +3,12 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use common::file_slice::FileSlice;
-use common::{HasLen, OwnedBytes};
+use common::{DateTime, HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::{Cardinality, DateTime, NumericalType};
+use crate::{Cardinality, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -188,7 +188,7 @@ static_dynamic_conversions!(Column<bool>, Bool);
 static_dynamic_conversions!(Column<u64>, U64);
 static_dynamic_conversions!(Column<i64>, I64);
 static_dynamic_conversions!(Column<f64>, F64);
-static_dynamic_conversions!(Column<crate::DateTime>, DateTime);
+static_dynamic_conversions!(Column<DateTime>, DateTime);
 static_dynamic_conversions!(StrColumn, Str);
 static_dynamic_conversions!(BytesColumn, Bytes);
 static_dynamic_conversions!(Column<Ipv6Addr>, IpAddr);
@@ -243,7 +243,7 @@ impl DynamicColumnHandle {
             ColumnType::Bool => crate::column::open_column_u64::<bool>(column_bytes)?.into(),
             ColumnType::IpAddr => crate::column::open_column_u128::<Ipv6Addr>(column_bytes)?.into(),
             ColumnType::DateTime => {
-                crate::column::open_column_u64::<crate::DateTime>(column_bytes)?.into()
+                crate::column::open_column_u64::<DateTime>(column_bytes)?.into()
             }
         };
         Ok(dynamic_column)
