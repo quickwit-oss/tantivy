@@ -212,10 +212,13 @@ mod bench {
     fn gen_bools(fill_ratio: f64) -> OptionalIndex {
         let mut out = Vec::new();
         let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
-        let vals: Vec<bool> = (0..TOTAL_NUM_VALUES)
+        let vals: Vec<RowId> = (0..TOTAL_NUM_VALUES)
             .map(|_| rng.gen_bool(fill_ratio))
+            .enumerate()
+            .filter(|(pos, val)| *val)
+            .map(|(pos, _)| pos as RowId)
             .collect();
-        serialize_optional_index(&&vals[..], &mut out).unwrap();
+        serialize_optional_index(&&vals[..], TOTAL_NUM_VALUES, &mut out).unwrap();
         let codec = open_optional_index(OwnedBytes::new(out)).unwrap();
         codec
     }

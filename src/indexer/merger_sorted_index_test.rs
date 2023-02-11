@@ -560,7 +560,9 @@ mod bench_sorted_index_merge {
         let merger: IndexMerger =
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
         b.iter(|| {
-            merger.generate_doc_id_mapping(&sort_by_field).unwrap();
+            merger
+                .generate_doc_id_mapping_with_sort_by_field(&sort_by_field)
+                .unwrap();
         });
 
         Ok(())
