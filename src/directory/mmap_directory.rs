@@ -9,7 +9,6 @@ use std::{fmt, result};
 use common::StableDeref;
 use fs2::FileExt;
 use memmap2::Mmap;
-use normpath::PathExt;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
@@ -197,9 +196,21 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        let canonical_path: PathBuf = directory_path.normalize().map_err(|io_err| {
-            OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
-        })?.into_path_buf();
+        let canonical_path: PathBuf = directory_path.canonicalize().or_else(|io_err| {
+            let directory_path = directory_path.to_owned();
+
+            #[cfg(windows)]
+            {
+                // `canonicalize` returns "Incorrect function" (error code 1)
+                // for virtual drives (network drives, ramdisk, etc.).
+                if io_err.raw_os_error() == Some(1) && directory_path.exists() {
+                    // Should call `std::path::absolute` when it is stabilised.
+                    return Ok(directory_path);
+                }
+            }
+
+            Err(OpenDirectoryError::wrap_io_error(io_err, directory_path))
+        })?;
         if !canonical_path.is_dir() {
             return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
                 directory_path,

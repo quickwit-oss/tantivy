@@ -23,7 +23,6 @@ regex = { version = "1.5.5", default-features = false, features = ["std", "unico
 aho-corasick = "0.7"
 tantivy-fst = "0.4.0"
 memmap2 = { version = "0.5.3", optional = true }
-normpath = "1.0.0"
 lz4_flex = { version = "0.10", default-features = false, features = ["checked-decode"], optional = true }
 brotli = { version = "3.3.4", optional = true }
 zstd = { version = "0.12", optional = true, default-features = false }
