@@ -118,17 +118,17 @@ impl<'a> BlockSelectCursor<'a> {
         }
     }
 }
-pub struct OptionalIndexSelectCursor<'a> {
-    current_block_cursor: BlockSelectCursor<'a>,
+pub struct OptionalIndexSelectCursor {
+    current_block_cursor: BlockSelectCursor<'static>,
     current_block_id: u16,
     // The current block is guaranteed to contain ranks < end_rank.
     current_block_end_rank: RowId,
-    optional_index: &'a OptionalIndex,
+    optional_index: OptionalIndex,
     block_doc_idx_start: RowId,
     num_null_rows_before_block: RowId,
 }
 
-impl<'a> OptionalIndexSelectCursor<'a> {
+impl OptionalIndexSelectCursor {
     fn search_and_load_block(&mut self, rank: RowId) {
         if rank < self.current_block_end_rank {
             // we are already in the right block
@@ -145,14 +145,23 @@ impl<'a> OptionalIndexSelectCursor<'a> {
         let block_meta = self.optional_index.block_metas[self.current_block_id as usize];
         self.num_null_rows_before_block = block_meta.non_null_rows_before_block;
         let block: Block<'_> = self.optional_index.block(block_meta);
-        self.current_block_cursor = match block {
+        let current_block_cursor = match block {
             Block::Dense(dense_block) => BlockSelectCursor::Dense(dense_block.select_cursor()),
             Block::Sparse(sparse_block) => BlockSelectCursor::Sparse(sparse_block.select_cursor()),
         };
+        // We are building a self-owned `OptionalIndexSelectCursor`.
+        self.current_block_cursor = unsafe { std::mem::transmute(current_block_cursor) };
+    }
+
+    pub fn select_batch_in_place(&mut self, ranks: &mut [RowId]) {
+        // TODO see if we can batch at the block level as well for optimization purposes.
+        for rank in ranks {
+            *rank = self.select(*rank);
+        }
     }
 }
 
-impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor<'a> {
+impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor {
     fn select(&mut self, rank: RowId) -> RowId {
         self.search_and_load_block(rank);
         let index_in_block = (rank - self.num_null_rows_before_block) as u16;
@@ -161,7 +170,7 @@ impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor<'a> {
 }
 
 impl Set<RowId> for OptionalIndex {
-    type SelectCursor<'b> = OptionalIndexSelectCursor<'b> where Self: 'b;
+    type SelectCursor<'a> = OptionalIndexSelectCursor;
     // Check if value at position is not null.
     #[inline]
     fn contains(&self, row_id: RowId) -> bool {
@@ -220,14 +229,14 @@ impl Set<RowId> for OptionalIndex {
         block_doc_idx_start + in_block_rank as u32
     }
 
-    fn select_cursor<'b>(&'b self) -> OptionalIndexSelectCursor<'b> {
+    fn select_cursor(&self) -> OptionalIndexSelectCursor {
         OptionalIndexSelectCursor {
             current_block_cursor: BlockSelectCursor::Sparse(
                 SparseBlockCodec::open(b"").select_cursor(),
             ),
             current_block_id: 0u16,
             current_block_end_rank: 0u32, //< this is sufficient to force the first load
-            optional_index: self,
+            optional_index: self.clone(),
             block_doc_idx_start: 0u32,
             num_null_rows_before_block: 0u32,
         }

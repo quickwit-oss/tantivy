@@ -11,7 +11,6 @@
 
 # Perf and Size
 * remove alloc in `ord_to_term`
-+ multivaued range queries restrat frm the beginning all of the time.
 * re-add ZSTD compression for dictionaries
 no systematic monotonic mapping
 consider removing multilinear

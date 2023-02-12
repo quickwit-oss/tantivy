@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use common::{BinarySerializable, OwnedBytes};
 
+use crate::column_index::MultiValueIndex;
 use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };

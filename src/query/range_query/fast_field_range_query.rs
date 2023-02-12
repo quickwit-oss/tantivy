@@ -1,7 +1,9 @@
 use core::fmt::Debug;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
-use columnar::Column;
+use columnar::column_index::ColumnIndexSelectCursor;
+use columnar::{Column, ColumnValues};
 
 use crate::fastfield::MakeZero;
 use crate::{DocId, DocSet, TERMINATED};
@@ -43,7 +45,9 @@ impl VecCursor {
 pub(crate) struct RangeDocSet<T: MakeZero> {
     /// The range filter on the values.
     value_range: RangeInclusive<T>,
-    column: Column<T>,
+    column_index_select_cursor: ColumnIndexSelectCursor,
+    column_values: Arc<dyn ColumnValues<T>>,
+
     /// The next docid start range to fetch (inclusive).
     next_fetch_start: u32,
     /// Number of docs range checked in a batch.
@@ -63,13 +67,15 @@ pub(crate) struct RangeDocSet<T: MakeZero> {
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
+        let column_index_select_cursor = column.select_cursor();
         let mut range_docset = Self {
             value_range,
-            column,
+            column_values: column.values,
             loaded_docs: VecCursor::new(),
             next_fetch_start: 0,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
             last_seek_pos_opt: None,
+            column_index_select_cursor,
         };
         range_docset.reset_fetch_range();
         range_docset.fetch_block();
@@ -106,26 +112,21 @@ impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSe
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.column.values.num_vals();
+        let limit = self.column_values.num_vals();
         let mut end = self.next_fetch_start + horizon;
         if end >= limit {
             end = limit;
             finished_to_end = true;
         }
 
-        let last_value = self.loaded_docs.last_value();
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
-        self.column.values.get_docids_for_value_range(
+        self.column_values.get_docids_for_value_range(
             self.value_range.clone(),
             self.next_fetch_start..end,
             doc_buffer,
         );
-        self.column.idx.select_batch_in_place(doc_buffer);
-        if let Some(last_value) = last_value {
-            while self.loaded_docs.current() == Some(last_value) {
-                self.loaded_docs.next();
-            }
-        }
+        self.column_index_select_cursor
+            .select_batch_in_place(doc_buffer);
         self.next_fetch_start = end;
 
         finished_to_end
@@ -138,7 +139,7 @@ impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for
         if let Some(docid) = self.loaded_docs.next() {
             return docid;
         }
-        if self.next_fetch_start >= self.column.values.num_vals() {
+        if self.next_fetch_start >= self.column_values.num_vals() {
             return TERMINATED;
         }
         self.fetch_block();

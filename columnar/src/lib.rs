@@ -10,7 +10,7 @@ extern crate test;
 use std::io;
 
 mod column;
-mod column_index;
+pub mod column_index;
 pub mod column_values;
 mod columnar;
 mod dictionary;
