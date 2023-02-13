@@ -32,6 +32,7 @@ pub use value::{NumericalType, NumericalValue};
 pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
+pub type DocId = u32;
 
 #[derive(Clone, Copy)]
 pub struct RowAddr {

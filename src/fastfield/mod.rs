@@ -925,7 +925,7 @@ mod tests {
         let test_range = |range: RangeInclusive<u64>| {
             let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
             let mut vec = vec![];
-            field.get_docids_for_value_range(range, 0..u32::MAX, &mut vec);
+            field.get_row_ids_for_value_range(range, 0..u32::MAX, &mut vec);
             assert_eq!(vec.len(), expexted_count);
         };
         test_range(50..=50);
@@ -953,7 +953,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let fastfields = searcher.segment_reader(0u32).fast_fields();
         let column: Column<Ipv6Addr> = fastfields.column_opt("ip").unwrap().unwrap();
-        assert_eq!(column.num_rows(), 3);
+        assert_eq!(column.num_docs(), 3);
         assert_eq!(column.first(0), None);
         assert_eq!(column.first(1), Some(ip_addr));
         assert_eq!(column.first(2), None);
@@ -995,7 +995,7 @@ mod tests {
         let test_range = |range: RangeInclusive<u64>| {
             let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
             let mut vec = vec![];
-            field.get_docids_for_value_range(range, 0..u32::MAX, &mut vec);
+            field.get_row_ids_for_value_range(range, 0..u32::MAX, &mut vec);
             assert_eq!(vec.len(), expexted_count);
         };
         let test_range_variant = |start, stop| {

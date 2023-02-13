@@ -142,7 +142,7 @@ fn test_optional_index_large() {
 
 fn test_optional_index_iter_aux(row_ids: &[RowId], num_rows: RowId) {
     let optional_index = OptionalIndex::for_test(num_rows, row_ids);
-    assert_eq!(optional_index.num_rows(), num_rows);
+    assert_eq!(optional_index.num_docs(), num_rows);
     assert!(optional_index.iter_rows().eq(row_ids.iter().copied()));
 }
 
@@ -154,7 +154,7 @@ fn test_optional_index_iter_empty() {
 fn test_optional_index_rank_aux(row_ids: &[RowId]) {
     let num_rows = row_ids.last().copied().unwrap_or(0u32) + 1;
     let null_index = OptionalIndex::for_test(num_rows, row_ids);
-    assert_eq!(null_index.num_rows(), num_rows);
+    assert_eq!(null_index.num_docs(), num_rows);
     for (row_id, row_val) in row_ids.iter().copied().enumerate() {
         assert_eq!(null_index.rank(row_val), row_id as u32);
         assert_eq!(null_index.rank_if_exists(row_val), Some(row_id as u32));
@@ -196,7 +196,7 @@ fn test_optional_index_for_tests() {
     assert!(optional_index.contains(1));
     assert!(optional_index.contains(2));
     assert!(!optional_index.contains(3));
-    assert_eq!(optional_index.num_rows(), 4);
+    assert_eq!(optional_index.num_docs(), 4);
 }
 
 #[cfg(all(test, feature = "unstable"))]

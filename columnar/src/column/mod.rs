@@ -3,7 +3,7 @@ mod serialize;
 
 use std::fmt::Debug;
 use std::io::Write;
-use std::ops::Deref;
+use std::ops::{Deref, Range, RangeInclusive};
 use std::sync::Arc;
 
 use common::BinarySerializable;
@@ -42,14 +42,14 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.idx.get_cardinality()
     }
 
-    pub fn num_rows(&self) -> RowId {
+    pub fn num_docs(&self) -> RowId {
         match &self.idx {
             ColumnIndex::Full => self.values.num_vals() as u32,
-            ColumnIndex::Optional(optional_index) => optional_index.num_rows(),
+            ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
             ColumnIndex::Multivalued(col_index) => {
                 // The multivalued index contains all value start row_id,
                 // and one extra value at the end with the overall number of rows.
-                col_index.num_rows()
+                col_index.num_docs()
             }
         }
     }
@@ -69,6 +69,25 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     pub fn values(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
         self.value_row_ids(row_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
+    }
+
+    /// Get the docids of values which are in the provided value range.
+    #[inline]
+    pub fn get_docids_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        selected_docid_range: Range<u32>,
+        docids: &mut Vec<u32>,
+    ) {
+        // convert passed docid range to row id range
+        let rowid_range = self.idx.docid_range_to_rowids(selected_docid_range.clone());
+
+        // Load rows
+        self.values
+            .get_row_ids_for_value_range(value_range.clone(), rowid_range, docids);
+        // Convert rows to docids
+        self.idx
+            .select_batch_in_place(docids, selected_docid_range.start);
     }
 
     /// Fils the output vector with the (possibly multiple values that are associated_with
@@ -132,8 +151,8 @@ impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
     fn num_vals(&self) -> u32 {
         match &self.column.idx {
             ColumnIndex::Full => self.column.values.num_vals(),
-            ColumnIndex::Optional(optional_idx) => optional_idx.num_rows(),
-            ColumnIndex::Multivalued(multivalue_idx) => multivalue_idx.num_rows(),
+            ColumnIndex::Optional(optional_idx) => optional_idx.num_docs(),
+            ColumnIndex::Multivalued(multivalue_idx) => multivalue_idx.num_docs(),
         }
     }
 }

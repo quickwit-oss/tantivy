@@ -11,7 +11,7 @@ use set_block::{
 };
 
 use crate::iterable::Iterable;
-use crate::{InvalidData, RowId};
+use crate::{DocId, InvalidData, RowId};
 
 /// The threshold for for number of elements after which we switch to dense block encoding.
 ///
@@ -177,11 +177,11 @@ impl Set<RowId> for OptionalIndex {
     }
 
     #[inline]
-    fn rank(&self, row_id: RowId) -> RowId {
+    fn rank(&self, doc_id: DocId) -> RowId {
         let RowAddr {
             block_id,
             in_block_row_id,
-        } = row_addr_from_row_id(row_id);
+        } = row_addr_from_row_id(doc_id);
         let block_meta = self.block_metas[block_id as usize];
         let block = self.block(block_meta);
         let block_offset_row_id = match block {
@@ -192,11 +192,11 @@ impl Set<RowId> for OptionalIndex {
     }
 
     #[inline]
-    fn rank_if_exists(&self, row_id: RowId) -> Option<RowId> {
+    fn rank_if_exists(&self, doc_id: DocId) -> Option<RowId> {
         let RowAddr {
             block_id,
             in_block_row_id,
-        } = row_addr_from_row_id(row_id);
+        } = row_addr_from_row_id(doc_id);
         let block_meta = self.block_metas[block_id as usize];
         let block = self.block(block_meta);
         let block_offset_row_id = match block {
@@ -247,7 +247,7 @@ impl OptionalIndex {
         open_optional_index(bytes).unwrap()
     }
 
-    pub fn num_rows(&self) -> RowId {
+    pub fn num_docs(&self) -> RowId {
         self.num_rows
     }
 

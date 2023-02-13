@@ -60,7 +60,7 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
             .map(|(pos, _)| pos as u32)
             .collect();
         let mut positions = Vec::new();
-        reader.get_docids_for_value_range(
+        reader.get_row_ids_for_value_range(
             vals[test_rand_idx]..=vals[test_rand_idx],
             0..vals.len() as u32,
             &mut positions,

@@ -8,7 +8,7 @@ use common::OwnedBytes;
 use crate::column_values::u64_based::CodecType;
 use crate::column_values::ColumnValues;
 use crate::iterable::Iterable;
-use crate::RowId;
+use crate::{DocId, RowId};
 
 pub fn serialize_multivalued_index(
     multivalued_index: &dyn Iterable<RowId>,
@@ -52,20 +52,20 @@ impl MultiValueIndex {
     /// Returns `[start, end)`, such that the values associated with
     /// the given document are `start..end`.
     #[inline]
-    pub(crate) fn range(&self, row_id: RowId) -> Range<RowId> {
-        let start = self.start_index_column.get_val(row_id);
-        let end = self.start_index_column.get_val(row_id + 1);
+    pub(crate) fn range(&self, doc_id: DocId) -> Range<RowId> {
+        let start = self.start_index_column.get_val(doc_id);
+        let end = self.start_index_column.get_val(doc_id + 1);
         start..end
     }
 
     /// Returns the number of documents in the index.
     #[inline]
-    pub fn num_rows(&self) -> u32 {
+    pub fn num_docs(&self) -> u32 {
         self.start_index_column.num_vals() - 1
     }
 
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
-    /// row_ids. Positions are converted inplace to docids.
+    /// docids. Positions are converted inplace to docids.
     ///
     /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
     /// index.
@@ -76,14 +76,14 @@ impl MultiValueIndex {
     /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
     /// match a docid to its value position.
     #[allow(clippy::bool_to_int_with_if)]
-    pub(crate) fn select_batch_in_place(&self, row_start: RowId, ranks: &mut Vec<u32>) {
+    pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         if ranks.is_empty() {
             return;
         }
-        let mut cur_doc = row_start;
+        let mut cur_doc = docid_start;
         let mut last_doc = None;
 
-        assert!(self.start_index_column.get_val(row_start) as u32 <= ranks[0]);
+        assert!(self.start_index_column.get_val(docid_start) as u32 <= ranks[0]);
 
         let mut write_doc_pos = 0;
         for i in 0..ranks.len() {
@@ -127,7 +127,7 @@ mod tests {
         let offsets: Vec<RowId> = vec![0, 10, 12, 15, 22, 23]; // docid values are [0..10, 10..12, 12..15, etc.]
         let column: Arc<dyn ColumnValues<RowId>> = Arc::new(IterColumn::from(offsets.into_iter()));
         let index = MultiValueIndex::from(column);
-        assert_eq!(index.num_rows(), 5);
+        assert_eq!(index.num_docs(), 5);
         let positions = &[10u32, 11, 15, 20, 21, 22];
         assert_eq!(index_to_pos_helper(&index, 0..5, positions), vec![1, 3, 4]);
         assert_eq!(index_to_pos_helper(&index, 1..5, positions), vec![1, 3, 4]);

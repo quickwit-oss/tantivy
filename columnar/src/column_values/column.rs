@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tantivy_bitpacker::minmax;
 
 use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
+use crate::RowId;
 
 /// `ColumnValues` provides access to a dense field column.
 ///
@@ -35,21 +36,21 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         }
     }
 
-    /// Get the positions of values which are in the provided value range.
+    /// Get the row ids of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
     #[inline(always)]
-    fn get_docids_for_value_range(
+    fn get_row_ids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
-        doc_id_range: Range<u32>,
-        positions: &mut Vec<u32>,
+        row_id_range: Range<RowId>,
+        row_id_hits: &mut Vec<RowId>,
     ) {
-        let doc_id_range = doc_id_range.start..doc_id_range.end.min(self.num_vals());
-        for idx in doc_id_range.start..doc_id_range.end {
+        let row_id_range = row_id_range.start..row_id_range.end.min(self.num_vals());
+        for idx in row_id_range.start..row_id_range.end {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
-                positions.push(idx);
+                row_id_hits.push(idx);
             }
         }
     }
@@ -257,13 +258,13 @@ where
         )
     }
 
-    fn get_docids_for_value_range(
+    fn get_row_ids_for_value_range(
         &self,
         range: RangeInclusive<Output>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        self.from_column.get_docids_for_value_range(
+        self.from_column.get_row_ids_for_value_range(
             self.monotonic_mapping.inverse(range.start().clone())
                 ..=self.monotonic_mapping.inverse(range.end().clone()),
             doc_id_range,

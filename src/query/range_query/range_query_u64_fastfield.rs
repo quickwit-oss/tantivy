@@ -155,6 +155,12 @@ pub mod tests {
     }
 
     #[test]
+    fn test_range_regression3() {
+        let ops = vec![doc_from_id_1(9), doc_from_id_1(0), doc_from_id_1(13)];
+        assert!(test_id_range_for_docs(ops).is_ok());
+    }
+
+    #[test]
     fn test_range_regression_simplified() {
         let mut schema_builder = SchemaBuilder::new();
         let field = schema_builder.add_u64_field("test_field", FAST);

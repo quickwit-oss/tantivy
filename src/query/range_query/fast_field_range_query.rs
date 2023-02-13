@@ -106,7 +106,7 @@ impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSe
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.column.values.num_vals();
+        let limit = self.column.num_docs();
         let mut end = self.next_fetch_start + horizon;
         if end >= limit {
             end = limit;
@@ -115,12 +115,11 @@ impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSe
 
         let last_value = self.loaded_docs.last_value();
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
-        self.column.values.get_docids_for_value_range(
+        self.column.get_docids_for_value_range(
             self.value_range.clone(),
             self.next_fetch_start..end,
             doc_buffer,
         );
-        self.column.idx.select_batch_in_place(doc_buffer);
         if let Some(last_value) = last_value {
             while self.loaded_docs.current() == Some(last_value) {
                 self.loaded_docs.next();
