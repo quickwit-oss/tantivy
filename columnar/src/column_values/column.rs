@@ -110,31 +110,14 @@ impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> 
     fn get_range(&self, start: u64, output: &mut [T]) {
         self.as_ref().get_range(start, output)
     }
-}
 
-impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd + Debug> ColumnValues<T> for &'a C {
-    fn get_val(&self, idx: u32) -> T {
-        (*self).get_val(idx)
-    }
-
-    fn min_value(&self) -> T {
-        (*self).min_value()
-    }
-
-    fn max_value(&self) -> T {
-        (*self).max_value()
-    }
-
-    fn num_vals(&self) -> u32 {
-        (*self).num_vals()
-    }
-
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
-        (*self).iter()
-    }
-
-    fn get_range(&self, start: u64, output: &mut [T]) {
-        (*self).get_range(start, output)
+    fn get_row_ids_for_value_range(
+        &self,
+        value_range: RangeInclusive<T>,
+        row_id_range: Range<RowId>,
+        row_id_hits: &mut Vec<RowId>,
+    ) {
+        self.as_ref().get_row_ids_for_value_range(value_range, row_id_range, row_id_hits)
     }
 }
 
