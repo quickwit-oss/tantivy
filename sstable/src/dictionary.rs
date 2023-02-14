@@ -48,8 +48,7 @@ impl Dictionary<VoidSSTable> {
             dictionary_writer.insert(term, &()).unwrap();
         }
         dictionary_writer.finish().unwrap();
-        let dictionary = Dictionary::from_bytes(OwnedBytes::new(buffer)).unwrap();
-        dictionary
+        Dictionary::from_bytes(OwnedBytes::new(buffer)).unwrap()
     }
 }
 

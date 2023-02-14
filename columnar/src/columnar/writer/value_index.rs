@@ -29,7 +29,7 @@ pub struct OptionalIndexBuilder {
 }
 
 impl OptionalIndexBuilder {
-    pub fn finish<'a>(&'a mut self, num_rows: RowId) -> impl Iterable<RowId> + 'a {
+    pub fn finish(&mut self, num_rows: RowId) -> impl Iterable<RowId> + '_ {
         debug_assert!(self
             .docs
             .last()

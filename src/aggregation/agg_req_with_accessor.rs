@@ -66,7 +66,7 @@ impl BucketAggregationWithAccessor {
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
-                str_dict_column = reader.fast_fields().str(&field_name)?;
+                str_dict_column = reader.fast_fields().str(field_name)?;
                 get_ff_reader_and_validate(reader, field_name)?
             }
         };

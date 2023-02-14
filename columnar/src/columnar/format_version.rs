@@ -4,7 +4,7 @@ pub const VERSION_FOOTER_NUM_BYTES: usize = MAGIC_BYTES.len() + std::mem::size_o
 
 /// We end the file by these 4 bytes just to somewhat identify that
 /// this is indeed a columnar file.
-const MAGIC_BYTES: [u8; 4] = [2, 113, 119, 066];
+const MAGIC_BYTES: [u8; 4] = [2, 113, 119, 66];
 
 pub fn footer() -> [u8; VERSION_FOOTER_NUM_BYTES] {
     let mut footer_bytes = [0u8; VERSION_FOOTER_NUM_BYTES];
@@ -27,8 +27,8 @@ pub enum Version {
 }
 
 impl Version {
-    fn to_bytes(&self) -> [u8; 4] {
-        (*self as u32).to_le_bytes()
+    fn to_bytes(self) -> [u8; 4] {
+        (self as u32).to_le_bytes()
     }
 
     fn try_from_bytes(bytes: [u8; 4]) -> Result<Version, InvalidData> {

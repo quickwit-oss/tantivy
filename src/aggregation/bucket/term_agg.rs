@@ -74,9 +74,9 @@ use crate::{DocId, TantivyError};
 ///     ...
 ///     "aggregations": {
 ///         "genres": {
-///             "doc_count_error_upper_bound": 0,   
-///             "sum_other_doc_count": 0,           
-///             "buckets": [                        
+///             "doc_count_error_upper_bound": 0,
+///             "sum_other_doc_count": 0,
+///             "buckets": [
 ///                 { "key": "drumnbass", "doc_count": 6 },
 ///                 { "key": "raggae", "doc_count": 4 },
 ///                 { "key": "jazz", "doc_count": 2 }
@@ -241,15 +241,6 @@ impl TermBucketEntry {
 }
 
 impl TermBuckets {
-    pub(crate) fn from_req_and_validate(
-        _sub_aggregation: &AggregationsWithAccessor,
-        _max_term_id: usize,
-    ) -> crate::Result<Self> {
-        Ok(TermBuckets {
-            entries: Default::default(),
-        })
-    }
-
     fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         for entry in &mut self.entries.values_mut() {
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {

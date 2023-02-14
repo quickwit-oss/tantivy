@@ -4,7 +4,7 @@ use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, Stats};
+use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
 /// Depending on the field type, a different
@@ -13,7 +13,7 @@ use crate::{ColumnValues, RowId};
 pub struct BitpackedReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
-    stats: Stats,
+    stats: ColumnStats,
 }
 
 impl ColumnValues for BitpackedReader {
@@ -36,7 +36,7 @@ impl ColumnValues for BitpackedReader {
     }
 }
 
-fn num_bits(stats: &Stats) -> u8 {
+fn num_bits(stats: &ColumnStats) -> u8 {
     compute_num_bits(stats.amplitude() / stats.gcd)
 }
 
@@ -46,14 +46,14 @@ pub struct BitpackedCodecEstimator;
 impl ColumnCodecEstimator for BitpackedCodecEstimator {
     fn collect(&mut self, _value: u64) {}
 
-    fn estimate(&self, stats: &Stats) -> Option<u64> {
+    fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
         let num_bits_per_value = num_bits(stats);
         Some(stats.num_bytes() + (stats.num_rows as u64 * (num_bits_per_value as u64) + 7) / 8)
     }
 
     fn serialize(
         &self,
-        stats: &Stats,
+        stats: &ColumnStats,
         vals: &mut dyn Iterator<Item = u64>,
         wrt: &mut dyn Write,
     ) -> io::Result<()> {
@@ -72,12 +72,12 @@ impl ColumnCodecEstimator for BitpackedCodecEstimator {
 pub struct BitpackedCodec;
 
 impl ColumnCodec for BitpackedCodec {
-    type Reader = BitpackedReader;
+    type ColumnValues = BitpackedReader;
     type Estimator = BitpackedCodecEstimator;
 
     /// Opens a fast field given a file.
-    fn load(mut data: OwnedBytes) -> io::Result<Self::Reader> {
-        let stats = Stats::deserialize(&mut data)?;
+    fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {
+        let stats = ColumnStats::deserialize(&mut data)?;
         let num_bits = num_bits(&stats);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(BitpackedReader {

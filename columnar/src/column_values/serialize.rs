@@ -8,19 +8,6 @@ use crate::column_values::U128FastFieldCodecType;
 use crate::iterable::Iterable;
 use crate::MonotonicallyMappableToU128;
 
-/// The normalized header gives some parameters after applying the following
-/// normalization of the vector:
-/// `val -> (val - min_value) / gcd`
-///
-/// By design, after normalization, `min_value = 0` and `gcd = 1`.
-#[derive(Debug, Copy, Clone)]
-pub struct NormalizedHeader {
-    /// The number of values in the underlying column.
-    pub num_vals: u32,
-    /// The max value of the underlying column.
-    pub max_value: u64,
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) struct U128Header {
     pub num_vals: u32,

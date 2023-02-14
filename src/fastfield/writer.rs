@@ -126,7 +126,7 @@ impl FastFieldsWriter {
                         self.columnar_writer.record_datetime(
                             doc_id,
                             field_name.as_str(),
-                            truncated_datetime.into(),
+                            truncated_datetime,
                         );
                     }
                     Value::Facet(facet) => {

@@ -6,21 +6,28 @@ use common::{BinarySerializable, VInt};
 
 use crate::RowId;
 
+/// Column statistics.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Stats {
+pub struct ColumnStats {
+    /// GCD of the elements `el - min(column)`.
     pub gcd: NonZeroU64,
+    /// Minimum value of the column.
     pub min_value: u64,
+    /// Maximum value of the column.
     pub max_value: u64,
+    /// Number of rows in the column.
     pub num_rows: RowId,
 }
 
-impl Stats {
+impl ColumnStats {
+    /// Amplitude of value.
+    /// Difference between the maximum and the minimum value.
     pub fn amplitude(&self) -> u64 {
         self.max_value - self.min_value
     }
 }
 
-impl BinarySerializable for Stats {
+impl BinarySerializable for ColumnStats {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.min_value).serialize(writer)?;
         VInt(self.gcd.get()).serialize(writer)?;
@@ -37,7 +44,7 @@ impl BinarySerializable for Stats {
         let amplitude = VInt::deserialize(reader)?.0 * gcd.get();
         let max_value = min_value + amplitude;
         let num_rows = VInt::deserialize(reader)?.0 as RowId;
-        Ok(Stats {
+        Ok(ColumnStats {
             min_value,
             max_value,
             num_rows,
@@ -52,21 +59,21 @@ mod tests {
 
     use common::BinarySerializable;
 
-    use crate::column_values::Stats;
+    use crate::column_values::ColumnStats;
 
     #[track_caller]
-    fn test_stats_ser_deser_aux(stats: &Stats, num_bytes: usize) {
+    fn test_stats_ser_deser_aux(stats: &ColumnStats, num_bytes: usize) {
         let mut buffer: Vec<u8> = Vec::new();
         stats.serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), num_bytes);
-        let deser_stats = Stats::deserialize(&mut &buffer[..]).unwrap();
+        let deser_stats = ColumnStats::deserialize(&mut &buffer[..]).unwrap();
         assert_eq!(stats, &deser_stats);
     }
 
     #[test]
     fn test_stats_serialization() {
         test_stats_ser_deser_aux(
-            &(Stats {
+            &(ColumnStats {
                 gcd: NonZeroU64::new(3).unwrap(),
                 min_value: 1,
                 max_value: 3001,
@@ -75,7 +82,7 @@ mod tests {
             5,
         );
         test_stats_ser_deser_aux(
-            &(Stats {
+            &(ColumnStats {
                 gcd: NonZeroU64::new(1_000).unwrap(),
                 min_value: 1,
                 max_value: 3001,
@@ -84,7 +91,7 @@ mod tests {
             5,
         );
         test_stats_ser_deser_aux(
-            &(Stats {
+            &(ColumnStats {
                 gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 0,

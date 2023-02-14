@@ -103,8 +103,8 @@ fn compute_previous_power_of_two(n: usize) -> usize {
     1 << msb
 }
 
-impl ArenaHashMap {
-    pub fn new() -> ArenaHashMap {
+impl Default for ArenaHashMap {
+    fn default() -> Self {
         let memory_arena = MemoryArena::default();
         ArenaHashMap {
             table: Box::new([]),
@@ -114,7 +114,9 @@ impl ArenaHashMap {
             len: 0,
         }
     }
+}
 
+impl ArenaHashMap {
     pub fn with_capacity(table_size: usize) -> ArenaHashMap {
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
         let memory_arena = MemoryArena::default();
@@ -298,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_hash_map() {
-        let mut hash_map: ArenaHashMap = ArenaHashMap::new();
+        let mut hash_map: ArenaHashMap = ArenaHashMap::default();
         hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             3u32

@@ -54,6 +54,7 @@ impl FacetReader {
         self.facet_column.ords().values(doc)
     }
 
+    /// Accessor to the facet dictionary.
     pub fn facet_dict(&self) -> &columnar::Dictionary {
         self.facet_column.dictionary()
     }

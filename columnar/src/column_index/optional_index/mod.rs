@@ -220,7 +220,7 @@ impl Set<RowId> for OptionalIndex {
         block_doc_idx_start + in_block_rank as u32
     }
 
-    fn select_cursor<'b>(&'b self) -> OptionalIndexSelectCursor<'b> {
+    fn select_cursor(&self) -> OptionalIndexSelectCursor<'_> {
         OptionalIndexSelectCursor {
             current_block_cursor: BlockSelectCursor::Sparse(
                 SparseBlockCodec::open(b"").select_cursor(),
@@ -255,7 +255,7 @@ impl OptionalIndex {
         self.num_non_null_rows
     }
 
-    pub fn iter_rows<'a>(&'a self) -> impl Iterator<Item = RowId> + 'a {
+    pub fn iter_rows(&self) -> impl Iterator<Item = RowId> + '_ {
         // TODO optimize
         let mut select_batch = self.select_cursor();
         (0..self.num_non_null_rows).map(move |rank| select_batch.select(rank))
@@ -268,7 +268,7 @@ impl OptionalIndex {
     }
 
     #[inline]
-    fn block<'a>(&'a self, block_meta: BlockMeta) -> Block<'a> {
+    fn block(&self, block_meta: BlockMeta) -> Block<'_> {
         let BlockMeta {
             start_byte_offset,
             block_variant,
@@ -351,7 +351,7 @@ fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -
     Ok(())
 }
 
-pub fn serialize_optional_index<'a, W: io::Write>(
+pub fn serialize_optional_index<W: io::Write>(
     non_null_rows: &dyn Iterable<RowId>,
     num_rows: RowId,
     output: &mut W,
@@ -427,7 +427,7 @@ impl SerializedBlockMeta {
     }
 
     #[inline]
-    fn to_bytes(&self) -> [u8; SERIALIZED_BLOCK_META_NUM_BYTES] {
+    fn to_bytes(self) -> [u8; SERIALIZED_BLOCK_META_NUM_BYTES] {
         assert!(self.num_non_null_rows > 0);
         let mut bytes = [0u8; SERIALIZED_BLOCK_META_NUM_BYTES];
         bytes[0..2].copy_from_slice(&self.block_id.to_le_bytes());
@@ -501,7 +501,7 @@ pub fn open_optional_index(bytes: OwnedBytes) -> io::Result<OptionalIndex> {
         num_non_empty_block_bytes as usize * SERIALIZED_BLOCK_META_NUM_BYTES;
     let (block_data, block_metas) = bytes.rsplit(block_metas_num_bytes);
     let (block_metas, num_non_null_rows) =
-        deserialize_optional_index_block_metadatas(block_metas.as_slice(), num_rows).into();
+        deserialize_optional_index_block_metadatas(block_metas.as_slice(), num_rows);
     let optional_index = OptionalIndex {
         num_rows,
         num_non_null_rows,

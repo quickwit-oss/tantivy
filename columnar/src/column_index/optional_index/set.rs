@@ -10,7 +10,7 @@ pub trait SetCodec {
     ///
     /// May panic if the elements are not sorted.
     fn serialize(els: impl Iterator<Item = Self::Item>, wrt: impl io::Write) -> io::Result<()>;
-    fn open<'a>(data: &'a [u8]) -> Self::Reader<'a>;
+    fn open(data: &[u8]) -> Self::Reader<'_>;
 }
 
 /// Stateful object that makes it possible to compute several select in a row,
@@ -43,5 +43,5 @@ pub trait Set<T> {
     fn select(&self, rank: T) -> T;
 
     /// Creates a brand new select cursor.
-    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b>;
+    fn select_cursor(&self) -> Self::SelectCursor<'_>;
 }

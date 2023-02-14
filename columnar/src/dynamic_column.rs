@@ -166,9 +166,9 @@ impl StrictlyMonotonicFn<i64, u64> for MapI64ToU64 {
 
 macro_rules! static_dynamic_conversions {
     ($typ:ty, $enum_name:ident) => {
-        impl Into<Option<$typ>> for DynamicColumn {
-            fn into(self) -> Option<$typ> {
-                if let DynamicColumn::$enum_name(col) = self {
+        impl From<DynamicColumn> for Option<$typ> {
+            fn from(dynamic_column: DynamicColumn) -> Option<$typ> {
+                if let DynamicColumn::$enum_name(col) = dynamic_column {
                     Some(col)
                 } else {
                     None

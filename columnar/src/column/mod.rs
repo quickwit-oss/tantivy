@@ -84,7 +84,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 
         // Load rows
         self.values
-            .get_row_ids_for_value_range(value_range.clone(), rowid_range, docids);
+            .get_row_ids_for_value_range(value_range, rowid_range, docids);
         // Convert rows to docids
         self.idx
             .select_batch_in_place(docids, selected_docid_range.start);
