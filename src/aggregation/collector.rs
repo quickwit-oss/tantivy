@@ -4,10 +4,7 @@ use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::{
-    build_segment_agg_collector, GenericSegmentAggregationResultsCollector,
-    SegmentAggregationCollector,
-};
+use super::segment_agg_result::{build_segment_agg_collector, SegmentAggregationCollector};
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
 use crate::schema::Schema;

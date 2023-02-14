@@ -131,8 +131,6 @@ pub use time;
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
-use crate::time::format_description::well_known::Rfc3339;
-use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
 /// Tantivy result.
 ///

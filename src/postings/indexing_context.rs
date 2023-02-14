@@ -13,7 +13,7 @@ pub(crate) struct IndexingContext {
 impl IndexingContext {
     /// Create a new IndexingContext given the size of the term hash map.
     pub(crate) fn new(table_size: usize) -> IndexingContext {
-        let term_index = ArenaHashMap::new(table_size);
+        let term_index = ArenaHashMap::with_capacity(table_size);
         IndexingContext {
             arena: MemoryArena::default(),
             term_index,

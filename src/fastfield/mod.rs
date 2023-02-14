@@ -22,7 +22,6 @@
 use std::net::Ipv6Addr;
 
 pub use columnar::Column;
-use columnar::MonotonicallyMappableToU64;
 
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -109,7 +108,7 @@ mod tests {
     use std::ops::{Range, RangeInclusive};
     use std::path::Path;
 
-    use columnar::Column;
+    use columnar::{Column, MonotonicallyMappableToU64};
     use common::{HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;

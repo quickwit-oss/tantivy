@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 
-use columnar::Column;
-use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -13,11 +11,9 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, GenericSegmentAggregationResultsCollector,
-    SegmentAggregationCollector,
+    build_segment_agg_collector, SegmentAggregationCollector,
 };
 use crate::error::DataCorruption;
-use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
 /// Creates a bucket for every unique term and counts the number of occurences.
@@ -246,7 +242,7 @@ impl TermBucketEntry {
 
 impl TermBuckets {
     pub(crate) fn from_req_and_validate(
-        sub_aggregation: &AggregationsWithAccessor,
+        _sub_aggregation: &AggregationsWithAccessor,
         _max_term_id: usize,
     ) -> crate::Result<Self> {
         Ok(TermBuckets {
