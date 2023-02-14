@@ -313,7 +313,7 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
     }
 
     #[inline]
-    fn get_docids_for_value_range(
+    fn get_row_ids_for_value_range(
         &self,
         value_range: RangeInclusive<u128>,
         positions_range: Range<u32>,
@@ -709,7 +709,7 @@ mod tests {
         doc_id_range: Range<u32>,
     ) -> Vec<u32> {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(value_range, doc_id_range, &mut positions);
+        column.get_row_ids_for_value_range(value_range, doc_id_range, &mut positions);
         positions
     }
 

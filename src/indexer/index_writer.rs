@@ -1870,7 +1870,7 @@ mod tests {
                         .column_opt::<Ipv6Addr>("ips")
                         .unwrap()
                         .unwrap();
-                    ff_reader.num_rows() as usize
+                    ff_reader.num_docs() as usize
                 })
                 .sum();
             assert_eq!(num_docs, num_docs_expected);
@@ -2089,11 +2089,12 @@ mod tests {
 
             let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
             // Range query on single value field
-            // let query = gen_query_inclusive("ip", ip, ip);
-            // assert_eq!(do_search_ip_field(&query), count);
+            let query = gen_query_inclusive("ip", ip, ip);
+            assert_eq!(do_search_ip_field(&query), count);
 
             // Range query on multi value field
             let query = gen_query_inclusive("ips", ip, ip);
+
             assert_eq!(do_search_ip_field(&query), count);
         }
 
@@ -2111,8 +2112,8 @@ mod tests {
 
             let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
             // Range query on single value field
-            // let query = gen_query_inclusive("ip", ip, ip);
-            // assert_eq!(do_search_ip_field(&query), count);
+            let query = gen_query_inclusive("ip", ip, ip);
+            assert_eq!(do_search_ip_field(&query), count);
 
             // Range query on multi value field
             let query = gen_query_inclusive("ips", ip, ip);
@@ -2370,6 +2371,30 @@ mod tests {
             Commit,
         ];
         test_operation_strategy(&ops[..], false, true).unwrap();
+    }
+
+    #[test]
+    fn test_range_query_bug_1() {
+        use IndexingOp::*;
+        let ops = &[
+            AddDoc { id: 9 },
+            AddDoc { id: 0 },
+            AddDoc { id: 13 },
+            Commit,
+        ];
+        test_operation_strategy(&ops[..], false, true).unwrap();
+    }
+
+    #[test]
+    fn test_range_query_bug_2() {
+        use IndexingOp::*;
+        let ops = &[
+            AddDoc { id: 3 },
+            AddDoc { id: 6 },
+            AddDoc { id: 9 },
+            AddDoc { id: 10 },
+        ];
+        test_operation_strategy(&ops[..], false, false).unwrap();
     }
 
     #[test]

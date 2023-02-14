@@ -32,7 +32,7 @@ impl BytesColumn {
 
     /// Returns the number of rows in the column.
     pub fn num_rows(&self) -> RowId {
-        self.term_ord_column.num_rows()
+        self.term_ord_column.num_docs()
     }
 
     pub fn term_ords(&self, row_id: RowId) -> impl Iterator<Item = u64> + '_ {

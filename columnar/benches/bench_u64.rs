@@ -89,7 +89,7 @@ fn bench_intfastfield_getrange_u64_50percent_hit(b: &mut Bencher) {
     let column: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data, CodecType::Bitpacked);
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(
+        column.get_row_ids_for_value_range(
             FIFTY_PERCENT_RANGE,
             0..data.len() as u32,
             &mut positions,
@@ -106,7 +106,7 @@ fn bench_intfastfield_getrange_u64_1percent_hit(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(
+        column.get_row_ids_for_value_range(
             ONE_PERCENT_ITEM_RANGE,
             0..data.len() as u32,
             &mut positions,
@@ -123,7 +123,7 @@ fn bench_intfastfield_getrange_u64_single_hit(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(SINGLE_ITEM_RANGE, 0..data.len() as u32, &mut positions);
+        column.get_row_ids_for_value_range(SINGLE_ITEM_RANGE, 0..data.len() as u32, &mut positions);
         positions
     });
 }
@@ -136,7 +136,7 @@ fn bench_intfastfield_getrange_u64_hit_all(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(0..=u64::MAX, 0..data.len() as u32, &mut positions);
+        column.get_row_ids_for_value_range(0..=u64::MAX, 0..data.len() as u32, &mut positions);
         positions
     });
 }

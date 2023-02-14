@@ -58,7 +58,7 @@ fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(
+        column.get_row_ids_for_value_range(
             *FIFTY_PERCENT_RANGE.start() as u128..=*FIFTY_PERCENT_RANGE.end() as u128,
             0..data.len() as u32,
             &mut positions,
@@ -74,7 +74,7 @@ fn bench_intfastfield_getrange_u128_single_hit(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(
+        column.get_row_ids_for_value_range(
             *SINGLE_ITEM_RANGE.start() as u128..=*SINGLE_ITEM_RANGE.end() as u128,
             0..data.len() as u32,
             &mut positions,
@@ -90,7 +90,7 @@ fn bench_intfastfield_getrange_u128_hit_all(b: &mut Bencher) {
 
     b.iter(|| {
         let mut positions = Vec::new();
-        column.get_docids_for_value_range(0..=u128::MAX, 0..data.len() as u32, &mut positions);
+        column.get_row_ids_for_value_range(0..=u128::MAX, 0..data.len() as u32, &mut positions);
         positions
     });
 }
