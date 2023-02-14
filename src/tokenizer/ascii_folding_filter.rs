@@ -1663,21 +1663,21 @@ mod tests {
                     "Ȃ",  // U+0202: LATIN CAPITAL LETTER A WITH INVERTED BREVE
                     "Ȧ",  // U+0226: LATIN CAPITAL LETTER A WITH DOT ABOVE
                     "Ⱥ",  // U+023A: LATIN CAPITAL LETTER A WITH STROKE
-                    "ᴀ",  // U+1D00: LATIN LETTER SMALL CAPITAL A
-                    "Ḁ",  // U+1E00: LATIN CAPITAL LETTER A WITH RING BELOW
-                    "Ạ",  // U+1EA0: LATIN CAPITAL LETTER A WITH DOT BELOW
-                    "Ả",  // U+1EA2: LATIN CAPITAL LETTER A WITH HOOK ABOVE
-                    "Ấ",  // U+1EA4: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND ACUTE
-                    "Ầ",  // U+1EA6: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND GRAVE
-                    "Ẩ",  // U+1EA8: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND HOOK ABOVE
-                    "Ẫ",  // U+1EAA: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND TILDE
-                    "Ậ",  // U+1EAC: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND DOT BELOW
-                    "Ắ",  // U+1EAE: LATIN CAPITAL LETTER A WITH BREVE AND ACUTE
-                    "Ằ",  // U+1EB0: LATIN CAPITAL LETTER A WITH BREVE AND GRAVE
-                    "Ẳ",  // U+1EB2: LATIN CAPITAL LETTER A WITH BREVE AND HOOK ABOVE
-                    "Ẵ",  // U+1EB4: LATIN CAPITAL LETTER A WITH BREVE AND TILDE
-                    "Ặ",  // U+1EB6: LATIN CAPITAL LETTER A WITH BREVE AND DOT BELOW
-                    "Ⓐ",  // U+24B6: CIRCLED LATIN CAPITAL LETTER A
+                    "ᴀ", // U+1D00: LATIN LETTER SMALL CAPITAL A
+                    "Ḁ", // U+1E00: LATIN CAPITAL LETTER A WITH RING BELOW
+                    "Ạ", // U+1EA0: LATIN CAPITAL LETTER A WITH DOT BELOW
+                    "Ả", // U+1EA2: LATIN CAPITAL LETTER A WITH HOOK ABOVE
+                    "Ấ", // U+1EA4: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND ACUTE
+                    "Ầ", // U+1EA6: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND GRAVE
+                    "Ẩ", // U+1EA8: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND HOOK ABOVE
+                    "Ẫ", // U+1EAA: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND TILDE
+                    "Ậ", // U+1EAC: LATIN CAPITAL LETTER A WITH CIRCUMFLEX AND DOT BELOW
+                    "Ắ", // U+1EAE: LATIN CAPITAL LETTER A WITH BREVE AND ACUTE
+                    "Ằ", // U+1EB0: LATIN CAPITAL LETTER A WITH BREVE AND GRAVE
+                    "Ẳ", // U+1EB2: LATIN CAPITAL LETTER A WITH BREVE AND HOOK ABOVE
+                    "Ẵ", // U+1EB4: LATIN CAPITAL LETTER A WITH BREVE AND TILDE
+                    "Ặ", // U+1EB6: LATIN CAPITAL LETTER A WITH BREVE AND DOT BELOW
+                    "Ⓐ", // U+24B6: CIRCLED LATIN CAPITAL LETTER A
                     "Ａ", // U+FF21: FULLWIDTH LATIN CAPITAL LETTER A
                 ],
                 "A",
@@ -1703,27 +1703,27 @@ mod tests {
                     "ɐ",  // U+0250: LATIN SMALL LETTER TURNED A
                     "ə",  // U+0259: LATIN SMALL LETTER SCHWA
                     "ɚ",  // U+025A: LATIN SMALL LETTER SCHWA WITH HOOK
-                    "ᶏ",  // U+1D8F: LATIN SMALL LETTER A WITH RETROFLEX HOOK
-                    "ḁ",  // U+1E01: LATIN SMALL LETTER A WITH RING BELOW
-                    "ᶕ",  // U+1D95: LATIN SMALL LETTER SCHWA WITH RETROFLEX HOOK
-                    "ẚ",  // U+1E9A: LATIN SMALL LETTER A WITH RIGHT HALF RING
-                    "ạ",  // U+1EA1: LATIN SMALL LETTER A WITH DOT BELOW
-                    "ả",  // U+1EA3: LATIN SMALL LETTER A WITH HOOK ABOVE
-                    "ấ",  // U+1EA5: LATIN SMALL LETTER A WITH CIRCUMFLEX AND ACUTE
-                    "ầ",  // U+1EA7: LATIN SMALL LETTER A WITH CIRCUMFLEX AND GRAVE
-                    "ẩ",  // U+1EA9: LATIN SMALL LETTER A WITH CIRCUMFLEX AND HOOK ABOVE
-                    "ẫ",  // U+1EAB: LATIN SMALL LETTER A WITH CIRCUMFLEX AND TILDE
-                    "ậ",  // U+1EAD: LATIN SMALL LETTER A WITH CIRCUMFLEX AND DOT BELOW
-                    "ắ",  // U+1EAF: LATIN SMALL LETTER A WITH BREVE AND ACUTE
-                    "ằ",  // U+1EB1: LATIN SMALL LETTER A WITH BREVE AND GRAVE
-                    "ẳ",  // U+1EB3: LATIN SMALL LETTER A WITH BREVE AND HOOK ABOVE
-                    "ẵ",  // U+1EB5: LATIN SMALL LETTER A WITH BREVE AND TILDE
-                    "ặ",  // U+1EB7: LATIN SMALL LETTER A WITH BREVE AND DOT BELOW
-                    "ₐ",  // U+2090: LATIN SUBSCRIPT SMALL LETTER A
-                    "ₔ",  // U+2094: LATIN SUBSCRIPT SMALL LETTER SCHWA
-                    "ⓐ",  // U+24D0: CIRCLED LATIN SMALL LETTER A
-                    "ⱥ",  // U+2C65: LATIN SMALL LETTER A WITH STROKE
-                    "Ɐ",  // U+2C6F: LATIN CAPITAL LETTER TURNED A
+                    "ᶏ", // U+1D8F: LATIN SMALL LETTER A WITH RETROFLEX HOOK
+                    "ḁ", // U+1E01: LATIN SMALL LETTER A WITH RING BELOW
+                    "ᶕ", // U+1D95: LATIN SMALL LETTER SCHWA WITH RETROFLEX HOOK
+                    "ẚ", // U+1E9A: LATIN SMALL LETTER A WITH RIGHT HALF RING
+                    "ạ", // U+1EA1: LATIN SMALL LETTER A WITH DOT BELOW
+                    "ả", // U+1EA3: LATIN SMALL LETTER A WITH HOOK ABOVE
+                    "ấ", // U+1EA5: LATIN SMALL LETTER A WITH CIRCUMFLEX AND ACUTE
+                    "ầ", // U+1EA7: LATIN SMALL LETTER A WITH CIRCUMFLEX AND GRAVE
+                    "ẩ", // U+1EA9: LATIN SMALL LETTER A WITH CIRCUMFLEX AND HOOK ABOVE
+                    "ẫ", // U+1EAB: LATIN SMALL LETTER A WITH CIRCUMFLEX AND TILDE
+                    "ậ", // U+1EAD: LATIN SMALL LETTER A WITH CIRCUMFLEX AND DOT BELOW
+                    "ắ", // U+1EAF: LATIN SMALL LETTER A WITH BREVE AND ACUTE
+                    "ằ", // U+1EB1: LATIN SMALL LETTER A WITH BREVE AND GRAVE
+                    "ẳ", // U+1EB3: LATIN SMALL LETTER A WITH BREVE AND HOOK ABOVE
+                    "ẵ", // U+1EB5: LATIN SMALL LETTER A WITH BREVE AND TILDE
+                    "ặ", // U+1EB7: LATIN SMALL LETTER A WITH BREVE AND DOT BELOW
+                    "ₐ", // U+2090: LATIN SUBSCRIPT SMALL LETTER A
+                    "ₔ", // U+2094: LATIN SUBSCRIPT SMALL LETTER SCHWA
+                    "ⓐ", // U+24D0: CIRCLED LATIN SMALL LETTER A
+                    "ⱥ", // U+2C65: LATIN SMALL LETTER A WITH STROKE
+                    "Ɐ", // U+2C6F: LATIN CAPITAL LETTER TURNED A
                     "ａ", // U+FF41: FULLWIDTH LATIN SMALL LETTER A
                 ],
                 "a",
@@ -1736,9 +1736,9 @@ mod tests {
             ),
             (
                 &[
-                    "Æ", // U+00C6: LATIN CAPITAL LETTER AE
-                    "Ǣ", // U+01E2: LATIN CAPITAL LETTER AE WITH MACRON
-                    "Ǽ", // U+01FC: LATIN CAPITAL LETTER AE WITH ACUTE
+                    "Æ",  // U+00C6: LATIN CAPITAL LETTER AE
+                    "Ǣ",  // U+01E2: LATIN CAPITAL LETTER AE WITH MACRON
+                    "Ǽ",  // U+01FC: LATIN CAPITAL LETTER AE WITH ACUTE
                     "ᴁ", // U+1D01: LATIN LETTER SMALL CAPITAL AE
                 ],
                 "AE",
@@ -1782,9 +1782,9 @@ mod tests {
             ),
             (
                 &[
-                    "æ", // U+00E6: LATIN SMALL LETTER AE
-                    "ǣ", // U+01E3: LATIN SMALL LETTER AE WITH MACRON
-                    "ǽ", // U+01FD: LATIN SMALL LETTER AE WITH ACUTE
+                    "æ",  // U+00E6: LATIN SMALL LETTER AE
+                    "ǣ",  // U+01E3: LATIN SMALL LETTER AE WITH MACRON
+                    "ǽ",  // U+01FD: LATIN SMALL LETTER AE WITH ACUTE
                     "ᴂ", // U+1D02: LATIN SMALL LETTER TURNED AE
                 ],
                 "ae",
@@ -1820,11 +1820,11 @@ mod tests {
                     "Ƃ",  // U+0182: LATIN CAPITAL LETTER B WITH TOPBAR
                     "Ƀ",  // U+0243: LATIN CAPITAL LETTER B WITH STROKE
                     "ʙ",  // U+0299: LATIN LETTER SMALL CAPITAL B
-                    "ᴃ",  // U+1D03: LATIN LETTER SMALL CAPITAL BARRED B
-                    "Ḃ",  // U+1E02: LATIN CAPITAL LETTER B WITH DOT ABOVE
-                    "Ḅ",  // U+1E04: LATIN CAPITAL LETTER B WITH DOT BELOW
-                    "Ḇ",  // U+1E06: LATIN CAPITAL LETTER B WITH LINE BELOW
-                    "Ⓑ",  // U+24B7: CIRCLED LATIN CAPITAL LETTER B
+                    "ᴃ", // U+1D03: LATIN LETTER SMALL CAPITAL BARRED B
+                    "Ḃ", // U+1E02: LATIN CAPITAL LETTER B WITH DOT ABOVE
+                    "Ḅ", // U+1E04: LATIN CAPITAL LETTER B WITH DOT BELOW
+                    "Ḇ", // U+1E06: LATIN CAPITAL LETTER B WITH LINE BELOW
+                    "Ⓑ", // U+24B7: CIRCLED LATIN CAPITAL LETTER B
                     "Ｂ", // U+FF22: FULLWIDTH LATIN CAPITAL LETTER B
                 ],
                 "B",
@@ -1834,12 +1834,12 @@ mod tests {
                     "ƀ",  // U+0180: LATIN SMALL LETTER B WITH STROKE
                     "ƃ",  // U+0183: LATIN SMALL LETTER B WITH TOPBAR
                     "ɓ",  // U+0253: LATIN SMALL LETTER B WITH HOOK
-                    "ᵬ",  // U+1D6C: LATIN SMALL LETTER B WITH MIDDLE TILDE
-                    "ᶀ",  // U+1D80: LATIN SMALL LETTER B WITH PALATAL HOOK
-                    "ḃ",  // U+1E03: LATIN SMALL LETTER B WITH DOT ABOVE
-                    "ḅ",  // U+1E05: LATIN SMALL LETTER B WITH DOT BELOW
-                    "ḇ",  // U+1E07: LATIN SMALL LETTER B WITH LINE BELOW
-                    "ⓑ",  // U+24D1: CIRCLED LATIN SMALL LETTER B
+                    "ᵬ", // U+1D6C: LATIN SMALL LETTER B WITH MIDDLE TILDE
+                    "ᶀ", // U+1D80: LATIN SMALL LETTER B WITH PALATAL HOOK
+                    "ḃ", // U+1E03: LATIN SMALL LETTER B WITH DOT ABOVE
+                    "ḅ", // U+1E05: LATIN SMALL LETTER B WITH DOT BELOW
+                    "ḇ", // U+1E07: LATIN SMALL LETTER B WITH LINE BELOW
+                    "ⓑ", // U+24D1: CIRCLED LATIN SMALL LETTER B
                     "ｂ", // U+FF42: FULLWIDTH LATIN SMALL LETTER B
                 ],
                 "b",
@@ -1860,9 +1860,9 @@ mod tests {
                     "Ƈ",  // U+0187: LATIN CAPITAL LETTER C WITH HOOK
                     "Ȼ",  // U+023B: LATIN CAPITAL LETTER C WITH STROKE
                     "ʗ",  // U+0297: LATIN LETTER STRETCHED C
-                    "ᴄ",  // U+1D04: LATIN LETTER SMALL CAPITAL C
-                    "Ḉ",  // U+1E08: LATIN CAPITAL LETTER C WITH CEDILLA AND ACUTE
-                    "Ⓒ",  // U+24B8: CIRCLED LATIN CAPITAL LETTER C
+                    "ᴄ", // U+1D04: LATIN LETTER SMALL CAPITAL C
+                    "Ḉ", // U+1E08: LATIN CAPITAL LETTER C WITH CEDILLA AND ACUTE
+                    "Ⓒ", // U+24B8: CIRCLED LATIN CAPITAL LETTER C
                     "Ｃ", // U+FF23: FULLWIDTH LATIN CAPITAL LETTER C
                 ],
                 "C",
@@ -1877,11 +1877,11 @@ mod tests {
                     "ƈ",  // U+0188: LATIN SMALL LETTER C WITH HOOK
                     "ȼ",  // U+023C: LATIN SMALL LETTER C WITH STROKE
                     "ɕ",  // U+0255: LATIN SMALL LETTER C WITH CURL
-                    "ḉ",  // U+1E09: LATIN SMALL LETTER C WITH CEDILLA AND ACUTE
-                    "ↄ",  // U+2184: LATIN SMALL LETTER REVERSED C
-                    "ⓒ",  // U+24D2: CIRCLED LATIN SMALL LETTER C
-                    "Ꜿ",  // U+A73E: LATIN CAPITAL LETTER REVERSED C WITH DOT
-                    "ꜿ",  // U+A73F: LATIN SMALL LETTER REVERSED C WITH DOT
+                    "ḉ", // U+1E09: LATIN SMALL LETTER C WITH CEDILLA AND ACUTE
+                    "ↄ", // U+2184: LATIN SMALL LETTER REVERSED C
+                    "ⓒ", // U+24D2: CIRCLED LATIN SMALL LETTER C
+                    "Ꜿ", // U+A73E: LATIN CAPITAL LETTER REVERSED C WITH DOT
+                    "ꜿ", // U+A73F: LATIN SMALL LETTER REVERSED C WITH DOT
                     "ｃ", // U+FF43: FULLWIDTH LATIN SMALL LETTER C
                 ],
                 "c",
@@ -1900,15 +1900,15 @@ mod tests {
                     "Ɖ",  // U+0189: LATIN CAPITAL LETTER AFRICAN D
                     "Ɗ",  // U+018A: LATIN CAPITAL LETTER D WITH HOOK
                     "Ƌ",  // U+018B: LATIN CAPITAL LETTER D WITH TOPBAR
-                    "ᴅ",  // U+1D05: LATIN LETTER SMALL CAPITAL D
-                    "ᴆ",  // U+1D06: LATIN LETTER SMALL CAPITAL ETH
-                    "Ḋ",  // U+1E0A: LATIN CAPITAL LETTER D WITH DOT ABOVE
-                    "Ḍ",  // U+1E0C: LATIN CAPITAL LETTER D WITH DOT BELOW
-                    "Ḏ",  // U+1E0E: LATIN CAPITAL LETTER D WITH LINE BELOW
-                    "Ḑ",  // U+1E10: LATIN CAPITAL LETTER D WITH CEDILLA
-                    "Ḓ",  // U+1E12: LATIN CAPITAL LETTER D WITH CIRCUMFLEX BELOW
-                    "Ⓓ",  // U+24B9: CIRCLED LATIN CAPITAL LETTER D
-                    "Ꝺ",  // U+A779: LATIN CAPITAL LETTER INSULAR D
+                    "ᴅ", // U+1D05: LATIN LETTER SMALL CAPITAL D
+                    "ᴆ", // U+1D06: LATIN LETTER SMALL CAPITAL ETH
+                    "Ḋ", // U+1E0A: LATIN CAPITAL LETTER D WITH DOT ABOVE
+                    "Ḍ", // U+1E0C: LATIN CAPITAL LETTER D WITH DOT BELOW
+                    "Ḏ", // U+1E0E: LATIN CAPITAL LETTER D WITH LINE BELOW
+                    "Ḑ", // U+1E10: LATIN CAPITAL LETTER D WITH CEDILLA
+                    "Ḓ", // U+1E12: LATIN CAPITAL LETTER D WITH CIRCUMFLEX BELOW
+                    "Ⓓ", // U+24B9: CIRCLED LATIN CAPITAL LETTER D
+                    "Ꝺ", // U+A779: LATIN CAPITAL LETTER INSULAR D
                     "Ｄ", // U+FF24: FULLWIDTH LATIN CAPITAL LETTER D
                 ],
                 "D",
@@ -1922,16 +1922,16 @@ mod tests {
                     "ȡ",  // U+0221: LATIN SMALL LETTER D WITH CURL
                     "ɖ",  // U+0256: LATIN SMALL LETTER D WITH TAIL
                     "ɗ",  // U+0257: LATIN SMALL LETTER D WITH HOOK
-                    "ᵭ",  // U+1D6D: LATIN SMALL LETTER D WITH MIDDLE TILDE
-                    "ᶁ",  // U+1D81: LATIN SMALL LETTER D WITH PALATAL HOOK
-                    "ᶑ",  // U+1D91: LATIN SMALL LETTER D WITH HOOK AND TAIL
-                    "ḋ",  // U+1E0B: LATIN SMALL LETTER D WITH DOT ABOVE
-                    "ḍ",  // U+1E0D: LATIN SMALL LETTER D WITH DOT BELOW
-                    "ḏ",  // U+1E0F: LATIN SMALL LETTER D WITH LINE BELOW
-                    "ḑ",  // U+1E11: LATIN SMALL LETTER D WITH CEDILLA
-                    "ḓ",  // U+1E13: LATIN SMALL LETTER D WITH CIRCUMFLEX BELOW
-                    "ⓓ",  // U+24D3: CIRCLED LATIN SMALL LETTER D
-                    "ꝺ",  // U+A77A: LATIN SMALL LETTER INSULAR D
+                    "ᵭ", // U+1D6D: LATIN SMALL LETTER D WITH MIDDLE TILDE
+                    "ᶁ", // U+1D81: LATIN SMALL LETTER D WITH PALATAL HOOK
+                    "ᶑ", // U+1D91: LATIN SMALL LETTER D WITH HOOK AND TAIL
+                    "ḋ", // U+1E0B: LATIN SMALL LETTER D WITH DOT ABOVE
+                    "ḍ", // U+1E0D: LATIN SMALL LETTER D WITH DOT BELOW
+                    "ḏ", // U+1E0F: LATIN SMALL LETTER D WITH LINE BELOW
+                    "ḑ", // U+1E11: LATIN SMALL LETTER D WITH CEDILLA
+                    "ḓ", // U+1E13: LATIN SMALL LETTER D WITH CIRCUMFLEX BELOW
+                    "ⓓ", // U+24D3: CIRCLED LATIN SMALL LETTER D
+                    "ꝺ", // U+A77A: LATIN SMALL LETTER INSULAR D
                     "ｄ", // U+FF44: FULLWIDTH LATIN SMALL LETTER D
                 ],
                 "d",
@@ -1988,22 +1988,22 @@ mod tests {
                     "Ȇ",  // U+0206: LATIN CAPITAL LETTER E WITH INVERTED BREVE
                     "Ȩ",  // U+0228: LATIN CAPITAL LETTER E WITH CEDILLA
                     "Ɇ",  // U+0246: LATIN CAPITAL LETTER E WITH STROKE
-                    "ᴇ",  // U+1D07: LATIN LETTER SMALL CAPITAL E
-                    "Ḕ",  // U+1E14: LATIN CAPITAL LETTER E WITH MACRON AND GRAVE
-                    "Ḗ",  // U+1E16: LATIN CAPITAL LETTER E WITH MACRON AND ACUTE
-                    "Ḙ",  // U+1E18: LATIN CAPITAL LETTER E WITH CIRCUMFLEX BELOW
-                    "Ḛ",  // U+1E1A: LATIN CAPITAL LETTER E WITH TILDE BELOW
-                    "Ḝ",  // U+1E1C: LATIN CAPITAL LETTER E WITH CEDILLA AND BREVE
-                    "Ẹ",  // U+1EB8: LATIN CAPITAL LETTER E WITH DOT BELOW
-                    "Ẻ",  // U+1EBA: LATIN CAPITAL LETTER E WITH HOOK ABOVE
-                    "Ẽ",  // U+1EBC: LATIN CAPITAL LETTER E WITH TILDE
-                    "Ế",  // U+1EBE: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND ACUTE
-                    "Ề",  // U+1EC0: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND GRAVE
-                    "Ể",  // U+1EC2: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND HOOK ABOVE
-                    "Ễ",  // U+1EC4: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND TILDE
-                    "Ệ",  // U+1EC6: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND DOT BELOW
-                    "Ⓔ",  // U+24BA: CIRCLED LATIN CAPITAL LETTER E
-                    "ⱻ",  // U+2C7B: LATIN LETTER SMALL CAPITAL TURNED E
+                    "ᴇ", // U+1D07: LATIN LETTER SMALL CAPITAL E
+                    "Ḕ", // U+1E14: LATIN CAPITAL LETTER E WITH MACRON AND GRAVE
+                    "Ḗ", // U+1E16: LATIN CAPITAL LETTER E WITH MACRON AND ACUTE
+                    "Ḙ", // U+1E18: LATIN CAPITAL LETTER E WITH CIRCUMFLEX BELOW
+                    "Ḛ", // U+1E1A: LATIN CAPITAL LETTER E WITH TILDE BELOW
+                    "Ḝ", // U+1E1C: LATIN CAPITAL LETTER E WITH CEDILLA AND BREVE
+                    "Ẹ", // U+1EB8: LATIN CAPITAL LETTER E WITH DOT BELOW
+                    "Ẻ", // U+1EBA: LATIN CAPITAL LETTER E WITH HOOK ABOVE
+                    "Ẽ", // U+1EBC: LATIN CAPITAL LETTER E WITH TILDE
+                    "Ế", // U+1EBE: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND ACUTE
+                    "Ề", // U+1EC0: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND GRAVE
+                    "Ể", // U+1EC2: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND HOOK ABOVE
+                    "Ễ", // U+1EC4: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND TILDE
+                    "Ệ", // U+1EC6: LATIN CAPITAL LETTER E WITH CIRCUMFLEX AND DOT BELOW
+                    "Ⓔ", // U+24BA: CIRCLED LATIN CAPITAL LETTER E
+                    "ⱻ", // U+2C7B: LATIN LETTER SMALL CAPITAL TURNED E
                     "Ｅ", // U+FF25: FULLWIDTH LATIN CAPITAL LETTER E
                 ],
                 "E",
@@ -2030,26 +2030,26 @@ mod tests {
                     "ɝ",  // U+025D: LATIN SMALL LETTER REVERSED OPEN E WITH HOOK
                     "ɞ",  // U+025E: LATIN SMALL LETTER CLOSED REVERSED OPEN E
                     "ʚ",  // U+029A: LATIN SMALL LETTER CLOSED OPEN E
-                    "ᴈ",  // U+1D08: LATIN SMALL LETTER TURNED OPEN E
-                    "ᶒ",  // U+1D92: LATIN SMALL LETTER E WITH RETROFLEX HOOK
-                    "ᶓ",  // U+1D93: LATIN SMALL LETTER OPEN E WITH RETROFLEX HOOK
-                    "ᶔ",  // U+1D94: LATIN SMALL LETTER REVERSED OPEN E WITH RETROFLEX HOOK
-                    "ḕ",  // U+1E15: LATIN SMALL LETTER E WITH MACRON AND GRAVE
-                    "ḗ",  // U+1E17: LATIN SMALL LETTER E WITH MACRON AND ACUTE
-                    "ḙ",  // U+1E19: LATIN SMALL LETTER E WITH CIRCUMFLEX BELOW
-                    "ḛ",  // U+1E1B: LATIN SMALL LETTER E WITH TILDE BELOW
-                    "ḝ",  // U+1E1D: LATIN SMALL LETTER E WITH CEDILLA AND BREVE
-                    "ẹ",  // U+1EB9: LATIN SMALL LETTER E WITH DOT BELOW
-                    "ẻ",  // U+1EBB: LATIN SMALL LETTER E WITH HOOK ABOVE
-                    "ẽ",  // U+1EBD: LATIN SMALL LETTER E WITH TILDE
-                    "ế",  // U+1EBF: LATIN SMALL LETTER E WITH CIRCUMFLEX AND ACUTE
-                    "ề",  // U+1EC1: LATIN SMALL LETTER E WITH CIRCUMFLEX AND GRAVE
-                    "ể",  // U+1EC3: LATIN SMALL LETTER E WITH CIRCUMFLEX AND HOOK ABOVE
-                    "ễ",  // U+1EC5: LATIN SMALL LETTER E WITH CIRCUMFLEX AND TILDE
-                    "ệ",  // U+1EC7: LATIN SMALL LETTER E WITH CIRCUMFLEX AND DOT BELOW
-                    "ₑ",  // U+2091: LATIN SUBSCRIPT SMALL LETTER E
-                    "ⓔ",  // U+24D4: CIRCLED LATIN SMALL LETTER E
-                    "ⱸ",  // U+2C78: LATIN SMALL LETTER E WITH NOTCH
+                    "ᴈ", // U+1D08: LATIN SMALL LETTER TURNED OPEN E
+                    "ᶒ", // U+1D92: LATIN SMALL LETTER E WITH RETROFLEX HOOK
+                    "ᶓ", // U+1D93: LATIN SMALL LETTER OPEN E WITH RETROFLEX HOOK
+                    "ᶔ", // U+1D94: LATIN SMALL LETTER REVERSED OPEN E WITH RETROFLEX HOOK
+                    "ḕ", // U+1E15: LATIN SMALL LETTER E WITH MACRON AND GRAVE
+                    "ḗ", // U+1E17: LATIN SMALL LETTER E WITH MACRON AND ACUTE
+                    "ḙ", // U+1E19: LATIN SMALL LETTER E WITH CIRCUMFLEX BELOW
+                    "ḛ", // U+1E1B: LATIN SMALL LETTER E WITH TILDE BELOW
+                    "ḝ", // U+1E1D: LATIN SMALL LETTER E WITH CEDILLA AND BREVE
+                    "ẹ", // U+1EB9: LATIN SMALL LETTER E WITH DOT BELOW
+                    "ẻ", // U+1EBB: LATIN SMALL LETTER E WITH HOOK ABOVE
+                    "ẽ", // U+1EBD: LATIN SMALL LETTER E WITH TILDE
+                    "ế", // U+1EBF: LATIN SMALL LETTER E WITH CIRCUMFLEX AND ACUTE
+                    "ề", // U+1EC1: LATIN SMALL LETTER E WITH CIRCUMFLEX AND GRAVE
+                    "ể", // U+1EC3: LATIN SMALL LETTER E WITH CIRCUMFLEX AND HOOK ABOVE
+                    "ễ", // U+1EC5: LATIN SMALL LETTER E WITH CIRCUMFLEX AND TILDE
+                    "ệ", // U+1EC7: LATIN SMALL LETTER E WITH CIRCUMFLEX AND DOT BELOW
+                    "ₑ", // U+2091: LATIN SUBSCRIPT SMALL LETTER E
+                    "ⓔ", // U+24D4: CIRCLED LATIN SMALL LETTER E
+                    "ⱸ", // U+2C78: LATIN SMALL LETTER E WITH NOTCH
                     "ｅ", // U+FF45: FULLWIDTH LATIN SMALL LETTER E
                 ],
                 "e",
@@ -2063,11 +2063,11 @@ mod tests {
             (
                 &[
                     "Ƒ",  // U+0191: LATIN CAPITAL LETTER F WITH HOOK
-                    "Ḟ",  // U+1E1E: LATIN CAPITAL LETTER F WITH DOT ABOVE
-                    "Ⓕ",  // U+24BB: CIRCLED LATIN CAPITAL LETTER F
-                    "ꜰ",  // U+A730: LATIN LETTER SMALL CAPITAL F
-                    "Ꝼ",  // U+A77B: LATIN CAPITAL LETTER INSULAR F
-                    "ꟻ",  // U+A7FB: LATIN EPIGRAPHIC LETTER REVERSED F
+                    "Ḟ", // U+1E1E: LATIN CAPITAL LETTER F WITH DOT ABOVE
+                    "Ⓕ", // U+24BB: CIRCLED LATIN CAPITAL LETTER F
+                    "ꜰ", // U+A730: LATIN LETTER SMALL CAPITAL F
+                    "Ꝼ", // U+A77B: LATIN CAPITAL LETTER INSULAR F
+                    "ꟻ", // U+A7FB: LATIN EPIGRAPHIC LETTER REVERSED F
                     "Ｆ", // U+FF26: FULLWIDTH LATIN CAPITAL LETTER F
                 ],
                 "F",
@@ -2075,12 +2075,12 @@ mod tests {
             (
                 &[
                     "ƒ",  // U+0192: LATIN SMALL LETTER F WITH HOOK
-                    "ᵮ",  // U+1D6E: LATIN SMALL LETTER F WITH MIDDLE TILDE
-                    "ᶂ",  // U+1D82: LATIN SMALL LETTER F WITH PALATAL HOOK
-                    "ḟ",  // U+1E1F: LATIN SMALL LETTER F WITH DOT ABOVE
-                    "ẛ",  // U+1E9B: LATIN SMALL LETTER LONG S WITH DOT ABOVE
-                    "ⓕ",  // U+24D5: CIRCLED LATIN SMALL LETTER F
-                    "ꝼ",  // U+A77C: LATIN SMALL LETTER INSULAR F
+                    "ᵮ", // U+1D6E: LATIN SMALL LETTER F WITH MIDDLE TILDE
+                    "ᶂ", // U+1D82: LATIN SMALL LETTER F WITH PALATAL HOOK
+                    "ḟ", // U+1E1F: LATIN SMALL LETTER F WITH DOT ABOVE
+                    "ẛ", // U+1E9B: LATIN SMALL LETTER LONG S WITH DOT ABOVE
+                    "ⓕ", // U+24D5: CIRCLED LATIN SMALL LETTER F
+                    "ꝼ", // U+A77C: LATIN SMALL LETTER INSULAR F
                     "ｆ", // U+FF46: FULLWIDTH LATIN SMALL LETTER F
                 ],
                 "f",
@@ -2135,10 +2135,10 @@ mod tests {
                     "Ǵ",  // U+01F4: LATIN CAPITAL LETTER G WITH ACUTE
                     "ɢ",  // U+0262: LATIN LETTER SMALL CAPITAL G
                     "ʛ",  // U+029B: LATIN LETTER SMALL CAPITAL G WITH HOOK
-                    "Ḡ",  // U+1E20: LATIN CAPITAL LETTER G WITH MACRON
-                    "Ⓖ",  // U+24BC: CIRCLED LATIN CAPITAL LETTER G
-                    "Ᵹ",  // U+A77D: LATIN CAPITAL LETTER INSULAR G
-                    "Ꝿ",  // U+A77E: LATIN CAPITAL LETTER TURNED INSULAR G
+                    "Ḡ", // U+1E20: LATIN CAPITAL LETTER G WITH MACRON
+                    "Ⓖ", // U+24BC: CIRCLED LATIN CAPITAL LETTER G
+                    "Ᵹ", // U+A77D: LATIN CAPITAL LETTER INSULAR G
+                    "Ꝿ", // U+A77E: LATIN CAPITAL LETTER TURNED INSULAR G
                     "Ｇ", // U+FF27: FULLWIDTH LATIN CAPITAL LETTER G
                 ],
                 "G",
@@ -2152,12 +2152,12 @@ mod tests {
                     "ǵ",  // U+01F5: LATIN SMALL LETTER G WITH ACUTE
                     "ɠ",  // U+0260: LATIN SMALL LETTER G WITH HOOK
                     "ɡ",  // U+0261: LATIN SMALL LETTER SCRIPT G
-                    "ᵷ",  // U+1D77: LATIN SMALL LETTER TURNED G
-                    "ᵹ",  // U+1D79: LATIN SMALL LETTER INSULAR G
-                    "ᶃ",  // U+1D83: LATIN SMALL LETTER G WITH PALATAL HOOK
-                    "ḡ",  // U+1E21: LATIN SMALL LETTER G WITH MACRON
-                    "ⓖ",  // U+24D6: CIRCLED LATIN SMALL LETTER G
-                    "ꝿ",  // U+A77F: LATIN SMALL LETTER TURNED INSULAR G
+                    "ᵷ", // U+1D77: LATIN SMALL LETTER TURNED G
+                    "ᵹ", // U+1D79: LATIN SMALL LETTER INSULAR G
+                    "ᶃ", // U+1D83: LATIN SMALL LETTER G WITH PALATAL HOOK
+                    "ḡ", // U+1E21: LATIN SMALL LETTER G WITH MACRON
+                    "ⓖ", // U+24D6: CIRCLED LATIN SMALL LETTER G
+                    "ꝿ", // U+A77F: LATIN SMALL LETTER TURNED INSULAR G
                     "ｇ", // U+FF47: FULLWIDTH LATIN SMALL LETTER G
                 ],
                 "g",
@@ -2174,14 +2174,14 @@ mod tests {
                     "Ħ",  // U+0126: LATIN CAPITAL LETTER H WITH STROKE
                     "Ȟ",  // U+021E: LATIN CAPITAL LETTER H WITH CARON
                     "ʜ",  // U+029C: LATIN LETTER SMALL CAPITAL H
-                    "Ḣ",  // U+1E22: LATIN CAPITAL LETTER H WITH DOT ABOVE
-                    "Ḥ",  // U+1E24: LATIN CAPITAL LETTER H WITH DOT BELOW
-                    "Ḧ",  // U+1E26: LATIN CAPITAL LETTER H WITH DIAERESIS
-                    "Ḩ",  // U+1E28: LATIN CAPITAL LETTER H WITH CEDILLA
-                    "Ḫ",  // U+1E2A: LATIN CAPITAL LETTER H WITH BREVE BELOW
-                    "Ⓗ",  // U+24BD: CIRCLED LATIN CAPITAL LETTER H
-                    "Ⱨ",  // U+2C67: LATIN CAPITAL LETTER H WITH DESCENDER
-                    "Ⱶ",  // U+2C75: LATIN CAPITAL LETTER HALF H
+                    "Ḣ", // U+1E22: LATIN CAPITAL LETTER H WITH DOT ABOVE
+                    "Ḥ", // U+1E24: LATIN CAPITAL LETTER H WITH DOT BELOW
+                    "Ḧ", // U+1E26: LATIN CAPITAL LETTER H WITH DIAERESIS
+                    "Ḩ", // U+1E28: LATIN CAPITAL LETTER H WITH CEDILLA
+                    "Ḫ", // U+1E2A: LATIN CAPITAL LETTER H WITH BREVE BELOW
+                    "Ⓗ", // U+24BD: CIRCLED LATIN CAPITAL LETTER H
+                    "Ⱨ", // U+2C67: LATIN CAPITAL LETTER H WITH DESCENDER
+                    "Ⱶ", // U+2C75: LATIN CAPITAL LETTER HALF H
                     "Ｈ", // U+FF28: FULLWIDTH LATIN CAPITAL LETTER H
                 ],
                 "H",
@@ -2195,15 +2195,15 @@ mod tests {
                     "ɦ",  // U+0266: LATIN SMALL LETTER H WITH HOOK
                     "ʮ",  // U+02AE: LATIN SMALL LETTER TURNED H WITH FISHHOOK
                     "ʯ",  // U+02AF: LATIN SMALL LETTER TURNED H WITH FISHHOOK AND TAIL
-                    "ḣ",  // U+1E23: LATIN SMALL LETTER H WITH DOT ABOVE
-                    "ḥ",  // U+1E25: LATIN SMALL LETTER H WITH DOT BELOW
-                    "ḧ",  // U+1E27: LATIN SMALL LETTER H WITH DIAERESIS
-                    "ḩ",  // U+1E29: LATIN SMALL LETTER H WITH CEDILLA
-                    "ḫ",  // U+1E2B: LATIN SMALL LETTER H WITH BREVE BELOW
-                    "ẖ",  // U+1E96: LATIN SMALL LETTER H WITH LINE BELOW
-                    "ⓗ",  // U+24D7: CIRCLED LATIN SMALL LETTER H
-                    "ⱨ",  // U+2C68: LATIN SMALL LETTER H WITH DESCENDER
-                    "ⱶ",  // U+2C76: LATIN SMALL LETTER HALF H
+                    "ḣ", // U+1E23: LATIN SMALL LETTER H WITH DOT ABOVE
+                    "ḥ", // U+1E25: LATIN SMALL LETTER H WITH DOT BELOW
+                    "ḧ", // U+1E27: LATIN SMALL LETTER H WITH DIAERESIS
+                    "ḩ", // U+1E29: LATIN SMALL LETTER H WITH CEDILLA
+                    "ḫ", // U+1E2B: LATIN SMALL LETTER H WITH BREVE BELOW
+                    "ẖ", // U+1E96: LATIN SMALL LETTER H WITH LINE BELOW
+                    "ⓗ", // U+24D7: CIRCLED LATIN SMALL LETTER H
+                    "ⱨ", // U+2C68: LATIN SMALL LETTER H WITH DESCENDER
+                    "ⱶ", // U+2C76: LATIN SMALL LETTER HALF H
                     "ｈ", // U+FF48: FULLWIDTH LATIN SMALL LETTER H
                 ],
                 "h",
@@ -2243,13 +2243,13 @@ mod tests {
                     "Ȉ",  // U+0208: LATIN CAPITAL LETTER I WITH DOUBLE GRAVE
                     "Ȋ",  // U+020A: LATIN CAPITAL LETTER I WITH INVERTED BREVE
                     "ɪ",  // U+026A: LATIN LETTER SMALL CAPITAL I
-                    "ᵻ",  // U+1D7B: LATIN SMALL CAPITAL LETTER I WITH STROKE
-                    "Ḭ",  // U+1E2C: LATIN CAPITAL LETTER I WITH TILDE BELOW
-                    "Ḯ",  // U+1E2E: LATIN CAPITAL LETTER I WITH DIAERESIS AND ACUTE
-                    "Ỉ",  // U+1EC8: LATIN CAPITAL LETTER I WITH HOOK ABOVE
-                    "Ị",  // U+1ECA: LATIN CAPITAL LETTER I WITH DOT BELOW
-                    "Ⓘ",  // U+24BE: CIRCLED LATIN CAPITAL LETTER I
-                    "ꟾ",  // U+A7FE: LATIN EPIGRAPHIC LETTER I LONGA
+                    "ᵻ", // U+1D7B: LATIN SMALL CAPITAL LETTER I WITH STROKE
+                    "Ḭ", // U+1E2C: LATIN CAPITAL LETTER I WITH TILDE BELOW
+                    "Ḯ", // U+1E2E: LATIN CAPITAL LETTER I WITH DIAERESIS AND ACUTE
+                    "Ỉ", // U+1EC8: LATIN CAPITAL LETTER I WITH HOOK ABOVE
+                    "Ị", // U+1ECA: LATIN CAPITAL LETTER I WITH DOT BELOW
+                    "Ⓘ", // U+24BE: CIRCLED LATIN CAPITAL LETTER I
+                    "ꟾ", // U+A7FE: LATIN EPIGRAPHIC LETTER I LONGA
                     "Ｉ", // U+FF29: FULLWIDTH LATIN CAPITAL LETTER I
                 ],
                 "I",
@@ -2269,16 +2269,16 @@ mod tests {
                     "ȉ",  // U+0209: LATIN SMALL LETTER I WITH DOUBLE GRAVE
                     "ȋ",  // U+020B: LATIN SMALL LETTER I WITH INVERTED BREVE
                     "ɨ",  // U+0268: LATIN SMALL LETTER I WITH STROKE
-                    "ᴉ",  // U+1D09: LATIN SMALL LETTER TURNED I
-                    "ᵢ",  // U+1D62: LATIN SUBSCRIPT SMALL LETTER I
-                    "ᵼ",  // U+1D7C: LATIN SMALL LETTER IOTA WITH STROKE
-                    "ᶖ",  // U+1D96: LATIN SMALL LETTER I WITH RETROFLEX HOOK
-                    "ḭ",  // U+1E2D: LATIN SMALL LETTER I WITH TILDE BELOW
-                    "ḯ",  // U+1E2F: LATIN SMALL LETTER I WITH DIAERESIS AND ACUTE
-                    "ỉ",  // U+1EC9: LATIN SMALL LETTER I WITH HOOK ABOVE
-                    "ị",  // U+1ECB: LATIN SMALL LETTER I WITH DOT BELOW
-                    "ⁱ",  // U+2071: SUPERSCRIPT LATIN SMALL LETTER I
-                    "ⓘ",  // U+24D8: CIRCLED LATIN SMALL LETTER I
+                    "ᴉ", // U+1D09: LATIN SMALL LETTER TURNED I
+                    "ᵢ", // U+1D62: LATIN SUBSCRIPT SMALL LETTER I
+                    "ᵼ", // U+1D7C: LATIN SMALL LETTER IOTA WITH STROKE
+                    "ᶖ", // U+1D96: LATIN SMALL LETTER I WITH RETROFLEX HOOK
+                    "ḭ", // U+1E2D: LATIN SMALL LETTER I WITH TILDE BELOW
+                    "ḯ", // U+1E2F: LATIN SMALL LETTER I WITH DIAERESIS AND ACUTE
+                    "ỉ", // U+1EC9: LATIN SMALL LETTER I WITH HOOK ABOVE
+                    "ị", // U+1ECB: LATIN SMALL LETTER I WITH DOT BELOW
+                    "ⁱ", // U+2071: SUPERSCRIPT LATIN SMALL LETTER I
+                    "ⓘ", // U+24D8: CIRCLED LATIN SMALL LETTER I
                     "ｉ", // U+FF49: FULLWIDTH LATIN SMALL LETTER I
                 ],
                 "i",
@@ -2305,8 +2305,8 @@ mod tests {
                 &[
                     "Ĵ",  // U+0134: LATIN CAPITAL LETTER J WITH CIRCUMFLEX
                     "Ɉ",  // U+0248: LATIN CAPITAL LETTER J WITH STROKE
-                    "ᴊ",  // U+1D0A: LATIN LETTER SMALL CAPITAL J
-                    "Ⓙ",  // U+24BF: CIRCLED LATIN CAPITAL LETTER J
+                    "ᴊ", // U+1D0A: LATIN LETTER SMALL CAPITAL J
+                    "Ⓙ", // U+24BF: CIRCLED LATIN CAPITAL LETTER J
                     "Ｊ", // U+FF2A: FULLWIDTH LATIN CAPITAL LETTER J
                 ],
                 "J",
@@ -2320,8 +2320,8 @@ mod tests {
                     "ɟ",  // U+025F: LATIN SMALL LETTER DOTLESS J WITH STROKE
                     "ʄ",  // U+0284: LATIN SMALL LETTER DOTLESS J WITH STROKE AND HOOK
                     "ʝ",  // U+029D: LATIN SMALL LETTER J WITH CROSSED-TAIL
-                    "ⓙ",  // U+24D9: CIRCLED LATIN SMALL LETTER J
-                    "ⱼ",  // U+2C7C: LATIN SUBSCRIPT SMALL LETTER J
+                    "ⓙ", // U+24D9: CIRCLED LATIN SMALL LETTER J
+                    "ⱼ", // U+2C7C: LATIN SUBSCRIPT SMALL LETTER J
                     "ｊ", // U+FF4A: FULLWIDTH LATIN SMALL LETTER J
                 ],
                 "j",
@@ -2337,15 +2337,15 @@ mod tests {
                     "Ķ",  // U+0136: LATIN CAPITAL LETTER K WITH CEDILLA
                     "Ƙ",  // U+0198: LATIN CAPITAL LETTER K WITH HOOK
                     "Ǩ",  // U+01E8: LATIN CAPITAL LETTER K WITH CARON
-                    "ᴋ",  // U+1D0B: LATIN LETTER SMALL CAPITAL K
-                    "Ḱ",  // U+1E30: LATIN CAPITAL LETTER K WITH ACUTE
-                    "Ḳ",  // U+1E32: LATIN CAPITAL LETTER K WITH DOT BELOW
-                    "Ḵ",  // U+1E34: LATIN CAPITAL LETTER K WITH LINE BELOW
-                    "Ⓚ",  // U+24C0: CIRCLED LATIN CAPITAL LETTER K
-                    "Ⱪ",  // U+2C69: LATIN CAPITAL LETTER K WITH DESCENDER
-                    "Ꝁ",  // U+A740: LATIN CAPITAL LETTER K WITH STROKE
-                    "Ꝃ",  // U+A742: LATIN CAPITAL LETTER K WITH DIAGONAL STROKE
-                    "Ꝅ",  // U+A744: LATIN CAPITAL LETTER K WITH STROKE AND DIAGONAL STROKE
+                    "ᴋ", // U+1D0B: LATIN LETTER SMALL CAPITAL K
+                    "Ḱ", // U+1E30: LATIN CAPITAL LETTER K WITH ACUTE
+                    "Ḳ", // U+1E32: LATIN CAPITAL LETTER K WITH DOT BELOW
+                    "Ḵ", // U+1E34: LATIN CAPITAL LETTER K WITH LINE BELOW
+                    "Ⓚ", // U+24C0: CIRCLED LATIN CAPITAL LETTER K
+                    "Ⱪ", // U+2C69: LATIN CAPITAL LETTER K WITH DESCENDER
+                    "Ꝁ", // U+A740: LATIN CAPITAL LETTER K WITH STROKE
+                    "Ꝃ", // U+A742: LATIN CAPITAL LETTER K WITH DIAGONAL STROKE
+                    "Ꝅ", // U+A744: LATIN CAPITAL LETTER K WITH STROKE AND DIAGONAL STROKE
                     "Ｋ", // U+FF2B: FULLWIDTH LATIN CAPITAL LETTER K
                 ],
                 "K",
@@ -2356,15 +2356,15 @@ mod tests {
                     "ƙ",  // U+0199: LATIN SMALL LETTER K WITH HOOK
                     "ǩ",  // U+01E9: LATIN SMALL LETTER K WITH CARON
                     "ʞ",  // U+029E: LATIN SMALL LETTER TURNED K
-                    "ᶄ",  // U+1D84: LATIN SMALL LETTER K WITH PALATAL HOOK
-                    "ḱ",  // U+1E31: LATIN SMALL LETTER K WITH ACUTE
-                    "ḳ",  // U+1E33: LATIN SMALL LETTER K WITH DOT BELOW
-                    "ḵ",  // U+1E35: LATIN SMALL LETTER K WITH LINE BELOW
-                    "ⓚ",  // U+24DA: CIRCLED LATIN SMALL LETTER K
-                    "ⱪ",  // U+2C6A: LATIN SMALL LETTER K WITH DESCENDER
-                    "ꝁ",  // U+A741: LATIN SMALL LETTER K WITH STROKE
-                    "ꝃ",  // U+A743: LATIN SMALL LETTER K WITH DIAGONAL STROKE
-                    "ꝅ",  // U+A745: LATIN SMALL LETTER K WITH STROKE AND DIAGONAL STROKE
+                    "ᶄ", // U+1D84: LATIN SMALL LETTER K WITH PALATAL HOOK
+                    "ḱ", // U+1E31: LATIN SMALL LETTER K WITH ACUTE
+                    "ḳ", // U+1E33: LATIN SMALL LETTER K WITH DOT BELOW
+                    "ḵ", // U+1E35: LATIN SMALL LETTER K WITH LINE BELOW
+                    "ⓚ", // U+24DA: CIRCLED LATIN SMALL LETTER K
+                    "ⱪ", // U+2C6A: LATIN SMALL LETTER K WITH DESCENDER
+                    "ꝁ", // U+A741: LATIN SMALL LETTER K WITH STROKE
+                    "ꝃ", // U+A743: LATIN SMALL LETTER K WITH DIAGONAL STROKE
+                    "ꝅ", // U+A745: LATIN SMALL LETTER K WITH STROKE AND DIAGONAL STROKE
                     "ｋ", // U+FF4B: FULLWIDTH LATIN SMALL LETTER K
                 ],
                 "k",
@@ -2384,17 +2384,17 @@ mod tests {
                     "Ł",  // U+0141: LATIN CAPITAL LETTER L WITH STROKE
                     "Ƚ",  // U+023D: LATIN CAPITAL LETTER L WITH BAR
                     "ʟ",  // U+029F: LATIN LETTER SMALL CAPITAL L
-                    "ᴌ",  // U+1D0C: LATIN LETTER SMALL CAPITAL L WITH STROKE
-                    "Ḷ",  // U+1E36: LATIN CAPITAL LETTER L WITH DOT BELOW
-                    "Ḹ",  // U+1E38: LATIN CAPITAL LETTER L WITH DOT BELOW AND MACRON
-                    "Ḻ",  // U+1E3A: LATIN CAPITAL LETTER L WITH LINE BELOW
-                    "Ḽ",  // U+1E3C: LATIN CAPITAL LETTER L WITH CIRCUMFLEX BELOW
-                    "Ⓛ",  // U+24C1: CIRCLED LATIN CAPITAL LETTER L
-                    "Ⱡ",  // U+2C60: LATIN CAPITAL LETTER L WITH DOUBLE BAR
-                    "Ɫ",  // U+2C62: LATIN CAPITAL LETTER L WITH MIDDLE TILDE
-                    "Ꝇ",  // U+A746: LATIN CAPITAL LETTER BROKEN L
-                    "Ꝉ",  // U+A748: LATIN CAPITAL LETTER L WITH HIGH STROKE
-                    "Ꞁ",  // U+A780: LATIN CAPITAL LETTER TURNED L
+                    "ᴌ", // U+1D0C: LATIN LETTER SMALL CAPITAL L WITH STROKE
+                    "Ḷ", // U+1E36: LATIN CAPITAL LETTER L WITH DOT BELOW
+                    "Ḹ", // U+1E38: LATIN CAPITAL LETTER L WITH DOT BELOW AND MACRON
+                    "Ḻ", // U+1E3A: LATIN CAPITAL LETTER L WITH LINE BELOW
+                    "Ḽ", // U+1E3C: LATIN CAPITAL LETTER L WITH CIRCUMFLEX BELOW
+                    "Ⓛ", // U+24C1: CIRCLED LATIN CAPITAL LETTER L
+                    "Ⱡ", // U+2C60: LATIN CAPITAL LETTER L WITH DOUBLE BAR
+                    "Ɫ", // U+2C62: LATIN CAPITAL LETTER L WITH MIDDLE TILDE
+                    "Ꝇ", // U+A746: LATIN CAPITAL LETTER BROKEN L
+                    "Ꝉ", // U+A748: LATIN CAPITAL LETTER L WITH HIGH STROKE
+                    "Ꞁ", // U+A780: LATIN CAPITAL LETTER TURNED L
                     "Ｌ", // U+FF2C: FULLWIDTH LATIN CAPITAL LETTER L
                 ],
                 "L",
@@ -2411,16 +2411,16 @@ mod tests {
                     "ɫ",  // U+026B: LATIN SMALL LETTER L WITH MIDDLE TILDE
                     "ɬ",  // U+026C: LATIN SMALL LETTER L WITH BELT
                     "ɭ",  // U+026D: LATIN SMALL LETTER L WITH RETROFLEX HOOK
-                    "ᶅ",  // U+1D85: LATIN SMALL LETTER L WITH PALATAL HOOK
-                    "ḷ",  // U+1E37: LATIN SMALL LETTER L WITH DOT BELOW
-                    "ḹ",  // U+1E39: LATIN SMALL LETTER L WITH DOT BELOW AND MACRON
-                    "ḻ",  // U+1E3B: LATIN SMALL LETTER L WITH LINE BELOW
-                    "ḽ",  // U+1E3D: LATIN SMALL LETTER L WITH CIRCUMFLEX BELOW
-                    "ⓛ",  // U+24DB: CIRCLED LATIN SMALL LETTER L
-                    "ⱡ",  // U+2C61: LATIN SMALL LETTER L WITH DOUBLE BAR
-                    "ꝇ",  // U+A747: LATIN SMALL LETTER BROKEN L
-                    "ꝉ",  // U+A749: LATIN SMALL LETTER L WITH HIGH STROKE
-                    "ꞁ",  // U+A781: LATIN SMALL LETTER TURNED L
+                    "ᶅ", // U+1D85: LATIN SMALL LETTER L WITH PALATAL HOOK
+                    "ḷ", // U+1E37: LATIN SMALL LETTER L WITH DOT BELOW
+                    "ḹ", // U+1E39: LATIN SMALL LETTER L WITH DOT BELOW AND MACRON
+                    "ḻ", // U+1E3B: LATIN SMALL LETTER L WITH LINE BELOW
+                    "ḽ", // U+1E3D: LATIN SMALL LETTER L WITH CIRCUMFLEX BELOW
+                    "ⓛ", // U+24DB: CIRCLED LATIN SMALL LETTER L
+                    "ⱡ", // U+2C61: LATIN SMALL LETTER L WITH DOUBLE BAR
+                    "ꝇ", // U+A747: LATIN SMALL LETTER BROKEN L
+                    "ꝉ", // U+A749: LATIN SMALL LETTER L WITH HIGH STROKE
+                    "ꞁ", // U+A781: LATIN SMALL LETTER TURNED L
                     "ｌ", // U+FF4C: FULLWIDTH LATIN SMALL LETTER L
                 ],
                 "l",
@@ -2476,14 +2476,14 @@ mod tests {
             (
                 &[
                     "Ɯ",  // U+019C: LATIN CAPITAL LETTER TURNED M
-                    "ᴍ",  // U+1D0D: LATIN LETTER SMALL CAPITAL M
-                    "Ḿ",  // U+1E3E: LATIN CAPITAL LETTER M WITH ACUTE
-                    "Ṁ",  // U+1E40: LATIN CAPITAL LETTER M WITH DOT ABOVE
-                    "Ṃ",  // U+1E42: LATIN CAPITAL LETTER M WITH DOT BELOW
-                    "Ⓜ",  // U+24C2: CIRCLED LATIN CAPITAL LETTER M
-                    "Ɱ",  // U+2C6E: LATIN CAPITAL LETTER M WITH HOOK
-                    "ꟽ",  // U+A7FD: LATIN EPIGRAPHIC LETTER INVERTED M
-                    "ꟿ",  // U+A7FF: LATIN EPIGRAPHIC LETTER ARCHAIC M
+                    "ᴍ", // U+1D0D: LATIN LETTER SMALL CAPITAL M
+                    "Ḿ", // U+1E3E: LATIN CAPITAL LETTER M WITH ACUTE
+                    "Ṁ", // U+1E40: LATIN CAPITAL LETTER M WITH DOT ABOVE
+                    "Ṃ", // U+1E42: LATIN CAPITAL LETTER M WITH DOT BELOW
+                    "Ⓜ", // U+24C2: CIRCLED LATIN CAPITAL LETTER M
+                    "Ɱ", // U+2C6E: LATIN CAPITAL LETTER M WITH HOOK
+                    "ꟽ", // U+A7FD: LATIN EPIGRAPHIC LETTER INVERTED M
+                    "ꟿ", // U+A7FF: LATIN EPIGRAPHIC LETTER ARCHAIC M
                     "Ｍ", // U+FF2D: FULLWIDTH LATIN CAPITAL LETTER M
                 ],
                 "M",
@@ -2493,12 +2493,12 @@ mod tests {
                     "ɯ",  // U+026F: LATIN SMALL LETTER TURNED M
                     "ɰ",  // U+0270: LATIN SMALL LETTER TURNED M WITH LONG LEG
                     "ɱ",  // U+0271: LATIN SMALL LETTER M WITH HOOK
-                    "ᵯ",  // U+1D6F: LATIN SMALL LETTER M WITH MIDDLE TILDE
-                    "ᶆ",  // U+1D86: LATIN SMALL LETTER M WITH PALATAL HOOK
-                    "ḿ",  // U+1E3F: LATIN SMALL LETTER M WITH ACUTE
-                    "ṁ",  // U+1E41: LATIN SMALL LETTER M WITH DOT ABOVE
-                    "ṃ",  // U+1E43: LATIN SMALL LETTER M WITH DOT BELOW
-                    "ⓜ",  // U+24DC: CIRCLED LATIN SMALL LETTER M
+                    "ᵯ", // U+1D6F: LATIN SMALL LETTER M WITH MIDDLE TILDE
+                    "ᶆ", // U+1D86: LATIN SMALL LETTER M WITH PALATAL HOOK
+                    "ḿ", // U+1E3F: LATIN SMALL LETTER M WITH ACUTE
+                    "ṁ", // U+1E41: LATIN SMALL LETTER M WITH DOT ABOVE
+                    "ṃ", // U+1E43: LATIN SMALL LETTER M WITH DOT BELOW
+                    "ⓜ", // U+24DC: CIRCLED LATIN SMALL LETTER M
                     "ｍ", // U+FF4D: FULLWIDTH LATIN SMALL LETTER M
                 ],
                 "m",
@@ -2520,12 +2520,12 @@ mod tests {
                     "Ǹ",  // U+01F8: LATIN CAPITAL LETTER N WITH GRAVE
                     "Ƞ",  // U+0220: LATIN CAPITAL LETTER N WITH LONG RIGHT LEG
                     "ɴ",  // U+0274: LATIN LETTER SMALL CAPITAL N
-                    "ᴎ",  // U+1D0E: LATIN LETTER SMALL CAPITAL REVERSED N
-                    "Ṅ",  // U+1E44: LATIN CAPITAL LETTER N WITH DOT ABOVE
-                    "Ṇ",  // U+1E46: LATIN CAPITAL LETTER N WITH DOT BELOW
-                    "Ṉ",  // U+1E48: LATIN CAPITAL LETTER N WITH LINE BELOW
-                    "Ṋ",  // U+1E4A: LATIN CAPITAL LETTER N WITH CIRCUMFLEX BELOW
-                    "Ⓝ",  // U+24C3: CIRCLED LATIN CAPITAL LETTER N
+                    "ᴎ", // U+1D0E: LATIN LETTER SMALL CAPITAL REVERSED N
+                    "Ṅ", // U+1E44: LATIN CAPITAL LETTER N WITH DOT ABOVE
+                    "Ṇ", // U+1E46: LATIN CAPITAL LETTER N WITH DOT BELOW
+                    "Ṉ", // U+1E48: LATIN CAPITAL LETTER N WITH LINE BELOW
+                    "Ṋ", // U+1E4A: LATIN CAPITAL LETTER N WITH CIRCUMFLEX BELOW
+                    "Ⓝ", // U+24C3: CIRCLED LATIN CAPITAL LETTER N
                     "Ｎ", // U+FF2E: FULLWIDTH LATIN CAPITAL LETTER N
                 ],
                 "N",
@@ -2543,14 +2543,14 @@ mod tests {
                     "ȵ",  // U+0235: LATIN SMALL LETTER N WITH CURL
                     "ɲ",  // U+0272: LATIN SMALL LETTER N WITH LEFT HOOK
                     "ɳ",  // U+0273: LATIN SMALL LETTER N WITH RETROFLEX HOOK
-                    "ᵰ",  // U+1D70: LATIN SMALL LETTER N WITH MIDDLE TILDE
-                    "ᶇ",  // U+1D87: LATIN SMALL LETTER N WITH PALATAL HOOK
-                    "ṅ",  // U+1E45: LATIN SMALL LETTER N WITH DOT ABOVE
-                    "ṇ",  // U+1E47: LATIN SMALL LETTER N WITH DOT BELOW
-                    "ṉ",  // U+1E49: LATIN SMALL LETTER N WITH LINE BELOW
-                    "ṋ",  // U+1E4B: LATIN SMALL LETTER N WITH CIRCUMFLEX BELOW
-                    "ⁿ",  // U+207F: SUPERSCRIPT LATIN SMALL LETTER N
-                    "ⓝ",  // U+24DD: CIRCLED LATIN SMALL LETTER N
+                    "ᵰ", // U+1D70: LATIN SMALL LETTER N WITH MIDDLE TILDE
+                    "ᶇ", // U+1D87: LATIN SMALL LETTER N WITH PALATAL HOOK
+                    "ṅ", // U+1E45: LATIN SMALL LETTER N WITH DOT ABOVE
+                    "ṇ", // U+1E47: LATIN SMALL LETTER N WITH DOT BELOW
+                    "ṉ", // U+1E49: LATIN SMALL LETTER N WITH LINE BELOW
+                    "ṋ", // U+1E4B: LATIN SMALL LETTER N WITH CIRCUMFLEX BELOW
+                    "ⁿ", // U+207F: SUPERSCRIPT LATIN SMALL LETTER N
+                    "ⓝ", // U+24DD: CIRCLED LATIN SMALL LETTER N
                     "ｎ", // U+FF4E: FULLWIDTH LATIN SMALL LETTER N
                 ],
                 "n",
@@ -2603,27 +2603,27 @@ mod tests {
                     "Ȭ",  // U+022C: LATIN CAPITAL LETTER O WITH TILDE AND MACRON
                     "Ȯ",  // U+022E: LATIN CAPITAL LETTER O WITH DOT ABOVE
                     "Ȱ",  // U+0230: LATIN CAPITAL LETTER O WITH DOT ABOVE AND MACRON
-                    "ᴏ",  // U+1D0F: LATIN LETTER SMALL CAPITAL O
-                    "ᴐ",  // U+1D10: LATIN LETTER SMALL CAPITAL OPEN O
-                    "Ṍ",  // U+1E4C: LATIN CAPITAL LETTER O WITH TILDE AND ACUTE
-                    "Ṏ",  // U+1E4E: LATIN CAPITAL LETTER O WITH TILDE AND DIAERESIS
-                    "Ṑ",  // U+1E50: LATIN CAPITAL LETTER O WITH MACRON AND GRAVE
-                    "Ṓ",  // U+1E52: LATIN CAPITAL LETTER O WITH MACRON AND ACUTE
-                    "Ọ",  // U+1ECC: LATIN CAPITAL LETTER O WITH DOT BELOW
-                    "Ỏ",  // U+1ECE: LATIN CAPITAL LETTER O WITH HOOK ABOVE
-                    "Ố",  // U+1ED0: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND ACUTE
-                    "Ồ",  // U+1ED2: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND GRAVE
-                    "Ổ",  // U+1ED4: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND HOOK ABOVE
-                    "Ỗ",  // U+1ED6: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND TILDE
-                    "Ộ",  // U+1ED8: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND DOT BELOW
-                    "Ớ",  // U+1EDA: LATIN CAPITAL LETTER O WITH HORN AND ACUTE
-                    "Ờ",  // U+1EDC: LATIN CAPITAL LETTER O WITH HORN AND GRAVE
-                    "Ở",  // U+1EDE: LATIN CAPITAL LETTER O WITH HORN AND HOOK ABOVE
-                    "Ỡ",  // U+1EE0: LATIN CAPITAL LETTER O WITH HORN AND TILDE
-                    "Ợ",  // U+1EE2: LATIN CAPITAL LETTER O WITH HORN AND DOT BELOW
-                    "Ⓞ",  // U+24C4: CIRCLED LATIN CAPITAL LETTER O
-                    "Ꝋ",  // U+A74A: LATIN CAPITAL LETTER O WITH LONG STROKE OVERLAY
-                    "Ꝍ",  // U+A74C: LATIN CAPITAL LETTER O WITH LOOP
+                    "ᴏ", // U+1D0F: LATIN LETTER SMALL CAPITAL O
+                    "ᴐ", // U+1D10: LATIN LETTER SMALL CAPITAL OPEN O
+                    "Ṍ", // U+1E4C: LATIN CAPITAL LETTER O WITH TILDE AND ACUTE
+                    "Ṏ", // U+1E4E: LATIN CAPITAL LETTER O WITH TILDE AND DIAERESIS
+                    "Ṑ", // U+1E50: LATIN CAPITAL LETTER O WITH MACRON AND GRAVE
+                    "Ṓ", // U+1E52: LATIN CAPITAL LETTER O WITH MACRON AND ACUTE
+                    "Ọ", // U+1ECC: LATIN CAPITAL LETTER O WITH DOT BELOW
+                    "Ỏ", // U+1ECE: LATIN CAPITAL LETTER O WITH HOOK ABOVE
+                    "Ố", // U+1ED0: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND ACUTE
+                    "Ồ", // U+1ED2: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND GRAVE
+                    "Ổ", // U+1ED4: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND HOOK ABOVE
+                    "Ỗ", // U+1ED6: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND TILDE
+                    "Ộ", // U+1ED8: LATIN CAPITAL LETTER O WITH CIRCUMFLEX AND DOT BELOW
+                    "Ớ", // U+1EDA: LATIN CAPITAL LETTER O WITH HORN AND ACUTE
+                    "Ờ", // U+1EDC: LATIN CAPITAL LETTER O WITH HORN AND GRAVE
+                    "Ở", // U+1EDE: LATIN CAPITAL LETTER O WITH HORN AND HOOK ABOVE
+                    "Ỡ", // U+1EE0: LATIN CAPITAL LETTER O WITH HORN AND TILDE
+                    "Ợ", // U+1EE2: LATIN CAPITAL LETTER O WITH HORN AND DOT BELOW
+                    "Ⓞ", // U+24C4: CIRCLED LATIN CAPITAL LETTER O
+                    "Ꝋ", // U+A74A: LATIN CAPITAL LETTER O WITH LONG STROKE OVERLAY
+                    "Ꝍ", // U+A74C: LATIN CAPITAL LETTER O WITH LOOP
                     "Ｏ", // U+FF2F: FULLWIDTH LATIN CAPITAL LETTER O
                 ],
                 "O",
@@ -2652,30 +2652,30 @@ mod tests {
                     "ȱ",  // U+0231: LATIN SMALL LETTER O WITH DOT ABOVE AND MACRON
                     "ɔ",  // U+0254: LATIN SMALL LETTER OPEN O
                     "ɵ",  // U+0275: LATIN SMALL LETTER BARRED O
-                    "ᴖ",  // U+1D16: LATIN SMALL LETTER TOP HALF O
-                    "ᴗ",  // U+1D17: LATIN SMALL LETTER BOTTOM HALF O
-                    "ᶗ",  // U+1D97: LATIN SMALL LETTER OPEN O WITH RETROFLEX HOOK
-                    "ṍ",  // U+1E4D: LATIN SMALL LETTER O WITH TILDE AND ACUTE
-                    "ṏ",  // U+1E4F: LATIN SMALL LETTER O WITH TILDE AND DIAERESIS
-                    "ṑ",  // U+1E51: LATIN SMALL LETTER O WITH MACRON AND GRAVE
-                    "ṓ",  // U+1E53: LATIN SMALL LETTER O WITH MACRON AND ACUTE
-                    "ọ",  // U+1ECD: LATIN SMALL LETTER O WITH DOT BELOW
-                    "ỏ",  // U+1ECF: LATIN SMALL LETTER O WITH HOOK ABOVE
-                    "ố",  // U+1ED1: LATIN SMALL LETTER O WITH CIRCUMFLEX AND ACUTE
-                    "ồ",  // U+1ED3: LATIN SMALL LETTER O WITH CIRCUMFLEX AND GRAVE
-                    "ổ",  // U+1ED5: LATIN SMALL LETTER O WITH CIRCUMFLEX AND HOOK ABOVE
-                    "ỗ",  // U+1ED7: LATIN SMALL LETTER O WITH CIRCUMFLEX AND TILDE
-                    "ộ",  // U+1ED9: LATIN SMALL LETTER O WITH CIRCUMFLEX AND DOT BELOW
-                    "ớ",  // U+1EDB: LATIN SMALL LETTER O WITH HORN AND ACUTE
-                    "ờ",  // U+1EDD: LATIN SMALL LETTER O WITH HORN AND GRAVE
-                    "ở",  // U+1EDF: LATIN SMALL LETTER O WITH HORN AND HOOK ABOVE
-                    "ỡ",  // U+1EE1: LATIN SMALL LETTER O WITH HORN AND TILDE
-                    "ợ",  // U+1EE3: LATIN SMALL LETTER O WITH HORN AND DOT BELOW
-                    "ₒ",  // U+2092: LATIN SUBSCRIPT SMALL LETTER O
-                    "ⓞ",  // U+24DE: CIRCLED LATIN SMALL LETTER O
-                    "ⱺ",  // U+2C7A: LATIN SMALL LETTER O WITH LOW RING INSIDE
-                    "ꝋ",  // U+A74B: LATIN SMALL LETTER O WITH LONG STROKE OVERLAY
-                    "ꝍ",  // U+A74D: LATIN SMALL LETTER O WITH LOOP
+                    "ᴖ", // U+1D16: LATIN SMALL LETTER TOP HALF O
+                    "ᴗ", // U+1D17: LATIN SMALL LETTER BOTTOM HALF O
+                    "ᶗ", // U+1D97: LATIN SMALL LETTER OPEN O WITH RETROFLEX HOOK
+                    "ṍ", // U+1E4D: LATIN SMALL LETTER O WITH TILDE AND ACUTE
+                    "ṏ", // U+1E4F: LATIN SMALL LETTER O WITH TILDE AND DIAERESIS
+                    "ṑ", // U+1E51: LATIN SMALL LETTER O WITH MACRON AND GRAVE
+                    "ṓ", // U+1E53: LATIN SMALL LETTER O WITH MACRON AND ACUTE
+                    "ọ", // U+1ECD: LATIN SMALL LETTER O WITH DOT BELOW
+                    "ỏ", // U+1ECF: LATIN SMALL LETTER O WITH HOOK ABOVE
+                    "ố", // U+1ED1: LATIN SMALL LETTER O WITH CIRCUMFLEX AND ACUTE
+                    "ồ", // U+1ED3: LATIN SMALL LETTER O WITH CIRCUMFLEX AND GRAVE
+                    "ổ", // U+1ED5: LATIN SMALL LETTER O WITH CIRCUMFLEX AND HOOK ABOVE
+                    "ỗ", // U+1ED7: LATIN SMALL LETTER O WITH CIRCUMFLEX AND TILDE
+                    "ộ", // U+1ED9: LATIN SMALL LETTER O WITH CIRCUMFLEX AND DOT BELOW
+                    "ớ", // U+1EDB: LATIN SMALL LETTER O WITH HORN AND ACUTE
+                    "ờ", // U+1EDD: LATIN SMALL LETTER O WITH HORN AND GRAVE
+                    "ở", // U+1EDF: LATIN SMALL LETTER O WITH HORN AND HOOK ABOVE
+                    "ỡ", // U+1EE1: LATIN SMALL LETTER O WITH HORN AND TILDE
+                    "ợ", // U+1EE3: LATIN SMALL LETTER O WITH HORN AND DOT BELOW
+                    "ₒ", // U+2092: LATIN SUBSCRIPT SMALL LETTER O
+                    "ⓞ", // U+24DE: CIRCLED LATIN SMALL LETTER O
+                    "ⱺ", // U+2C7A: LATIN SMALL LETTER O WITH LOW RING INSIDE
+                    "ꝋ", // U+A74B: LATIN SMALL LETTER O WITH LONG STROKE OVERLAY
+                    "ꝍ", // U+A74D: LATIN SMALL LETTER O WITH LOOP
                     "ｏ", // U+FF4F: FULLWIDTH LATIN SMALL LETTER O
                 ],
                 "o",
@@ -2695,7 +2695,7 @@ mod tests {
             ),
             (
                 &[
-                    "Ȣ", // U+0222: LATIN CAPITAL LETTER OU
+                    "Ȣ",  // U+0222: LATIN CAPITAL LETTER OU
                     "ᴕ", // U+1D15: LATIN LETTER SMALL CAPITAL OU
                 ],
                 "OU",
@@ -2708,7 +2708,7 @@ mod tests {
             ),
             (
                 &[
-                    "œ", // U+0153: LATIN SMALL LIGATURE OE
+                    "œ",  // U+0153: LATIN SMALL LIGATURE OE
                     "ᴔ", // U+1D14: LATIN SMALL LETTER TURNED OE
                 ],
                 "oe",
@@ -2728,14 +2728,14 @@ mod tests {
             (
                 &[
                     "Ƥ",  // U+01A4: LATIN CAPITAL LETTER P WITH HOOK
-                    "ᴘ",  // U+1D18: LATIN LETTER SMALL CAPITAL P
-                    "Ṕ",  // U+1E54: LATIN CAPITAL LETTER P WITH ACUTE
-                    "Ṗ",  // U+1E56: LATIN CAPITAL LETTER P WITH DOT ABOVE
-                    "Ⓟ",  // U+24C5: CIRCLED LATIN CAPITAL LETTER P
-                    "Ᵽ",  // U+2C63: LATIN CAPITAL LETTER P WITH STROKE
-                    "Ꝑ",  // U+A750: LATIN CAPITAL LETTER P WITH STROKE THROUGH DESCENDER
-                    "Ꝓ",  // U+A752: LATIN CAPITAL LETTER P WITH FLOURISH
-                    "Ꝕ",  // U+A754: LATIN CAPITAL LETTER P WITH SQUIRREL TAIL
+                    "ᴘ", // U+1D18: LATIN LETTER SMALL CAPITAL P
+                    "Ṕ", // U+1E54: LATIN CAPITAL LETTER P WITH ACUTE
+                    "Ṗ", // U+1E56: LATIN CAPITAL LETTER P WITH DOT ABOVE
+                    "Ⓟ", // U+24C5: CIRCLED LATIN CAPITAL LETTER P
+                    "Ᵽ", // U+2C63: LATIN CAPITAL LETTER P WITH STROKE
+                    "Ꝑ", // U+A750: LATIN CAPITAL LETTER P WITH STROKE THROUGH DESCENDER
+                    "Ꝓ", // U+A752: LATIN CAPITAL LETTER P WITH FLOURISH
+                    "Ꝕ", // U+A754: LATIN CAPITAL LETTER P WITH SQUIRREL TAIL
                     "Ｐ", // U+FF30: FULLWIDTH LATIN CAPITAL LETTER P
                 ],
                 "P",
@@ -2743,16 +2743,16 @@ mod tests {
             (
                 &[
                     "ƥ",  // U+01A5: LATIN SMALL LETTER P WITH HOOK
-                    "ᵱ",  // U+1D71: LATIN SMALL LETTER P WITH MIDDLE TILDE
-                    "ᵽ",  // U+1D7D: LATIN SMALL LETTER P WITH STROKE
-                    "ᶈ",  // U+1D88: LATIN SMALL LETTER P WITH PALATAL HOOK
-                    "ṕ",  // U+1E55: LATIN SMALL LETTER P WITH ACUTE
-                    "ṗ",  // U+1E57: LATIN SMALL LETTER P WITH DOT ABOVE
-                    "ⓟ",  // U+24DF: CIRCLED LATIN SMALL LETTER P
-                    "ꝑ",  // U+A751: LATIN SMALL LETTER P WITH STROKE THROUGH DESCENDER
-                    "ꝓ",  // U+A753: LATIN SMALL LETTER P WITH FLOURISH
-                    "ꝕ",  // U+A755: LATIN SMALL LETTER P WITH SQUIRREL TAIL
-                    "ꟼ",  // U+A7FC: LATIN EPIGRAPHIC LETTER REVERSED P
+                    "ᵱ", // U+1D71: LATIN SMALL LETTER P WITH MIDDLE TILDE
+                    "ᵽ", // U+1D7D: LATIN SMALL LETTER P WITH STROKE
+                    "ᶈ", // U+1D88: LATIN SMALL LETTER P WITH PALATAL HOOK
+                    "ṕ", // U+1E55: LATIN SMALL LETTER P WITH ACUTE
+                    "ṗ", // U+1E57: LATIN SMALL LETTER P WITH DOT ABOVE
+                    "ⓟ", // U+24DF: CIRCLED LATIN SMALL LETTER P
+                    "ꝑ", // U+A751: LATIN SMALL LETTER P WITH STROKE THROUGH DESCENDER
+                    "ꝓ", // U+A753: LATIN SMALL LETTER P WITH FLOURISH
+                    "ꝕ", // U+A755: LATIN SMALL LETTER P WITH SQUIRREL TAIL
+                    "ꟼ", // U+A7FC: LATIN EPIGRAPHIC LETTER REVERSED P
                     "ｐ", // U+FF50: FULLWIDTH LATIN SMALL LETTER P
                 ],
                 "p",
@@ -2766,9 +2766,9 @@ mod tests {
             (
                 &[
                     "Ɋ",  // U+024A: LATIN CAPITAL LETTER SMALL Q WITH HOOK TAIL
-                    "Ⓠ",  // U+24C6: CIRCLED LATIN CAPITAL LETTER Q
-                    "Ꝗ",  // U+A756: LATIN CAPITAL LETTER Q WITH STROKE THROUGH DESCENDER
-                    "Ꝙ",  // U+A758: LATIN CAPITAL LETTER Q WITH DIAGONAL STROKE
+                    "Ⓠ", // U+24C6: CIRCLED LATIN CAPITAL LETTER Q
+                    "Ꝗ", // U+A756: LATIN CAPITAL LETTER Q WITH STROKE THROUGH DESCENDER
+                    "Ꝙ", // U+A758: LATIN CAPITAL LETTER Q WITH DIAGONAL STROKE
                     "Ｑ", // U+FF31: FULLWIDTH LATIN CAPITAL LETTER Q
                 ],
                 "Q",
@@ -2778,9 +2778,9 @@ mod tests {
                     "ĸ",  // U+0138: LATIN SMALL LETTER KRA
                     "ɋ",  // U+024B: LATIN SMALL LETTER Q WITH HOOK TAIL
                     "ʠ",  // U+02A0: LATIN SMALL LETTER Q WITH HOOK
-                    "ⓠ",  // U+24E0: CIRCLED LATIN SMALL LETTER Q
-                    "ꝗ",  // U+A757: LATIN SMALL LETTER Q WITH STROKE THROUGH DESCENDER
-                    "ꝙ",  // U+A759: LATIN SMALL LETTER Q WITH DIAGONAL STROKE
+                    "ⓠ", // U+24E0: CIRCLED LATIN SMALL LETTER Q
+                    "ꝗ", // U+A757: LATIN SMALL LETTER Q WITH STROKE THROUGH DESCENDER
+                    "ꝙ", // U+A759: LATIN SMALL LETTER Q WITH DIAGONAL STROKE
                     "ｑ", // U+FF51: FULLWIDTH LATIN SMALL LETTER Q
                 ],
                 "q",
@@ -2807,16 +2807,16 @@ mod tests {
                     "Ɍ",  // U+024C: LATIN CAPITAL LETTER R WITH STROKE
                     "ʀ",  // U+0280: LATIN LETTER SMALL CAPITAL R
                     "ʁ",  // U+0281: LATIN LETTER SMALL CAPITAL INVERTED R
-                    "ᴙ",  // U+1D19: LATIN LETTER SMALL CAPITAL REVERSED R
-                    "ᴚ",  // U+1D1A: LATIN LETTER SMALL CAPITAL TURNED R
-                    "Ṙ",  // U+1E58: LATIN CAPITAL LETTER R WITH DOT ABOVE
-                    "Ṛ",  // U+1E5A: LATIN CAPITAL LETTER R WITH DOT BELOW
-                    "Ṝ",  // U+1E5C: LATIN CAPITAL LETTER R WITH DOT BELOW AND MACRON
-                    "Ṟ",  // U+1E5E: LATIN CAPITAL LETTER R WITH LINE BELOW
-                    "Ⓡ",  // U+24C7: CIRCLED LATIN CAPITAL LETTER R
-                    "Ɽ",  // U+2C64: LATIN CAPITAL LETTER R WITH TAIL
-                    "Ꝛ",  // U+A75A: LATIN CAPITAL LETTER R ROTUNDA
-                    "Ꞃ",  // U+A782: LATIN CAPITAL LETTER INSULAR R
+                    "ᴙ", // U+1D19: LATIN LETTER SMALL CAPITAL REVERSED R
+                    "ᴚ", // U+1D1A: LATIN LETTER SMALL CAPITAL TURNED R
+                    "Ṙ", // U+1E58: LATIN CAPITAL LETTER R WITH DOT ABOVE
+                    "Ṛ", // U+1E5A: LATIN CAPITAL LETTER R WITH DOT BELOW
+                    "Ṝ", // U+1E5C: LATIN CAPITAL LETTER R WITH DOT BELOW AND MACRON
+                    "Ṟ", // U+1E5E: LATIN CAPITAL LETTER R WITH LINE BELOW
+                    "Ⓡ", // U+24C7: CIRCLED LATIN CAPITAL LETTER R
+                    "Ɽ", // U+2C64: LATIN CAPITAL LETTER R WITH TAIL
+                    "Ꝛ", // U+A75A: LATIN CAPITAL LETTER R ROTUNDA
+                    "Ꞃ", // U+A782: LATIN CAPITAL LETTER INSULAR R
                     "Ｒ", // U+FF32: FULLWIDTH LATIN CAPITAL LETTER R
                 ],
                 "R",
@@ -2833,17 +2833,17 @@ mod tests {
                     "ɽ",  // U+027D: LATIN SMALL LETTER R WITH TAIL
                     "ɾ",  // U+027E: LATIN SMALL LETTER R WITH FISHHOOK
                     "ɿ",  // U+027F: LATIN SMALL LETTER REVERSED R WITH FISHHOOK
-                    "ᵣ",  // U+1D63: LATIN SUBSCRIPT SMALL LETTER R
-                    "ᵲ",  // U+1D72: LATIN SMALL LETTER R WITH MIDDLE TILDE
-                    "ᵳ",  // U+1D73: LATIN SMALL LETTER R WITH FISHHOOK AND MIDDLE TILDE
-                    "ᶉ",  // U+1D89: LATIN SMALL LETTER R WITH PALATAL HOOK
-                    "ṙ",  // U+1E59: LATIN SMALL LETTER R WITH DOT ABOVE
-                    "ṛ",  // U+1E5B: LATIN SMALL LETTER R WITH DOT BELOW
-                    "ṝ",  // U+1E5D: LATIN SMALL LETTER R WITH DOT BELOW AND MACRON
-                    "ṟ",  // U+1E5F: LATIN SMALL LETTER R WITH LINE BELOW
-                    "ⓡ",  // U+24E1: CIRCLED LATIN SMALL LETTER R
-                    "ꝛ",  // U+A75B: LATIN SMALL LETTER R ROTUNDA
-                    "ꞃ",  // U+A783: LATIN SMALL LETTER INSULAR R
+                    "ᵣ", // U+1D63: LATIN SUBSCRIPT SMALL LETTER R
+                    "ᵲ", // U+1D72: LATIN SMALL LETTER R WITH MIDDLE TILDE
+                    "ᵳ", // U+1D73: LATIN SMALL LETTER R WITH FISHHOOK AND MIDDLE TILDE
+                    "ᶉ", // U+1D89: LATIN SMALL LETTER R WITH PALATAL HOOK
+                    "ṙ", // U+1E59: LATIN SMALL LETTER R WITH DOT ABOVE
+                    "ṛ", // U+1E5B: LATIN SMALL LETTER R WITH DOT BELOW
+                    "ṝ", // U+1E5D: LATIN SMALL LETTER R WITH DOT BELOW AND MACRON
+                    "ṟ", // U+1E5F: LATIN SMALL LETTER R WITH LINE BELOW
+                    "ⓡ", // U+24E1: CIRCLED LATIN SMALL LETTER R
+                    "ꝛ", // U+A75B: LATIN SMALL LETTER R ROTUNDA
+                    "ꞃ", // U+A783: LATIN SMALL LETTER INSULAR R
                     "ｒ", // U+FF52: FULLWIDTH LATIN SMALL LETTER R
                 ],
                 "r",
@@ -2861,14 +2861,14 @@ mod tests {
                     "Ş",  // U+015E: LATIN CAPITAL LETTER S WITH CEDILLA
                     "Š",  // U+0160: LATIN CAPITAL LETTER S WITH CARON
                     "Ș",  // U+0218: LATIN CAPITAL LETTER S WITH COMMA BELOW
-                    "Ṡ",  // U+1E60: LATIN CAPITAL LETTER S WITH DOT ABOVE
-                    "Ṣ",  // U+1E62: LATIN CAPITAL LETTER S WITH DOT BELOW
-                    "Ṥ",  // U+1E64: LATIN CAPITAL LETTER S WITH ACUTE AND DOT ABOVE
-                    "Ṧ",  // U+1E66: LATIN CAPITAL LETTER S WITH CARON AND DOT ABOVE
-                    "Ṩ",  // U+1E68: LATIN CAPITAL LETTER S WITH DOT BELOW AND DOT ABOVE
-                    "Ⓢ",  // U+24C8: CIRCLED LATIN CAPITAL LETTER S
-                    "ꜱ",  // U+A731: LATIN LETTER SMALL CAPITAL S
-                    "ꞅ",  // U+A785: LATIN SMALL LETTER INSULAR S
+                    "Ṡ", // U+1E60: LATIN CAPITAL LETTER S WITH DOT ABOVE
+                    "Ṣ", // U+1E62: LATIN CAPITAL LETTER S WITH DOT BELOW
+                    "Ṥ", // U+1E64: LATIN CAPITAL LETTER S WITH ACUTE AND DOT ABOVE
+                    "Ṧ", // U+1E66: LATIN CAPITAL LETTER S WITH CARON AND DOT ABOVE
+                    "Ṩ", // U+1E68: LATIN CAPITAL LETTER S WITH DOT BELOW AND DOT ABOVE
+                    "Ⓢ", // U+24C8: CIRCLED LATIN CAPITAL LETTER S
+                    "ꜱ", // U+A731: LATIN LETTER SMALL CAPITAL S
+                    "ꞅ", // U+A785: LATIN SMALL LETTER INSULAR S
                     "Ｓ", // U+FF33: FULLWIDTH LATIN CAPITAL LETTER S
                 ],
                 "S",
@@ -2883,17 +2883,17 @@ mod tests {
                     "ș",  // U+0219: LATIN SMALL LETTER S WITH COMMA BELOW
                     "ȿ",  // U+023F: LATIN SMALL LETTER S WITH SWASH TAIL
                     "ʂ",  // U+0282: LATIN SMALL LETTER S WITH HOOK
-                    "ᵴ",  // U+1D74: LATIN SMALL LETTER S WITH MIDDLE TILDE
-                    "ᶊ",  // U+1D8A: LATIN SMALL LETTER S WITH PALATAL HOOK
-                    "ṡ",  // U+1E61: LATIN SMALL LETTER S WITH DOT ABOVE
-                    "ṣ",  // U+1E63: LATIN SMALL LETTER S WITH DOT BELOW
-                    "ṥ",  // U+1E65: LATIN SMALL LETTER S WITH ACUTE AND DOT ABOVE
-                    "ṧ",  // U+1E67: LATIN SMALL LETTER S WITH CARON AND DOT ABOVE
-                    "ṩ",  // U+1E69: LATIN SMALL LETTER S WITH DOT BELOW AND DOT ABOVE
-                    "ẜ",  // U+1E9C: LATIN SMALL LETTER LONG S WITH DIAGONAL STROKE
-                    "ẝ",  // U+1E9D: LATIN SMALL LETTER LONG S WITH HIGH STROKE
-                    "ⓢ",  // U+24E2: CIRCLED LATIN SMALL LETTER S
-                    "Ꞅ",  // U+A784: LATIN CAPITAL LETTER INSULAR S
+                    "ᵴ", // U+1D74: LATIN SMALL LETTER S WITH MIDDLE TILDE
+                    "ᶊ", // U+1D8A: LATIN SMALL LETTER S WITH PALATAL HOOK
+                    "ṡ", // U+1E61: LATIN SMALL LETTER S WITH DOT ABOVE
+                    "ṣ", // U+1E63: LATIN SMALL LETTER S WITH DOT BELOW
+                    "ṥ", // U+1E65: LATIN SMALL LETTER S WITH ACUTE AND DOT ABOVE
+                    "ṧ", // U+1E67: LATIN SMALL LETTER S WITH CARON AND DOT ABOVE
+                    "ṩ", // U+1E69: LATIN SMALL LETTER S WITH DOT BELOW AND DOT ABOVE
+                    "ẜ", // U+1E9C: LATIN SMALL LETTER LONG S WITH DIAGONAL STROKE
+                    "ẝ", // U+1E9D: LATIN SMALL LETTER LONG S WITH HIGH STROKE
+                    "ⓢ", // U+24E2: CIRCLED LATIN SMALL LETTER S
+                    "Ꞅ", // U+A784: LATIN CAPITAL LETTER INSULAR S
                     "ｓ", // U+FF53: FULLWIDTH LATIN SMALL LETTER S
                 ],
                 "s",
@@ -2931,13 +2931,13 @@ mod tests {
                     "Ʈ",  // U+01AE: LATIN CAPITAL LETTER T WITH RETROFLEX HOOK
                     "Ț",  // U+021A: LATIN CAPITAL LETTER T WITH COMMA BELOW
                     "Ⱦ",  // U+023E: LATIN CAPITAL LETTER T WITH DIAGONAL STROKE
-                    "ᴛ",  // U+1D1B: LATIN LETTER SMALL CAPITAL T
-                    "Ṫ",  // U+1E6A: LATIN CAPITAL LETTER T WITH DOT ABOVE
-                    "Ṭ",  // U+1E6C: LATIN CAPITAL LETTER T WITH DOT BELOW
-                    "Ṯ",  // U+1E6E: LATIN CAPITAL LETTER T WITH LINE BELOW
-                    "Ṱ",  // U+1E70: LATIN CAPITAL LETTER T WITH CIRCUMFLEX BELOW
-                    "Ⓣ",  // U+24C9: CIRCLED LATIN CAPITAL LETTER T
-                    "Ꞇ",  // U+A786: LATIN CAPITAL LETTER INSULAR T
+                    "ᴛ", // U+1D1B: LATIN LETTER SMALL CAPITAL T
+                    "Ṫ", // U+1E6A: LATIN CAPITAL LETTER T WITH DOT ABOVE
+                    "Ṭ", // U+1E6C: LATIN CAPITAL LETTER T WITH DOT BELOW
+                    "Ṯ", // U+1E6E: LATIN CAPITAL LETTER T WITH LINE BELOW
+                    "Ṱ", // U+1E70: LATIN CAPITAL LETTER T WITH CIRCUMFLEX BELOW
+                    "Ⓣ", // U+24C9: CIRCLED LATIN CAPITAL LETTER T
+                    "Ꞇ", // U+A786: LATIN CAPITAL LETTER INSULAR T
                     "Ｔ", // U+FF34: FULLWIDTH LATIN CAPITAL LETTER T
                 ],
                 "T",
@@ -2953,21 +2953,21 @@ mod tests {
                     "ȶ",  // U+0236: LATIN SMALL LETTER T WITH CURL
                     "ʇ",  // U+0287: LATIN SMALL LETTER TURNED T
                     "ʈ",  // U+0288: LATIN SMALL LETTER T WITH RETROFLEX HOOK
-                    "ᵵ",  // U+1D75: LATIN SMALL LETTER T WITH MIDDLE TILDE
-                    "ṫ",  // U+1E6B: LATIN SMALL LETTER T WITH DOT ABOVE
-                    "ṭ",  // U+1E6D: LATIN SMALL LETTER T WITH DOT BELOW
-                    "ṯ",  // U+1E6F: LATIN SMALL LETTER T WITH LINE BELOW
-                    "ṱ",  // U+1E71: LATIN SMALL LETTER T WITH CIRCUMFLEX BELOW
-                    "ẗ",  // U+1E97: LATIN SMALL LETTER T WITH DIAERESIS
-                    "ⓣ",  // U+24E3: CIRCLED LATIN SMALL LETTER T
-                    "ⱦ",  // U+2C66: LATIN SMALL LETTER T WITH DIAGONAL STROKE
+                    "ᵵ", // U+1D75: LATIN SMALL LETTER T WITH MIDDLE TILDE
+                    "ṫ", // U+1E6B: LATIN SMALL LETTER T WITH DOT ABOVE
+                    "ṭ", // U+1E6D: LATIN SMALL LETTER T WITH DOT BELOW
+                    "ṯ", // U+1E6F: LATIN SMALL LETTER T WITH LINE BELOW
+                    "ṱ", // U+1E71: LATIN SMALL LETTER T WITH CIRCUMFLEX BELOW
+                    "ẗ", // U+1E97: LATIN SMALL LETTER T WITH DIAERESIS
+                    "ⓣ", // U+24E3: CIRCLED LATIN SMALL LETTER T
+                    "ⱦ", // U+2C66: LATIN SMALL LETTER T WITH DIAGONAL STROKE
                     "ｔ", // U+FF54: FULLWIDTH LATIN SMALL LETTER T
                 ],
                 "t",
             ),
             (
                 &[
-                    "Þ", // U+00DE: LATIN CAPITAL LETTER THORN
+                    "Þ",  // U+00DE: LATIN CAPITAL LETTER THORN
                     "Ꝧ", // U+A766: LATIN CAPITAL LETTER THORN WITH STROKE THROUGH DESCENDER
                 ],
                 "TH",
@@ -2992,7 +2992,7 @@ mod tests {
             ),
             (
                 &[
-                    "þ", // U+00FE: LATIN SMALL LETTER THORN
+                    "þ",  // U+00FE: LATIN SMALL LETTER THORN
                     "ᵺ", // U+1D7A: LATIN SMALL LETTER TH WITH STRIKETHROUGH
                     "ꝧ", // U+A767: LATIN SMALL LETTER THORN WITH STROKE THROUGH DESCENDER
                 ],
@@ -3031,21 +3031,21 @@ mod tests {
                     "Ȕ",  // U+0214: LATIN CAPITAL LETTER U WITH DOUBLE GRAVE
                     "Ȗ",  // U+0216: LATIN CAPITAL LETTER U WITH INVERTED BREVE
                     "Ʉ",  // U+0244: LATIN CAPITAL LETTER U BAR
-                    "ᴜ",  // U+1D1C: LATIN LETTER SMALL CAPITAL U
-                    "ᵾ",  // U+1D7E: LATIN SMALL CAPITAL LETTER U WITH STROKE
-                    "Ṳ",  // U+1E72: LATIN CAPITAL LETTER U WITH DIAERESIS BELOW
-                    "Ṵ",  // U+1E74: LATIN CAPITAL LETTER U WITH TILDE BELOW
-                    "Ṷ",  // U+1E76: LATIN CAPITAL LETTER U WITH CIRCUMFLEX BELOW
-                    "Ṹ",  // U+1E78: LATIN CAPITAL LETTER U WITH TILDE AND ACUTE
-                    "Ṻ",  // U+1E7A: LATIN CAPITAL LETTER U WITH MACRON AND DIAERESIS
-                    "Ụ",  // U+1EE4: LATIN CAPITAL LETTER U WITH DOT BELOW
-                    "Ủ",  // U+1EE6: LATIN CAPITAL LETTER U WITH HOOK ABOVE
-                    "Ứ",  // U+1EE8: LATIN CAPITAL LETTER U WITH HORN AND ACUTE
-                    "Ừ",  // U+1EEA: LATIN CAPITAL LETTER U WITH HORN AND GRAVE
-                    "Ử",  // U+1EEC: LATIN CAPITAL LETTER U WITH HORN AND HOOK ABOVE
-                    "Ữ",  // U+1EEE: LATIN CAPITAL LETTER U WITH HORN AND TILDE
-                    "Ự",  // U+1EF0: LATIN CAPITAL LETTER U WITH HORN AND DOT BELOW
-                    "Ⓤ",  // U+24CA: CIRCLED LATIN CAPITAL LETTER U
+                    "ᴜ", // U+1D1C: LATIN LETTER SMALL CAPITAL U
+                    "ᵾ", // U+1D7E: LATIN SMALL CAPITAL LETTER U WITH STROKE
+                    "Ṳ", // U+1E72: LATIN CAPITAL LETTER U WITH DIAERESIS BELOW
+                    "Ṵ", // U+1E74: LATIN CAPITAL LETTER U WITH TILDE BELOW
+                    "Ṷ", // U+1E76: LATIN CAPITAL LETTER U WITH CIRCUMFLEX BELOW
+                    "Ṹ", // U+1E78: LATIN CAPITAL LETTER U WITH TILDE AND ACUTE
+                    "Ṻ", // U+1E7A: LATIN CAPITAL LETTER U WITH MACRON AND DIAERESIS
+                    "Ụ", // U+1EE4: LATIN CAPITAL LETTER U WITH DOT BELOW
+                    "Ủ", // U+1EE6: LATIN CAPITAL LETTER U WITH HOOK ABOVE
+                    "Ứ", // U+1EE8: LATIN CAPITAL LETTER U WITH HORN AND ACUTE
+                    "Ừ", // U+1EEA: LATIN CAPITAL LETTER U WITH HORN AND GRAVE
+                    "Ử", // U+1EEC: LATIN CAPITAL LETTER U WITH HORN AND HOOK ABOVE
+                    "Ữ", // U+1EEE: LATIN CAPITAL LETTER U WITH HORN AND TILDE
+                    "Ự", // U+1EF0: LATIN CAPITAL LETTER U WITH HORN AND DOT BELOW
+                    "Ⓤ", // U+24CA: CIRCLED LATIN CAPITAL LETTER U
                     "Ｕ", // U+FF35: FULLWIDTH LATIN CAPITAL LETTER U
                 ],
                 "U",
@@ -3071,21 +3071,21 @@ mod tests {
                     "ȕ",  // U+0215: LATIN SMALL LETTER U WITH DOUBLE GRAVE
                     "ȗ",  // U+0217: LATIN SMALL LETTER U WITH INVERTED BREVE
                     "ʉ",  // U+0289: LATIN SMALL LETTER U BAR
-                    "ᵤ",  // U+1D64: LATIN SUBSCRIPT SMALL LETTER U
-                    "ᶙ",  // U+1D99: LATIN SMALL LETTER U WITH RETROFLEX HOOK
-                    "ṳ",  // U+1E73: LATIN SMALL LETTER U WITH DIAERESIS BELOW
-                    "ṵ",  // U+1E75: LATIN SMALL LETTER U WITH TILDE BELOW
-                    "ṷ",  // U+1E77: LATIN SMALL LETTER U WITH CIRCUMFLEX BELOW
-                    "ṹ",  // U+1E79: LATIN SMALL LETTER U WITH TILDE AND ACUTE
-                    "ṻ",  // U+1E7B: LATIN SMALL LETTER U WITH MACRON AND DIAERESIS
-                    "ụ",  // U+1EE5: LATIN SMALL LETTER U WITH DOT BELOW
-                    "ủ",  // U+1EE7: LATIN SMALL LETTER U WITH HOOK ABOVE
-                    "ứ",  // U+1EE9: LATIN SMALL LETTER U WITH HORN AND ACUTE
-                    "ừ",  // U+1EEB: LATIN SMALL LETTER U WITH HORN AND GRAVE
-                    "ử",  // U+1EED: LATIN SMALL LETTER U WITH HORN AND HOOK ABOVE
-                    "ữ",  // U+1EEF: LATIN SMALL LETTER U WITH HORN AND TILDE
-                    "ự",  // U+1EF1: LATIN SMALL LETTER U WITH HORN AND DOT BELOW
-                    "ⓤ",  // U+24E4: CIRCLED LATIN SMALL LETTER U
+                    "ᵤ", // U+1D64: LATIN SUBSCRIPT SMALL LETTER U
+                    "ᶙ", // U+1D99: LATIN SMALL LETTER U WITH RETROFLEX HOOK
+                    "ṳ", // U+1E73: LATIN SMALL LETTER U WITH DIAERESIS BELOW
+                    "ṵ", // U+1E75: LATIN SMALL LETTER U WITH TILDE BELOW
+                    "ṷ", // U+1E77: LATIN SMALL LETTER U WITH CIRCUMFLEX BELOW
+                    "ṹ", // U+1E79: LATIN SMALL LETTER U WITH TILDE AND ACUTE
+                    "ṻ", // U+1E7B: LATIN SMALL LETTER U WITH MACRON AND DIAERESIS
+                    "ụ", // U+1EE5: LATIN SMALL LETTER U WITH DOT BELOW
+                    "ủ", // U+1EE7: LATIN SMALL LETTER U WITH HOOK ABOVE
+                    "ứ", // U+1EE9: LATIN SMALL LETTER U WITH HORN AND ACUTE
+                    "ừ", // U+1EEB: LATIN SMALL LETTER U WITH HORN AND GRAVE
+                    "ử", // U+1EED: LATIN SMALL LETTER U WITH HORN AND HOOK ABOVE
+                    "ữ", // U+1EEF: LATIN SMALL LETTER U WITH HORN AND TILDE
+                    "ự", // U+1EF1: LATIN SMALL LETTER U WITH HORN AND DOT BELOW
+                    "ⓤ", // U+24E4: CIRCLED LATIN SMALL LETTER U
                     "ｕ", // U+FF55: FULLWIDTH LATIN SMALL LETTER U
                 ],
                 "u",
@@ -3106,13 +3106,13 @@ mod tests {
                 &[
                     "Ʋ",  // U+01B2: LATIN CAPITAL LETTER V WITH HOOK
                     "Ʌ",  // U+0245: LATIN CAPITAL LETTER TURNED V
-                    "ᴠ",  // U+1D20: LATIN LETTER SMALL CAPITAL V
-                    "Ṽ",  // U+1E7C: LATIN CAPITAL LETTER V WITH TILDE
-                    "Ṿ",  // U+1E7E: LATIN CAPITAL LETTER V WITH DOT BELOW
-                    "Ỽ",  // U+1EFC: LATIN CAPITAL LETTER MIDDLE-WELSH V
-                    "Ⓥ",  // U+24CB: CIRCLED LATIN CAPITAL LETTER V
-                    "Ꝟ",  // U+A75E: LATIN CAPITAL LETTER V WITH DIAGONAL STROKE
-                    "Ꝩ",  // U+A768: LATIN CAPITAL LETTER VEND
+                    "ᴠ", // U+1D20: LATIN LETTER SMALL CAPITAL V
+                    "Ṽ", // U+1E7C: LATIN CAPITAL LETTER V WITH TILDE
+                    "Ṿ", // U+1E7E: LATIN CAPITAL LETTER V WITH DOT BELOW
+                    "Ỽ", // U+1EFC: LATIN CAPITAL LETTER MIDDLE-WELSH V
+                    "Ⓥ", // U+24CB: CIRCLED LATIN CAPITAL LETTER V
+                    "Ꝟ", // U+A75E: LATIN CAPITAL LETTER V WITH DIAGONAL STROKE
+                    "Ꝩ", // U+A768: LATIN CAPITAL LETTER VEND
                     "Ｖ", // U+FF36: FULLWIDTH LATIN CAPITAL LETTER V
                 ],
                 "V",
@@ -3121,14 +3121,14 @@ mod tests {
                 &[
                     "ʋ",  // U+028B: LATIN SMALL LETTER V WITH HOOK
                     "ʌ",  // U+028C: LATIN SMALL LETTER TURNED V
-                    "ᵥ",  // U+1D65: LATIN SUBSCRIPT SMALL LETTER V
-                    "ᶌ",  // U+1D8C: LATIN SMALL LETTER V WITH PALATAL HOOK
-                    "ṽ",  // U+1E7D: LATIN SMALL LETTER V WITH TILDE
-                    "ṿ",  // U+1E7F: LATIN SMALL LETTER V WITH DOT BELOW
-                    "ⓥ",  // U+24E5: CIRCLED LATIN SMALL LETTER V
-                    "ⱱ",  // U+2C71: LATIN SMALL LETTER V WITH RIGHT HOOK
-                    "ⱴ",  // U+2C74: LATIN SMALL LETTER V WITH CURL
-                    "ꝟ",  // U+A75F: LATIN SMALL LETTER V WITH DIAGONAL STROKE
+                    "ᵥ", // U+1D65: LATIN SUBSCRIPT SMALL LETTER V
+                    "ᶌ", // U+1D8C: LATIN SMALL LETTER V WITH PALATAL HOOK
+                    "ṽ", // U+1E7D: LATIN SMALL LETTER V WITH TILDE
+                    "ṿ", // U+1E7F: LATIN SMALL LETTER V WITH DOT BELOW
+                    "ⓥ", // U+24E5: CIRCLED LATIN SMALL LETTER V
+                    "ⱱ", // U+2C71: LATIN SMALL LETTER V WITH RIGHT HOOK
+                    "ⱴ", // U+2C74: LATIN SMALL LETTER V WITH CURL
+                    "ꝟ", // U+A75F: LATIN SMALL LETTER V WITH DIAGONAL STROKE
                     "ｖ", // U+FF56: FULLWIDTH LATIN SMALL LETTER V
                 ],
                 "v",
@@ -3155,14 +3155,14 @@ mod tests {
                 &[
                     "Ŵ",  // U+0174: LATIN CAPITAL LETTER W WITH CIRCUMFLEX
                     "Ƿ",  // U+01F7: LATIN CAPITAL LETTER WYNN
-                    "ᴡ",  // U+1D21: LATIN LETTER SMALL CAPITAL W
-                    "Ẁ",  // U+1E80: LATIN CAPITAL LETTER W WITH GRAVE
-                    "Ẃ",  // U+1E82: LATIN CAPITAL LETTER W WITH ACUTE
-                    "Ẅ",  // U+1E84: LATIN CAPITAL LETTER W WITH DIAERESIS
-                    "Ẇ",  // U+1E86: LATIN CAPITAL LETTER W WITH DOT ABOVE
-                    "Ẉ",  // U+1E88: LATIN CAPITAL LETTER W WITH DOT BELOW
-                    "Ⓦ",  // U+24CC: CIRCLED LATIN CAPITAL LETTER W
-                    "Ⱳ",  // U+2C72: LATIN CAPITAL LETTER W WITH HOOK
+                    "ᴡ", // U+1D21: LATIN LETTER SMALL CAPITAL W
+                    "Ẁ", // U+1E80: LATIN CAPITAL LETTER W WITH GRAVE
+                    "Ẃ", // U+1E82: LATIN CAPITAL LETTER W WITH ACUTE
+                    "Ẅ", // U+1E84: LATIN CAPITAL LETTER W WITH DIAERESIS
+                    "Ẇ", // U+1E86: LATIN CAPITAL LETTER W WITH DOT ABOVE
+                    "Ẉ", // U+1E88: LATIN CAPITAL LETTER W WITH DOT BELOW
+                    "Ⓦ", // U+24CC: CIRCLED LATIN CAPITAL LETTER W
+                    "Ⱳ", // U+2C72: LATIN CAPITAL LETTER W WITH HOOK
                     "Ｗ", // U+FF37: FULLWIDTH LATIN CAPITAL LETTER W
                 ],
                 "W",
@@ -3172,14 +3172,14 @@ mod tests {
                     "ŵ",  // U+0175: LATIN SMALL LETTER W WITH CIRCUMFLEX
                     "ƿ",  // U+01BF: LATIN LETTER WYNN
                     "ʍ",  // U+028D: LATIN SMALL LETTER TURNED W
-                    "ẁ",  // U+1E81: LATIN SMALL LETTER W WITH GRAVE
-                    "ẃ",  // U+1E83: LATIN SMALL LETTER W WITH ACUTE
-                    "ẅ",  // U+1E85: LATIN SMALL LETTER W WITH DIAERESIS
-                    "ẇ",  // U+1E87: LATIN SMALL LETTER W WITH DOT ABOVE
-                    "ẉ",  // U+1E89: LATIN SMALL LETTER W WITH DOT BELOW
-                    "ẘ",  // U+1E98: LATIN SMALL LETTER W WITH RING ABOVE
-                    "ⓦ",  // U+24E6: CIRCLED LATIN SMALL LETTER W
-                    "ⱳ",  // U+2C73: LATIN SMALL LETTER W WITH HOOK
+                    "ẁ", // U+1E81: LATIN SMALL LETTER W WITH GRAVE
+                    "ẃ", // U+1E83: LATIN SMALL LETTER W WITH ACUTE
+                    "ẅ", // U+1E85: LATIN SMALL LETTER W WITH DIAERESIS
+                    "ẇ", // U+1E87: LATIN SMALL LETTER W WITH DOT ABOVE
+                    "ẉ", // U+1E89: LATIN SMALL LETTER W WITH DOT BELOW
+                    "ẘ", // U+1E98: LATIN SMALL LETTER W WITH RING ABOVE
+                    "ⓦ", // U+24E6: CIRCLED LATIN SMALL LETTER W
+                    "ⱳ", // U+2C73: LATIN SMALL LETTER W WITH HOOK
                     "ｗ", // U+FF57: FULLWIDTH LATIN SMALL LETTER W
                 ],
                 "w",
@@ -3192,20 +3192,20 @@ mod tests {
             ),
             (
                 &[
-                    "Ẋ",  // U+1E8A: LATIN CAPITAL LETTER X WITH DOT ABOVE
-                    "Ẍ",  // U+1E8C: LATIN CAPITAL LETTER X WITH DIAERESIS
-                    "Ⓧ",  // U+24CD: CIRCLED LATIN CAPITAL LETTER X
+                    "Ẋ", // U+1E8A: LATIN CAPITAL LETTER X WITH DOT ABOVE
+                    "Ẍ", // U+1E8C: LATIN CAPITAL LETTER X WITH DIAERESIS
+                    "Ⓧ", // U+24CD: CIRCLED LATIN CAPITAL LETTER X
                     "Ｘ", // U+FF38: FULLWIDTH LATIN CAPITAL LETTER X
                 ],
                 "X",
             ),
             (
                 &[
-                    "ᶍ",  // U+1D8D: LATIN SMALL LETTER X WITH PALATAL HOOK
-                    "ẋ",  // U+1E8B: LATIN SMALL LETTER X WITH DOT ABOVE
-                    "ẍ",  // U+1E8D: LATIN SMALL LETTER X WITH DIAERESIS
-                    "ₓ",  // U+2093: LATIN SUBSCRIPT SMALL LETTER X
-                    "ⓧ",  // U+24E7: CIRCLED LATIN SMALL LETTER X
+                    "ᶍ", // U+1D8D: LATIN SMALL LETTER X WITH PALATAL HOOK
+                    "ẋ", // U+1E8B: LATIN SMALL LETTER X WITH DOT ABOVE
+                    "ẍ", // U+1E8D: LATIN SMALL LETTER X WITH DIAERESIS
+                    "ₓ", // U+2093: LATIN SUBSCRIPT SMALL LETTER X
+                    "ⓧ", // U+24E7: CIRCLED LATIN SMALL LETTER X
                     "ｘ", // U+FF58: FULLWIDTH LATIN SMALL LETTER X
                 ],
                 "x",
@@ -3225,13 +3225,13 @@ mod tests {
                     "Ȳ",  // U+0232: LATIN CAPITAL LETTER Y WITH MACRON
                     "Ɏ",  // U+024E: LATIN CAPITAL LETTER Y WITH STROKE
                     "ʏ",  // U+028F: LATIN LETTER SMALL CAPITAL Y
-                    "Ẏ",  // U+1E8E: LATIN CAPITAL LETTER Y WITH DOT ABOVE
-                    "Ỳ",  // U+1EF2: LATIN CAPITAL LETTER Y WITH GRAVE
-                    "Ỵ",  // U+1EF4: LATIN CAPITAL LETTER Y WITH DOT BELOW
-                    "Ỷ",  // U+1EF6: LATIN CAPITAL LETTER Y WITH HOOK ABOVE
-                    "Ỹ",  // U+1EF8: LATIN CAPITAL LETTER Y WITH TILDE
-                    "Ỿ",  // U+1EFE: LATIN CAPITAL LETTER Y WITH LOOP
-                    "Ⓨ",  // U+24CE: CIRCLED LATIN CAPITAL LETTER Y
+                    "Ẏ", // U+1E8E: LATIN CAPITAL LETTER Y WITH DOT ABOVE
+                    "Ỳ", // U+1EF2: LATIN CAPITAL LETTER Y WITH GRAVE
+                    "Ỵ", // U+1EF4: LATIN CAPITAL LETTER Y WITH DOT BELOW
+                    "Ỷ", // U+1EF6: LATIN CAPITAL LETTER Y WITH HOOK ABOVE
+                    "Ỹ", // U+1EF8: LATIN CAPITAL LETTER Y WITH TILDE
+                    "Ỿ", // U+1EFE: LATIN CAPITAL LETTER Y WITH LOOP
+                    "Ⓨ", // U+24CE: CIRCLED LATIN CAPITAL LETTER Y
                     "Ｙ", // U+FF39: FULLWIDTH LATIN CAPITAL LETTER Y
                 ],
                 "Y",
@@ -3245,14 +3245,14 @@ mod tests {
                     "ȳ",  // U+0233: LATIN SMALL LETTER Y WITH MACRON
                     "ɏ",  // U+024F: LATIN SMALL LETTER Y WITH STROKE
                     "ʎ",  // U+028E: LATIN SMALL LETTER TURNED Y
-                    "ẏ",  // U+1E8F: LATIN SMALL LETTER Y WITH DOT ABOVE
-                    "ẙ",  // U+1E99: LATIN SMALL LETTER Y WITH RING ABOVE
-                    "ỳ",  // U+1EF3: LATIN SMALL LETTER Y WITH GRAVE
-                    "ỵ",  // U+1EF5: LATIN SMALL LETTER Y WITH DOT BELOW
-                    "ỷ",  // U+1EF7: LATIN SMALL LETTER Y WITH HOOK ABOVE
-                    "ỹ",  // U+1EF9: LATIN SMALL LETTER Y WITH TILDE
-                    "ỿ",  // U+1EFF: LATIN SMALL LETTER Y WITH LOOP
-                    "ⓨ",  // U+24E8: CIRCLED LATIN SMALL LETTER Y
+                    "ẏ", // U+1E8F: LATIN SMALL LETTER Y WITH DOT ABOVE
+                    "ẙ", // U+1E99: LATIN SMALL LETTER Y WITH RING ABOVE
+                    "ỳ", // U+1EF3: LATIN SMALL LETTER Y WITH GRAVE
+                    "ỵ", // U+1EF5: LATIN SMALL LETTER Y WITH DOT BELOW
+                    "ỷ", // U+1EF7: LATIN SMALL LETTER Y WITH HOOK ABOVE
+                    "ỹ", // U+1EF9: LATIN SMALL LETTER Y WITH TILDE
+                    "ỿ", // U+1EFF: LATIN SMALL LETTER Y WITH LOOP
+                    "ⓨ", // U+24E8: CIRCLED LATIN SMALL LETTER Y
                     "ｙ", // U+FF59: FULLWIDTH LATIN SMALL LETTER Y
                 ],
                 "y",
@@ -3271,13 +3271,13 @@ mod tests {
                     "Ƶ",  // U+01B5: LATIN CAPITAL LETTER Z WITH STROKE
                     "Ȝ",  // U+021C: LATIN CAPITAL LETTER YOGH
                     "Ȥ",  // U+0224: LATIN CAPITAL LETTER Z WITH HOOK
-                    "ᴢ",  // U+1D22: LATIN LETTER SMALL CAPITAL Z
-                    "Ẑ",  // U+1E90: LATIN CAPITAL LETTER Z WITH CIRCUMFLEX
-                    "Ẓ",  // U+1E92: LATIN CAPITAL LETTER Z WITH DOT BELOW
-                    "Ẕ",  // U+1E94: LATIN CAPITAL LETTER Z WITH LINE BELOW
-                    "Ⓩ",  // U+24CF: CIRCLED LATIN CAPITAL LETTER Z
-                    "Ⱬ",  // U+2C6B: LATIN CAPITAL LETTER Z WITH DESCENDER
-                    "Ꝣ",  // U+A762: LATIN CAPITAL LETTER VISIGOTHIC Z
+                    "ᴢ", // U+1D22: LATIN LETTER SMALL CAPITAL Z
+                    "Ẑ", // U+1E90: LATIN CAPITAL LETTER Z WITH CIRCUMFLEX
+                    "Ẓ", // U+1E92: LATIN CAPITAL LETTER Z WITH DOT BELOW
+                    "Ẕ", // U+1E94: LATIN CAPITAL LETTER Z WITH LINE BELOW
+                    "Ⓩ", // U+24CF: CIRCLED LATIN CAPITAL LETTER Z
+                    "Ⱬ", // U+2C6B: LATIN CAPITAL LETTER Z WITH DESCENDER
+                    "Ꝣ", // U+A762: LATIN CAPITAL LETTER VISIGOTHIC Z
                     "Ｚ", // U+FF3A: FULLWIDTH LATIN CAPITAL LETTER Z
                 ],
                 "Z",
@@ -3293,14 +3293,14 @@ mod tests {
                     "ɀ",  // U+0240: LATIN SMALL LETTER Z WITH SWASH TAIL
                     "ʐ",  // U+0290: LATIN SMALL LETTER Z WITH RETROFLEX HOOK
                     "ʑ",  // U+0291: LATIN SMALL LETTER Z WITH CURL
-                    "ᵶ",  // U+1D76: LATIN SMALL LETTER Z WITH MIDDLE TILDE
-                    "ᶎ",  // U+1D8E: LATIN SMALL LETTER Z WITH PALATAL HOOK
-                    "ẑ",  // U+1E91: LATIN SMALL LETTER Z WITH CIRCUMFLEX
-                    "ẓ",  // U+1E93: LATIN SMALL LETTER Z WITH DOT BELOW
-                    "ẕ",  // U+1E95: LATIN SMALL LETTER Z WITH LINE BELOW
-                    "ⓩ",  // U+24E9: CIRCLED LATIN SMALL LETTER Z
-                    "ⱬ",  // U+2C6C: LATIN SMALL LETTER Z WITH DESCENDER
-                    "ꝣ",  // U+A763: LATIN SMALL LETTER VISIGOTHIC Z
+                    "ᵶ", // U+1D76: LATIN SMALL LETTER Z WITH MIDDLE TILDE
+                    "ᶎ", // U+1D8E: LATIN SMALL LETTER Z WITH PALATAL HOOK
+                    "ẑ", // U+1E91: LATIN SMALL LETTER Z WITH CIRCUMFLEX
+                    "ẓ", // U+1E93: LATIN SMALL LETTER Z WITH DOT BELOW
+                    "ẕ", // U+1E95: LATIN SMALL LETTER Z WITH LINE BELOW
+                    "ⓩ", // U+24E9: CIRCLED LATIN SMALL LETTER Z
+                    "ⱬ", // U+2C6C: LATIN SMALL LETTER Z WITH DESCENDER
+                    "ꝣ", // U+A763: LATIN SMALL LETTER VISIGOTHIC Z
                     "ｚ", // U+FF5A: FULLWIDTH LATIN SMALL LETTER Z
                 ],
                 "z",
@@ -3313,10 +3313,10 @@ mod tests {
             ),
             (
                 &[
-                    "⁰",  // U+2070: SUPERSCRIPT ZERO
-                    "₀",  // U+2080: SUBSCRIPT ZERO
-                    "⓪",  // U+24EA: CIRCLED DIGIT ZERO
-                    "⓿",  // U+24FF: NEGATIVE CIRCLED DIGIT ZERO
+                    "⁰", // U+2070: SUPERSCRIPT ZERO
+                    "₀", // U+2080: SUBSCRIPT ZERO
+                    "⓪", // U+24EA: CIRCLED DIGIT ZERO
+                    "⓿", // U+24FF: NEGATIVE CIRCLED DIGIT ZERO
                     "０", // U+FF10: FULLWIDTH DIGIT ZERO
                 ],
                 "0",
@@ -3324,12 +3324,12 @@ mod tests {
             (
                 &[
                     "¹",  // U+00B9: SUPERSCRIPT ONE
-                    "₁",  // U+2081: SUBSCRIPT ONE
-                    "①",  // U+2460: CIRCLED DIGIT ONE
-                    "⓵",  // U+24F5: DOUBLE CIRCLED DIGIT ONE
-                    "❶",  // U+2776: DINGBAT NEGATIVE CIRCLED DIGIT ONE
-                    "➀",  // U+2780: DINGBAT CIRCLED SANS-SERIF DIGIT ONE
-                    "➊",  // U+278A: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ONE
+                    "₁", // U+2081: SUBSCRIPT ONE
+                    "①", // U+2460: CIRCLED DIGIT ONE
+                    "⓵", // U+24F5: DOUBLE CIRCLED DIGIT ONE
+                    "❶", // U+2776: DINGBAT NEGATIVE CIRCLED DIGIT ONE
+                    "➀", // U+2780: DINGBAT CIRCLED SANS-SERIF DIGIT ONE
+                    "➊", // U+278A: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ONE
                     "１", // U+FF11: FULLWIDTH DIGIT ONE
                 ],
                 "1",
@@ -3349,12 +3349,12 @@ mod tests {
             (
                 &[
                     "²",  // U+00B2: SUPERSCRIPT TWO
-                    "₂",  // U+2082: SUBSCRIPT TWO
-                    "②",  // U+2461: CIRCLED DIGIT TWO
-                    "⓶",  // U+24F6: DOUBLE CIRCLED DIGIT TWO
-                    "❷",  // U+2777: DINGBAT NEGATIVE CIRCLED DIGIT TWO
-                    "➁",  // U+2781: DINGBAT CIRCLED SANS-SERIF DIGIT TWO
-                    "➋",  // U+278B: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT TWO
+                    "₂", // U+2082: SUBSCRIPT TWO
+                    "②", // U+2461: CIRCLED DIGIT TWO
+                    "⓶", // U+24F6: DOUBLE CIRCLED DIGIT TWO
+                    "❷", // U+2777: DINGBAT NEGATIVE CIRCLED DIGIT TWO
+                    "➁", // U+2781: DINGBAT CIRCLED SANS-SERIF DIGIT TWO
+                    "➋", // U+278B: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT TWO
                     "２", // U+FF12: FULLWIDTH DIGIT TWO
                 ],
                 "2",
@@ -3374,12 +3374,12 @@ mod tests {
             (
                 &[
                     "³",  // U+00B3: SUPERSCRIPT THREE
-                    "₃",  // U+2083: SUBSCRIPT THREE
-                    "③",  // U+2462: CIRCLED DIGIT THREE
-                    "⓷",  // U+24F7: DOUBLE CIRCLED DIGIT THREE
-                    "❸",  // U+2778: DINGBAT NEGATIVE CIRCLED DIGIT THREE
-                    "➂",  // U+2782: DINGBAT CIRCLED SANS-SERIF DIGIT THREE
-                    "➌",  // U+278C: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT THREE
+                    "₃", // U+2083: SUBSCRIPT THREE
+                    "③", // U+2462: CIRCLED DIGIT THREE
+                    "⓷", // U+24F7: DOUBLE CIRCLED DIGIT THREE
+                    "❸", // U+2778: DINGBAT NEGATIVE CIRCLED DIGIT THREE
+                    "➂", // U+2782: DINGBAT CIRCLED SANS-SERIF DIGIT THREE
+                    "➌", // U+278C: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT THREE
                     "３", // U+FF13: FULLWIDTH DIGIT THREE
                 ],
                 "3",
@@ -3398,13 +3398,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁴",  // U+2074: SUPERSCRIPT FOUR
-                    "₄",  // U+2084: SUBSCRIPT FOUR
-                    "④",  // U+2463: CIRCLED DIGIT FOUR
-                    "⓸",  // U+24F8: DOUBLE CIRCLED DIGIT FOUR
-                    "❹",  // U+2779: DINGBAT NEGATIVE CIRCLED DIGIT FOUR
-                    "➃",  // U+2783: DINGBAT CIRCLED SANS-SERIF DIGIT FOUR
-                    "➍",  // U+278D: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FOUR
+                    "⁴", // U+2074: SUPERSCRIPT FOUR
+                    "₄", // U+2084: SUBSCRIPT FOUR
+                    "④", // U+2463: CIRCLED DIGIT FOUR
+                    "⓸", // U+24F8: DOUBLE CIRCLED DIGIT FOUR
+                    "❹", // U+2779: DINGBAT NEGATIVE CIRCLED DIGIT FOUR
+                    "➃", // U+2783: DINGBAT CIRCLED SANS-SERIF DIGIT FOUR
+                    "➍", // U+278D: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FOUR
                     "４", // U+FF14: FULLWIDTH DIGIT FOUR
                 ],
                 "4",
@@ -3423,13 +3423,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁵",  // U+2075: SUPERSCRIPT FIVE
-                    "₅",  // U+2085: SUBSCRIPT FIVE
-                    "⑤",  // U+2464: CIRCLED DIGIT FIVE
-                    "⓹",  // U+24F9: DOUBLE CIRCLED DIGIT FIVE
-                    "❺",  // U+277A: DINGBAT NEGATIVE CIRCLED DIGIT FIVE
-                    "➄",  // U+2784: DINGBAT CIRCLED SANS-SERIF DIGIT FIVE
-                    "➎",  // U+278E: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FIVE
+                    "⁵", // U+2075: SUPERSCRIPT FIVE
+                    "₅", // U+2085: SUBSCRIPT FIVE
+                    "⑤", // U+2464: CIRCLED DIGIT FIVE
+                    "⓹", // U+24F9: DOUBLE CIRCLED DIGIT FIVE
+                    "❺", // U+277A: DINGBAT NEGATIVE CIRCLED DIGIT FIVE
+                    "➄", // U+2784: DINGBAT CIRCLED SANS-SERIF DIGIT FIVE
+                    "➎", // U+278E: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FIVE
                     "５", // U+FF15: FULLWIDTH DIGIT FIVE
                 ],
                 "5",
@@ -3448,13 +3448,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁶",  // U+2076: SUPERSCRIPT SIX
-                    "₆",  // U+2086: SUBSCRIPT SIX
-                    "⑥",  // U+2465: CIRCLED DIGIT SIX
-                    "⓺",  // U+24FA: DOUBLE CIRCLED DIGIT SIX
-                    "❻",  // U+277B: DINGBAT NEGATIVE CIRCLED DIGIT SIX
-                    "➅",  // U+2785: DINGBAT CIRCLED SANS-SERIF DIGIT SIX
-                    "➏",  // U+278F: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SIX
+                    "⁶", // U+2076: SUPERSCRIPT SIX
+                    "₆", // U+2086: SUBSCRIPT SIX
+                    "⑥", // U+2465: CIRCLED DIGIT SIX
+                    "⓺", // U+24FA: DOUBLE CIRCLED DIGIT SIX
+                    "❻", // U+277B: DINGBAT NEGATIVE CIRCLED DIGIT SIX
+                    "➅", // U+2785: DINGBAT CIRCLED SANS-SERIF DIGIT SIX
+                    "➏", // U+278F: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SIX
                     "６", // U+FF16: FULLWIDTH DIGIT SIX
                 ],
                 "6",
@@ -3473,13 +3473,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁷",  // U+2077: SUPERSCRIPT SEVEN
-                    "₇",  // U+2087: SUBSCRIPT SEVEN
-                    "⑦",  // U+2466: CIRCLED DIGIT SEVEN
-                    "⓻",  // U+24FB: DOUBLE CIRCLED DIGIT SEVEN
-                    "❼",  // U+277C: DINGBAT NEGATIVE CIRCLED DIGIT SEVEN
-                    "➆",  // U+2786: DINGBAT CIRCLED SANS-SERIF DIGIT SEVEN
-                    "➐",  // U+2790: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SEVEN
+                    "⁷", // U+2077: SUPERSCRIPT SEVEN
+                    "₇", // U+2087: SUBSCRIPT SEVEN
+                    "⑦", // U+2466: CIRCLED DIGIT SEVEN
+                    "⓻", // U+24FB: DOUBLE CIRCLED DIGIT SEVEN
+                    "❼", // U+277C: DINGBAT NEGATIVE CIRCLED DIGIT SEVEN
+                    "➆", // U+2786: DINGBAT CIRCLED SANS-SERIF DIGIT SEVEN
+                    "➐", // U+2790: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SEVEN
                     "７", // U+FF17: FULLWIDTH DIGIT SEVEN
                 ],
                 "7",
@@ -3498,13 +3498,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁸",  // U+2078: SUPERSCRIPT EIGHT
-                    "₈",  // U+2088: SUBSCRIPT EIGHT
-                    "⑧",  // U+2467: CIRCLED DIGIT EIGHT
-                    "⓼",  // U+24FC: DOUBLE CIRCLED DIGIT EIGHT
-                    "❽",  // U+277D: DINGBAT NEGATIVE CIRCLED DIGIT EIGHT
-                    "➇",  // U+2787: DINGBAT CIRCLED SANS-SERIF DIGIT EIGHT
-                    "➑",  // U+2791: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT EIGHT
+                    "⁸", // U+2078: SUPERSCRIPT EIGHT
+                    "₈", // U+2088: SUBSCRIPT EIGHT
+                    "⑧", // U+2467: CIRCLED DIGIT EIGHT
+                    "⓼", // U+24FC: DOUBLE CIRCLED DIGIT EIGHT
+                    "❽", // U+277D: DINGBAT NEGATIVE CIRCLED DIGIT EIGHT
+                    "➇", // U+2787: DINGBAT CIRCLED SANS-SERIF DIGIT EIGHT
+                    "➑", // U+2791: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT EIGHT
                     "８", // U+FF18: FULLWIDTH DIGIT EIGHT
                 ],
                 "8",
@@ -3523,13 +3523,13 @@ mod tests {
             ),
             (
                 &[
-                    "⁹",  // U+2079: SUPERSCRIPT NINE
-                    "₉",  // U+2089: SUBSCRIPT NINE
-                    "⑨",  // U+2468: CIRCLED DIGIT NINE
-                    "⓽",  // U+24FD: DOUBLE CIRCLED DIGIT NINE
-                    "❾",  // U+277E: DINGBAT NEGATIVE CIRCLED DIGIT NINE
-                    "➈",  // U+2788: DINGBAT CIRCLED SANS-SERIF DIGIT NINE
-                    "➒",  // U+2792: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT NINE
+                    "⁹", // U+2079: SUPERSCRIPT NINE
+                    "₉", // U+2089: SUBSCRIPT NINE
+                    "⑨", // U+2468: CIRCLED DIGIT NINE
+                    "⓽", // U+24FD: DOUBLE CIRCLED DIGIT NINE
+                    "❾", // U+277E: DINGBAT NEGATIVE CIRCLED DIGIT NINE
+                    "➈", // U+2788: DINGBAT CIRCLED SANS-SERIF DIGIT NINE
+                    "➒", // U+2792: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT NINE
                     "９", // U+FF19: FULLWIDTH DIGIT NINE
                 ],
                 "9",
@@ -3762,70 +3762,70 @@ mod tests {
                 &[
                     "«",  // U+00AB: LEFT-POINTING DOUBLE ANGLE QUOTATION MARK
                     "»",  // U+00BB: RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK
-                    "“",  // U+201C: LEFT DOUBLE QUOTATION MARK
-                    "”",  // U+201D: RIGHT DOUBLE QUOTATION MARK
-                    "„",  // U+201E: DOUBLE LOW-9 QUOTATION MARK
-                    "″",  // U+2033: DOUBLE PRIME
-                    "‶",  // U+2036: REVERSED DOUBLE PRIME
-                    "❝",  // U+275D: HEAVY DOUBLE TURNED COMMA QUOTATION MARK ORNAMENT
-                    "❞",  // U+275E: HEAVY DOUBLE COMMA QUOTATION MARK ORNAMENT
-                    "❮",  // U+276E: HEAVY LEFT-POINTING ANGLE QUOTATION MARK ORNAMENT
-                    "❯",  // U+276F: HEAVY RIGHT-POINTING ANGLE QUOTATION MARK ORNAMENT
+                    "“", // U+201C: LEFT DOUBLE QUOTATION MARK
+                    "”", // U+201D: RIGHT DOUBLE QUOTATION MARK
+                    "„", // U+201E: DOUBLE LOW-9 QUOTATION MARK
+                    "″", // U+2033: DOUBLE PRIME
+                    "‶", // U+2036: REVERSED DOUBLE PRIME
+                    "❝", // U+275D: HEAVY DOUBLE TURNED COMMA QUOTATION MARK ORNAMENT
+                    "❞", // U+275E: HEAVY DOUBLE COMMA QUOTATION MARK ORNAMENT
+                    "❮", // U+276E: HEAVY LEFT-POINTING ANGLE QUOTATION MARK ORNAMENT
+                    "❯", // U+276F: HEAVY RIGHT-POINTING ANGLE QUOTATION MARK ORNAMENT
                     "＂", // U+FF02: FULLWIDTH QUOTATION MARK
                 ],
                 "\"",
             ),
             (
                 &[
-                    "‘",  // U+2018: LEFT SINGLE QUOTATION MARK
-                    "’",  // U+2019: RIGHT SINGLE QUOTATION MARK
-                    "‚",  // U+201A: SINGLE LOW-9 QUOTATION MARK
-                    "‛",  // U+201B: SINGLE HIGH-REVERSED-9 QUOTATION MARK
-                    "′",  // U+2032: PRIME
-                    "‵",  // U+2035: REVERSED PRIME
-                    "‹",  // U+2039: SINGLE LEFT-POINTING ANGLE QUOTATION MARK
-                    "›",  // U+203A: SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
-                    "❛",  // U+275B: HEAVY SINGLE TURNED COMMA QUOTATION MARK ORNAMENT
-                    "❜",  // U+275C: HEAVY SINGLE COMMA QUOTATION MARK ORNAMENT
+                    "‘", // U+2018: LEFT SINGLE QUOTATION MARK
+                    "’", // U+2019: RIGHT SINGLE QUOTATION MARK
+                    "‚", // U+201A: SINGLE LOW-9 QUOTATION MARK
+                    "‛", // U+201B: SINGLE HIGH-REVERSED-9 QUOTATION MARK
+                    "′", // U+2032: PRIME
+                    "‵", // U+2035: REVERSED PRIME
+                    "‹", // U+2039: SINGLE LEFT-POINTING ANGLE QUOTATION MARK
+                    "›", // U+203A: SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+                    "❛", // U+275B: HEAVY SINGLE TURNED COMMA QUOTATION MARK ORNAMENT
+                    "❜", // U+275C: HEAVY SINGLE COMMA QUOTATION MARK ORNAMENT
                     "＇", // U+FF07: FULLWIDTH APOSTROPHE
                 ],
                 "'",
             ),
             (
                 &[
-                    "‐",  // U+2010: HYPHEN
-                    "‑",  // U+2011: NON-BREAKING HYPHEN
-                    "‒",  // U+2012: FIGURE DASH
-                    "–",  // U+2013: EN DASH
-                    "—",  // U+2014: EM DASH
-                    "⁻",  // U+207B: SUPERSCRIPT MINUS
-                    "₋",  // U+208B: SUBSCRIPT MINUS
+                    "‐", // U+2010: HYPHEN
+                    "‑", // U+2011: NON-BREAKING HYPHEN
+                    "‒", // U+2012: FIGURE DASH
+                    "–", // U+2013: EN DASH
+                    "—", // U+2014: EM DASH
+                    "⁻", // U+207B: SUPERSCRIPT MINUS
+                    "₋", // U+208B: SUBSCRIPT MINUS
                     "－", // U+FF0D: FULLWIDTH HYPHEN-MINUS
                 ],
                 "-",
             ),
             (
                 &[
-                    "⁅",  // U+2045: LEFT SQUARE BRACKET WITH QUILL
-                    "❲",  // U+2772: LIGHT LEFT TORTOISE SHELL BRACKET ORNAMENT
+                    "⁅", // U+2045: LEFT SQUARE BRACKET WITH QUILL
+                    "❲", // U+2772: LIGHT LEFT TORTOISE SHELL BRACKET ORNAMENT
                     "［", // U+FF3B: FULLWIDTH LEFT SQUARE BRACKET
                 ],
                 "[",
             ),
             (
                 &[
-                    "⁆",  // U+2046: RIGHT SQUARE BRACKET WITH QUILL
-                    "❳",  // U+2773: LIGHT RIGHT TORTOISE SHELL BRACKET ORNAMENT
+                    "⁆", // U+2046: RIGHT SQUARE BRACKET WITH QUILL
+                    "❳", // U+2773: LIGHT RIGHT TORTOISE SHELL BRACKET ORNAMENT
                     "］", // U+FF3D: FULLWIDTH RIGHT SQUARE BRACKET
                 ],
                 "]",
             ),
             (
                 &[
-                    "⁽",  // U+207D: SUPERSCRIPT LEFT PARENTHESIS
-                    "₍",  // U+208D: SUBSCRIPT LEFT PARENTHESIS
-                    "❨",  // U+2768: MEDIUM LEFT PARENTHESIS ORNAMENT
-                    "❪",  // U+276A: MEDIUM FLATTENED LEFT PARENTHESIS ORNAMENT
+                    "⁽", // U+207D: SUPERSCRIPT LEFT PARENTHESIS
+                    "₍", // U+208D: SUBSCRIPT LEFT PARENTHESIS
+                    "❨", // U+2768: MEDIUM LEFT PARENTHESIS ORNAMENT
+                    "❪", // U+276A: MEDIUM FLATTENED LEFT PARENTHESIS ORNAMENT
                     "（", // U+FF08: FULLWIDTH LEFT PARENTHESIS
                 ],
                 "(",
@@ -3838,10 +3838,10 @@ mod tests {
             ),
             (
                 &[
-                    "⁾",  // U+207E: SUPERSCRIPT RIGHT PARENTHESIS
-                    "₎",  // U+208E: SUBSCRIPT RIGHT PARENTHESIS
-                    "❩",  // U+2769: MEDIUM RIGHT PARENTHESIS ORNAMENT
-                    "❫",  // U+276B: MEDIUM FLATTENED RIGHT PARENTHESIS ORNAMENT
+                    "⁾", // U+207E: SUPERSCRIPT RIGHT PARENTHESIS
+                    "₎", // U+208E: SUBSCRIPT RIGHT PARENTHESIS
+                    "❩", // U+2769: MEDIUM RIGHT PARENTHESIS ORNAMENT
+                    "❫", // U+276B: MEDIUM FLATTENED RIGHT PARENTHESIS ORNAMENT
                     "）", // U+FF09: FULLWIDTH RIGHT PARENTHESIS
                 ],
                 ")",
@@ -3854,46 +3854,46 @@ mod tests {
             ),
             (
                 &[
-                    "❬",  // U+276C: MEDIUM LEFT-POINTING ANGLE BRACKET ORNAMENT
-                    "❰",  // U+2770: HEAVY LEFT-POINTING ANGLE BRACKET ORNAMENT
+                    "❬", // U+276C: MEDIUM LEFT-POINTING ANGLE BRACKET ORNAMENT
+                    "❰", // U+2770: HEAVY LEFT-POINTING ANGLE BRACKET ORNAMENT
                     "＜", // U+FF1C: FULLWIDTH LESS-THAN SIGN
                 ],
                 "<",
             ),
             (
                 &[
-                    "❭",  // U+276D: MEDIUM RIGHT-POINTING ANGLE BRACKET ORNAMENT
-                    "❱",  // U+2771: HEAVY RIGHT-POINTING ANGLE BRACKET ORNAMENT
+                    "❭", // U+276D: MEDIUM RIGHT-POINTING ANGLE BRACKET ORNAMENT
+                    "❱", // U+2771: HEAVY RIGHT-POINTING ANGLE BRACKET ORNAMENT
                     "＞", // U+FF1E: FULLWIDTH GREATER-THAN SIGN
                 ],
                 ">",
             ),
             (
                 &[
-                    "❴",  // U+2774: MEDIUM LEFT CURLY BRACKET ORNAMENT
+                    "❴", // U+2774: MEDIUM LEFT CURLY BRACKET ORNAMENT
                     "｛", // U+FF5B: FULLWIDTH LEFT CURLY BRACKET
                 ],
                 "{",
             ),
             (
                 &[
-                    "❵",  // U+2775: MEDIUM RIGHT CURLY BRACKET ORNAMENT
+                    "❵", // U+2775: MEDIUM RIGHT CURLY BRACKET ORNAMENT
                     "｝", // U+FF5D: FULLWIDTH RIGHT CURLY BRACKET
                 ],
                 "}",
             ),
             (
                 &[
-                    "⁺",  // U+207A: SUPERSCRIPT PLUS SIGN
-                    "₊",  // U+208A: SUBSCRIPT PLUS SIGN
+                    "⁺", // U+207A: SUPERSCRIPT PLUS SIGN
+                    "₊", // U+208A: SUBSCRIPT PLUS SIGN
                     "＋", // U+FF0B: FULLWIDTH PLUS SIGN
                 ],
                 "+",
             ),
             (
                 &[
-                    "⁼",  // U+207C: SUPERSCRIPT EQUALS SIGN
-                    "₌",  // U+208C: SUBSCRIPT EQUALS SIGN
+                    "⁼", // U+207C: SUPERSCRIPT EQUALS SIGN
+                    "₌", // U+208C: SUBSCRIPT EQUALS SIGN
                     "＝", // U+FF1D: FULLWIDTH EQUALS SIGN
                 ],
                 "=",
@@ -3930,7 +3930,7 @@ mod tests {
             ),
             (
                 &[
-                    "⁒",  // U+2052: COMMERCIAL MINUS SIGN
+                    "⁒", // U+2052: COMMERCIAL MINUS SIGN
                     "％", // U+FF05: FULLWIDTH PERCENT SIGN
                 ],
                 "%",
@@ -3943,7 +3943,7 @@ mod tests {
             ),
             (
                 &[
-                    "⁎",  // U+204E: LOW ASTERISK
+                    "⁎", // U+204E: LOW ASTERISK
                     "＊", // U+FF0A: FULLWIDTH ASTERISK
                 ],
                 "*",
@@ -3962,7 +3962,7 @@ mod tests {
             ),
             (
                 &[
-                    "⁄",  // U+2044: FRACTION SLASH
+                    "⁄", // U+2044: FRACTION SLASH
                     "／", // U+FF0F: FULLWIDTH SOLIDUS
                 ],
                 "/",
@@ -3975,7 +3975,7 @@ mod tests {
             ),
             (
                 &[
-                    "⁏",  // U+204F: REVERSED SEMICOLON
+                    "⁏", // U+204F: REVERSED SEMICOLON
                     "；", // U+FF1B: FULLWIDTH SEMICOLON
                 ],
                 ";",
@@ -4012,7 +4012,7 @@ mod tests {
             ),
             (
                 &[
-                    "‸",  // U+2038: CARET
+                    "‸", // U+2038: CARET
                     "＾", // U+FF3E: FULLWIDTH CIRCUMFLEX ACCENT
                 ],
                 "^",
@@ -4025,7 +4025,7 @@ mod tests {
             ),
             (
                 &[
-                    "⁓",  // U+2053: SWUNG DASH
+                    "⁓", // U+2053: SWUNG DASH
                     "～", // U+FF5E: FULLWIDTH TILDE
                 ],
                 "~",

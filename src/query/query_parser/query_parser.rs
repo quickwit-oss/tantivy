@@ -314,6 +314,15 @@ impl QueryParser {
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
+    /// Builds a [`tantivy::Query`] from a UserInputAst
+    pub fn build_query(
+        &self,
+        user_input_ast: UserInputAst,
+    ) -> Result<Box<dyn Query>, QueryParserError> {
+        let logical_ast = self.compute_logical_ast(user_input_ast)?;
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
+    }
+
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
         let user_input_ast = tantivy_query_grammar::parse_query(query)
