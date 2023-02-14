@@ -63,12 +63,12 @@ pub struct ColumnarWriter {
 impl Default for ColumnarWriter {
     fn default() -> Self {
         ColumnarWriter {
-            numerical_field_hash_map: ArenaHashMap::new(10_000),
-            bool_field_hash_map: ArenaHashMap::new(10_000),
-            ip_addr_field_hash_map: ArenaHashMap::new(10_000),
-            bytes_field_hash_map: ArenaHashMap::new(10_000),
-            str_field_hash_map: ArenaHashMap::new(10_000),
-            datetime_field_hash_map: ArenaHashMap::new(10_000),
+            numerical_field_hash_map: ArenaHashMap::new(),
+            bool_field_hash_map: ArenaHashMap::new(),
+            ip_addr_field_hash_map: ArenaHashMap::new(),
+            bytes_field_hash_map: ArenaHashMap::new(),
+            str_field_hash_map: ArenaHashMap::new(),
+            datetime_field_hash_map: ArenaHashMap::new(),
             dictionaries: Vec::new(),
             arena: MemoryArena::default(),
             buffers: SpareBuffers::default(),

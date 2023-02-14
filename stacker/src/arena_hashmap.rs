@@ -104,8 +104,18 @@ fn compute_previous_power_of_two(n: usize) -> usize {
 }
 
 impl ArenaHashMap {
-    pub fn new(table_size: usize) -> ArenaHashMap {
-        assert!(table_size > 0);
+    pub fn new() -> ArenaHashMap {
+        let memory_arena = MemoryArena::default();
+        ArenaHashMap {
+            table: Box::new([]),
+            memory_arena,
+            mask: 0,
+            occupied: Vec::new(),
+            len: 0,
+        }
+    }
+
+    pub fn with_capacity(table_size: usize) -> ArenaHashMap {
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
         let memory_arena = MemoryArena::default();
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
@@ -137,7 +147,7 @@ impl ArenaHashMap {
 
     #[inline]
     fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 3
+        self.table.len() <= self.occupied.len() * 3
     }
 
     #[inline]
@@ -190,7 +200,7 @@ impl ArenaHashMap {
     }
 
     fn resize(&mut self) {
-        let new_len = self.table.len() * 2;
+        let new_len = (self.table.len() * 2).max(1 << 13);
         let mask = new_len - 1;
         self.mask = mask;
         let new_table = vec![KeyValue::default(); new_len].into_boxed_slice();
@@ -288,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_hash_map() {
-        let mut hash_map: ArenaHashMap = ArenaHashMap::new(1 << 18);
+        let mut hash_map: ArenaHashMap = ArenaHashMap::new();
         hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             3u32
