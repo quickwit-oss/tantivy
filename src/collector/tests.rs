@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use columnar::{BytesColumn, ColumnValues};
+use columnar::{BytesColumn, Column};
 
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
@@ -160,7 +158,7 @@ pub struct FastFieldTestCollector {
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: Arc<dyn columnar::ColumnValues>,
+    reader: Column,
 }
 
 impl FastFieldTestCollector {
@@ -203,8 +201,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let val = self.reader.get_val(doc);
-        self.vals.push(val);
+        self.vals.extend(self.reader.values(doc));
     }
 
     fn harvest(self) -> Vec<u64> {

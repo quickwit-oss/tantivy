@@ -7,9 +7,7 @@
 // Of course, you can have a look at the tantivy's built-in collectors
 // such as the `CountCollector` for more examples.
 
-use std::sync::Arc;
-
-use columnar::column_values::ColumnValues;
+use columnar::Column;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
@@ -97,7 +95,7 @@ impl Collector for StatsCollector {
 }
 
 struct StatsSegmentCollector {
-    fast_field_reader: Arc<dyn ColumnValues>,
+    fast_field_reader: Column,
     stats: Stats,
 }
 
@@ -105,10 +103,14 @@ impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
     fn collect(&mut self, doc: u32, _score: Score) {
-        let value = self.fast_field_reader.get_val(doc) as f64;
-        self.stats.count += 1;
-        self.stats.sum += value;
-        self.stats.squared_sum += value * value;
+        // Since we know the values are single value, we could call `first_or_default_col` on the
+        // column and fetch single values.
+        for value in self.fast_field_reader.values(doc) {
+            let value = value as f64;
+            self.stats.count += 1;
+            self.stats.sum += value;
+            self.stats.squared_sum += value * value;
+        }
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

@@ -85,35 +85,45 @@ impl FastFieldReaders {
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + 'static,
         DynamicColumn: Into<Option<Column<T>>>,
     {
+        let col: Column<T> = self.column(field)?;
+        Ok(col.first_or_default_col(T::default_value()))
+    }
+
+    /// Returns a typed column associated to a given field name.
+    ///
+    /// Returns an error if no column associated with that field_name exists.
+    pub fn column<T>(&self, field: &str) -> crate::Result<Column<T>>
+    where
+        T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + 'static,
+        DynamicColumn: Into<Option<Column<T>>>,
+    {
         let col_opt: Option<Column<T>> = self.column_opt(field)?;
-        if let Some(col) = col_opt {
-            Ok(col.first_or_default_col(T::default_value()))
-        } else {
-            Err(crate::TantivyError::SchemaError(format!(
+        col_opt.ok_or_else(|| {
+            crate::TantivyError::SchemaError(format!(
                 "Field `{field}` is missing or is not configured as a fast field."
-            )))
-        }
+            ))
+        })
     }
 
     /// Returns the `u64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns an Error.
-    pub fn u64(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<u64>>> {
-        self.column_first_or_default(field)
+    pub fn u64(&self, field: &str) -> crate::Result<Column<u64>> {
+        self.column(field)
     }
 
     /// Returns the `date` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a date fast field, this method returns an Error.
-    pub fn date(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<common::DateTime>>> {
-        self.column_first_or_default(field)
+    pub fn date(&self, field: &str) -> crate::Result<Column<common::DateTime>> {
+        self.column(field)
     }
 
     /// Returns the `ip` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u128 fast field, this method returns an Error.
-    pub fn ip_addr(&self, field: &str) -> crate::Result<Arc<dyn ColumnValues<Ipv6Addr>>> {
-        self.column_first_or_default(field)
+    pub fn ip_addr(&self, field: &str) -> crate::Result<Column<Ipv6Addr>> {
+        self.column(field)
     }
 
     /// Returns a `str` column.
@@ -165,21 +175,21 @@ impl FastFieldReaders {
     /// Returns the `i64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn i64(&self, field_name: &str) -> crate::Result<Arc<dyn ColumnValues<i64>>> {
-        self.column_first_or_default(field_name)
+    pub fn i64(&self, field_name: &str) -> crate::Result<Column<i64>> {
+        self.column(field_name)
     }
 
     /// Returns the `f64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
-    pub fn f64(&self, field_name: &str) -> crate::Result<Arc<dyn ColumnValues<f64>>> {
-        self.column_first_or_default(field_name)
+    pub fn f64(&self, field_name: &str) -> crate::Result<Column<f64>> {
+        self.column(field_name)
     }
 
     /// Returns the `bool` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a bool fast field, this method returns an Error.
-    pub fn bool(&self, field_name: &str) -> crate::Result<Arc<dyn ColumnValues<bool>>> {
-        self.column_first_or_default(field_name)
+    pub fn bool(&self, field_name: &str) -> crate::Result<Column<bool>> {
+        self.column(field_name)
     }
 }

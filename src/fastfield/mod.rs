@@ -161,7 +161,10 @@ mod tests {
 
         assert_eq!(file.len(), 161);
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        let column = fast_field_readers.u64("field").unwrap();
+        let column = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
         assert_eq!(column.get_val(0), 13u64);
         assert_eq!(column.get_val(1), 14u64);
         assert_eq!(column.get_val(2), 2u64);
@@ -208,7 +211,10 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 189);
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        let col = fast_field_readers.u64("field").unwrap();
+        let col = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
         assert_eq!(col.get_val(0), 4u64);
         assert_eq!(col.get_val(1), 14_082_001u64);
         assert_eq!(col.get_val(2), 3_052u64);
@@ -238,7 +244,10 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 162);
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        let fast_field_reader = fast_field_readers.u64("field").unwrap();
+        let fast_field_reader = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
         for doc in 0..10_000 {
             assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
         }
@@ -268,7 +277,10 @@ mod tests {
         assert_eq!(file.len(), 4557);
         {
             let fast_field_readers = FastFieldReaders::open(file).unwrap();
-            let col = fast_field_readers.u64("field").unwrap();
+            let col = fast_field_readers
+                .u64("field")
+                .unwrap()
+                .first_or_default_col(0);
             for doc in 1..10_000 {
                 assert_eq!(col.get_val(doc), 5_000_000_000_000_000_000u64 + doc as u64);
             }
@@ -299,7 +311,10 @@ mod tests {
 
         {
             let fast_field_readers = FastFieldReaders::open(file).unwrap();
-            let col = fast_field_readers.i64("field").unwrap();
+            let col = fast_field_readers
+                .i64("field")
+                .unwrap()
+                .first_or_default_col(0);
             assert_eq!(col.min_value(), -100i64);
             assert_eq!(col.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
@@ -334,7 +349,18 @@ mod tests {
         let file = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
         let col = fast_field_readers.i64("field").unwrap();
-        assert_eq!(col.get_val(0), 0i64);
+        assert_eq!(col.first(0), None);
+
+        let col = fast_field_readers
+            .i64("field")
+            .unwrap()
+            .first_or_default_col(0);
+        assert_eq!(col.get_val(0), 0);
+        let col = fast_field_readers
+            .i64("field")
+            .unwrap()
+            .first_or_default_col(-100);
+        assert_eq!(col.get_val(0), -100);
     }
 
     #[test]
@@ -355,7 +381,10 @@ mod tests {
 
         let file = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        let col = fast_field_readers.date("date").unwrap();
+        let col = fast_field_readers
+            .date("date")
+            .unwrap()
+            .first_or_default_col(DateTime::default());
         assert_eq!(col.get_val(0), DateTime::default());
     }
 
@@ -388,7 +417,10 @@ mod tests {
         }
         let file = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
-        let col = fast_field_readers.u64("field").unwrap();
+        let col = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
         for a in 0..n {
             assert_eq!(col.get_val(a as u32), permutation[a]);
         }
@@ -772,10 +804,10 @@ mod tests {
         assert_eq!(file.len(), 175);
         let fast_field_readers = FastFieldReaders::open(file).unwrap();
         let bool_col = fast_field_readers.bool("field_bool").unwrap();
-        assert_eq!(bool_col.get_val(0), true);
-        assert_eq!(bool_col.get_val(1), false);
-        assert_eq!(bool_col.get_val(2), true);
-        assert_eq!(bool_col.get_val(3), false);
+        assert_eq!(bool_col.first(0), Some(true));
+        assert_eq!(bool_col.first(1), Some(false));
+        assert_eq!(bool_col.first(2), Some(true));
+        assert_eq!(bool_col.first(3), Some(false));
     }
 
     #[test]
@@ -805,8 +837,8 @@ mod tests {
         let readers = FastFieldReaders::open(file).unwrap();
         let bool_col = readers.bool("field_bool").unwrap();
         for i in 0..25 {
-            assert_eq!(bool_col.get_val(i * 2), true);
-            assert_eq!(bool_col.get_val(i * 2 + 1), false);
+            assert_eq!(bool_col.first(i * 2), Some(true));
+            assert_eq!(bool_col.first(i * 2 + 1), Some(false));
         }
     }
 
@@ -829,7 +861,17 @@ mod tests {
         assert_eq!(file.len(), 177);
         let fastfield_readers = FastFieldReaders::open(file).unwrap();
         let col = fastfield_readers.bool("field_bool").unwrap();
+        assert_eq!(col.first(0), None);
+        let col = fastfield_readers
+            .bool("field_bool")
+            .unwrap()
+            .first_or_default_col(false);
         assert_eq!(col.get_val(0), false);
+        let col = fastfield_readers
+            .bool("field_bool")
+            .unwrap()
+            .first_or_default_col(true);
+        assert_eq!(col.get_val(0), true);
     }
 
     fn get_index(docs: &[crate::Document], schema: &Schema) -> crate::Result<RamDirectory> {
@@ -883,7 +925,7 @@ mod tests {
         let col = readers.date("field").unwrap();
 
         for (i, time) in times.iter().enumerate() {
-            let dt: DateTime = col.get_val(i as u32).into();
+            let dt: DateTime = col.first(i as u32).unwrap().into();
             assert_eq!(dt, time.truncate(precision));
         }
         readers.column_num_bytes("field").unwrap()
@@ -919,7 +961,11 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let segment = &searcher.segment_readers()[0];
-        let field = segment.fast_fields().u64("url_norm_hash").unwrap();
+        let field = segment
+            .fast_fields()
+            .u64("url_norm_hash")
+            .unwrap()
+            .first_or_default_col(0);
 
         let numbers = vec![100, 200, 300];
         let test_range = |range: RangeInclusive<u64>| {
@@ -989,7 +1035,11 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let segment = &searcher.segment_readers()[0];
-        let field = segment.fast_fields().u64("url_norm_hash").unwrap();
+        let field = segment
+            .fast_fields()
+            .u64("url_norm_hash")
+            .unwrap()
+            .first_or_default_col(0);
 
         let numbers = vec![1000, 1001, 1003];
         let test_range = |range: RangeInclusive<u64>| {

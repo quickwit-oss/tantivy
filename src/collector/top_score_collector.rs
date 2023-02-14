@@ -457,9 +457,10 @@ impl TopDocs {
     ///             // Typically, fast_fields.
     ///             //
     ///             // In our case, we will get a reader for the popularity
-    ///             // fast field.
+    ///             // fast field. For simplicity we read the first or default value in the fast
+    ///             // field.
     ///             let popularity_reader =
-    ///                 segment_reader.fast_fields().u64("popularity").unwrap();
+    ///                 segment_reader.fast_fields().u64("popularity").unwrap().first_or_default_col(0);
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId, original_score: Score| {
@@ -566,9 +567,9 @@ impl TopDocs {
     ///             // Note that this is implemented by using a `(u64, u64)`
     ///             // as a score.
     ///             let popularity_reader =
-    ///                 segment_reader.fast_fields().u64("popularity").unwrap();
+    ///                 segment_reader.fast_fields().u64("popularity").unwrap().first_or_default_col(0);
     ///             let boosted_reader =
-    ///                 segment_reader.fast_fields().u64("boosted").unwrap();
+    ///                 segment_reader.fast_fields().u64("boosted").unwrap().first_or_default_col(0);
     ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {

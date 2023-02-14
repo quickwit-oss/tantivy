@@ -48,7 +48,10 @@ impl Warmer for DynamicPriceColumn {
     fn warm(&self, searcher: &Searcher) -> tantivy::Result<()> {
         for segment in searcher.segment_readers() {
             let key = (segment.segment_id(), segment.delete_opstamp());
-            let product_id_reader = segment.fast_fields().u64(&self.field)?;
+            let product_id_reader = segment
+                .fast_fields()
+                .u64(&self.field)?
+                .first_or_default_col(0);
             let product_ids: Vec<ProductId> = segment
                 .doc_ids_alive()
                 .map(|doc| product_id_reader.get_val(doc))

@@ -802,6 +802,7 @@ mod tests {
     use std::net::Ipv6Addr;
 
     use columnar::{Cardinality, Column, MonotonicallyMappableToU128};
+    use itertools::Itertools;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
 
@@ -1486,9 +1487,10 @@ mod tests {
         assert_eq!(segment_reader.num_docs(), 8);
         assert_eq!(segment_reader.max_doc(), 10);
         let fast_field_reader = segment_reader.fast_fields().u64("id")?;
+
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get_val(doc))
+            .flat_map(|doc| fast_field_reader.values(doc))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
@@ -1548,7 +1550,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64("id")?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .map(|doc| fast_field_reader.get_val(doc))
+            .flat_map(|doc| fast_field_reader.values(doc))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 2, 0]);
         Ok(())
@@ -1793,7 +1795,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64("id").unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get_val(doc))
+                    .flat_map(move |doc| ff_reader.values(doc).collect_vec().into_iter())
             })
             .collect();
 
@@ -1804,7 +1806,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64("id").unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .map(move |doc| ff_reader.get_val(doc))
+                    .flat_map(move |doc| ff_reader.values(doc).collect_vec().into_iter())
             })
             .collect();
 
@@ -1936,7 +1938,7 @@ mod tests {
                 let vals: Vec<u64> = ff_reader.values(doc).collect();
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
-                assert_eq!(id_reader.get_val(doc), vals[0]);
+                assert_eq!(id_reader.first(doc), Some(vals[0]));
 
                 let bool_vals: Vec<bool> = bool_ff_reader.values(doc).collect();
                 assert_eq!(bool_vals.len(), 2);
@@ -2123,7 +2125,11 @@ mod tests {
         // test facets
         for segment_reader in searcher.segment_readers().iter() {
             let facet_reader = segment_reader.facet_reader("facet").unwrap();
-            let ff_reader = segment_reader.fast_fields().u64("id").unwrap();
+            let ff_reader = segment_reader
+                .fast_fields()
+                .u64("id")
+                .unwrap()
+                .first_or_default_col(0);
             for doc_id in segment_reader.doc_ids_alive() {
                 let facet_ords: Vec<u64> = facet_reader.facet_ords(doc_id).collect();
                 assert_eq!(facet_ords.len(), 1);
