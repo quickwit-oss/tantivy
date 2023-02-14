@@ -174,6 +174,7 @@ fn merge_column(
     Ok(())
 }
 
+#[allow(clippy::type_complexity)]
 fn group_columns_for_merge(
     columnar_readers: &[&ColumnarReader],
 ) -> io::Result<BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>>> {

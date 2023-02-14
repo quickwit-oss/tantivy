@@ -93,11 +93,7 @@ fn iter_num_values<'a>(
         match column_index {
             ColumnIndex::Full => 1,
             ColumnIndex::Optional(optional_index) => {
-                if optional_index.contains(row_addr.row_id) {
-                    1u32
-                } else {
-                    0u32
-                }
+                u32::from(optional_index.contains(row_addr.row_id))
             }
             ColumnIndex::Multivalued(multivalued_index) => {
                 multivalued_index.range(row_addr.row_id).len() as u32

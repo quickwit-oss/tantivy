@@ -7,7 +7,7 @@ use fastdivide::DividerU64;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::column_values::u64_based::line::Line;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, Stats};
+use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
 use crate::MonotonicallyMappableToU64;
 
@@ -84,7 +84,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
             self.block.clear();
         }
     }
-    fn estimate(&self, stats: &Stats) -> Option<u64> {
+    fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
         let mut estimate = 4 + stats.num_bytes() + self.meta_num_bytes + self.values_num_bytes;
         if stats.gcd.get() > 1 {
             let estimate_gain_from_gcd =
@@ -100,7 +100,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
 
     fn serialize(
         &self,
-        stats: &Stats,
+        stats: &ColumnStats,
         mut vals: &mut dyn Iterator<Item = u64>,
         wrt: &mut dyn Write,
     ) -> io::Result<()> {
@@ -165,12 +165,12 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
 pub struct BlockwiseLinearCodec;
 
 impl ColumnCodec<u64> for BlockwiseLinearCodec {
-    type Reader = BlockwiseLinearReader;
+    type ColumnValues = BlockwiseLinearReader;
 
     type Estimator = BlockwiseLinearEstimator;
 
-    fn load(mut bytes: OwnedBytes) -> io::Result<Self::Reader> {
-        let stats = Stats::deserialize(&mut bytes)?;
+    fn load(mut bytes: OwnedBytes) -> io::Result<Self::ColumnValues> {
+        let stats = ColumnStats::deserialize(&mut bytes)?;
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let footer_offset = bytes.len() - 4 - footer_len as usize;
         let (data, mut footer) = bytes.split(footer_offset);
@@ -195,7 +195,7 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
 pub struct BlockwiseLinearReader {
     blocks: Arc<[Block]>,
     data: OwnedBytes,
-    stats: Stats,
+    stats: ColumnStats,
 }
 
 impl ColumnValues for BlockwiseLinearReader {

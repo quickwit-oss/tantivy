@@ -58,7 +58,7 @@ impl<'a> RemappedTermOrdinalsValues<'a> {
             .enumerate()
             .flat_map(|(segment_ord, byte_column)| {
                 let segment_ord = self.term_ord_mapping.get_segment(segment_ord as u32);
-                byte_column.into_iter().flat_map(move |bytes_column| {
+                byte_column.iter().flat_map(move |bytes_column| {
                     bytes_column
                         .ords()
                         .values

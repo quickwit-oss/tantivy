@@ -123,6 +123,7 @@ pub(crate) struct StrictlyMonotonicMappingToInternalGCDBaseval {
     min_value: u64,
 }
 impl StrictlyMonotonicMappingToInternalGCDBaseval {
+    /// Creates a linear mapping `x -> gcd*x + min_value`.
     pub(crate) fn new(gcd: u64, min_value: u64) -> Self {
         let gcd_divider = DividerU64::divide_by(gcd);
         Self {
@@ -151,7 +152,9 @@ impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
 pub(crate) struct StrictlyMonotonicMappingToInternalBaseval {
     min_value: u64,
 }
+
 impl StrictlyMonotonicMappingToInternalBaseval {
+    /// Creates a linear mapping `x -> x + min_value`.
     #[inline(always)]
     pub(crate) fn new(min_value: u64) -> Self {
         Self { min_value }

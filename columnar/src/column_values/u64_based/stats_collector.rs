@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use fastdivide::DividerU64;
 
-use crate::column_values::Stats;
+use crate::column_values::ColumnStats;
 use crate::RowId;
 
 /// Compute the gcd of two non null numbers.
@@ -33,14 +33,14 @@ pub struct StatsCollector {
 }
 
 impl StatsCollector {
-    pub fn stats(&self) -> Stats {
+    pub fn stats(&self) -> ColumnStats {
         let (min_value, max_value) = self.min_max_opt.unwrap_or((0u64, 0u64));
         let increment_gcd = if let Some((increment_gcd, _)) = self.increment_gcd_opt {
             increment_gcd
         } else {
             NonZeroU64::new(1u64).unwrap()
         };
-        Stats {
+        ColumnStats {
             min_value,
             max_value,
             num_rows: self.num_rows,
@@ -97,9 +97,9 @@ mod tests {
     use std::num::NonZeroU64;
 
     use crate::column_values::u64_based::stats_collector::{compute_gcd, StatsCollector};
-    use crate::column_values::u64_based::Stats;
+    use crate::column_values::u64_based::ColumnStats;
 
-    fn compute_stats(vals: impl Iterator<Item = u64>) -> Stats {
+    fn compute_stats(vals: impl Iterator<Item = u64>) -> ColumnStats {
         let mut stats_collector = StatsCollector::default();
         for val in vals {
             stats_collector.collect(val);
@@ -144,7 +144,7 @@ mod tests {
     fn test_stats() {
         assert_eq!(
             compute_stats([].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 0,
@@ -153,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             compute_stats([0, 1].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 1,
@@ -162,7 +162,7 @@ mod tests {
         );
         assert_eq!(
             compute_stats([0, 1].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(1).unwrap(),
                 min_value: 0,
                 max_value: 1,
@@ -171,7 +171,7 @@ mod tests {
         );
         assert_eq!(
             compute_stats([10, 20, 30].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(10).unwrap(),
                 min_value: 10,
                 max_value: 30,
@@ -180,7 +180,7 @@ mod tests {
         );
         assert_eq!(
             compute_stats([10, 50, 10, 30].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(20).unwrap(),
                 min_value: 10,
                 max_value: 50,
@@ -189,7 +189,7 @@ mod tests {
         );
         assert_eq!(
             compute_stats([10, 0, 30].into_iter()),
-            Stats {
+            ColumnStats {
                 gcd: NonZeroU64::new(10).unwrap(),
                 min_value: 0,
                 max_value: 30,

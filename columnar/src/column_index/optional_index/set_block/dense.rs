@@ -45,7 +45,7 @@ impl SetCodec for DenseBlockCodec {
     }
 
     #[inline]
-    fn open<'a>(data: &'a [u8]) -> Self::Reader<'a> {
+    fn open(data: &[u8]) -> Self::Reader<'_> {
         assert_eq!(data.len(), DENSE_BLOCK_NUM_BYTES as usize);
         DenseBlock(data)
     }
@@ -94,7 +94,7 @@ impl DenseMiniBlock {
         Self { bitvec, rank }
     }
 
-    fn to_bytes(&self) -> [u8; MINI_BLOCK_NUM_BYTES] {
+    fn to_bytes(self) -> [u8; MINI_BLOCK_NUM_BYTES] {
         let mut bytes = [0u8; MINI_BLOCK_NUM_BYTES];
         bytes[..MINI_BLOCK_BITVEC_NUM_BYTES].copy_from_slice(&self.bitvec.to_le_bytes());
         bytes[MINI_BLOCK_BITVEC_NUM_BYTES..].copy_from_slice(&self.rank.to_le_bytes());
@@ -166,7 +166,7 @@ impl<'a> Set<u16> for DenseBlock<'a> {
     }
 
     #[inline(always)]
-    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b> {
+    fn select_cursor(&self) -> Self::SelectCursor<'_> {
         DenseBlockSelectCursor {
             block_id: 0,
             dense_block: *self,

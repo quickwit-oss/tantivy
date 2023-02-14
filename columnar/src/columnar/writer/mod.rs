@@ -47,6 +47,7 @@ struct SpareBuffers {
 /// let mut wrt: Vec<u8> =  Vec::new();
 /// columnar_writer.serialize(2u32, None, &mut wrt).unwrap();
 /// ```
+#[derive(Default)]
 pub struct ColumnarWriter {
     numerical_field_hash_map: ArenaHashMap,
     datetime_field_hash_map: ArenaHashMap,
@@ -58,22 +59,6 @@ pub struct ColumnarWriter {
     // Dictionaries used to store dictionary-encoded values.
     dictionaries: Vec<DictionaryBuilder>,
     buffers: SpareBuffers,
-}
-
-impl Default for ColumnarWriter {
-    fn default() -> Self {
-        ColumnarWriter {
-            numerical_field_hash_map: ArenaHashMap::new(),
-            bool_field_hash_map: ArenaHashMap::new(),
-            ip_addr_field_hash_map: ArenaHashMap::new(),
-            bytes_field_hash_map: ArenaHashMap::new(),
-            str_field_hash_map: ArenaHashMap::new(),
-            datetime_field_hash_map: ArenaHashMap::new(),
-            dictionaries: Vec::new(),
-            arena: MemoryArena::default(),
-            buffers: SpareBuffers::default(),
-        }
-    }
 }
 
 #[inline]
@@ -671,7 +656,7 @@ where
     Ok(())
 }
 
-fn sort_values_within_row_in_place(multivalued_index: &[RowId], values: &mut Vec<u64>) {
+fn sort_values_within_row_in_place(multivalued_index: &[RowId], values: &mut [u64]) {
     let mut start_index: usize = 0;
     for end_index in multivalued_index.iter().copied() {
         let end_index = end_index as usize;

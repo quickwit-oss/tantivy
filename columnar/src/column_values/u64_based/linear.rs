@@ -5,7 +5,7 @@ use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use super::line::Line;
 use super::ColumnValues;
-use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, Stats};
+use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::VecColumn;
 use crate::RowId;
 
@@ -18,7 +18,7 @@ const LINE_ESTIMATION_BLOCK_LEN: usize = 512;
 pub struct LinearReader {
     data: OwnedBytes,
     linear_params: LinearParams,
-    stats: Stats,
+    stats: ColumnStats,
 }
 
 impl ColumnValues for LinearReader {
@@ -106,7 +106,7 @@ impl ColumnCodecEstimator for LinearCodecEstimator {
         }
     }
 
-    fn estimate(&self, stats: &Stats) -> Option<u64> {
+    fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
         let line = self.line?;
         let amplitude = self.max_deviation - self.min_deviation;
         let num_bits = compute_num_bits(amplitude);
@@ -123,7 +123,7 @@ impl ColumnCodecEstimator for LinearCodecEstimator {
 
     fn serialize(
         &self,
-        stats: &Stats,
+        stats: &ColumnStats,
         vals: &mut dyn Iterator<Item = u64>,
         wrt: &mut dyn io::Write,
     ) -> io::Result<()> {
@@ -184,12 +184,12 @@ impl LinearCodecEstimator {
 }
 
 impl ColumnCodec for LinearCodec {
-    type Reader = LinearReader;
+    type ColumnValues = LinearReader;
 
     type Estimator = LinearCodecEstimator;
 
-    fn load(mut data: OwnedBytes) -> io::Result<Self::Reader> {
-        let stats = Stats::deserialize(&mut data)?;
+    fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {
+        let stats = ColumnStats::deserialize(&mut data)?;
         let linear_params = LinearParams::deserialize(&mut data)?;
         Ok(LinearReader {
             stats,

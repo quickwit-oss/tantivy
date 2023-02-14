@@ -48,7 +48,7 @@ impl ColumnIndex {
             ColumnIndex::Full => true,
             ColumnIndex::Optional(optional_index) => optional_index.contains(doc_id),
             ColumnIndex::Multivalued(multivalued_index) => {
-                multivalued_index.range(doc_id).len() > 0
+                !multivalued_index.range(doc_id).is_empty()
             }
         }
     }

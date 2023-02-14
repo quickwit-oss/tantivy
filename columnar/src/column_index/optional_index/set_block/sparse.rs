@@ -16,7 +16,7 @@ impl SetCodec for SparseBlockCodec {
         Ok(())
     }
 
-    fn open<'a>(data: &'a [u8]) -> Self::Reader<'a> {
+    fn open(data: &[u8]) -> Self::Reader<'_> {
         SparseBlock(data)
     }
 }
@@ -56,7 +56,7 @@ impl<'a> Set<u16> for SparseBlock<'a> {
     }
 
     #[inline(always)]
-    fn select_cursor<'b>(&'b self) -> Self::SelectCursor<'b> {
+    fn select_cursor(&self) -> Self::SelectCursor<'_> {
         *self
     }
 }

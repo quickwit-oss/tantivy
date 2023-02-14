@@ -110,8 +110,8 @@ impl DeltaComputer {
     }
 }
 
-fn convert_to_merge_order<'a>(
-    columnars: &[&'a ColumnarReader],
+fn convert_to_merge_order(
+    columnars: &[&ColumnarReader],
     doc_id_mapping: SegmentDocIdMapping,
 ) -> MergeRowOrder {
     match doc_id_mapping.mapping_type() {
@@ -369,11 +369,8 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|segment_reader| {
-                if let Some(alive_bitset) = segment_reader.alive_bitset() {
-                    Some(alive_bitset.bitset().clone())
-                } else {
-                    None
-                }
+                let alive_bitset = segment_reader.alive_bitset()?;
+                Some(alive_bitset.bitset().clone())
             })
             .collect();
         Ok(SegmentDocIdMapping::new(
@@ -416,11 +413,8 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-                if let Some(bitset) = reader.alive_bitset() {
-                    Some(bitset.bitset().clone())
-                } else {
-                    None
-                }
+                let alive_bitset = reader.alive_bitset()?;
+                Some(alive_bitset.bitset().clone())
             })
             .collect();
         Ok(SegmentDocIdMapping::new(

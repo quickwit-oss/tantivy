@@ -1,5 +1,4 @@
 #![warn(missing_docs)]
-#![cfg_attr(all(feature = "unstable", test), feature(test))]
 
 //! # `fastfield_codecs`
 //!
@@ -26,10 +25,10 @@ mod stats;
 pub(crate) mod u64_based;
 
 mod column;
-pub mod serialize;
+pub(crate) mod serialize;
 
 pub use serialize::serialize_column_values_u128;
-pub use stats::Stats;
+pub use stats::ColumnStats;
 pub use u64_based::{
     load_u64_based_column_values, serialize_and_load_u64_based_column_values,
     serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
@@ -137,7 +136,6 @@ mod bench {
     use test::{self, Bencher};
 
     use super::*;
-    use crate::column_values::serialize::NormalizedHeader;
     use crate::column_values::u64_based::*;
 
     fn get_data() -> Vec<u64> {
@@ -154,7 +152,7 @@ mod bench {
         data
     }
 
-    fn compute_stats(vals: impl Iterator<Item = u64>) -> Stats {
+    fn compute_stats(vals: impl Iterator<Item = u64>) -> ColumnStats {
         let mut stats_collector = StatsCollector::default();
         for val in vals {
             stats_collector.collect(val);
@@ -166,7 +164,7 @@ mod bench {
     fn value_iter() -> impl Iterator<Item = u64> {
         0..20_000
     }
-    fn get_reader_for_bench<Codec: ColumnCodec>(data: &[u64]) -> Codec::Reader {
+    fn get_reader_for_bench<Codec: ColumnCodec>(data: &[u64]) -> Codec::ColumnValues {
         let mut bytes = Vec::new();
         let stats = compute_stats(data.iter().cloned());
         let mut codec_serializer = Codec::estimator();

@@ -162,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expect = "Input type forbidden")]
+    #[should_panic(expected = "Input type forbidden")]
     fn test_list_columns_strict_typing_panics_on_wrong_types() {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("count", ColumnType::U64, false);

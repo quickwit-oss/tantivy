@@ -156,8 +156,7 @@ impl FastFieldReaders {
             .columnar
             .read_columns(field_name)?
             .into_iter()
-            .filter(|column| column.column_type() == column_type)
-            .next();
+            .find(|column| column.column_type() == column_type);
         Ok(dynamic_column_handle_opt)
     }
 
