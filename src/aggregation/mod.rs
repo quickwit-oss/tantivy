@@ -318,6 +318,8 @@ pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv6Addr;
+
     use serde_json::Value;
     use time::OffsetDateTime;
 
@@ -657,6 +659,7 @@ mod tests {
         let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+        let ip_addr_field = schema_builder.add_ip_addr_field("ip_addr", FAST);
 
         let multivalue = crate::schema::NumericOptions::default().set_fast();
         let scores_field_i64 = schema_builder.add_i64_field("scores_i64", multivalue);
@@ -670,6 +673,7 @@ mod tests {
                 text_field => "cool",
                 date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800).unwrap()),
                 score_field => 1u64,
+                ip_addr_field => Ipv6Addr::from(1u128),
                 score_field_f64 => 1f64,
                 score_field_i64 => 1i64,
                 scores_field_i64 => 1i64,
@@ -1150,6 +1154,12 @@ mod tests {
         assert_eq!(
             format!("{:?}", agg_res),
             r#"FieldNotFound("not_exist_field")"#
+        );
+
+        let agg_res = avg_on_field("ip_addr");
+        assert_eq!(
+            format!("{:?}", agg_res),
+            r#"InvalidArgument("No numerical fast field found for field: ip_addr")"#
         );
 
         Ok(())
