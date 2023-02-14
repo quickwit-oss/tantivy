@@ -11,6 +11,9 @@ use crate::RowId;
 /// `ColumnValues` provides access to a dense field column.
 ///
 /// `Column` are just a wrapper over `ColumnValues` and a `ColumnIndex`.
+///
+/// Any methods with a default and specialized implementation need to be called in the
+/// wrappers that implement the trait: Arc and MonotonicMappingColumn
 pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Return the value associated with the given idx.
     ///
@@ -110,31 +113,16 @@ impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> 
     fn get_range(&self, start: u64, output: &mut [T]) {
         self.as_ref().get_range(start, output)
     }
-}
 
-impl<'a, C: ColumnValues<T> + ?Sized, T: Copy + PartialOrd + Debug> ColumnValues<T> for &'a C {
-    fn get_val(&self, idx: u32) -> T {
-        (*self).get_val(idx)
-    }
-
-    fn min_value(&self) -> T {
-        (*self).min_value()
-    }
-
-    fn max_value(&self) -> T {
-        (*self).max_value()
-    }
-
-    fn num_vals(&self) -> u32 {
-        (*self).num_vals()
-    }
-
-    fn iter<'b>(&'b self) -> Box<dyn Iterator<Item = T> + 'b> {
-        (*self).iter()
-    }
-
-    fn get_range(&self, start: u64, output: &mut [T]) {
-        (*self).get_range(start, output)
+    #[inline(always)]
+    fn get_row_ids_for_value_range(
+        &self,
+        range: RangeInclusive<T>,
+        doc_id_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        self.as_ref()
+            .get_row_ids_for_value_range(range, doc_id_range, positions)
     }
 }
 
