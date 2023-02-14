@@ -196,8 +196,20 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        let canonical_path: PathBuf = directory_path.canonicalize().map_err(|io_err| {
-            OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
+        let canonical_path: PathBuf = directory_path.canonicalize().or_else(|io_err| {
+            let directory_path = directory_path.to_owned();
+
+            #[cfg(windows)]
+            {
+                // `canonicalize` returns "Incorrect function" (error code 1)
+                // for virtual drives (network drives, ramdisk, etc.).
+                if io_err.raw_os_error() == Some(1) && directory_path.exists() {
+                    // Should call `std::path::absolute` when it is stabilised.
+                    return Ok(directory_path);
+                }
+            }
+
+            Err(OpenDirectoryError::wrap_io_error(io_err, directory_path))
         })?;
         if !canonical_path.is_dir() {
             return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
@@ -443,25 +455,22 @@ impl Directory for MmapDirectory {
         Ok(self.inner.watch(watch_callback))
     }
 
+    #[cfg(windows)]
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        // On Windows, it is not necessary to fsync the parent directory to
+        // ensure that the directory entry containing the file has also reached
+        // disk, and calling sync_data on a handle to directory is a no-op on
+        // local disks, but will return an error on virtual drives.
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
     fn sync_directory(&self) -> Result<(), io::Error> {
         let mut open_opts = OpenOptions::new();
 
         // Linux needs read to be set, otherwise returns EINVAL
         // write must not be set, or it fails with EISDIR
         open_opts.read(true);
-
-        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
-        // and calling sync_all() only works if write access is requested.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-
-            use winapi::um::winbase;
-
-            open_opts
-                .write(true)
-                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
-        }
 
         let fd = open_opts.open(&self.inner.root_path)?;
         fd.sync_data()?;
