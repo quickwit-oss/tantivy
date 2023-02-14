@@ -79,8 +79,9 @@ pub enum DateHistogramParseError {
 
 fn parse_into_milliseconds(input: &str) -> Result<u64, DateHistogramParseError> {
     let split_boundary = input
-        .char_indices()
-        .take_while(|(pos, el)| el.is_numeric())
+        .as_bytes()
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
         .count();
     let (number, unit) = input.split_at(split_boundary);
     if number.is_empty() {
@@ -89,7 +90,12 @@ fn parse_into_milliseconds(input: &str) -> Result<u64, DateHistogramParseError> 
     if unit.is_empty() {
         return Err(DateHistogramParseError::UnitMissing(input.to_string()));
     }
-    let number: u64 = number.parse().unwrap();
+    let number: u64 = number
+        .parse()
+        // Technically this should never happen, but there was a bug
+        // here and being defensive does not hurt.
+        .map_err(|_err| DateHistogramParseError::NumberMissing(input.to_string()))?;
+
     let multiplier_from_unit = match unit {
         "ms" => 1,
         "s" => 1000,
@@ -107,7 +113,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parser_test() {
+    fn test_parse_into_milliseconds() {
         assert_eq!(parse_into_milliseconds("1m").unwrap(), 60_000);
         assert_eq!(parse_into_milliseconds("2m").unwrap(), 120_000);
         assert_eq!(
@@ -122,5 +128,10 @@ mod tests {
             parse_into_milliseconds("ms").unwrap_err(),
             DateHistogramParseError::NumberMissing("ms".to_string())
         );
+    }
+
+    #[test]
+    fn test_parse_into_milliseconds_do_not_accept_non_ascii() {
+        assert!(parse_into_milliseconds("１m").is_err());
     }
 }
