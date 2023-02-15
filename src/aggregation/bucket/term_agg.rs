@@ -289,7 +289,7 @@ impl SegmentTermCollector {
 
         let has_sub_aggregations = !sub_aggregations.is_empty();
         let blueprint = if has_sub_aggregations {
-            let sub_aggregation = build_segment_agg_collector(sub_aggregations)?;
+            let sub_aggregation = build_segment_agg_collector(sub_aggregations, false)?;
             Some(sub_aggregation)
         } else {
             None

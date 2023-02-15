@@ -156,17 +156,23 @@ pub(crate) struct SegmentStatsCollector {
     field_type: Type,
     pub(crate) collecting_for: SegmentStatsType,
     pub(crate) stats: IntermediateStats,
+    pub(crate) accessor_idx: usize,
 }
 
 impl SegmentStatsCollector {
-    pub fn from_req(field_type: Type, collecting_for: SegmentStatsType) -> Self {
+    pub fn from_req(
+        field_type: Type,
+        collecting_for: SegmentStatsType,
+        accessor_idx: usize,
+    ) -> Self {
         Self {
             field_type,
             collecting_for,
             stats: IntermediateStats::default(),
+            accessor_idx,
         }
     }
-    pub(crate) fn collect_block(&mut self, docs: &[DocId], field: &Column<u64>) {
+    pub(crate) fn collect_block_with_field(&mut self, docs: &[DocId], field: &Column<u64>) {
         if field.get_cardinality() == Cardinality::Full {
             for doc in docs {
                 let val = field.values.get_val(*doc);
@@ -226,7 +232,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.metrics.values[0].accessor;
+        let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
 
         if field.get_cardinality() == Cardinality::Full {
             let val = field.values.get_val(doc);
@@ -244,9 +250,11 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
 
     fn collect_block(
         &mut self,
-        _docs: &[crate::DocId],
-        _agg_with_accessor: &AggregationsWithAccessor,
+        docs: &[crate::DocId],
+        agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
+        let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
+        self.collect_block_with_field(docs, field);
         Ok(())
     }
 }
@@ -301,6 +309,43 @@ mod tests {
                 "max": Value::Null,
                 "min": Value::Null,
                 "sum": 0.0
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_stats_simple() -> crate::Result<()> {
+        // test index without segments
+        let values = vec![10.0];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = vec![(
+            "stats".to_string(),
+            Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                "score".to_string(),
+            ))),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["stats"],
+            json!({
+                "avg": 10.0,
+                "count": 1,
+                "max": 10.0,
+                "min": 10.0,
+                "sum": 10.0
             })
         );
 

@@ -12,6 +12,7 @@ use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
+use super::buf_collector::BufAggregationCollector;
 use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::{IntermediateAggregationResults, IntermediateBucketResult};
 use super::metric::{
@@ -21,9 +22,6 @@ use super::metric::{
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
 use crate::{DocId, TantivyError};
-
-pub(crate) const DOC_BLOCK_SIZE: usize = 64;
-pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn into_intermediate_aggregations_result(
@@ -70,36 +68,56 @@ impl Clone for Box<dyn SegmentAggregationCollector> {
 
 pub(crate) fn build_segment_agg_collector(
     req: &AggregationsWithAccessor,
+    add_buffer_layer: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Single metric special case
     if req.buckets.is_empty() && req.metrics.len() == 1 {
         let req = &req.metrics.values[0];
+        let accessor_idx = 0;
         let stats_collector = match &req.metric {
             MetricAggregation::Average(AverageAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Average)
+                SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Average,
+                    accessor_idx,
+                )
             }
-            MetricAggregation::Count(CountAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count)
-            }
+            MetricAggregation::Count(CountAggregation { .. }) => SegmentStatsCollector::from_req(
+                req.field_type,
+                SegmentStatsType::Count,
+                accessor_idx,
+            ),
             MetricAggregation::Max(MaxAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max)
+                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max, accessor_idx)
             }
             MetricAggregation::Min(MinAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min)
+                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min, accessor_idx)
             }
-            MetricAggregation::Stats(StatsAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats)
-            }
+            MetricAggregation::Stats(StatsAggregation { .. }) => SegmentStatsCollector::from_req(
+                req.field_type,
+                SegmentStatsType::Stats,
+                accessor_idx,
+            ),
             MetricAggregation::Sum(SumAggregation { .. }) => {
-                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum)
+                SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum, accessor_idx)
             }
         };
 
-        return Ok(Box::new(stats_collector));
+        if add_buffer_layer {
+            let stats_collector = BufAggregationCollector::new(stats_collector);
+            return Ok(Box::new(stats_collector));
+        } else {
+            return Ok(Box::new(stats_collector));
+        }
     }
 
     let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate(req)?;
-    Ok(Box::new(agg))
+    if add_buffer_layer {
+        let agg = BufAggregationCollector::new(agg);
+        Ok(Box::new(agg))
+    } else {
+        Ok(Box::new(agg))
+    }
 }
 
 #[derive(Clone)]
@@ -109,8 +127,6 @@ pub(crate) fn build_segment_agg_collector(
 pub(crate) struct GenericSegmentAggregationResultsCollector {
     pub(crate) metrics: Option<VecWithNames<SegmentMetricResultCollector>>,
     pub(crate) buckets: Option<VecWithNames<SegmentBucketResultCollector>>,
-    staged_docs: DocBlock,
-    num_staged_docs: usize,
 }
 
 impl Default for GenericSegmentAggregationResultsCollector {
@@ -118,8 +134,6 @@ impl Default for GenericSegmentAggregationResultsCollector {
         Self {
             metrics: Default::default(),
             buckets: Default::default(),
-            staged_docs: [0; DOC_BLOCK_SIZE],
-            num_staged_docs: Default::default(),
         }
     }
 }
@@ -129,8 +143,6 @@ impl Debug for GenericSegmentAggregationResultsCollector {
         f.debug_struct("SegmentAggregationResultsCollector")
             .field("metrics", &self.metrics)
             .field("buckets", &self.buckets)
-            .field("staged_docs", &&self.staged_docs[..self.num_staged_docs])
-            .field("num_staged_docs", &self.num_staged_docs)
             .finish()
     }
 }
@@ -160,17 +172,8 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        self.staged_docs[self.num_staged_docs] = doc;
-        self.num_staged_docs += 1;
-        if self.num_staged_docs == self.staged_docs.len() {
-            collect_block(
-                &mut self.metrics,
-                &mut self.buckets,
-                &self.staged_docs[..self.num_staged_docs],
-                &mut self.num_staged_docs,
-                agg_with_accessor,
-            )?;
-        }
+        self.collect_block(&[doc], agg_with_accessor)?;
+
         Ok(())
     }
 
@@ -179,21 +182,26 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        for doc in docs {
-            self.collect(*doc, agg_with_accessor)?;
+        if let Some(metrics) = self.metrics.as_mut() {
+            for (collector, agg_with_accessor) in
+                metrics.values_mut().zip(agg_with_accessor.metrics.values())
+            {
+                collector.collect_block(&docs, agg_with_accessor);
+            }
         }
+
+        if let Some(buckets) = self.buckets.as_mut() {
+            for (collector, agg_with_accessor) in
+                buckets.values_mut().zip(agg_with_accessor.buckets.values())
+            {
+                collector.collect_block(&docs, agg_with_accessor)?;
+            }
+        }
+
         Ok(())
     }
 
     fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
-        collect_block(
-            &mut self.metrics,
-            &mut self.buckets,
-            &self.staged_docs[..self.num_staged_docs],
-            &mut self.num_staged_docs,
-            agg_with_accessor,
-        )?;
-
         if let Some(buckets) = &mut self.buckets {
             for (collector, agg_with_accessor) in
                 buckets.values_mut().zip(agg_with_accessor.buckets.values())
@@ -203,36 +211,6 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         }
         Ok(())
     }
-}
-
-fn collect_block(
-    metrics: &mut Option<VecWithNames<SegmentMetricResultCollector>>,
-    buckets: &mut Option<VecWithNames<SegmentBucketResultCollector>>,
-    docs: &[crate::DocId],
-    num_staged_docs: &mut usize,
-    agg_with_accessor: &AggregationsWithAccessor,
-) -> crate::Result<()> {
-    if *num_staged_docs == 0 {
-        return Ok(());
-    }
-    if let Some(metrics) = metrics.as_mut() {
-        for (collector, agg_with_accessor) in
-            metrics.values_mut().zip(agg_with_accessor.metrics.values())
-        {
-            collector.collect_block(&docs, agg_with_accessor);
-        }
-    }
-
-    if let Some(buckets) = buckets.as_mut() {
-        for (collector, agg_with_accessor) in
-            buckets.values_mut().zip(agg_with_accessor.buckets.values())
-        {
-            collector.collect_block(&docs, agg_with_accessor)?;
-        }
-    }
-
-    *num_staged_docs = 0;
-    Ok(())
 }
 
 impl GenericSegmentAggregationResultsCollector {
@@ -269,10 +247,11 @@ impl GenericSegmentAggregationResultsCollector {
         let metrics = req
             .metrics
             .iter()
-            .map(|(key, req)| {
+            .enumerate()
+            .map(|(accesor_idx, (key, req))| {
                 Ok((
                     key.to_string(),
-                    SegmentMetricResultCollector::from_req_and_validate(req)?,
+                    SegmentMetricResultCollector::from_req_and_validate(req, accesor_idx)?,
                 ))
             })
             .collect::<crate::Result<Vec<(String, _)>>>()?;
@@ -286,12 +265,7 @@ impl GenericSegmentAggregationResultsCollector {
         } else {
             Some(VecWithNames::from_entries(buckets))
         };
-        Ok(GenericSegmentAggregationResultsCollector {
-            metrics,
-            buckets,
-            staged_docs: [0; DOC_BLOCK_SIZE],
-            num_staged_docs: 0,
-        })
+        Ok(GenericSegmentAggregationResultsCollector { metrics, buckets })
     }
 }
 
@@ -301,44 +275,59 @@ pub(crate) enum SegmentMetricResultCollector {
 }
 
 impl SegmentMetricResultCollector {
-    pub fn from_req_and_validate(req: &MetricAggregationWithAccessor) -> crate::Result<Self> {
+    pub fn from_req_and_validate(
+        req: &MetricAggregationWithAccessor,
+        accessor_idx: usize,
+    ) -> crate::Result<Self> {
         match &req.metric {
-            MetricAggregation::Average(AverageAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Average),
-                ))
-            }
-            MetricAggregation::Count(CountAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count),
-                ))
-            }
-            MetricAggregation::Max(MaxAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max),
-                ))
-            }
-            MetricAggregation::Min(MinAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min),
-                ))
-            }
-            MetricAggregation::Stats(StatsAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats),
-                ))
-            }
-            MetricAggregation::Sum(SumAggregation { .. }) => {
-                Ok(SegmentMetricResultCollector::Stats(
-                    SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum),
-                ))
-            }
+            MetricAggregation::Average(AverageAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Average,
+                    accessor_idx,
+                )),
+            ),
+            MetricAggregation::Count(CountAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Count,
+                    accessor_idx,
+                )),
+            ),
+            MetricAggregation::Max(MaxAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Max,
+                    accessor_idx,
+                )),
+            ),
+            MetricAggregation::Min(MinAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Min,
+                    accessor_idx,
+                )),
+            ),
+            MetricAggregation::Stats(StatsAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Stats,
+                    accessor_idx,
+                )),
+            ),
+            MetricAggregation::Sum(SumAggregation { .. }) => Ok(
+                SegmentMetricResultCollector::Stats(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Sum,
+                    accessor_idx,
+                )),
+            ),
         }
     }
     pub(crate) fn collect_block(&mut self, doc: &[DocId], metric: &MetricAggregationWithAccessor) {
         match self {
             SegmentMetricResultCollector::Stats(stats_collector) => {
-                stats_collector.collect_block(doc, &metric.accessor);
+                stats_collector.collect_block_with_field(doc, &metric.accessor);
             }
         }
     }

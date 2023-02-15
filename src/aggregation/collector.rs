@@ -151,7 +151,7 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let aggs_with_accessor =
             get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
-        let result = build_segment_agg_collector(&aggs_with_accessor)?;
+        let result = build_segment_agg_collector(&aggs_with_accessor, true)?;
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,
