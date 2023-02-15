@@ -1,4 +1,4 @@
-use columnar::Column;
+use columnar::{Cardinality, Column};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -167,11 +167,18 @@ impl SegmentStatsCollector {
         }
     }
     pub(crate) fn collect_block(&mut self, docs: &[DocId], field: &Column<u64>) {
-        // TODO special case for Required, Optional column type
-        for doc in docs {
-            for val in field.values(*doc) {
+        if field.get_cardinality() == Cardinality::Full {
+            for doc in docs {
+                let val = field.values.get_val(*doc);
                 let val1 = f64_from_fastfield_u64(val, &self.field_type);
                 self.stats.collect(val1);
+            }
+        } else {
+            for doc in docs {
+                for val in field.values(*doc) {
+                    let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                    self.stats.collect(val1);
+                }
             }
         }
     }
@@ -219,10 +226,17 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         doc: crate::DocId,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let accessor = &agg_with_accessor.metrics.values[0].accessor;
-        for val in accessor.values(doc) {
+        let field = &agg_with_accessor.metrics.values[0].accessor;
+
+        if field.get_cardinality() == Cardinality::Full {
+            let val = field.values.get_val(doc);
             let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val1);
+        } else {
+            for val in field.values(doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+            }
         }
 
         Ok(())
