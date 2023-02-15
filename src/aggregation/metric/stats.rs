@@ -242,10 +242,10 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         Ok(())
     }
 
-    fn flush_staged_docs(
+    fn collect_block(
         &mut self,
+        _docs: &[crate::DocId],
         _agg_with_accessor: &AggregationsWithAccessor,
-        _force_flush: bool,
     ) -> crate::Result<()> {
         Ok(())
     }

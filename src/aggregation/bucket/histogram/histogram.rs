@@ -338,7 +338,6 @@ impl SegmentHistogramCollector {
         &mut self,
         docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()> {
         let bounds = self.bounds;
         let interval = self.interval;
@@ -360,14 +359,6 @@ impl SegmentHistogramCollector {
                     *doc,
                     &bucket_with_accessor.sub_aggregation,
                 )?;
-            }
-        }
-        if force_flush {
-            if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
-                for sub_aggregation in sub_aggregations {
-                    sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush)?;
-                }
             }
         }
         Ok(())
@@ -404,6 +395,18 @@ impl SegmentHistogramCollector {
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
             sub_aggregation[bucket_pos].collect(doc, bucket_with_accessor)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn flush(
+        &mut self,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<()> {
+        if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
+            for sub_aggregation in sub_aggregations {
+                sub_aggregation.flush(&bucket_with_accessor.sub_aggregation)?;
+            }
         }
         Ok(())
     }

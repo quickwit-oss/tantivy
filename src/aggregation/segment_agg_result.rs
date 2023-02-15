@@ -37,11 +37,17 @@ pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()>;
 
-    fn flush_staged_docs(
+    fn collect_block(
         &mut self,
+        docs: &[crate::DocId],
         agg_with_accessor: &AggregationsWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()>;
+
+    /// Finalize method. Some Aggregator collect blocks of docs before calling `collect_block`.
+    /// This method ensures those staged docs will be collected.
+    fn flush(&mut self, _agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+        Ok(())
+    }
 }
 
 pub(crate) trait CollectorClone {
@@ -157,43 +163,76 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
         if self.num_staged_docs == self.staged_docs.len() {
-            self.flush_staged_docs(agg_with_accessor, false)?;
+            collect_block(
+                &mut self.metrics,
+                &mut self.buckets,
+                &self.staged_docs[..self.num_staged_docs],
+                &mut self.num_staged_docs,
+                agg_with_accessor,
+            )?;
         }
         Ok(())
     }
 
-    fn flush_staged_docs(
+    fn collect_block(
         &mut self,
+        docs: &[crate::DocId],
         agg_with_accessor: &AggregationsWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()> {
-        if self.num_staged_docs == 0 {
-            return Ok(());
+        for doc in docs {
+            self.collect(*doc, agg_with_accessor)?;
         }
-        if let Some(metrics) = &mut self.metrics {
-            for (collector, agg_with_accessor) in
-                metrics.values_mut().zip(agg_with_accessor.metrics.values())
-            {
-                collector
-                    .collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor);
-            }
-        }
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+        collect_block(
+            &mut self.metrics,
+            &mut self.buckets,
+            &self.staged_docs[..self.num_staged_docs],
+            &mut self.num_staged_docs,
+            agg_with_accessor,
+        )?;
 
         if let Some(buckets) = &mut self.buckets {
             for (collector, agg_with_accessor) in
                 buckets.values_mut().zip(agg_with_accessor.buckets.values())
             {
-                collector.collect_block(
-                    &self.staged_docs[..self.num_staged_docs],
-                    agg_with_accessor,
-                    force_flush,
-                )?;
+                collector.flush(agg_with_accessor)?;
             }
         }
-
-        self.num_staged_docs = 0;
         Ok(())
     }
+}
+
+fn collect_block(
+    metrics: &mut Option<VecWithNames<SegmentMetricResultCollector>>,
+    buckets: &mut Option<VecWithNames<SegmentBucketResultCollector>>,
+    docs: &[crate::DocId],
+    num_staged_docs: &mut usize,
+    agg_with_accessor: &AggregationsWithAccessor,
+) -> crate::Result<()> {
+    if *num_staged_docs == 0 {
+        return Ok(());
+    }
+    if let Some(metrics) = metrics.as_mut() {
+        for (collector, agg_with_accessor) in
+            metrics.values_mut().zip(agg_with_accessor.metrics.values())
+        {
+            collector.collect_block(&docs, agg_with_accessor);
+        }
+    }
+
+    if let Some(buckets) = buckets.as_mut() {
+        for (collector, agg_with_accessor) in
+            buckets.values_mut().zip(agg_with_accessor.buckets.values())
+        {
+            collector.collect_block(&docs, agg_with_accessor)?;
+        }
+    }
+
+    *num_staged_docs = 0;
+    Ok(())
 }
 
 impl GenericSegmentAggregationResultsCollector {
@@ -361,19 +400,37 @@ impl SegmentBucketResultCollector {
     #[inline]
     pub(crate) fn collect_block(
         &mut self,
-        doc: &[DocId],
+        docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()> {
         match self {
             SegmentBucketResultCollector::Range(range) => {
-                range.collect_block(doc, bucket_with_accessor, force_flush)?;
+                range.collect_block(docs, bucket_with_accessor)?;
             }
             SegmentBucketResultCollector::Histogram(histogram) => {
-                histogram.collect_block(doc, bucket_with_accessor, force_flush)?;
+                histogram.collect_block(docs, bucket_with_accessor)?;
             }
             SegmentBucketResultCollector::Terms(terms) => {
-                terms.collect_block(doc, bucket_with_accessor, force_flush)?;
+                terms.collect_block(docs, bucket_with_accessor)?;
+            }
+        }
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn flush(
+        &mut self,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<()> {
+        match self {
+            SegmentBucketResultCollector::Range(range) => {
+                range.flush(bucket_with_accessor)?;
+            }
+            SegmentBucketResultCollector::Histogram(histogram) => {
+                histogram.flush(bucket_with_accessor)?;
+            }
+            SegmentBucketResultCollector::Terms(terms) => {
+                terms.flush(bucket_with_accessor)?;
             }
         }
         Ok(())

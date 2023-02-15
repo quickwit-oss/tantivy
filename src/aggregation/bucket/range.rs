@@ -263,40 +263,21 @@ impl SegmentRangeCollector {
         &mut self,
         docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()> {
         let accessor = &bucket_with_accessor.accessor;
         for doc in docs {
             for val in accessor.values(*doc) {
                 let bucket_pos = self.get_bucket_pos(val);
-                self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation)?;
-            }
-        }
 
-        if force_flush {
-            for bucket in &mut self.buckets {
+                let bucket = &mut self.buckets[bucket_pos];
+
+                bucket.bucket.doc_count += 1;
                 if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-                    sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush)?;
+                    sub_aggregation.collect(*doc, &bucket_with_accessor.sub_aggregation)?;
                 }
             }
         }
-        Ok(())
-    }
 
-    #[inline]
-    fn increment_bucket(
-        &mut self,
-        bucket_pos: usize,
-        doc: DocId,
-        bucket_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        let bucket = &mut self.buckets[bucket_pos];
-
-        bucket.bucket.doc_count += 1;
-        if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-            sub_aggregation.collect(doc, bucket_with_accessor)?;
-        }
         Ok(())
     }
 
@@ -308,6 +289,18 @@ impl SegmentRangeCollector {
             .unwrap_or_else(|pos| pos - 1);
         debug_assert!(self.buckets[pos].range.contains(&val));
         pos
+    }
+
+    pub(crate) fn flush(
+        &mut self,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<()> {
+        for bucket in &mut self.buckets {
+            if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
+                sub_aggregation.flush(&bucket_with_accessor.sub_aggregation)?;
+            }
+        }
+        Ok(())
     }
 }
 

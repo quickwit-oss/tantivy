@@ -177,8 +177,7 @@ impl SegmentCollector for AggregationSegmentCollector {
         if let Some(err) = self.error {
             return Err(err);
         }
-        self.result
-            .flush_staged_docs(&self.aggs_with_accessor, true)?;
+        self.result.flush(&self.aggs_with_accessor)?;
         self.result
             .into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }
