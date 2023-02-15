@@ -2,7 +2,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::schema::flags::{SchemaFlagList, StoredFlag};
+use crate::schema::flags::{SchemaFlagList, StoredFlag, FastFlag};
 use crate::schema::{TextFieldIndexing, TextOptions};
 
 /// The `JsonObjectOptions` make it possible to
@@ -13,8 +13,10 @@ pub struct JsonObjectOptions {
     // If set to some, int, date, f64 and text will be indexed.
     // Text will use the TextFieldIndexing setting for indexing.
     indexing: Option<TextFieldIndexing>,
-
+    // Store all field as fast fields.
+    fast: bool,
     expand_dots_enabled: bool,
+
 }
 
 impl JsonObjectOptions {
@@ -26,6 +28,12 @@ impl JsonObjectOptions {
     /// Returns `true` iff the json object should be indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexing.is_some()
+    }
+
+    /// Returns true if and only if the json object fields are
+    /// to be treated as fast fields.
+    pub fn is_fast(&self) -> bool {
+        self.fast
     }
 
     /// Returns `true` iff dots in json keys should be expanded.
@@ -67,6 +75,13 @@ impl JsonObjectOptions {
         self
     }
 
+    /// Sets the field as a fast field
+    #[must_use]
+    pub fn set_fast(mut self) -> Self {
+        self.fast = true;
+        self
+    }
+
     /// Sets the field as indexed, with the specific indexing options.
     #[must_use]
     pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> Self {
@@ -80,6 +95,18 @@ impl From<StoredFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: true,
             indexing: None,
+            fast: false,
+            expand_dots_enabled: false,
+        }
+    }
+}
+
+impl From<FastFlag> for JsonObjectOptions {
+    fn from(_fast_flag: FastFlag) -> Self {
+        JsonObjectOptions {
+            stored: false,
+            indexing: None,
+            fast: true,
             expand_dots_enabled: false,
         }
     }
@@ -99,6 +126,7 @@ impl<T: Into<JsonObjectOptions>> BitOr<T> for JsonObjectOptions {
         JsonObjectOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
+            fast: self.fast | other.fast,
             expand_dots_enabled: self.expand_dots_enabled | other.expand_dots_enabled,
         }
     }
@@ -120,6 +148,7 @@ impl From<TextOptions> for JsonObjectOptions {
         JsonObjectOptions {
             stored: text_options.is_stored(),
             indexing: text_options.get_indexing_options().cloned(),
+            fast: text_options.is_fast(),
             expand_dots_enabled: false,
         }
     }
@@ -128,7 +157,7 @@ impl From<TextOptions> for JsonObjectOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{STORED, TEXT};
+    use crate::schema::{STORED, TEXT, FAST};
 
     #[test]
     fn test_json_options() {
@@ -136,16 +165,31 @@ mod tests {
             let json_options: JsonObjectOptions = (STORED | TEXT).into();
             assert!(json_options.is_stored());
             assert!(json_options.is_indexed());
+            assert!(!json_options.is_fast());
         }
         {
             let json_options: JsonObjectOptions = TEXT.into();
             assert!(!json_options.is_stored());
             assert!(json_options.is_indexed());
+            assert!(!json_options.is_fast());
         }
         {
             let json_options: JsonObjectOptions = STORED.into();
             assert!(json_options.is_stored());
             assert!(!json_options.is_indexed());
+            assert!(!json_options.is_fast());
+        }
+        {
+            let json_options: JsonObjectOptions = FAST.into();
+            assert!(!json_options.is_stored());
+            assert!(!json_options.is_indexed());
+            assert!(json_options.is_fast());
+        }
+        {
+            let json_options: JsonObjectOptions = (FAST | STORED).into();
+            assert!(json_options.is_stored());
+            assert!(!json_options.is_indexed());
+            assert!(json_options.is_fast());
         }
     }
 }
