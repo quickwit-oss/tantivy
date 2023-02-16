@@ -151,7 +151,7 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let aggs_with_accessor =
             get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
-        let result = build_segment_agg_collector(&aggs_with_accessor)?;
+        let result = build_segment_agg_collector(&aggs_with_accessor, true)?;
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,
@@ -177,8 +177,7 @@ impl SegmentCollector for AggregationSegmentCollector {
         if let Some(err) = self.error {
             return Err(err);
         }
-        self.result
-            .flush_staged_docs(&self.aggs_with_accessor, true)?;
+        self.result.flush(&self.aggs_with_accessor)?;
         self.result
             .into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }

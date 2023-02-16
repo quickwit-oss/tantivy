@@ -244,7 +244,7 @@ impl TermBuckets {
     fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         for entry in &mut self.entries.values_mut() {
             if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                sub_aggregations.flush_staged_docs(agg_with_accessor, false)?;
+                sub_aggregations.flush(agg_with_accessor)?;
             }
         }
         Ok(())
@@ -289,7 +289,7 @@ impl SegmentTermCollector {
 
         let has_sub_aggregations = !sub_aggregations.is_empty();
         let blueprint = if has_sub_aggregations {
-            let sub_aggregation = build_segment_agg_collector(sub_aggregations)?;
+            let sub_aggregation = build_segment_agg_collector(sub_aggregations, false)?;
             Some(sub_aggregation)
         } else {
             None
@@ -393,7 +393,6 @@ impl SegmentTermCollector {
         &mut self,
         docs: &[DocId],
         bucket_with_accessor: &BucketAggregationWithAccessor,
-        force_flush: bool,
     ) -> crate::Result<()> {
         let accessor = &bucket_with_accessor.accessor;
 
@@ -411,10 +410,15 @@ impl SegmentTermCollector {
             }
         }
 
-        if force_flush {
-            self.term_buckets
-                .force_flush(&bucket_with_accessor.sub_aggregation)?;
-        }
+        Ok(())
+    }
+
+    pub(crate) fn flush(
+        &mut self,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
+    ) -> crate::Result<()> {
+        self.term_buckets
+            .force_flush(&bucket_with_accessor.sub_aggregation)?;
         Ok(())
     }
 }

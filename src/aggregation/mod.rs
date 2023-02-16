@@ -160,6 +160,7 @@ pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
+mod buf_collector;
 mod collector;
 mod date;
 pub mod intermediate_agg_result;
@@ -332,8 +333,8 @@ mod tests {
     };
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::bucket::TermsAggregation;
+    use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-    use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
     use crate::aggregation::DistributedAggregationCollector;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
@@ -1590,7 +1591,7 @@ mod tests {
         }
 
         #[bench]
-        fn bench_aggregation_sub_tree(b: &mut Bencher) {
+        fn bench_aggregation_avg_and_range_with_avg(b: &mut Bencher) {
             let index = get_test_index_bench(false).unwrap();
             let reader = index.reader().unwrap();
             let text_field = reader.searcher().schema().get_field("text").unwrap();
