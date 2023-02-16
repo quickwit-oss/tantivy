@@ -172,6 +172,7 @@ impl SegmentStatsCollector {
             accessor_idx,
         }
     }
+    #[inline]
     pub(crate) fn collect_block_with_field(&mut self, docs: &[DocId], field: &Column<u64>) {
         if field.get_cardinality() == Cardinality::Full {
             for doc in docs {
@@ -195,7 +196,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateAggregationResults> {
-        let name = agg_with_accessor.metrics.keys[0].to_string();
+        let name = agg_with_accessor.metrics.keys[self.accessor_idx].to_string();
 
         let intermediate_metric_result = match self.collecting_for {
             SegmentStatsType::Average => {
@@ -234,20 +235,15 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     ) -> crate::Result<()> {
         let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
 
-        if field.get_cardinality() == Cardinality::Full {
-            let val = field.values.get_val(doc);
+        for val in field.values(doc) {
             let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val1);
-        } else {
-            for val in field.values(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.stats.collect(val1);
-            }
         }
 
         Ok(())
     }
 
+    #[inline]
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],

@@ -38,6 +38,7 @@ impl<T: MonotonicallyMappableToU64> Column<T> {
 }
 
 impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
+    #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         self.idx.get_cardinality()
     }
