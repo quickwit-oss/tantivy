@@ -2,6 +2,7 @@ use std::fmt;
 
 use downcast_rs::impl_downcast;
 
+use super::bm25::Bm25StatisticsProvider;
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
@@ -12,7 +13,16 @@ use crate::{DocAddress, Term};
 #[derive(Copy, Clone)]
 pub enum EnableScoring<'a> {
     /// Pass this to enable scoring.
-    Enabled(&'a Searcher),
+    Enabled {
+        /// The searcher to use during scoring.
+        searcher: &'a Searcher,
+
+        /// A [Bm25StatisticsProvider] used to compute BM25 scores.
+        ///
+        /// Normally this should be the [Searcher], but you can specify a custom
+        /// one to adjust the statistics.
+        statistics_provider: &'a dyn Bm25StatisticsProvider,
+    },
     /// Pass this to disable scoring.
     /// This can improve performance.
     Disabled {
@@ -26,7 +36,21 @@ pub enum EnableScoring<'a> {
 impl<'a> EnableScoring<'a> {
     /// Create using [Searcher] with scoring enabled.
     pub fn enabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
-        EnableScoring::Enabled(searcher)
+        EnableScoring::Enabled {
+            searcher,
+            statistics_provider: searcher,
+        }
+    }
+
+    /// Create using a custom [Bm25StatisticsProvider] with scoring enabled.
+    pub fn enabled_from_statistics_provider(
+        statistics_provider: &'a dyn Bm25StatisticsProvider,
+        searcher: &'a Searcher,
+    ) -> EnableScoring<'a> {
+        EnableScoring::Enabled {
+            statistics_provider,
+            searcher,
+        }
     }
 
     /// Create using [Searcher] with scoring disabled.
@@ -48,7 +72,7 @@ impl<'a> EnableScoring<'a> {
     /// Returns the searcher if available.
     pub fn searcher(&self) -> Option<&Searcher> {
         match self {
-            EnableScoring::Enabled(searcher) => Some(searcher),
+            EnableScoring::Enabled { searcher, .. } => Some(*searcher),
             EnableScoring::Disabled { searcher_opt, .. } => searcher_opt.to_owned(),
         }
     }
@@ -56,14 +80,14 @@ impl<'a> EnableScoring<'a> {
     /// Returns the schema.
     pub fn schema(&self) -> &Schema {
         match self {
-            EnableScoring::Enabled(searcher) => searcher.schema(),
+            EnableScoring::Enabled { searcher, .. } => searcher.schema(),
             EnableScoring::Disabled { schema, .. } => schema,
         }
     }
 
     /// Returns true if the scoring is enabled.
     pub fn is_scoring_enabled(&self) -> bool {
-        matches!(self, EnableScoring::Enabled(..))
+        matches!(self, EnableScoring::Enabled { .. })
     }
 }
 
