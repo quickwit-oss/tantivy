@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use common::OwnedBytes;
 
-use crate::column_values::u64_based::CodecType;
-use crate::column_values::ColumnValues;
+use crate::column_values::{
+    load_u64_based_column_values, serialize_u64_based_column_values, CodecType, ColumnValues,
+};
 use crate::iterable::Iterable;
 use crate::{DocId, RowId};
 
@@ -14,7 +15,7 @@ pub fn serialize_multivalued_index(
     multivalued_index: &dyn Iterable<RowId>,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    crate::column_values::u64_based::serialize_u64_based_column_values(
+    serialize_u64_based_column_values(
         multivalued_index,
         &[CodecType::Bitpacked, CodecType::Linear],
         output,
@@ -23,8 +24,7 @@ pub fn serialize_multivalued_index(
 }
 
 pub fn open_multivalued_index(bytes: OwnedBytes) -> io::Result<MultiValueIndex> {
-    let start_index_column: Arc<dyn ColumnValues<RowId>> =
-        crate::column_values::u64_based::load_u64_based_column_values(bytes)?;
+    let start_index_column: Arc<dyn ColumnValues<RowId>> = load_u64_based_column_values(bytes)?;
     Ok(MultiValueIndex { start_index_column })
 }
 
