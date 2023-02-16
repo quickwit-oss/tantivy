@@ -154,6 +154,8 @@ impl FastFieldsWriter {
                     }
                     Value::JsonObject(json_obj) => {
                         let expand_dots = self.expand_dots[field_value.field().field_id() as usize];
+                        self.json_path_buffer.clear();
+                        self.json_path_buffer.push_str(field_name);
                         record_json_obj_to_columnar_writer(
                             doc_id,
                             json_obj,
@@ -209,7 +211,7 @@ fn record_json_obj_to_columnar_writer(
     doc: DocId,
     json_obj: &serde_json::Map<String, serde_json::Value>,
     expand_dots: bool,
-    depth_limit: usize,
+    remaining_depth_limit: usize,
     json_path_buffer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
 ) {
@@ -233,7 +235,7 @@ fn record_json_obj_to_columnar_writer(
             doc,
             child,
             expand_dots,
-            depth_limit,
+            remaining_depth_limit,
             json_path_buffer,
             columnar_writer,
         );
@@ -246,14 +248,14 @@ fn record_json_value_to_columnar_writer(
     doc: DocId,
     json_val: &serde_json::Value,
     expand_dots: bool,
-    mut depth_limit: usize,
+    mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
 ) {
-    if depth_limit == 0 {
+    if remaining_depth_limit == 0 {
         return;
     }
-    depth_limit -= 1;
+    remaining_depth_limit -= 1;
     match json_val {
         serde_json::Value::Null => {
             // TODO handle null
@@ -275,7 +277,7 @@ fn record_json_value_to_columnar_writer(
                     doc,
                     el,
                     expand_dots,
-                    depth_limit,
+                    remaining_depth_limit,
                     json_path_writer,
                     columnar_writer,
                 );
@@ -286,7 +288,7 @@ fn record_json_value_to_columnar_writer(
                 doc,
                 json_obj,
                 expand_dots,
-                depth_limit,
+                remaining_depth_limit,
                 json_path_writer,
                 columnar_writer,
             );
@@ -382,11 +384,7 @@ mod tests {
         let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
         let columns = columnar_reader.list_columns().unwrap();
         assert_eq!(columns.len(), 1);
-        assert_eq!(
-            columns[0].0,
-            "a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\u{1}a\\
-             u{1}a\u{1}a\u{1}a\u{1}a\u{1}depth_accepted"
-        );
+        assert!(columns[0].0.ends_with("a\u{1}a\u{1}a\u{1}depth_accepted"));
     }
 
     #[test]
