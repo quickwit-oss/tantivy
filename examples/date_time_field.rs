@@ -14,6 +14,7 @@ fn main() -> tantivy::Result<()> {
         .set_stored()
         .set_fast()
         .set_precision(tantivy::DatePrecision::Seconds);
+    // Add `occurred_at` date field type
     let occurred_at = schema_builder.add_date_field("occurred_at", opts);
     let event_type = schema_builder.add_text_field("event", STRING | STORED);
     let schema = schema_builder.build();
@@ -22,6 +23,7 @@ fn main() -> tantivy::Result<()> {
     let index = Index::create_in_ram(schema.clone());
 
     let mut index_writer = index.writer(50_000_000)?;
+    // The dates are passed as string in the RFC3339 format
     let doc = schema.parse_document(
         r#"{
         "occurred_at": "2022-06-22T12:53:50.53Z",
@@ -41,14 +43,16 @@ fn main() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
-    // # Default fields: event_type
+    // # Search
     let query_parser = QueryParser::for_index(&index, vec![event_type]);
     {
-        let query = query_parser.parse_query("event:comment")?;
+        // Simple exact search on the date
+        let query = query_parser.parse_query("occurred_at:\"2022-06-22T12:53:50.53Z\"")?;
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(5))?;
         assert_eq!(count_docs.len(), 1);
     }
     {
+        // Range query on the date field
         let query = query_parser
             .parse_query(r#"occurred_at:[2022-06-22T12:58:00Z TO 2022-06-23T00:00:00Z}"#)?;
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(4))?;

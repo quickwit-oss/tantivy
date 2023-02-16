@@ -17,7 +17,6 @@ use tantivy::{
 
 type ProductId = u64;
 
-/// Price
 type Price = u32;
 
 pub trait PriceFetcher: Send + Sync + 'static {
@@ -90,10 +89,10 @@ impl Warmer for DynamicPriceColumn {
     }
 }
 
-/// For the sake of this example, the table is just an editable HashMap behind a RwLock.
-/// This map represents a map (ProductId -> Price)
-///
-/// In practise, it could be fetching things from an external service, like a SQL table.
+// For the sake of this example, the table is just an editable HashMap behind a RwLock.
+// This map represents a map (ProductId -> Price)
+//
+// In practise, it could be fetching things from an external service, like a SQL table.
 #[derive(Default, Clone)]
 pub struct ExternalPriceTable {
     prices: Arc<RwLock<HashMap<ProductId, Price>>>,
