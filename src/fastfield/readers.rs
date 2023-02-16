@@ -92,7 +92,7 @@ impl FastFieldReaders {
     /// Returns a typed column associated to a given field name.
     ///
     /// Returns an error if no column associated with that field_name exists.
-    pub fn column<T>(&self, field: &str) -> crate::Result<Column<T>>
+    fn column<T>(&self, field: &str) -> crate::Result<Column<T>>
     where
         T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + 'static,
         DynamicColumn: Into<Option<Column<T>>>,

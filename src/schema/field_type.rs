@@ -237,7 +237,7 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.is_fast(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
-            FieldType::JsonObject(_) => false,
+            FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
         }
     }
 

@@ -2,7 +2,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::schema::flags::{SchemaFlagList, StoredFlag, FastFlag};
+use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
 use crate::schema::{TextFieldIndexing, TextOptions};
 
 /// The `JsonObjectOptions` make it possible to
@@ -16,7 +16,6 @@ pub struct JsonObjectOptions {
     // Store all field as fast fields.
     fast: bool,
     expand_dots_enabled: bool,
-
 }
 
 impl JsonObjectOptions {
@@ -157,7 +156,7 @@ impl From<TextOptions> for JsonObjectOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{STORED, TEXT, FAST};
+    use crate::schema::{FAST, STORED, TEXT};
 
     #[test]
     fn test_json_options() {
