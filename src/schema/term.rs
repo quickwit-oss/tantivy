@@ -10,8 +10,7 @@ use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
 use crate::{DatePrecision, DateTime};
 
-/// Separates the different segments of
-/// the json path.
+/// Separates the different segments of a json path.
 pub const JSON_PATH_SEGMENT_SEP: u8 = 1u8;
 pub const JSON_PATH_SEGMENT_SEP_STR: &str =
     unsafe { std::str::from_utf8_unchecked(&[JSON_PATH_SEGMENT_SEP]) };

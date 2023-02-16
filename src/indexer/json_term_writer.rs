@@ -1,4 +1,5 @@
 use columnar::MonotonicallyMappableToU64;
+use common::replace_in_place;
 use murmurhash32::murmurhash2;
 use rustc_hash::FxHashMap;
 
@@ -343,18 +344,10 @@ impl<'a> JsonTermWriter<'a> {
         if self.path_stack.len() > 1 {
             buffer[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
         }
-        if self.expand_dots_enabled && segment.as_bytes().contains(&b'.') {
+        let appended_segment = self.term_buffer.append_bytes(segment.as_bytes());
+        if self.expand_dots_enabled {
             // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
-            self.term_buffer
-                .append_bytes(segment.as_bytes())
-                .iter_mut()
-                .for_each(|byte| {
-                    if *byte == b'.' {
-                        *byte = JSON_PATH_SEGMENT_SEP;
-                    }
-                });
-        } else {
-            self.term_buffer.append_bytes(segment.as_bytes());
+            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, appended_segment);
         }
         self.term_buffer.push_byte(JSON_PATH_SEGMENT_SEP);
         self.path_stack.push(self.term_buffer.len_bytes());

@@ -1,34 +1,44 @@
 use std::io;
 
 use columnar::{ColumnType, ColumnarWriter, NumericalValue};
+use common::replace_in_place;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{Document, FieldType, Schema, Type, Value};
 use crate::{DatePrecision, DocId};
+
+/// Only index JSON down to a depth of 20.
+/// This is mostly to guard us from a stack overflow triggered by malicious input.
+const JSON_DEPTH_LIMIT: usize = 20;
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
     fast_field_names: Vec<Option<String>>, //< TODO see if we can cash the field name hash too.
     date_precisions: Vec<DatePrecision>,
+    expand_dots: Vec<bool>,
     num_docs: DocId,
+    // Buffer that we recycle to avoid allocation.
+    json_path_buffer: String,
 }
 
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let mut columnar_writer = ColumnarWriter::default();
-        let mut fast_fields: Vec<Option<String>> = vec![None; schema.num_fields()];
+        let mut fast_field_names: Vec<Option<String>> = vec![None; schema.num_fields()];
         let mut date_precisions: Vec<DatePrecision> =
             std::iter::repeat_with(DatePrecision::default)
                 .take(schema.num_fields())
                 .collect();
+        let mut expand_dots = vec![false; schema.num_fields()];
         // TODO see other types
         for (field_id, field_entry) in schema.fields() {
             if !field_entry.field_type().is_fast() {
                 continue;
             }
-            fast_fields[field_id.field_id() as usize] = Some(field_entry.name().to_string());
+            fast_field_names[field_id.field_id() as usize] = Some(field_entry.name().to_string());
             let value_type = field_entry.field_type().value_type();
             let column_type = match value_type {
                 Type::Str => ColumnType::Str,
@@ -47,6 +57,10 @@ impl FastFieldsWriter {
             if let FieldType::Date(date_options) = field_entry.field_type() {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
+            if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
+                expand_dots[field_id.field_id() as usize] =
+                    json_object_options.is_expand_dots_enabled();
+            }
             let sort_values_within_row = value_type == Type::Facet;
             columnar_writer.record_column_type(
                 field_entry.name(),
@@ -56,9 +70,11 @@ impl FastFieldsWriter {
         }
         FastFieldsWriter {
             columnar_writer,
-            fast_field_names: fast_fields,
+            fast_field_names,
             num_docs: 0u32,
             date_precisions,
+            expand_dots,
+            json_path_buffer: String::new(),
         }
     }
 
@@ -82,7 +98,7 @@ impl FastFieldsWriter {
         let doc_id = self.num_docs;
         for field_value in doc.field_values() {
             if let Some(field_name) =
-                self.fast_field_names[field_value.field().field_id() as usize].as_ref()
+                &self.fast_field_names[field_value.field().field_id() as usize]
             {
                 match &field_value.value {
                     Value::U64(u64_val) => {
@@ -136,7 +152,19 @@ impl FastFieldsWriter {
                             facet.encoded_str(),
                         );
                     }
-                    Value::JsonObject(_) => todo!(),
+                    Value::JsonObject(json_obj) => {
+                        let expand_dots = self.expand_dots[field_value.field().field_id() as usize];
+                        self.json_path_buffer.clear();
+                        self.json_path_buffer.push_str(field_name);
+                        record_json_obj_to_columnar_writer(
+                            doc_id,
+                            json_obj,
+                            expand_dots,
+                            JSON_DEPTH_LIMIT,
+                            &mut self.json_path_buffer,
+                            &mut self.columnar_writer,
+                        );
+                    }
                     Value::IpAddr(ip_addr) => {
                         self.columnar_writer
                             .record_ip_addr(doc_id, field_name.as_str(), *ip_addr);
@@ -161,5 +189,241 @@ impl FastFieldsWriter {
         self.columnar_writer
             .serialize(num_docs, old_to_new_row_ids, wrt)?;
         Ok(())
+    }
+}
+
+#[inline]
+fn columnar_numerical_value(json_number: &serde_json::Number) -> Option<NumericalValue> {
+    if let Some(num_i64) = json_number.as_i64() {
+        return Some(num_i64.into());
+    }
+    if let Some(num_u64) = json_number.as_u64() {
+        return Some(num_u64.into());
+    }
+    if let Some(num_f64) = json_number.as_f64() {
+        return Some(num_f64.into());
+    }
+    // This can happen with arbitrary precision.... but we do not handle it.
+    None
+}
+
+fn record_json_obj_to_columnar_writer(
+    doc: DocId,
+    json_obj: &serde_json::Map<String, serde_json::Value>,
+    expand_dots: bool,
+    remaining_depth_limit: usize,
+    json_path_buffer: &mut String,
+    columnar_writer: &mut columnar::ColumnarWriter,
+) {
+    for (key, child) in json_obj {
+        let len_path = json_path_buffer.len();
+        if !json_path_buffer.is_empty() {
+            json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
+        }
+        json_path_buffer.push_str(key);
+        if expand_dots {
+            // This might include the separation byte, which is ok because it is not a dot.
+            let appended_segment = &mut json_path_buffer[len_path..];
+            // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
+            // valid single byte ut8 strings.
+            // By utf-8 design, they cannot be part of another codepoint.
+            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, unsafe {
+                appended_segment.as_bytes_mut()
+            });
+        }
+        record_json_value_to_columnar_writer(
+            doc,
+            child,
+            expand_dots,
+            remaining_depth_limit,
+            json_path_buffer,
+            columnar_writer,
+        );
+        // popping our sub path.
+        json_path_buffer.truncate(len_path);
+    }
+}
+
+fn record_json_value_to_columnar_writer(
+    doc: DocId,
+    json_val: &serde_json::Value,
+    expand_dots: bool,
+    mut remaining_depth_limit: usize,
+    json_path_writer: &mut String,
+    columnar_writer: &mut columnar::ColumnarWriter,
+) {
+    if remaining_depth_limit == 0 {
+        return;
+    }
+    remaining_depth_limit -= 1;
+    match json_val {
+        serde_json::Value::Null => {
+            // TODO handle null
+        }
+        serde_json::Value::Bool(bool_val) => {
+            columnar_writer.record_bool(doc, &json_path_writer, *bool_val);
+        }
+        serde_json::Value::Number(json_number) => {
+            if let Some(numerical_value) = columnar_numerical_value(&json_number) {
+                columnar_writer.record_numerical(doc, json_path_writer.as_str(), numerical_value);
+            }
+        }
+        serde_json::Value::String(text) => {
+            columnar_writer.record_str(doc, json_path_writer.as_str(), text);
+        }
+        serde_json::Value::Array(arr) => {
+            for el in arr {
+                record_json_value_to_columnar_writer(
+                    doc,
+                    el,
+                    expand_dots,
+                    remaining_depth_limit,
+                    json_path_writer,
+                    columnar_writer,
+                );
+            }
+        }
+        serde_json::Value::Object(json_obj) => {
+            record_json_obj_to_columnar_writer(
+                doc,
+                json_obj,
+                expand_dots,
+                remaining_depth_limit,
+                json_path_writer,
+                columnar_writer,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
+
+    use super::record_json_value_to_columnar_writer;
+    use crate::fastfield::writer::JSON_DEPTH_LIMIT;
+    use crate::DocId;
+
+    fn test_columnar_from_jsons_aux(
+        json_docs: &[serde_json::Value],
+        expand_dots: bool,
+    ) -> ColumnarReader {
+        let mut columnar_writer = ColumnarWriter::default();
+        let mut json_path = String::new();
+        for (doc, json_doc) in json_docs.iter().enumerate() {
+            record_json_value_to_columnar_writer(
+                doc as u32,
+                json_doc,
+                expand_dots,
+                JSON_DEPTH_LIMIT,
+                &mut json_path,
+                &mut columnar_writer,
+            );
+        }
+        let mut buffer = Vec::new();
+        columnar_writer
+            .serialize(json_docs.len() as DocId, None, &mut buffer)
+            .unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    #[test]
+    fn test_json_fastfield_record_simple() {
+        let json_doc = serde_json::json!({
+            "float": 1.02,
+            "text": "hello happy tax payer",
+            "nested": {"child": 3, "child2": 5},
+            "arr": ["hello", "happy", "tax", "payer"]
+        });
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        {
+            assert_eq!(columns[0].0, "arr");
+            let column_arr_opt: Option<StrColumn> = columns[0].1.open().unwrap().into();
+            assert!(column_arr_opt
+                .unwrap()
+                .term_ords(0)
+                .eq([1, 0, 3, 2].into_iter()));
+        }
+        {
+            assert_eq!(columns[1].0, "float");
+            let column_float_opt: Option<Column<f64>> = columns[1].1.open().unwrap().into();
+            assert!(column_float_opt
+                .unwrap()
+                .values(0)
+                .eq([1.02f64].into_iter()));
+        }
+        {
+            assert_eq!(columns[2].0, "nested\u{1}child");
+            let column_nest_child_opt: Option<Column<i64>> = columns[2].1.open().unwrap().into();
+            assert!(column_nest_child_opt.unwrap().values(0).eq([3].into_iter()));
+        }
+        {
+            assert_eq!(columns[3].0, "nested\u{1}child2");
+            let column_nest_child2_opt: Option<Column<i64>> = columns[3].1.open().unwrap().into();
+            assert!(column_nest_child2_opt
+                .unwrap()
+                .values(0)
+                .eq([5].into_iter()));
+        }
+        {
+            assert_eq!(columns[4].0, "text");
+            let column_text_opt: Option<StrColumn> = columns[4].1.open().unwrap().into();
+            assert!(column_text_opt.unwrap().term_ords(0).eq([0].into_iter()));
+        }
+    }
+
+    #[test]
+    fn test_json_fastfield_deep_obj() {
+        let json_doc = serde_json::json!(
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"depth_accepted": 19, "a": {  "depth_truncated": 20}
+        }}}}}}}}}}}}}}}}}}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert!(columns[0].0.ends_with("a\u{1}a\u{1}a\u{1}depth_accepted"));
+    }
+
+    #[test]
+    fn test_json_fastfield_deep_arr() {
+        let json_doc = json!(
+        {"obj":
+        [[[[[,
+        [[[[[,
+        [[[[[,
+        [[18, [19, //< within limits
+        [20]]]]]]]]]]]]]]]]]]]});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].0, "obj");
+        let dynamic_column = columns[0].1.open().unwrap();
+        let col: Option<Column<i64>> = dynamic_column.into();
+        let vals: Vec<i64> = col.unwrap().values(0).collect();
+        assert_eq!(&vals, &[18, 19])
+    }
+
+    #[test]
+    fn test_json_fast_field_do_not_expand_dots() {
+        let json_doc = json!({"field.with.dots": {"child.with.dot": "hello"}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].0, "field.with.dots\u{1}child.with.dot");
+    }
+
+    #[test]
+    fn test_json_fast_field_expand_dots() {
+        let json_doc = json!({"field.with.dots": {"child.with.dot": "hello"}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], true);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(
+            columns[0].0,
+            "field\u{1}with\u{1}dots\u{1}child\u{1}with\u{1}dot"
+        );
     }
 }

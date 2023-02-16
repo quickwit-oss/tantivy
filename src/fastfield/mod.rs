@@ -108,7 +108,7 @@ mod tests {
     use std::ops::{Range, RangeInclusive};
     use std::path::Path;
 
-    use columnar::{Column, MonotonicallyMappableToU64};
+    use columnar::{Column, MonotonicallyMappableToU64, StrColumn};
     use common::{HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
@@ -119,7 +119,8 @@ mod tests {
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        Document, Facet, FacetOptions, Field, Schema, SchemaBuilder, FAST, INDEXED, STRING, TEXT,
+        Document, Facet, FacetOptions, Field, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING,
+        TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
@@ -1070,5 +1071,39 @@ mod tests {
         test_range_variant(50, 50);
         test_range_variant(1000, 1000);
         test_range_variant(1000, 1002);
+    }
+
+    #[test]
+    fn test_json_object_fast_field() {
+        let mut schema_builder = Schema::builder();
+        let without_fast_field = schema_builder.add_json_field("without", STORED);
+        let with_fast_field = schema_builder.add_json_field("with", STORED | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(without_fast_field=>json!({"hello": "without"})))
+            .unwrap();
+        writer
+            .add_document(doc!(with_fast_field=>json!({"hello": "with"})))
+            .unwrap();
+        writer
+            .add_document(doc!(with_fast_field=>json!({"hello": "with2"})))
+            .unwrap();
+        writer
+            .add_document(doc!(with_fast_field=>json!({"hello": "with1"})))
+            .unwrap();
+        writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+        let fast_fields = segment_reader.fast_fields();
+        let column_without_opt: Option<StrColumn> = fast_fields.str("without\u{1}hello").unwrap();
+        assert!(column_without_opt.is_none());
+        let column_with_opt: Option<StrColumn> = fast_fields.str("with\u{1}hello").unwrap();
+        let column_with: StrColumn = column_with_opt.unwrap();
+        assert!(column_with.term_ords(0).next().is_none());
+        assert!(column_with.term_ords(1).eq([0]));
+        assert!(column_with.term_ords(2).eq([2]));
+        assert!(column_with.term_ords(3).eq([1]));
     }
 }

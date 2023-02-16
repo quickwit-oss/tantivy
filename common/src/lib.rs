@@ -109,6 +109,22 @@ pub fn u64_to_f64(val: u64) -> f64 {
     })
 }
 
+/// Replaces a given byte in the `bytes` slice of bytes.
+///
+/// This function assumes that the needle is rarely contained in the bytes string
+/// and offers a fast path if the needle is not present.
+#[inline(always)]
+pub fn replace_in_place(needle: u8, replacement: u8, bytes: &mut [u8]) {
+    if !bytes.contains(&needle) {
+        return;
+    }
+    for b in bytes {
+        if *b == needle {
+            *b = replacement;
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod test {
 
@@ -172,5 +188,21 @@ pub mod test {
         assert!(f64_to_u64(-1.5) < f64_to_u64(-1.0));
         assert!(f64_to_u64(-2.0) < f64_to_u64(1.0));
         assert!(f64_to_u64(-2.0) < f64_to_u64(-1.5));
+    }
+
+    #[test]
+    fn test_replace_in_place() {
+        let test_aux = |before_replacement: &[u8], expected: &[u8]| {
+            let mut bytes: Vec<u8> = before_replacement.to_vec();
+            super::replace_in_place(b'b', b'c', &mut bytes);
+            assert_eq!(&bytes[..], expected);
+        };
+        test_aux(b"", b"");
+        test_aux(b"b", b"c");
+        test_aux(b"baaa", b"caaa");
+        test_aux(b"aaab", b"aaac");
+        test_aux(b"aaabaa", b"aaacaa");
+        test_aux(b"aaaaaa", b"aaaaaa");
+        test_aux(b"bbbb", b"cccc");
     }
 }
