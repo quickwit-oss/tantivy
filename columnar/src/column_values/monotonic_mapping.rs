@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use common::DateTime;
-use fastdivide::DividerU64;
 
 use super::MonotonicallyMappableToU128;
 use crate::RowId;
@@ -113,68 +112,6 @@ where T: MonotonicallyMappableToU64
     }
 }
 
-/// Mapping dividing by  gcd and a base value.
-///
-/// The function is assumed to be only called on values divided by passed
-/// gcd value. (It is necessary for the function to be monotonic.)
-pub(crate) struct StrictlyMonotonicMappingToInternalGCDBaseval {
-    gcd_divider: DividerU64,
-    gcd: u64,
-    min_value: u64,
-}
-impl StrictlyMonotonicMappingToInternalGCDBaseval {
-    /// Creates a linear mapping `x -> gcd*x + min_value`.
-    pub(crate) fn new(gcd: u64, min_value: u64) -> Self {
-        let gcd_divider = DividerU64::divide_by(gcd);
-        Self {
-            gcd_divider,
-            gcd,
-            min_value,
-        }
-    }
-}
-impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
-    for StrictlyMonotonicMappingToInternalGCDBaseval
-{
-    #[inline(always)]
-    fn mapping(&self, inp: External) -> u64 {
-        self.gcd_divider
-            .divide(External::to_u64(inp) - self.min_value)
-    }
-
-    #[inline(always)]
-    fn inverse(&self, out: u64) -> External {
-        External::from_u64(self.min_value + out * self.gcd)
-    }
-}
-
-/// Strictly monotonic mapping with a base value.
-pub(crate) struct StrictlyMonotonicMappingToInternalBaseval {
-    min_value: u64,
-}
-
-impl StrictlyMonotonicMappingToInternalBaseval {
-    /// Creates a linear mapping `x -> x + min_value`.
-    #[inline(always)]
-    pub(crate) fn new(min_value: u64) -> Self {
-        Self { min_value }
-    }
-}
-
-impl<External: MonotonicallyMappableToU64> StrictlyMonotonicFn<External, u64>
-    for StrictlyMonotonicMappingToInternalBaseval
-{
-    #[inline(always)]
-    fn mapping(&self, val: External) -> u64 {
-        External::to_u64(val) - self.min_value
-    }
-
-    #[inline(always)]
-    fn inverse(&self, val: u64) -> External {
-        External::from_u64(self.min_value + val)
-    }
-}
-
 impl MonotonicallyMappableToU64 for u64 {
     #[inline(always)]
     fn to_u64(self) -> u64 {
@@ -263,13 +200,6 @@ mod tests {
         // TODO
         // identity mapping
         // test_round_trip(&StrictlyMonotonicMappingToInternal::<u128>::new(), 100u128);
-
-        // base value to i64 round trip
-        let mapping = StrictlyMonotonicMappingToInternalBaseval::new(100);
-        test_round_trip::<_, _, u64>(&mapping, 100i64);
-        // base value and gcd to u64 round trip
-        let mapping = StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100);
-        test_round_trip::<_, _, u64>(&mapping, 100u64);
     }
 
     fn test_round_trip<T: StrictlyMonotonicFn<K, L>, K: std::fmt::Debug + Eq + Copy, L>(

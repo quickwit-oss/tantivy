@@ -305,22 +305,8 @@ where
 mod tests {
     use super::*;
     use crate::column_values::monotonic_mapping::{
-        StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternalBaseval,
-        StrictlyMonotonicMappingToInternalGCDBaseval,
+        StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     };
-
-    #[test]
-    fn test_monotonic_mapping() {
-        let vals = &[3u64, 5u64][..];
-        let col = VecColumn::from(vals);
-        let mapped = monotonic_map_column(col, StrictlyMonotonicMappingToInternalBaseval::new(2));
-        assert_eq!(mapped.min_value(), 1u64);
-        assert_eq!(mapped.max_value(), 3u64);
-        assert_eq!(mapped.num_vals(), 2);
-        assert_eq!(mapped.num_vals(), 2);
-        assert_eq!(mapped.get_val(0), 1);
-        assert_eq!(mapped.get_val(1), 3);
-    }
 
     #[test]
     fn test_range_as_col() {
@@ -331,42 +317,15 @@ mod tests {
 
     #[test]
     fn test_monotonic_mapping_iter() {
-        let vals: Vec<u64> = (10..110u64).map(|el| el * 10).collect();
+        let vals: Vec<u64> = (0..100u64).map(|el| el * 10).collect();
         let col = VecColumn::from(&vals);
         let mapped = monotonic_map_column(
             col,
-            StrictlyMonotonicMappingInverter::from(
-                StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 100),
-            ),
+            StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<i64>::new()),
         );
         let val_i64s: Vec<u64> = mapped.iter().collect();
         for i in 0..100 {
             assert_eq!(val_i64s[i as usize], mapped.get_val(i));
         }
-    }
-
-    #[test]
-    fn test_monotonic_mapping_get_range() {
-        let vals: Vec<u64> = (0..100u64).map(|el| el * 10).collect();
-        let col = VecColumn::from(&vals);
-        let mapped = monotonic_map_column(
-            col,
-            StrictlyMonotonicMappingInverter::from(
-                StrictlyMonotonicMappingToInternalGCDBaseval::new(10, 0),
-            ),
-        );
-
-        assert_eq!(mapped.min_value(), 0u64);
-        assert_eq!(mapped.max_value(), 9900u64);
-        assert_eq!(mapped.num_vals(), 100);
-        let val_u64s: Vec<u64> = mapped.iter().collect();
-        assert_eq!(val_u64s.len(), 100);
-        for i in 0..100 {
-            assert_eq!(val_u64s[i as usize], mapped.get_val(i));
-            assert_eq!(val_u64s[i as usize], vals[i as usize] * 10);
-        }
-        let mut buf = [0u64; 20];
-        mapped.get_range(7, &mut buf[..]);
-        assert_eq!(&val_u64s[7..][..20], &buf);
     }
 }
