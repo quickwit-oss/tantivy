@@ -209,12 +209,9 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T: Clone> VecWithNames<T> {
-    fn from_other<K: Clone + Into<T>>(entries: VecWithNames<K>) -> Self {
-        let values = entries.values.into_iter().map(Into::into).collect();
-        Self {
-            keys: entries.keys,
-            values,
-        }
+    fn extend(&mut self, entries: VecWithNames<T>) {
+        self.keys.extend(entries.keys);
+        self.values.extend(entries.values);
     }
 
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
@@ -1483,6 +1480,49 @@ mod tests {
                             ..Default::default()
                         }),
                         sub_aggregation: Default::default(),
+                    }),
+                )]
+                .into_iter()
+                .collect();
+
+                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+
+                let searcher = reader.searcher();
+                searcher.search(&AllQuery, &collector).unwrap()
+            });
+        }
+
+        #[bench]
+        fn bench_aggregation_range_with_avg(b: &mut Bencher) {
+            let index = get_test_index_bench(false).unwrap();
+            let reader = index.reader().unwrap();
+
+            b.iter(|| {
+                let sub_agg_req: Aggregations = vec![(
+                    "average_f64".to_string(),
+                    Aggregation::Metric(MetricAggregation::Average(
+                        AverageAggregation::from_field_name("score_f64".to_string()),
+                    )),
+                )]
+                .into_iter()
+                .collect();
+
+                let agg_req_1: Aggregations = vec![(
+                    "rangef64".to_string(),
+                    Aggregation::Bucket(BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score_f64".to_string(),
+                            ranges: vec![
+                                (3f64..7000f64).into(),
+                                (7000f64..20000f64).into(),
+                                (20000f64..30000f64).into(),
+                                (30000f64..40000f64).into(),
+                                (40000f64..50000f64).into(),
+                                (50000f64..60000f64).into(),
+                            ],
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
                     }),
                 )]
                 .into_iter()

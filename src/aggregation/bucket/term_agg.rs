@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use columnar::Cardinality;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -8,13 +9,15 @@ use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateBucketResult, IntermediateTermBucketEntry, IntermediateTermBucketResult,
+    IntermediateAggregationResults, IntermediateBucketResult, IntermediateTermBucketEntry,
+    IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
+use crate::aggregation::VecWithNames;
 use crate::error::DataCorruption;
-use crate::{DocId, TantivyError};
+use crate::TantivyError;
 
 /// Creates a bucket for every unique term and counts the number of occurences.
 /// Note that doc_count in the response buckets equals term count here.
@@ -259,6 +262,7 @@ pub struct SegmentTermCollector {
     term_buckets: TermBuckets,
     req: TermsAggregationInternal,
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
+    accessor_idx: usize,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -266,10 +270,85 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
     (agg_name, agg_property)
 }
 
+impl SegmentAggregationCollector for SegmentTermCollector {
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
+
+        let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
+        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+
+        Ok(IntermediateAggregationResults {
+            metrics: None,
+            buckets,
+        })
+    }
+
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        self.collect_block(&[doc], agg_with_accessor)
+    }
+
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let accessor = &agg_with_accessor.buckets.values[self.accessor_idx].accessor;
+        let sub_aggregation_accessor =
+            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        if accessor.get_cardinality() == Cardinality::Full {
+            for doc in docs {
+                let term_id = accessor.values.get_val(*doc);
+                let entry = self
+                    .term_buckets
+                    .entries
+                    .entry(term_id as u32)
+                    .or_insert_with(|| TermBucketEntry::from_blueprint(&self.blueprint));
+                entry.doc_count += 1;
+                if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
+                    sub_aggregations.collect(*doc, sub_aggregation_accessor)?;
+                }
+            }
+        } else {
+            for doc in docs {
+                for term_id in accessor.values(*doc) {
+                    let entry = self
+                        .term_buckets
+                        .entries
+                        .entry(term_id as u32)
+                        .or_insert_with(|| TermBucketEntry::from_blueprint(&self.blueprint));
+                    entry.doc_count += 1;
+                    if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
+                        sub_aggregations.collect(*doc, sub_aggregation_accessor)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+        let sub_aggregation_accessor =
+            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        self.term_buckets.force_flush(sub_aggregation_accessor)?;
+        Ok(())
+    }
+}
+
 impl SegmentTermCollector {
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
         sub_aggregations: &AggregationsWithAccessor,
+        accessor_idx: usize,
     ) -> crate::Result<Self> {
         let term_buckets = TermBuckets::default();
 
@@ -299,6 +378,7 @@ impl SegmentTermCollector {
             req: TermsAggregationInternal::from_req(req),
             term_buckets,
             blueprint,
+            accessor_idx,
         })
     }
 
@@ -386,40 +466,6 @@ impl SegmentTermCollector {
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
             },
         ))
-    }
-
-    #[inline]
-    pub(crate) fn collect_block(
-        &mut self,
-        docs: &[DocId],
-        bucket_with_accessor: &BucketAggregationWithAccessor,
-    ) -> crate::Result<()> {
-        let accessor = &bucket_with_accessor.accessor;
-
-        for doc in docs {
-            for term_id in accessor.values(*doc) {
-                let entry = self
-                    .term_buckets
-                    .entries
-                    .entry(term_id as u32)
-                    .or_insert_with(|| TermBucketEntry::from_blueprint(&self.blueprint));
-                entry.doc_count += 1;
-                if let Some(sub_aggregations) = entry.sub_aggregations.as_mut() {
-                    sub_aggregations.collect(*doc, &bucket_with_accessor.sub_aggregation)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn flush(
-        &mut self,
-        bucket_with_accessor: &BucketAggregationWithAccessor,
-    ) -> crate::Result<()> {
-        self.term_buckets
-            .force_flush(&bucket_with_accessor.sub_aggregation)?;
-        Ok(())
     }
 }
 
@@ -631,12 +677,15 @@ mod tests {
         let res = exec_request(agg_req, &index)?;
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_texts"]["buckets"][0]["avg_score"]["value"], 6.0);
 
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 3);
+        assert_eq!(res["my_texts"]["buckets"][1]["avg_score"]["value"], 1.0);
 
         assert_eq!(res["my_texts"]["buckets"][2]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][2]["avg_score"]["value"], 5.0);
 
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
 

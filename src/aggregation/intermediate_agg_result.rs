@@ -21,7 +21,6 @@ use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
     IntermediateSum,
 };
-use super::segment_agg_result::SegmentMetricResultCollector;
 use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
@@ -218,32 +217,6 @@ pub enum IntermediateMetricResult {
     Stats(IntermediateStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
-}
-
-impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
-    fn from(tree: SegmentMetricResultCollector) -> Self {
-        use super::metric::SegmentStatsType;
-        match tree {
-            SegmentMetricResultCollector::Stats(collector) => match collector.collecting_for {
-                SegmentStatsType::Average => IntermediateMetricResult::Average(
-                    IntermediateAverage::from_collector(collector),
-                ),
-                SegmentStatsType::Count => {
-                    IntermediateMetricResult::Count(IntermediateCount::from_collector(collector))
-                }
-                SegmentStatsType::Max => {
-                    IntermediateMetricResult::Max(IntermediateMax::from_collector(collector))
-                }
-                SegmentStatsType::Min => {
-                    IntermediateMetricResult::Min(IntermediateMin::from_collector(collector))
-                }
-                SegmentStatsType::Stats => IntermediateMetricResult::Stats(collector.stats),
-                SegmentStatsType::Sum => {
-                    IntermediateMetricResult::Sum(IntermediateSum::from_collector(collector))
-                }
-            },
-        }
-    }
 }
 
 impl IntermediateMetricResult {

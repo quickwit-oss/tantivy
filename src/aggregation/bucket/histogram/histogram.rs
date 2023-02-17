@@ -14,9 +14,9 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
-    GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
+    build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date};
+use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
 use crate::schema::{Schema, Type};
 use crate::{DocId, TantivyError};
 
@@ -185,7 +185,7 @@ pub(crate) struct SegmentHistogramBucketEntry {
 impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: GenericSegmentAggregationResultsCollector,
+        sub_aggregation: Box<dyn SegmentAggregationCollector>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         Ok(IntermediateHistogramBucketEntry {
@@ -203,13 +203,86 @@ impl SegmentHistogramBucketEntry {
 pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentHistogramBucketEntry>,
-    sub_aggregations: Option<Vec<GenericSegmentAggregationResultsCollector>>,
+    sub_aggregations: Option<Vec<Box<dyn SegmentAggregationCollector>>>,
     field_type: Type,
     interval: f64,
     offset: f64,
     min_doc_count: u64,
     first_bucket_num: i64,
     bounds: HistogramBounds,
+    accessor_idx: usize,
+}
+
+impl SegmentAggregationCollector for SegmentHistogramCollector {
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
+
+        let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
+        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+
+        Ok(IntermediateAggregationResults {
+            metrics: None,
+            buckets,
+        })
+    }
+
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        self.collect_block(&[doc], agg_with_accessor)
+    }
+
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let accessor = &agg_with_accessor.buckets.values[self.accessor_idx].accessor;
+        let sub_aggregation_accessor =
+            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        let bounds = self.bounds;
+        let interval = self.interval;
+        let offset = self.offset;
+        let first_bucket_num = self.first_bucket_num;
+        let get_bucket_num =
+            |val| (get_bucket_num_f64(val, interval, offset) as i64 - first_bucket_num) as usize;
+
+        for doc in docs {
+            for val in accessor.values(*doc) {
+                let val = self.f64_from_fastfield_u64(val);
+
+                let bucket_pos = get_bucket_num(val);
+                self.increment_bucket_if_in_bounds(
+                    val,
+                    &bounds,
+                    bucket_pos,
+                    *doc,
+                    sub_aggregation_accessor,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+        let sub_aggregation_accessor =
+            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
+            for sub_aggregation in sub_aggregations {
+                sub_aggregation.flush(sub_aggregation_accessor)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl SegmentHistogramCollector {
@@ -285,6 +358,7 @@ impl SegmentHistogramCollector {
         sub_aggregation: &AggregationsWithAccessor,
         field_type: Type,
         accessor: &Column<u64>,
+        accessor_idx: usize,
     ) -> crate::Result<Self> {
         req.validate()?;
         let min = f64_from_fastfield_u64(accessor.min_value(), &field_type);
@@ -300,8 +374,7 @@ impl SegmentHistogramCollector {
         let sub_aggregations = if sub_aggregation.is_empty() {
             None
         } else {
-            let sub_aggregation =
-                GenericSegmentAggregationResultsCollector::from_req_and_validate(sub_aggregation)?;
+            let sub_aggregation = build_segment_agg_collector(sub_aggregation, false)?;
             Some(buckets.iter().map(|_| sub_aggregation.clone()).collect())
         };
 
@@ -330,38 +403,8 @@ impl SegmentHistogramCollector {
             bounds,
             sub_aggregations,
             min_doc_count: req.min_doc_count(),
+            accessor_idx,
         })
-    }
-
-    #[inline]
-    pub(crate) fn collect_block(
-        &mut self,
-        docs: &[DocId],
-        bucket_with_accessor: &BucketAggregationWithAccessor,
-    ) -> crate::Result<()> {
-        let bounds = self.bounds;
-        let interval = self.interval;
-        let offset = self.offset;
-        let first_bucket_num = self.first_bucket_num;
-        let get_bucket_num =
-            |val| (get_bucket_num_f64(val, interval, offset) as i64 - first_bucket_num) as usize;
-
-        let accessor = &bucket_with_accessor.accessor;
-        for doc in docs {
-            for val in accessor.values(*doc) {
-                let val = self.f64_from_fastfield_u64(val);
-
-                let bucket_pos = get_bucket_num(val);
-                self.increment_bucket_if_in_bounds(
-                    val,
-                    &bounds,
-                    bucket_pos,
-                    *doc,
-                    &bucket_with_accessor.sub_aggregation,
-                )?;
-            }
-        }
-        Ok(())
     }
 
     #[inline]
@@ -395,18 +438,6 @@ impl SegmentHistogramCollector {
         bucket.doc_count += 1;
         if let Some(sub_aggregation) = self.sub_aggregations.as_mut() {
             sub_aggregation[bucket_pos].collect(doc, bucket_with_accessor)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn flush(
-        &mut self,
-        bucket_with_accessor: &BucketAggregationWithAccessor,
-    ) -> crate::Result<()> {
-        if let Some(sub_aggregations) = self.sub_aggregations.as_mut() {
-            for sub_aggregation in sub_aggregations {
-                sub_aggregation.flush(&bucket_with_accessor.sub_aggregation)?;
-            }
         }
         Ok(())
     }

@@ -34,6 +34,7 @@ impl From<MultiValueIndex> for ColumnIndex {
 }
 
 impl ColumnIndex {
+    #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
             ColumnIndex::Full => Cardinality::Full,
