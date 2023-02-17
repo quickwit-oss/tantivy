@@ -7,9 +7,10 @@ use sstable::Dictionary;
 
 use crate::column::{BytesColumn, Column};
 use crate::column_index::{serialize_column_index, SerializableColumnIndex};
-use crate::column_values::serialize::serialize_column_values_u128;
-use crate::column_values::u64_based::{serialize_u64_based_column_values, CodecType};
-use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use crate::column_values::{
+    load_u64_based_column_values, serialize_column_values_u128, serialize_u64_based_column_values,
+    CodecType, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+};
 use crate::iterable::Iterable;
 use crate::StrColumn;
 
@@ -49,8 +50,7 @@ pub fn open_column_u64<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::
     );
     let (column_index_data, column_values_data) = body.split(column_index_num_bytes as usize);
     let column_index = crate::column_index::open_column_index(column_index_data)?;
-    let column_values =
-        crate::column_values::u64_based::load_u64_based_column_values(column_values_data)?;
+    let column_values = load_u64_based_column_values(column_values_data)?;
     Ok(Column {
         idx: column_index,
         values: column_values,

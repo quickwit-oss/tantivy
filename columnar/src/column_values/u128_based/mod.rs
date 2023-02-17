@@ -1,12 +1,19 @@
 use std::fmt::Debug;
 use std::io;
+use std::io::Write;
+use std::sync::Arc;
 
-use common::{BinarySerializable, VInt};
+mod compact_space;
 
-use crate::column_values::compact_space::CompactSpaceCompressor;
-use crate::column_values::U128FastFieldCodecType;
+use common::{BinarySerializable, OwnedBytes, VInt};
+use compact_space::{CompactSpaceCompressor, CompactSpaceDecompressor};
+
+use crate::column_values::monotonic_map_column;
+use crate::column_values::monotonic_mapping::{
+    StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
+};
 use crate::iterable::Iterable;
-use crate::MonotonicallyMappableToU128;
+use crate::{ColumnValues, MonotonicallyMappableToU128};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) struct U128Header {
@@ -55,6 +62,52 @@ pub fn serialize_column_values_u128<T: MonotonicallyMappableToU128>(
     Ok(())
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[repr(u8)]
+/// Available codecs to use to encode the u128 (via [`MonotonicallyMappableToU128`]) converted data.
+pub(crate) enum U128FastFieldCodecType {
+    /// This codec takes a large number space (u128) and reduces it to a compact number space, by
+    /// removing the holes.
+    CompactSpace = 1,
+}
+
+impl BinarySerializable for U128FastFieldCodecType {
+    fn serialize<W: Write + ?Sized>(&self, wrt: &mut W) -> io::Result<()> {
+        self.to_code().serialize(wrt)
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let code = u8::deserialize(reader)?;
+        let codec_type: Self = Self::from_code(code)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Unknown code `{code}.`"))?;
+        Ok(codec_type)
+    }
+}
+
+impl U128FastFieldCodecType {
+    pub(crate) fn to_code(self) -> u8 {
+        self as u8
+    }
+
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
+        match code {
+            1 => Some(Self::CompactSpace),
+            _ => None,
+        }
+    }
+}
+
+/// Returns the correct codec reader wrapped in the `Arc` for the data.
+pub fn open_u128_mapped<T: MonotonicallyMappableToU128 + Debug>(
+    mut bytes: OwnedBytes,
+) -> io::Result<Arc<dyn ColumnValues<T>>> {
+    let header = U128Header::deserialize(&mut bytes)?;
+    assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
+    let reader = CompactSpaceDecompressor::open(bytes)?;
+    let inverted: StrictlyMonotonicMappingInverter<StrictlyMonotonicMappingToInternal<T>> =
+        StrictlyMonotonicMappingToInternal::<T>::new().into();
+    Ok(Arc::new(monotonic_map_column(reader, inverted)))
+}
 #[cfg(test)]
 pub mod tests {
     use super::*;

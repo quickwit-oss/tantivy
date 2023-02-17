@@ -17,15 +17,15 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
+mod blank_range;
+mod build_compact_space;
+
+use build_compact_space::get_compact_space;
 use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt, VIntU128};
 use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
 
-use crate::column_values::compact_space::build_compact_space::get_compact_space;
 use crate::column_values::ColumnValues;
 use crate::RowId;
-
-mod blank_range;
-mod build_compact_space;
 
 /// The cost per blank is quite hard actually, since blanks are delta encoded, the actual cost of
 /// blanks depends on the number of blanks.
@@ -464,7 +464,7 @@ mod tests {
     use itertools::Itertools;
 
     use super::*;
-    use crate::column_values::serialize::U128Header;
+    use crate::column_values::u128_based::U128Header;
     use crate::column_values::{open_u128_mapped, serialize_column_values_u128};
 
     #[test]
