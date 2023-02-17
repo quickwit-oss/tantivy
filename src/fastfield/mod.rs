@@ -267,7 +267,7 @@ mod tests {
                 .unwrap();
             for doc_id in 1u64..10_000u64 {
                 fast_field_writers
-                    .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id as u64))
+                    .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id))
                     .unwrap();
             }
             fast_field_writers.serialize(&mut write, None).unwrap();
@@ -558,7 +558,7 @@ mod tests {
             let fast_fields = segment_reader.fast_fields();
             let text_fast_field = fast_fields.str("text").unwrap().unwrap();
 
-            assert_eq!(&get_vals_for_docs(&text_fast_field.ords(), 0..2), &[0, 1]);
+            assert_eq!(&get_vals_for_docs(text_fast_field.ords(), 0..2), &[0, 1]);
         }
 
         // TODO uncomment once merging is available
@@ -654,7 +654,7 @@ mod tests {
             let fast_fields = segment_reader.fast_fields();
             let text_col = fast_fields.str("text").unwrap().unwrap();
 
-            assert_eq!(get_vals_for_docs(&text_col.ords(), 0..6), vec![1, 0, 0, 2]);
+            assert_eq!(get_vals_for_docs(text_col.ords(), 0..6), vec![1, 0, 0, 2]);
 
             let inverted_index = segment_reader.inverted_index(text_field)?;
             assert_eq!(inverted_index.terms().num_terms(), 3);
@@ -702,7 +702,7 @@ mod tests {
         let text_fast_field = fast_fields.str("text").unwrap().unwrap();
 
         assert_eq!(
-            get_vals_for_docs(&text_fast_field.ords(), 0..9),
+            get_vals_for_docs(text_fast_field.ords(), 0..9),
             vec![1, 0, 0, 3 /* next segment */, 0, 2]
         );
 
@@ -925,7 +925,7 @@ mod tests {
         let col = readers.date("field").unwrap();
 
         for (i, time) in times.iter().enumerate() {
-            let dt: DateTime = col.first(i as u32).unwrap().into();
+            let dt: DateTime = col.first(i as u32).unwrap();
             assert_eq!(dt, time.truncate(precision));
         }
         readers.column_num_bytes("field").unwrap()

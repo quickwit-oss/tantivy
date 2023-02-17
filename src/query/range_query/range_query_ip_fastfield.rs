@@ -227,11 +227,7 @@ pub mod tests {
         };
 
         let gen_query_inclusive = |field: &str, ip_range: &RangeInclusive<Ipv6Addr>| {
-            format!(
-                "{field}:[{} TO {}]",
-                ip_range.start().to_string(),
-                ip_range.end().to_string()
-            )
+            format!("{field}:[{} TO {}]", ip_range.start(), ip_range.end())
         };
 
         let test_sample = |sample_docs: &[Doc]| {

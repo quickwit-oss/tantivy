@@ -310,7 +310,7 @@ mod tests {
         buffer.extend_from_slice(b"234234");
         let mut bytes = &buffer[..];
         let serdeser_symbol = ColumnOperation::deserialize(&mut bytes).unwrap();
-        assert_eq!(bytes.len() + buf.as_ref().len() as usize, buffer.len());
+        assert_eq!(bytes.len() + buf.as_ref().len(), buffer.len());
         assert_eq!(column_op, serdeser_symbol);
     }
 
@@ -341,7 +341,7 @@ mod tests {
     fn test_column_operation_unordered_aux(val: u32, expected_len: usize) {
         let column_op = ColumnOperation::Value(UnorderedId(val));
         let minibuf = column_op.serialize();
-        assert_eq!(minibuf.as_ref().len() as usize, expected_len);
+        assert_eq!({ minibuf.as_ref().len() }, expected_len);
         let mut buf = minibuf.as_ref().to_vec();
         buf.extend_from_slice(&[2, 2, 2, 2, 2, 2]);
         let mut cursor = &buf[..];

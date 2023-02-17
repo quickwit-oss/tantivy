@@ -515,8 +515,7 @@ mod tests {
         expected_compressed_collapsed_mapping: &[usize],
         expected_unique_facet_ords: &[(u64, usize)],
     ) {
-        let (compressed_collapsed_mapping, unique_facet_ords) =
-            compress_mapping(&collapsed_mapping);
+        let (compressed_collapsed_mapping, unique_facet_ords) = compress_mapping(collapsed_mapping);
         assert_eq!(
             compressed_collapsed_mapping,
             expected_compressed_collapsed_mapping

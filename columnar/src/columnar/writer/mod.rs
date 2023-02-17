@@ -761,7 +761,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Full);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&mut arena, None, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 6);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -790,7 +790,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&mut arena, None, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 4);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(1u32)));
@@ -813,7 +813,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(2), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&mut arena, None, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 2);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -832,7 +832,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(1), Cardinality::Multivalued);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&mut arena, None, &mut buffer)
+            .operation_iterator(&arena, None, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 3);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));

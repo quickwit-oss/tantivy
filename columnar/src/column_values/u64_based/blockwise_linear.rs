@@ -201,8 +201,8 @@ pub struct BlockwiseLinearReader {
 impl ColumnValues for BlockwiseLinearReader {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> u64 {
-        let block_id = (idx / BLOCK_SIZE as u32) as usize;
-        let idx_within_block = idx % (BLOCK_SIZE as u32);
+        let block_id = (idx / BLOCK_SIZE) as usize;
+        let idx_within_block = idx % BLOCK_SIZE;
         let block = &self.blocks[block_id];
         let interpoled_val: u64 = block.line.eval(idx_within_block);
         let block_bytes = &self.data[block.data_start_offset..];

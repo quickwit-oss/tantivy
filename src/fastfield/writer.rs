@@ -261,10 +261,10 @@ fn record_json_value_to_columnar_writer(
             // TODO handle null
         }
         serde_json::Value::Bool(bool_val) => {
-            columnar_writer.record_bool(doc, &json_path_writer, *bool_val);
+            columnar_writer.record_bool(doc, json_path_writer, *bool_val);
         }
         serde_json::Value::Number(json_number) => {
-            if let Some(numerical_value) = columnar_numerical_value(&json_number) {
+            if let Some(numerical_value) = columnar_numerical_value(json_number) {
                 columnar_writer.record_numerical(doc, json_path_writer.as_str(), numerical_value);
             }
         }

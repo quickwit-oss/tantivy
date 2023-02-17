@@ -124,18 +124,10 @@ pub(crate) fn build_segment_agg_collector(
 /// The GenericSegmentAggregationResultsCollector is the generic version of the collector, which
 /// can handle arbitrary complexity of  sub-aggregations. Ideally we never have to pick this one
 /// and can provide specialized versions instead, that remove some of its overhead.
+#[derive(Default)]
 pub(crate) struct GenericSegmentAggregationResultsCollector {
     pub(crate) metrics: Option<VecWithNames<SegmentMetricResultCollector>>,
     pub(crate) buckets: Option<VecWithNames<SegmentBucketResultCollector>>,
-}
-
-impl Default for GenericSegmentAggregationResultsCollector {
-    fn default() -> Self {
-        Self {
-            metrics: Default::default(),
-            buckets: Default::default(),
-        }
-    }
 }
 
 impl Debug for GenericSegmentAggregationResultsCollector {
@@ -186,7 +178,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
             for (collector, agg_with_accessor) in
                 metrics.values_mut().zip(agg_with_accessor.metrics.values())
             {
-                collector.collect_block(&docs, agg_with_accessor);
+                collector.collect_block(docs, agg_with_accessor);
             }
         }
 
@@ -194,7 +186,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
             for (collector, agg_with_accessor) in
                 buckets.values_mut().zip(agg_with_accessor.buckets.values())
             {
-                collector.collect_block(&docs, agg_with_accessor)?;
+                collector.collect_block(docs, agg_with_accessor)?;
             }
         }
 
