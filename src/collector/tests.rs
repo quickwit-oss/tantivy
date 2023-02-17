@@ -56,9 +56,8 @@ pub fn test_filter_collector() -> crate::Result<()> {
     assert_eq!(filtered_top_docs.len(), 0);
 
     fn date_filter(value: DateTime) -> bool {
-        (value.into_utc()
-            - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
-        .whole_weeks()
+        (value.into_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
+            .whole_weeks()
             > 0
     }
 

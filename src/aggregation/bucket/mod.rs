@@ -21,8 +21,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use term_agg::*;
 
 /// Order for buckets in a bucket aggregation.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub enum Order {
     /// Asc order
     #[serde(rename = "asc")]
@@ -32,8 +31,6 @@ pub enum Order {
     #[default]
     Desc,
 }
-
-
 
 #[derive(Clone, Debug, PartialEq)]
 /// Order property by which to apply the order
@@ -49,7 +46,6 @@ pub enum OrderTarget {
     /// Only single value metrics are supported currently
     SubAggregation(String),
 }
-
 
 impl From<&str> for OrderTarget {
     fn from(val: &str) -> Self {

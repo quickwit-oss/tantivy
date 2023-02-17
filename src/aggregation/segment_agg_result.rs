@@ -130,8 +130,6 @@ pub(crate) struct GenericSegmentAggregationResultsCollector {
     pub(crate) buckets: Option<VecWithNames<SegmentBucketResultCollector>>,
 }
 
-
-
 impl Debug for GenericSegmentAggregationResultsCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentAggregationResultsCollector")
