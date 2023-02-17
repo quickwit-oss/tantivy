@@ -171,7 +171,7 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![product_name, product_description]);
 
-    // here we want to get a hit on the 'ken' in Frankenstein
+    // here we want to search for `broom` and use `StatsCollector` on the hits.
     let query = query_parser.parse_query("broom")?;
     if let Some(stats) =
         searcher.search(&query, &StatsCollector::with_field("price".to_string()))?
