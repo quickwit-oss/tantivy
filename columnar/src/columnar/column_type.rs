@@ -143,7 +143,7 @@ mod tests {
             }
         }
         for code in COLUMN_TYPES.len() as u8..=u8::MAX {
-            assert!(ColumnType::try_from_code(code as u8).is_err());
+            assert!(ColumnType::try_from_code(code).is_err());
         }
     }
 

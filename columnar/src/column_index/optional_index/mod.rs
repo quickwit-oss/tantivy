@@ -440,7 +440,7 @@ impl SerializedBlockMeta {
 
 #[inline]
 fn is_sparse(num_rows_in_block: u32) -> bool {
-    num_rows_in_block < DENSE_BLOCK_THRESHOLD as u32
+    num_rows_in_block < DENSE_BLOCK_THRESHOLD
 }
 
 fn deserialize_optional_index_block_metadatas(
@@ -448,7 +448,7 @@ fn deserialize_optional_index_block_metadatas(
     num_rows: u32,
 ) -> (Box<[BlockMeta]>, u32) {
     let num_blocks = data.len() / SERIALIZED_BLOCK_META_NUM_BYTES;
-    let mut block_metas = Vec::with_capacity(num_blocks as usize + 1);
+    let mut block_metas = Vec::with_capacity(num_blocks + 1);
     let mut start_byte_offset = 0;
     let mut non_null_rows_before_block = 0;
     for block_meta_bytes in data.chunks_exact(SERIALIZED_BLOCK_META_NUM_BYTES) {
@@ -479,7 +479,7 @@ fn deserialize_optional_index_block_metadatas(
             block_variant,
         });
         start_byte_offset += block_variant.num_bytes_in_block();
-        non_null_rows_before_block += num_non_null_rows as u32;
+        non_null_rows_before_block += num_non_null_rows;
     }
     block_metas.resize(
         ((num_rows + BLOCK_SIZE - 1) / BLOCK_SIZE) as usize,

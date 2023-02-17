@@ -191,7 +191,7 @@ struct TermOrdinalMapping {
 impl TermOrdinalMapping {
     fn add_segment(&mut self, max_term_ord: usize) {
         self.per_segment_new_term_ordinals
-            .push(vec![TermOrdinal::default(); max_term_ord as usize]);
+            .push(vec![TermOrdinal::default(); max_term_ord]);
     }
 
     fn register_from_to(&mut self, segment_ord: usize, from_ord: TermOrdinal, to_ord: TermOrdinal) {

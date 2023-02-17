@@ -44,7 +44,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 
     pub fn num_docs(&self) -> RowId {
         match &self.idx {
-            ColumnIndex::Full => self.values.num_vals() as u32,
+            ColumnIndex::Full => self.values.num_vals(),
             ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
             ColumnIndex::Multivalued(col_index) => {
                 // The multivalued index contains all value start row_id,

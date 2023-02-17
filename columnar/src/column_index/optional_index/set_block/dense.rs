@@ -32,7 +32,7 @@ pub const MINI_BLOCK_NUM_BYTES: usize = MINI_BLOCK_BITVEC_NUM_BYTES + MINI_BLOCK
 
 /// Number of bytes in a dense block.
 pub const DENSE_BLOCK_NUM_BYTES: u32 =
-    (ELEMENTS_PER_BLOCK as u32 / ELEMENTS_PER_MINI_BLOCK as u32) * MINI_BLOCK_NUM_BYTES as u32;
+    (ELEMENTS_PER_BLOCK / ELEMENTS_PER_MINI_BLOCK as u32) * MINI_BLOCK_NUM_BYTES as u32;
 
 pub struct DenseBlockCodec;
 
@@ -229,7 +229,7 @@ pub fn serialize_dense_codec(
         while block_id > current_block_id {
             let dense_mini_block = DenseMiniBlock {
                 bitvec: block,
-                rank: non_null_rows_before as u16,
+                rank: non_null_rows_before,
             };
             output.write_all(&dense_mini_block.to_bytes())?;
             non_null_rows_before += block.count_ones() as u16;

@@ -101,7 +101,7 @@ fn make_byte_columnar_multiple_columns(columns: &[(&str, &[&[&[u8]]])]) -> Colum
     for (column_name, column_values) in columns {
         for (row_id, vals) in column_values.iter().enumerate() {
             for val in vals.iter() {
-                dataframe_writer.record_bytes(row_id as u32, column_name, *val);
+                dataframe_writer.record_bytes(row_id as u32, column_name, val);
             }
         }
     }
@@ -122,7 +122,7 @@ fn make_text_columnar_multiple_columns(columns: &[(&str, &[&[&str]])]) -> Column
     for (column_name, column_values) in columns {
         for (row_id, vals) in column_values.iter().enumerate() {
             for val in vals.iter() {
-                dataframe_writer.record_str(row_id as u32, column_name, *val);
+                dataframe_writer.record_str(row_id as u32, column_name, val);
             }
         }
     }

@@ -431,8 +431,8 @@ mod tests {
         let block = dic.sstable_index.get_block_with_ord(0);
         slice.restrict(block.byte_range);
 
-        assert!(dic.get(&b"$$$").unwrap().is_none());
-        assert!(dic.term_ord(&b"$$$").unwrap().is_none());
+        assert!(dic.get(b"$$$").unwrap().is_none());
+        assert!(dic.term_ord(b"$$$").unwrap().is_none());
 
         // after last block
         // last block must be loaded for ord related operations
@@ -444,8 +444,8 @@ mod tests {
 
         // last block isn't required to be loaded for key related operations
         slice.restrict(0..0);
-        assert!(dic.get(&b"~~~").unwrap().is_none());
-        assert!(dic.term_ord(&b"~~~").unwrap().is_none());
+        assert!(dic.get(b"~~~").unwrap().is_none());
+        assert!(dic.term_ord(b"~~~").unwrap().is_none());
     }
 
     #[test]

@@ -83,13 +83,13 @@ impl MultiValueIndex {
         let mut cur_doc = docid_start;
         let mut last_doc = None;
 
-        assert!(self.start_index_column.get_val(docid_start) as u32 <= ranks[0]);
+        assert!(self.start_index_column.get_val(docid_start) <= ranks[0]);
 
         let mut write_doc_pos = 0;
         for i in 0..ranks.len() {
             let pos = ranks[i];
             loop {
-                let end = self.start_index_column.get_val(cur_doc + 1) as u32;
+                let end = self.start_index_column.get_val(cur_doc + 1);
                 if end > pos {
                     ranks[write_doc_pos] = cur_doc;
                     write_doc_pos += if last_doc == Some(cur_doc) { 0 } else { 1 };

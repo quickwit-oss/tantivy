@@ -22,27 +22,27 @@ pub use term_agg::*;
 
 /// Order for buckets in a bucket aggregation.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Order {
     /// Asc order
     #[serde(rename = "asc")]
     Asc,
     /// Desc order
     #[serde(rename = "desc")]
+    #[default]
     Desc,
 }
 
-impl Default for Order {
-    fn default() -> Self {
-        Order::Desc
-    }
-}
+
 
 #[derive(Clone, Debug, PartialEq)]
 /// Order property by which to apply the order
+#[derive(Default)]
 pub enum OrderTarget {
     /// The key of the bucket
     Key,
     /// The doc count of the bucket
+    #[default]
     Count,
     /// Order by value of the sub aggregation metric with identified by given `String`.
     ///
@@ -50,11 +50,7 @@ pub enum OrderTarget {
     SubAggregation(String),
 }
 
-impl Default for OrderTarget {
-    fn default() -> Self {
-        OrderTarget::Count
-    }
-}
+
 impl From<&str> for OrderTarget {
     fn from(val: &str) -> Self {
         match val {

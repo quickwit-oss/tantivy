@@ -37,7 +37,7 @@ proptest! {
 fn test_with_random_sets_simple() {
     let vals = 10..BLOCK_SIZE * 2;
     let mut out: Vec<u8> = Vec::new();
-    serialize_optional_index(&vals.clone(), 100, &mut out).unwrap();
+    serialize_optional_index(&vals, 100, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let ranks: Vec<u32> = (65_472u32..65_473u32).collect();
     let els: Vec<u32> = ranks.iter().copied().map(|rank| rank + 10).collect();

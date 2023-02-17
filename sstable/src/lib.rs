@@ -344,7 +344,7 @@ mod test {
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
             assert!(sstable_writer.insert(&long_key[..], &()).is_ok());
-            assert!(sstable_writer.insert(&[0, 3, 4], &()).is_ok());
+            assert!(sstable_writer.insert([0, 3, 4], &()).is_ok());
             assert!(sstable_writer.insert(&long_key2[..], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
@@ -363,9 +363,9 @@ mod test {
         let mut buffer = vec![];
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
-            assert!(sstable_writer.insert(&[17u8], &()).is_ok());
-            assert!(sstable_writer.insert(&[17u8, 18u8, 19u8], &()).is_ok());
-            assert!(sstable_writer.insert(&[17u8, 20u8], &()).is_ok());
+            assert!(sstable_writer.insert([17u8], &()).is_ok());
+            assert!(sstable_writer.insert([17u8, 18u8, 19u8], &()).is_ok());
+            assert!(sstable_writer.insert([17u8, 20u8], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
         assert_eq!(
@@ -401,8 +401,8 @@ mod test {
     fn test_simple_sstable_non_increasing_key() {
         let mut buffer = vec![];
         let mut sstable_writer = VoidSSTable::writer(&mut buffer);
-        assert!(sstable_writer.insert(&[17u8], &()).is_ok());
-        assert!(sstable_writer.insert(&[16u8], &()).is_ok());
+        assert!(sstable_writer.insert([17u8], &()).is_ok());
+        assert!(sstable_writer.insert([16u8], &()).is_ok());
     }
 
     #[test]
@@ -472,8 +472,8 @@ mod test {
     fn bound_strategy() -> impl Strategy<Value = Bound<String>> {
         prop_oneof![
             Just(Bound::<String>::Unbounded),
-            "[a-c]{0,5}".prop_map(|key| Bound::Included(key)),
-            "[a-c]{0,5}".prop_map(|key| Bound::Excluded(key)),
+            "[a-c]{0,5}".prop_map(Bound::Included),
+            "[a-c]{0,5}".prop_map(Bound::Excluded),
         ]
     }
 

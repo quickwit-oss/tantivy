@@ -151,10 +151,7 @@ mod tests {
         multivalued_value_index_builder.record_value();
         assert_eq!(
             multivalued_value_index_builder
-                .finish(4u32)
-                .iter()
-                .copied()
-                .collect::<Vec<u32>>(),
+                .finish(4u32).to_vec(),
             vec![0, 0, 2, 3, 3]
         );
         multivalued_value_index_builder.reset();
@@ -163,10 +160,7 @@ mod tests {
         multivalued_value_index_builder.record_value();
         assert_eq!(
             multivalued_value_index_builder
-                .finish(4u32)
-                .iter()
-                .copied()
-                .collect::<Vec<u32>>(),
+                .finish(4u32).to_vec(),
             vec![0, 0, 0, 2, 2]
         );
     }

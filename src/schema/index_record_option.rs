@@ -10,9 +10,11 @@ use serde::{Deserialize, Serialize};
 ///  * request that a given amount of information to be decoded as one goes through a posting list.
 ///    (See [`InvertedIndexReader::read_postings()`](crate::InvertedIndexReader::read_postings))
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum IndexRecordOption {
     /// records only the `DocId`s
     #[serde(rename = "basic")]
+    #[default]
     Basic,
     /// records the document ids as well as the term frequency.
     /// The term frequency can help giving better scoring of the documents.
@@ -25,11 +27,7 @@ pub enum IndexRecordOption {
     WithFreqsAndPositions,
 }
 
-impl Default for IndexRecordOption {
-    fn default() -> Self {
-        IndexRecordOption::Basic
-    }
-}
+
 
 impl IndexRecordOption {
     /// Returns true if this option includes encoding
