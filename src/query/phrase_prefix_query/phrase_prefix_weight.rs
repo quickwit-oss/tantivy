@@ -193,7 +193,7 @@ mod tests {
             Term::from_field_text(text_field, "bb"),
             Term::from_field_text(text_field, "c"),
         ]);
-        let enable_scoring = EnableScoring::Enabled(&searcher);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query
             .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
@@ -220,7 +220,7 @@ mod tests {
             Term::from_field_text(text_field, "aa"),
             Term::from_field_text(text_field, "b"),
         ]);
-        let enable_scoring = EnableScoring::Enabled(&searcher);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query
             .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
@@ -244,7 +244,7 @@ mod tests {
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
         let phrase_query = PhrasePrefixQuery::new(vec![Term::from_field_text(text_field, "c")]);
-        let enable_scoring = EnableScoring::Enabled(&searcher);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         assert!(phrase_query
             .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
