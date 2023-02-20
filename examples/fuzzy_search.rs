@@ -9,15 +9,12 @@
 // - index a few documents into our index
 // - search for the best document matching a basic query
 // - retrieve the best document's original content.
-
-use std::collections::HashSet;
-
 // ---
 // Importing tantivy...
 use tantivy::collector::{Count, TopDocs};
-use tantivy::query::{FuzzyTermQuery, QueryParser};
+use tantivy::query::FuzzyTermQuery;
 use tantivy::schema::*;
-use tantivy::{doc, DocId, Index, ReloadPolicy, Score, SegmentReader};
+use tantivy::{doc, Index, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
