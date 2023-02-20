@@ -100,8 +100,7 @@ where
 mod tests {
     use super::*;
     use crate::column_values::monotonic_mapping::{
-        StrictlyMonotonicMappingInverter,
-        StrictlyMonotonicMappingToInternal,
+        StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     };
     use crate::column_values::VecColumn;
 
@@ -111,9 +110,7 @@ mod tests {
         let col = VecColumn::from(&vals);
         let mapped = monotonic_map_column(
             col,
-            StrictlyMonotonicMappingInverter::from(
-                StrictlyMonotonicMappingToInternal::<i64>::new(),
-            ),
+            StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<i64>::new()),
         );
         let val_i64s: Vec<u64> = mapped.iter().collect();
         for i in 0..100 {
