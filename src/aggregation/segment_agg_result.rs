@@ -150,6 +150,7 @@ pub(crate) fn build_bucket_segment_agg_collector(
             SegmentTermCollector::from_req_and_validate(
                 terms_req,
                 &req.sub_aggregation,
+                req.field_type,
                 accessor_idx,
             )?,
         )),
