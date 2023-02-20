@@ -85,7 +85,11 @@ impl PhrasePrefixWeight {
 
         #[cfg(feature = "quickwit")]
         {
-            // TODO implement this on fst too so we don't need to check for feature flag.
+            // We don't have this on the fst, hence  we end up needing a feature flag.
+            //
+            // This is not a problem however as we enforce the limit below too.
+            // The point of `stream.limit` is to limit the number of term dictionary
+            // blocks being downloaded.
             stream = stream.limit(self.max_expansions as u64);
         }
 
@@ -152,7 +156,6 @@ impl Weight for PhrasePrefixWeight {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::core::Index;
     use crate::docset::TERMINATED;
     use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
@@ -192,7 +195,7 @@ mod tests {
         ]);
         let enable_scoring = EnableScoring::Enabled(&searcher);
         let phrase_weight = phrase_query
-            .phrase_query_weight(enable_scoring)
+            .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
@@ -219,7 +222,7 @@ mod tests {
         ]);
         let enable_scoring = EnableScoring::Enabled(&searcher);
         let phrase_weight = phrase_query
-            .phrase_query_weight(enable_scoring)
+            .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
@@ -243,7 +246,7 @@ mod tests {
         let phrase_query = PhrasePrefixQuery::new(vec![Term::from_field_text(text_field, "c")]);
         let enable_scoring = EnableScoring::Enabled(&searcher);
         assert!(phrase_query
-            .phrase_query_weight(enable_scoring)
+            .phrase_prefix_query_weight(enable_scoring)
             .unwrap()
             .is_none());
         let weight = phrase_query.weight(enable_scoring).unwrap();

@@ -5,6 +5,8 @@ use crate::query::bm25::Bm25Weight;
 use crate::query::{EnableScoring, Query, RangeQuery, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
 
+const DEFAULT_MAX_EXPANSIONS: u32 = 50;
+
 /// `PhrasePrefixQuery` matches a specific sequence of words followed by term of which only a
 /// prefix is known.
 ///
@@ -57,7 +59,7 @@ impl PhrasePrefixQuery {
             field,
             prefix: terms.pop().unwrap(),
             phrase_terms: terms,
-            max_expansions: 50,
+            max_expansions: DEFAULT_MAX_EXPANSIONS,
         }
     }
 
@@ -86,7 +88,10 @@ impl PhrasePrefixQuery {
     /// a specialized type [`PhraseQueryWeight`] instead of a Boxed trait.
     /// If the query was only one term long, this returns `None` wherease [`Query::weight`]
     /// returns a boxed [`RangeWeight`]
-    pub(crate) fn phrase_query_weight(
+    ///    
+    /// Returns `None`, if phrase_terms is empty, which happens if the phrase prefix query was
+    /// built with a single term.
+    pub(crate) fn phrase_prefix_query_weight(
         &self,
         enable_scoring: EnableScoring<'_>,
     ) -> crate::Result<Option<PhrasePrefixWeight>> {
@@ -127,9 +132,10 @@ impl Query for PhrasePrefixQuery {
     ///
     /// See [`Weight`].
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        if let Some(phrase_weight) = self.phrase_query_weight(enable_scoring)? {
+        if let Some(phrase_weight) = self.phrase_prefix_query_weight(enable_scoring)? {
             Ok(Box::new(phrase_weight))
         } else {
+            // There are no prefix. Let's just match the suffix.
             let end_term = if let Some(end_value) = prefix_end(&self.prefix.1.value_bytes()) {
                 let mut end_term = Term::with_capacity(end_value.len());
                 end_term.set_field_and_type(self.field, self.prefix.1.typ());
