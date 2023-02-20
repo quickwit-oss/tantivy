@@ -279,11 +279,7 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                Ok(build_bucket_segment_agg_collector(
-                    req,
-                    accessor_idx,
-                    false,
-                )?)
+                build_bucket_segment_agg_collector(req, accessor_idx, false)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
         let metrics = req
@@ -291,13 +287,10 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                Ok(build_metric_segment_agg_collector(
-                    req,
-                    accessor_idx,
-                    false,
-                )?)
+                build_metric_segment_agg_collector(req, accessor_idx, false)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
+
         let metrics = if metrics.is_empty() {
             None
         } else {
