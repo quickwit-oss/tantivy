@@ -1,7 +1,6 @@
 # zero to one
 
 * revisit line codec
-* removal of all rows of a column in the schema due to deletes
 * add columns from schema on merge
 * Plugging JSON
 * replug examples

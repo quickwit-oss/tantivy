@@ -2,8 +2,6 @@ mod merge_dict_column;
 mod merge_mapping;
 mod term_merger;
 
-// mod sorted_doc_id_column;
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io;
 use std::net::Ipv6Addr;
@@ -54,14 +52,34 @@ impl From<ColumnType> for ColumnTypeCategory {
     }
 }
 
+/// Merge several columnar table together.
+///
+/// If several columns with the same name are conflicting with the numerical types in the
+/// input columnars, the first type compatible out of i64, u64, f64 in that order will be used.
+///
+/// `require_columns` makes it possible to ensure that some columns will be present in the
+/// resulting columnar. When a required column is a numerical column type, one of two things can
+/// happen:
+/// - If the required column type is compatible with all of the input columnar, the resulsting
+///   merged
+/// columnar will simply coerce the input column and use the required column type.
+/// - If the required column type is incompatible with one of the input columnar, the merged
+/// will fail with an InvalidData error.
+///
+/// `merge_row_order` makes it possible to remove or reorder row in the resulting
+/// `Columnar` table.
+///
+/// Reminder: a string and a numerical column may bare the same column name. This is not
+/// considered a conflict.
 pub fn merge_columnar(
     columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType)],
     merge_row_order: MergeRowOrder,
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
 
-    let columns_to_merge = group_columns_for_merge(columnar_readers)?;
+    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for ((column_name, column_type), columns) in columns_to_merge {
         let mut column_serializer =
             serializer.serialize_column(column_name.as_bytes(), column_type);
@@ -174,97 +192,174 @@ fn merge_column(
     Ok(())
 }
 
+struct GroupedColumns {
+    required_column_type: Option<ColumnType>,
+    columns: Vec<Option<DynamicColumn>>,
+    column_category: ColumnTypeCategory,
+}
+
+impl GroupedColumns {
+    fn for_category(column_category: ColumnTypeCategory, num_columnars: usize) -> Self {
+        GroupedColumns {
+            required_column_type: None,
+            columns: vec![None; num_columnars],
+            column_category,
+        }
+    }
+
+    /// Set the dynamic column for a given columnar.
+    fn set_column(&mut self, columnar_id: usize, column: DynamicColumn) {
+        self.columns[columnar_id] = Some(column);
+    }
+
+    /// Force the existence of a column, as well as its type.
+    fn require_type(&mut self, required_type: ColumnType) -> io::Result<()> {
+        if let Some(existing_required_type) = self.required_column_type {
+            if existing_required_type == required_type {
+                // This was just a duplicate in the `required_columns`.
+                // Nothing to do.
+                return Ok(());
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Required column conflicts with another required column of the same type \
+                     category.",
+                ));
+            }
+        }
+        self.required_column_type = Some(required_type);
+        Ok(())
+    }
+
+    /// Returns the column type after merge.
+    ///
+    /// This method does not check if the column types can actually be coerced to
+    /// this type.
+    fn column_type_after_merge(&self) -> ColumnType {
+        if let Some(required_type) = self.required_column_type {
+            return required_type;
+        }
+        let column_type: HashSet<ColumnType> = self
+            .columns
+            .iter()
+            .flatten()
+            .map(|column| column.column_type())
+            .collect();
+        if column_type.len() == 1 {
+            return column_type.into_iter().next().unwrap();
+        }
+        // At the moment, only the numerical categorical column type has more than one possible
+        // column type.
+        assert_eq!(self.column_category, ColumnTypeCategory::Numerical);
+        merged_numerical_columns_type(self.columns.iter().flatten()).into()
+    }
+}
+
+/// Returns the type of the merged numerical column.
+///
+/// Otherwise, this function picks the first numerical type out of i64, u64, f64 (order matters
+/// here), that is compatible with all the `columns`.
+///
+/// # Panics
+/// Panics if one of the column is not numerical.
+fn merged_numerical_columns_type<'a>(
+    columns: impl Iterator<Item = &'a DynamicColumn>,
+) -> NumericalType {
+    let mut compatible_numerical_types = CompatibleNumericalTypes::default();
+    for column in columns {
+        let (min_value, max_value) =
+            min_max_if_numerical(column).expect("All columns re required to be numerical");
+        compatible_numerical_types.accept_value(min_value);
+        compatible_numerical_types.accept_value(max_value);
+    }
+    compatible_numerical_types.to_numerical_type()
+}
+
 #[allow(clippy::type_complexity)]
 fn group_columns_for_merge(
     columnar_readers: &[&ColumnarReader],
+    required_columns: &[(String, ColumnType)],
 ) -> io::Result<BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
     // For merging we are interested in the same column type category since they can be merged.
-    let mut columns_grouped: HashMap<(String, ColumnTypeCategory), Vec<Option<DynamicColumn>>> =
-        HashMap::new();
+    let mut columns_grouped: HashMap<(String, ColumnTypeCategory), GroupedColumns> = HashMap::new();
 
-    let num_columnars = columnar_readers.len();
+    for &(ref column_name, column_type) in required_columns {
+        columns_grouped
+            .entry((column_name.clone(), column_type.into()))
+            .or_insert_with(|| {
+                GroupedColumns::for_category(column_type.into(), columnar_readers.len())
+            })
+            .require_type(column_type)?;
+    }
 
     for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {
         let column_name_and_handle = columnar_reader.list_columns()?;
         for (column_name, handle) in column_name_and_handle {
-            let column_type_category: ColumnTypeCategory = handle.column_type().into();
-            let columns = columns_grouped
-                .entry((column_name, column_type_category))
-                .or_insert_with(|| vec![None; num_columnars]);
+            let column_category: ColumnTypeCategory = handle.column_type().into();
             let column = handle.open()?;
-            columns[columnar_id] = Some(column);
+            columns_grouped
+                .entry((column_name, column_category))
+                .or_insert_with(|| {
+                    GroupedColumns::for_category(column_category, columnar_readers.len())
+                })
+                .set_column(columnar_id, column);
         }
     }
 
     let mut merge_columns: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        BTreeMap::default();
+        Default::default();
 
-    for ((column_name, col_category), mut columns) in columns_grouped {
-        if col_category == ColumnTypeCategory::Numerical {
-            coerce_numerical_columns_to_same_type(&mut columns);
-        }
-        let column_type = columns
-            .iter()
-            .flatten()
-            .map(|col| col.column_type())
-            .next()
-            .unwrap();
-        merge_columns.insert((column_name, column_type), columns);
+    for ((column_name, _), mut grouped_columns) in columns_grouped {
+        let column_type = grouped_columns.column_type_after_merge();
+        coerce_columns(column_type, &mut grouped_columns.columns)?;
+        merge_columns.insert((column_name, column_type), grouped_columns.columns);
     }
 
     Ok(merge_columns)
 }
 
-/// Coerce a set of numerical columns to the same type.
-///
-/// If all columns are already from the same type, keep this type
-/// (even if they could all be coerced to i64).
-fn coerce_numerical_columns_to_same_type(columns: &mut [Option<DynamicColumn>]) {
-    let mut column_types: HashSet<NumericalType> = HashSet::default();
-    let mut compatible_numerical_types = CompatibleNumericalTypes::default();
-    for column in columns.iter().flatten() {
-        let min_value: NumericalValue;
-        let max_value: NumericalValue;
-        match column {
-            DynamicColumn::I64(column) => {
-                min_value = column.min_value().into();
-                max_value = column.max_value().into();
-            }
-            DynamicColumn::U64(column) => {
-                min_value = column.min_value().into();
-                max_value = column.min_value().into();
-            }
-            DynamicColumn::F64(column) => {
-                min_value = column.min_value().into();
-                max_value = column.min_value().into();
-            }
-            DynamicColumn::Bool(_)
-            | DynamicColumn::IpAddr(_)
-            | DynamicColumn::DateTime(_)
-            | DynamicColumn::Bytes(_)
-            | DynamicColumn::Str(_) => {
-                panic!("We expected only numerical columns.");
-            }
-        }
-        column_types.insert(column.column_type().numerical_type().unwrap());
-        compatible_numerical_types.accept_value(min_value);
-        compatible_numerical_types.accept_value(max_value);
-    }
-    if column_types.len() <= 1 {
-        // No need to do anything. The columns are already all from the same type.
-        // This is necessary to let use force a given type.
-
-        // TODO This works in a world where we do not allow a change of schema,
-        // but in the future, we will have to pass some kind of schema to enforce
-        // the logic.
-        return;
-    }
-    let coerce_type = compatible_numerical_types.to_numerical_type();
+fn coerce_columns(
+    column_type: ColumnType,
+    columns: &mut [Option<DynamicColumn>],
+) -> io::Result<()> {
     for column_opt in columns.iter_mut() {
         if let Some(column) = column_opt.take() {
-            *column_opt = column.coerce_numerical(coerce_type);
+            *column_opt = Some(coerce_column(column_type, column)?);
         }
+    }
+    Ok(())
+}
+
+fn coerce_column(column_type: ColumnType, column: DynamicColumn) -> io::Result<DynamicColumn> {
+    if let Some(numerical_type) = column_type.numerical_type() {
+        column
+            .coerce_numerical(numerical_type)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, ""))
+    } else {
+        if column.column_type() != column_type {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Cannot coerce column of type `{:?}` to `{column_type:?}`",
+                    column.column_type()
+                ),
+            ));
+        }
+        Ok(column)
+    }
+}
+
+fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, NumericalValue)> {
+    match column {
+        DynamicColumn::I64(column) => Some((column.min_value().into(), column.max_value().into())),
+        DynamicColumn::U64(column) => Some((column.min_value().into(), column.min_value().into())),
+        DynamicColumn::F64(column) => Some((column.min_value().into(), column.min_value().into())),
+        DynamicColumn::Bool(_)
+        | DynamicColumn::IpAddr(_)
+        | DynamicColumn::DateTime(_)
+        | DynamicColumn::Bytes(_)
+        | DynamicColumn::Str(_) => None,
     }
 }
 
