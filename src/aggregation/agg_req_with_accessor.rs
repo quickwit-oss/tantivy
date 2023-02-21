@@ -3,7 +3,7 @@
 use std::rc::Rc;
 use std::sync::atomic::AtomicU32;
 
-use columnar::{Column, StrColumn};
+use columnar::{Column, ColumnType, StrColumn};
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
@@ -13,7 +13,6 @@ use super::metric::{
 };
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::schema::Type;
 use crate::{SegmentReader, TantivyError};
 
 #[derive(Clone, Default)]
@@ -41,7 +40,7 @@ pub struct BucketAggregationWithAccessor {
     /// based on search terms. So eventually this needs to be Option or moved.
     pub(crate) accessor: Column<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
-    pub(crate) field_type: Type,
+    pub(crate) field_type: ColumnType,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) bucket_count: BucketCount,
@@ -94,7 +93,7 @@ impl BucketAggregationWithAccessor {
 #[derive(Clone)]
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
-    pub field_type: Type,
+    pub field_type: ColumnType,
     pub accessor: Column<u64>,
 }
 
@@ -158,22 +157,12 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
 fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
-) -> crate::Result<(columnar::Column<u64>, Type)> {
-    let field = reader.schema().get_field(field_name)?;
-    // TODO we should get type metadata from columnar
-    let field_type = reader
-        .schema()
-        .get_field_entry(field)
-        .field_type()
-        .value_type();
-    // TODO Do validation
-
+) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
     let ff_fields = reader.fast_fields();
-    let ff_field = ff_fields.u64_lenient(field_name)?.ok_or_else(|| {
-        TantivyError::InvalidArgument(format!(
-            "No numerical fast field found for field: {}",
-            field_name
-        ))
-    })?;
-    Ok((ff_field, field_type))
+    let ff_field_with_type = ff_fields
+        .u64_lenient_with_type(field_name)?
+        .ok_or_else(|| {
+            TantivyError::InvalidArgument(format!("No fast field found for field: {}", field_name))
+        })?;
+    Ok(ff_field_with_type)
 }

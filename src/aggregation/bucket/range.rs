@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use columnar::MonotonicallyMappableToU64;
+use columnar::{ColumnType, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,6 @@ use crate::aggregation::segment_agg_result::{
 use crate::aggregation::{
     f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey, VecWithNames,
 };
-use crate::schema::Type;
 use crate::TantivyError;
 
 /// Provide user-defined buckets to aggregate on.
@@ -127,7 +126,7 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 pub struct SegmentRangeCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentRangeAndBucketEntry>,
-    field_type: Type,
+    field_type: ColumnType,
     pub(crate) accessor_idx: usize,
 }
 
@@ -257,7 +256,7 @@ impl SegmentRangeCollector {
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
         bucket_count: &BucketCount,
-        field_type: Type,
+        field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         // The range input on the request is f64.
@@ -335,7 +334,7 @@ impl SegmentRangeCollector {
 /// more computational expensive when many documents are hit.
 fn to_u64_range(
     range: &RangeAggregationRange,
-    field_type: &Type,
+    field_type: &ColumnType,
 ) -> crate::Result<InternalRangeAggregationRange> {
     let start = if let Some(from) = range.from {
         f64_to_fastfield_u64(from, field_type)
@@ -361,7 +360,7 @@ fn to_u64_range(
 /// beginning and end and filling gaps.
 fn extend_validate_ranges(
     buckets: &[RangeAggregationRange],
-    field_type: &Type,
+    field_type: &ColumnType,
 ) -> crate::Result<Vec<InternalRangeAggregationRange>> {
     let mut converted_buckets = buckets
         .iter()
@@ -403,13 +402,16 @@ fn extend_validate_ranges(
     Ok(converted_buckets)
 }
 
-pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> crate::Result<String> {
+pub(crate) fn range_to_string(
+    range: &Range<u64>,
+    field_type: &ColumnType,
+) -> crate::Result<String> {
     // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
     // it should be rendered as "*-0" and not "*-*"
     let to_str = |val: u64, is_start: bool| {
         if (is_start && val == u64::MIN) || (!is_start && val == u64::MAX) {
             Ok("*".to_string())
-        } else if *field_type == Type::Date {
+        } else if *field_type == ColumnType::DateTime {
             let val = i64::from_u64(val);
             format_date(val)
         } else {
@@ -424,7 +426,7 @@ pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> crate::R
     ))
 }
 
-pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> crate::Result<Key> {
+pub(crate) fn range_to_key(range: &Range<u64>, field_type: &ColumnType) -> crate::Result<Key> {
     Ok(Key::Str(range_to_string(range, field_type)?))
 }
 
@@ -446,7 +448,7 @@ mod tests {
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
-        field_type: Type,
+        field_type: ColumnType,
     ) -> SegmentRangeCollector {
         let req = RangeAggregation {
             field: "dummy".to_string(),
@@ -736,7 +738,7 @@ mod tests {
     #[test]
     fn bucket_test_extend_range_hole() {
         let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -759,7 +761,7 @@ mod tests {
             (10f64..20f64).into(),
             (20f64..f64::MAX).into(),
         ];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -774,7 +776,7 @@ mod tests {
     #[test]
     fn bucket_range_test_negative_vals() {
         let buckets = vec![(-10f64..-1f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
@@ -783,7 +785,7 @@ mod tests {
     #[test]
     fn bucket_range_test_positive_vals() {
         let buckets = vec![(0f64..10f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
@@ -793,7 +795,7 @@ mod tests {
     #[test]
     fn range_binary_search_test_u64() {
         let check_ranges = |ranges: Vec<RangeAggregationRange>| {
-            let collector = get_collector_from_ranges(ranges, Type::U64);
+            let collector = get_collector_from_ranges(ranges, ColumnType::U64);
             let search = |val: u64| collector.get_bucket_pos(val);
 
             assert_eq!(search(u64::MIN), 0);
@@ -839,7 +841,7 @@ mod tests {
     fn range_binary_search_test_f64() {
         let ranges = vec![(10.0..100.0).into()];
 
-        let collector = get_collector_from_ranges(ranges, Type::F64);
+        let collector = get_collector_from_ranges(ranges, ColumnType::F64);
         let search = |val: u64| collector.get_bucket_pos(val);
 
         assert_eq!(search(u64::MIN), 0);
@@ -874,7 +876,7 @@ mod bench {
             buckets.push((bucket_start..bucket_start + bucket_size as f64).into())
         }
 
-        get_collector_from_ranges(buckets, Type::U64)
+        get_collector_from_ranges(buckets, ColumnType::U64)
     }
 
     fn get_rand_docs(total_docs: u64, num_docs_returned: u64) -> Vec<u64> {

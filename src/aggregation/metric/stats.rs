@@ -1,4 +1,4 @@
-use columnar::{Cardinality, Column};
+use columnar::{Cardinality, Column, ColumnType};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -8,7 +8,6 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::{f64_from_fastfield_u64, VecWithNames};
-use crate::schema::Type;
 use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes a collection of statistics on numeric values that
@@ -153,7 +152,7 @@ pub(crate) enum SegmentStatsType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentStatsCollector {
-    field_type: Type,
+    field_type: ColumnType,
     pub(crate) collecting_for: SegmentStatsType,
     pub(crate) stats: IntermediateStats,
     pub(crate) accessor_idx: usize,
@@ -161,7 +160,7 @@ pub(crate) struct SegmentStatsCollector {
 
 impl SegmentStatsCollector {
     pub fn from_req(
-        field_type: Type,
+        field_type: ColumnType,
         collecting_for: SegmentStatsType,
         accessor_idx: usize,
     ) -> Self {

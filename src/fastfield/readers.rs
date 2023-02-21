@@ -171,6 +171,20 @@ impl FastFieldReaders {
         Ok(None)
     }
 
+    /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
+    #[doc(hidden)]
+    pub fn u64_lenient_with_type(
+        &self,
+        field_name: &str,
+    ) -> crate::Result<Option<(Column<u64>, ColumnType)>> {
+        for col in self.columnar.read_columns(field_name)? {
+            if let Some(col_u64) = col.open_u64_lenient()? {
+                return Ok(Some((col_u64, col.column_type())));
+            }
+        }
+        Ok(None)
+    }
+
     /// Returns the `i64` fast field reader reader associated with `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.

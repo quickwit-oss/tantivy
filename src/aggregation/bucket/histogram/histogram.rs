@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use columnar::Column;
+use columnar::{Column, ColumnType};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
 use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
-use crate::schema::{Schema, Type};
+use crate::schema::Schema;
 use crate::{DocId, TantivyError};
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -204,7 +204,7 @@ pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentHistogramBucketEntry>,
     sub_aggregations: Option<Vec<Box<dyn SegmentAggregationCollector>>>,
-    field_type: Type,
+    field_type: ColumnType,
     interval: f64,
     offset: f64,
     min_doc_count: u64,
@@ -356,7 +356,7 @@ impl SegmentHistogramCollector {
     pub(crate) fn from_req_and_validate(
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
-        field_type: Type,
+        field_type: ColumnType,
         accessor: &Column<u64>,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
