@@ -257,7 +257,7 @@ impl GroupedColumns {
 
 /// Returns the type of the merged numerical column.
 ///
-/// Otherwise, this function picks the first numerical type out of i64, u64, f64 (order matters
+/// This function picks the first numerical type out of i64, u64, f64 (order matters
 /// here), that is compatible with all the `columns`.
 ///
 /// # Panics
