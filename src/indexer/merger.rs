@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use columnar::{
-    ColumnValues, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
+    ColumnType, ColumnValues, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder,
+    StackMergeOrder,
 };
 use common::ReadOnlyBitSet;
 use itertools::Itertools;
@@ -16,7 +17,7 @@ use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, 
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
@@ -135,6 +136,19 @@ fn convert_to_merge_order(
     }
 }
 
+fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnType)> {
+    schema
+        .fields()
+        .map(|(_, field_entry)| field_entry)
+        .filter(|field_entry| field_entry.is_fast())
+        .filter_map(|field_entry| {
+            let column_name = field_entry.name().to_string();
+            let column_type = value_type_to_column_type(field_entry.field_type().value_type())?;
+            Some((column_name, column_type))
+        })
+        .collect()
+}
+
 impl IndexMerger {
     pub fn open(
         schema: Schema,
@@ -248,13 +262,19 @@ impl IndexMerger {
         doc_id_mapping: SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write-fast-fields");
+        let required_columns = extract_fast_field_required_columns(&self.schema);
         let columnars: Vec<&ColumnarReader> = self
             .readers
             .iter()
             .map(|reader| reader.fast_fields().columnar())
             .collect();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
-        columnar::merge_columnar(&columnars[..], merge_row_order, fast_field_wrt)?;
+        columnar::merge_columnar(
+            &columnars[..],
+            &required_columns,
+            merge_row_order,
+            fast_field_wrt,
+        )?;
         Ok(())
     }
 

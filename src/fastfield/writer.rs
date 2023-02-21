@@ -1,11 +1,11 @@
 use std::io;
 
-use columnar::{ColumnType, ColumnarWriter, NumericalValue};
+use columnar::{ColumnarWriter, NumericalValue};
 use common::replace_in_place;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Document, FieldType, Schema, Type, Value};
+use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
 use crate::{DatePrecision, DocId};
 
 /// Only index JSON down to a depth of 20.
@@ -40,20 +40,6 @@ impl FastFieldsWriter {
             }
             fast_field_names[field_id.field_id() as usize] = Some(field_entry.name().to_string());
             let value_type = field_entry.field_type().value_type();
-            let column_type = match value_type {
-                Type::Str => ColumnType::Str,
-                Type::U64 => ColumnType::U64,
-                Type::I64 => ColumnType::I64,
-                Type::F64 => ColumnType::F64,
-                Type::Bool => ColumnType::Bool,
-                Type::Date => ColumnType::DateTime,
-                Type::Facet => ColumnType::Str,
-                Type::Bytes => ColumnType::Bytes,
-                Type::Json => {
-                    continue;
-                }
-                Type::IpAddr => ColumnType::IpAddr,
-            };
             if let FieldType::Date(date_options) = field_entry.field_type() {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
@@ -62,11 +48,13 @@ impl FastFieldsWriter {
                     json_object_options.is_expand_dots_enabled();
             }
             let sort_values_within_row = value_type == Type::Facet;
-            columnar_writer.record_column_type(
-                field_entry.name(),
-                column_type,
-                sort_values_within_row,
-            );
+            if let Some(column_type) = value_type_to_column_type(value_type) {
+                columnar_writer.record_column_type(
+                    field_entry.name(),
+                    column_type,
+                    sort_values_within_row,
+                );
+            }
         }
         FastFieldsWriter {
             columnar_writer,
