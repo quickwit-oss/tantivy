@@ -5,7 +5,7 @@ use common::replace_in_place;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{convert_to_column_type, Document, FieldType, Schema, Type, Value};
+use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
 use crate::{DatePrecision, DocId};
 
 /// Only index JSON down to a depth of 20.
@@ -48,7 +48,7 @@ impl FastFieldsWriter {
                     json_object_options.is_expand_dots_enabled();
             }
             let sort_values_within_row = value_type == Type::Facet;
-            if let Some(column_type) = convert_to_column_type(value_type) {
+            if let Some(column_type) = value_type_to_column_type(value_type) {
                 columnar_writer.record_column_type(
                     field_entry.name(),
                     column_type,

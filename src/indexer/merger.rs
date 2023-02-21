@@ -17,7 +17,7 @@ use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, 
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
-use crate::schema::{convert_to_column_type, Field, FieldType, Schema};
+use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
@@ -143,7 +143,7 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
         .filter(|field_entry| field_entry.is_fast())
         .filter_map(|field_entry| {
             let column_name = field_entry.name().to_string();
-            let column_type = convert_to_column_type(field_entry.field_type().value_type())?;
+            let column_type = value_type_to_column_type(field_entry.field_type().value_type())?;
             Some((column_name, column_type))
         })
         .collect()

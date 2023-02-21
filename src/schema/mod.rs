@@ -160,7 +160,7 @@ pub fn is_valid_field_name(field_name: &str) -> bool {
     !field_name.is_empty() && !field_name.starts_with('-')
 }
 
-pub(crate) fn convert_to_column_type(typ: Type) -> Option<ColumnType> {
+pub(crate) fn value_type_to_column_type(typ: Type) -> Option<ColumnType> {
     match typ {
         Type::Str => Some(ColumnType::Str),
         Type::U64 => Some(ColumnType::U64),
