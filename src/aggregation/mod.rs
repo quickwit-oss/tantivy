@@ -56,10 +56,9 @@
 //! use tantivy::query::AllQuery;
 //! use tantivy::aggregation::agg_result::AggregationResults;
 //! use tantivy::IndexReader;
-//! use tantivy::schema::Schema;
 //!
 //! # #[allow(dead_code)]
-//! fn aggregate_on_index(reader: &IndexReader, schema: Schema) {
+//! fn aggregate_on_index(reader: &IndexReader) {
 //!     let agg_req: Aggregations = vec![
 //!     (
 //!             "average".to_string(),
@@ -71,7 +70,7 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req, None, schema);
+//!     let collector = AggregationCollector::from_aggs(agg_req, None);
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
@@ -323,14 +322,12 @@ mod tests {
     use serde_json::Value;
     use time::OffsetDateTime;
 
-    use crate::{
-        indexer::NoMergePolicy,
-        query::{AllQuery, TermQuery},
-        schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING},
-        Index, Term,
-    };
-
-    use super::{agg_req::Aggregations, *};
+    use super::agg_req::Aggregations;
+    use super::*;
+    use crate::indexer::NoMergePolicy;
+    use crate::query::{AllQuery, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
+    use crate::{Index, Term};
 
     pub fn get_test_index_with_num_docs(
         merge_segments: bool,
@@ -350,7 +347,7 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+        let collector = AggregationCollector::from_aggs(agg_req, None);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();

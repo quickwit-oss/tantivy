@@ -12,7 +12,6 @@ use super::bucket::GetDocCount;
 use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
 use super::metric::{SingleMetricResult, Stats};
 use super::Key;
-use crate::schema::Schema;
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -154,12 +153,9 @@ pub enum BucketResult {
 }
 
 impl BucketResult {
-    pub(crate) fn empty_from_req(
-        req: &BucketAggregationInternal,
-        schema: &Schema,
-    ) -> crate::Result<Self> {
+    pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
         let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-        empty_bucket.into_final_bucket_result(req, schema)
+        empty_bucket.into_final_bucket_result(req)
     }
 }
 

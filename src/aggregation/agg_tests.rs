@@ -3,21 +3,19 @@ mod tests {
 
     use serde_json::Value;
 
-    use crate::aggregation::tests::{
-        get_test_index_2_segments, get_test_index_from_values_and_terms,
-    };
-
     use crate::aggregation::agg_req::{
-        get_term_dict_field_names, BucketAggregationType, MetricAggregation,
+        get_term_dict_field_names, Aggregation, Aggregations, BucketAggregation,
+        BucketAggregationType, MetricAggregation,
     };
-    use crate::aggregation::agg_req::{Aggregation, Aggregations, BucketAggregation};
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::bucket::RangeAggregation;
-    use crate::aggregation::bucket::TermsAggregation;
+    use crate::aggregation::bucket::{RangeAggregation, TermsAggregation};
     use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
     use crate::aggregation::collector::AggregationCollector;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::metric::AverageAggregation;
+    use crate::aggregation::tests::{
+        get_test_index_2_segments, get_test_index_from_values_and_terms,
+    };
     use crate::aggregation::DistributedAggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::IndexRecordOption;
@@ -111,10 +109,10 @@ mod tests {
             let searcher = reader.searcher();
             let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
             intermediate_agg_result
-                .into_final_bucket_result(agg_req, &index.schema())
+                .into_final_bucket_result(agg_req)
                 .unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+            let collector = AggregationCollector::from_aggs(agg_req, None);
 
             let searcher = reader.searcher();
             searcher.search(&AllQuery, &collector).unwrap()
@@ -251,7 +249,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+        let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -451,10 +449,9 @@ mod tests {
             // Test de/serialization roundtrip on intermediate_agg_result
             let res: IntermediateAggregationResults =
                 serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            res.into_final_bucket_result(agg_req.clone(), &index.schema())
-                .unwrap()
+            res.into_final_bucket_result(agg_req.clone()).unwrap()
         } else {
-            let collector = AggregationCollector::from_aggs(agg_req.clone(), None, index.schema());
+            let collector = AggregationCollector::from_aggs(agg_req.clone(), None);
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
@@ -512,7 +509,7 @@ mod tests {
         );
 
         // Test empty result set
-        let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+        let collector = AggregationCollector::from_aggs(agg_req, None);
         let searcher = reader.searcher();
         searcher.search(&query_with_no_hits, &collector).unwrap();
 
@@ -577,7 +574,7 @@ mod tests {
             .into_iter()
             .collect();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+            let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
             let searcher = reader.searcher();
 
@@ -619,6 +616,8 @@ mod tests {
         };
         use crate::aggregation::metric::StatsAggregation;
         use crate::query::AllQuery;
+        use crate::schema::{Schema, TextFieldIndexing, FAST, STRING};
+        use crate::Index;
 
         fn get_test_index_bench(_merge_segments: bool) -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
@@ -684,7 +683,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&term_query, &collector).unwrap()
@@ -712,7 +711,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&term_query, &collector).unwrap()
@@ -740,7 +739,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&term_query, &collector).unwrap()
@@ -776,7 +775,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&term_query, &collector).unwrap()
@@ -802,7 +801,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -837,7 +836,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -863,7 +862,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -893,7 +892,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -927,7 +926,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -970,7 +969,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -1002,7 +1001,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -1038,7 +1037,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -1065,7 +1064,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&AllQuery, &collector).unwrap()
@@ -1119,7 +1118,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let collector = AggregationCollector::from_aggs(agg_req_1, None, index.schema());
+                let collector = AggregationCollector::from_aggs(agg_req_1, None);
 
                 let searcher = reader.searcher();
                 searcher.search(&term_query, &collector).unwrap()

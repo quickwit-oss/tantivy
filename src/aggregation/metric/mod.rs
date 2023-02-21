@@ -81,7 +81,7 @@ mod tests {
             "price_sum": { "sum": { "field": "price" } }
         }"#;
         let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
-        let collector = AggregationCollector::from_aggs(aggregations, None, index.schema());
+        let collector = AggregationCollector::from_aggs(aggregations, None);
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let aggregations_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();

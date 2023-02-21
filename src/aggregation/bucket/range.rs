@@ -126,7 +126,7 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 pub struct SegmentRangeCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentRangeAndBucketEntry>,
-    field_type: ColumnType,
+    column_type: ColumnType,
     pub(crate) accessor_idx: usize,
 }
 
@@ -178,7 +178,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateAggregationResults> {
-        let field_type = self.field_type;
+        let field_type = self.column_type;
         let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
         let sub_agg = &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
@@ -195,7 +195,10 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        let bucket = IntermediateBucketResult::Range(IntermediateRangeBucketResult { buckets });
+        let bucket = IntermediateBucketResult::Range(IntermediateRangeBucketResult {
+            buckets,
+            column_type: Some(self.column_type),
+        });
 
         let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
 
@@ -304,7 +307,7 @@ impl SegmentRangeCollector {
 
         Ok(SegmentRangeCollector {
             buckets,
-            field_type,
+            column_type: field_type,
             accessor_idx,
         })
     }
