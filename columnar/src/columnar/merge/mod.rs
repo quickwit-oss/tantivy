@@ -350,6 +350,14 @@ fn coerce_column(column_type: ColumnType, column: DynamicColumn) -> io::Result<D
     }
 }
 
+/// Returns the (min, max) of a column provided it is numerical (i64, u64. f64).
+///
+/// The min and the max are simply the numerical value as defined by `ColumnValue::min_value()`,
+/// and `ColumnValue::max_value()`.
+///
+/// It is important to note that these values are only guaranteed to be lower/upper bound
+/// (as opposed to min/max value).
+/// If a column is empty, the min and max values are currently set to 0.
 fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, NumericalValue)> {
     match column {
         DynamicColumn::I64(column) => Some((column.min_value().into(), column.max_value().into())),

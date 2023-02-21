@@ -1,6 +1,6 @@
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
-use proptest::{prop_oneof, proptest};
+use proptest::{num, prop_oneof, proptest};
 
 #[test]
 fn test_serialize_and_load_simple() {
@@ -19,6 +19,62 @@ fn test_serialize_and_load_simple() {
     assert_eq!(col.get_val(1), 2);
     assert_eq!(col.get_val(2), 5);
 }
+
+#[test]
+fn test_empty_column_i64() {
+    let vals: [i64; 0] = [];
+    let mut num_acceptable_codecs = 0;
+    for codec in ALL_U64_CODEC_TYPES {
+        let mut buffer = Vec::new();
+        if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
+            continue;
+        }
+        num_acceptable_codecs += 1;
+        let col = load_u64_based_column_values::<i64>(OwnedBytes::new(buffer)).unwrap();
+        assert_eq!(col.num_vals(), 0);
+        assert_eq!(col.min_value(), i64::MIN);
+        assert_eq!(col.max_value(), i64::MIN);
+    }
+    assert!(num_acceptable_codecs > 0);
+}
+
+#[test]
+fn test_empty_column_u64() {
+    let vals: [u64; 0] = [];
+    let mut num_acceptable_codecs = 0;
+    for codec in ALL_U64_CODEC_TYPES {
+        let mut buffer = Vec::new();
+        if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
+            continue;
+        }
+        num_acceptable_codecs += 1;
+        let col = load_u64_based_column_values::<u64>(OwnedBytes::new(buffer)).unwrap();
+        assert_eq!(col.num_vals(), 0);
+        assert_eq!(col.min_value(), u64::MIN);
+        assert_eq!(col.max_value(), u64::MIN);
+    }
+    assert!(num_acceptable_codecs > 0);
+}
+
+#[test]
+fn test_empty_column_f64() {
+    let vals: [f64; 0] = [];
+    let mut num_acceptable_codecs = 0;
+    for codec in ALL_U64_CODEC_TYPES {
+        let mut buffer = Vec::new();
+        if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
+            continue;
+        }
+        num_acceptable_codecs += 1;
+        let col = load_u64_based_column_values::<f64>(OwnedBytes::new(buffer)).unwrap();
+        assert_eq!(col.num_vals(), 0);
+        // FIXME. f64::MIN would be better!
+        assert!(col.min_value().is_nan());
+        assert!(col.max_value().is_nan());
+    }
+    assert!(num_acceptable_codecs > 0);
+}
+
 pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
     vals: &[u64],
     name: &str,
