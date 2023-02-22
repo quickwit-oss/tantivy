@@ -123,6 +123,7 @@ mod functional_test;
 mod macros;
 mod future_result;
 
+pub use columnar;
 pub use common::DateTime;
 /// Re-export of the `time` crate
 ///
