@@ -974,7 +974,7 @@ mod test {
         assert_eq!(
             format!("{:?}", query),
             "RangeQuery { field: \"title\", value_type: Str, left_bound: Included([97]), \
-             right_bound: Included([98]) }"
+             right_bound: Included([98]), limit: None }"
         );
     }
 
