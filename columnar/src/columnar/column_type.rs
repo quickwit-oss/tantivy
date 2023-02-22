@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 use std::net::Ipv6Addr;
 
+use serde::{Deserialize, Serialize};
+
 use crate::value::NumericalType;
 use crate::InvalidData;
 
 /// The column type represents the column type.
 /// Any changes need to be propagated to `COLUMN_TYPES`.
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ColumnType {
     I64 = 0u8,

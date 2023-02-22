@@ -192,7 +192,7 @@ fn main() -> tantivy::Result<()> {
     //
 
     let agg_req: Aggregations = serde_json::from_str(agg_req_str)?;
-    let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+    let collector = AggregationCollector::from_aggs(agg_req, None);
 
     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
     let res2: Value = serde_json::to_value(agg_res)?;
@@ -239,7 +239,7 @@ fn main() -> tantivy::Result<()> {
     .into_iter()
     .collect();
 
-    let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+    let collector = AggregationCollector::from_aggs(agg_req, None);
     // We use the `AllQuery` which will pass all documents to the AggregationCollector.
     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
 
@@ -287,7 +287,7 @@ fn main() -> tantivy::Result<()> {
 
     let agg_req: Aggregations = serde_json::from_str(agg_req_str)?;
 
-    let collector = AggregationCollector::from_aggs(agg_req, None, index.schema());
+    let collector = AggregationCollector::from_aggs(agg_req, None);
 
     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
     let res: Value = serde_json::to_value(agg_res)?;

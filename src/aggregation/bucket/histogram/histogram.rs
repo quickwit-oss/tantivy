@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use columnar::Column;
+use columnar::{Column, ColumnType};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,6 @@ use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
 use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
-use crate::schema::{Schema, Type};
 use crate::{DocId, TantivyError};
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -204,7 +203,7 @@ pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentHistogramBucketEntry>,
     sub_aggregations: Option<Vec<Box<dyn SegmentAggregationCollector>>>,
-    field_type: Type,
+    column_type: ColumnType,
     interval: f64,
     offset: f64,
     min_doc_count: u64,
@@ -350,13 +349,16 @@ impl SegmentHistogramCollector {
             );
         };
 
-        Ok(IntermediateBucketResult::Histogram { buckets })
+        Ok(IntermediateBucketResult::Histogram {
+            buckets,
+            column_type: Some(self.column_type),
+        })
     }
 
     pub(crate) fn from_req_and_validate(
         req: &HistogramAggregation,
         sub_aggregation: &AggregationsWithAccessor,
-        field_type: Type,
+        field_type: ColumnType,
         accessor: &Column<u64>,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -396,7 +398,7 @@ impl SegmentHistogramCollector {
 
         Ok(Self {
             buckets,
-            field_type,
+            column_type: field_type,
             interval: req.interval,
             offset: req.offset.unwrap_or(0.0),
             first_bucket_num,
@@ -443,7 +445,7 @@ impl SegmentHistogramCollector {
     }
 
     fn f64_from_fastfield_u64(&self, val: u64) -> f64 {
-        f64_from_fastfield_u64(val, &self.field_type)
+        f64_from_fastfield_u64(val, &self.column_type)
     }
 }
 
@@ -463,7 +465,6 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
-    schema: &Schema,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
     //
@@ -504,43 +505,33 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
                 sub_aggregation: empty_sub_aggregation.clone(),
             },
         })
-        .map(|intermediate_bucket| {
-            intermediate_bucket.into_final_bucket_entry(sub_aggregation, schema)
-        })
+        .map(|intermediate_bucket| intermediate_bucket.into_final_bucket_entry(sub_aggregation))
         .collect::<crate::Result<Vec<_>>>()
 }
 
 // Convert to BucketEntry
 pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
+    column_type: Option<ColumnType>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
-    schema: &Schema,
 ) -> crate::Result<Vec<BucketEntry>> {
     let mut buckets = if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
         // reduce serialization size).
 
-        intermediate_buckets_to_final_buckets_fill_gaps(
-            buckets,
-            histogram_req,
-            sub_aggregation,
-            schema,
-        )?
+        intermediate_buckets_to_final_buckets_fill_gaps(buckets, histogram_req, sub_aggregation)?
     } else {
         buckets
             .into_iter()
             .filter(|histogram_bucket| histogram_bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|histogram_bucket| {
-                histogram_bucket.into_final_bucket_entry(sub_aggregation, schema)
-            })
+            .map(|histogram_bucket| histogram_bucket.into_final_bucket_entry(sub_aggregation))
             .collect::<crate::Result<Vec<_>>>()?
     };
 
     // If we have a date type on the histogram buckets, we add the `key_as_string` field as rfc339
-    let field = schema.get_field(&histogram_req.field)?;
-    if schema.get_field_entry(field).field_type().is_date() {
+    if column_type == Some(ColumnType::DateTime) {
         for bucket in buckets.iter_mut() {
             if let crate::aggregation::Key::F64(val) = bucket.key {
                 let key_as_string = format_date(val as i64)?;

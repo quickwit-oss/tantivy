@@ -17,6 +17,7 @@ stacker = { path = "../stacker", package="tantivy-stacker"}
 sstable = { path = "../sstable", package = "tantivy-sstable" }
 common = { path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.3", path = "../bitpacker/" }
+serde = "1.0.152"
 
 [dev-dependencies]
 proptest = "1"
