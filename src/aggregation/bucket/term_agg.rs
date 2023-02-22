@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::Cardinality;
+use columnar::{Cardinality, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,6 @@ use crate::aggregation::segment_agg_result::{
 };
 use crate::aggregation::{f64_from_fastfield_u64, Key, VecWithNames};
 use crate::error::DataCorruption;
-use crate::schema::Type;
 use crate::TantivyError;
 
 /// Creates a bucket for every unique term and counts the number of occurences.
@@ -267,7 +266,7 @@ pub struct SegmentTermCollector {
     term_buckets: TermBuckets,
     req: TermsAggregationInternal,
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    field_type: Type,
+    field_type: ColumnType,
     accessor_idx: usize,
 }
 
@@ -354,7 +353,7 @@ impl SegmentTermCollector {
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
         sub_aggregations: &AggregationsWithAccessor,
-        field_type: Type,
+        field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         let term_buckets = TermBuckets::default();
@@ -433,7 +432,7 @@ impl SegmentTermCollector {
 
         let mut dict: FxHashMap<Key, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
-        if self.field_type == Type::Str {
+        if self.field_type == ColumnType::Str {
             let term_dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
