@@ -1202,9 +1202,9 @@ mod tests {
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
-        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);

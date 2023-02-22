@@ -275,6 +275,10 @@ impl Eq for Key {}
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
+        match self {
+            Key::Str(text) => text.hash(state),
+            Key::F64(val) => val.to_bits().hash(state),
+        }
     }
 }
 
