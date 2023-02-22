@@ -169,7 +169,6 @@ pub(crate) fn build_bucket_segment_agg_collector(
                 histogram,
                 &req.sub_aggregation,
                 req.field_type,
-                &req.accessor,
                 accessor_idx,
             )?,
         )),
