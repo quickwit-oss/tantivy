@@ -76,7 +76,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -251,11 +251,28 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         slop: u32,
     ) -> PhraseScorer<TPostings> {
+        Self::new_with_offset(
+            term_postings,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+            0,
+        )
+    }
+
+    pub(crate) fn new_with_offset(
+        term_postings: Vec<(usize, TPostings)>,
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        offset: usize,
+    ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
             .iter()
             .map(|&(offset, _)| offset)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            + offset;
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
@@ -281,6 +298,11 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     pub fn phrase_count(&self) -> u32 {
         self.phrase_count
+    }
+
+    pub(crate) fn get_intersection(&mut self) -> &[u32] {
+        let len = intersection(&mut self.left, &self.right);
+        &self.left[..len]
     }
 
     fn phrase_match(&mut self) -> bool {
