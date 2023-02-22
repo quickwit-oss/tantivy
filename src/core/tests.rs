@@ -1,9 +1,13 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
+use crate::indexer::NoMergePolicy;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, TEXT};
+use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
-use crate::{Directory, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy, Term};
+use crate::{
+    Directory, Document, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy, SegmentId,
+    Term,
+};
 
 #[test]
 fn test_indexer_for_field() {
@@ -294,4 +298,50 @@ fn test_single_segment_index_writer() -> crate::Result<()> {
     let count = searcher.search(&term_query, &Count)?;
     assert_eq!(count, 10);
     Ok(())
+}
+
+#[test]
+fn test_merging_segment_update_docfreq() {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT);
+    let id_field = schema_builder.add_text_field("id", STRING);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut writer = index.writer_for_tests().unwrap();
+    writer.set_merge_policy(Box::new(NoMergePolicy));
+    for _ in 0..5 {
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+    }
+    writer
+        .add_document(doc!(text_field=>"hello", id_field=>"TO_BE_DELETED"))
+        .unwrap();
+    writer
+        .add_document(doc!(text_field=>"hello", id_field=>"TO_BE_DELETED"))
+        .unwrap();
+    writer.add_document(Document::default()).unwrap();
+    writer.commit().unwrap();
+    for _ in 0..7 {
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+    }
+    writer.add_document(Document::default()).unwrap();
+    writer.add_document(Document::default()).unwrap();
+    writer.delete_term(Term::from_field_text(id_field, "TO_BE_DELETED"));
+    writer.commit().unwrap();
+
+    let segment_ids: Vec<SegmentId> = index
+        .list_all_segment_metas()
+        .into_iter()
+        .map(|reader| reader.id())
+        .collect();
+    writer.merge(&segment_ids[..]).wait().unwrap();
+    let index_reader = index.reader().unwrap();
+    let searcher = index_reader.searcher();
+    assert_eq!(searcher.segment_readers().len(), 1);
+    assert_eq!(searcher.num_docs(), 15);
+    let segment_reader = searcher.segment_reader(0);
+    assert_eq!(segment_reader.max_doc(), 15);
+    let inv_index = segment_reader.inverted_index(text_field).unwrap();
+    let term = Term::from_field_text(text_field, "hello");
+    let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
+    assert_eq!(term_info.doc_freq, 12);
 }
