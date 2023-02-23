@@ -50,7 +50,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 pub use super::bucket::RangeAggregation;
-use super::bucket::{HistogramAggregation, TermsAggregation};
+use super::bucket::{DateHistogramAggregationReq, HistogramAggregation, TermsAggregation};
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
     SumAggregation,
@@ -110,9 +110,14 @@ impl BucketAggregationInternal {
             _ => None,
         }
     }
-    pub(crate) fn as_histogram(&self) -> Option<&HistogramAggregation> {
+    pub(crate) fn as_histogram(&self) -> Option<HistogramAggregation> {
         match &self.bucket_agg {
-            BucketAggregationType::Histogram(histogram) => Some(histogram),
+            BucketAggregationType::Histogram(histogram) => Some(histogram.clone()),
+            BucketAggregationType::DateHistogram(histogram) => Some(
+                histogram
+                    .to_histogram_req()
+                    .expect("could not convert date histogram req to histogram req"),
+            ),
             _ => None,
         }
     }
@@ -196,6 +201,9 @@ pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "histogram")]
     Histogram(HistogramAggregation),
+    /// Put data into buckets of user-defined ranges.
+    #[serde(rename = "date_histogram")]
+    DateHistogram(DateHistogramAggregationReq),
     /// Put data into buckets of terms.
     #[serde(rename = "terms")]
     Terms(TermsAggregation),
@@ -207,6 +215,7 @@ impl BucketAggregationType {
             BucketAggregationType::Terms(terms) => terms.field.as_str(),
             BucketAggregationType::Range(range) => range.field.as_str(),
             BucketAggregationType::Histogram(histogram) => histogram.field.as_str(),
+            BucketAggregationType::DateHistogram(histogram) => histogram.field.as_str(),
         }
     }
 }

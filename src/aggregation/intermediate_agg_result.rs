@@ -329,15 +329,17 @@ impl IntermediateBucketResult {
                 column_type,
                 buckets,
             } => {
+                let histogram_req = &req
+                    .as_histogram()
+                    .expect("unexpected aggregation, expected histogram aggregation");
                 let buckets = intermediate_histogram_buckets_to_final_buckets(
                     buckets,
                     column_type,
-                    req.as_histogram()
-                        .expect("unexpected aggregation, expected histogram aggregation"),
+                    histogram_req,
                     &req.sub_aggregation,
                 )?;
 
-                let buckets = if req.as_histogram().unwrap().keyed {
+                let buckets = if histogram_req.keyed {
                     let mut bucket_map =
                         FxHashMap::with_capacity_and_hasher(buckets.len(), Default::default());
                     for bucket in buckets {
@@ -361,10 +363,12 @@ impl IntermediateBucketResult {
         match req {
             BucketAggregationType::Terms(_) => IntermediateBucketResult::Terms(Default::default()),
             BucketAggregationType::Range(_) => IntermediateBucketResult::Range(Default::default()),
-            BucketAggregationType::Histogram(_) => IntermediateBucketResult::Histogram {
-                buckets: vec![],
-                column_type: None,
-            },
+            BucketAggregationType::Histogram(_) | BucketAggregationType::DateHistogram(_) => {
+                IntermediateBucketResult::Histogram {
+                    buckets: vec![],
+                    column_type: None,
+                }
+            }
         }
     }
     fn merge_fruits(&mut self, other: IntermediateBucketResult) {

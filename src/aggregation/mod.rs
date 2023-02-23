@@ -162,6 +162,7 @@ pub mod bucket;
 mod buf_collector;
 mod collector;
 mod date;
+mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
 mod segment_agg_result;
@@ -177,6 +178,7 @@ pub use collector::{
 };
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 pub(crate) use date::format_date;
+pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 

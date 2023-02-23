@@ -394,6 +394,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     // extended_bounds from the request
     let min_max = minmax(buckets.iter().map(|bucket| bucket.key));
 
+    // TODO add memory check
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 
     let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(sub_aggregation);
