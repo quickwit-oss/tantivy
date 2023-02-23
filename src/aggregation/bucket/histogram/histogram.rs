@@ -203,8 +203,8 @@ impl SegmentHistogramBucketEntry {
 #[derive(Clone, Debug)]
 pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
-    buckets: FxHashMap<u64, SegmentHistogramBucketEntry>,
-    sub_aggregations: FxHashMap<u64, Box<dyn SegmentAggregationCollector>>,
+    buckets: FxHashMap<i64, SegmentHistogramBucketEntry>,
+    sub_aggregations: FxHashMap<i64, Box<dyn SegmentAggregationCollector>>,
     sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     column_type: ColumnType,
     interval: f64,
@@ -250,7 +250,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let bounds = self.bounds;
         let interval = self.interval;
         let offset = self.offset;
-        let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64) as u64;
+        let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
 
         for doc in docs {
             for val in accessor.values(*doc) {
@@ -346,7 +346,7 @@ impl SegmentHistogramCollector {
     #[inline]
     fn increment_bucket(
         &mut self,
-        bucket_pos: u64,
+        bucket_pos: i64,
         doc: DocId,
         bucket_with_accessor: &AggregationsWithAccessor,
         interval: f64,
