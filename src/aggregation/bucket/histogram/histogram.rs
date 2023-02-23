@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use columnar::{Column, ColumnType};
+use columnar::ColumnType;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -292,16 +292,16 @@ impl SegmentHistogramCollector {
         let mut buckets = Vec::with_capacity(self.buckets.len());
 
         if self.sub_aggregation_blueprint.is_some() {
-            for bucket_res in self.buckets.into_iter().map(|(bucket_pos, bucket)| {
-                bucket.into_intermediate_bucket_entry(
+            for (bucket_pos, bucket) in self.buckets.into_iter() {
+                let bucket_res = bucket.into_intermediate_bucket_entry(
                     self.sub_aggregations.get(&bucket_pos).unwrap().clone(),
                     &agg_with_accessor.sub_aggregation,
-                )
-            }) {
+                );
+
                 buckets.push(bucket_res?);
             }
         } else {
-            buckets.extend(self.buckets.into_iter().map(|(_, bucket)| bucket.into()));
+            buckets.extend(self.buckets.into_values().map(|bucket| bucket.into()));
         };
         buckets.sort_unstable_by(|b1, b2| b1.key.partial_cmp(&b2.key).unwrap_or(Ordering::Equal));
 
@@ -352,7 +352,7 @@ impl SegmentHistogramCollector {
         interval: f64,
         offset: f64,
     ) -> crate::Result<()> {
-        let bucket = &mut self.buckets.entry(bucket_pos).or_insert_with(|| {
+        let bucket = self.buckets.entry(bucket_pos).or_insert_with(|| {
             let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
             SegmentHistogramBucketEntry { key, doc_count: 0 }
         });
