@@ -39,6 +39,7 @@ pub struct JsonObjectOptions {
     /// `{"root": {"child": {"with": {"dot": "hello"}}}}`
     /// and it can be search using the following query:
     /// `root.child.with.dot:hello`
+    #[serde(default)]
     expand_dots_enabled: bool,
 }
 

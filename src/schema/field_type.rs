@@ -329,11 +329,50 @@ impl FieldType {
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
-                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                        Err(ValueParsingError::TypeError {
-                            expected: "an integer",
-                            json: JsonValue::String(field_text),
-                        })
+                    FieldType::U64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a u64 or a u64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a u64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::I64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a i64 or a i64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a i64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::F64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a f64 or a f64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a f64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
                     }
                     FieldType::Bool(_) => Err(ValueParsingError::TypeError {
                         expected: "a boolean",
@@ -395,12 +434,20 @@ impl FieldType {
                     expected: "a boolean",
                     json: JsonValue::Number(field_val_num),
                 }),
-                FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "a string",
-                        json: JsonValue::Number(field_val_num),
-                    })
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(field_val_num.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Number(field_val_num),
+                        })
+                    }
                 }
+                FieldType::Facet(_) | FieldType::Bytes(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string",
+                    json: JsonValue::Number(field_val_num),
+                }),
                 FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
                     json: JsonValue::Number(field_val_num),
@@ -431,9 +478,36 @@ impl FieldType {
             },
             JsonValue::Bool(json_bool_val) => match self {
                 FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(json_bool_val.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Bool(json_bool_val),
+                        })
+                    }
+                }
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Bool(json_bool_val),
+                }),
+            },
+            // Could also just filter them
+            JsonValue::Null => match self {
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str("null".to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Null,
+                        })
+                    }
+                }
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Null,
                 }),
             },
             _ => Err(ValueParsingError::TypeError {
