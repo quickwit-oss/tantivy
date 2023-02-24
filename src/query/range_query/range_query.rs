@@ -386,7 +386,12 @@ impl Weight for RangeWeight {
         let term_dict = inverted_index.terms();
         let mut term_range = self.term_range(term_dict)?;
         let mut processed_count = 0;
-        while term_range.advance() && self.limit.map_or(true, |limit| processed_count < limit) {
+        while term_range.advance() {
+            if let Some(limit) = self.limit {
+                if limit <= processed_count {
+                    break;
+                }
+            }
             processed_count += 1;
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
