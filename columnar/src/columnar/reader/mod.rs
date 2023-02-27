@@ -21,6 +21,32 @@ pub struct ColumnarReader {
     num_rows: RowId,
 }
 
+/// Functions by both the async/sync code listing columns.
+/// It takes a stream from the column sstable and return the list of
+/// `DynamicColumn` available in it.
+fn read_all_columns_in_stream(
+    mut stream: sstable::Streamer<'_, RangeSSTable>,
+    column_data: &FileSlice,
+) -> io::Result<Vec<DynamicColumnHandle>> {
+    let mut results = Vec::new();
+    while stream.advance() {
+        let key_bytes: &[u8] = stream.key();
+        let Some(column_code) = key_bytes.last().copied() else {
+            return Err(io_invalid_data("Empty column name.".to_string()));
+        };
+        let column_type = ColumnType::try_from_code(column_code)
+            .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
+        let range = stream.value();
+        let file_slice = column_data.slice(range.start as usize..range.end as usize);
+        let dynamic_column_handle = DynamicColumnHandle {
+            file_slice,
+            column_type,
+        };
+        results.push(dynamic_column_handle);
+    }
+    Ok(results)
+}
+
 impl ColumnarReader {
     /// Opens a new Columnar file.
     pub fn open<F>(file_slice: F) -> io::Result<ColumnarReader>
@@ -76,11 +102,7 @@ impl ColumnarReader {
         Ok(results)
     }
 
-    /// Get all columns for the given column name.
-    ///
-    /// There can be more than one column associated to a given column name, provided they have
-    /// different types.
-    pub fn read_columns(&self, column_name: &str) -> io::Result<Vec<DynamicColumnHandle>> {
+    fn stream_for_column_range(&self, column_name: &str) -> sstable::StreamerBuilder<RangeSSTable> {
         // Each column is a associated to a given `column_key`,
         // that starts by `column_name\0column_header`.
         //
@@ -89,36 +111,35 @@ impl ColumnarReader {
         //
         // This is in turn equivalent to searching for the range
         // `[column_name,\0`..column_name\1)`.
-
-        // TODO can we get some more generic `prefix(..)` logic in the dictioanry.
+        // TODO can we get some more generic `prefix(..)` logic in the dictionary.
         let mut start_key = column_name.to_string();
         start_key.push('\0');
         let mut end_key = column_name.to_string();
         end_key.push(1u8 as char);
-        let mut stream = self
-            .column_dictionary
+        self.column_dictionary
             .range()
             .ge(start_key.as_bytes())
             .lt(end_key.as_bytes())
-            .into_stream()?;
-        let mut results = Vec::new();
-        while stream.advance() {
-            let key_bytes: &[u8] = stream.key();
-            assert!(key_bytes.starts_with(start_key.as_bytes()));
-            let column_code: u8 = key_bytes.last().cloned().unwrap();
-            let column_type = ColumnType::try_from_code(column_code)
-                .map_err(|_| io_invalid_data(format!("Unknown column code `{column_code}`")))?;
-            let range = stream.value().clone();
-            let file_slice = self
-                .column_data
-                .slice(range.start as usize..range.end as usize);
-            let dynamic_column_handle = DynamicColumnHandle {
-                file_slice,
-                column_type,
-            };
-            results.push(dynamic_column_handle);
-        }
-        Ok(results)
+    }
+
+    pub async fn read_columns_async(
+        &self,
+        column_name: &str,
+    ) -> io::Result<Vec<DynamicColumnHandle>> {
+        let stream = self
+            .stream_for_column_range(column_name)
+            .into_stream_async()
+            .await?;
+        read_all_columns_in_stream(stream, &self.column_data)
+    }
+
+    /// Get all columns for the given column name.
+    ///
+    /// There can be more than one column associated to a given column name, provided they have
+    /// different types.
+    pub fn read_columns(&self, column_name: &str) -> io::Result<Vec<DynamicColumnHandle>> {
+        let stream = self.stream_for_column_range(column_name).into_stream()?;
+        read_all_columns_in_stream(stream, &self.column_data)
     }
 
     /// Return the number of columns in the columnar.

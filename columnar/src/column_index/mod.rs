@@ -97,7 +97,9 @@ impl ColumnIndex {
 
     pub fn select_batch_in_place(&self, doc_id_start: DocId, rank_ids: &mut Vec<RowId>) {
         match self {
-            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Empty { .. } => {
+                rank_ids.clear();
+            }
             ColumnIndex::Full => {
                 // No need to do anything:
                 // value_idx and row_idx are the same.

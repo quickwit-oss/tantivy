@@ -106,12 +106,10 @@ impl PhrasePrefixWeight {
                 {
                     suffixes.push(postings);
                 }
-            } else {
-                if let Some(postings) = inv_index
-                    .read_postings_no_deletes(&new_term, IndexRecordOption::WithFreqsAndPositions)?
-                {
-                    suffixes.push(postings);
-                }
+            } else if let Some(postings) = inv_index
+                .read_postings_no_deletes(&new_term, IndexRecordOption::WithFreqsAndPositions)?
+            {
+                suffixes.push(postings);
             }
         }
 

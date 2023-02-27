@@ -5,7 +5,7 @@ use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
 use crate::dictionary::Dictionary;
-use crate::{SSTable, TermOrdinal};
+use crate::{DeltaReader, SSTable, TermOrdinal};
 
 /// `StreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
@@ -80,18 +80,33 @@ where
         self
     }
 
-    /// Creates the stream corresponding to the range
-    /// of terms defined using the `StreamerBuilder`.
-    pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
-        // TODO Optimize by skipping to the right first block.
-        let start_state = self.automaton.start();
-
+    fn delta_reader(&self) -> io::Result<DeltaReader<'a, TSSTable::ValueReader>> {
         let key_range = (
             bound_as_byte_slice(&self.lower),
             bound_as_byte_slice(&self.upper),
         );
+        self.term_dict
+            .sstable_delta_reader_for_key_range(key_range, self.limit)
+    }
 
-        let first_term = match &key_range.0 {
+    async fn delta_reader_async(&self) -> io::Result<DeltaReader<'a, TSSTable::ValueReader>> {
+        let key_range = (
+            bound_as_byte_slice(&self.lower),
+            bound_as_byte_slice(&self.upper),
+        );
+        self.term_dict
+            .sstable_delta_reader_for_key_range_async(key_range, self.limit)
+            .await
+    }
+
+    fn into_stream_given_delta_reader(
+        self,
+        delta_reader: DeltaReader<'a, <TSSTable as SSTable>::ValueReader>,
+    ) -> io::Result<Streamer<'a, TSSTable, A>> {
+        let start_state = self.automaton.start();
+        let start_key = bound_as_byte_slice(&self.lower);
+
+        let first_term = match start_key {
             Bound::Included(key) | Bound::Excluded(key) => self
                 .term_dict
                 .sstable_index
@@ -101,9 +116,6 @@ where
             Bound::Unbounded => 0,
         };
 
-        let delta_reader = self
-            .term_dict
-            .sstable_delta_reader_for_key_range(key_range, self.limit)?;
         Ok(Streamer {
             automaton: self.automaton,
             states: vec![start_state],
@@ -113,6 +125,19 @@ where
             lower_bound: self.lower,
             upper_bound: self.upper,
         })
+    }
+
+    /// See `into_stream(..)`
+    pub async fn into_stream_async(self) -> io::Result<Streamer<'a, TSSTable, A>> {
+        let delta_reader = self.delta_reader_async().await?;
+        self.into_stream_given_delta_reader(delta_reader)
+    }
+
+    /// Creates the stream corresponding to the range
+    /// of terms defined using the `StreamerBuilder`.
+    pub fn into_stream(self) -> io::Result<Streamer<'a, TSSTable, A>> {
+        let delta_reader = self.delta_reader()?;
+        self.into_stream_given_delta_reader(delta_reader)
     }
 }
 

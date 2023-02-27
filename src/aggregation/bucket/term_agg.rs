@@ -423,16 +423,16 @@ impl SegmentTermCollector {
             cut_off_buckets(&mut entries, self.req.segment_size as usize)
         };
 
-        let inverted_index = agg_with_accessor
+        let mut dict: FxHashMap<String, IntermediateTermBucketEntry> = Default::default();
+
+        let str_column = agg_with_accessor
             .str_dict_column
             .as_ref()
-            .expect("internal error: inverted index not loaded for term aggregation");
-        let term_dict = inverted_index;
+            .expect("Missing str column"); //< TODO Fixme
 
-        let mut dict: FxHashMap<String, IntermediateTermBucketEntry> = Default::default();
         let mut buffer = String::new();
         for (term_id, entry) in entries {
-            if !term_dict.ord_to_str(term_id as u64, &mut buffer)? {
+            if !str_column.ord_to_str(term_id as u64, &mut buffer)? {
                 return Err(TantivyError::InternalError(format!(
                     "Couldn't find term_id {} in dict",
                     term_id
@@ -445,7 +445,7 @@ impl SegmentTermCollector {
         }
         if self.req.min_doc_count == 0 {
             // TODO: Handle rev streaming for descending sorting by keys
-            let mut stream = term_dict.dictionary().stream()?;
+            let mut stream = str_column.dictionary().stream()?;
             while let Some((key, _ord)) = stream.next() {
                 if dict.len() >= self.req.segment_size as usize {
                     break;
