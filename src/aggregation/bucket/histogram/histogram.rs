@@ -253,7 +253,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
 
         for doc in docs {
-            for val in accessor.values(*doc) {
+            for val in accessor.values_for_doc(*doc) {
                 let val = self.f64_from_fastfield_u64(val);
 
                 let bucket_pos = get_bucket_pos(val);

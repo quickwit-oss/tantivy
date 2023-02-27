@@ -1490,7 +1490,7 @@ mod tests {
 
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .flat_map(|doc| fast_field_reader.values(doc))
+            .flat_map(|doc| fast_field_reader.values_for_doc(doc))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
@@ -1550,7 +1550,7 @@ mod tests {
         let fast_field_reader = segment_reader.fast_fields().u64("id")?;
         let in_order_alive_ids: Vec<u64> = segment_reader
             .doc_ids_alive()
-            .flat_map(|doc| fast_field_reader.values(doc))
+            .flat_map(|doc| fast_field_reader.values_for_doc(doc))
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 2, 0]);
         Ok(())
@@ -1795,7 +1795,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64("id").unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .flat_map(move |doc| ff_reader.values(doc).collect_vec().into_iter())
+                    .flat_map(move |doc| ff_reader.values_for_doc(doc).collect_vec().into_iter())
             })
             .collect();
 
@@ -1806,7 +1806,7 @@ mod tests {
                 let ff_reader = segment_reader.fast_fields().u64("id").unwrap();
                 segment_reader
                     .doc_ids_alive()
-                    .flat_map(move |doc| ff_reader.values(doc).collect_vec().into_iter())
+                    .flat_map(move |doc| ff_reader.values_for_doc(doc).collect_vec().into_iter())
             })
             .collect();
 
@@ -1824,7 +1824,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             for doc in segment_reader.doc_ids_alive() {
-                all_ips.extend(ip_reader.values(doc));
+                all_ips.extend(ip_reader.values_for_doc(doc));
             }
             num_ips += ip_reader.values.num_vals();
         }
@@ -1883,7 +1883,7 @@ mod tests {
         for reader in searcher.segment_readers() {
             if let Some(ff_reader) = reader.fast_fields().column_opt::<Ipv6Addr>("ips").unwrap() {
                 for doc in reader.doc_ids_alive() {
-                    ips.extend(ff_reader.values(doc));
+                    ips.extend(ff_reader.values_for_doc(doc));
                 }
             }
         }
@@ -1915,7 +1915,7 @@ mod tests {
         for reader in searcher.segment_readers() {
             if let Some(ff_reader) = reader.fast_fields().column_opt::<Ipv6Addr>("ips").unwrap() {
                 for doc in reader.doc_ids_alive() {
-                    ips.extend(ff_reader.values(doc));
+                    ips.extend(ff_reader.values_for_doc(doc));
                 }
             }
         }
@@ -1935,12 +1935,12 @@ mod tests {
                 .unwrap()
                 .unwrap();
             for doc in segment_reader.doc_ids_alive() {
-                let vals: Vec<u64> = ff_reader.values(doc).collect();
+                let vals: Vec<u64> = ff_reader.values_for_doc(doc).collect();
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
                 assert_eq!(id_reader.first(doc), Some(vals[0]));
 
-                let bool_vals: Vec<bool> = bool_ff_reader.values(doc).collect();
+                let bool_vals: Vec<bool> = bool_ff_reader.values_for_doc(doc).collect();
                 assert_eq!(bool_vals.len(), 2);
                 assert_ne!(bool_vals[0], bool_vals[1]);
 
@@ -2236,8 +2236,8 @@ mod tests {
         assert_eq!(val_col.get_cardinality(), Cardinality::Multivalued);
         assert_eq!(id_col.first(0u32), Some(1u64));
         assert_eq!(id_col.first(1u32), Some(2u64));
-        assert!(val_col.values(0u32).eq([1u64, 1u64].into_iter()));
-        assert!(val_col.values(1u32).eq([2u64, 2u64].into_iter()));
+        assert!(val_col.values_for_doc(0u32).eq([1u64, 1u64].into_iter()));
+        assert!(val_col.values_for_doc(1u32).eq([2u64, 2u64].into_iter()));
     }
 
     #[test]

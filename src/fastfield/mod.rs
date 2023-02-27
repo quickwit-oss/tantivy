@@ -467,7 +467,7 @@ mod tests {
 
     fn get_vals_for_docs(column: &Column<u64>, docs: Range<u32>) -> Vec<u64> {
         docs.into_iter()
-            .flat_map(|doc| column.values(doc))
+            .flat_map(|doc| column.values_for_doc(doc))
             .collect()
     }
 
@@ -515,11 +515,11 @@ mod tests {
             let segment_reader = searcher.segment_reader(0);
             let fast_fields = segment_reader.fast_fields();
             let str_column = fast_fields.str("text").unwrap().unwrap();
-            assert!(str_column.ords().values(0u32).eq([1, 0]),);
-            assert!(str_column.ords().values(1u32).next().is_none());
-            assert!(str_column.ords().values(2u32).eq([0]),);
-            assert!(str_column.ords().values(3u32).eq([0, 1]),);
-            assert!(str_column.ords().values(4u32).eq([2]),);
+            assert!(str_column.ords().values_for_doc(0u32).eq([1, 0]),);
+            assert!(str_column.ords().values_for_doc(1u32).next().is_none());
+            assert!(str_column.ords().values_for_doc(2u32).eq([0]),);
+            assert!(str_column.ords().values_for_doc(3u32).eq([0, 1]),);
+            assert!(str_column.ords().values_for_doc(4u32).eq([2]),);
 
             let mut str_term = String::default();
             assert!(str_column.ord_to_str(0, &mut str_term).unwrap());

@@ -225,7 +225,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
         let sub_aggregation_accessor =
             &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
         for doc in docs {
-            for val in accessor.values(*doc) {
+            for val in accessor.values_for_doc(*doc) {
                 let bucket_pos = self.get_bucket_pos(val);
 
                 let bucket = &mut self.buckets[bucket_pos];

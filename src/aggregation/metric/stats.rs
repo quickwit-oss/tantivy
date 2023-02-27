@@ -181,7 +181,7 @@ impl SegmentStatsCollector {
             }
         } else {
             for doc in docs {
-                for val in field.values(*doc) {
+                for val in field.values_for_doc(*doc) {
                     let val1 = f64_from_fastfield_u64(val, &self.field_type);
                     self.stats.collect(val1);
                 }
@@ -234,7 +234,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     ) -> crate::Result<()> {
         let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
 
-        for val in field.values(doc) {
+        for val in field.values_for_doc(doc) {
             let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val1);
         }

@@ -319,7 +319,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
             }
         } else {
             for doc in docs {
-                for term_id in accessor.values(*doc) {
+                for term_id in accessor.values_for_doc(*doc) {
                     let entry = self
                         .term_buckets
                         .entries

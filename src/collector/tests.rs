@@ -200,7 +200,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        self.vals.extend(self.reader.values(doc));
+        self.vals.extend(self.reader.values_for_doc(doc));
     }
 
     fn harvest(self) -> Vec<u64> {

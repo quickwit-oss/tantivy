@@ -36,7 +36,7 @@ impl BytesColumn {
     }
 
     pub fn term_ords(&self, row_id: RowId) -> impl Iterator<Item = u64> + '_ {
-        self.term_ord_column.values(row_id)
+        self.term_ord_column.values_for_doc(row_id)
     }
 
     /// Returns the column of ordinals

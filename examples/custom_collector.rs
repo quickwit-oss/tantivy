@@ -105,7 +105,7 @@ impl SegmentCollector for StatsSegmentCollector {
     fn collect(&mut self, doc: u32, _score: Score) {
         // Since we know the values are single value, we could call `first_or_default_col` on the
         // column and fetch single values.
-        for value in self.fast_field_reader.values(doc) {
+        for value in self.fast_field_reader.values_for_doc(doc) {
             let value = value as f64;
             self.stats.count += 1;
             self.stats.sum += value;

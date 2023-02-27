@@ -338,20 +338,23 @@ mod tests {
             let column_float_opt: Option<Column<f64>> = columns[1].1.open().unwrap().into();
             assert!(column_float_opt
                 .unwrap()
-                .values(0)
+                .values_for_doc(0)
                 .eq([1.02f64].into_iter()));
         }
         {
             assert_eq!(columns[2].0, "nested\u{1}child");
             let column_nest_child_opt: Option<Column<i64>> = columns[2].1.open().unwrap().into();
-            assert!(column_nest_child_opt.unwrap().values(0).eq([3].into_iter()));
+            assert!(column_nest_child_opt
+                .unwrap()
+                .values_for_doc(0)
+                .eq([3].into_iter()));
         }
         {
             assert_eq!(columns[3].0, "nested\u{1}child2");
             let column_nest_child2_opt: Option<Column<i64>> = columns[3].1.open().unwrap().into();
             assert!(column_nest_child2_opt
                 .unwrap()
-                .values(0)
+                .values_for_doc(0)
                 .eq([5].into_iter()));
         }
         {
@@ -390,7 +393,7 @@ mod tests {
         assert_eq!(columns[0].0, "obj");
         let dynamic_column = columns[0].1.open().unwrap();
         let col: Option<Column<i64>> = dynamic_column.into();
-        let vals: Vec<i64> = col.unwrap().values(0).collect();
+        let vals: Vec<i64> = col.unwrap().values_for_doc(0).collect();
         assert_eq!(&vals, &[18, 19])
     }
 
