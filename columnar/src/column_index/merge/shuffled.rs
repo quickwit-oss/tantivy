@@ -91,6 +91,7 @@ fn iter_num_values<'a>(
                     return 0u32;
                 };
         match column_index {
+            ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => 1,
             ColumnIndex::Optional(optional_index) => {
                 u32::from(optional_index.contains(row_addr.row_id))
