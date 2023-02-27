@@ -373,7 +373,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Terms(term_res_left),
                 IntermediateBucketResult::Terms(term_res_right),
             ) => {
-                merge_maps(&mut term_res_left.entries, term_res_right.entries);
+                merge_key_maps(&mut term_res_left.entries, term_res_right.entries);
                 term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
                 term_res_left.doc_count_error_upper_bound +=
                     term_res_right.doc_count_error_upper_bound;
@@ -383,7 +383,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Range(range_res_left),
                 IntermediateBucketResult::Range(range_res_right),
             ) => {
-                merge_maps(&mut range_res_left.buckets, range_res_right.buckets);
+                merge_serialized_key_maps(&mut range_res_left.buckets, range_res_right.buckets);
             }
             (
                 IntermediateBucketResult::Histogram {
@@ -435,7 +435,7 @@ pub struct IntermediateRangeBucketResult {
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
-    pub(crate) entries: FxHashMap<String, IntermediateTermBucketEntry>,
+    pub(crate) entries: FxHashMap<Key, IntermediateTermBucketEntry>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
 }
@@ -454,7 +454,7 @@ impl IntermediateTermBucketResult {
             .map(|(key, entry)| {
                 Ok(BucketEntry {
                     key_as_string: None,
-                    key: Key::Str(key),
+                    key,
                     doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
@@ -532,9 +532,24 @@ trait MergeFruits {
     fn merge_fruits(&mut self, other: Self);
 }
 
-fn merge_maps<V: MergeFruits + Clone>(
+fn merge_serialized_key_maps<V: MergeFruits + Clone>(
     entries_left: &mut FxHashMap<SerializedKey, V>,
     mut entries_right: FxHashMap<SerializedKey, V>,
+) {
+    for (name, entry_left) in entries_left.iter_mut() {
+        if let Some(entry_right) = entries_right.remove(name) {
+            entry_left.merge_fruits(entry_right);
+        }
+    }
+
+    for (key, res) in entries_right.into_iter() {
+        entries_left.entry(key).or_insert(res);
+    }
+}
+
+fn merge_key_maps<V: MergeFruits + Clone>(
+    entries_left: &mut FxHashMap<Key, V>,
+    mut entries_right: FxHashMap<Key, V>,
 ) {
     for (name, entry_left) in entries_left.iter_mut() {
         if let Some(entry_right) = entries_right.remove(name) {

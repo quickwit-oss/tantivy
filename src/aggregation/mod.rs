@@ -10,7 +10,7 @@
 //! There are two categories: [Metrics](metric) and [Buckets](bucket).
 //!
 //! ## Prerequisite
-//! Currently aggregations work only on [fast fields](`crate::fastfield`). Single value fast fields
+//! Currently aggregations work only on [fast fields](`crate::fastfield`). Fast fields
 //! of type `u64`, `f64`, `i64`, `date` and fast fields on text fields.
 //!
 //! ## Usage
@@ -262,7 +262,7 @@ impl<T: Clone> VecWithNames<T> {
 /// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, PartialOrd)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd)]
 /// The key to identify a bucket.
 #[serde(untagged)]
 pub enum Key {
@@ -270,6 +270,26 @@ pub enum Key {
     Str(String),
     /// `f64` key
     F64(f64),
+}
+impl Eq for Key {}
+impl std::hash::Hash for Key {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Key::Str(text) => text.hash(state),
+            Key::F64(val) => val.to_bits().hash(state),
+        }
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Str(l), Self::Str(r)) => l == r,
+            (Self::F64(l), Self::F64(r)) => l == r,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Key {
