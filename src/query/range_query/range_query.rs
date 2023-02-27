@@ -70,6 +70,7 @@ pub struct RangeQuery {
     value_type: Type,
     left_bound: Bound<Vec<u8>>,
     right_bound: Bound<Vec<u8>>,
+    limit: Option<u64>,
 }
 
 impl RangeQuery {
@@ -89,6 +90,7 @@ impl RangeQuery {
             value_type,
             left_bound: map_bound(left_bound, &verify_and_unwrap_term),
             right_bound: map_bound(right_bound, &verify_and_unwrap_term),
+            limit: None,
         }
     }
 
@@ -126,6 +128,7 @@ impl RangeQuery {
             value_type: Type::I64,
             left_bound: map_bound(&left_bound, &make_term_val),
             right_bound: map_bound(&right_bound, &make_term_val),
+            limit: None,
         }
     }
 
@@ -163,6 +166,7 @@ impl RangeQuery {
             value_type: Type::F64,
             left_bound: map_bound(&left_bound, &make_term_val),
             right_bound: map_bound(&right_bound, &make_term_val),
+            limit: None,
         }
     }
 
@@ -188,6 +192,7 @@ impl RangeQuery {
             value_type: Type::U64,
             left_bound: map_bound(&left_bound, &make_term_val),
             right_bound: map_bound(&right_bound, &make_term_val),
+            limit: None,
         }
     }
 
@@ -225,6 +230,7 @@ impl RangeQuery {
             value_type: Type::Date,
             left_bound: map_bound(&left_bound, &make_term_val),
             right_bound: map_bound(&right_bound, &make_term_val),
+            limit: None,
         }
     }
 
@@ -254,6 +260,7 @@ impl RangeQuery {
             value_type: Type::Str,
             left_bound: map_bound(&left, &make_term_val),
             right_bound: map_bound(&right, &make_term_val),
+            limit: None,
         }
     }
 
@@ -272,6 +279,14 @@ impl RangeQuery {
     /// Field to search over
     pub fn field(&self) -> &str {
         &self.field
+    }
+
+    /// Limit the number of term the `RangeQuery` will go through.
+    ///
+    /// This does not limit the number of matching document, only the number of
+    /// different terms that get matched.
+    pub(crate) fn limit(&mut self, limit: u64) {
+        self.limit = Some(limit);
     }
 }
 
@@ -327,6 +342,7 @@ impl Query for RangeQuery {
                 field: self.field.to_string(),
                 left_bound: self.left_bound.clone(),
                 right_bound: self.right_bound.clone(),
+                limit: self.limit,
             }))
         }
     }
@@ -336,6 +352,7 @@ pub struct RangeWeight {
     field: String,
     left_bound: Bound<Vec<u8>>,
     right_bound: Bound<Vec<u8>>,
+    limit: Option<u64>,
 }
 
 impl RangeWeight {
@@ -352,6 +369,10 @@ impl RangeWeight {
             Excluded(ref term_val) => term_stream_builder.lt(term_val),
             Unbounded => term_stream_builder,
         };
+        #[cfg(feature = "quickwit")]
+        if let Some(limit) = self.limit {
+            term_stream_builder = term_stream_builder.limit(limit);
+        }
         term_stream_builder.into_stream()
     }
 }
@@ -364,7 +385,14 @@ impl Weight for RangeWeight {
         let inverted_index = reader.inverted_index(reader.schema().get_field(&self.field)?)?;
         let term_dict = inverted_index.terms();
         let mut term_range = self.term_range(term_dict)?;
+        let mut processed_count = 0;
         while term_range.advance() {
+            if let Some(limit) = self.limit {
+                if limit <= processed_count {
+                    break;
+                }
+            }
+            processed_count += 1;
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
                 .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
@@ -432,6 +460,38 @@ mod tests {
         // ... or `1960..=1969` if inclusive range is enabled.
         let count = searcher.search(&docs_in_the_sixties, &Count)?;
         assert_eq!(count, 2285);
+        Ok(())
+    }
+
+    #[test]
+    fn test_range_query_with_limit() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let year_field = schema_builder.add_u64_field("year", INDEXED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            for year in 1950u64..2017u64 {
+                if year == 1963 {
+                    continue;
+                }
+                let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
+                for _ in 0..num_docs_within_year {
+                    index_writer.add_document(doc!(year_field => year))?;
+                }
+            }
+            index_writer.commit()?;
+        }
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let mut docs_in_the_sixties = RangeQuery::new_u64("year".to_string(), 1960u64..1970u64);
+        docs_in_the_sixties.limit(5);
+
+        // due to the limit and no docs in 1963, it's really only 1960..=1965
+        let count = searcher.search(&docs_in_the_sixties, &Count)?;
+        assert_eq!(count, 836);
         Ok(())
     }
 

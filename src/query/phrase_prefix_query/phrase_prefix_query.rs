@@ -147,7 +147,7 @@ impl Query for PhrasePrefixQuery {
                 Bound::Unbounded
             };
 
-            RangeQuery::new_term_bounds(
+            let mut range_query = RangeQuery::new_term_bounds(
                 enable_scoring
                     .schema()
                     .get_field_name(self.field)
@@ -155,8 +155,9 @@ impl Query for PhrasePrefixQuery {
                 self.prefix.1.typ(),
                 &Bound::Included(self.prefix.1.clone()),
                 &end_term,
-            )
-            .weight(enable_scoring)
+            );
+            range_query.limit(self.max_expansions as u64);
+            range_query.weight(enable_scoring)
         }
     }
 
