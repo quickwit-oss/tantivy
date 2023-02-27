@@ -464,7 +464,7 @@ impl SegmentTermCollector {
                             .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?
                             .to_string(),
                     );
-                    dict.entry(key).or_insert_with(Default::default);
+                    dict.entry(key).or_default();
                 }
             }
         } else {
