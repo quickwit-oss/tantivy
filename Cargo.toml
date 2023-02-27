@@ -58,7 +58,7 @@ arc-swap = "1.5.0"
 columnar = { version="0.1", path="./columnar", package ="tantivy-columnar" }
 sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optional = true }
 stacker = { version="0.1", path="./stacker", package ="tantivy-stacker" }
-tantivy-query-grammar = { version= "0.19.0", path="./query-grammar" }
+query-grammar = { version= "0.19.0", path="./query-grammar", package = "tantivy-query-grammar" }
 tantivy-bitpacker = { version= "0.3", path="./bitpacker" }
 common = { version= "0.5", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version="0.1", path="./tokenizer-api", package="tantivy-tokenizer-api" }
