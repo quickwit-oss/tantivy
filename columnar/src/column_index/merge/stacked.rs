@@ -55,7 +55,7 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                         Some(ColumnIndex::Multivalued(_)) => {
                             panic!("No multivalued index is allowed when stacking column index");
                         }
-                        None => Box::new(std::iter::empty()),
+                        None | Some(ColumnIndex::Empty { .. }) => Box::new(std::iter::empty()),
                     };
                     rows_it
                 }),
@@ -74,7 +74,9 @@ fn convert_column_opt_to_multivalued_index<'a>(
     num_rows: RowId,
 ) -> Box<dyn Iterator<Item = RowId> + 'a> {
     match column_index_opt {
-        None => Box::new(iter::repeat(0u32).take(num_rows as usize + 1)),
+        None | Some(ColumnIndex::Empty { .. }) => {
+            Box::new(iter::repeat(0u32).take(num_rows as usize + 1))
+        }
         Some(ColumnIndex::Full) => Box::new(0..num_rows + 1),
         Some(ColumnIndex::Optional(optional_index)) => {
             Box::new(

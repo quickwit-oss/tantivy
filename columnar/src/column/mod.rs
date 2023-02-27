@@ -45,6 +45,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 
     pub fn num_docs(&self) -> RowId {
         match &self.idx {
+            ColumnIndex::Empty { num_docs } => *num_docs,
             ColumnIndex::Full => self.values.num_vals(),
             ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
             ColumnIndex::Multivalued(col_index) => {
@@ -78,17 +79,17 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         &self,
         value_range: RangeInclusive<T>,
         selected_docid_range: Range<u32>,
-        docids: &mut Vec<u32>,
+        doc_ids: &mut Vec<u32>,
     ) {
         // convert passed docid range to row id range
         let rowid_range = self.idx.docid_range_to_rowids(selected_docid_range.clone());
 
         // Load rows
         self.values
-            .get_row_ids_for_value_range(value_range, rowid_range, docids);
+            .get_row_ids_for_value_range(value_range, rowid_range, doc_ids);
         // Convert rows to docids
         self.idx
-            .select_batch_in_place(docids, selected_docid_range.start);
+            .select_batch_in_place(selected_docid_range.start, doc_ids);
     }
 
     /// Fils the output vector with the (possibly multiple values that are associated_with
@@ -151,6 +152,7 @@ impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
 
     fn num_vals(&self) -> u32 {
         match &self.column.idx {
+            ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => self.column.values.num_vals(),
             ColumnIndex::Optional(optional_idx) => optional_idx.num_docs(),
             ColumnIndex::Multivalued(multivalue_idx) => multivalue_idx.num_docs(),

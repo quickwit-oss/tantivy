@@ -14,6 +14,9 @@ use crate::{Cardinality, DocId, RowId};
 
 #[derive(Clone)]
 pub enum ColumnIndex {
+    Empty {
+        num_docs: u32,
+    },
     Full,
     Optional(OptionalIndex),
     /// In addition, at index num_rows, an extra value is added
@@ -37,6 +40,7 @@ impl ColumnIndex {
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
+            ColumnIndex::Empty { .. } => Cardinality::Optional,
             ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Optional(_) => Cardinality::Optional,
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
@@ -46,6 +50,7 @@ impl ColumnIndex {
     /// Returns true if and only if there are at least one value associated to the row.
     pub fn has_value(&self, doc_id: DocId) -> bool {
         match self {
+            ColumnIndex::Empty { .. } => false,
             ColumnIndex::Full => true,
             ColumnIndex::Optional(optional_index) => optional_index.contains(doc_id),
             ColumnIndex::Multivalued(multivalued_index) => {
@@ -56,6 +61,7 @@ impl ColumnIndex {
 
     pub fn value_row_ids(&self, doc_id: DocId) -> Range<RowId> {
         match self {
+            ColumnIndex::Empty { .. } => 0..0,
             ColumnIndex::Full => doc_id..doc_id + 1,
             ColumnIndex::Optional(optional_index) => {
                 if let Some(val) = optional_index.rank_if_exists(doc_id) {
@@ -70,6 +76,7 @@ impl ColumnIndex {
 
     pub fn docid_range_to_rowids(&self, doc_id: Range<DocId>) -> Range<RowId> {
         match self {
+            ColumnIndex::Empty { .. } => 0..0,
             ColumnIndex::Full => doc_id,
             ColumnIndex::Optional(optional_index) => {
                 let row_start = optional_index.rank(doc_id.start);
@@ -88,8 +95,9 @@ impl ColumnIndex {
         }
     }
 
-    pub fn select_batch_in_place(&self, rank_ids: &mut Vec<RowId>, doc_id_start: DocId) {
+    pub fn select_batch_in_place(&self, doc_id_start: DocId, rank_ids: &mut Vec<RowId>) {
         match self {
+            ColumnIndex::Empty { .. } => {}
             ColumnIndex::Full => {
                 // No need to do anything:
                 // value_idx and row_idx are the same.
