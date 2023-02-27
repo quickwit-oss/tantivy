@@ -51,7 +51,7 @@ impl FacetReader {
 
     /// Return the list of facet ordinals associated with a document.
     pub fn facet_ords(&self, doc: DocId) -> impl Iterator<Item = u64> + '_ {
-        self.facet_column.ords().values(doc)
+        self.facet_column.ords().values_for_doc(doc)
     }
 
     /// Accessor to the facet dictionary.

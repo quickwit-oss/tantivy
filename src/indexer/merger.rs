@@ -1497,7 +1497,7 @@ mod tests {
         let mut vals: Vec<u64> = Vec::new();
         let mut test_vals = move |col: &Column<u64>, doc: DocId, expected: &[u64]| {
             vals.clear();
-            vals.extend(col.values(doc));
+            vals.extend(col.values_for_doc(doc));
             assert_eq!(&vals[..], expected);
         };
 

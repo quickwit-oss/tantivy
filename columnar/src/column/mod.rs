@@ -64,10 +64,10 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     pub fn first(&self, row_id: RowId) -> Option<T> {
-        self.values(row_id).next()
+        self.values_for_doc(row_id).next()
     }
 
-    pub fn values(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
+    pub fn values_for_doc(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
         self.value_row_ids(row_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
@@ -97,7 +97,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     /// This method clears the `output` vector.
     pub fn fill_vals(&self, row_id: RowId, output: &mut Vec<T>) {
         output.clear();
-        output.extend(self.values(row_id));
+        output.extend(self.values_for_doc(row_id));
     }
 
     pub fn first_or_default_col(self, default_value: T) -> Arc<dyn ColumnValues<T>> {
