@@ -3,10 +3,10 @@ use itertools::Itertools;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
+use crate::core::json_utils::index_json_values;
 use crate::core::Segment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
-use crate::indexer::json_term_writer::index_json_values;
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
     compute_table_size, serialize_postings, IndexingContext, IndexingPosition,
@@ -435,8 +435,8 @@ mod tests {
 
     use super::compute_initial_table_size;
     use crate::collector::Count;
+    use crate::core::json_utils::JsonTermWriter;
     use crate::directory::RamDirectory;
-    use crate::indexer::json_term_writer::JsonTermWriter;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
     use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};

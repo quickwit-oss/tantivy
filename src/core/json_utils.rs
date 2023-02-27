@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
+use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{Field, Type};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
@@ -200,7 +200,7 @@ fn infer_type_from_str(text: &str) -> TextOrDateTime {
     }
 }
 
-// Tries to infer a JSON type from a string
+// Tries to infer a JSON type from a string.
 pub(crate) fn convert_to_fast_value_and_get_term(
     json_term_writer: &mut JsonTermWriter,
     phrase: &str,
@@ -294,6 +294,32 @@ fn split_json_path(json_path: &str) -> Vec<String> {
     }
     json_path_segments.push(buffer);
     json_path_segments
+}
+
+/// Takes a field name, a json path as supplied by a user, and whether we should expand dots, and
+/// return a column key, as expected by the columnar crate.
+///
+/// This function wil detect unescaped dots in the path, and split over them.
+/// If expand_dots is enabled, then even escaped dots will be split over.
+///
+/// The resulting list of segment then gets stitched together, joined by \1 separator,
+/// as defined in the columnar crate.
+pub(crate) fn encode_column_name(
+    field_name: &str,
+    json_path: &str,
+    expand_dots_enabled: bool,
+) -> String {
+    let mut column_key: String = String::with_capacity(field_name.len() + json_path.len() + 1);
+    column_key.push_str(field_name);
+    for mut segment in split_json_path(json_path) {
+        column_key.push_str(JSON_PATH_SEGMENT_SEP_STR);
+        if expand_dots_enabled {
+            // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
+            unsafe { replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, segment.as_bytes_mut()) };
+        }
+        column_key.push_str(&segment);
+    }
+    column_key
 }
 
 impl<'a> JsonTermWriter<'a> {

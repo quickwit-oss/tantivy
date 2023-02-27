@@ -113,7 +113,6 @@ pub fn u64_to_f64(val: u64) -> f64 {
 ///
 /// This function assumes that the needle is rarely contained in the bytes string
 /// and offers a fast path if the needle is not present.
-#[inline(always)]
 pub fn replace_in_place(needle: u8, replacement: u8, bytes: &mut [u8]) {
     if !bytes.contains(&needle) {
         return;
