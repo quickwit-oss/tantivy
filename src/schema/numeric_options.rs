@@ -2,6 +2,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
+use super::flags::CoerceFlag;
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 #[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
@@ -135,6 +136,18 @@ impl NumericOptions {
 impl From<()> for NumericOptions {
     fn from(_: ()) -> NumericOptions {
         NumericOptions::default()
+    }
+}
+
+impl From<CoerceFlag> for NumericOptions {
+    fn from(_: CoerceFlag) -> NumericOptions {
+        NumericOptions {
+            indexed: false,
+            fieldnorms: false,
+            stored: false,
+            fast: false,
+            coerce: true,
+        }
     }
 }
 

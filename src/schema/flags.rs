@@ -32,6 +32,18 @@ pub const INDEXED: SchemaFlagList<IndexedFlag, ()> = SchemaFlagList {
 };
 
 #[derive(Clone)]
+pub struct CoerceFlag;
+/// Flag to mark the field as coerced.
+///
+/// `COERCE` will try to convert values into its value type if they don't match.
+///
+/// See [fast fields](`crate::fastfield`).
+pub const COERCE: SchemaFlagList<CoerceFlag, ()> = SchemaFlagList {
+    head: CoerceFlag,
+    tail: (),
+};
+
+#[derive(Clone)]
 pub struct FastFlag;
 /// Flag to mark the field as a fast field (similar to Lucene's DocValues)
 ///

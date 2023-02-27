@@ -3,7 +3,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use super::flags::FastFlag;
+use super::flags::{CoerceFlag, FastFlag};
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
 
@@ -242,6 +242,17 @@ impl From<StoredFlag> for TextOptions {
             stored: true,
             fast: false,
             coerce: false,
+        }
+    }
+}
+
+impl From<CoerceFlag> for TextOptions {
+    fn from(_: CoerceFlag) -> TextOptions {
+        TextOptions {
+            indexing: None,
+            stored: false,
+            fast: false,
+            coerce: true,
         }
     }
 }
