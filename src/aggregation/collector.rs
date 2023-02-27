@@ -3,6 +3,7 @@ use std::rc::Rc;
 use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
+use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::{build_segment_agg_collector, SegmentAggregationCollector};
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
@@ -134,7 +135,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
-    result: Box<dyn SegmentAggregationCollector>,
+    result: BufAggregationCollector,
     error: Option<TantivyError>,
 }
 
@@ -148,7 +149,8 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let aggs_with_accessor =
             get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
-        let result = build_segment_agg_collector(&aggs_with_accessor, true)?;
+        let result =
+            BufAggregationCollector::new(build_segment_agg_collector(&aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             result,
@@ -175,7 +177,6 @@ impl SegmentCollector for AggregationSegmentCollector {
             return Err(err);
         }
         self.result.flush(&self.aggs_with_accessor)?;
-        self.result
-            .into_intermediate_aggregations_result(&self.aggs_with_accessor)
+        Box::new(self.result).into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }
 }

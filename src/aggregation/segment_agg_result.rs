@@ -12,7 +12,6 @@ use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
-use super::buf_collector::BufAggregationCollector;
 use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
@@ -68,35 +67,28 @@ impl Clone for Box<dyn SegmentAggregationCollector> {
 
 pub(crate) fn build_segment_agg_collector(
     req: &AggregationsWithAccessor,
-    add_buffer_layer: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Single metric special case
     if req.buckets.is_empty() && req.metrics.len() == 1 {
         let req = &req.metrics.values[0];
         let accessor_idx = 0;
-        return build_metric_segment_agg_collector(req, accessor_idx, add_buffer_layer);
+        return build_metric_segment_agg_collector(req, accessor_idx);
     }
 
     // Single bucket special case
     if req.metrics.is_empty() && req.buckets.len() == 1 {
         let req = &req.buckets.values[0];
         let accessor_idx = 0;
-        return build_bucket_segment_agg_collector(req, accessor_idx, add_buffer_layer);
+        return build_bucket_segment_agg_collector(req, accessor_idx);
     }
 
     let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate(req)?;
-    if add_buffer_layer {
-        let agg = BufAggregationCollector::new(agg);
-        Ok(Box::new(agg))
-    } else {
-        Ok(Box::new(agg))
-    }
+    Ok(Box::new(agg))
 }
 
 pub(crate) fn build_metric_segment_agg_collector(
     req: &MetricAggregationWithAccessor,
     accessor_idx: usize,
-    add_buffer_layer: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let stats_collector = match &req.metric {
         MetricAggregation::Average(AverageAggregation { .. }) => {
@@ -119,60 +111,39 @@ pub(crate) fn build_metric_segment_agg_collector(
         }
     };
 
-    if add_buffer_layer {
-        let stats_collector = BufAggregationCollector::new(stats_collector);
-        Ok(Box::new(stats_collector))
-    } else {
-        Ok(Box::new(stats_collector))
-    }
-}
-
-fn box_with_opt_buffer<T: SegmentAggregationCollector + Clone + 'static>(
-    add_buffer_layer: bool,
-    collector: T,
-) -> Box<dyn SegmentAggregationCollector> {
-    if add_buffer_layer {
-        let collector = BufAggregationCollector::new(collector);
-        Box::new(collector)
-    } else {
-        Box::new(collector)
-    }
+    Ok(Box::new(stats_collector))
 }
 
 pub(crate) fn build_bucket_segment_agg_collector(
     req: &BucketAggregationWithAccessor,
     accessor_idx: usize,
-    add_buffer_layer: bool,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     match &req.bucket_agg {
-        BucketAggregationType::Terms(terms_req) => Ok(box_with_opt_buffer(
-            add_buffer_layer,
-            SegmentTermCollector::from_req_and_validate(
+        BucketAggregationType::Terms(terms_req) => {
+            Ok(Box::new(SegmentTermCollector::from_req_and_validate(
                 terms_req,
                 &req.sub_aggregation,
                 req.field_type,
                 accessor_idx,
-            )?,
-        )),
-        BucketAggregationType::Range(range_req) => Ok(box_with_opt_buffer(
-            add_buffer_layer,
-            SegmentRangeCollector::from_req_and_validate(
+            )?))
+        }
+        BucketAggregationType::Range(range_req) => {
+            Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
                 range_req,
                 &req.sub_aggregation,
                 &req.bucket_count,
                 req.field_type,
                 accessor_idx,
-            )?,
-        )),
-        BucketAggregationType::Histogram(histogram) => Ok(box_with_opt_buffer(
-            add_buffer_layer,
-            SegmentHistogramCollector::from_req_and_validate(
+            )?))
+        }
+        BucketAggregationType::Histogram(histogram) => {
+            Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
                 histogram,
                 &req.sub_aggregation,
                 req.field_type,
                 accessor_idx,
-            )?,
-        )),
+            )?))
+        }
     }
 }
 
@@ -279,7 +250,7 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                build_bucket_segment_agg_collector(req, accessor_idx, false)
+                build_bucket_segment_agg_collector(req, accessor_idx)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
         let metrics = req
@@ -287,7 +258,7 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                build_metric_segment_agg_collector(req, accessor_idx, false)
+                build_metric_segment_agg_collector(req, accessor_idx)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
 
