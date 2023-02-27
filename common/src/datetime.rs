@@ -29,7 +29,7 @@ pub enum DatePrecision {
 /// All constructors and conversions are provided as explicit
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
-#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DateTime {
     // Timestamp in microseconds.
     pub(crate) timestamp_micros: i64,

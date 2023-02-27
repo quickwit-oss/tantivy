@@ -366,7 +366,7 @@ impl<'a> JsonTermWriter<'a> {
         &self.term().value_bytes()[..end_of_path - 1]
     }
 
-    pub fn set_fast_value<T: FastValue>(&mut self, val: T) {
+    pub(crate) fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.close_path_and_set_type(T::to_type());
         let value = if T::to_type() == Type::Date {
             DateTime::from_u64(val.to_u64())

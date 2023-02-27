@@ -3,7 +3,6 @@ use std::ops::RangeInclusive;
 
 use columnar::Column;
 
-use crate::fastfield::MakeZero;
 use crate::{DocId, DocSet, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids
@@ -40,7 +39,7 @@ impl VecCursor {
     }
 }
 
-pub(crate) struct RangeDocSet<T: MakeZero> {
+pub(crate) struct RangeDocSet<T> {
     /// The range filter on the values.
     value_range: RangeInclusive<T>,
     column: Column<T>,
@@ -61,7 +60,7 @@ pub(crate) struct RangeDocSet<T: MakeZero> {
 }
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
-impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
+impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
         let mut range_docset = Self {
             value_range,
@@ -131,7 +130,7 @@ impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSe
     }
 }
 
-impl<T: MakeZero + Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSet<T> {
+impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSet<T> {
     #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
