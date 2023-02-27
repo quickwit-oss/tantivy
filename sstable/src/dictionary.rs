@@ -76,6 +76,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(TSSTable::reader(data))
     }
 
+    pub(crate) async fn sstable_delta_reader_for_key_range_async(
+        &self,
+        key_range: impl RangeBounds<[u8]>,
+        limit: Option<u64>,
+    ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
+        let slice = self.file_slice_for_range(key_range, limit);
+        let data = slice.read_bytes_async().await?;
+        Ok(TSSTable::delta_reader(data))
+    }
+
     pub(crate) fn sstable_delta_reader_for_key_range(
         &self,
         key_range: impl RangeBounds<[u8]>,
