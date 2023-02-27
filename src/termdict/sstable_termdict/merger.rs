@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use crate::postings::TermInfo;
-use crate::termdict::{TermOrdinal, TermStreamer};
+use crate::termdict::TermStreamer;
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,

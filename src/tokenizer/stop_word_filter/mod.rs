@@ -18,7 +18,9 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashSet;
 
-use super::{BoxTokenStream, Language, Token, TokenFilter, TokenStream};
+#[cfg(feature = "stopwords")]
+use super::Language;
+use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]

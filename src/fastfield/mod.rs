@@ -19,9 +19,8 @@
 //!
 //! Read access performance is comparable to that of an array lookup.
 
-use std::net::Ipv6Addr;
-
 pub use columnar::Column;
+use columnar::MonotonicallyMappableToU64;
 
 pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -37,38 +36,9 @@ mod facet_reader;
 mod readers;
 mod writer;
 
-/// Trait for types that provide a zero value.
-///
-/// The resulting value is never used, just as placeholder, e.g. for `vec.resize()`.
-pub trait MakeZero {
-    /// Build a default value. This default value is never used, so the value does not
-    /// really matter.
-    fn make_zero() -> Self;
-}
-
-impl<T: FastValue> MakeZero for T {
-    fn make_zero() -> Self {
-        T::from_u64(0)
-    }
-}
-
-impl MakeZero for u128 {
-    fn make_zero() -> Self {
-        0
-    }
-}
-
-impl MakeZero for Ipv6Addr {
-    fn make_zero() -> Self {
-        Ipv6Addr::from(0u128.to_be_bytes())
-    }
-}
-
 /// Trait for types that are allowed for fast fields:
 /// (u64, i64 and f64, bool, DateTime).
-pub trait FastValue:
-    Copy + Send + Sync + columnar::MonotonicallyMappableToU64 + PartialOrd + 'static
-{
+pub trait FastValue: MonotonicallyMappableToU64 {
     /// Returns the `schema::Type` for this FastValue.
     fn to_type() -> Type;
 }
@@ -105,6 +75,7 @@ impl FastValue for DateTime {
 #[cfg(test)]
 mod tests {
 
+    use std::net::Ipv6Addr;
     use std::ops::{Range, RangeInclusive};
     use std::path::Path;
 

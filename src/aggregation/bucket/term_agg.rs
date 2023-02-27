@@ -505,8 +505,7 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 mod tests {
     use super::*;
     use crate::aggregation::agg_req::{
-        get_term_dict_field_names, Aggregation, Aggregations, BucketAggregation,
-        BucketAggregationType, MetricAggregation,
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{
@@ -607,12 +606,6 @@ mod tests {
             serde_json::Value::Null
         );
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0); // TODO sum_other_doc_count with min_doc_count
-
-        assert_eq!(
-            get_term_dict_field_names(&agg_req),
-            vec!["string_id".to_string(),].into_iter().collect()
-        );
-
         Ok(())
     }
 
