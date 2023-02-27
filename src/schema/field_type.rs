@@ -346,7 +346,7 @@ impl FieldType {
                     }
                     FieldType::I64(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                            Ok(Value::I64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a i64 or a i64 as string",
                                     json: JsonValue::String(field_text),
@@ -361,7 +361,7 @@ impl FieldType {
                     }
                     FieldType::F64(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                            Ok(Value::F64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a f64 or a f64 as string",
                                     json: JsonValue::String(field_text),
