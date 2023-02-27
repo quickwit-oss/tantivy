@@ -1,8 +1,7 @@
 use serde_json::Value;
 
 use crate::aggregation::agg_req::{
-    get_term_dict_field_names, Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
-    MetricAggregation,
+    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
 };
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::bucket::{RangeAggregation, TermsAggregation};
@@ -431,9 +430,6 @@ fn test_aggregation_level2(
         .collect();
         agg_req
     };
-
-    let field_names = get_term_dict_field_names(&agg_req);
-    assert_eq!(field_names, vec!["text".to_string()].into_iter().collect());
 
     let agg_res: AggregationResults = if use_distributed_collector {
         let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
