@@ -1,6 +1,4 @@
-use tantivy_query_grammar::Occur;
-
-use crate::query::{BooleanWeight, DisjunctionMaxCombiner, EnableScoring, Query, Weight};
+use crate::query::{BooleanWeight, DisjunctionMaxCombiner, EnableScoring, Occur, Query, Weight};
 use crate::{Score, Term};
 
 /// The disjunction max query returns documents matching one or more wrapped queries,

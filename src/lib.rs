@@ -123,12 +123,9 @@ mod functional_test;
 mod macros;
 mod future_result;
 
-pub use columnar;
+// Re-exports
 pub use common::DateTime;
-/// Re-export of the `time` crate
-///
-/// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
-pub use time;
+pub use {columnar, query_grammar, time};
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;

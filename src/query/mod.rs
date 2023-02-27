@@ -29,7 +29,7 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
-pub use tantivy_query_grammar::Occur;
+pub use query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;

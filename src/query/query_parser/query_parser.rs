@@ -5,8 +5,8 @@ use std::str::{FromStr, ParseBoolError};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use rustc_hash::FxHashMap;
-use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 
 use super::logical_ast::*;
 use crate::core::Index;
@@ -316,7 +316,7 @@ impl QueryParser {
 
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
-        let user_input_ast = tantivy_query_grammar::parse_query(query)
+        let user_input_ast = query_grammar::parse_query(query)
             .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
         self.compute_logical_ast(user_input_ast)
     }
