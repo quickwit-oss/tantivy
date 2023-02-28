@@ -475,8 +475,6 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
-    use std::sync::Arc;
-
     use test::{self, Bencher};
 
     use crate::core::Index;
