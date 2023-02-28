@@ -110,15 +110,13 @@ impl BucketAggregationInternal {
             _ => None,
         }
     }
-    pub(crate) fn as_histogram(&self) -> Option<HistogramAggregation> {
+    pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
         match &self.bucket_agg {
-            BucketAggregationType::Histogram(histogram) => Some(histogram.clone()),
-            BucketAggregationType::DateHistogram(histogram) => Some(
-                histogram
-                    .to_histogram_req()
-                    .expect("could not convert date histogram req to histogram req"),
-            ),
-            _ => None,
+            BucketAggregationType::Histogram(histogram) => Ok(Some(histogram.clone())),
+            BucketAggregationType::DateHistogram(histogram) => {
+                Ok(Some(histogram.to_histogram_req()?))
+            }
+            _ => Ok(None),
         }
     }
     pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {

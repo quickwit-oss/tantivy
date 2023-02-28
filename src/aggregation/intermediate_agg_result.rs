@@ -330,7 +330,7 @@ impl IntermediateBucketResult {
                 buckets,
             } => {
                 let histogram_req = &req
-                    .as_histogram()
+                    .as_histogram()?
                     .expect("unexpected aggregation, expected histogram aggregation");
                 let buckets = intermediate_histogram_buckets_to_final_buckets(
                     buckets,
