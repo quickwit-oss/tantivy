@@ -51,6 +51,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// May panic if `idx` is greater than the column length.
     fn get_val(&self, idx: u32) -> T;
 
+    /// Allows to push down multiple fetch calls, to avoid dynamic dispatch overhead.
+    ///
+    /// idx and output should have the same length
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx` is greater than the column length.
+    fn get_vals(&self, idx: &[u32], output: &mut [T]) {
+        assert!(idx.len() == output.len());
+        for (out, idx) in output.iter_mut().zip(idx.iter()) {
+            *out = self.get_val(*idx as u32);
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.

@@ -322,7 +322,7 @@ impl SegmentHistogramCollector {
         let sub_aggregation_blueprint = if sub_aggregation.is_empty() {
             None
         } else {
-            let sub_aggregation = build_segment_agg_collector(sub_aggregation, false)?;
+            let sub_aggregation = build_segment_agg_collector(sub_aggregation)?;
             Some(sub_aggregation)
         };
 

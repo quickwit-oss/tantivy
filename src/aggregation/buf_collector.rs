@@ -8,13 +8,13 @@ pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 /// BufAggregationCollector buffers documents before calling collect_block().
 #[derive(Clone)]
-pub(crate) struct BufAggregationCollector<T> {
-    pub(crate) collector: T,
+pub(crate) struct BufAggregationCollector {
+    pub(crate) collector: Box<dyn SegmentAggregationCollector>,
     staged_docs: DocBlock,
     num_staged_docs: usize,
 }
 
-impl<T> std::fmt::Debug for BufAggregationCollector<T> {
+impl std::fmt::Debug for BufAggregationCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentAggregationResultsCollector")
             .field("staged_docs", &&self.staged_docs[..self.num_staged_docs])
@@ -23,8 +23,8 @@ impl<T> std::fmt::Debug for BufAggregationCollector<T> {
     }
 }
 
-impl<T: SegmentAggregationCollector> BufAggregationCollector<T> {
-    pub fn new(collector: T) -> Self {
+impl BufAggregationCollector {
+    pub fn new(collector: Box<dyn SegmentAggregationCollector>) -> Self {
         Self {
             collector,
             num_staged_docs: 0,
@@ -33,9 +33,7 @@ impl<T: SegmentAggregationCollector> BufAggregationCollector<T> {
     }
 }
 
-impl<T: SegmentAggregationCollector + Clone + 'static> SegmentAggregationCollector
-    for BufAggregationCollector<T>
-{
+impl SegmentAggregationCollector for BufAggregationCollector {
     fn into_intermediate_aggregations_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,

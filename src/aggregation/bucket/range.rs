@@ -286,7 +286,7 @@ impl SegmentRangeCollector {
                 let sub_aggregation = if sub_aggregation.is_empty() {
                     None
                 } else {
-                    Some(build_segment_agg_collector(sub_aggregation, false)?)
+                    Some(build_segment_agg_collector(sub_aggregation)?)
                 };
 
                 Ok(SegmentRangeAndBucketEntry {
