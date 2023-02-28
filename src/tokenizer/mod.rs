@@ -52,6 +52,8 @@
 //! remove their inflection. This tokenizer is slower than the default one,
 //! but is recommended to improve recall.
 //!
+//! # Custom tokenizer Library
+//! Avoid using tantivy as dependency and prefer `tantivy-tokenizer-api` instead.
 //!
 //! # Custom tokenizers
 //!
@@ -124,6 +126,7 @@ mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
 mod raw_tokenizer;
+mod regex_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod split_compound_words;
@@ -134,21 +137,24 @@ mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
+pub use tokenizer_api::{
+    BoxTokenFilter, BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer,
+};
+
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
+pub use self::regex_tokenizer::RegexTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::split_compound_words::SplitCompoundWords;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
-pub use self::tokenizer::{
-    BoxTokenFilter, BoxTokenStream, TextAnalyzer, Token, TokenFilter, TokenStream, Tokenizer,
-};
+pub use self::tokenizer::TextAnalyzer;
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 

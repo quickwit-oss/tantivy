@@ -1,3 +1,12 @@
+// # Faceted Search With Tweak Score
+//
+// This example covers the faceted search functionalities of
+// tantivy.
+//
+// We will :
+// - define a text field "name" in our schema
+// - define a facet field "classification" in our schema
+
 use std::collections::HashSet;
 
 use tantivy::collector::TopDocs;
@@ -55,8 +64,9 @@ fn main() -> tantivy::Result<()> {
                 .collect(),
         );
         let top_docs_by_custom_score =
+            // Call TopDocs with a custom tweak score
             TopDocs::with_limit(2).tweak_score(move |segment_reader: &SegmentReader| {
-                let ingredient_reader = segment_reader.facet_reader(ingredient).unwrap();
+                let ingredient_reader = segment_reader.facet_reader("ingredient").unwrap();
                 let facet_dict = ingredient_reader.facet_dict();
 
                 let query_ords: HashSet<u64> = facets
@@ -64,12 +74,10 @@ fn main() -> tantivy::Result<()> {
                     .filter_map(|key| facet_dict.term_ord(key.encoded_str()).unwrap())
                     .collect();
 
-                let mut facet_ords_buffer: Vec<u64> = Vec::with_capacity(20);
-
                 move |doc: DocId, original_score: Score| {
-                    ingredient_reader.facet_ords(doc, &mut facet_ords_buffer);
-                    let missing_ingredients = facet_ords_buffer
-                        .iter()
+                    // Update the original score with a tweaked score
+                    let missing_ingredients = ingredient_reader
+                        .facet_ords(doc)
                         .filter(|ord| !query_ords.contains(ord))
                         .count();
                     let tweak = 1.0 / 4_f32.powi(missing_ingredients as i32);

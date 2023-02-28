@@ -126,6 +126,8 @@ mod numeric_options;
 mod text_options;
 mod value;
 
+use columnar::ColumnType;
+
 pub use self::bytes_options::BytesOptions;
 pub use self::date_time_options::{DateOptions, DatePrecision};
 pub use self::document::Document;
@@ -141,9 +143,9 @@ pub use self::index_record_option::IndexRecordOption;
 pub use self::ip_options::{IntoIpv6Addr, IpAddrOptions};
 pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
-pub use self::numeric_options::NumericOptions;
 #[allow(deprecated)]
-pub use self::numeric_options::{Cardinality, IntOptions};
+pub use self::numeric_options::IntOptions;
+pub use self::numeric_options::NumericOptions;
 pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::Term;
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
@@ -156,6 +158,21 @@ pub use self::value::Value;
 /// and must not start with a `-`.
 pub fn is_valid_field_name(field_name: &str) -> bool {
     !field_name.is_empty() && !field_name.starts_with('-')
+}
+
+pub(crate) fn value_type_to_column_type(typ: Type) -> Option<ColumnType> {
+    match typ {
+        Type::Str => Some(ColumnType::Str),
+        Type::U64 => Some(ColumnType::U64),
+        Type::I64 => Some(ColumnType::I64),
+        Type::F64 => Some(ColumnType::F64),
+        Type::Bool => Some(ColumnType::Bool),
+        Type::Date => Some(ColumnType::DateTime),
+        Type::Facet => Some(ColumnType::Str),
+        Type::Bytes => Some(ColumnType::Bytes),
+        Type::IpAddr => Some(ColumnType::IpAddr),
+        Type::Json => None,
+    }
 }
 
 #[cfg(test)]

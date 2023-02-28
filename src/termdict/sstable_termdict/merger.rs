@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use crate::postings::TermInfo;
-use crate::termdict::{TermOrdinal, TermStreamer};
+use crate::termdict::TermStreamer;
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,
@@ -57,14 +57,6 @@ impl<'a> TermMerger<'a> {
         }
     }
 
-    pub(crate) fn matching_segments<'b: 'a>(
-        &'b self,
-    ) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
-        self.current_streamers
-            .iter()
-            .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.term_ord()))
-    }
-
     fn advance_segments(&mut self) {
         let streamers = &mut self.current_streamers;
         let heap = &mut self.heap;
@@ -80,19 +72,18 @@ impl<'a> TermMerger<'a> {
     /// False if there is none.
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
-        if let Some(head) = self.heap.pop() {
-            self.current_streamers.push(head);
-            while let Some(next_streamer) = self.heap.peek() {
-                if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
-                    break;
-                }
-                let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
-                self.current_streamers.push(next_heap_it);
+        let Some(head) = self.heap.pop() else {
+            return false;
+        };
+        self.current_streamers.push(head);
+        while let Some(next_streamer) = self.heap.peek() {
+            if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
+                break;
             }
-            true
-        } else {
-            false
+            let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
+            self.current_streamers.push(next_heap_it);
         }
+        true
     }
 
     /// Returns the current term.

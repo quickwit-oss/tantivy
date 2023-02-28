@@ -2,10 +2,52 @@ use serde::{Deserialize, Serialize};
 
 use crate::fieldnorm::FieldNormReader;
 use crate::query::Explanation;
+use crate::schema::Field;
 use crate::{Score, Searcher, Term};
 
 const K1: Score = 1.2;
 const B: Score = 0.75;
+
+/// An interface to compute the statistics needed in BM25 scoring.
+///
+/// The standard implementation is a [Searcher] but you can also
+/// create your own to adjust the statistics.
+pub trait Bm25StatisticsProvider {
+    /// The total number of tokens in a given field across all documents in
+    /// the index.
+    fn total_num_tokens(&self, field: Field) -> crate::Result<u64>;
+
+    /// The total number of documents in the index.
+    fn total_num_docs(&self) -> crate::Result<u64>;
+
+    /// The number of documents containing the given term.
+    fn doc_freq(&self, term: &Term) -> crate::Result<u64>;
+}
+
+impl Bm25StatisticsProvider for Searcher {
+    fn total_num_tokens(&self, field: Field) -> crate::Result<u64> {
+        let mut total_num_tokens = 0u64;
+
+        for segment_reader in self.segment_readers() {
+            let inverted_index = segment_reader.inverted_index(field)?;
+            total_num_tokens += inverted_index.total_num_tokens();
+        }
+        Ok(total_num_tokens)
+    }
+
+    fn total_num_docs(&self) -> crate::Result<u64> {
+        let mut total_num_docs = 0u64;
+
+        for segment_reader in self.segment_readers() {
+            total_num_docs += u64::from(segment_reader.max_doc());
+        }
+        Ok(total_num_docs)
+    }
+
+    fn doc_freq(&self, term: &Term) -> crate::Result<u64> {
+        self.doc_freq(term)
+    }
+}
 
 pub(crate) fn idf(doc_freq: u64, doc_count: u64) -> Score {
     assert!(doc_count >= doc_freq, "{} >= {}", doc_count, doc_freq);
@@ -32,6 +74,7 @@ pub struct Bm25Params {
     pub avg_fieldnorm: Score,
 }
 
+/// A struct used for computing BM25 scores.
 #[derive(Clone)]
 pub struct Bm25Weight {
     idf_explain: Explanation,
@@ -41,6 +84,7 @@ pub struct Bm25Weight {
 }
 
 impl Bm25Weight {
+    /// Increase the weight by a multiplicative factor.
     pub fn boost_by(&self, boost: Score) -> Bm25Weight {
         Bm25Weight {
             idf_explain: self.idf_explain.clone(),
@@ -50,7 +94,11 @@ impl Bm25Weight {
         }
     }
 
-    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> crate::Result<Bm25Weight> {
+    /// Construct a [Bm25Weight] for a phrase of terms.
+    pub fn for_terms(
+        statistics: &dyn Bm25StatisticsProvider,
+        terms: &[Term],
+    ) -> crate::Result<Bm25Weight> {
         assert!(!terms.is_empty(), "Bm25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
@@ -61,17 +109,12 @@ impl Bm25Weight {
             );
         }
 
-        let mut total_num_tokens = 0u64;
-        let mut total_num_docs = 0u64;
-        for segment_reader in searcher.segment_readers() {
-            let inverted_index = segment_reader.inverted_index(field)?;
-            total_num_tokens += inverted_index.total_num_tokens();
-            total_num_docs += u64::from(segment_reader.max_doc());
-        }
+        let total_num_tokens = statistics.total_num_tokens(field)?;
+        let total_num_docs = statistics.total_num_docs()?;
         let average_fieldnorm = total_num_tokens as Score / total_num_docs as Score;
 
         if terms.len() == 1 {
-            let term_doc_freq = searcher.doc_freq(&terms[0])?;
+            let term_doc_freq = statistics.doc_freq(&terms[0])?;
             Ok(Bm25Weight::for_one_term(
                 term_doc_freq,
                 total_num_docs,
@@ -80,7 +123,7 @@ impl Bm25Weight {
         } else {
             let mut idf_sum: Score = 0.0;
             for term in terms {
-                let term_doc_freq = searcher.doc_freq(term)?;
+                let term_doc_freq = statistics.doc_freq(term)?;
                 idf_sum += idf(term_doc_freq, total_num_docs);
             }
             let idf_explain = Explanation::new("idf", idf_sum);
@@ -88,6 +131,7 @@ impl Bm25Weight {
         }
     }
 
+    /// Construct a [Bm25Weight] for a single term.
     pub fn for_one_term(
         term_doc_freq: u64,
         total_num_docs: u64,
@@ -114,11 +158,13 @@ impl Bm25Weight {
         }
     }
 
+    /// Compute the BM25 score of a single document.
     #[inline]
     pub fn score(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
 
+    /// Compute the maximum possible BM25 score given this weight.
     pub fn max_score(&self) -> Score {
         self.score(255u8, 2_013_265_944)
     }
@@ -130,6 +176,7 @@ impl Bm25Weight {
         term_freq / (term_freq + norm)
     }
 
+    /// Produce an [Explanation] of a BM25 score.
     pub fn explain(&self, fieldnorm_id: u8, term_freq: u32) -> Explanation {
         // The explain format is directly copied from Lucene's.
         // (So, Kudos to Lucene)

@@ -27,10 +27,14 @@ pub struct FacetTokenStream<'a> {
 
 impl Tokenizer for FacetTokenizer {
     fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+        let token = Token {
+            position: 0,
+            ..Default::default()
+        };
         FacetTokenStream {
             text,
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
-            token: Token::default(),
+            token,
         }
         .into()
     }

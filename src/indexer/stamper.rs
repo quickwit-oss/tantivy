@@ -16,11 +16,11 @@ mod atomic_impl {
 
     impl AtomicU64Wrapper {
         pub fn new(first_opstamp: Opstamp) -> AtomicU64Wrapper {
-            AtomicU64Wrapper(AtomicU64::new(first_opstamp as u64))
+            AtomicU64Wrapper(AtomicU64::new(first_opstamp))
         }
 
         pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
-            self.0.fetch_add(val as u64, order) as u64
+            self.0.fetch_add(val, order)
         }
 
         pub fn revert(&self, val: u64, order: Ordering) -> u64 {
@@ -77,7 +77,7 @@ impl Stamper {
     }
 
     pub fn stamp(&self) -> Opstamp {
-        self.0.fetch_add(1u64, Ordering::SeqCst) as u64
+        self.0.fetch_add(1u64, Ordering::SeqCst)
     }
 
     /// Given a desired count `n`, `stamps` returns an iterator that

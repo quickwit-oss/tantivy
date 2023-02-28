@@ -47,7 +47,7 @@ impl From<BitSet> for BitSetDocSet {
 impl DocSet for BitSetDocSet {
     fn advance(&mut self) -> DocId {
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
-            self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
+            self.doc = (self.cursor_bucket * 64u32) | lower;
             return self.doc;
         }
         if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {

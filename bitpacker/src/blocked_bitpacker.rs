@@ -84,7 +84,7 @@ impl BlockedBitpacker {
     #[inline]
     pub fn add(&mut self, val: u64) {
         self.buffer.push(val);
-        if self.buffer.len() == BLOCK_SIZE as usize {
+        if self.buffer.len() == BLOCK_SIZE {
             self.flush();
         }
     }
@@ -126,8 +126,8 @@ impl BlockedBitpacker {
     }
     #[inline]
     pub fn get(&self, idx: usize) -> u64 {
-        let metadata_pos = idx / BLOCK_SIZE as usize;
-        let pos_in_block = idx % BLOCK_SIZE as usize;
+        let metadata_pos = idx / BLOCK_SIZE;
+        let pos_in_block = idx % BLOCK_SIZE;
         if let Some(metadata) = self.offset_and_bits.get(metadata_pos) {
             let unpacked = BitUnpacker::new(metadata.num_bits()).get(
                 pos_in_block as u32,

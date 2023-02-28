@@ -1,6 +1,8 @@
 use std::fmt;
 use std::net::Ipv6Addr;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
@@ -51,7 +53,7 @@ impl Serialize for Value {
             Value::Bool(b) => serializer.serialize_bool(b),
             Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
-            Value::Bytes(ref bytes) => serializer.serialize_str(&base64::encode(bytes)),
+            Value::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             Value::JsonObject(ref obj) => obj.serialize(serializer),
             Value::IpAddr(ref obj) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
@@ -317,8 +319,8 @@ mod binary_serialize {
     use std::io::{self, Read, Write};
     use std::net::Ipv6Addr;
 
+    use columnar::MonotonicallyMappableToU128;
     use common::{f64_to_u64, u64_to_f64, BinarySerializable};
-    use fastfield_codecs::MonotonicallyMappableToU128;
 
     use super::Value;
     use crate::schema::Facet;
@@ -342,7 +344,7 @@ mod binary_serialize {
     const TOK_STR_CODE: u8 = 0;
 
     impl BinarySerializable for Value {
-        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
             match *self {
                 Value::Str(ref text) => {
                     TEXT_CODE.serialize(writer)?;
@@ -378,9 +380,7 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    let DateTime {
-                        timestamp_micros, ..
-                    } = val;
+                    let timestamp_micros = val.into_timestamp_micros();
                     timestamp_micros.serialize(writer)
                 }
                 Value::Facet(ref facet) => {

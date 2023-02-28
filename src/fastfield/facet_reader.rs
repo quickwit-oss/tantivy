@@ -1,9 +1,7 @@
-use std::str;
+use columnar::StrColumn;
 
-use super::MultiValuedFastFieldReader;
-use crate::error::DataCorruption;
 use crate::schema::Facet;
-use crate::termdict::{TermDictionary, TermOrdinal};
+use crate::termdict::TermOrdinal;
 use crate::DocId;
 
 /// The facet reader makes it possible to access the list of
@@ -20,9 +18,7 @@ use crate::DocId;
 /// list of facets. This ordinal is segment local and
 /// only makes sense for a given segment.
 pub struct FacetReader {
-    term_ords: MultiValuedFastFieldReader<u64>,
-    term_dict: TermDictionary,
-    buffer: Vec<u8>,
+    facet_column: StrColumn,
 }
 
 impl FacetReader {
@@ -33,15 +29,8 @@ impl FacetReader {
     /// access the list of facet ords for a given document.
     /// - a `TermDictionary` that helps associating a facet to
     /// an ordinal and vice versa.
-    pub fn new(
-        term_ords: MultiValuedFastFieldReader<u64>,
-        term_dict: TermDictionary,
-    ) -> FacetReader {
-        FacetReader {
-            term_ords,
-            term_dict,
-            buffer: vec![],
-        }
+    pub fn new(facet_column: StrColumn) -> FacetReader {
+        FacetReader { facet_column }
     }
 
     /// Returns the size of the sets of facets in the segment.
@@ -50,33 +39,24 @@ impl FacetReader {
     ///
     /// `Facet` ordinals range from `0` to `num_facets() - 1`.
     pub fn num_facets(&self) -> usize {
-        self.term_dict.num_terms()
-    }
-
-    /// Accessor for the facet term dictionary.
-    pub fn facet_dict(&self) -> &TermDictionary {
-        &self.term_dict
+        self.facet_column.num_terms()
     }
 
     /// Given a term ordinal returns the term associated with it.
-    pub fn facet_from_ord(
-        &mut self,
-        facet_ord: TermOrdinal,
-        output: &mut Facet,
-    ) -> crate::Result<()> {
-        let found_term = self
-            .term_dict
-            .ord_to_term(facet_ord as u64, &mut self.buffer)?;
-        assert!(found_term, "Term ordinal {} no found.", facet_ord);
-        let facet_str = str::from_utf8(&self.buffer[..])
-            .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?;
-        output.set_facet_str(facet_str);
+    pub fn facet_from_ord(&self, facet_ord: TermOrdinal, output: &mut Facet) -> crate::Result<()> {
+        let found_term = self.facet_column.ord_to_str(facet_ord, &mut output.0)?;
+        assert!(found_term, "Term ordinal {facet_ord} no found.");
         Ok(())
     }
 
     /// Return the list of facet ordinals associated with a document.
-    pub fn facet_ords(&self, doc: DocId, output: &mut Vec<u64>) {
-        self.term_ords.get_vals(doc, output);
+    pub fn facet_ords(&self, doc: DocId) -> impl Iterator<Item = u64> + '_ {
+        self.facet_column.ords().values_for_doc(doc)
+    }
+
+    /// Accessor to the facet dictionary.
+    pub fn facet_dict(&self) -> &columnar::Dictionary {
+        self.facet_column.dictionary()
     }
 }
 
@@ -86,26 +66,66 @@ mod tests {
     use crate::{DocAddress, Document, Index};
 
     #[test]
-    fn test_facet_only_indexed() -> crate::Result<()> {
+    fn test_facet_only_indexed() {
         let mut schema_builder = SchemaBuilder::default();
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()))?;
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let facet_reader = searcher
-            .segment_reader(0u32)
-            .facet_reader(facet_field)
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()))
             .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
         let mut facet_ords = Vec::new();
-        facet_reader.facet_ords(0u32, &mut facet_ords);
-        assert_eq!(&facet_ords, &[2u64]);
-        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
+        facet_ords.extend(facet_reader.facet_ords(0u32));
+        assert_eq!(&facet_ords, &[0u64]);
+        assert_eq!(facet_reader.num_facets(), 1);
+        let mut facet = Facet::default();
+        facet_reader.facet_from_ord(0, &mut facet).unwrap();
+        assert_eq!(facet.to_path_string(), "/a/b");
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32)).unwrap();
         let value = doc.get_first(facet_field).and_then(Value::as_facet);
         assert_eq!(value, None);
-        Ok(())
+    }
+
+    #[test]
+    fn test_facet_several_facets_sorted() {
+        let mut schema_builder = SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(facet_field=>Facet::from_text("/parent/child1").unwrap()))
+            .unwrap();
+        index_writer
+            .add_document(doc!(
+                facet_field=>Facet::from_text("/parent/child2").unwrap(),
+                facet_field=>Facet::from_text("/parent/child1/blop").unwrap(),
+            ))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
+        let mut facet_ords = Vec::new();
+
+        facet_ords.extend(facet_reader.facet_ords(0u32));
+        assert_eq!(&facet_ords, &[0u64]);
+
+        facet_ords.clear();
+        facet_ords.extend(facet_reader.facet_ords(1u32));
+        assert_eq!(&facet_ords, &[1u64, 2u64]);
+
+        assert_eq!(facet_reader.num_facets(), 3);
+        let mut facet = Facet::default();
+        facet_reader.facet_from_ord(0, &mut facet).unwrap();
+        assert_eq!(facet.to_path_string(), "/parent/child1");
+        facet_reader.facet_from_ord(1, &mut facet).unwrap();
+        assert_eq!(facet.to_path_string(), "/parent/child1/blop");
+        facet_reader.facet_from_ord(2, &mut facet).unwrap();
+        assert_eq!(facet.to_path_string(), "/parent/child2");
     }
 
     #[test]
@@ -118,13 +138,10 @@ mod tests {
         index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let facet_reader = searcher
-            .segment_reader(0u32)
-            .facet_reader(facet_field)
-            .unwrap();
+        let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
         let mut facet_ords = Vec::new();
-        facet_reader.facet_ords(0u32, &mut facet_ords);
-        assert_eq!(&facet_ords, &[2u64]);
+        facet_ords.extend(facet_reader.facet_ords(0u32));
+        assert_eq!(&facet_ords, &[0u64]);
         let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value: Option<&Facet> = doc.get_first(facet_field).and_then(Value::as_facet);
         assert_eq!(value, Facet::from_text("/a/b").ok().as_ref());
@@ -142,14 +159,12 @@ mod tests {
         index_writer.add_document(Document::default())?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let facet_reader = searcher
-            .segment_reader(0u32)
-            .facet_reader(facet_field)
-            .unwrap();
+        let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
         let mut facet_ords = Vec::new();
-        facet_reader.facet_ords(0u32, &mut facet_ords);
-        assert_eq!(&facet_ords, &[2u64]);
-        facet_reader.facet_ords(1u32, &mut facet_ords);
+        facet_ords.extend(facet_reader.facet_ords(0u32));
+        assert_eq!(&facet_ords, &[0u64]);
+        facet_ords.clear();
+        facet_ords.extend(facet_reader.facet_ords(1u32));
         assert!(facet_ords.is_empty());
         Ok(())
     }
@@ -157,7 +172,7 @@ mod tests {
     #[test]
     fn test_facet_not_populated_for_any_docs() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::default();
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -165,15 +180,9 @@ mod tests {
         index_writer.add_document(Document::default())?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let facet_reader = searcher
-            .segment_reader(0u32)
-            .facet_reader(facet_field)
-            .unwrap();
-        let mut facet_ords = Vec::new();
-        facet_reader.facet_ords(0u32, &mut facet_ords);
-        assert!(facet_ords.is_empty());
-        facet_reader.facet_ords(1u32, &mut facet_ords);
-        assert!(facet_ords.is_empty());
+        let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
+        assert!(facet_reader.facet_ords(0u32).next().is_none());
+        assert!(facet_reader.facet_ords(1u32).next().is_none());
         Ok(())
     }
 }

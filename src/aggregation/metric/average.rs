@@ -1,114 +1,58 @@
 use std::fmt::Debug;
 
-use fastfield_codecs::Column;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::f64_from_fastfield_u64;
-use crate::schema::Type;
-use crate::DocId;
+use super::{IntermediateStats, SegmentStatsCollector};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// A single-value metric aggregation that computes the average of numeric values that are
 /// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
 /// See [super::SingleMetricResult] for return value.
 ///
 /// # JSON Format
 /// ```json
 /// {
 ///     "avg": {
-///         "field": "score",
+///         "field": "score"
 ///     }
 /// }
 /// ```
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AverageAggregation {
-    /// The field name to compute the stats on.
+    /// The field name to compute the average on.
     pub field: String,
 }
+
 impl AverageAggregation {
-    /// Create new AverageAggregation from a field.
+    /// Creates a new [`AverageAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        AverageAggregation { field: field_name }
+        Self { field: field_name }
     }
-    /// Return the field name.
+    /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
         &self.field
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub(crate) struct SegmentAverageCollector {
-    pub data: IntermediateAverage,
-    field_type: Type,
-}
-
-impl Debug for SegmentAverageCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AverageCollector")
-            .field("data", &self.data)
-            .finish()
-    }
-}
-
-impl SegmentAverageCollector {
-    pub fn from_req(field_type: Type) -> Self {
-        Self {
-            field_type,
-            data: Default::default(),
-        }
-    }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &dyn Column<u64>) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = field.get_val(docs[0]);
-            let val2 = field.get_val(docs[1]);
-            let val3 = field.get_val(docs[2]);
-            let val4 = field.get_val(docs[3]);
-            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
-            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
-            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
-            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
-            self.data.collect(val1);
-            self.data.collect(val2);
-            self.data.collect(val3);
-            self.data.collect(val4);
-        }
-        for &doc in iter.remainder() {
-            let val = field.get_val(doc);
-            let val = f64_from_fastfield_u64(val, &self.field_type);
-            self.data.collect(val);
-        }
-    }
-}
-
-/// Contains mergeable version of average data.
+/// Intermediate result of the average aggregation that can be combined with other intermediate
+/// results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAverage {
-    pub(crate) sum: f64,
-    pub(crate) doc_count: u64,
+    stats: IntermediateStats,
 }
 
 impl IntermediateAverage {
-    pub(crate) fn from_collector(collector: SegmentAverageCollector) -> Self {
-        collector.data
-    }
-
-    /// Merge average data into this instance.
-    pub fn merge_fruits(&mut self, other: IntermediateAverage) {
-        self.sum += other.sum;
-        self.doc_count += other.doc_count;
-    }
-    /// compute final result
-    pub fn finalize(&self) -> Option<f64> {
-        if self.doc_count == 0 {
-            None
-        } else {
-            Some(self.sum / self.doc_count as f64)
+    /// Creates a new [`IntermediateAverage`] instance from a [`SegmentStatsCollector`].
+    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
+        Self {
+            stats: collector.stats,
         }
     }
-    #[inline]
-    fn collect(&mut self, val: f64) {
-        self.doc_count += 1;
-        self.sum += val;
+    /// Merges the other intermediate result into self.
+    pub fn merge_fruits(&mut self, other: IntermediateAverage) {
+        self.stats.merge_fruits(other.stats);
+    }
+    /// Computes the final average value.
+    pub fn finalize(&self) -> Option<f64> {
+        self.stats.finalize().avg
     }
 }

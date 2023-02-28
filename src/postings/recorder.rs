@@ -1,6 +1,6 @@
 use common::read_u32_vint;
+use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
-use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::FieldSerializer;
 use crate::DocId;
@@ -91,7 +91,7 @@ pub struct DocIdRecorder {
 impl Default for DocIdRecorder {
     fn default() -> Self {
         DocIdRecorder {
-            stack: ExpUnrolledLinkedList::new(),
+            stack: ExpUnrolledLinkedList::default(),
             current_doc: u32::MAX,
         }
     }
@@ -144,23 +144,12 @@ impl Recorder for DocIdRecorder {
 }
 
 /// Recorder encoding document ids, and term frequencies
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
     term_doc_freq: u32,
-}
-
-impl Default for TermFrequencyRecorder {
-    fn default() -> Self {
-        TermFrequencyRecorder {
-            stack: ExpUnrolledLinkedList::new(),
-            current_doc: 0,
-            current_tf: 0u32,
-            term_doc_freq: 0u32,
-        }
-    }
 }
 
 impl Recorder for TermFrequencyRecorder {
@@ -229,7 +218,7 @@ pub struct TfAndPositionRecorder {
 impl Default for TfAndPositionRecorder {
     fn default() -> Self {
         TfAndPositionRecorder {
-            stack: ExpUnrolledLinkedList::new(),
+            stack: ExpUnrolledLinkedList::default(),
             current_doc: u32::MAX,
             term_doc_freq: 0u32,
         }

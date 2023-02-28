@@ -1,7 +1,7 @@
 // # Defining a tokenizer pipeline
 //
-// In this example, we'll see how to define a tokenizer pipeline
-// by aligning a bunch of `TokenFilter`.
+// In this example, we'll see how to define a tokenizer
+// by creating a custom `NgramTokenizer`.
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;

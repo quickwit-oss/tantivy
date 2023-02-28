@@ -1,9 +1,7 @@
-use tantivy_query_grammar::Occur;
+use crate::query::{BooleanWeight, DisjunctionMaxCombiner, EnableScoring, Occur, Query, Weight};
+use crate::{Score, Term};
 
-use crate::query::{BooleanWeight, DisjunctionMaxCombiner, Query, Weight};
-use crate::{Score, Searcher, Term};
-
-/// The disjunction max query кeturns documents matching one or more wrapped queries,
+/// The disjunction max query returns documents matching one or more wrapped queries,
 /// called query clauses or clauses.
 ///
 /// If a returned document matches multiple query clauses,
@@ -91,16 +89,16 @@ impl Clone for DisjunctionMaxQuery {
 }
 
 impl Query for DisjunctionMaxQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let disjuncts = self
             .disjuncts
             .iter()
-            .map(|disjunct| Ok((Occur::Should, disjunct.weight(searcher, scoring_enabled)?)))
+            .map(|disjunct| Ok((Occur::Should, disjunct.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
         let tie_breaker = self.tie_breaker;
         Ok(Box::new(BooleanWeight::new(
             disjuncts,
-            scoring_enabled,
+            enable_scoring.is_scoring_enabled(),
             Box::new(move || DisjunctionMaxCombiner::with_tie_breaker(tie_breaker)),
         )))
     }

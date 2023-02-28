@@ -168,7 +168,7 @@ mod tests {
         watch_event_router.broadcast().wait().unwrap();
         assert_eq!(2, counter.load(Ordering::SeqCst));
         mem::drop(handle_a);
-        let _ = watch_event_router.broadcast();
+        drop(watch_event_router.broadcast());
         watch_event_router.broadcast().wait().unwrap();
         assert_eq!(2, counter.load(Ordering::SeqCst));
     }

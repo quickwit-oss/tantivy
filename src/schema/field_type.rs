@@ -1,12 +1,14 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
 use super::ip_options::IpAddrOptions;
-use super::{Cardinality, IntoIpv6Addr};
+use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
@@ -181,6 +183,11 @@ impl FieldType {
         matches!(self, FieldType::IpAddr(_))
     }
 
+    /// returns true if this is an date field
+    pub fn is_date(&self) -> bool {
+        matches!(self, FieldType::Date(_))
+    }
+
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
@@ -230,27 +237,7 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.is_fast(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
-            FieldType::JsonObject(_) => false,
-        }
-    }
-
-    /// returns true if the field is fast.
-    pub fn fastfield_cardinality(&self) -> Option<Cardinality> {
-        match *self {
-            FieldType::Bytes(ref bytes_options) => {
-                bytes_options.is_fast().then_some(Cardinality::SingleValue)
-            }
-            FieldType::Str(ref text_options) => {
-                text_options.is_fast().then_some(Cardinality::MultiValues)
-            }
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.get_fastfield_cardinality(),
-            FieldType::Date(ref date_options) => date_options.get_fastfield_cardinality(),
-            FieldType::Facet(_) => Some(Cardinality::MultiValues),
-            FieldType::JsonObject(_) => None,
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.get_fastfield_cardinality(),
+            FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
         }
     }
 
@@ -353,7 +340,8 @@ impl FieldType {
                         json: JsonValue::String(field_text),
                     }),
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => base64::decode(&field_text)
+                    FieldType::Bytes(_) => BASE64
+                        .decode(&field_text)
                         .map(Value::Bytes)
                         .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
                     FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {

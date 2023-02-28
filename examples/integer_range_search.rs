@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     reader.reload()?;
     let searcher = reader.searcher();
     // The end is excluded i.e. here we are searching up to 1969
-    let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
+    let docs_in_the_sixties = RangeQuery::new_u64("year".to_string(), 1960..1970);
     // Uses a Count collector to sum the total number of docs in the range
     let num_60s_books = searcher.search(&docs_in_the_sixties, &Count)?;
     assert_eq!(num_60s_books, 10);

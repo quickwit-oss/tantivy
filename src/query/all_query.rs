@@ -1,8 +1,8 @@
-use crate::core::{Searcher, SegmentReader};
+use crate::core::SegmentReader;
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
-use crate::query::{Explanation, Query, Scorer, Weight};
+use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, Score};
 
 /// Query that matches all of the documents.
@@ -12,7 +12,7 @@ use crate::{DocId, Score};
 pub struct AllQuery;
 
 impl Query for AllQuery {
-    fn weight(&self, _: &Searcher, _: bool) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, _: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(AllWeight))
     }
 }
@@ -72,7 +72,7 @@ impl Scorer for AllScorer {
 mod tests {
     use super::AllQuery;
     use crate::docset::TERMINATED;
-    use crate::query::Query;
+    use crate::query::{EnableScoring, Query};
     use crate::schema::{Schema, TEXT};
     use crate::Index;
 
@@ -95,7 +95,7 @@ mod tests {
         let index = create_test_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let weight = AllQuery.weight(&searcher, false)?;
+        let weight = AllQuery.weight(EnableScoring::disabled_from_schema(&index.schema()))?;
         {
             let reader = searcher.segment_reader(0);
             let mut scorer = weight.scorer(reader, 1.0)?;
@@ -118,7 +118,7 @@ mod tests {
         let index = create_test_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let weight = AllQuery.weight(&searcher, false)?;
+        let weight = AllQuery.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let reader = searcher.segment_reader(0);
         {
             let mut scorer = weight.scorer(reader, 2.0)?;

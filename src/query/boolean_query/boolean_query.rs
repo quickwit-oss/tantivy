@@ -1,7 +1,6 @@
 use super::boolean_weight::BooleanWeight;
-use crate::query::{Occur, Query, SumWithCoordsCombiner, TermQuery, Weight};
+use crate::query::{EnableScoring, Occur, Query, SumWithCoordsCombiner, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
-use crate::Searcher;
 
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
@@ -143,17 +142,15 @@ impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let sub_weights = self
             .subqueries
             .iter()
-            .map(|&(ref occur, ref subquery)| {
-                Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
-            })
+            .map(|(occur, subquery)| Ok((*occur, subquery.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
         Ok(Box::new(BooleanWeight::new(
             sub_weights,
-            scoring_enabled,
+            enable_scoring.is_scoring_enabled(),
             Box::new(SumWithCoordsCombiner::default),
         )))
     }

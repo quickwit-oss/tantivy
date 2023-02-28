@@ -3,24 +3,26 @@
 //! indices.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
+use columnar::ColumnType;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::agg_req::{
     Aggregations, AggregationsInternal, BucketAggregationInternal, BucketAggregationType,
-    MetricAggregation,
+    MetricAggregation, RangeAggregation,
 };
 use super::agg_result::{AggregationResult, BucketResult, RangeBucketEntry};
 use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
     GetDocCount, Order, OrderTarget, SegmentHistogramBucketEntry, TermsAggregation,
 };
-use super::metric::{IntermediateAverage, IntermediateStats};
-use super::segment_agg_result::SegmentMetricResultCollector;
-use super::{Key, SerializedKey, VecWithNames};
+use super::metric::{
+    IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
+    IntermediateSum,
+};
+use super::{format_date, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
 
@@ -51,7 +53,7 @@ impl IntermediateAggregationResults {
         // Important assumption:
         // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
         // request
-        let mut results: HashMap<String, AggregationResult> = HashMap::new();
+        let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
 
         if let Some(buckets) = self.buckets {
             convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets)?
@@ -132,7 +134,7 @@ impl IntermediateAggregationResults {
 }
 
 fn convert_and_add_final_metrics_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     metrics: VecWithNames<IntermediateMetricResult>,
 ) {
     results.extend(
@@ -143,7 +145,7 @@ fn convert_and_add_final_metrics_to_result(
 }
 
 fn add_empty_final_metrics_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     req_metrics: &VecWithNames<MetricAggregation>,
 ) -> crate::Result<()> {
     results.extend(req_metrics.iter().map(|(key, req)| {
@@ -157,7 +159,7 @@ fn add_empty_final_metrics_to_result(
 }
 
 fn add_empty_final_buckets_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
 ) -> crate::Result<()> {
     let requested_buckets = req_buckets.iter();
@@ -169,7 +171,7 @@ fn add_empty_final_buckets_to_result(
 }
 
 fn convert_and_add_final_buckets_to_result(
-    results: &mut HashMap<String, AggregationResult>,
+    results: &mut FxHashMap<String, AggregationResult>,
     buckets: VecWithNames<IntermediateBucketResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
 ) -> crate::Result<()> {
@@ -195,23 +197,18 @@ pub enum IntermediateAggregationResult {
 /// Holds the intermediate data for metric results
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IntermediateMetricResult {
-    /// Average containing intermediate average data result
+    /// Intermediate average result.
     Average(IntermediateAverage),
-    /// AverageData variant
+    /// Intermediate count result.
+    Count(IntermediateCount),
+    /// Intermediate max result.
+    Max(IntermediateMax),
+    /// Intermediate min result.
+    Min(IntermediateMin),
+    /// Intermediate stats result.
     Stats(IntermediateStats),
-}
-
-impl From<SegmentMetricResultCollector> for IntermediateMetricResult {
-    fn from(tree: SegmentMetricResultCollector) -> Self {
-        match tree {
-            SegmentMetricResultCollector::Average(collector) => {
-                IntermediateMetricResult::Average(IntermediateAverage::from_collector(collector))
-            }
-            SegmentMetricResultCollector::Stats(collector) => {
-                IntermediateMetricResult::Stats(collector.stats)
-            }
-        }
-    }
+    /// Intermediate sum result.
+    Sum(IntermediateSum),
 }
 
 impl IntermediateMetricResult {
@@ -220,24 +217,45 @@ impl IntermediateMetricResult {
             MetricAggregation::Average(_) => {
                 IntermediateMetricResult::Average(IntermediateAverage::default())
             }
+            MetricAggregation::Count(_) => {
+                IntermediateMetricResult::Count(IntermediateCount::default())
+            }
+            MetricAggregation::Max(_) => IntermediateMetricResult::Max(IntermediateMax::default()),
+            MetricAggregation::Min(_) => IntermediateMetricResult::Min(IntermediateMin::default()),
             MetricAggregation::Stats(_) => {
                 IntermediateMetricResult::Stats(IntermediateStats::default())
             }
+            MetricAggregation::Sum(_) => IntermediateMetricResult::Sum(IntermediateSum::default()),
         }
     }
     fn merge_fruits(&mut self, other: IntermediateMetricResult) {
         match (self, other) {
             (
-                IntermediateMetricResult::Average(avg_data_left),
-                IntermediateMetricResult::Average(avg_data_right),
+                IntermediateMetricResult::Average(avg_left),
+                IntermediateMetricResult::Average(avg_right),
             ) => {
-                avg_data_left.merge_fruits(avg_data_right);
+                avg_left.merge_fruits(avg_right);
+            }
+            (
+                IntermediateMetricResult::Count(count_left),
+                IntermediateMetricResult::Count(count_right),
+            ) => {
+                count_left.merge_fruits(count_right);
+            }
+            (IntermediateMetricResult::Max(max_left), IntermediateMetricResult::Max(max_right)) => {
+                max_left.merge_fruits(max_right);
+            }
+            (IntermediateMetricResult::Min(min_left), IntermediateMetricResult::Min(min_right)) => {
+                min_left.merge_fruits(min_right);
             }
             (
                 IntermediateMetricResult::Stats(stats_left),
                 IntermediateMetricResult::Stats(stats_right),
             ) => {
                 stats_left.merge_fruits(stats_right);
+            }
+            (IntermediateMetricResult::Sum(sum_left), IntermediateMetricResult::Sum(sum_right)) => {
+                sum_left.merge_fruits(sum_right);
             }
             _ => {
                 panic!("incompatible fruit types in tree");
@@ -256,6 +274,8 @@ pub enum IntermediateBucketResult {
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
     Histogram {
+        /// The column_type of the underlying `Column`
+        column_type: Option<ColumnType>,
         /// The buckets
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
@@ -272,8 +292,15 @@ impl IntermediateBucketResult {
             IntermediateBucketResult::Range(range_res) => {
                 let mut buckets: Vec<RangeBucketEntry> = range_res
                     .buckets
-                    .into_iter()
-                    .map(|(_, bucket)| bucket.into_final_bucket_entry(&req.sub_aggregation))
+                    .into_values()
+                    .map(|bucket| {
+                        bucket.into_final_bucket_entry(
+                            &req.sub_aggregation,
+                            req.as_range()
+                                .expect("unexpected aggregation, expected histogram aggregation"),
+                            range_res.column_type,
+                        )
+                    })
                     .collect::<crate::Result<Vec<_>>>()?;
 
                 buckets.sort_by(|left, right| {
@@ -298,9 +325,13 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Range { buckets })
             }
-            IntermediateBucketResult::Histogram { buckets } => {
+            IntermediateBucketResult::Histogram {
+                column_type,
+                buckets,
+            } => {
                 let buckets = intermediate_histogram_buckets_to_final_buckets(
                     buckets,
+                    column_type,
                     req.as_histogram()
                         .expect("unexpected aggregation, expected histogram aggregation"),
                     &req.sub_aggregation,
@@ -330,9 +361,10 @@ impl IntermediateBucketResult {
         match req {
             BucketAggregationType::Terms(_) => IntermediateBucketResult::Terms(Default::default()),
             BucketAggregationType::Range(_) => IntermediateBucketResult::Range(Default::default()),
-            BucketAggregationType::Histogram(_) => {
-                IntermediateBucketResult::Histogram { buckets: vec![] }
-            }
+            BucketAggregationType::Histogram(_) => IntermediateBucketResult::Histogram {
+                buckets: vec![],
+                column_type: None,
+            },
         }
     }
     fn merge_fruits(&mut self, other: IntermediateBucketResult) {
@@ -341,7 +373,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Terms(term_res_left),
                 IntermediateBucketResult::Terms(term_res_right),
             ) => {
-                merge_maps(&mut term_res_left.entries, term_res_right.entries);
+                merge_key_maps(&mut term_res_left.entries, term_res_right.entries);
                 term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
                 term_res_left.doc_count_error_upper_bound +=
                     term_res_right.doc_count_error_upper_bound;
@@ -351,7 +383,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Range(range_res_left),
                 IntermediateBucketResult::Range(range_res_right),
             ) => {
-                merge_maps(&mut range_res_left.buckets, range_res_right.buckets);
+                merge_serialized_key_maps(&mut range_res_left.buckets, range_res_right.buckets);
             }
             (
                 IntermediateBucketResult::Histogram {
@@ -397,12 +429,13 @@ impl IntermediateBucketResult {
 /// Range aggregation including error counts
 pub struct IntermediateRangeBucketResult {
     pub(crate) buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry>,
+    pub(crate) column_type: Option<ColumnType>,
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
-    pub(crate) entries: FxHashMap<String, IntermediateTermBucketEntry>,
+    pub(crate) entries: FxHashMap<Key, IntermediateTermBucketEntry>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
 }
@@ -420,7 +453,8 @@ impl IntermediateTermBucketResult {
             .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
             .map(|(key, entry)| {
                 Ok(BucketEntry {
-                    key: Key::Str(key),
+                    key_as_string: None,
+                    key,
                     doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
@@ -433,7 +467,7 @@ impl IntermediateTermBucketResult {
         match req.order.target {
             OrderTarget::Key => {
                 buckets.sort_by(|left, right| {
-                    if req.order.order == Order::Desc {
+                    if req.order.order == Order::Asc {
                         left.key.partial_cmp(&right.key)
                     } else {
                         right.key.partial_cmp(&left.key)
@@ -498,9 +532,24 @@ trait MergeFruits {
     fn merge_fruits(&mut self, other: Self);
 }
 
-fn merge_maps<V: MergeFruits + Clone>(
+fn merge_serialized_key_maps<V: MergeFruits + Clone>(
     entries_left: &mut FxHashMap<SerializedKey, V>,
     mut entries_right: FxHashMap<SerializedKey, V>,
+) {
+    for (name, entry_left) in entries_left.iter_mut() {
+        if let Some(entry_right) = entries_right.remove(name) {
+            entry_left.merge_fruits(entry_right);
+        }
+    }
+
+    for (key, res) in entries_right.into_iter() {
+        entries_left.entry(key).or_insert(res);
+    }
+}
+
+fn merge_key_maps<V: MergeFruits + Clone>(
+    entries_left: &mut FxHashMap<Key, V>,
+    mut entries_right: FxHashMap<Key, V>,
 ) {
     for (name, entry_left) in entries_left.iter_mut() {
         if let Some(entry_right) = entries_right.remove(name) {
@@ -531,6 +580,7 @@ impl IntermediateHistogramBucketEntry {
         req: &AggregationsInternal,
     ) -> crate::Result<BucketEntry> {
         Ok(BucketEntry {
+            key_as_string: None,
             key: Key::F64(self.key),
             doc_count: self.doc_count,
             sub_aggregation: self
@@ -572,8 +622,10 @@ impl IntermediateRangeBucketEntry {
     pub(crate) fn into_final_bucket_entry(
         self,
         req: &AggregationsInternal,
+        _range_req: &RangeAggregation,
+        column_type: Option<ColumnType>,
     ) -> crate::Result<RangeBucketEntry> {
-        Ok(RangeBucketEntry {
+        let mut range_bucket_entry = RangeBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
             sub_aggregation: self
@@ -581,7 +633,24 @@ impl IntermediateRangeBucketEntry {
                 .into_final_bucket_result_internal(req)?,
             to: self.to,
             from: self.from,
-        })
+            to_as_string: None,
+            from_as_string: None,
+        };
+
+        // If we have a date type on the histogram buckets, we add the `key_as_string` field as
+        // rfc339
+        if column_type == Some(ColumnType::DateTime) {
+            if let Some(val) = range_bucket_entry.to {
+                let key_as_string = format_date(val as i64)?;
+                range_bucket_entry.to_as_string = Some(key_as_string);
+            }
+            if let Some(val) = range_bucket_entry.from {
+                let key_as_string = format_date(val as i64)?;
+                range_bucket_entry.from_as_string = Some(key_as_string);
+            }
+        }
+
+        Ok(range_bucket_entry)
     }
 }
 
@@ -641,7 +710,10 @@ mod tests {
         }
         map.insert(
             "my_agg_level2".to_string(),
-            IntermediateBucketResult::Range(IntermediateRangeBucketResult { buckets }),
+            IntermediateBucketResult::Range(IntermediateRangeBucketResult {
+                buckets,
+                column_type: None,
+            }),
         );
         IntermediateAggregationResults {
             buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
@@ -671,7 +743,10 @@ mod tests {
         }
         map.insert(
             "my_agg_level1".to_string(),
-            IntermediateBucketResult::Range(IntermediateRangeBucketResult { buckets }),
+            IntermediateBucketResult::Range(IntermediateRangeBucketResult {
+                buckets,
+                column_type: None,
+            }),
         );
         IntermediateAggregationResults {
             buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),

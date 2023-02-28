@@ -29,7 +29,7 @@ Your mileage WILL vary depending on the nature of queries and their load.
 # Features
 
 - Full-text search
-- Configurable tokenizer (stemming available for 17 Latin languages with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
+- Configurable tokenizer (stemming available for 17 Latin languages) with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command-line tools
 - BM25 scoring (the same as Lucene)
@@ -41,13 +41,13 @@ Your mileage WILL vary depending on the nature of queries and their load.
 - SIMD integer compression when the platform/CPU includes the SSE2 instruction set
 - Single valued and multivalued u64, i64, and f64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
-- Text, i64, u64, f64, dates, and hierarchical facet fields
-- LZ4 compressed document store
+- Text, i64, u64, f64, dates, ip, bool, and hierarchical facet fields
+- Compressed document store (LZ4, Zstd, None, Brotli, Snap)
 - Range queries
 - Faceted search
 - Configurable indexing (optional term frequency and position indexing)
 - JSON Field
-- Aggregation Collector: range buckets, average, and stats metrics
+- Aggregation Collector: histogram, range buckets, average, and stats metrics
 - LogMergePolicy with deletes
 - Searcher Warmer API
 - Cheesy logo with a horse
@@ -80,10 +80,11 @@ There are many ways to support this project.
 # Contributing code
 
 We use the GitHub Pull Request workflow: reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
+Feel free to update CHANGELOG.md with your contribution.
 
-## Minimum supported Rust version
+## Tokenizer
 
-Tantivy currently requires at least Rust 1.62 or later to compile.
+When implementing a tokenizer for tantivy depend on the `tantivy-tokenizer-api` crate.
 
 ## Clone and build locally
 
@@ -91,41 +92,9 @@ Tantivy compiles on stable Rust.
 To check out and run tests, you can simply run:
 
 ```bash
-    git clone https://github.com/quickwit-oss/tantivy.git
-    cd tantivy
-    cargo build
-```
-
-## Run tests
-
-Some tests will not run with just `cargo test` because of `fail-rs`.
-To run the tests exhaustively, run `./run-tests.sh`.
-
-## Debug
-
-You might find it useful to step through the programme with a debugger.
-
-### A failing test
-
-Make sure you haven't run `cargo clean` after the most recent `cargo test` or `cargo build` to guarantee that the `target/` directory exists. Use this bash script to find the name of the most recent debug build of Tantivy and run it under `rust-gdb`:
-
-```bash
-find target/debug/ -maxdepth 1 -executable -type f -name "tantivy*" -printf '%TY-%Tm-%Td %TT %p\n' | sort -r | cut -d " " -f 3 | xargs -I RECENT_DBG_TANTIVY rust-gdb RECENT_DBG_TANTIVY
-```
-
-Now that you are in `rust-gdb`, you can set breakpoints on lines and methods that match your source code and run the debug executable with flags that you normally pass to `cargo test` like this:
-
-```bash
-$gdb run --test-threads 1 --test $NAME_OF_TEST
-```
-
-### An example
-
-By default, `rustc` compiles everything in the `examples/` directory in debug mode. This makes it easy for you to make examples to reproduce bugs:
-
-```bash
-rust-gdb target/debug/examples/$EXAMPLE_NAME
-$ gdb run
+git clone https://github.com/quickwit-oss/tantivy.git
+cd tantivy
+cargo test
 ```
 
 # Companies Using Tantivy

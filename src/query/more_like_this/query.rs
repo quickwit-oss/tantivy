@@ -1,7 +1,7 @@
 use super::MoreLikeThis;
-use crate::query::{Query, Weight};
+use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, Value};
-use crate::{DocAddress, Result, Searcher};
+use crate::DocAddress;
 
 /// A query that matches all of the documents similar to a document
 /// or a set of field values provided.
@@ -42,16 +42,23 @@ impl MoreLikeThisQuery {
 }
 
 impl Query for MoreLikeThisQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let searcher = match enable_scoring {
+            EnableScoring::Enabled { searcher, .. } => searcher,
+            EnableScoring::Disabled { .. } => {
+                let err = "MoreLikeThisQuery requires to enable scoring.".to_string();
+                return Err(crate::TantivyError::InvalidArgument(err));
+            }
+        };
         match &self.target {
             TargetDocument::DocumentAdress(doc_address) => self
                 .mlt
                 .query_with_document(searcher, *doc_address)?
-                .weight(searcher, scoring_enabled),
+                .weight(enable_scoring),
             TargetDocument::DocumentFields(doc_fields) => self
                 .mlt
                 .query_with_document_fields(searcher, doc_fields)?
-                .weight(searcher, scoring_enabled),
+                .weight(enable_scoring),
         }
     }
 }

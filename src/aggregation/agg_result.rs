@@ -4,8 +4,6 @@
 //! intermediate average results, which is the sum and the number of values. The actual average is
 //! calculated on the step from intermediate to final aggregation result tree.
 
-use std::collections::HashMap;
-
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +16,7 @@ use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
-pub struct AggregationResults(pub HashMap<String, AggregationResult>);
+pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
     pub(crate) fn get_value_from_aggregation(
@@ -31,7 +29,7 @@ impl AggregationResults {
         } else {
             // Validation is be done during request parsing, so we can't reach this state.
             Err(TantivyError::InternalError(format!(
-                "Can't find aggregation {:?} in sub_aggregations",
+                "Can't find aggregation {:?} in sub-aggregations",
                 name
             )))
         }
@@ -71,26 +69,50 @@ impl AggregationResult {
 pub enum MetricResult {
     /// Average metric result.
     Average(SingleMetricResult),
+    /// Count metric result.
+    Count(SingleMetricResult),
+    /// Max metric result.
+    Max(SingleMetricResult),
+    /// Min metric result.
+    Min(SingleMetricResult),
     /// Stats metric result.
     Stats(Stats),
+    /// Sum metric result.
+    Sum(SingleMetricResult),
 }
 
 impl MetricResult {
     fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
         match self {
             MetricResult::Average(avg) => Ok(avg.value),
+            MetricResult::Count(count) => Ok(count.value),
+            MetricResult::Max(max) => Ok(max.value),
+            MetricResult::Min(min) => Ok(min.value),
             MetricResult::Stats(stats) => stats.get_value(agg_property),
+            MetricResult::Sum(sum) => Ok(sum.value),
         }
     }
 }
 impl From<IntermediateMetricResult> for MetricResult {
     fn from(metric: IntermediateMetricResult) -> Self {
         match metric {
-            IntermediateMetricResult::Average(avg_data) => {
-                MetricResult::Average(avg_data.finalize().into())
+            IntermediateMetricResult::Average(intermediate_avg) => {
+                MetricResult::Average(intermediate_avg.finalize().into())
+            }
+            IntermediateMetricResult::Count(intermediate_count) => {
+                MetricResult::Count(intermediate_count.finalize().into())
+            }
+            IntermediateMetricResult::Max(intermediate_max) => {
+                MetricResult::Max(intermediate_max.finalize().into())
+            }
+            IntermediateMetricResult::Min(intermediate_min) => {
+                MetricResult::Min(intermediate_min.finalize().into())
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())
+            }
+            IntermediateMetricResult::Sum(intermediate_sum) => {
+                MetricResult::Sum(intermediate_sum.finalize().into())
             }
         }
     }
@@ -101,13 +123,13 @@ impl From<IntermediateMetricResult> for MetricResult {
 #[serde(untagged)]
 pub enum BucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
-    /// sub_aggregations.
+    /// sub-aggregations.
     Range {
         /// The range buckets sorted by range.
         buckets: BucketEntries<RangeBucketEntry>,
     },
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
-    /// sub_aggregations.
+    /// sub-aggregations.
     Histogram {
         /// The buckets.
         ///
@@ -149,7 +171,7 @@ pub enum BucketEntries<T> {
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally
-/// sub_aggregations.
+/// sub-aggregations.
 ///
 /// # JSON Format
 /// ```json
@@ -176,6 +198,9 @@ pub enum BucketEntries<T> {
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The string representation of the bucket.
+    pub key_as_string: Option<String>,
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
@@ -196,7 +221,7 @@ impl GetDocCount for BucketEntry {
 }
 
 /// This is the range entry for a bucket, which contains a key, count, and optionally
-/// sub_aggregations.
+/// sub-aggregations.
 ///
 /// # JSON Format
 /// ```json
@@ -232,7 +257,7 @@ pub struct RangeBucketEntry {
     /// Number of documents in the bucket.
     pub doc_count: u64,
     #[serde(flatten)]
-    /// sub-aggregations in this bucket.
+    /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
     /// The from range of the bucket. Equals `f64::MIN` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -240,4 +265,10 @@ pub struct RangeBucketEntry {
     /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
+    /// The optional string representation for the `from` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_as_string: Option<String>,
+    /// The optional string representation for the `to` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_as_string: Option<String>,
 }

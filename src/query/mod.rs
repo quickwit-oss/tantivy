@@ -1,5 +1,3 @@
-//! Query Module
-
 mod all_query;
 mod automaton_weight;
 mod bitset;
@@ -14,11 +12,11 @@ mod explanation;
 mod fuzzy_query;
 mod intersection;
 mod more_like_this;
+mod phrase_prefix_query;
 mod phrase_query;
 mod query;
 mod query_parser;
 mod range_query;
-mod range_query_ip_fastfield;
 mod regex_query;
 mod reqopt_scorer;
 mod scorer;
@@ -31,12 +29,12 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
-pub use tantivy_query_grammar::Occur;
+pub use query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
-pub(crate) use self::bm25::Bm25Weight;
+pub use self::bm25::{Bm25StatisticsProvider, Bm25Weight};
 pub use self::boolean_query::BooleanQuery;
 pub(crate) use self::boolean_query::BooleanWeight;
 pub use self::boost_query::BoostQuery;
@@ -50,8 +48,9 @@ pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
+pub use self::phrase_prefix_query::PhrasePrefixQuery;
 pub use self::phrase_query::PhraseQuery;
-pub use self::query::{Query, QueryClone};
+pub use self::query::{EnableScoring, Query, QueryClone};
 pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;

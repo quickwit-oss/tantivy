@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::query::{Explanation, Query, Scorer, Weight};
-use crate::{DocId, DocSet, Score, Searcher, SegmentReader, TantivyError, Term};
+use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
 /// `ConstScoreQuery` is a wrapper over a query to provide a constant score.
 /// It can avoid unnecessary score computation on the wrapped query.
@@ -36,9 +36,9 @@ impl fmt::Debug for ConstScoreQuery {
 }
 
 impl Query for ConstScoreQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        let inner_weight = self.query.weight(searcher, scoring_enabled)?;
-        Ok(if scoring_enabled {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let inner_weight = self.query.weight(enable_scoring)?;
+        Ok(if enable_scoring.is_scoring_enabled() {
             Box::new(ConstWeight::new(inner_weight, self.score))
         } else {
             inner_weight

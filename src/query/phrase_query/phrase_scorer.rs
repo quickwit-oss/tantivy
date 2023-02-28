@@ -50,8 +50,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     right: Vec<u32>,
     phrase_count: u32,
     fieldnorm_reader: FieldNormReader,
-    similarity_weight: Bm25Weight,
-    scoring_enabled: bool,
+    similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
 }
 
@@ -77,7 +76,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -245,18 +244,35 @@ fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool
 }
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
+    // If similarity_weight is None, then scoring is disabled.
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
-        similarity_weight: Bm25Weight,
+        similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
-        scoring_enabled: bool,
         slop: u32,
+    ) -> PhraseScorer<TPostings> {
+        Self::new_with_offset(
+            term_postings,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+            0,
+        )
+    }
+
+    pub(crate) fn new_with_offset(
+        term_postings: Vec<(usize, TPostings)>,
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        offset: usize,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
             .iter()
             .map(|&(offset, _)| offset)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            + offset;
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
@@ -270,9 +286,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             left: Vec::with_capacity(100),
             right: Vec::with_capacity(100),
             phrase_count: 0u32,
-            similarity_weight,
+            similarity_weight_opt,
             fieldnorm_reader,
-            scoring_enabled,
             slop,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
@@ -285,8 +300,13 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         self.phrase_count
     }
 
+    pub(crate) fn get_intersection(&mut self) -> &[u32] {
+        let len = intersection(&mut self.left, &self.right);
+        &self.left[..len]
+    }
+
     fn phrase_match(&mut self) -> bool {
-        if self.scoring_enabled {
+        if self.similarity_weight_opt.is_some() {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
             count > 0u32
@@ -388,8 +408,11 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-        self.similarity_weight
-            .score(fieldnorm_id, self.phrase_count)
+        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+            similarity_weight.score(fieldnorm_id, self.phrase_count)
+        } else {
+            1.0f32
+        }
     }
 }
 

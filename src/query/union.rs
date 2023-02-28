@@ -43,7 +43,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     min_doc: DocId,
 ) {
     unordered_drain_filter(scorers, |scorer| {
-        let horizon = min_doc + HORIZON as u32;
+        let horizon = min_doc + HORIZON;
         loop {
             let doc = scorer.doc();
             if doc >= horizon {
@@ -94,8 +94,8 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
             self.doc = min_doc;
             refill(
                 &mut self.docsets,
-                &mut *self.bitsets,
-                &mut *self.scores,
+                &mut self.bitsets,
+                &mut self.scores,
                 min_doc,
             );
             true

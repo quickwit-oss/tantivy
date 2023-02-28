@@ -44,7 +44,7 @@ pub fn deserialize_vint_u128(data: &[u8]) -> io::Result<(u128, &[u8])> {
 pub struct VIntU128(pub u128);
 
 impl BinarySerializable for VIntU128 {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let mut buffer = vec![];
         serialize_vint_u128(self.0, &mut buffer);
         writer.write_all(&buffer)
@@ -157,7 +157,7 @@ fn vint_len(data: &[u8]) -> usize {
 /// If the buffer does not start by a valid
 /// vint payload
 pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
-    let (result, vlen) = read_u32_vint_no_advance(*data);
+    let (result, vlen) = read_u32_vint_no_advance(data);
     *data = &data[vlen..];
     result
 }
@@ -211,7 +211,7 @@ impl VInt {
 }
 
 impl BinarySerializable for VInt {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let mut buffer = [0u8; 10];
         let num_bytes = self.serialize_into(&mut buffer);
         writer.write_all(&buffer[0..num_bytes])

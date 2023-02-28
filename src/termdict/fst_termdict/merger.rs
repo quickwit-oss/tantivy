@@ -113,7 +113,7 @@ mod bench {
     }
 
     /// Create a dictionary of random strings.
-    fn rand_dict(num_terms: usize) -> crate::Result<TermDictionary> {
+    fn rand_dict(num_terms: usize) -> std::io::Result<TermDictionary> {
         let buffer: Vec<u8> = {
             let mut terms = vec![];
             for _i in 0..num_terms {

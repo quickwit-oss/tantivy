@@ -3,7 +3,7 @@ use std::ops::{Deref, Range};
 use std::sync::Arc;
 use std::{fmt, io, mem};
 
-use stable_deref_trait::StableDeref;
+pub use stable_deref_trait::StableDeref;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a slice.
@@ -78,6 +78,21 @@ impl OwnedBytes {
             box_stable_deref: right_box_stable_deref,
         };
         (left, right)
+    }
+
+    /// Splits the OwnedBytes into two OwnedBytes `(left, right)`.
+    ///
+    /// Right will hold `split_len` bytes.
+    ///
+    /// This operation is cheap and does not require to copy any memory.
+    /// On the other hand, both `left` and `right` retain a handle over
+    /// the entire slice of memory. In other words, the memory will only
+    /// be released when both left and right are dropped.
+    #[inline]
+    #[must_use]
+    pub fn rsplit(self, split_len: usize) -> (OwnedBytes, OwnedBytes) {
+        let data_len = self.data.len();
+        self.split(data_len - split_len)
     }
 
     /// Splits the right part of the `OwnedBytes` at the given offset.

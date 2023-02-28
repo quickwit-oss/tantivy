@@ -1,4 +1,4 @@
-use fastfield_codecs::MonotonicallyMappableToU64;
+use columnar::MonotonicallyMappableToU64;
 use itertools::Itertools;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
@@ -139,7 +139,6 @@ impl SegmentWriter {
             self.ctx,
             self.fast_field_writers,
             &self.fieldnorms_writer,
-            &self.schema,
             self.segment_serializer,
             mapping.as_ref(),
         )?;
@@ -180,27 +179,20 @@ impl SegmentWriter {
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.clear_with_field_and_type(field_entry.field_type().value_type(), field);
 
-            match *field_entry.field_type() {
+            match field_entry.field_type() {
                 FieldType::Facet(_) => {
                     for value in values {
                         let facet = value.as_facet().ok_or_else(make_schema_error)?;
                         let facet_str = facet.encoded_str();
-                        let mut unordered_term_id_opt = None;
-                        FacetTokenizer
-                            .token_stream(facet_str)
-                            .process(&mut |token| {
-                                term_buffer.set_text(&token.text);
-                                let unordered_term_id =
-                                    postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
-                                // TODO pass indexing context directly in subscribe function
-                                unordered_term_id_opt = Some(unordered_term_id);
-                            });
-                        if let Some(unordered_term_id) = unordered_term_id_opt {
-                            self.fast_field_writers
-                                .get_term_id_writer_mut(field)
-                                .expect("writer for facet missing")
-                                .add_val(unordered_term_id);
-                        }
+                        let mut facet_tokenizer = FacetTokenizer.token_stream(facet_str);
+                        let mut indexing_position = IndexingPosition::default();
+                        postings_writer.index_text(
+                            doc_id,
+                            &mut *facet_tokenizer,
+                            term_buffer,
+                            ctx,
+                            &mut indexing_position,
+                        );
                     }
                 }
                 FieldType::Str(_) => {
@@ -227,7 +219,6 @@ impl SegmentWriter {
                             term_buffer,
                             ctx,
                             &mut indexing_position,
-                            self.fast_field_writers.get_term_id_writer_mut(field),
                         );
                     }
                     if field_entry.has_fieldnorms() {
@@ -307,7 +298,7 @@ impl SegmentWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
-                FieldType::JsonObject(_) => {
+                FieldType::JsonObject(json_options) => {
                     let text_analyzer = &self.per_field_text_analyzers[field.field_id() as usize];
                     let json_values_it =
                         values.map(|value| value.as_json().ok_or_else(make_schema_error));
@@ -315,6 +306,7 @@ impl SegmentWriter {
                         doc_id,
                         json_values_it,
                         text_analyzer,
+                        json_options.is_expand_dots_enabled(),
                         term_buffer,
                         postings_writer,
                         ctx,
@@ -341,12 +333,12 @@ impl SegmentWriter {
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
     pub fn add_document(&mut self, add_operation: AddOperation) -> crate::Result<()> {
-        let doc = add_operation.document;
-        self.doc_opstamps.push(add_operation.opstamp);
-        self.fast_field_writers.add_document(&doc)?;
-        self.index_document(&doc)?;
+        let AddOperation { document, opstamp } = add_operation;
+        self.doc_opstamps.push(opstamp);
+        self.fast_field_writers.add_document(&document)?;
+        self.index_document(&document)?;
         let doc_writer = self.segment_serializer.get_store_writer();
-        doc_writer.store(&doc, &self.schema)?;
+        doc_writer.store(&document, &self.schema)?;
         self.max_doc += 1;
         Ok(())
     }
@@ -382,7 +374,6 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    schema: &Schema,
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
@@ -394,20 +385,15 @@ fn remap_and_write(
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    let term_ord_map = serialize_postings(
+    serialize_postings(
         ctx,
         per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
-        schema,
         serializer.get_postings_serializer(),
     )?;
     debug!("fastfield-serialize");
-    fast_field_writers.serialize(
-        serializer.get_fast_field_serializer(),
-        &term_ord_map,
-        doc_id_map,
-    )?;
+    fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
 
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {
@@ -557,7 +543,7 @@ mod tests {
         let mut term = Term::with_type_and_field(Type::Json, json_field);
         let mut term_stream = term_dict.stream().unwrap();
 
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
 
         json_term_writer.push_path_segment("bool");
         json_term_writer.set_fast_value(true);
@@ -648,7 +634,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.set_str("token");
         let term_info = inv_index
@@ -692,7 +678,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.set_str("two tokens");
         let term_info = inv_index
@@ -737,7 +723,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term);
+        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
         json_term_writer.push_path_segment("mykey");
         json_term_writer.push_path_segment("field");
         json_term_writer.set_str("hello");
@@ -833,20 +819,23 @@ mod tests {
         // This is a bit of a contrived example.
         let tokens = PreTokenizedString {
             text: "contrived-example".to_string(), //< I can't think of a use case where this corner case happens in real life.
-            tokens: vec![Token { // Not the last token, yet ends after the last token.
-                offset_from: 0,
-                offset_to: 14,
-                position: 0,
-                text: "long_token".to_string(),
-                position_length: 3,
-            },
-            Token {
-                offset_from: 0,
-                offset_to: 14,
-                position: 1,
-                text: "short".to_string(),
-                position_length: 1,
-            }],
+            tokens: vec![
+                Token {
+                    // Not the last token, yet ends after the last token.
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 0,
+                    text: "long_token".to_string(),
+                    position_length: 3,
+                },
+                Token {
+                    offset_from: 0,
+                    offset_to: 14,
+                    position: 1,
+                    text: "short".to_string(),
+                    position_length: 1,
+                },
+            ],
         };
         doc.add_pre_tokenized_text(text, tokens);
         doc.add_text(text, "hello");

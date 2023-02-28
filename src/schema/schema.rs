@@ -11,6 +11,7 @@ use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::field_type::ValueParsingError;
+use crate::TantivyError;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -158,10 +159,10 @@ impl SchemaBuilder {
     }
 
     /// Adds a facet field to the schema.
-    pub fn add_facet_field<T: Into<FacetOptions>>(
+    pub fn add_facet_field(
         &mut self,
         field_name: &str,
-        facet_options: T,
+        facet_options: impl Into<FacetOptions>,
     ) -> Field {
         let field_entry = FieldEntry::new_facet(field_name.to_string(), facet_options.into());
         self.add_field(field_entry)
@@ -252,6 +253,31 @@ impl Eq for InnerSchema {}
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Schema(Arc<InnerSchema>);
 
+// Returns the position (in byte offsets) of the unescaped '.' in the `field_path`.
+//
+// This function operates directly on bytes (as opposed to codepoint), relying
+// on a encoding property of utf-8 for its correctness.
+fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
+    let mut splitting_dots_pos = Vec::new();
+    let mut escape_state = false;
+    for (pos, b) in field_path.bytes().enumerate() {
+        if escape_state {
+            escape_state = false;
+            continue;
+        }
+        match b {
+            b'\\' => {
+                escape_state = true;
+            }
+            b'.' => {
+                splitting_dots_pos.push(pos);
+            }
+            _ => {}
+        }
+    }
+    splitting_dots_pos
+}
+
 impl Schema {
     /// Return the `FieldEntry` associated with a `Field`.
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
@@ -283,8 +309,12 @@ impl Schema {
     }
 
     /// Returns the field option associated with a given name.
-    pub fn get_field(&self, field_name: &str) -> Option<Field> {
-        self.0.fields_map.get(field_name).cloned()
+    pub fn get_field(&self, field_name: &str) -> crate::Result<Field> {
+        self.0
+            .fields_map
+            .get(field_name)
+            .cloned()
+            .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))
     }
 
     /// Create document from a named doc.
@@ -294,7 +324,7 @@ impl Schema {
     ) -> Result<Document, DocParsingError> {
         let mut document = Document::new();
         for (field_name, values) in named_doc.0 {
-            if let Some(field) = self.get_field(&field_name) {
+            if let Ok(field) = self.get_field(&field_name) {
                 for value in values {
                     document.add_field_value(field, value);
                 }
@@ -335,7 +365,7 @@ impl Schema {
     ) -> Result<Document, DocParsingError> {
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj {
-            if let Some(field) = self.get_field(&field_name) {
+            if let Ok(field) = self.get_field(&field_name) {
                 let field_entry = self.get_field_entry(field);
                 let field_type = field_entry.field_type();
                 match json_value {
@@ -357,6 +387,28 @@ impl Schema {
             }
         }
         Ok(doc)
+    }
+
+    /// Searches for a full_path in the schema, returning the field name and a JSON path.
+    ///
+    /// This function works by checking if the field exists for the exact given full_path.
+    /// If it's not, it splits the full_path at non-escaped '.' chars and tries to match the
+    /// prefix with the field names, favoring the longest field names.
+    ///
+    /// This does not check if field is a JSON field. It is possible for this functions to
+    /// return a non-empty JSON path with a non-JSON field.
+    pub fn find_field<'a>(&self, full_path: &'a str) -> Option<(Field, &'a str)> {
+        if let Some(field) = self.0.fields_map.get(full_path) {
+            return Some((*field, ""));
+        }
+        let mut splitting_period_pos: Vec<usize> = locate_splitting_dots(full_path);
+        while let Some(pos) = splitting_period_pos.pop() {
+            let (prefix, suffix) = full_path.split_at(pos);
+            if let Some(field) = self.0.fields_map.get(prefix) {
+                return Some((*field, &suffix[1..]));
+            }
+        }
+        None
     }
 }
 
@@ -432,9 +484,15 @@ mod tests {
     use serde_json;
 
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::numeric_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
+
+    #[test]
+    fn test_locate_splitting_dots() {
+        assert_eq!(&super::locate_splitting_dots("a.b.c"), &[1, 3]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\.b.c"#), &[4]);
+        assert_eq!(&super::locate_splitting_dots(r#"a\..b.c"#), &[3, 5]);
+    }
 
     #[test]
     pub fn is_indexed_test() {
@@ -447,19 +505,13 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
         let score_options = NumericOptions::default()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(Cardinality::SingleValue);
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+            .set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field(
             "author",
@@ -508,7 +560,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -518,7 +570,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   },
@@ -528,7 +580,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": false
     }
   },
@@ -538,7 +590,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -584,12 +636,8 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let is_read_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let is_read_options = NumericOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -689,15 +737,9 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = Schema::builder();
-        let count_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let popularity_options = NumericOptions::default()
-            .set_stored()
-            .set_fast(Cardinality::SingleValue);
-        let score_options = NumericOptions::default()
-            .set_indexed()
-            .set_fast(Cardinality::SingleValue);
+        let count_options = NumericOptions::default().set_stored().set_fast();
+        let popularity_options = NumericOptions::default().set_stored().set_fast();
+        let score_options = NumericOptions::default().set_indexed().set_fast();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);
@@ -848,7 +890,7 @@ mod tests {
             .set_stored()
             .set_indexed()
             .set_fieldnorm()
-            .set_fast(SingleValue);
+            .set_fast();
         schema_builder.add_text_field("_id", id_options);
         schema_builder.add_date_field("_timestamp", timestamp_options);
 
@@ -872,7 +914,7 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
@@ -905,7 +947,7 @@ mod tests {
     "options": {
       "indexed": true,
       "fieldnorms": true,
-      "fast": "single",
+      "fast": true,
       "stored": true,
       "precision": "seconds"
     }
@@ -929,11 +971,53 @@ mod tests {
     "options": {
       "indexed": false,
       "fieldnorms": false,
-      "fast": "single",
+      "fast": true,
       "stored": true
     }
   }
 ]"#;
         assert_eq!(schema_json, expected);
+    }
+
+    #[test]
+    fn test_find_field() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_json_field("foo", STRING);
+
+        schema_builder.add_text_field("bar", STRING);
+        schema_builder.add_text_field("foo.bar", STRING);
+        schema_builder.add_text_field("foo.bar.baz", STRING);
+        schema_builder.add_text_field("bar.a.b.c", STRING);
+        let schema = schema_builder.build();
+
+        assert_eq!(
+            schema.find_field("foo.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), "bar"))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar.baz"),
+            Some((schema.get_field("foo.bar.baz").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("foo.toto"),
+            Some((schema.get_field("foo").unwrap(), "toto"))
+        );
+        assert_eq!(
+            schema.find_field("foo.bar"),
+            Some((schema.get_field("foo.bar").unwrap(), ""))
+        );
+        assert_eq!(
+            schema.find_field("bar.toto.titi"),
+            Some((schema.get_field("bar").unwrap(), "toto.titi"))
+        );
+
+        assert_eq!(schema.find_field("hello"), None);
+        assert_eq!(schema.find_field(""), None);
+        assert_eq!(schema.find_field("thiswouldbeareallylongfieldname"), None);
+        assert_eq!(schema.find_field("baz.bar.foo"), None);
     }
 }

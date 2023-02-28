@@ -51,7 +51,10 @@ use serde::{Deserialize, Serialize};
 
 pub use super::bucket::RangeAggregation;
 use super::bucket::{HistogramAggregation, TermsAggregation};
-use super::metric::{AverageAggregation, StatsAggregation};
+use super::metric::{
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
+    SumAggregation,
+};
 use super::VecWithNames;
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -121,15 +124,6 @@ impl BucketAggregationInternal {
     }
 }
 
-/// Extract all fields, where the term directory is used in the tree.
-pub fn get_term_dict_field_names(aggs: &Aggregations) -> HashSet<String> {
-    let mut term_dict_field_names = Default::default();
-    for el in aggs.values() {
-        el.get_term_dict_field_names(&mut term_dict_field_names)
-    }
-    term_dict_field_names
-}
-
 /// Extract all fast field names used in the tree.
 pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     let mut fast_field_names = Default::default();
@@ -152,16 +146,12 @@ pub enum Aggregation {
 }
 
 impl Aggregation {
-    fn get_term_dict_field_names(&self, term_field_names: &mut HashSet<String>) {
-        if let Aggregation::Bucket(bucket) = self {
-            bucket.get_term_dict_field_names(term_field_names)
-        }
-    }
-
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
             Aggregation::Bucket(bucket) => bucket.get_fast_field_names(fast_field_names),
-            Aggregation::Metric(metric) => metric.get_fast_field_names(fast_field_names),
+            Aggregation::Metric(metric) => {
+                fast_field_names.insert(metric.get_fast_field_name().to_string());
+            }
         }
     }
 }
@@ -190,14 +180,9 @@ pub struct BucketAggregation {
 }
 
 impl BucketAggregation {
-    fn get_term_dict_field_names(&self, term_dict_field_names: &mut HashSet<String>) {
-        if let BucketAggregationType::Terms(terms) = &self.bucket_agg {
-            term_dict_field_names.insert(terms.field.to_string());
-        }
-        term_dict_field_names.extend(get_term_dict_field_names(&self.sub_aggregation));
-    }
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
-        self.bucket_agg.get_fast_field_names(fast_field_names);
+        let fast_field_name = self.bucket_agg.get_fast_field_name();
+        fast_field_names.insert(fast_field_name.to_string());
         fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
     }
 }
@@ -217,14 +202,12 @@ pub enum BucketAggregationType {
 }
 
 impl BucketAggregationType {
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+    fn get_fast_field_name(&self) -> &str {
         match self {
-            BucketAggregationType::Terms(terms) => fast_field_names.insert(terms.field.to_string()),
-            BucketAggregationType::Range(range) => fast_field_names.insert(range.field.to_string()),
-            BucketAggregationType::Histogram(histogram) => {
-                fast_field_names.insert(histogram.field.to_string())
-            }
-        };
+            BucketAggregationType::Terms(terms) => terms.field.as_str(),
+            BucketAggregationType::Range(range) => range.field.as_str(),
+            BucketAggregationType::Histogram(histogram) => histogram.field.as_str(),
+        }
     }
 }
 
@@ -237,26 +220,75 @@ impl BucketAggregationType {
 /// called multi-value numeric metrics aggregation.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MetricAggregation {
-    /// Calculates the average.
+    /// Computes the average of the extracted values.
     #[serde(rename = "avg")]
     Average(AverageAggregation),
-    /// Calculates stats sum, average, min, max, standard_deviation on a field.
+    /// Counts the number of extracted values.
+    #[serde(rename = "value_count")]
+    Count(CountAggregation),
+    /// Finds the maximum value.
+    #[serde(rename = "max")]
+    Max(MaxAggregation),
+    /// Finds the minimum value.
+    #[serde(rename = "min")]
+    Min(MinAggregation),
+    /// Computes a collection of statistics (`min`, `max`, `sum`, `count`, and `avg`) over the
+    /// extracted values.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
+    /// Computes the sum of the extracted values.
+    #[serde(rename = "sum")]
+    Sum(SumAggregation),
 }
 
 impl MetricAggregation {
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+    fn get_fast_field_name(&self) -> &str {
         match self {
-            MetricAggregation::Average(avg) => fast_field_names.insert(avg.field.to_string()),
-            MetricAggregation::Stats(stats) => fast_field_names.insert(stats.field.to_string()),
-        };
+            MetricAggregation::Average(avg) => avg.field_name(),
+            MetricAggregation::Count(count) => count.field_name(),
+            MetricAggregation::Max(max) => max.field_name(),
+            MetricAggregation::Min(min) => min.field_name(),
+            MetricAggregation::Stats(stats) => stats.field_name(),
+            MetricAggregation::Sum(sum) => sum.field_name(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_metric_aggregations_deser() {
+        let agg_req_json = r#"{
+            "price_avg": { "avg": { "field": "price" } },
+            "price_count": { "value_count": { "field": "price" } },
+            "price_max": { "max": { "field": "price" } },
+            "price_min": { "min": { "field": "price" } },
+            "price_stats": { "stats": { "field": "price" } },
+            "price_sum": { "sum": { "field": "price" } }
+        }"#;
+        let agg_req: Aggregations = serde_json::from_str(agg_req_json).unwrap();
+
+        assert!(
+            matches!(agg_req.get("price_avg").unwrap(), Aggregation::Metric(MetricAggregation::Average(avg)) if avg.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_count").unwrap(), Aggregation::Metric(MetricAggregation::Count(count)) if count.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_max").unwrap(), Aggregation::Metric(MetricAggregation::Max(max)) if max.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_min").unwrap(), Aggregation::Metric(MetricAggregation::Min(min)) if min.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_stats").unwrap(), Aggregation::Metric(MetricAggregation::Stats(stats)) if stats.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_sum").unwrap(), Aggregation::Metric(MetricAggregation::Sum(sum)) if sum.field == "price")
+        );
+    }
 
     #[test]
     fn serialize_to_json_test() {

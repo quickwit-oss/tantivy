@@ -1,13 +1,10 @@
-use std::sync::Arc;
-
-use fastfield_codecs::Column;
+use columnar::{BytesColumn, Column};
 
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::BytesFastFieldReader;
 use crate::query::{AllQuery, QueryParser};
-use crate::schema::{Field, Schema, FAST, TEXT};
+use crate::schema::{Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::{doc, DateTime, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
@@ -155,17 +152,19 @@ impl SegmentCollector for TestSegmentCollector {
 ///
 /// This collector is mainly useful for tests.
 pub struct FastFieldTestCollector {
-    field: Field,
+    field: String,
 }
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: Arc<dyn Column<u64>>,
+    reader: Column,
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: Field) -> FastFieldTestCollector {
-        FastFieldTestCollector { field }
+    pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
+        FastFieldTestCollector {
+            field: field.to_string(),
+        }
     }
 }
 
@@ -180,7 +179,7 @@ impl Collector for FastFieldTestCollector {
     ) -> crate::Result<FastFieldSegmentCollector> {
         let reader = segment_reader
             .fast_fields()
-            .u64(self.field)
+            .u64(&self.field)
             .expect("Requested field is not a fast field.");
         Ok(FastFieldSegmentCollector {
             vals: Vec::new(),
@@ -201,8 +200,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let val = self.reader.get_val(doc);
-        self.vals.push(val);
+        self.vals.extend(self.reader.values_for_doc(doc));
     }
 
     fn harvest(self) -> Vec<u64> {
@@ -214,18 +212,22 @@ impl SegmentCollector for FastFieldSegmentCollector {
 /// docs in the `DocSet`
 ///
 /// This collector is mainly useful for tests.
+/// It is very slow.
 pub struct BytesFastFieldTestCollector {
-    field: Field,
+    field: String,
 }
 
 pub struct BytesFastFieldSegmentCollector {
     vals: Vec<u8>,
-    reader: BytesFastFieldReader,
+    column_opt: Option<BytesColumn>,
+    buffer: Vec<u8>,
 }
 
 impl BytesFastFieldTestCollector {
-    pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
-        BytesFastFieldTestCollector { field }
+    pub fn for_field(field: impl ToString) -> BytesFastFieldTestCollector {
+        BytesFastFieldTestCollector {
+            field: field.to_string(),
+        }
     }
 }
 
@@ -238,10 +240,11 @@ impl Collector for BytesFastFieldTestCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
-        let reader = segment_reader.fast_fields().bytes(self.field)?;
+        let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
-            reader,
+            column_opt,
+            buffer: Vec::new(),
         })
     }
 
@@ -257,9 +260,15 @@ impl Collector for BytesFastFieldTestCollector {
 impl SegmentCollector for BytesFastFieldSegmentCollector {
     type Fruit = Vec<u8>;
 
-    fn collect(&mut self, doc: u32, _score: Score) {
-        let data = self.reader.get_bytes(doc);
-        self.vals.extend(data);
+    fn collect(&mut self, doc: DocId, _score: Score) {
+        if let Some(column) = self.column_opt.as_ref() {
+            for term_ord in column.term_ords(doc) {
+                let (vals, buffer) = (&mut self.vals, &mut self.buffer);
+                if column.ord_to_bytes(term_ord, buffer).unwrap() {
+                    vals.extend(&buffer[..]);
+                }
+            }
+        }
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {

@@ -1,13 +1,11 @@
 use std::io;
 
-use crate::fastfield::MultiValuedFastFieldWriter;
+use stacker::Addr;
+
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
-use crate::postings::stacker::Addr;
-use crate::postings::{
-    FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter, UnorderedTermId,
-};
+use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::as_json_path_type_value_bytes;
 use crate::schema::Type;
 use crate::tokenizer::TokenStream;
@@ -32,8 +30,8 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         pos: u32,
         term: &crate::Term,
         ctx: &mut IndexingContext,
-    ) -> UnorderedTermId {
-        self.non_str_posting_writer.subscribe(doc, pos, term, ctx)
+    ) {
+        self.non_str_posting_writer.subscribe(doc, pos, term, ctx);
     }
 
     fn index_text(
@@ -43,7 +41,6 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         term_buffer: &mut Term,
         ctx: &mut IndexingContext,
         indexing_position: &mut IndexingPosition,
-        _fast_field_writer: Option<&mut MultiValuedFastFieldWriter>,
     ) {
         self.str_posting_writer.index_text(
             doc_id,
@@ -51,20 +48,19 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
             term_buffer,
             ctx,
             indexing_position,
-            None,
         );
     }
 
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
+        term_addrs: &[(Term<&[u8]>, Addr)],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
-        for (term, addr, _) in term_addrs {
+        for (term, addr) in term_addrs {
             // TODO optimization opportunity here.
             if let Some((_, typ, _)) = as_json_path_type_value_bytes(term.value_bytes()) {
                 if typ == Type::Str {

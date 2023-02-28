@@ -193,8 +193,8 @@ mod tests {
         (0..max_len)
             .prop_flat_map(move |len: usize| {
                 (
-                    proptest::collection::vec(1usize..20, len as usize).prop_map(integrate_delta),
-                    proptest::collection::vec(1usize..26, len as usize).prop_map(integrate_delta),
+                    proptest::collection::vec(1usize..20, len).prop_map(integrate_delta),
+                    proptest::collection::vec(1usize..26, len).prop_map(integrate_delta),
                 )
                     .prop_map(|(docs, offsets)| {
                         (0..docs.len() - 1)

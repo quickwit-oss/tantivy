@@ -2,8 +2,8 @@ use std::fmt;
 
 use crate::fastfield::AliveBitSet;
 use crate::query::explanation::does_not_match;
-use crate::query::{Explanation, Query, Scorer, Weight};
-use crate::{DocId, DocSet, Score, Searcher, SegmentReader, Term};
+use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::{DocId, DocSet, Score, SegmentReader, Term};
 
 /// `BoostQuery` is a wrapper over a query used to boost its score.
 ///
@@ -38,9 +38,9 @@ impl fmt::Debug for BoostQuery {
 }
 
 impl Query for BoostQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        let weight_without_boost = self.query.weight(searcher, scoring_enabled)?;
-        let boosted_weight = if scoring_enabled {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let weight_without_boost = self.query.weight(enable_scoring)?;
+        let boosted_weight = if enable_scoring.is_scoring_enabled() {
             Box::new(BoostWeight::new(weight_without_boost, self.boost))
         } else {
             weight_without_boost

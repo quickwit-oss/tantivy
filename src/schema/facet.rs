@@ -41,7 +41,7 @@ pub enum FacetParseError {
 /// its facet. In the example above, `/electronics/tv_and_video/`
 /// and `/electronics`.
 #[derive(Clone, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct Facet(String);
+pub struct Facet(pub(crate) String);
 
 impl Facet {
     /// Returns a new instance of the "root facet"
@@ -145,12 +145,6 @@ impl Facet {
         Facet(facet_string)
     }
 
-    /// Accessor for the inner buffer of the `Facet`.
-    pub(crate) fn set_facet_str(&mut self, facet_str: &str) {
-        self.0.clear();
-        self.0.push_str(facet_str);
-    }
-
     /// Returns `true` if other is a `strict` subfacet of `self`.
     ///
     /// Disclaimer: By strict we mean that the relation is not reflexive.
@@ -197,7 +191,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
 }
 
 impl BinarySerializable for Facet {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         <String as BinarySerializable>::serialize(&self.0, writer)
     }
 

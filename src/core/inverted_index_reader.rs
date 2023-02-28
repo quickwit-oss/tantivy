@@ -135,6 +135,8 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<SegmentPostings> {
+        let option = option.downgrade(self.record_option);
+
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
         let position_reader = {
             if option.has_positions() {
@@ -200,10 +202,7 @@ impl InvertedIndexReader {
 
 #[cfg(feature = "quickwit")]
 impl InvertedIndexReader {
-    pub(crate) async fn get_term_info_async(
-        &self,
-        term: &Term,
-    ) -> crate::AsyncIoResult<Option<TermInfo>> {
+    pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get_async(term.value_bytes()).await
     }
 
@@ -211,12 +210,8 @@ impl InvertedIndexReader {
     /// This method is for an advanced usage only.
     ///
     /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub async fn warm_postings(
-        &self,
-        term: &Term,
-        with_positions: bool,
-    ) -> crate::AsyncIoResult<()> {
-        let term_info_opt = self.get_term_info_async(term).await?;
+    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
+        let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
             self.postings_file_slice
                 .read_bytes_slice_async(term_info.postings_range.clone())
@@ -230,8 +225,20 @@ impl InvertedIndexReader {
         Ok(())
     }
 
+    /// Read the block postings for all terms.
+    /// This method is for an advanced usage only.
+    ///
+    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] instead.
+    pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
+        self.postings_file_slice.read_bytes_async().await?;
+        if with_positions {
+            self.positions_file_slice.read_bytes_async().await?;
+        }
+        Ok(())
+    }
+
     /// Returns the number of documents containing the term asynchronously.
-    pub async fn doc_freq_async(&self, term: &Term) -> crate::AsyncIoResult<u32> {
+    pub async fn doc_freq_async(&self, term: &Term) -> io::Result<u32> {
         Ok(self
             .get_term_info_async(term)
             .await?

@@ -33,7 +33,7 @@ where
         &'a self,
         term_dict: &'a TermDictionary,
     ) -> io::Result<TermStreamer<'a, &'a A>> {
-        let automaton: &A = &*self.automaton;
+        let automaton: &A = &self.automaton;
         let term_stream_builder = term_dict.search(automaton);
         term_stream_builder.into_stream()
     }

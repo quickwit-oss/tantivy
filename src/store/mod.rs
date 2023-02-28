@@ -4,8 +4,8 @@
 //! order to be handled in the `Store`.
 //!
 //! Internally, documents (or rather their stored fields) are serialized to a buffer.
-//! When the buffer exceeds 16K, the buffer is compressed using `brotli`, `LZ4` or `snappy`
-//! and the resulting block is written to disk.
+//! When the buffer exceeds `block_size` (defaults to 16K), the buffer is compressed using `brotli`,
+//! `LZ4` or `snappy` and the resulting block is written to disk.
 //!
 //! One can then request for a specific `DocId`.
 //! A skip list helps navigating to the right block,
@@ -28,8 +28,6 @@
 //! - at the segment level, the
 //! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
 //! - at the index level, the [`Searcher::doc()`](crate::Searcher::doc) method
-//!
-//! !
 
 mod compressors;
 mod decompressors;
@@ -43,6 +41,9 @@ pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
 pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
 mod store_compressor;
+
+/// Doc store version in footer to handle format changes.
+pub(crate) const DOC_STORE_VERSION: u32 = 1;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;

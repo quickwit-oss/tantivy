@@ -133,7 +133,7 @@ impl SegmentMeta {
     /// associated with a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
-        path.push_str(&*match component {
+        path.push_str(&match component {
             SegmentComponent::Postings => ".idx".to_string(),
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),

@@ -1,12 +1,12 @@
 use std::io;
 use std::iter::Sum;
+use std::num::NonZeroUsize;
 use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::{BinarySerializable, HasLen};
+use common::{BinarySerializable, HasLen, OwnedBytes};
 use lru::LruCache;
-use ownedbytes::OwnedBytes;
 
 use super::footer::DocStoreFooter;
 use super::index::SkipIndex;
@@ -34,23 +34,29 @@ pub struct StoreReader {
 
 /// The cache for decompressed blocks.
 struct BlockCache {
-    cache: Mutex<LruCache<usize, Block>>,
-    cache_hits: Arc<AtomicUsize>,
-    cache_misses: Arc<AtomicUsize>,
+    cache: Option<Mutex<LruCache<usize, Block>>>,
+    cache_hits: AtomicUsize,
+    cache_misses: AtomicUsize,
 }
 
 impl BlockCache {
     fn get_from_cache(&self, pos: usize) -> Option<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&pos) {
+        if let Some(block) = self
+            .cache
+            .as_ref()
+            .and_then(|cache| cache.lock().unwrap().get(&pos).cloned())
+        {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
-            return Some(block.clone());
+            return Some(block);
         }
         self.cache_misses.fetch_add(1, Ordering::SeqCst);
         None
     }
 
     fn put_into_cache(&self, pos: usize, data: Block) {
-        self.cache.lock().unwrap().put(pos, data);
+        if let Some(cache) = self.cache.as_ref() {
+            cache.lock().unwrap().put(pos, data);
+        }
     }
 
     fn stats(&self) -> CacheStats {
@@ -60,17 +66,18 @@ impl BlockCache {
             num_entries: self.len(),
         }
     }
+
     fn len(&self) -> usize {
-        self.cache.lock().unwrap().len()
+        self.cache
+            .as_ref()
+            .map_or(0, |cache| cache.lock().unwrap().len())
     }
 
     #[cfg(test)]
     fn peek_lru(&self) -> Option<usize> {
         self.cache
-            .lock()
-            .unwrap()
-            .peek_lru()
-            .map(|(&k, _)| k as usize)
+            .as_ref()
+            .and_then(|cache| cache.lock().unwrap().peek_lru().map(|(&k, _)| k))
     }
 }
 
@@ -107,7 +114,10 @@ impl Sum for CacheStats {
 
 impl StoreReader {
     /// Opens a store reader
-    pub fn open(store_file: FileSlice, cache_size: usize) -> io::Result<StoreReader> {
+    ///
+    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
+    /// The size of blocks is configurable, this should be reflexted in the
+    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<StoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -118,7 +128,8 @@ impl StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
             cache: BlockCache {
-                cache: Mutex::new(LruCache::new(cache_size)),
+                cache: NonZeroUsize::new(cache_num_blocks)
+                    .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
                 cache_hits: Default::default(),
                 cache_misses: Default::default(),
             },
@@ -323,7 +334,7 @@ impl StoreReader {
     /// In most cases use [`get_async`](Self::get_async)
     ///
     /// Loads and decompresses a block asynchronously.
-    async fn read_block_async(&self, checkpoint: &Checkpoint) -> crate::AsyncIoResult<Block> {
+    async fn read_block_async(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
         let cache_key = checkpoint.byte_range.start;
         if let Some(block) = self.cache.get_from_cache(checkpoint.byte_range.start) {
             return Ok(block);

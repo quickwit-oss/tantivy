@@ -1,568 +1,420 @@
-use std::collections::HashMap;
 use std::io;
 
-use common;
-use fastfield_codecs::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
-use rustc_hash::FxHashMap;
-use tantivy_bitpacker::BlockedBitpacker;
+use columnar::{ColumnarWriter, NumericalValue};
+use common::replace_in_place;
 
-use super::multivalued::{MultiValueU128FastFieldWriter, MultiValuedFastFieldWriter};
-use super::FastFieldType;
-use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
-use crate::postings::UnorderedTermId;
-use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema, Value};
-use crate::termdict::TermOrdinal;
-use crate::DatePrecision;
+use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
+use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
+use crate::{DatePrecision, DocId};
+
+/// Only index JSON down to a depth of 20.
+/// This is mostly to guard us from a stack overflow triggered by malicious input.
+const JSON_DEPTH_LIMIT: usize = 20;
 
 /// The `FastFieldsWriter` groups all of the fast field writers.
 pub struct FastFieldsWriter {
-    term_id_writers: Vec<MultiValuedFastFieldWriter>,
-    single_value_writers: Vec<IntFastFieldWriter>,
-    u128_value_writers: Vec<U128FastFieldWriter>,
-    u128_multi_value_writers: Vec<MultiValueU128FastFieldWriter>,
-    multi_values_writers: Vec<MultiValuedFastFieldWriter>,
-    bytes_value_writers: Vec<BytesFastFieldWriter>,
-}
-
-pub(crate) fn unexpected_value(expected: &str, actual: &Value) -> crate::TantivyError {
-    crate::TantivyError::SchemaError(format!(
-        "Expected a {:?} in fast field, but got {:?}",
-        expected, actual
-    ))
-}
-
-fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
-    match *field_entry.field_type() {
-        FieldType::I64(_) | FieldType::Date(_) => common::i64_to_u64(0i64),
-        FieldType::F64(_) => common::f64_to_u64(0.0f64),
-        _ => 0u64,
-    }
+    columnar_writer: ColumnarWriter,
+    fast_field_names: Vec<Option<String>>, //< TODO see if we can cash the field name hash too.
+    date_precisions: Vec<DatePrecision>,
+    expand_dots: Vec<bool>,
+    num_docs: DocId,
+    // Buffer that we recycle to avoid allocation.
+    json_path_buffer: String,
 }
 
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
-        let mut u128_value_writers = Vec::new();
-        let mut u128_multi_value_writers = Vec::new();
-        let mut single_value_writers = Vec::new();
-        let mut term_id_writers = Vec::new();
-        let mut multi_values_writers = Vec::new();
-        let mut bytes_value_writers = Vec::new();
-
-        for (field, field_entry) in schema.fields() {
-            match field_entry.field_type() {
-                FieldType::I64(ref int_options)
-                | FieldType::U64(ref int_options)
-                | FieldType::F64(ref int_options)
-                | FieldType::Bool(ref int_options) => {
-                    match int_options.get_fastfield_cardinality() {
-                        Some(Cardinality::SingleValue) => {
-                            let mut fast_field_writer = IntFastFieldWriter::new(field, None);
-                            let default_value = fast_field_default_value(field_entry);
-                            fast_field_writer.set_val_if_missing(default_value);
-                            single_value_writers.push(fast_field_writer);
-                        }
-                        Some(Cardinality::MultiValues) => {
-                            let fast_field_writer = MultiValuedFastFieldWriter::new(
-                                field,
-                                FastFieldType::Numeric,
-                                None,
-                            );
-                            multi_values_writers.push(fast_field_writer);
-                        }
-                        None => {}
-                    }
-                }
-                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
-                    Some(Cardinality::SingleValue) => {
-                        let mut fast_field_writer =
-                            IntFastFieldWriter::new(field, Some(options.get_precision()));
-                        let default_value = fast_field_default_value(field_entry);
-                        fast_field_writer.set_val_if_missing(default_value);
-                        single_value_writers.push(fast_field_writer);
-                    }
-                    Some(Cardinality::MultiValues) => {
-                        let fast_field_writer = MultiValuedFastFieldWriter::new(
-                            field,
-                            FastFieldType::Numeric,
-                            Some(options.get_precision()),
-                        );
-                        multi_values_writers.push(fast_field_writer);
-                    }
-                    None => {}
-                },
-                FieldType::Facet(_) => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::Facet, None);
-                    term_id_writers.push(fast_field_writer);
-                }
-                FieldType::Str(_) if field_entry.is_fast() => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::String, None);
-                    term_id_writers.push(fast_field_writer);
-                }
-                FieldType::Bytes(bytes_option) => {
-                    if bytes_option.is_fast() {
-                        let fast_field_writer = BytesFastFieldWriter::new(field);
-                        bytes_value_writers.push(fast_field_writer);
-                    }
-                }
-                FieldType::IpAddr(opt) => {
-                    if opt.is_fast() {
-                        match opt.get_fastfield_cardinality() {
-                            Some(Cardinality::SingleValue) => {
-                                let fast_field_writer = U128FastFieldWriter::new(field);
-                                u128_value_writers.push(fast_field_writer);
-                            }
-                            Some(Cardinality::MultiValues) => {
-                                let fast_field_writer = MultiValueU128FastFieldWriter::new(field);
-                                u128_multi_value_writers.push(fast_field_writer);
-                            }
-                            None => {}
-                        }
-                    }
-                }
-                FieldType::Str(_) | FieldType::JsonObject(_) => {}
+        let mut columnar_writer = ColumnarWriter::default();
+        let mut fast_field_names: Vec<Option<String>> = vec![None; schema.num_fields()];
+        let mut date_precisions: Vec<DatePrecision> =
+            std::iter::repeat_with(DatePrecision::default)
+                .take(schema.num_fields())
+                .collect();
+        let mut expand_dots = vec![false; schema.num_fields()];
+        // TODO see other types
+        for (field_id, field_entry) in schema.fields() {
+            if !field_entry.field_type().is_fast() {
+                continue;
+            }
+            fast_field_names[field_id.field_id() as usize] = Some(field_entry.name().to_string());
+            let value_type = field_entry.field_type().value_type();
+            if let FieldType::Date(date_options) = field_entry.field_type() {
+                date_precisions[field_id.field_id() as usize] = date_options.get_precision();
+            }
+            if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
+                expand_dots[field_id.field_id() as usize] =
+                    json_object_options.is_expand_dots_enabled();
+            }
+            let sort_values_within_row = value_type == Type::Facet;
+            if let Some(column_type) = value_type_to_column_type(value_type) {
+                columnar_writer.record_column_type(
+                    field_entry.name(),
+                    column_type,
+                    sort_values_within_row,
+                );
             }
         }
         FastFieldsWriter {
-            u128_value_writers,
-            u128_multi_value_writers,
-            term_id_writers,
-            single_value_writers,
-            multi_values_writers,
-            bytes_value_writers,
+            columnar_writer,
+            fast_field_names,
+            num_docs: 0u32,
+            date_precisions,
+            expand_dots,
+            json_path_buffer: String::new(),
         }
     }
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.term_id_writers
-            .iter()
-            .map(|w| w.mem_usage())
-            .sum::<usize>()
-            + self
-                .single_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .multi_values_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .bytes_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .u128_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
-            + self
-                .u128_multi_value_writers
-                .iter()
-                .map(|w| w.mem_usage())
-                .sum::<usize>()
+        self.columnar_writer.mem_usage()
     }
 
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_term_id_writer(&self, field: Field) -> Option<&MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.term_id_writers
-            .iter()
-            .find(|field_writer| field_writer.field() == field)
+    pub(crate) fn sort_order(
+        &self,
+        sort_field: &str,
+        num_docs: DocId,
+        reversed: bool,
+    ) -> Vec<DocId> {
+        self.columnar_writer
+            .sort_order(sort_field, num_docs, reversed)
     }
 
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_field_writer(&self, field: Field) -> Option<&IntFastFieldWriter> {
-        // TODO optimize
-        self.single_value_writers
-            .iter()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
-        // TODO optimize
-        self.single_value_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Get the `FastFieldWriter` associated with a field.
-    pub fn get_term_id_writer_mut(
-        &mut self,
-        field: Field,
-    ) -> Option<&mut MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.term_id_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
-
-    /// Returns the fast field multi-value writer for the given field.
-    ///
-    /// Returns `None` if the field does not exist, or is not
-    /// configured as a multivalued fastfield in the schema.
-    pub fn get_multivalue_writer_mut(
-        &mut self,
-        field: Field,
-    ) -> Option<&mut MultiValuedFastFieldWriter> {
-        // TODO optimize
-        self.multi_values_writers
-            .iter_mut()
-            .find(|multivalue_writer| multivalue_writer.field() == field)
-    }
-
-    /// Returns the bytes fast field writer for the given field.
-    ///
-    /// Returns `None` if the field does not exist, or is not
-    /// configured as a bytes fastfield in the schema.
-    pub fn get_bytes_writer_mut(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
-        // TODO optimize
-        self.bytes_value_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field() == field)
-    }
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
-        for field_writer in &mut self.term_id_writers {
-            field_writer.add_document(doc)?;
+        let doc_id = self.num_docs;
+        for field_value in doc.field_values() {
+            if let Some(field_name) =
+                &self.fast_field_names[field_value.field().field_id() as usize]
+            {
+                match &field_value.value {
+                    Value::U64(u64_val) => {
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*u64_val),
+                        );
+                    }
+                    Value::I64(i64_val) => {
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*i64_val),
+                        );
+                    }
+                    Value::F64(f64_val) => {
+                        self.columnar_writer.record_numerical(
+                            doc_id,
+                            field_name.as_str(),
+                            NumericalValue::from(*f64_val),
+                        );
+                    }
+                    Value::Str(text_val) => {
+                        self.columnar_writer
+                            .record_str(doc_id, field_name.as_str(), text_val);
+                    }
+                    Value::Bytes(bytes_val) => {
+                        self.columnar_writer
+                            .record_bytes(doc_id, field_name.as_str(), bytes_val);
+                    }
+                    Value::PreTokStr(_) => todo!(),
+                    Value::Bool(bool_val) => {
+                        self.columnar_writer
+                            .record_bool(doc_id, field_name.as_str(), *bool_val);
+                    }
+                    Value::Date(datetime) => {
+                        let date_precision =
+                            self.date_precisions[field_value.field().field_id() as usize];
+                        let truncated_datetime = datetime.truncate(date_precision);
+                        self.columnar_writer.record_datetime(
+                            doc_id,
+                            field_name.as_str(),
+                            truncated_datetime,
+                        );
+                    }
+                    Value::Facet(facet) => {
+                        self.columnar_writer.record_str(
+                            doc_id,
+                            field_name.as_str(),
+                            facet.encoded_str(),
+                        );
+                    }
+                    Value::JsonObject(json_obj) => {
+                        let expand_dots = self.expand_dots[field_value.field().field_id() as usize];
+                        self.json_path_buffer.clear();
+                        self.json_path_buffer.push_str(field_name);
+                        record_json_obj_to_columnar_writer(
+                            doc_id,
+                            json_obj,
+                            expand_dots,
+                            JSON_DEPTH_LIMIT,
+                            &mut self.json_path_buffer,
+                            &mut self.columnar_writer,
+                        );
+                    }
+                    Value::IpAddr(ip_addr) => {
+                        self.columnar_writer
+                            .record_ip_addr(doc_id, field_name.as_str(), *ip_addr);
+                    }
+                }
+            }
         }
-        for field_writer in &mut self.single_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.multi_values_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.bytes_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.u128_value_writers {
-            field_writer.add_document(doc)?;
-        }
-        for field_writer in &mut self.u128_multi_value_writers {
-            field_writer.add_document(doc)?;
-        }
+        self.num_docs += 1;
         Ok(())
     }
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
     pub fn serialize(
-        self,
-        serializer: &mut CompositeFastFieldSerializer,
-        mapping: &HashMap<Field, FxHashMap<UnorderedTermId, TermOrdinal>>,
-        doc_id_map: Option<&DocIdMapping>,
+        mut self,
+        wrt: &mut dyn io::Write,
+        doc_id_map_opt: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        for field_writer in self.term_id_writers {
-            let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        }
-        for field_writer in &self.single_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-
-        for field_writer in self.multi_values_writers {
-            let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
-        }
-        for field_writer in self.bytes_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-        for field_writer in self.u128_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-        for field_writer in self.u128_multi_value_writers {
-            field_writer.serialize(serializer, doc_id_map)?;
-        }
-
+        let num_docs = self.num_docs;
+        let old_to_new_row_ids =
+            doc_id_map_opt.map(|doc_id_mapping| doc_id_mapping.old_to_new_ids());
+        self.columnar_writer
+            .serialize(num_docs, old_to_new_row_ids, wrt)?;
         Ok(())
     }
 }
 
-/// Fast field writer for u128 values.
-/// The fast field writer just keeps the values in memory.
-///
-/// Only when the segment writer can be closed and
-/// persisted on disk, the fast field writer is
-/// sent to a `FastFieldSerializer` via the `.serialize(...)`
-/// method.
-///
-/// We cannot serialize earlier as the values are
-/// compressed to a compact number space and the number of
-/// bits required for bitpacking can only been known once
-/// we have seen all of the values.
-pub struct U128FastFieldWriter {
-    field: Field,
-    vals: Vec<u128>,
-    val_count: u32,
+#[inline]
+fn columnar_numerical_value(json_number: &serde_json::Number) -> Option<NumericalValue> {
+    if let Some(num_i64) = json_number.as_i64() {
+        return Some(num_i64.into());
+    }
+    if let Some(num_u64) = json_number.as_u64() {
+        return Some(num_u64.into());
+    }
+    if let Some(num_f64) = json_number.as_f64() {
+        return Some(num_f64.into());
+    }
+    // This can happen with arbitrary precision.... but we do not handle it.
+    None
 }
 
-impl U128FastFieldWriter {
-    /// Creates a new `IntFastFieldWriter`
-    pub fn new(field: Field) -> Self {
-        Self {
-            field,
-            vals: vec![],
-            val_count: 0,
+fn record_json_obj_to_columnar_writer(
+    doc: DocId,
+    json_obj: &serde_json::Map<String, serde_json::Value>,
+    expand_dots: bool,
+    remaining_depth_limit: usize,
+    json_path_buffer: &mut String,
+    columnar_writer: &mut columnar::ColumnarWriter,
+) {
+    for (key, child) in json_obj {
+        let len_path = json_path_buffer.len();
+        if !json_path_buffer.is_empty() {
+            json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
         }
+        json_path_buffer.push_str(key);
+        if expand_dots {
+            // This might include the separation byte, which is ok because it is not a dot.
+            let appended_segment = &mut json_path_buffer[len_path..];
+            // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
+            // valid single byte ut8 strings.
+            // By utf-8 design, they cannot be part of another codepoint.
+            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, unsafe {
+                appended_segment.as_bytes_mut()
+            });
+        }
+        record_json_value_to_columnar_writer(
+            doc,
+            child,
+            expand_dots,
+            remaining_depth_limit,
+            json_path_buffer,
+            columnar_writer,
+        );
+        // popping our sub path.
+        json_path_buffer.truncate(len_path);
     }
+}
 
-    /// The memory used (inclusive childs)
-    pub fn mem_usage(&self) -> usize {
-        self.vals.len() * 16
+fn record_json_value_to_columnar_writer(
+    doc: DocId,
+    json_val: &serde_json::Value,
+    expand_dots: bool,
+    mut remaining_depth_limit: usize,
+    json_path_writer: &mut String,
+    columnar_writer: &mut columnar::ColumnarWriter,
+) {
+    if remaining_depth_limit == 0 {
+        return;
     }
-
-    /// Records a new value.
-    ///
-    /// The n-th value being recorded is implicitely
-    /// associated to the document with the `DocId` n.
-    /// (Well, `n-1` actually because of 0-indexing)
-    pub fn add_val(&mut self, val: u128) {
-        self.vals.push(val);
-    }
-
-    /// Extract the fast field value from the document
-    /// (or use the default value) and records it.
-    ///
-    /// Extract the value associated to the fast field for
-    /// this document.
-    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
-        match doc.get_first(self.field) {
-            Some(v) => {
-                let ip_addr = v.as_ip_addr().ok_or_else(|| unexpected_value("ip", v))?;
-                let value = ip_addr.to_u128();
-                self.add_val(value);
+    remaining_depth_limit -= 1;
+    match json_val {
+        serde_json::Value::Null => {
+            // TODO handle null
+        }
+        serde_json::Value::Bool(bool_val) => {
+            columnar_writer.record_bool(doc, json_path_writer, *bool_val);
+        }
+        serde_json::Value::Number(json_number) => {
+            if let Some(numerical_value) = columnar_numerical_value(json_number) {
+                columnar_writer.record_numerical(doc, json_path_writer.as_str(), numerical_value);
             }
-            None => {
-                self.add_val(0); // TODO fix null handling
+        }
+        serde_json::Value::String(text) => {
+            columnar_writer.record_str(doc, json_path_writer.as_str(), text);
+        }
+        serde_json::Value::Array(arr) => {
+            for el in arr {
+                record_json_value_to_columnar_writer(
+                    doc,
+                    el,
+                    expand_dots,
+                    remaining_depth_limit,
+                    json_path_writer,
+                    columnar_writer,
+                );
             }
-        };
-        self.val_count += 1;
-        Ok(())
-    }
-
-    /// Push the fast fields value to the `FastFieldWriter`.
-    pub fn serialize(
-        &self,
-        serializer: &mut CompositeFastFieldSerializer,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> io::Result<()> {
-        if let Some(doc_id_map) = doc_id_map {
-            let iter_gen = || {
-                doc_id_map
-                    .iter_old_doc_ids()
-                    .map(|idx| self.vals[idx as usize])
-            };
-
-            serializer.create_u128_fast_field_with_idx(
-                self.field,
-                iter_gen,
-                self.val_count as u32,
-                0,
-            )?;
-        } else {
-            let iter_gen = || self.vals.iter().cloned();
-            serializer.create_u128_fast_field_with_idx(
-                self.field,
-                iter_gen,
-                self.val_count as u32,
-                0,
-            )?;
         }
-
-        Ok(())
+        serde_json::Value::Object(json_obj) => {
+            record_json_obj_to_columnar_writer(
+                doc,
+                json_obj,
+                expand_dots,
+                remaining_depth_limit,
+                json_path_writer,
+                columnar_writer,
+            );
+        }
     }
 }
 
-/// Fast field writer for ints.
-/// The fast field writer just keeps the values in memory.
-///
-/// Only when the segment writer can be closed and
-/// persisted on disk, the fast field writer is
-/// sent to a `FastFieldSerializer` via the `.serialize(...)`
-/// method.
-///
-/// We cannot serialize earlier as the values are
-/// bitpacked and the number of bits required for bitpacking
-/// can only been known once we have seen all of the values.
-///
-/// Both u64, i64 and f64 use the same writer.
-/// i64 and f64 are just remapped to the `0..2^64 - 1`
-/// using `common::i64_to_u64` and `common::f64_to_u64`.
-pub struct IntFastFieldWriter {
-    field: Field,
-    precision_opt: Option<DatePrecision>,
-    vals: BlockedBitpacker,
-    val_count: usize,
-    val_if_missing: u64,
-    val_min: u64,
-    val_max: u64,
-}
+#[cfg(test)]
+mod tests {
+    use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
 
-impl IntFastFieldWriter {
-    /// Creates a new `IntFastFieldWriter`
-    pub fn new(field: Field, precision_opt: Option<DatePrecision>) -> IntFastFieldWriter {
-        IntFastFieldWriter {
-            field,
-            precision_opt,
-            vals: BlockedBitpacker::new(),
-            val_count: 0,
-            val_if_missing: 0u64,
-            val_min: u64::MAX,
-            val_max: 0,
+    use super::record_json_value_to_columnar_writer;
+    use crate::fastfield::writer::JSON_DEPTH_LIMIT;
+    use crate::DocId;
+
+    fn test_columnar_from_jsons_aux(
+        json_docs: &[serde_json::Value],
+        expand_dots: bool,
+    ) -> ColumnarReader {
+        let mut columnar_writer = ColumnarWriter::default();
+        let mut json_path = String::new();
+        for (doc, json_doc) in json_docs.iter().enumerate() {
+            record_json_value_to_columnar_writer(
+                doc as u32,
+                json_doc,
+                expand_dots,
+                JSON_DEPTH_LIMIT,
+                &mut json_path,
+                &mut columnar_writer,
+            );
+        }
+        let mut buffer = Vec::new();
+        columnar_writer
+            .serialize(json_docs.len() as DocId, None, &mut buffer)
+            .unwrap();
+        ColumnarReader::open(buffer).unwrap()
+    }
+
+    #[test]
+    fn test_json_fastfield_record_simple() {
+        let json_doc = serde_json::json!({
+            "float": 1.02,
+            "text": "hello happy tax payer",
+            "nested": {"child": 3, "child2": 5},
+            "arr": ["hello", "happy", "tax", "payer"]
+        });
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        {
+            assert_eq!(columns[0].0, "arr");
+            let column_arr_opt: Option<StrColumn> = columns[0].1.open().unwrap().into();
+            assert!(column_arr_opt
+                .unwrap()
+                .term_ords(0)
+                .eq([1, 0, 3, 2].into_iter()));
+        }
+        {
+            assert_eq!(columns[1].0, "float");
+            let column_float_opt: Option<Column<f64>> = columns[1].1.open().unwrap().into();
+            assert!(column_float_opt
+                .unwrap()
+                .values_for_doc(0)
+                .eq([1.02f64].into_iter()));
+        }
+        {
+            assert_eq!(columns[2].0, "nested\u{1}child");
+            let column_nest_child_opt: Option<Column<i64>> = columns[2].1.open().unwrap().into();
+            assert!(column_nest_child_opt
+                .unwrap()
+                .values_for_doc(0)
+                .eq([3].into_iter()));
+        }
+        {
+            assert_eq!(columns[3].0, "nested\u{1}child2");
+            let column_nest_child2_opt: Option<Column<i64>> = columns[3].1.open().unwrap().into();
+            assert!(column_nest_child2_opt
+                .unwrap()
+                .values_for_doc(0)
+                .eq([5].into_iter()));
+        }
+        {
+            assert_eq!(columns[4].0, "text");
+            let column_text_opt: Option<StrColumn> = columns[4].1.open().unwrap().into();
+            assert!(column_text_opt.unwrap().term_ords(0).eq([0].into_iter()));
         }
     }
 
-    /// The memory used (inclusive childs)
-    pub fn mem_usage(&self) -> usize {
-        self.vals.mem_usage()
+    #[test]
+    fn test_json_fastfield_deep_obj() {
+        let json_doc = serde_json::json!(
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"a": {"a":
+            {"a": {"a": {"a": {"depth_accepted": 19, "a": {  "depth_truncated": 20}
+        }}}}}}}}}}}}}}}}}}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert!(columns[0].0.ends_with("a\u{1}a\u{1}a\u{1}depth_accepted"));
     }
 
-    /// Returns the field that this writer is targeting.
-    pub fn field(&self) -> Field {
-        self.field
+    #[test]
+    fn test_json_fastfield_deep_arr() {
+        let json_doc = json!(
+        {"obj":
+        [[[[[,
+        [[[[[,
+        [[[[[,
+        [[18, [19, //< within limits
+        [20]]]]]]]]]]]]]]]]]]]});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].0, "obj");
+        let dynamic_column = columns[0].1.open().unwrap();
+        let col: Option<Column<i64>> = dynamic_column.into();
+        let vals: Vec<i64> = col.unwrap().values_for_doc(0).collect();
+        assert_eq!(&vals, &[18, 19])
     }
 
-    /// Sets the default value.
-    ///
-    /// This default value is recorded for documents if
-    /// a document does not have any value.
-    fn set_val_if_missing(&mut self, val_if_missing: u64) {
-        self.val_if_missing = val_if_missing;
+    #[test]
+    fn test_json_fast_field_do_not_expand_dots() {
+        let json_doc = json!({"field.with.dots": {"child.with.dot": "hello"}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], false);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].0, "field.with.dots\u{1}child.with.dot");
     }
 
-    /// Records a new value.
-    ///
-    /// The n-th value being recorded is implicitly
-    /// associated with the document with the `DocId` n.
-    /// (Well, `n-1` actually because of 0-indexing)
-    pub fn add_val(&mut self, val: u64) {
-        self.vals.add(val);
-
-        if val > self.val_max {
-            self.val_max = val;
-        }
-        if val < self.val_min {
-            self.val_min = val;
-        }
-
-        self.val_count += 1;
-    }
-
-    /// Extract the fast field value from the document
-    /// (or use the default value) and records it.
-    ///
-    ///
-    /// Extract the value associated with the fast field for
-    /// this document.
-    ///
-    /// i64 and f64 are remapped to u64 using the logic
-    /// in `common::i64_to_u64` and `common::f64_to_u64`.
-    ///
-    /// If the value is missing, then the default value is used
-    /// instead.
-    /// If the document has more than one value for the given field,
-    /// only the first one is taken in account.
-    ///
-    /// Values on text fast fields are skipped.
-    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
-        match doc.get_first(self.field) {
-            Some(v) => {
-                let value = match (self.precision_opt, v) {
-                    (Some(precision), Value::Date(date_val)) => {
-                        date_val.truncate(precision).to_u64()
-                    }
-                    _ => super::value_to_u64(v)?,
-                };
-                self.add_val(value);
-            }
-            None => {
-                self.add_val(self.val_if_missing);
-            }
-        };
-        Ok(())
-    }
-
-    /// get iterator over the data
-    pub(crate) fn iter(&self) -> impl Iterator<Item = u64> + '_ {
-        self.vals.iter()
-    }
-
-    /// Push the fast fields value to the `FastFieldWriter`.
-    pub fn serialize(
-        &self,
-        serializer: &mut CompositeFastFieldSerializer,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> io::Result<()> {
-        let (min, max) = if self.val_min > self.val_max {
-            (0, 0)
-        } else {
-            (self.val_min, self.val_max)
-        };
-
-        let fastfield_accessor = WriterFastFieldAccessProvider {
-            doc_id_map,
-            vals: &self.vals,
-            min_value: min,
-            max_value: max,
-            num_vals: self.val_count as u32,
-        };
-
-        serializer.create_auto_detect_u64_fast_field(self.field, fastfield_accessor)?;
-
-        Ok(())
-    }
-}
-
-#[derive(Clone)]
-struct WriterFastFieldAccessProvider<'map, 'bitp> {
-    doc_id_map: Option<&'map DocIdMapping>,
-    vals: &'bitp BlockedBitpacker,
-    min_value: u64,
-    max_value: u64,
-    num_vals: u32,
-}
-
-impl<'map, 'bitp> Column for WriterFastFieldAccessProvider<'map, 'bitp> {
-    /// Return the value associated with the given doc.
-    ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
-    /// reasons.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `doc` is greater than the index.
-    fn get_val(&self, _doc: u32) -> u64 {
-        unimplemented!()
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        if let Some(doc_id_map) = self.doc_id_map {
-            Box::new(
-                doc_id_map
-                    .iter_old_doc_ids()
-                    .map(|doc_id| self.vals.get(doc_id as usize)),
-            )
-        } else {
-            Box::new(self.vals.iter())
-        }
-    }
-
-    fn min_value(&self) -> u64 {
-        self.min_value
-    }
-
-    fn max_value(&self) -> u64 {
-        self.max_value
-    }
-
-    fn num_vals(&self) -> u32 {
-        self.num_vals
+    #[test]
+    fn test_json_fast_field_expand_dots() {
+        let json_doc = json!({"field.with.dots": {"child.with.dot": "hello"}});
+        let columnar_reader = test_columnar_from_jsons_aux(&[json_doc], true);
+        let columns = columnar_reader.list_columns().unwrap();
+        assert_eq!(columns.len(), 1);
+        assert_eq!(
+            columns[0].0,
+            "field\u{1}with\u{1}dots\u{1}child\u{1}with\u{1}dot"
+        );
     }
 }

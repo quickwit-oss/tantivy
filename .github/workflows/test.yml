@@ -48,7 +48,7 @@ jobs:
     strategy:
       matrix:
         features: [
-            { label: "all", flags: "mmap,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints" },
+            { label: "all", flags: "mmap,stopwords,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints" },
             { label: "quickwit", flags: "mmap,quickwit,failpoints" }
         ]
 

@@ -144,9 +144,9 @@ impl Snippet {
 ///
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
-fn search_fragments<'a>(
+fn search_fragments(
     tokenizer: &TextAnalyzer,
-    text: &'a str,
+    text: &str,
     terms: &BTreeMap<String, Score>,
     max_num_chars: usize,
 ) -> Vec<FragmentCandidate> {

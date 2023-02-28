@@ -9,7 +9,7 @@ use crate::DocId;
 /// The `FieldNormsWriter` is in charge of tracking the fieldnorm byte
 /// of each document for each field with field norms.
 ///
-/// `FieldNormsWriter` stores a Vec<u8> for each tracked field, using a
+/// `FieldNormsWriter` stores a `Vec<u8>` for each tracked field, using a
 /// byte per document per field.
 pub struct FieldNormsWriter {
     fieldnorms_buffers: Vec<Option<Vec<u8>>>,

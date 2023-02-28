@@ -1,8 +1,7 @@
 use std::io;
 use std::io::Write;
 
-use common::{intersect_bitsets, BitSet, ReadOnlyBitSet};
-use ownedbytes::OwnedBytes;
+use common::{intersect_bitsets, BitSet, OwnedBytes, ReadOnlyBitSet};
 
 use crate::space_usage::ByteCount;
 use crate::DocId;
@@ -48,11 +47,6 @@ impl AliveBitSet {
         write_alive_bitset(&bitset, &mut alive_bitset_buffer).unwrap();
         let alive_bitset_bytes = OwnedBytes::new(alive_bitset_buffer);
         Self::open(alive_bitset_bytes)
-    }
-
-    pub(crate) fn from_bitset(bitset: &BitSet) -> AliveBitSet {
-        let readonly_bitset = ReadOnlyBitSet::from(bitset);
-        AliveBitSet::from(readonly_bitset)
     }
 
     /// Opens an alive bitset given its file.
@@ -176,7 +170,7 @@ mod bench {
 
     fn get_alive() -> Vec<u32> {
         let mut data = (0..1_000_000_u32).collect::<Vec<u32>>();
-        for _ in 0..(1_000_000) * 1 / 8 {
+        for _ in 0..1_000_000 / 8 {
             remove_rand(&mut data);
         }
         data

@@ -15,8 +15,9 @@ mod recorder;
 mod segment_postings;
 mod serializer;
 mod skip;
-mod stacker;
 mod term_info;
+
+pub(crate) use stacker::compute_table_size;
 
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub(crate) use self::indexing_context::IndexingContext;
@@ -26,10 +27,7 @@ pub(crate) use self::postings_writer::{serialize_postings, IndexingPosition, Pos
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
-pub(crate) use self::stacker::compute_table_size;
 pub use self::term_info::TermInfo;
-
-pub(crate) type UnorderedTermId = u64;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
@@ -631,7 +629,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             while segment_postings.advance() != TERMINATED {}
@@ -647,25 +645,25 @@ mod bench {
             let segment_postings_a = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_b = segment_reader
                 .inverted_index(TERM_B.field())
                 .unwrap()
-                .read_postings(&*TERM_B, IndexRecordOption::Basic)
+                .read_postings(&TERM_B, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_c = segment_reader
                 .inverted_index(TERM_C.field())
                 .unwrap()
-                .read_postings(&*TERM_C, IndexRecordOption::Basic)
+                .read_postings(&TERM_C, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_d = segment_reader
                 .inverted_index(TERM_D.field())
                 .unwrap()
-                .read_postings(&*TERM_D, IndexRecordOption::Basic)
+                .read_postings(&TERM_D, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let mut intersection = Intersection::new(vec![
@@ -687,7 +685,7 @@ mod bench {
         let mut segment_postings = segment_reader
             .inverted_index(TERM_A.field())
             .unwrap()
-            .read_postings(&*TERM_A, IndexRecordOption::Basic)
+            .read_postings(&TERM_A, IndexRecordOption::Basic)
             .unwrap()
             .unwrap();
 
@@ -705,7 +703,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             for doc in &existing_docs {
@@ -746,7 +744,7 @@ mod bench {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
                 .unwrap()
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .read_postings(&TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let mut s = 0u32;

@@ -577,7 +577,7 @@ impl SegmentUpdater {
         for merge_operation in merge_candidates {
             // If a merge cannot be started this is not a fatal error.
             // We do log a warning in `start_merge`.
-            let _ = self.start_merge(merge_operation);
+            drop(self.start_merge(merge_operation));
         }
     }
 
@@ -866,7 +866,7 @@ mod tests {
         }
 
         assert_eq!(indices.len(), 3);
-        let output_directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        let output_directory: Box<dyn Directory> = Box::<RamDirectory>::default();
         let index = merge_indices(&indices, output_directory)?;
         assert_eq!(index.schema(), schema);
 

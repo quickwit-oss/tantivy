@@ -36,7 +36,7 @@ impl From<FieldValue> for Value {
 }
 
 impl BinarySerializable for FieldValue {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.field.serialize(writer)?;
         self.value.serialize(writer)
     }
