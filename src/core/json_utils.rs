@@ -299,7 +299,7 @@ fn split_json_path(json_path: &str) -> Vec<String> {
 /// Takes a field name, a json path as supplied by a user, and whether we should expand dots, and
 /// return a column key, as expected by the columnar crate.
 ///
-/// This function wil detect unescaped dots in the path, and split over them.
+/// This function will detect unescaped dots in the path, and split over them.
 /// If expand_dots is enabled, then even escaped dots will be split over.
 ///
 /// The resulting list of segment then gets stitched together, joined by \1 separator,

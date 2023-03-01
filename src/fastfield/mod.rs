@@ -1079,7 +1079,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fast_field_in_json_field_no_expand_dots_disabled() {
+    fn test_fast_field_in_json_field_expand_dots_disabled() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default().set_fast();
         let json = schema_builder.add_json_field("json", json_option);
