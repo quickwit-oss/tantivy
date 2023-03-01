@@ -346,8 +346,6 @@ mod tests {
 
     use super::agg_req::Aggregations;
     use super::*;
-    use crate::aggregation::agg_req::{Aggregation, BucketAggregation, BucketAggregationType};
-    use crate::aggregation::bucket::TermsAggregation;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};

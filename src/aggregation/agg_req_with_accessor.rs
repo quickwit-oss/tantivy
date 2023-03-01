@@ -2,8 +2,9 @@
 
 use std::rc::Rc;
 use std::sync::atomic::AtomicU32;
+use std::sync::Arc;
 
-use columnar::{Column, ColumnType, StrColumn};
+use columnar::{Column, ColumnType, ColumnValues, StrColumn};
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{
@@ -15,7 +16,7 @@ use super::metric::{
 };
 use super::segment_agg_result::BucketCount;
 use super::VecWithNames;
-use crate::{SegmentReader, TantivyError};
+use crate::SegmentReader;
 
 #[derive(Clone, Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -167,8 +168,31 @@ fn get_ff_reader_and_validate(
     let ff_fields = reader.fast_fields();
     let ff_field_with_type = ff_fields
         .u64_lenient_with_type(field_name)?
-        .ok_or_else(|| {
-            TantivyError::InvalidArgument(format!("No fast field found for field: {}", field_name))
-        })?;
+        .unwrap_or_else(|| (build_empty_column(reader.num_docs()), ColumnType::U64));
     Ok(ff_field_with_type)
+}
+
+// Empty Column
+fn build_empty_column(num_docs: u32) -> Column {
+    struct EmptyValues;
+    impl ColumnValues for EmptyValues {
+        fn get_val(&self, _idx: u32) -> u64 {
+            unimplemented!("Internal Error: Called get_val of empty column.")
+        }
+        fn min_value(&self) -> u64 {
+            unimplemented!("Internal Error: Called min_value of empty column.")
+        }
+        fn max_value(&self) -> u64 {
+            unimplemented!("Internal Error: Called max_value of empty column.")
+        }
+        fn num_vals(&self) -> u32 {
+            0
+        }
+    }
+
+    let column = Column {
+        idx: columnar::ColumnIndex::Empty { num_docs },
+        values: Arc::new(EmptyValues),
+    };
+    column
 }

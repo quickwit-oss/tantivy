@@ -12,8 +12,8 @@ use crate::aggregation::metric::AverageAggregation;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::query::{AllQuery, TermQuery};
-use crate::schema::IndexRecordOption;
-use crate::Term;
+use crate::schema::{IndexRecordOption, Schema, FAST};
+use crate::{Index, Term};
 
 fn get_avg_req(field_name: &str) -> Aggregation {
     Aggregation::Metric(MetricAggregation::Average(
@@ -588,6 +588,174 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_aggregation_on_json_object() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests().unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "red"})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "blue"})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let agg: Aggregations = vec![(
+        "jsonagg".to_string(),
+        Aggregation::Bucket(BucketAggregation {
+            bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                field: "json.color".to_string(),
+                ..Default::default()
+            }),
+            sub_aggregation: Default::default(),
+        }),
+    )]
+    .into_iter()
+    .collect();
+    let aggregation_collector = AggregationCollector::from_aggs(agg, None);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+            "jsonagg": {
+                "buckets": [
+                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 1, "key": "red"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+        })
+    );
+}
+
+#[test]
+fn test_aggregation_on_json_object_empty_columns() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests().unwrap();
+    // => Empty column when accessing color
+    index_writer
+        .add_document(doc!(json => json!({"price": 10.0})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    // => Empty column when accessing price
+    index_writer
+        .add_document(doc!(json => json!({"color": "blue"})))
+        .unwrap();
+    index_writer.commit().unwrap();
+
+    // => Non Empty columns
+    index_writer
+        .add_document(doc!(json => json!({"color": "red", "price": 10.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "red", "price": 10.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
+
+    index_writer.commit().unwrap();
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let agg: Aggregations = vec![(
+        "jsonagg".to_string(),
+        Aggregation::Bucket(BucketAggregation {
+            bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                field: "json.color".to_string(),
+                ..Default::default()
+            }),
+            sub_aggregation: Default::default(),
+        }),
+    )]
+    .into_iter()
+    .collect();
+
+    let aggregation_collector = AggregationCollector::from_aggs(agg, None);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+            "jsonagg": {
+                "buckets": [
+                    {"doc_count": 3, "key": "green"},
+                    {"doc_count": 2, "key": "red"},
+                    {"doc_count": 1, "key": "blue"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+        })
+    );
+
+    let agg_req_str = r#"
+    {
+      "jsonagg": {
+        "aggs": {
+          "min_price": { "min": { "field": "json.price" } }
+        },
+        "terms": {
+          "field": "json.color",
+          "order": { "min_price": "desc" }
+        }
+      }
+    } "#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let aggregation_results = searcher
+        .search(&AllQuery, &AggregationCollector::from_aggs(agg, None))
+        .unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!(
+            {
+              "jsonagg": {
+                "buckets": [
+                  {
+                    "key": "green",
+                    "doc_count": 3,
+                    "min_price": {
+                      "value": 20.0
+                    }
+                  },
+                  {
+                    "key": "red",
+                    "doc_count": 2,
+                    "min_price": {
+                      "value": 10.0
+                    }
+                  },
+                  {
+                    "key": "blue",
+                    "doc_count": 1,
+                    "min_price": {
+                      "value": null
+                    }
+                  }
+                ],
+                "sum_other_doc_count": 0
+              }
+            }
+        )
+    );
 }
 
 #[cfg(all(test, feature = "unstable"))]

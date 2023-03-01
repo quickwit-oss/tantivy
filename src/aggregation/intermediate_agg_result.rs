@@ -494,7 +494,7 @@ impl IntermediateTermBucketResult {
                         let val = bucket
                             .sub_aggregation
                             .get_value_from_aggregation(agg_name, agg_property)?
-                            .unwrap_or(f64::NAN);
+                            .unwrap_or(f64::MIN);
                         Ok((bucket, val))
                     })
                     .collect::<crate::Result<Vec<_>>>()?;

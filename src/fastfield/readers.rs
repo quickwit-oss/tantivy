@@ -251,6 +251,8 @@ impl FastFieldReaders {
     }
 
     /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
+    ///
+    /// Returns Ok(None) for empty columns
     #[doc(hidden)]
     pub fn u64_lenient_with_type(
         &self,
