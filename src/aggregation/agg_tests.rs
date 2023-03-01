@@ -593,6 +593,7 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use columnar::Cardinality;
     use rand::prelude::SliceRandom;
     use rand::{thread_rng, Rng};
     use test::{self, Bencher};
@@ -606,7 +607,7 @@ mod bench {
     use crate::schema::{Schema, TextFieldIndexing, FAST, STRING};
     use crate::Index;
 
-    fn get_test_index_bench(_merge_segments: bool) -> crate::Result<Index> {
+    fn get_test_index_bench(cardinality: Cardinality) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
@@ -628,7 +629,27 @@ mod bench {
         {
             let mut rng = thread_rng();
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
-            // writing the segment
+            // To make the different test cases comparable we just change one doc to force the
+            // cardinality
+            if cardinality == Cardinality::Optional {
+                index_writer.add_document(doc!())?;
+            }
+            if cardinality == Cardinality::Multivalued {
+                index_writer.add_document(doc!(
+                    text_field => "cool",
+                    text_field => "cool",
+                    text_field_many_terms => "cool",
+                    text_field_many_terms => "cool",
+                    text_field_few_terms => "cool",
+                    text_field_few_terms => "cool",
+                    score_field => 1u64,
+                    score_field => 1u64,
+                    score_field_f64 => 1.0,
+                    score_field_f64 => 1.0,
+                    score_field_i64 => 1i64,
+                    score_field_i64 => 1i64,
+                ))?;
+            }
             for _ in 0..1_000_000 {
                 let val: f64 = rng.gen_range(0.0..1_000_000.0);
                 index_writer.add_document(doc!(
@@ -640,15 +661,40 @@ mod bench {
                     score_field_i64 => val as i64,
                 ))?;
             }
+            // writing the segment
             index_writer.commit()?;
         }
 
         Ok(index)
     }
 
-    #[bench]
-    fn bench_aggregation_average_u64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    use paste::paste;
+    #[macro_export]
+    macro_rules! bench_all_cardinalities {
+        (  $x:ident ) => {
+            paste! {
+                #[bench]
+                fn $x(b: &mut Bencher) {
+                    [<$x _card>](b, Cardinality::Full)
+                }
+
+                #[bench]
+                fn [<$x _opt>](b: &mut Bencher) {
+                    [<$x _card>](b, Cardinality::Optional)
+                }
+
+                #[bench]
+                fn [<$x _multi>](b: &mut Bencher) {
+                    [<$x _card>](b, Cardinality::Multivalued)
+                }
+            }
+        };
+    }
+
+    bench_all_cardinalities!(bench_aggregation_average_u64);
+
+    fn bench_aggregation_average_u64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
         let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -674,9 +720,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_stats_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_stats_f64);
+
+    fn bench_aggregation_stats_f64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
         let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -702,9 +749,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_average_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_average_f64);
+
+    fn bench_aggregation_average_f64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
         let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -730,9 +778,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_average_u64_and_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_average_u64_and_f64);
+
+    fn bench_aggregation_average_u64_and_f64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
         let text_field = reader.searcher().schema().get_field("text").unwrap();
 
@@ -766,9 +815,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_terms_few(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_terms_few);
+
+    fn bench_aggregation_terms_few_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -792,9 +842,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_terms_many_with_sub_agg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_terms_many_with_sub_agg);
+
+    fn bench_aggregation_terms_many_with_sub_agg_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -827,9 +878,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_terms_many2(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_terms_many2);
+
+    fn bench_aggregation_terms_many2_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -853,9 +905,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_terms_many_order_by_term(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_terms_many_order_by_term);
+
+    fn bench_aggregation_terms_many_order_by_term_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -883,9 +936,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_range_only(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_range_only);
+
+    fn bench_aggregation_range_only_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -917,9 +971,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_range_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_range_with_avg);
+
+    fn bench_aggregation_range_with_avg_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -961,9 +1016,14 @@ mod bench {
     }
 
     // hard bounds has a different algorithm, because it actually limits collection range
-    #[bench]
-    fn bench_aggregation_histogram_only_hard_bounds(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    //
+    bench_all_cardinalities!(bench_aggregation_histogram_only_hard_bounds);
+
+    fn bench_aggregation_histogram_only_hard_bounds_card(
+        b: &mut Bencher,
+        cardinality: Cardinality,
+    ) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -992,9 +1052,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_histogram_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_histogram_with_avg);
+
+    fn bench_aggregation_histogram_with_avg_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -1028,9 +1089,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_histogram_only(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_histogram_only);
+
+    fn bench_aggregation_histogram_only_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
 
         b.iter(|| {
@@ -1055,9 +1117,10 @@ mod bench {
         });
     }
 
-    #[bench]
-    fn bench_aggregation_avg_and_range_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
+    bench_all_cardinalities!(bench_aggregation_avg_and_range_with_avg);
+
+    fn bench_aggregation_avg_and_range_with_avg_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
         let reader = index.reader().unwrap();
         let text_field = reader.searcher().schema().get_field("text").unwrap();
 
