@@ -329,16 +329,66 @@ impl FieldType {
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
-                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                        Err(ValueParsingError::TypeError {
-                            expected: "an integer",
-                            json: JsonValue::String(field_text),
-                        })
+                    FieldType::U64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a u64 or a u64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a u64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
                     }
-                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
-                        expected: "a boolean",
-                        json: JsonValue::String(field_text),
-                    }),
+                    FieldType::I64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::I64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a i64 or a i64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a i64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::F64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::F64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a f64 or a f64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a f64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::Bool(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::Bool(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a i64 or a bool as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a boolean",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
                     FieldType::Bytes(_) => BASE64
                         .decode(&field_text)
@@ -395,12 +445,20 @@ impl FieldType {
                     expected: "a boolean",
                     json: JsonValue::Number(field_val_num),
                 }),
-                FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "a string",
-                        json: JsonValue::Number(field_val_num),
-                    })
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(field_val_num.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Number(field_val_num),
+                        })
+                    }
                 }
+                FieldType::Facet(_) | FieldType::Bytes(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string",
+                    json: JsonValue::Number(field_val_num),
+                }),
                 FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
                     json: JsonValue::Number(field_val_num),
@@ -431,9 +489,36 @@ impl FieldType {
             },
             JsonValue::Bool(json_bool_val) => match self {
                 FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(json_bool_val.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Bool(json_bool_val),
+                        })
+                    }
+                }
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Bool(json_bool_val),
+                }),
+            },
+            // Could also just filter them
+            JsonValue::Null => match self {
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str("null".to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Null,
+                        })
+                    }
+                }
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Null,
                 }),
             },
             _ => Err(ValueParsingError::TypeError {
@@ -450,10 +535,89 @@ mod tests {
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
+    use crate::schema::{NumericOptions, Schema, TextOptions, Type, Value, COERCE, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, Document};
+
+    #[test]
+    fn test_to_string_coercion() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("id", COERCE);
+        let schema = schema_builder.build();
+        let doc = schema.parse_document(r#"{"id": 100}"#).unwrap();
+        assert_eq!(
+            &Value::Str("100".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+
+        let doc = schema.parse_document(r#"{"id": true}"#).unwrap();
+        assert_eq!(
+            &Value::Str("true".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+
+        // Not sure if this null coercion is the best approach
+        let doc = schema.parse_document(r#"{"id": null}"#).unwrap();
+        assert_eq!(
+            &Value::Str("null".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_to_number_coercion() {
+        let mut schema_builder = Schema::builder();
+        let i64_field = schema_builder.add_i64_field("i64", COERCE);
+        let u64_field = schema_builder.add_u64_field("u64", COERCE);
+        let f64_field = schema_builder.add_f64_field("f64", COERCE);
+        let schema = schema_builder.build();
+        let doc_json = r#"{"i64": "100", "u64": "100", "f64": "100"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::I64(100), doc.get_first(i64_field).unwrap());
+        assert_eq!(&Value::U64(100), doc.get_first(u64_field).unwrap());
+        assert_eq!(&Value::F64(100.0), doc.get_first(f64_field).unwrap());
+    }
+
+    #[test]
+    fn test_to_bool_coercion() {
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("bool", COERCE);
+        let schema = schema_builder.build();
+        let doc_json = r#"{"bool": "true"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::Bool(true), doc.get_first(bool_field).unwrap());
+
+        let doc_json = r#"{"bool": "false"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::Bool(false), doc.get_first(bool_field).unwrap());
+    }
+
+    #[test]
+    fn test_to_number_no_coercion() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("i64", NumericOptions::default());
+        schema_builder.add_u64_field("u64", NumericOptions::default());
+        schema_builder.add_f64_field("f64", NumericOptions::default());
+        let schema = schema_builder.build();
+        assert!(schema
+            .parse_document(r#"{"u64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a u64"));
+
+        assert!(schema
+            .parse_document(r#"{"i64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a i64"));
+
+        assert!(schema
+            .parse_document(r#"{"f64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a f64"));
+    }
 
     #[test]
     fn test_deserialize_json_date() {

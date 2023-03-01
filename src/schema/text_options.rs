@@ -3,7 +3,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
-use super::flags::FastFlag;
+use super::flags::{CoerceFlag, FastFlag};
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
 
@@ -17,6 +17,14 @@ pub struct TextOptions {
     stored: bool,
     #[serde(default)]
     fast: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_false")]
+    /// coerce values if they are not of type string
+    coerce: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 impl TextOptions {
@@ -33,6 +41,11 @@ impl TextOptions {
     /// Returns true if and only if the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast
+    }
+
+    /// Returns true if values should be coerced to strings (numbers, null).
+    pub fn should_coerce(&self) -> bool {
+        self.coerce
     }
 
     /// Set the field as a fast field.
@@ -56,7 +69,14 @@ impl TextOptions {
         self
     }
 
-    /// Sets the field as stored
+    /// Coerce values if they are not of type string. Defaults to false.
+    #[must_use]
+    pub fn set_coerce(mut self) -> TextOptions {
+        self.coerce = true;
+        self
+    }
+
+    /// Sets the field as stored.
     #[must_use]
     pub fn set_stored(mut self) -> TextOptions {
         self.stored = true;
@@ -180,6 +200,7 @@ pub const STRING: TextOptions = TextOptions {
     }),
     stored: false,
     fast: false,
+    coerce: false,
 };
 
 /// The field will be tokenized and indexed.
@@ -190,6 +211,7 @@ pub const TEXT: TextOptions = TextOptions {
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
     stored: false,
+    coerce: false,
     fast: false,
 };
 
@@ -202,6 +224,7 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
+            coerce: self.coerce | other.coerce,
         }
     }
 }
@@ -218,6 +241,18 @@ impl From<StoredFlag> for TextOptions {
             indexing: None,
             stored: true,
             fast: false,
+            coerce: false,
+        }
+    }
+}
+
+impl From<CoerceFlag> for TextOptions {
+    fn from(_: CoerceFlag) -> TextOptions {
+        TextOptions {
+            indexing: None,
+            stored: false,
+            fast: false,
+            coerce: true,
         }
     }
 }
@@ -228,6 +263,7 @@ impl From<FastFlag> for TextOptions {
             indexing: None,
             stored: false,
             fast: true,
+            coerce: false,
         }
     }
 }
