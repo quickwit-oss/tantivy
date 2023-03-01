@@ -9,10 +9,10 @@ use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLitera
 use rustc_hash::FxHashMap;
 
 use super::logical_ast::*;
-use crate::core::Index;
-use crate::indexer::{
+use crate::core::json_utils::{
     convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
 };
+use crate::core::Index;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery,

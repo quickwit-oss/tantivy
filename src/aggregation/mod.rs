@@ -344,6 +344,8 @@ mod tests {
 
     use super::agg_req::Aggregations;
     use super::*;
+    use crate::aggregation::agg_req::{Aggregation, BucketAggregation, BucketAggregationType};
+    use crate::aggregation::bucket::TermsAggregation;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
@@ -590,5 +592,51 @@ mod tests {
         }
 
         Ok(index)
+    }
+
+    #[test]
+    fn test_aggregation_on_json_object() {
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"color": "red"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"color": "blue"})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let agg: Aggregations = vec![(
+            "jsonagg".to_string(),
+            Aggregation::Bucket(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "json.color".to_string(),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            }),
+        )]
+        .into_iter()
+        .collect();
+        let aggregation_collector = AggregationCollector::from_aggs(agg, None);
+        let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+        let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+        assert_eq!(
+            &aggregation_res_json,
+            &serde_json::json!({
+                "jsonagg": {
+                    "buckets": [
+                        {"doc_count": 1, "key": "blue"},
+                        {"doc_count": 1, "key": "red"}
+                    ],
+                    "doc_count_error_upper_bound": 0,
+                    "sum_other_doc_count": 0
+                }
+            })
+        );
     }
 }

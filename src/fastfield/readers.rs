@@ -7,8 +7,9 @@ use columnar::{
     DynamicColumnHandle, HasAssociatedColumnType, StrColumn,
 };
 
+use crate::core::json_utils::encode_column_name;
 use crate::directory::FileSlice;
-use crate::schema::Schema;
+use crate::schema::{Field, FieldEntry, FieldType, Schema};
 use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
 /// Provides access to all of the BitpackedFastFieldReader.
@@ -18,16 +19,22 @@ use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 #[derive(Clone)]
 pub struct FastFieldReaders {
     columnar: Arc<ColumnarReader>,
+    schema: Schema,
 }
 
 impl FastFieldReaders {
-    pub(crate) fn open(fast_field_file: FileSlice) -> io::Result<FastFieldReaders> {
+    pub(crate) fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<FastFieldReaders> {
         let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
-        Ok(FastFieldReaders { columnar })
+        Ok(FastFieldReaders { columnar, schema })
     }
 
-    pub(crate) fn columnar(&self) -> &ColumnarReader {
-        self.columnar.as_ref()
+    fn resolve_field(&self, column_name: &str) -> Option<String> {
+        let default_field_opt: Option<Field> = if cfg!(feature = "quickwit") {
+            self.schema.get_field("_dynamic").ok()
+        } else {
+            None
+        };
+        self.resolve_column_name_given_default_field(column_name, default_field_opt)
     }
 
     pub(crate) fn space_usage(&self, schema: &Schema) -> io::Result<PerFieldSpaceUsage> {
@@ -46,6 +53,59 @@ impl FastFieldReaders {
         Ok(PerFieldSpaceUsage::new(per_field_usages))
     }
 
+    pub(crate) fn columnar(&self) -> &ColumnarReader {
+        self.columnar.as_ref()
+    }
+
+    /// Transforms a user-supplied fast field name into a column name.
+    ///
+    /// A user-supplied fast field name is not necessarily a schema field name
+    /// because we handle fast fields.
+    ///
+    /// For instance, if the documents look like `{.., "attributes": {"color": "red"}}` and
+    /// `attributes` is a json fast field,  a user could want to run a term aggregation over
+    /// colors, by referring to the field as `attributes.color`.
+    ///
+    /// This function transforms `attributes.color` into a column key to be used in the `columnar`.
+    ///
+    /// The logic works as follows, first we identify which field is targetted by calling
+    /// `schema.find_field(..)`. This method will attempt to split the user splied fast field
+    /// name by non-escaped dots, and find the longest matching schema field name.
+    /// In our case, it would return the (attribute_field, "color").
+    ///
+    /// If no field is found, but a dynamic field is supplied, then we
+    /// will simply assuem the user is targetting the dynamic field. (This feature is used in
+    /// Quickwit.)
+    ///
+    /// We then encode the `(field, path)` into the right `columnar_key`.
+    fn resolve_column_name_given_default_field<'a>(
+        &'a self,
+        field_name: &'a str,
+        default_field_opt: Option<Field>,
+    ) -> Option<String> {
+        let (field, path): (Field, &str) = self
+            .schema
+            .find_field(field_name)
+            .or_else(|| default_field_opt.map(|default_field| (default_field, field_name)))?;
+        let field_name = self.schema.get_field_name(field);
+        if path.is_empty() {
+            return Some(field_name.to_string());
+        }
+        let field_entry: &FieldEntry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        match (field_type, path) {
+            (FieldType::JsonObject(json_options), path) if !path.is_empty() => {
+                Some(encode_column_name(
+                    field_entry.name(),
+                    path,
+                    json_options.is_expand_dots_enabled(),
+                ))
+            }
+            (_, "") => Some(field_entry.name().to_string()),
+            _ => None,
+        }
+    }
+
     /// Returns a typed column associated to a given field name.
     ///
     /// If no column associated with that field_name exists,
@@ -53,11 +113,10 @@ impl FastFieldReaders {
     /// returns `None`.
     pub fn column_opt<T>(&self, field_name: &str) -> crate::Result<Option<Column<T>>>
     where
-        T: PartialOrd + Copy + HasAssociatedColumnType + Send + Sync + 'static,
+        T: HasAssociatedColumnType,
         DynamicColumn: Into<Option<Column<T>>>,
     {
-        let column_type = T::column_type();
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, column_type)?
+        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, T::column_type())?
         else {
             return Ok(None);
         };
@@ -66,10 +125,15 @@ impl FastFieldReaders {
     }
 
     /// Returns the number of `bytes` associated with a column.
+    ///
+    /// Returns 0 if the column does not exist.
     pub fn column_num_bytes(&self, field: &str) -> crate::Result<usize> {
+        let Some(resolved_field_name) = self.resolve_field(field) else {
+            return Ok(0);
+        };
         Ok(self
             .columnar
-            .read_columns(field)?
+            .read_columns(&resolved_field_name)?
             .into_iter()
             .map(|column_handle| column_handle.num_bytes())
             .sum())
@@ -152,23 +216,38 @@ impl FastFieldReaders {
         field_name: &str,
         column_type: ColumnType,
     ) -> crate::Result<Option<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(field_name) else {
+            return Ok(None);
+        };
         let dynamic_column_handle_opt = self
             .columnar
-            .read_columns(field_name)?
+            .read_columns(&resolved_field_name)?
             .into_iter()
             .find(|column| column.column_type() == column_type);
         Ok(dynamic_column_handle_opt)
     }
 
+    #[doc(hidden)]
+    pub async fn list_dynamic_column_handles(
+        &self,
+        field_name: &str,
+    ) -> crate::Result<Vec<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(field_name) else {
+            return Ok(Vec::new());
+        };
+        let columns = self
+            .columnar
+            .read_columns_async(&resolved_field_name)
+            .await?;
+        Ok(columns)
+    }
+
     /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
     #[doc(hidden)]
     pub fn u64_lenient(&self, field_name: &str) -> crate::Result<Option<Column<u64>>> {
-        for col in self.columnar.read_columns(field_name)? {
-            if let Some(col_u64) = col.open_u64_lenient()? {
-                return Ok(Some(col_u64));
-            }
-        }
-        Ok(None)
+        Ok(self
+            .u64_lenient_with_type(field_name)?
+            .map(|(u64_column, _)| u64_column))
     }
 
     /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
@@ -177,7 +256,10 @@ impl FastFieldReaders {
         &self,
         field_name: &str,
     ) -> crate::Result<Option<(Column<u64>, ColumnType)>> {
-        for col in self.columnar.read_columns(field_name)? {
+        let Some(resolved_field_name) = self.resolve_field(field_name) else {
+            return Ok(None);
+        };
+        for col in self.columnar.read_columns(&resolved_field_name)? {
             if let Some(col_u64) = col.open_u64_lenient()? {
                 return Ok(Some((col_u64, col.column_type())));
             }
@@ -204,5 +286,75 @@ impl FastFieldReaders {
     /// If `field` is not a bool fast field, this method returns an Error.
     pub fn bool(&self, field_name: &str) -> crate::Result<Column<bool>> {
         self.column(field_name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::schema::{JsonObjectOptions, Schema, FAST};
+    use crate::{Document, Index};
+
+    #[test]
+    fn test_fast_field_reader_resolve_with_dynamic_internal() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("age", FAST);
+        schema_builder.add_json_field("json_expand_dots_disabled", FAST);
+        schema_builder.add_json_field(
+            "json_expand_dots_enabled",
+            JsonObjectOptions::default()
+                .set_fast()
+                .set_expand_dots_enabled(),
+        );
+        let dynamic_field = schema_builder.add_json_field("_dyna", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(Document::default()).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let reader = searcher.segment_reader(0u32);
+        let fast_field_readers = reader.fast_fields();
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field("age", None),
+            Some("age".to_string())
+        );
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field("age", Some(dynamic_field)),
+            Some("age".to_string())
+        );
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field(
+                "json_expand_dots_disabled.attr.color",
+                None
+            ),
+            Some("json_expand_dots_disabled\u{1}attr\u{1}color".to_string())
+        );
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field(
+                "json_expand_dots_disabled.attr\\.color",
+                Some(dynamic_field)
+            ),
+            Some("json_expand_dots_disabled\u{1}attr.color".to_string())
+        );
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field(
+                "json_expand_dots_enabled.attr\\.color",
+                Some(dynamic_field)
+            ),
+            Some("json_expand_dots_enabled\u{1}attr\u{1}color".to_string())
+        );
+        assert_eq!(
+            fast_field_readers
+                .resolve_column_name_given_default_field("notinschema.attr.color", None),
+            None
+        );
+        assert_eq!(
+            fast_field_readers.resolve_column_name_given_default_field(
+                "notinschema.attr.color",
+                Some(dynamic_field)
+            ),
+            Some("_dyna\u{1}notinschema\u{1}attr\u{1}color".to_string())
+        );
     }
 }
