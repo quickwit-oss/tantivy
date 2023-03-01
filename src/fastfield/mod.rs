@@ -1090,10 +1090,8 @@ mod tests {
             .add_document(doc!(json => json!({"attr.age": 32})))
             .unwrap();
         index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        let reader = searcher.segment_reader(0u32);
-        let fast_field_reader = reader.fast_fields();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         assert!(fast_field_reader
             .column_opt::<i64>("json.attr.age")
             .unwrap()
@@ -1120,10 +1118,8 @@ mod tests {
             .add_document(doc!(json => json!({"attr.age": 32})))
             .unwrap();
         index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        let reader = searcher.segment_reader(0u32);
-        let fast_field_reader = reader.fast_fields();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         for test_column_name in &["json.attr.age", "json.attr\\.age"] {
             let column = fast_field_reader
                 .column_opt::<i64>(test_column_name)
@@ -1145,10 +1141,8 @@ mod tests {
             .add_document(doc!(field_with_dot => 32i64))
             .unwrap();
         index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        let reader = searcher.segment_reader(0u32);
-        let fast_field_reader = reader.fast_fields();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         let column = fast_field_reader
             .column_opt::<i64>("field.with.dot")
             .unwrap()
@@ -1169,10 +1163,33 @@ mod tests {
             .add_document(doc!(json_field=> json!({"attr": {"age": 32}}), shadowing_json_field=>json!({"age": 33})))
             .unwrap();
         index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        let reader = searcher.segment_reader(0u32);
-        let fast_field_reader = reader.fast_fields();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
+        let column = fast_field_reader
+            .column_opt::<i64>(&"jsonfield.attr.age")
+            .unwrap()
+            .unwrap();
+        let vals: Vec<i64> = column.values_for_doc(0u32).collect();
+        assert_eq!(&vals, &[33]);
+    }
+
+    #[test]
+    fn test_shadowing_fast_field_with_expand_dots() {
+        let mut schema_builder = Schema::builder();
+        let json_option = JsonObjectOptions::default()
+            .set_fast()
+            .set_expand_dots_enabled();
+        let json_field = schema_builder.add_json_field("jsonfield", json_option.clone());
+        let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(json_field=> json!({"attr.age": 32}), shadowing_json_field=>json!({"age": 33})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         let column = fast_field_reader
             .column_opt::<i64>(&"jsonfield.attr.age")
             .unwrap()

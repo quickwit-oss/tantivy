@@ -116,7 +116,7 @@ impl FastFieldReaders {
         T: HasAssociatedColumnType,
         DynamicColumn: Into<Option<Column<T>>>,
     {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(&field_name, T::column_type())?
+        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, T::column_type())?
         else {
             return Ok(None);
         };
