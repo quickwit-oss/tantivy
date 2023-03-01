@@ -169,6 +169,7 @@ fn get_ff_reader_and_validate(
     let ff_field_with_type = ff_fields
         .u64_lenient_with_type(field_name)?
         .unwrap_or_else(|| (build_empty_column(reader.num_docs()), ColumnType::U64));
+
     Ok(ff_field_with_type)
 }
 
@@ -190,9 +191,8 @@ fn build_empty_column(num_docs: u32) -> Column {
         }
     }
 
-    let column = Column {
+    Column {
         idx: columnar::ColumnIndex::Empty { num_docs },
         values: Arc::new(EmptyValues),
-    };
-    column
+    }
 }
