@@ -144,6 +144,14 @@ pub(crate) fn build_bucket_segment_agg_collector(
                 accessor_idx,
             )?))
         }
+        BucketAggregationType::DateHistogram(histogram) => {
+            Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
+                &histogram.to_histogram_req()?,
+                &req.sub_aggregation,
+                req.field_type,
+                accessor_idx,
+            )?))
+        }
     }
 }
 

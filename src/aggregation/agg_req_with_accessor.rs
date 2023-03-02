@@ -6,7 +6,9 @@ use std::sync::atomic::AtomicU32;
 use columnar::{Column, ColumnType, StrColumn};
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
-use super::bucket::{HistogramAggregation, RangeAggregation, TermsAggregation};
+use super::bucket::{
+    DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
+};
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
     SumAggregation,
@@ -61,6 +63,10 @@ impl BucketAggregationWithAccessor {
             }) => get_ff_reader_and_validate(reader, field_name)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
+            }) => get_ff_reader_and_validate(reader, field_name)?,
+            BucketAggregationType::DateHistogram(DateHistogramAggregationReq {
+                field: field_name,
+                ..
             }) => get_ff_reader_and_validate(reader, field_name)?,
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
