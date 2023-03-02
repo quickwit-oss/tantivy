@@ -106,7 +106,7 @@ mod tweak_score_top_collector;
 pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 mod facet_collector;
 pub use self::facet_collector::{FacetCollector, FacetCounts};
-use crate::query::Weight;
+use crate::query::{for_each_docset, for_each_scorer, Weight};
 
 mod docset_collector;
 pub use self::docset_collector::DocSetCollector;
@@ -173,28 +173,32 @@ pub trait Collector: Sync + Send {
 
         match (reader.alive_bitset(), self.requires_scoring()) {
             (Some(alive_bitset), true) => {
-                weight.for_each(reader, &mut |doc, score| {
+                let mut scorer = weight.scorer(reader, 1.0)?;
+                for_each_scorer(scorer.as_mut(), |doc, score| {
                     if alive_bitset.is_alive(doc) {
                         segment_collector.collect(doc, score);
                     }
-                })?;
+                });
             }
             (Some(alive_bitset), false) => {
-                weight.for_each_no_score(reader, &mut |doc| {
+                let mut docset = weight.scorer(reader, 1.0)?;
+                for_each_docset(docset.as_mut(), |doc| {
                     if alive_bitset.is_alive(doc) {
                         segment_collector.collect(doc, 0.0);
                     }
-                })?;
+                });
             }
             (None, true) => {
-                weight.for_each(reader, &mut |doc, score| {
+                let mut scorer = weight.scorer(reader, 1.0)?;
+                for_each_scorer(scorer.as_mut(), |doc, score| {
                     segment_collector.collect(doc, score);
-                })?;
+                });
             }
             (None, false) => {
-                weight.for_each_no_score(reader, &mut |doc| {
+                let mut docset = weight.scorer(reader, 1.0)?;
+                for_each_docset(docset.as_mut(), |doc| {
                     segment_collector.collect(doc, 0.0);
-                })?;
+                });
             }
         }
 

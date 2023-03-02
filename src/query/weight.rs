@@ -5,9 +5,10 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Iterates through all of the documents and scores matched by the DocSet
 /// `DocSet`.
+#[inline]
 pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
-    callback: &mut dyn FnMut(DocId, Score),
+    mut callback: impl FnMut(DocId, Score),
 ) {
     let mut doc = scorer.doc();
     while doc != TERMINATED {
@@ -18,7 +19,8 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 
 /// Iterates through all of the documents matched by the DocSet
 /// `DocSet`.
-pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, callback: &mut dyn FnMut(DocId)) {
+#[inline]
+pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, mut callback: impl FnMut(DocId)) {
     let mut doc = docset.doc();
     while doc != TERMINATED {
         callback(doc);
@@ -36,6 +38,7 @@ pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, callback: &mut
 ///
 /// More importantly, it makes it possible for scorers to implement
 /// important optimization (e.g. BlockWAND for union).
+#[inline]
 pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
     mut threshold: Score,

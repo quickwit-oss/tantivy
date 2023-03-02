@@ -65,6 +65,7 @@ pub use self::union::Union;
 #[cfg(test)]
 pub use self::vec_docset::VecDocSet;
 pub use self::weight::Weight;
+pub(crate) use self::weight::{for_each_docset, for_each_pruning_scorer, for_each_scorer};
 
 #[cfg(test)]
 mod tests {
