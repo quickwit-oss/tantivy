@@ -230,6 +230,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         })
     }
 
+    #[inline]
     fn collect(
         &mut self,
         doc: crate::DocId,
@@ -238,6 +239,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         self.collect_block(&[doc], agg_with_accessor)
     }
 
+    #[inline]
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
