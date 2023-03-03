@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
@@ -93,6 +94,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
         let slice = self.file_slice_for_range(key_range, limit);
         let data = slice.read_bytes()?;
+        Ok(TSSTable::delta_reader(data))
+    }
+
+    pub(crate) fn sstable_delta_reader_block(
+        &self,
+        block_addr: BlockAddr,
+    ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
+        let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
         Ok(TSSTable::delta_reader(data))
     }
 
@@ -215,13 +224,43 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         };
 
         let mut term_ord = block_addr.first_ordinal;
-        let mut sstable_reader = self.sstable_reader_block(block_addr)?;
-        while sstable_reader.advance()? {
-            if sstable_reader.key() == key_bytes {
-                return Ok(Some(term_ord));
+        let mut ok_bytes = 0;
+        let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
+        while sstable_delta_reader.advance()? {
+            let prefix_len = sstable_delta_reader.common_prefix_len();
+            let suffix = sstable_delta_reader.suffix();
+
+            match prefix_len.cmp(&ok_bytes) {
+                Ordering::Less => return Ok(None), // poped bytes already matched => too far
+                Ordering::Equal => (),
+                Ordering::Greater => {
+                    // the ok prefix is less than current entry prefix => continue to next elem
+                    term_ord += 1;
+                    continue;
+                }
             }
+
+            // we have ok_bytes byte of common prefix, check if this key adds more
+            for (key_byte, suffix_byte) in key_bytes[ok_bytes..].iter().zip(suffix) {
+                match suffix_byte.cmp(key_byte) {
+                    Ordering::Less => break,              // byte too small
+                    Ordering::Equal => ok_bytes += 1,     // new matching byte
+                    Ordering::Greater => return Ok(None), // too far
+                }
+            }
+
+            if ok_bytes == key_bytes.len() {
+                if prefix_len + suffix.len() == ok_bytes {
+                    return Ok(Some(term_ord));
+                } else {
+                    // current key is a prefix of current element, not a match
+                    return Ok(None);
+                }
+            }
+
             term_ord += 1;
         }
+
         Ok(None)
     }
 
