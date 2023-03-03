@@ -44,7 +44,7 @@ rustc-hash = "1.1.0"
 thiserror = "1.0.30"
 htmlescape = "0.3.1"
 fail = "0.5.0"
-murmurhash32 = "0.2.0"
+murmurhash32 = "0.3.0"
 time = { version = "0.3.10", features = ["serde-well-known"] }
 smallvec = "1.8.0"
 rayon = "1.5.2"
