@@ -137,9 +137,7 @@ mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
-pub use tokenizer_api::{
-    BoxTokenFilter, BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer,
-};
+pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer};
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
@@ -237,10 +235,11 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Stemmer::new(Language::Greek))
+                .build(),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

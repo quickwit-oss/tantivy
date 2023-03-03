@@ -61,16 +61,18 @@ impl Default for TokenizerManager {
         manager.register("raw", RawTokenizer);
         manager.register(
             "default",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser),
+                .filter(LowerCaser)
+                .build(),
         );
         manager.register(
             "en_stem",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(Language::English)),
+                .filter(Stemmer::new(Language::English))
+                .build(),
         );
         manager.register("whitespace", WhitespaceTokenizer);
         manager

@@ -4,7 +4,9 @@ use std::collections::{BinaryHeap, HashMap};
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
 use crate::schema::{Field, FieldType, IndexRecordOption, Term, Value};
-use crate::tokenizer::{BoxTokenStream, FacetTokenizer, PreTokenizedStream, Tokenizer};
+use crate::tokenizer::{
+    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
+};
 use crate::{DocAddress, Result, Searcher, TantivyError};
 
 #[derive(Debug, PartialEq)]

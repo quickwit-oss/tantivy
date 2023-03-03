@@ -188,7 +188,7 @@ impl SegmentWriter {
                         let mut indexing_position = IndexingPosition::default();
                         postings_writer.index_text(
                             doc_id,
-                            &mut *facet_tokenizer,
+                            &mut facet_tokenizer,
                             term_buffer,
                             ctx,
                             &mut indexing_position,

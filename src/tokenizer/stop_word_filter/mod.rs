@@ -20,7 +20,7 @@ use rustc_hash::FxHashSet;
 
 #[cfg(feature = "stopwords")]
 use super::Language;
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
@@ -69,27 +69,46 @@ impl StopWordFilter {
     }
 }
 
-pub struct StopWordFilterStream<'a> {
-    words: Arc<FxHashSet<String>>,
-    tail: BoxTokenStream<'a>,
-}
-
 impl TokenFilter for StopWordFilter {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(StopWordFilterStream {
-            words: self.words.clone(),
-            tail: token_stream,
-        })
+    type Tokenizer<T: Tokenizer> = StopWordFilterWrapper<T>;
+
+    fn transform<T: Tokenizer>(self, tokenizer: T) -> StopWordFilterWrapper<T> {
+        StopWordFilterWrapper {
+            words: self.words,
+            inner: tokenizer,
+        }
     }
 }
 
-impl<'a> StopWordFilterStream<'a> {
+#[derive(Clone)]
+pub struct StopWordFilterWrapper<T> {
+    words: Arc<FxHashSet<String>>,
+    inner: T,
+}
+
+impl<T: Tokenizer> Tokenizer for StopWordFilterWrapper<T> {
+    type TokenStream<'a> = StopWordFilterStream<T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+        StopWordFilterStream {
+            words: self.words.clone(),
+            tail: self.inner.token_stream(text),
+        }
+    }
+}
+
+pub struct StopWordFilterStream<T> {
+    words: Arc<FxHashSet<String>>,
+    tail: T,
+}
+
+impl<T> StopWordFilterStream<T> {
     fn predicate(&self, token: &Token) -> bool {
         !self.words.contains(&token.text)
     }
 }
 
-impl<'a> TokenStream for StopWordFilterStream<'a> {
+impl<T: TokenStream> TokenStream for StopWordFilterStream<T> {
     fn advance(&mut self) -> bool {
         while self.tail.advance() {
             if self.predicate(self.tail.token()) {
@@ -131,7 +150,9 @@ mod tests {
             "am".to_string(),
             "i".to_string(),
         ];
-        let a = TextAnalyzer::from(SimpleTokenizer).filter(StopWordFilter::remove(stops));
+        let a = TextAnalyzer::builder(SimpleTokenizer)
+            .filter(StopWordFilter::remove(stops))
+            .build();
         let mut token_stream = a.token_stream(text);
         let mut tokens: Vec<Token> = vec![];
         let mut add_token = |token: &Token| {

@@ -1,16 +1,17 @@
-use crate::tokenizer::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use crate::tokenizer::{Token, TokenStream, Tokenizer};
 
 #[derive(Clone)]
 pub(crate) struct EmptyTokenizer;
 
 impl Tokenizer for EmptyTokenizer {
-    fn token_stream<'a>(&self, _text: &'a str) -> BoxTokenStream<'a> {
-        EmptyTokenStream::default().into()
+    type TokenStream<'a> = EmptyTokenStream;
+    fn token_stream<'a>(&self, _text: &'a str) -> EmptyTokenStream {
+        EmptyTokenStream::default()
     }
 }
 
 #[derive(Default)]
-struct EmptyTokenStream {
+pub struct EmptyTokenStream {
     token: Token,
 }
 
@@ -30,7 +31,7 @@ impl TokenStream for EmptyTokenStream {
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::Tokenizer;
+    use crate::tokenizer::{TokenStream, Tokenizer};
 
     #[test]
     fn test_empty_tokenizer() {
