@@ -1,9 +1,7 @@
 use std::io::{Read, Write};
 use std::{fmt, io};
 
-use byteorder::{ReadBytesExt, WriteBytesExt};
-
-use crate::{Endianness, VInt};
+use crate::VInt;
 
 #[derive(Default)]
 struct Counter(u64);
@@ -107,11 +105,13 @@ impl<Left: BinarySerializable + FixedSize, Right: BinarySerializable + FixedSize
 
 impl BinarySerializable for u32 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u32::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<u32> {
-        reader.read_u32::<Endianness>()
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
     }
 }
 
@@ -121,11 +121,13 @@ impl FixedSize for u32 {
 
 impl BinarySerializable for u16 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u16::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<u16> {
-        reader.read_u16::<Endianness>()
+        let mut buf = [0u8; 2];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -135,10 +137,12 @@ impl FixedSize for u16 {
 
 impl BinarySerializable for u64 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u64::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        reader.read_u64::<Endianness>()
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -148,10 +152,12 @@ impl FixedSize for u64 {
 
 impl BinarySerializable for u128 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u128::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        reader.read_u128::<Endianness>()
+        let mut buf = [0u8; 16];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -161,10 +167,12 @@ impl FixedSize for u128 {
 
 impl BinarySerializable for f32 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_f32::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        reader.read_f32::<Endianness>()
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -174,10 +182,12 @@ impl FixedSize for f32 {
 
 impl BinarySerializable for i64 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_i64::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        reader.read_i64::<Endianness>()
+        let mut buf = [0u8; Self::SIZE_IN_BYTES];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -187,10 +197,12 @@ impl FixedSize for i64 {
 
 impl BinarySerializable for f64 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_f64::<Endianness>(*self)
+        writer.write_all(&self.to_le_bytes())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        reader.read_f64::<Endianness>()
+        let mut buf = [0u8; Self::SIZE_IN_BYTES];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -200,10 +212,12 @@ impl FixedSize for f64 {
 
 impl BinarySerializable for u8 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u8(*self)
+        writer.write_all(&self.to_le_bytes())
     }
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<u8> {
-        reader.read_u8()
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut buf = [0u8; Self::SIZE_IN_BYTES];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_le_bytes(buf))
     }
 }
 
@@ -213,10 +227,10 @@ impl FixedSize for u8 {
 
 impl BinarySerializable for bool {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_u8(u8::from(*self))
+        (*self as u8).serialize(writer)
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
-        let val = reader.read_u8()?;
+        let val = u8::deserialize(reader)?;
         match val {
             0 => Ok(false),
             1 => Ok(true),

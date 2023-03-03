@@ -1,8 +1,6 @@
 use std::io;
 use std::io::{Read, Write};
 
-use byteorder::{ByteOrder, LittleEndian};
-
 use super::BinarySerializable;
 
 /// Variable int serializes a u128 number
@@ -127,7 +125,7 @@ pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
             5,
         ),
     };
-    LittleEndian::write_u64(&mut buf[..], res);
+    buf.copy_from_slice(&res.to_le_bytes());
     &buf[0..num_bytes]
 }
 

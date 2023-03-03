@@ -2,8 +2,6 @@
 
 use std::ops::Deref;
 
-pub use byteorder::LittleEndian as Endianness;
-
 mod bitset;
 mod datetime;
 pub mod file_slice;

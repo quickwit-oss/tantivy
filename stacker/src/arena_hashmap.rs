@@ -1,6 +1,5 @@
 use std::{iter, mem, slice};
 
-use byteorder::{ByteOrder, NativeEndian};
 use murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
@@ -155,7 +154,7 @@ impl ArenaHashMap {
     #[inline]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
         let data = self.memory_arena.slice_from(addr);
-        let key_bytes_len = NativeEndian::read_u16(data) as usize;
+        let key_bytes_len = u16::from_ne_bytes(data[..2].try_into().unwrap()) as usize;
         let key_bytes: &[u8] = &data[2..][..key_bytes_len];
         (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
     }
@@ -273,7 +272,7 @@ impl ArenaHashMap {
                 let key_addr = self.memory_arena.allocate_space(num_bytes);
                 {
                     let data = self.memory_arena.slice_mut(key_addr, num_bytes);
-                    NativeEndian::write_u16(data, key.len() as u16);
+                    data[..2].copy_from_slice(&u16::to_ne_bytes(key.len() as u16));
                     let stop = 2 + key.len();
                     data[2..stop].copy_from_slice(key);
                     store(&mut data[stop..], val);
