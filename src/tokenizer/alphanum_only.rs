@@ -2,16 +2,18 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::from(RawTokenizer)
-//!   .filter(AlphaNumOnlyFilter);
+//! let tokenizer = TextAnalyzer::builder(RawTokenizer)
+//!   .filter(AlphaNumOnlyFilter)
+//!   .build();
 //!
 //! let mut stream = tokenizer.token_stream("hello there");
 //! // is none because the raw filter emits one token that
 //! // contains a space
 //! assert!(stream.next().is_none());
 //!
-//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-//!   .filter(AlphaNumOnlyFilter);
+//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//!   .filter(AlphaNumOnlyFilter)
+//!   .build();
 //!
 //! let mut stream = tokenizer.token_stream("hello there 💣");
 //! assert!(stream.next().is_some());

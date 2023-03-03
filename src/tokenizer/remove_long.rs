@@ -2,8 +2,9 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-//!   .filter(RemoveLongFilter::limit(5));
+//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//!   .filter(RemoveLongFilter::limit(5))
+//!   .build();
 //!
 //! let mut stream = tokenizer.token_stream("toolong nice");
 //! // because `toolong` is more than 5 characters, it is filtered

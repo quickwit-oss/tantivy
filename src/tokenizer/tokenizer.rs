@@ -54,7 +54,7 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     /// ```rust
     /// use tantivy::tokenizer::*;
     ///
-    /// let en_stem = TextAnalyzer::build(SimpleTokenizer)
+    /// let en_stem = TextAnalyzer::builder(SimpleTokenizer)
     ///     .filter(RemoveLongFilter::limit(40))
     ///     .filter(LowerCaser)
     ///     .filter(Stemmer::default())

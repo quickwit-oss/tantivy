@@ -23,9 +23,11 @@ use super::{Token, TokenFilter, TokenStream, Tokenizer};
 /// use tantivy::tokenizer::{SimpleTokenizer, SplitCompoundWords, TextAnalyzer};
 ///
 /// let tokenizer =
-///        TextAnalyzer::from(SimpleTokenizer).filter(SplitCompoundWords::from_dictionary([
+///        TextAnalyzer::builder(SimpleTokenizer)
+///        .filter(SplitCompoundWords::from_dictionary([
 ///            "dampf", "schiff", "fahrt", "brot", "backen", "automat",
-///        ]));
+///        ]))
+///        .build();
 ///
 /// let mut stream = tokenizer.token_stream("dampfschifffahrt");
 /// assert_eq!(stream.next().unwrap().text, "dampf");

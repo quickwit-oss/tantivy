@@ -2,8 +2,9 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
+//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]))
+//!   .build();
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");
 //! assert_eq!(stream.next().unwrap().text, "fox");
