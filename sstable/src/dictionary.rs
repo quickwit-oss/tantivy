@@ -495,6 +495,12 @@ mod tests {
         slice.restrict(0..0);
         assert!(dic.get(b"~~~").unwrap().is_none());
         assert!(dic.term_ord(b"~~~").unwrap().is_none());
+
+        slice.restrict(0..slice.bytes.len());
+        // between 1000F and 10010, test case where matched prefix > prefix kept
+        assert!(dic.term_ord(b"1000G").unwrap().is_none());
+        // shorter than 10000, tests prefix case
+        assert!(dic.term_ord(b"1000").unwrap().is_none());
     }
 
     #[test]
