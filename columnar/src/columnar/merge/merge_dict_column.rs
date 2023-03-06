@@ -52,20 +52,18 @@ impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
 
 impl<'a> RemappedTermOrdinalsValues<'a> {
     fn boxed_iter_stacked(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        let iter = self
-            .bytes_columns
-            .iter()
-            .enumerate()
-            .flat_map(|(segment_ord, byte_column)| {
-                let segment_ord = self.term_ord_mapping.get_segment(segment_ord as u32);
-                byte_column.iter().flat_map(move |bytes_column| {
-                    bytes_column
-                        .ords()
-                        .values
-                        .iter()
-                        .map(move |term_ord| segment_ord[term_ord as usize])
-                })
-            });
+        let mut ord = 0;
+        let iter = self.bytes_columns.iter().flat_map(move |byte_column| {
+            let segment_ord = self.term_ord_mapping.get_segment(ord as u32);
+            ord += 1;
+            byte_column.iter().flat_map(move |bytes_column| {
+                bytes_column
+                    .ords()
+                    .values
+                    .iter()
+                    .map(move |term_ord| segment_ord[term_ord as usize])
+            })
+        });
         // TODO see if we can better decompose the mapping / and the stacking
         Box::new(iter)
     }
