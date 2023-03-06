@@ -380,24 +380,27 @@ mod tests {
             ),
             (
                 "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: iter::once((
-                        "stats".to_string(),
-                        Aggregation::Metric(MetricAggregation::Stats(
-                            StatsAggregation::from_field_name("score".to_string()),
-                        )),
-                    ))
-                    .collect(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score".to_string(),
+                            ranges: vec![
+                                (3f64..7f64).into(),
+                                (7f64..19f64).into(),
+                                (19f64..20f64).into(),
+                            ],
+                            ..Default::default()
+                        }),
+                        sub_aggregation: iter::once((
+                            "stats".to_string(),
+                            Aggregation::Metric(MetricAggregation::Stats(
+                                StatsAggregation::from_field_name("score".to_string()),
+                            )),
+                        ))
+                        .collect(),
+                    }
+                    .into(),
+                ),
             ),
         ]
         .into_iter()

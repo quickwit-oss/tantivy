@@ -475,14 +475,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -516,14 +519,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg_req,
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        ..Default::default()
+                    }),
+                    sub_aggregation: sub_agg_req,
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -548,14 +554,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                    keyed: true,
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        keyed: true,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -585,25 +594,28 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![
-                        RangeAggregationRange {
-                            key: Some("custom-key-0-to-0.1".to_string()),
-                            from: Some(0f64),
-                            to: Some(0.1f64),
-                        },
-                        RangeAggregationRange {
-                            key: None,
-                            from: Some(0.1f64),
-                            to: Some(0.2f64),
-                        },
-                    ],
-                    keyed: false,
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![
+                            RangeAggregationRange {
+                                key: Some("custom-key-0-to-0.1".to_string()),
+                                from: Some(0f64),
+                                to: Some(0.1f64),
+                            },
+                            RangeAggregationRange {
+                                key: None,
+                                from: Some(0.1f64),
+                                to: Some(0.2f64),
+                            },
+                        ],
+                        keyed: false,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -642,25 +654,28 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "date_ranges".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "date".to_string(),
-                    ranges: vec![
-                        RangeAggregationRange {
-                            key: None,
-                            from: None,
-                            to: Some(1546300800000000.0f64),
-                        },
-                        RangeAggregationRange {
-                            key: None,
-                            from: Some(1546300800000000.0f64),
-                            to: Some(1546387200000000.0f64),
-                        },
-                    ],
-                    keyed: false,
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "date".to_string(),
+                        ranges: vec![
+                            RangeAggregationRange {
+                                key: None,
+                                from: None,
+                                to: Some(1546300800000000.0f64),
+                            },
+                            RangeAggregationRange {
+                                key: None,
+                                from: Some(1546300800000000.0f64),
+                                to: Some(1546387200000000.0f64),
+                            },
+                        ],
+                        keyed: false,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -704,18 +719,21 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![RangeAggregationRange {
-                        key: Some("custom-key-0-to-0.1".to_string()),
-                        from: Some(0f64),
-                        to: Some(0.1f64),
-                    }],
-                    keyed: true,
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![RangeAggregationRange {
+                            key: Some("custom-key-0-to-0.1".to_string()),
+                            from: Some(0f64),
+                            to: Some(0.1f64),
+                        }],
+                        keyed: true,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();

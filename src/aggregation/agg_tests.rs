@@ -208,36 +208,36 @@ fn test_aggregation_level1() -> crate::Result<()> {
         ("average".to_string(), get_avg_req("score")),
         (
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score".to_string(),
                     ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         ),
         (
             "rangef64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score_f64".to_string(),
                     ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         ),
         (
             "rangei64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score_i64".to_string(),
                     ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         ),
     ]
     .into_iter()
@@ -308,13 +308,13 @@ fn test_aggregation_level2(
         ("average_in_range".to_string(), get_avg_req("score")),
         (
             "term_agg".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Terms(TermsAggregation {
                     field: "text".to_string(),
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         ),
     ]
     .into_iter()
@@ -382,7 +382,7 @@ fn test_aggregation_level2(
             ("average".to_string(), get_avg_req("score")),
             (
                 "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
+                Aggregation::Bucket(Box::new(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score".to_string(),
                         ranges: vec![
@@ -393,11 +393,11 @@ fn test_aggregation_level2(
                         ..Default::default()
                     }),
                     sub_aggregation: sub_agg_req.clone(),
-                }),
+                })),
             ),
             (
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
+                Aggregation::Bucket(Box::new(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_f64".to_string(),
                         ranges: vec![
@@ -408,11 +408,11 @@ fn test_aggregation_level2(
                         ..Default::default()
                     }),
                     sub_aggregation: sub_agg_req.clone(),
-                }),
+                })),
             ),
             (
                 "rangei64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
+                Aggregation::Bucket(Box::new(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score_i64".to_string(),
                         ranges: vec![
@@ -423,7 +423,7 @@ fn test_aggregation_level2(
                         ..Default::default()
                     }),
                     sub_aggregation: sub_agg_req,
-                }),
+                })),
             ),
         ]
         .into_iter()
@@ -824,13 +824,16 @@ mod bench {
         b.iter(|| {
             let agg_req: Aggregations = vec![(
                 "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_few_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_few_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -860,13 +863,16 @@ mod bench {
 
             let agg_req: Aggregations = vec![(
                 "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -887,13 +893,16 @@ mod bench {
         b.iter(|| {
             let agg_req: Aggregations = vec![(
                 "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -914,17 +923,20 @@ mod bench {
         b.iter(|| {
             let agg_req: Aggregations = vec![(
                 "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        order: Some(CustomOrder {
-                            order: Order::Desc,
-                            target: OrderTarget::Key,
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "text_many_terms".to_string(),
+                            order: Some(CustomOrder {
+                                order: Order::Desc,
+                                target: OrderTarget::Key,
+                            }),
+                            ..Default::default()
                         }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -945,21 +957,24 @@ mod bench {
         b.iter(|| {
             let agg_req_1: Aggregations = vec![(
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7000f64).into(),
-                            (7000f64..20000f64).into(),
-                            (20000f64..30000f64).into(),
-                            (30000f64..40000f64).into(),
-                            (40000f64..50000f64).into(),
-                            (50000f64..60000f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score_f64".to_string(),
+                            ranges: vec![
+                                (3f64..7000f64).into(),
+                                (7000f64..20000f64).into(),
+                                (20000f64..30000f64).into(),
+                                (30000f64..40000f64).into(),
+                                (40000f64..50000f64).into(),
+                                (50000f64..60000f64).into(),
+                            ],
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -989,21 +1004,24 @@ mod bench {
 
             let agg_req_1: Aggregations = vec![(
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7000f64).into(),
-                            (7000f64..20000f64).into(),
-                            (20000f64..30000f64).into(),
-                            (30000f64..40000f64).into(),
-                            (40000f64..50000f64).into(),
-                            (50000f64..60000f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score_f64".to_string(),
+                            ranges: vec![
+                                (3f64..7000f64).into(),
+                                (7000f64..20000f64).into(),
+                                (20000f64..30000f64).into(),
+                                (30000f64..40000f64).into(),
+                                (40000f64..50000f64).into(),
+                                (50000f64..60000f64).into(),
+                            ],
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -1029,24 +1047,26 @@ mod bench {
         b.iter(|| {
             let agg_req_1: Aggregations = vec![(
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64,
-                        hard_bounds: Some(HistogramBounds {
-                            min: 1000.0,
-                            max: 300_000.0,
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64,
+                            hard_bounds: Some(HistogramBounds {
+                                min: 1000.0,
+                                max: 300_000.0,
+                            }),
+                            ..Default::default()
                         }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
 
             let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
             let searcher = reader.searcher();
             searcher.search(&AllQuery, &collector).unwrap()
         });
@@ -1070,14 +1090,17 @@ mod bench {
 
             let agg_req_1: Aggregations = vec![(
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64, // 1000 buckets
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64, // 1000 buckets
+                            ..Default::default()
+                        }),
+                        sub_aggregation: sub_agg_req,
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -1098,14 +1121,17 @@ mod bench {
         b.iter(|| {
             let agg_req_1: Aggregations = vec![(
                 "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64, // 1000 buckets
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                            field: "score_f64".to_string(),
+                            interval: 100f64, // 1000 buckets
+                            ..Default::default()
+                        }),
+                        sub_aggregation: Default::default(),
+                    }
+                    .into(),
+                ),
             )]
             .into_iter()
             .collect();
@@ -1148,18 +1174,21 @@ mod bench {
                 ),
                 (
                     "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7000f64).into(),
-                                (7000f64..20000f64).into(),
-                                (20000f64..60000f64).into(),
-                            ],
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req_1,
-                    }),
+                    Aggregation::Bucket(
+                        BucketAggregation {
+                            bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                                field: "score_f64".to_string(),
+                                ranges: vec![
+                                    (3f64..7000f64).into(),
+                                    (7000f64..20000f64).into(),
+                                    (20000f64..60000f64).into(),
+                                ],
+                                ..Default::default()
+                            }),
+                            sub_aggregation: sub_agg_req_1,
+                        }
+                        .into(),
+                    ),
                 ),
             ]
             .into_iter()

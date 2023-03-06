@@ -204,7 +204,7 @@ fn main() -> tantivy::Result<()> {
 
     let agg_req: Aggregations = vec![(
         "group_by_stock".to_string(),
-        Aggregation::Bucket(BucketAggregation {
+        Aggregation::Bucket(Box::new(BucketAggregation {
             bucket_agg: BucketAggregationType::Range(RangeAggregation {
                 field: "stock".to_string(),
                 ranges: vec![
@@ -234,7 +234,7 @@ fn main() -> tantivy::Result<()> {
             )]
             .into_iter()
             .collect(),
-        }),
+        })),
     )]
     .into_iter()
     .collect();
