@@ -58,10 +58,10 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// # Panics
     ///
     /// May panic if `idx` is greater than the column length.
-    fn get_vals(&self, idx: &[u32], output: &mut [T]) {
-        assert!(idx.len() == output.len());
-        for (out, idx) in output.iter_mut().zip(idx.iter()) {
-            *out = self.get_val(*idx as u32);
+    fn get_vals(&self, idxs: &[u32], output: &mut [T]) {
+        assert!(idxs.len() == output.len());
+        for (out, &idx) in output.iter_mut().zip(idxs.iter()) {
+            *out = self.get_val(idx);
         }
     }
 
