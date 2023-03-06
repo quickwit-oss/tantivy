@@ -1166,7 +1166,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         let column = fast_field_reader
-            .column_opt::<i64>(&"jsonfield.attr.age")
+            .column_opt::<i64>("jsonfield.attr.age")
             .unwrap()
             .unwrap();
         let vals: Vec<i64> = column.values_for_doc(0u32).collect();
@@ -1191,7 +1191,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
         let column = fast_field_reader
-            .column_opt::<i64>(&"jsonfield.attr.age")
+            .column_opt::<i64>("jsonfield.attr.age")
             .unwrap()
             .unwrap();
         let vals: Vec<i64> = column.values_for_doc(0u32).collect();

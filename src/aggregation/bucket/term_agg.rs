@@ -621,7 +621,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let res = exec_request(agg_req.clone(), &index)?;
+        let res = exec_request(agg_req, &index)?;
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
         assert_eq!(
