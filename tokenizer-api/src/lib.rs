@@ -142,41 +142,6 @@ pub trait TokenStream {
     }
 }
 
-// Simple wrapper of `Box<dyn TokenFilter + 'a>`.
-//
-// See [`TokenFilter`] for more information.
-// pub struct BoxTokenFilter(Box<dyn TokenFilter>);
-//
-// impl Deref for BoxTokenFilter {
-// type Target = dyn TokenFilter;
-//
-// fn deref(&self) -> &dyn TokenFilter {
-// &*self.0
-// }
-// }
-//
-// impl<T: TokenFilter> From<T> for BoxTokenFilter {
-// fn from(tokenizer: T) -> BoxTokenFilter {
-// BoxTokenFilter(Box::new(tokenizer))
-// }
-// }
-//
-// pub trait TokenFilterClone {
-// fn box_clone(&self) -> BoxTokenFilter;
-// }
-//
-// Trait for the pluggable components of `Tokenizer`s.
-// pub trait TokenFilter: 'static + Send + Sync + TokenFilterClone {
-// Wraps a token stream and returns the modified one.
-// fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a>;
-// }
-//
-// impl<T: TokenFilter + Clone> TokenFilterClone for T {
-// fn box_clone(&self) -> BoxTokenFilter {
-// BoxTokenFilter::from(self.clone())
-// }
-// }
-
 /// Trait for the pluggable components of `Tokenizer`s.
 pub trait TokenFilter: 'static + Send + Sync {
     /// The Tokenizer type returned by this filter, typically parametrized by the underlying
