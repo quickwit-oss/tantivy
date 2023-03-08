@@ -52,21 +52,18 @@ impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
 
 impl<'a> RemappedTermOrdinalsValues<'a> {
     fn boxed_iter_stacked(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        let iter = self
-            .bytes_columns
-            .iter()
-            .enumerate()
-            .flat_map(|(segment_ord, byte_column)| {
-                let segment_ord = self.term_ord_mapping.get_segment(segment_ord as u32);
-                byte_column.iter().flat_map(move |bytes_column| {
-                    bytes_column
-                        .ords()
-                        .values
-                        .iter()
-                        .map(move |term_ord| segment_ord[term_ord as usize])
-                })
-            });
-        // TODO see if we can better decompose the mapping / and the stacking
+        let iter = self.bytes_columns.iter().flatten().enumerate().flat_map(
+            move |(seg_ord_with_column, bytes_column)| {
+                let term_ord_after_merge_mapping = self
+                    .term_ord_mapping
+                    .get_segment(seg_ord_with_column as u32);
+                bytes_column
+                    .ords()
+                    .values
+                    .iter()
+                    .map(move |term_ord| term_ord_after_merge_mapping[term_ord as usize])
+            },
+        );
         Box::new(iter)
     }
 
@@ -133,7 +130,6 @@ fn serialize_merged_dict(
     let mut merged_terms = TermMerger::new(field_term_streams);
     let mut sstable_builder = sstable::VoidSSTable::writer(output);
 
-    // TODO support complex `merge_row_order`.
     match merge_row_order {
         MergeRowOrder::Stack(_) => {
             let mut current_term_ord = 0;

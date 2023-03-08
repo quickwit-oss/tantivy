@@ -1,6 +1,6 @@
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
-use proptest::{num, prop_oneof, proptest};
+use proptest::{prop_oneof, proptest};
 
 #[test]
 fn test_serialize_and_load_simple() {
