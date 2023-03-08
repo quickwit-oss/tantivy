@@ -153,20 +153,24 @@ fn make_numerical_columnar_multiple_columns(
     ColumnarReader::open(buffer).unwrap()
 }
 
-fn make_byte_columnar_multiple_columns(columns: &[(&str, &[&[&[u8]]])]) -> ColumnarReader {
+#[track_caller]
+fn make_byte_columnar_multiple_columns(
+    columns: &[(&str, &[&[&[u8]]])],
+    num_rows: u32,
+) -> ColumnarReader {
     let mut dataframe_writer = ColumnarWriter::default();
     for (column_name, column_values) in columns {
+        assert_eq!(
+            column_values.len(),
+            num_rows as usize,
+            "All columns must have `{num_rows}` rows"
+        );
         for (row_id, vals) in column_values.iter().enumerate() {
             for val in vals.iter() {
                 dataframe_writer.record_bytes(row_id as u32, column_name, val);
             }
         }
     }
-    let num_rows = columns
-        .iter()
-        .map(|(_, val_rows)| val_rows.len() as RowId)
-        .max()
-        .unwrap_or(0u32);
     let mut buffer: Vec<u8> = Vec::new();
     dataframe_writer
         .serialize(num_rows, None, &mut buffer)
@@ -272,8 +276,8 @@ fn test_merge_columnar_texts() {
 
 #[test]
 fn test_merge_columnar_byte() {
-    let columnar1 = make_byte_columnar_multiple_columns(&[("bytes", &[&[b"bbbb"], &[b"baaa"]])]);
-    let columnar2 = make_byte_columnar_multiple_columns(&[("bytes", &[&[], &[b"a"]])]);
+    let columnar1 = make_byte_columnar_multiple_columns(&[("bytes", &[&[b"bbbb"], &[b"baaa"]])], 2);
+    let columnar2 = make_byte_columnar_multiple_columns(&[("bytes", &[&[], &[b"a"]])], 2);
     let mut buffer = Vec::new();
     let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::stack(columnars);
@@ -315,4 +319,60 @@ fn test_merge_columnar_byte() {
     assert_eq!(get_bytes_for_row(1), b"baaa");
     assert_eq!(get_bytes_for_row(2), b"");
     assert_eq!(get_bytes_for_row(3), b"a");
+}
+
+#[test]
+fn test_merge_columnar_byte_with_missing() {
+    let columnar1 = make_byte_columnar_multiple_columns(&[], 3);
+    let columnar2 = make_byte_columnar_multiple_columns(&[("col", &[&[b"b"], &[]])], 2);
+    let columnar3 = make_byte_columnar_multiple_columns(
+        &[
+            ("col", &[&[], &[b"b"], &[b"a", b"b"]]),
+            ("col2", &[&[b"hello"], &[], &[b"a", b"b"]]),
+        ],
+        3,
+    );
+    let mut buffer = Vec::new();
+    let columnars = &[&columnar1, &columnar2, &columnar3];
+    let stack_merge_order = StackMergeOrder::stack(columnars);
+    crate::columnar::merge_columnar(
+        columnars,
+        &[],
+        MergeRowOrder::Stack(stack_merge_order),
+        &mut buffer,
+    )
+    .unwrap();
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar_reader.num_rows(), 3 + 2 + 3);
+    assert_eq!(columnar_reader.num_columns(), 2);
+    let cols = columnar_reader.read_columns("col").unwrap();
+    let dynamic_column = cols[0].open().unwrap();
+    let DynamicColumn::Bytes(vals) = dynamic_column else { panic!() };
+    let get_bytes_for_ord = |ord| {
+        let mut out = Vec::new();
+        vals.ord_to_bytes(ord, &mut out).unwrap();
+        out
+    };
+    assert_eq!(vals.dictionary.num_terms(), 2);
+    assert_eq!(get_bytes_for_ord(0), b"a");
+    assert_eq!(get_bytes_for_ord(1), b"b");
+    let get_bytes_for_row = |row_id| {
+        let terms: Vec<Vec<u8>> = vals
+            .term_ords(row_id)
+            .map(|term_ord| {
+                let mut out = Vec::new();
+                vals.ord_to_bytes(term_ord, &mut out).unwrap();
+                out
+            })
+            .collect();
+        terms
+    };
+    assert!(get_bytes_for_row(0).is_empty());
+    assert!(get_bytes_for_row(1).is_empty());
+    assert!(get_bytes_for_row(2).is_empty());
+    assert_eq!(get_bytes_for_row(3), vec![b"b".to_vec()]);
+    assert!(get_bytes_for_row(4).is_empty());
+    assert!(get_bytes_for_row(5).is_empty());
+    assert_eq!(get_bytes_for_row(6), vec![b"b".to_vec()]);
+    assert_eq!(get_bytes_for_row(7), vec![b"a".to_vec(), b"b".to_vec()]);
 }
