@@ -279,14 +279,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let first_ordinal = block_addr.first_ordinal;
 
         // then search inside that block only
-        let mut sstable_reader = self.sstable_reader_block(block_addr)?;
+        let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
         for _ in first_ordinal..=ord {
-            if !sstable_reader.advance()? {
+            if !sstable_delta_reader.advance()? {
                 return Ok(false);
             }
+            bytes.truncate(sstable_delta_reader.common_prefix_len());
+            bytes.extend_from_slice(sstable_delta_reader.suffix());
         }
-        bytes.clear();
-        bytes.extend_from_slice(sstable_reader.key());
         Ok(true)
     }
 
