@@ -5,7 +5,7 @@ pub(crate) struct EmptyTokenizer;
 
 impl Tokenizer for EmptyTokenizer {
     type TokenStream<'a> = EmptyTokenStream;
-    fn token_stream<'a>(&self, _text: &'a str) -> EmptyTokenStream {
+    fn token_stream(&self, _text: &str) -> EmptyTokenStream {
         EmptyTokenStream::default()
     }
 }

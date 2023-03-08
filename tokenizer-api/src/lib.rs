@@ -67,8 +67,6 @@ impl<T: Tokenizer> BoxableTokenizer for T {
 }
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
-///
-/// See [`TokenStream`] for more information.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
 impl<'a, T> From<T> for BoxTokenStream<'a>
