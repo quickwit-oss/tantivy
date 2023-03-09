@@ -66,10 +66,11 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let en_stem = TextAnalyzer::from(SimpleTokenizer)
+//! let en_stem = TextAnalyzer::builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser)
-//!     .filter(Stemmer::new(Language::English));
+//!     .filter(Stemmer::new(Language::English))
+//!     .build();
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -112,9 +113,10 @@
 //! let index = Index::create_in_ram(schema);
 //!
 //! // We need to register our tokenizer :
-//! let custom_en_tokenizer = TextAnalyzer::from(SimpleTokenizer)
+//! let custom_en_tokenizer = TextAnalyzer::builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser);
+//!     .filter(LowerCaser)
+//!     .build();
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
@@ -137,9 +139,7 @@ mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
-pub use tokenizer_api::{
-    BoxTokenFilter, BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer,
-};
+pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer};
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
@@ -237,10 +237,11 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Stemmer::new(Language::Greek))
+                .build(),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

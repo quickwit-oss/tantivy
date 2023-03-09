@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 
-use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use super::{Token, TokenStream, Tokenizer};
 
 /// Tokenize the text by splitting on whitespaces and punctuation.
 #[derive(Clone)]
@@ -13,12 +13,13 @@ pub struct SimpleTokenStream<'a> {
 }
 
 impl Tokenizer for SimpleTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(SimpleTokenStream {
+    type TokenStream<'a> = SimpleTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> SimpleTokenStream<'a> {
+        SimpleTokenStream {
             text,
             chars: text.char_indices(),
             token: Token::default(),
-        })
+        }
     }
 }
 

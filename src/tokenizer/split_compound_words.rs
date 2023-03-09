@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind, StateID};
 
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// A [`TokenFilter`] which splits compound words into their parts
 /// based on a given dictionary.
@@ -23,9 +23,11 @@ use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 /// use tantivy::tokenizer::{SimpleTokenizer, SplitCompoundWords, TextAnalyzer};
 ///
 /// let tokenizer =
-///        TextAnalyzer::from(SimpleTokenizer).filter(SplitCompoundWords::from_dictionary([
+///        TextAnalyzer::builder(SimpleTokenizer)
+///        .filter(SplitCompoundWords::from_dictionary([
 ///            "dampf", "schiff", "fahrt", "brot", "backen", "automat",
-///        ]));
+///        ]))
+///        .build();
 ///
 /// let mut stream = tokenizer.token_stream("dampfschifffahrt");
 /// assert_eq!(stream.next().unwrap().text, "dampf");
@@ -76,24 +78,45 @@ impl<S: StateID> SplitCompoundWords<S> {
 }
 
 impl<S: StateID + Send + Sync + 'static> TokenFilter for SplitCompoundWords<S> {
-    fn transform<'a>(&self, stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(SplitCompoundWordsTokenStream {
-            dict: self.dict.clone(),
-            tail: stream,
-            cuts: Vec::new(),
-            parts: Vec::new(),
-        })
+    type Tokenizer<T: Tokenizer> = SplitCompoundWordsFilter<T, S>;
+
+    fn transform<T: Tokenizer>(self, tokenizer: T) -> SplitCompoundWordsFilter<T, S> {
+        SplitCompoundWordsFilter {
+            dict: self.dict,
+            inner: tokenizer,
+        }
     }
 }
 
-struct SplitCompoundWordsTokenStream<'a, S: StateID> {
+#[derive(Clone)]
+pub struct SplitCompoundWordsFilter<T, S: StateID> {
     dict: Arc<AhoCorasick<S>>,
-    tail: BoxTokenStream<'a>,
+    inner: T,
+}
+
+impl<T: Tokenizer, S: StateID + Send + Sync + 'static> Tokenizer
+    for SplitCompoundWordsFilter<T, S>
+{
+    type TokenStream<'a> = SplitCompoundWordsTokenStream<T::TokenStream<'a>, S>;
+
+    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+        SplitCompoundWordsTokenStream {
+            dict: self.dict.clone(),
+            tail: self.inner.token_stream(text),
+            cuts: Vec::new(),
+            parts: Vec::new(),
+        }
+    }
+}
+
+pub struct SplitCompoundWordsTokenStream<T, S: StateID> {
+    dict: Arc<AhoCorasick<S>>,
+    tail: T,
     cuts: Vec<usize>,
     parts: Vec<Token>,
 }
 
-impl<'a, S: StateID> SplitCompoundWordsTokenStream<'a, S> {
+impl<T: TokenStream, S: StateID> SplitCompoundWordsTokenStream<T, S> {
     // Will use `self.cuts` to fill `self.parts` if `self.tail.token()`
     // can fully be split into consecutive matches against `self.dict`.
     fn split(&mut self) {
@@ -129,7 +152,7 @@ impl<'a, S: StateID> SplitCompoundWordsTokenStream<'a, S> {
     }
 }
 
-impl<'a, S: StateID> TokenStream for SplitCompoundWordsTokenStream<'a, S> {
+impl<T: TokenStream, S: StateID> TokenStream for SplitCompoundWordsTokenStream<T, S> {
     fn advance(&mut self) -> bool {
         self.parts.pop();
 
@@ -165,8 +188,9 @@ mod tests {
 
     #[test]
     fn splitting_compound_words_works() {
-        let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-            .filter(SplitCompoundWords::from_dictionary(["foo", "bar"]));
+        let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+            .filter(SplitCompoundWords::from_dictionary(["foo", "bar"]))
+            .build();
 
         {
             let mut stream = tokenizer.token_stream("");

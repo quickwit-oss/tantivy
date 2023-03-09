@@ -913,9 +913,10 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "en_with_stop_words",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(LowerCaser)
-                .filter(StopWordFilter::remove(vec!["the".to_string()])),
+                .filter(StopWordFilter::remove(vec!["the".to_string()]))
+                .build(),
         );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
