@@ -62,7 +62,9 @@ pub struct DateHistogramAggregationReq {
     ///
     /// Fractional time values are not supported, but you can address this by shifting to another
     /// time unit (e.g., `1.5h` could instead be specified as `90m`).
-    pub fixed_interval: String,
+    ///
+    /// `Option` for validation, the parameter is not optional
+    pub fixed_interval: Option<String>,
     /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
     pub offset: Option<String>,
@@ -112,7 +114,7 @@ impl DateHistogramAggregationReq {
         self.validate()?;
         Ok(HistogramAggregation {
             field: self.field.to_string(),
-            interval: parse_into_microseconds(&self.fixed_interval)? as f64,
+            interval: parse_into_microseconds(self.fixed_interval.as_ref().unwrap())? as f64,
             offset: self
                 .offset
                 .as_ref()
@@ -127,11 +129,18 @@ impl DateHistogramAggregationReq {
     }
 
     fn validate(&self) -> crate::Result<()> {
-        if self.interval.is_some() {
+        if let Some(interval) = self.interval.as_ref() {
             return Err(crate::TantivyError::InvalidArgument(format!(
                 "`interval` parameter {:?} in date histogram is unsupported, only \
                  `fixed_interval` is supported",
-                self.interval
+                interval
+            )));
+        }
+        if let Some(interval) = self.date_interval.as_ref() {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "`date_interval` parameter {:?} in date histogram is unsupported, only \
+                 `fixed_interval` is supported",
+                interval
             )));
         }
         if self.format.is_some() {
@@ -140,15 +149,13 @@ impl DateHistogramAggregationReq {
             ));
         }
 
-        if self.date_interval.is_some() {
+        if self.fixed_interval.is_none() {
             return Err(crate::TantivyError::InvalidArgument(
-                "date_interval in date histogram is unsupported, only `fixed_interval` is \
-                 supported"
-                    .to_string(),
+                "fixed_interval in date histogram is missing".to_string(),
             ));
         }
 
-        parse_into_microseconds(&self.fixed_interval)?;
+        parse_into_microseconds(self.fixed_interval.as_ref().unwrap())?;
 
         Ok(())
     }
@@ -469,6 +476,34 @@ mod tests {
           }
         });
         assert_eq!(res, expected_res);
+
+        Ok(())
+    }
+    #[test]
+    fn histogram_test_invalid_req() -> crate::Result<()> {
+        let docs = vec![];
+
+        let index = get_test_index_from_docs(false, &docs)?;
+        let elasticsearch_compatible_json = json!(
+            {
+              "sales_over_time": {
+                "date_histogram": {
+                  "field": "date",
+                  "interval": "30d",
+                  "offset": "-4d"
+                }
+              }
+            }
+        );
+
+        let agg_req: Aggregations =
+            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
+                .unwrap();
+        let err = exec_request(agg_req, &index).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            r#"An invalid argument was passed: '`interval` parameter "30d" in date histogram is unsupported, only `fixed_interval` is supported'"#
+        );
 
         Ok(())
     }
