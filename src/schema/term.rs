@@ -375,7 +375,8 @@ where B: AsRef<[u8]>
     ///
     /// Do NOT rely on this byte representation in the index.
     /// This value is likely to change in the future.
-    pub(crate) fn as_slice(&self) -> &[u8] {
+    #[inline(always)]
+    pub fn as_slice(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
