@@ -72,7 +72,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         let cutoff = indexes.len() - indexes.len() % step_size;
 
         for idx in cutoff..indexes.len() {
-            output[idx] = self.get_val(indexes[idx] as u32);
+            output[idx] = self.get_val(indexes[idx]);
         }
     }
 

@@ -180,9 +180,11 @@ pub trait Collector: Sync + Send {
                 })?;
             }
             (Some(alive_bitset), false) => {
-                weight.for_each_no_score(reader, &mut |doc| {
-                    if alive_bitset.is_alive(doc) {
-                        segment_collector.collect(doc, 0.0);
+                weight.for_each_no_score(reader, &mut |docs| {
+                    for doc in docs.iter().cloned() {
+                        if alive_bitset.is_alive(doc) {
+                            segment_collector.collect(doc, 0.0);
+                        }
                     }
                 })?;
             }
@@ -192,8 +194,8 @@ pub trait Collector: Sync + Send {
                 })?;
             }
             (None, false) => {
-                weight.for_each_no_score(reader, &mut |doc| {
-                    segment_collector.collect(doc, 0.0);
+                weight.for_each_no_score(reader, &mut |docs| {
+                    segment_collector.collect_block(docs);
                 })?;
             }
         }
@@ -269,6 +271,13 @@ pub trait SegmentCollector: 'static {
 
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
+
+    /// The query pushes the scored document to the collector via this method.
+    fn collect_block(&mut self, docs: &[DocId]) {
+        for doc in docs {
+            self.collect(*doc, 0.0);
+        }
+    }
 
     /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;

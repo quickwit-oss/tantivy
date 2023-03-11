@@ -64,9 +64,8 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        for doc in docs {
-            self.collect(*doc, agg_with_accessor)?;
-        }
+        self.collector.collect_block(docs, agg_with_accessor)?;
+
         Ok(())
     }
 

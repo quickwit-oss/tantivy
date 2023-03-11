@@ -1,5 +1,5 @@
 use crate::core::SegmentReader;
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
@@ -44,6 +44,7 @@ pub struct AllScorer {
 }
 
 impl DocSet for AllScorer {
+    #[inline(always)]
     fn advance(&mut self) -> DocId {
         if self.doc + 1 >= self.max_doc {
             self.doc = TERMINATED;
@@ -53,6 +54,30 @@ impl DocSet for AllScorer {
         self.doc
     }
 
+    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
+        if self.doc() == TERMINATED {
+            return 0;
+        }
+        let is_safe_distance = self.doc() + (buffer.len() as u32) < self.max_doc;
+        if is_safe_distance {
+            let num_items = buffer.len();
+            for buffer_val in buffer {
+                *buffer_val = self.doc();
+                self.doc += 1;
+            }
+            num_items
+        } else {
+            for (i, buffer_val) in buffer.iter_mut().enumerate() {
+                *buffer_val = self.doc();
+                if self.advance() == TERMINATED {
+                    return i + 1;
+                }
+            }
+            buffer.len()
+        }
+    }
+
+    #[inline(always)]
     fn doc(&self) -> DocId {
         self.doc
     }

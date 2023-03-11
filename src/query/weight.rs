@@ -1,5 +1,6 @@
 use super::Scorer;
 use crate::core::SegmentReader;
+use crate::docset::BUFFER_LEN;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
@@ -18,11 +19,18 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 
 /// Iterates through all of the documents matched by the DocSet
 /// `DocSet`.
-pub(crate) fn for_each_docset<T: DocSet + ?Sized>(docset: &mut T, callback: &mut dyn FnMut(DocId)) {
-    let mut doc = docset.doc();
-    while doc != TERMINATED {
-        callback(doc);
-        doc = docset.advance();
+#[inline]
+pub(crate) fn for_each_docset_buffered<T: DocSet + ?Sized>(
+    docset: &mut T,
+    buffer: &mut [DocId; BUFFER_LEN],
+    mut callback: impl FnMut(&[DocId]),
+) {
+    loop {
+        let num_items = docset.fill_buffer(buffer);
+        callback(&buffer[..num_items]);
+        if num_items != buffer.len() {
+            break;
+        }
     }
 }
 
@@ -93,10 +101,12 @@ pub trait Weight: Send + Sync + 'static {
     fn for_each_no_score(
         &self,
         reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId),
+        callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut docset = self.scorer(reader, 1.0)?;
-        for_each_docset(docset.as_mut(), callback);
+
+        let mut buffer = [0u32; BUFFER_LEN];
+        for_each_docset_buffered(&mut docset, &mut buffer, callback);
         Ok(())
     }
 
