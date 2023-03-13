@@ -50,7 +50,7 @@ where
     Input: PartialOrd + Send + Debug + Sync + Clone,
     Output: PartialOrd + Send + Debug + Sync + Clone,
 {
-    #[inline]
+    #[inline(always)]
     fn get_val(&self, idx: u32) -> Output {
         let from_val = self.from_column.get_val(idx);
         self.monotonic_mapping.mapping(from_val)

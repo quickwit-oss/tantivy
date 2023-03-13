@@ -99,13 +99,27 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
 
     let reader = TColumnCodec::load(OwnedBytes::new(buffer)).unwrap();
     assert_eq!(reader.num_vals(), vals.len() as u32);
+    let mut buffer = Vec::new();
     for (doc, orig_val) in vals.iter().copied().enumerate() {
         let val = reader.get_val(doc as u32);
         assert_eq!(
             val, orig_val,
             "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data `{vals:?}`",
         );
+
+        buffer.resize(1, 0);
+        reader.get_vals(&[doc as u32], &mut buffer);
+        let val = buffer[0];
+        assert_eq!(
+            val, orig_val,
+            "val `{val}` does not match orig_val {orig_val:?}, in data set {name}, data `{vals:?}`",
+        );
     }
+
+    let all_docs: Vec<u32> = (0..vals.len() as u32).collect();
+    buffer.resize(all_docs.len(), 0);
+    reader.get_vals(&all_docs, &mut buffer);
+    assert_eq!(vals, buffer);
 
     if !vals.is_empty() {
         let test_rand_idx = rand::thread_rng().gen_range(0..=vals.len() - 1);

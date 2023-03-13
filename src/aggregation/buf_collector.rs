@@ -34,6 +34,7 @@ impl BufAggregationCollector {
 }
 
 impl SegmentAggregationCollector for BufAggregationCollector {
+    #[inline]
     fn into_intermediate_aggregations_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
@@ -41,6 +42,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         Box::new(self.collector).into_intermediate_aggregations_result(agg_with_accessor)
     }
 
+    #[inline]
     fn collect(
         &mut self,
         doc: crate::DocId,
@@ -56,6 +58,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         Ok(())
     }
 
+    #[inline]
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
@@ -67,6 +70,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         Ok(())
     }
 
+    #[inline]
     fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         self.collector
             .collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor)?;

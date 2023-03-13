@@ -156,6 +156,7 @@ pub(crate) struct SegmentStatsCollector {
     pub(crate) collecting_for: SegmentStatsType,
     pub(crate) stats: IntermediateStats,
     pub(crate) accessor_idx: usize,
+    val_cache: Vec<u64>,
 }
 
 impl SegmentStatsCollector {
@@ -169,14 +170,16 @@ impl SegmentStatsCollector {
             collecting_for,
             stats: IntermediateStats::default(),
             accessor_idx,
+            val_cache: Default::default(),
         }
     }
     #[inline]
     pub(crate) fn collect_block_with_field(&mut self, docs: &[DocId], field: &Column<u64>) {
         if field.get_cardinality() == Cardinality::Full {
-            for doc in docs {
-                let val = field.values.get_val(*doc);
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.val_cache.resize(docs.len(), 0);
+            field.values.get_vals(docs, &mut self.val_cache);
+            for val in self.val_cache.iter() {
+                let val1 = f64_from_fastfield_u64(*val, &self.field_type);
                 self.stats.collect(val1);
             }
         } else {
@@ -191,6 +194,7 @@ impl SegmentStatsCollector {
 }
 
 impl SegmentAggregationCollector for SegmentStatsCollector {
+    #[inline]
     fn into_intermediate_aggregations_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
@@ -227,6 +231,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         })
     }
 
+    #[inline]
     fn collect(
         &mut self,
         doc: crate::DocId,
