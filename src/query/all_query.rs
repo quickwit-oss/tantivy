@@ -96,8 +96,8 @@ impl Scorer for AllScorer {
 #[cfg(test)]
 mod tests {
     use super::AllQuery;
-    use crate::docset::TERMINATED;
-    use crate::query::{EnableScoring, Query};
+    use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
+    use crate::query::{AllScorer, EnableScoring, Query};
     use crate::schema::{Schema, TEXT};
     use crate::Index;
 
@@ -156,5 +156,23 @@ mod tests {
             assert_eq!(scorer.score(), 1.5);
         }
         Ok(())
+    }
+
+    #[test]
+    pub fn test_fill_buffer() {
+        let mut postings = AllScorer {
+            doc: 0u32,
+            max_doc: BUFFER_LEN as u32 * 2 + 9,
+        };
+        let mut buffer = [0u32; BUFFER_LEN];
+        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
+        for i in 0u32..BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i);
+        }
+        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
+        for i in 0u32..BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i + BUFFER_LEN as u32);
+        }
+        assert_eq!(postings.fill_buffer(&mut buffer), 9);
     }
 }

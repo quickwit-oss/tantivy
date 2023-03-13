@@ -53,7 +53,7 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, BUFFER_LEN};
     use crate::DocId;
 
     #[test]
@@ -70,19 +70,19 @@ pub mod tests {
         assert_eq!(postings.seek(6000u32), TERMINATED);
     }
 
-    //#[test]
-    // pub fn test_fill_buffer() {
-    // let doc_ids: Vec<DocId> = (1u32..210u32).collect();
-    // let mut postings = VecDocSet::from(doc_ids);
-    // let mut buffer = vec![1000u32; 100];
-    // assert_eq!(postings.fill_buffer(&mut buffer[..]), 100);
-    // for i in 0u32..100u32 {
-    // assert_eq!(buffer[i as usize], i + 1);
-    //}
-    // assert_eq!(postings.fill_buffer(&mut buffer[..]), 100);
-    // for i in 0u32..100u32 {
-    // assert_eq!(buffer[i as usize], i + 101);
-    //}
-    // assert_eq!(postings.fill_buffer(&mut buffer[..]), 9);
-    //}
+    #[test]
+    pub fn test_fill_buffer() {
+        let doc_ids: Vec<DocId> = (1u32..=(BUFFER_LEN as u32 * 2 + 9)).collect();
+        let mut postings = VecDocSet::from(doc_ids);
+        let mut buffer = [0u32; BUFFER_LEN];
+        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
+        for i in 0u32..BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i + 1);
+        }
+        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
+        for i in 0u32..BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i + 1 + BUFFER_LEN as u32);
+        }
+        assert_eq!(postings.fill_buffer(&mut buffer), 9);
+    }
 }
