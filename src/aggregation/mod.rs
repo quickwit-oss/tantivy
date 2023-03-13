@@ -130,14 +130,14 @@
 //! let agg_req_1: Aggregations = vec![
 //!     (
 //!         "range".to_string(),
-//!         Aggregation::Bucket(BucketAggregation {
+//!         Aggregation::Bucket(Box::new(BucketAggregation {
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
 //!                 keyed: false,
 //!             }),
 //!             sub_aggregation: sub_agg_req_1.clone(),
-//!         }),
+//!         })),
 //!     ),
 //! ]
 //! .into_iter()
@@ -614,13 +614,16 @@ mod tests {
         let searcher = reader.searcher();
         let agg: Aggregations = vec![(
             "jsonagg".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "json.color".to_string(),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "json.color".to_string(),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();

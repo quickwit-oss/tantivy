@@ -16,14 +16,14 @@
 //! let agg_req1: Aggregations = vec![
 //!     (
 //!         "range".to_string(),
-//!         Aggregation::Bucket(BucketAggregation {
+//!         Aggregation::Bucket(Box::new(BucketAggregation {
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
 //!                 keyed: false,
 //!             }),
 //!             sub_aggregation: Default::default(),
-//!         }),
+//!         })),
 //!     ),
 //! ]
 //! .into_iter()
@@ -143,7 +143,7 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
 #[serde(untagged)]
 pub enum Aggregation {
     /// Bucket aggregation, see [`BucketAggregation`] for details.
-    Bucket(BucketAggregation),
+    Bucket(Box<BucketAggregation>),
     /// Metric aggregation, see [`MetricAggregation`] for details.
     Metric(MetricAggregation),
 }
@@ -301,7 +301,7 @@ mod tests {
     fn serialize_to_json_test() {
         let agg_req1: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score".to_string(),
                     ranges: vec![
@@ -313,7 +313,7 @@ mod tests {
                     keyed: true,
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -351,7 +351,7 @@ mod tests {
         let agg_req2: Aggregations = vec![
             (
                 "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
+                Aggregation::Bucket(Box::new(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score2".to_string(),
                         ranges: vec![
@@ -363,7 +363,7 @@ mod tests {
                         ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
-                }),
+                })),
             ),
             (
                 "metric".to_string(),
@@ -377,7 +377,7 @@ mod tests {
 
         let agg_req1: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score".to_string(),
                     ranges: vec![
@@ -389,7 +389,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: agg_req2,
-            }),
+            })),
         )]
         .into_iter()
         .collect();

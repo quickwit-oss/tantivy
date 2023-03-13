@@ -525,7 +525,7 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_interval".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 3.5,
@@ -533,7 +533,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -551,7 +551,7 @@ mod tests {
         // With offset
         let agg_req: Aggregations = vec![(
             "my_interval".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 3.5,
@@ -559,7 +559,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -600,14 +600,14 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_interval".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -635,14 +635,14 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -668,14 +668,14 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -708,7 +708,7 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
@@ -716,7 +716,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -746,7 +746,7 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
@@ -757,7 +757,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -778,7 +778,7 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
@@ -786,7 +786,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -809,7 +809,7 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
                     field: "score_f64".to_string(),
                     interval: 1.0,
@@ -818,7 +818,7 @@ mod tests {
                     ..Default::default()
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -853,18 +853,21 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    hard_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        hard_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -884,22 +887,25 @@ mod tests {
         //
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    hard_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        hard_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        extended_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    extended_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
-                    }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -918,22 +924,25 @@ mod tests {
         // Invalid request
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    hard_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        hard_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        extended_bounds: Some(HistogramBounds {
+                            min: 1.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    extended_bounds: Some(HistogramBounds {
-                        min: 1.0,
-                        max: 12.0,
-                    }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -963,14 +972,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1011,18 +1023,21 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    extended_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        extended_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1039,19 +1054,22 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    extended_bounds: Some(HistogramBounds { min: 2.0, max: 5.0 }),
-                    hard_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        extended_bounds: Some(HistogramBounds { min: 2.0, max: 5.0 }),
+                        hard_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1068,18 +1086,21 @@ mod tests {
         // hard_bounds will not extend the result
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    hard_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        hard_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1114,18 +1135,21 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 1.0,
-                    extended_bounds: Some(HistogramBounds {
-                        min: 2.0,
-                        max: 12.0,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 1.0,
+                        extended_bounds: Some(HistogramBounds {
+                            min: 2.0,
+                            max: 12.0,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: agg_req,
-            }),
+                    sub_aggregation: agg_req,
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1175,14 +1199,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 100000.0,
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 100000.0,
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1213,14 +1240,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "date".to_string(),
-                    interval: 86400000000.0, // one day in microseconds
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "date".to_string(),
+                        interval: 86400000000.0, // one day in microseconds
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1261,14 +1291,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 0.0,
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 0.0,
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1286,15 +1319,18 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "histogram".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                    field: "score_f64".to_string(),
-                    interval: 50.0,
-                    keyed: true,
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                        field: "score_f64".to_string(),
+                        interval: 50.0,
+                        keyed: true,
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();

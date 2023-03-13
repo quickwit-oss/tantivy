@@ -559,13 +559,16 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -581,15 +584,18 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    size: Some(2),
-                    split_size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        size: Some(2),
+                        split_size: Some(2),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -608,15 +614,18 @@ mod tests {
         // test min_doc_count
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    size: Some(2),
-                    min_doc_count: Some(3),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        size: Some(2),
+                        min_doc_count: Some(3),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -676,17 +685,20 @@ mod tests {
         // sub agg desc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::Count,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::Count,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg.clone(),
-            }),
+                    sub_aggregation: sub_agg.clone(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -711,45 +723,54 @@ mod tests {
         let agg_req: Aggregations = vec![
             (
                 "my_scores1".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "score".to_string(),
-                        order: Some(CustomOrder {
-                            order: Order::Asc,
-                            target: OrderTarget::Count,
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "score".to_string(),
+                            order: Some(CustomOrder {
+                                order: Order::Asc,
+                                target: OrderTarget::Count,
+                            }),
+                            ..Default::default()
                         }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg.clone(),
-                }),
+                        sub_aggregation: sub_agg.clone(),
+                    }
+                    .into(),
+                ),
             ),
             (
                 "my_scores2".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "score_f64".to_string(),
-                        order: Some(CustomOrder {
-                            order: Order::Asc,
-                            target: OrderTarget::Count,
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "score_f64".to_string(),
+                            order: Some(CustomOrder {
+                                order: Order::Asc,
+                                target: OrderTarget::Count,
+                            }),
+                            ..Default::default()
                         }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg.clone(),
-                }),
+                        sub_aggregation: sub_agg.clone(),
+                    }
+                    .into(),
+                ),
             ),
             (
                 "my_scores3".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "score_i64".to_string(),
-                        order: Some(CustomOrder {
-                            order: Order::Asc,
-                            target: OrderTarget::Count,
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                            field: "score_i64".to_string(),
+                            order: Some(CustomOrder {
+                                order: Order::Asc,
+                                target: OrderTarget::Count,
+                            }),
+                            ..Default::default()
                         }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg,
-                }),
+                        sub_aggregation: sub_agg,
+                    }
+                    .into(),
+                ),
             ),
         ]
         .into_iter()
@@ -850,17 +871,20 @@ mod tests {
         // sub agg desc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Desc,
-                        target: OrderTarget::SubAggregation("avg_score".to_string()),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Desc,
+                            target: OrderTarget::SubAggregation("avg_score".to_string()),
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg.clone(),
-            }),
+                    sub_aggregation: sub_agg.clone(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -883,17 +907,20 @@ mod tests {
         // sub agg asc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::SubAggregation("avg_score".to_string()),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::SubAggregation("avg_score".to_string()),
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg.clone(),
-            }),
+                    sub_aggregation: sub_agg.clone(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -917,17 +944,20 @@ mod tests {
         // sub agg multi value asc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::SubAggregation("stats_score.avg".to_string()),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::SubAggregation("stats_score.avg".to_string()),
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg.clone(),
-            }),
+                    sub_aggregation: sub_agg.clone(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -951,17 +981,20 @@ mod tests {
         // sub agg invalid request
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::SubAggregation("doesnotexist".to_string()),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::SubAggregation("doesnotexist".to_string()),
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: sub_agg,
-            }),
+                    sub_aggregation: sub_agg,
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -998,17 +1031,20 @@ mod tests {
         // key asc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::Key,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1025,18 +1061,21 @@ mod tests {
         // key desc and size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::Key,
+                        }),
+                        size: Some(2),
+                        ..Default::default()
                     }),
-                    size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1056,19 +1095,22 @@ mod tests {
         // key asc and segment_size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Asc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Asc,
+                            target: OrderTarget::Key,
+                        }),
+                        size: Some(2),
+                        segment_size: Some(2),
+                        ..Default::default()
                     }),
-                    size: Some(2),
-                    segment_size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1086,17 +1128,20 @@ mod tests {
         // key desc
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Desc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Desc,
+                            target: OrderTarget::Key,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1113,18 +1158,21 @@ mod tests {
         // key desc, size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Desc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Desc,
+                            target: OrderTarget::Key,
+                        }),
+                        size: Some(2),
+                        ..Default::default()
                     }),
-                    size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1143,19 +1191,22 @@ mod tests {
         // key desc, segment_size cut_off
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    order: Some(CustomOrder {
-                        order: Order::Desc,
-                        target: OrderTarget::Key,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        order: Some(CustomOrder {
+                            order: Order::Desc,
+                            target: OrderTarget::Key,
+                        }),
+                        size: Some(2),
+                        segment_size: Some(2),
+                        ..Default::default()
                     }),
-                    size: Some(2),
-                    segment_size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1184,14 +1235,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    min_doc_count: Some(0),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        min_doc_count: Some(0),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1224,15 +1278,18 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    size: Some(2),
-                    segment_size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        size: Some(2),
+                        segment_size: Some(2),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1254,16 +1311,19 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    size: Some(2),
-                    segment_size: Some(2),
-                    show_term_doc_count_error: Some(false),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        size: Some(2),
+                        segment_size: Some(2),
+                        show_term_doc_count_error: Some(false),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1316,14 +1376,17 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "my_texts".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "text_id".to_string(),
-                    min_doc_count: Some(0),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "text_id".to_string(),
+                        min_doc_count: Some(0),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1344,19 +1407,22 @@ mod tests {
     fn test_json_format() -> crate::Result<()> {
         let agg_req: Aggregations = vec![(
             "term_agg_test".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    size: Some(2),
-                    segment_size: Some(2),
-                    order: Some(CustomOrder {
-                        target: OrderTarget::Key,
-                        order: Order::Desc,
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        size: Some(2),
+                        segment_size: Some(2),
+                        order: Some(CustomOrder {
+                            target: OrderTarget::Key,
+                            order: Order::Desc,
+                        }),
+                        ..Default::default()
                     }),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
@@ -1391,14 +1457,17 @@ mod tests {
         // test alias shard_size, split_size
         let agg_req: Aggregations = vec![(
             "term_agg_test".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "string_id".to_string(),
-                    split_size: Some(2),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                        field: "string_id".to_string(),
+                        split_size: Some(2),
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
