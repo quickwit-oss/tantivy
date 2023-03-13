@@ -8,3 +8,9 @@ license = "MIT"
 murmurhash32 = "0.3"
 byteorder = "1"
 common = { version = "0.5", path = "../common/", package = "tantivy-common" }
+criterion = "0.4.0"
+
+[[bench]]
+harness = false
+name = "crit_bench"
+path = "benches/crit_bench.rs"
