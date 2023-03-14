@@ -288,6 +288,7 @@ where
             self.first_ordinal_of_the_block = self.num_terms;
         }
         let mut wrt = self.delta_writer.finish();
+        // add a final empty block as an end marker
         wrt.write_all(&0u32.to_le_bytes())?;
 
         let offset = wrt.written_bytes();
