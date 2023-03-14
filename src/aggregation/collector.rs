@@ -1,36 +1,36 @@
-use std::rc::Rc;
-
 use super::agg_req::Aggregations;
 use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::{build_segment_agg_collector, SegmentAggregationCollector};
+use super::segment_agg_result::{
+    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
+};
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
 use crate::{SegmentReader, TantivyError};
 
 /// The default max bucket count, before the aggregation fails.
-pub const MAX_BUCKET_COUNT: u32 = 65000;
+pub const DEFAULT_BUCKET_LIMIT: u32 = 65000;
+
+/// The default memory limit in bytes before the aggregation fails. 500MB
+pub const DEFAULT_MEMORY_LIMIT: u64 = 500_000_000;
 
 /// Collector for aggregations.
 ///
 /// The collector collects all aggregations by the underlying aggregation request.
 pub struct AggregationCollector {
     agg: Aggregations,
-    max_bucket_count: u32,
+    limits: AggregationLimits,
 }
 
 impl AggregationCollector {
     /// Create collector from aggregation request.
     ///
-    /// Aggregation fails when the total bucket count is higher than max_bucket_count.
-    /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
-    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
-        Self {
-            agg,
-            max_bucket_count: max_bucket_count.unwrap_or(MAX_BUCKET_COUNT),
-        }
+    /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
+    /// bucket limit)
+    pub fn from_aggs(agg: Aggregations, limits: AggregationLimits) -> Self {
+        Self { agg, limits }
     }
 }
 
@@ -44,18 +44,16 @@ impl AggregationCollector {
 /// into the final `AggregationResults` via the `into_final_result()` method.
 pub struct DistributedAggregationCollector {
     agg: Aggregations,
-    max_bucket_count: u32,
+    limits: AggregationLimits,
 }
 
 impl DistributedAggregationCollector {
     /// Create collector from aggregation request.
     ///
-    /// max_bucket_count will default to `MAX_BUCKET_COUNT` (65000) when unset
-    pub fn from_aggs(agg: Aggregations, max_bucket_count: Option<u32>) -> Self {
-        Self {
-            agg,
-            max_bucket_count: max_bucket_count.unwrap_or(MAX_BUCKET_COUNT),
-        }
+    /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
+    /// bucket limit)
+    pub fn from_aggs(agg: Aggregations, limits: AggregationLimits) -> Self {
+        Self { agg, limits }
     }
 }
 
@@ -69,11 +67,7 @@ impl Collector for DistributedAggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(
-            &self.agg,
-            reader,
-            self.max_bucket_count,
-        )
+        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader, &self.limits)
     }
 
     fn requires_scoring(&self) -> bool {
@@ -98,11 +92,7 @@ impl Collector for AggregationCollector {
         _segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(
-            &self.agg,
-            reader,
-            self.max_bucket_count,
-        )
+        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader, &self.limits)
     }
 
     fn requires_scoring(&self) -> bool {
@@ -114,7 +104,7 @@ impl Collector for AggregationCollector {
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
         let res = merge_fruits(segment_fruits)?;
-        res.into_final_bucket_result(self.agg.clone())
+        res.into_final_bucket_result(self.agg.clone(), &self.limits)
     }
 }
 
@@ -145,10 +135,9 @@ impl AggregationSegmentCollector {
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
         reader: &SegmentReader,
-        max_bucket_count: u32,
+        limits: &AggregationLimits,
     ) -> crate::Result<Self> {
-        let aggs_with_accessor =
-            get_aggs_with_accessor_and_validate(agg, reader, Rc::default(), max_bucket_count)?;
+        let aggs_with_accessor = get_aggs_with_accessor_and_validate(agg, reader, limits)?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collector(&aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {

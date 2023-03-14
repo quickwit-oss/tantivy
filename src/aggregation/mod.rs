@@ -70,7 +70,7 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req, None);
+//!     let collector = AggregationCollector::from_aggs(agg_req, Default::default());
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
@@ -155,6 +155,7 @@
 //! [`AggregationResults`](agg_result::AggregationResults) via the
 //! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
 
+mod agg_limits;
 pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
@@ -165,6 +166,7 @@ mod date;
 mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
+
 mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -174,7 +176,7 @@ mod agg_tests;
 
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
-    MAX_BUCKET_COUNT,
+    DEFAULT_BUCKET_LIMIT,
 };
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 pub(crate) use date::format_date;
@@ -345,6 +347,7 @@ mod tests {
     use time::OffsetDateTime;
 
     use super::agg_req::Aggregations;
+    use super::segment_agg_result::AggregationLimits;
     use super::*;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
@@ -369,7 +372,16 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, None);
+        exec_request_with_query_and_memory_limit(agg_req, index, query, Default::default())
+    }
+
+    pub fn exec_request_with_query_and_memory_limit(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+        limits: AggregationLimits,
+    ) -> crate::Result<Value> {
+        let collector = AggregationCollector::from_aggs(agg_req, limits);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();

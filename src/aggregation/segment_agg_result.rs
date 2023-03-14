@@ -4,15 +4,13 @@
 //! merging.
 
 use std::fmt::Debug;
-use std::rc::Rc;
-use std::sync::atomic::AtomicU32;
 
+pub(crate) use super::agg_limits::AggregationLimits;
 use super::agg_req::MetricAggregation;
 use super::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
 };
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
-use super::collector::MAX_BUCKET_COUNT;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, SegmentStatsCollector,
@@ -20,7 +18,6 @@ use super::metric::{
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
-use crate::TantivyError;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn into_intermediate_aggregations_result(
@@ -131,7 +128,7 @@ pub(crate) fn build_bucket_segment_agg_collector(
             Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
                 range_req,
                 &req.sub_aggregation,
-                &req.bucket_count,
+                &req.limits,
                 req.field_type,
                 accessor_idx,
             )?))
@@ -282,39 +279,5 @@ impl GenericSegmentAggregationResultsCollector {
             Some(buckets)
         };
         Ok(GenericSegmentAggregationResultsCollector { metrics, buckets })
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct BucketCount {
-    /// The counter which is shared between the aggregations for one request.
-    pub(crate) bucket_count: Rc<AtomicU32>,
-    pub(crate) max_bucket_count: u32,
-}
-
-impl Default for BucketCount {
-    fn default() -> Self {
-        Self {
-            bucket_count: Default::default(),
-            max_bucket_count: MAX_BUCKET_COUNT,
-        }
-    }
-}
-
-impl BucketCount {
-    pub(crate) fn validate_bucket_count(&self) -> crate::Result<()> {
-        if self.get_count() > self.max_bucket_count {
-            return Err(TantivyError::InvalidArgument(
-                "Aborting aggregation because too many buckets were created".to_string(),
-            ));
-        }
-        Ok(())
-    }
-    pub(crate) fn add_count(&self, count: u32) {
-        self.bucket_count
-            .fetch_add(count, std::sync::atomic::Ordering::Relaxed);
-    }
-    pub(crate) fn get_count(&self) -> u32 {
-        self.bucket_count.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
