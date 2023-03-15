@@ -1068,8 +1068,8 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let fast_fields = segment_reader.fast_fields();
-        let column_without_opt: Option<StrColumn> = fast_fields.str("without.hello").unwrap();
-        assert!(column_without_opt.is_none());
+        let column_without_opt = fast_fields.str("without.hello");
+        assert!(column_without_opt.is_err());
         let column_with_opt: Option<StrColumn> = fast_fields.str("with.hello").unwrap();
         let column_with: StrColumn = column_with_opt.unwrap();
         assert!(column_with.term_ords(0).next().is_none());

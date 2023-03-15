@@ -1030,7 +1030,7 @@ mod tests {
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE);
         let err = top_collector.for_segment(0, segment).err().unwrap();
-        assert!(matches!(err, crate::TantivyError::SchemaError(_)));
+        assert!(matches!(err, crate::TantivyError::InvalidArgument(_)));
         Ok(())
     }
 
