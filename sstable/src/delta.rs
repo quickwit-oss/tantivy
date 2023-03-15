@@ -18,6 +18,7 @@ where W: io::Write
     value_writer: TValueWriter,
     // Only here to avoid allocations.
     stateless_buffer: Vec<u8>,
+    block_len: usize,
 }
 
 impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
@@ -31,15 +32,14 @@ where
             write: CountingWriter::wrap(BufWriter::new(wrt)),
             value_writer: TValueWriter::default(),
             stateless_buffer: Vec::new(),
+            block_len: BLOCK_LEN,
         }
     }
-}
 
-impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
-where
-    W: io::Write,
-    TValueWriter: value::ValueWriter,
-{
+    pub fn set_block_len(&mut self, block_len: usize) {
+        self.block_len = block_len
+    }
+
     pub fn flush_block(&mut self) -> io::Result<Option<Range<usize>>> {
         if self.block.is_empty() {
             return Ok(None);
@@ -82,7 +82,7 @@ where
     }
 
     pub fn flush_block_if_required(&mut self) -> io::Result<Option<Range<usize>>> {
-        if self.block.len() > BLOCK_LEN {
+        if self.block.len() > self.block_len {
             return self.flush_block();
         }
         Ok(None)
