@@ -178,10 +178,20 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(16);
+        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(24);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
+
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
+        let version = u32::deserialize(&mut footer_len_bytes)?;
+        let type_ = u32::deserialize(&mut footer_len_bytes)?;
+        if type_ != 2 {
+            todo!("not an sstable")
+        }
+        if version != 1 {
+            todo!("unsupported version")
+        }
+
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
         let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())

@@ -304,6 +304,9 @@ where
         self.index_builder.serialize(&mut wrt)?;
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
+        // write version and dictionary kind
+        wrt.write_all(&1u32.to_le_bytes())?;
+        wrt.write_all(&2u32.to_le_bytes())?;
         let wrt = wrt.finish();
         Ok(wrt.into_inner()?)
     }
@@ -380,19 +383,25 @@ mod test {
         assert_eq!(
             &buffer,
             &[
-                // block len
-                7u8, 0u8, 0u8, 0u8, // keep 0 push 1 |  ""
-                16u8, 17u8, // keep 1 push 2 | 18 19
-                33u8, 18u8, 19u8, // keep 1 push 1 | 20
-                17u8, 20u8, 0u8, 0u8, 0u8, 0u8, // no more blocks
+                // block
+                7u8, 0u8, 0u8, 0u8, // block len
+                16u8, 17u8, // keep 0 push 1 | 17
+                33u8, 18u8, 19u8, // keep 1 push 2 | 18 19
+                17u8, 20u8, // keep 1 push 1 | 20
+                // end of block
+                0u8, 0u8, 0u8, 0u8, // no more blocks
                 // index
-                161, 102, 98, 108, 111, 99, 107, 115, 129, 162, 115, 108, 97, 115, 116, 95, 107,
-                101, 121, 95, 111, 114, 95, 103, 114, 101, 97, 116, 101, 114, 130, 17, 20, 106, 98,
-                108, 111, 99, 107, 95, 97, 100, 100, 114, 162, 106, 98, 121, 116, 101, 95, 114, 97,
-                110, 103, 101, 162, 101, 115, 116, 97, 114, 116, 0, 99, 101, 110, 100, 11, 109,
-                102, 105, 114, 115, 116, 95, 111, 114, 100, 105, 110, 97, 108, 0, 15, 0, 0, 0, 0,
-                0, 0, 0, // offset for the index
-                3u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8 // num terms
+                6u8, 0u8, 0u8, 0u8, // block len
+                1,   // num blocks
+                11,  // len of 1st block
+                0,   // first ord of 1st block
+                32, 17, 20, // keep 0 push 2 | 17 20
+                // end of block
+                0, 0, 0, 0, // no more blocks
+                15, 0, 0, 0, 0, 0, 0, 0, // index start offset
+                3, 0, 0, 0, 0, 0, 0, 0, // num_term
+                1, 0, 0, 0, // version
+                2, 0, 0, 0, // dictionary kind. sstable = 2
             ]
         );
         let mut sstable_reader = VoidSSTable::reader(&buffer[..]);

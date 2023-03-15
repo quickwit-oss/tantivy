@@ -1,3 +1,4 @@
+pub(crate) mod index;
 mod range;
 mod u64_monotonic;
 mod void;
