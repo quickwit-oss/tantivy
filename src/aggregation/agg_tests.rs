@@ -630,7 +630,7 @@ fn test_aggregation_on_json_object() {
     )]
     .into_iter()
     .collect();
-    let aggregation_collector = AggregationCollector::from_aggs(agg, None);
+    let aggregation_collector = get_collector(agg);
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
     assert_eq!(
@@ -700,7 +700,7 @@ fn test_aggregation_on_json_object_empty_columns() {
     .into_iter()
     .collect();
 
-    let aggregation_collector = AggregationCollector::from_aggs(agg, None);
+    let aggregation_collector = get_collector(agg);
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
     assert_eq!(
@@ -731,9 +731,8 @@ fn test_aggregation_on_json_object_empty_columns() {
       }
     } "#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let aggregation_results = searcher
-        .search(&AllQuery, &AggregationCollector::from_aggs(agg, None))
-        .unwrap();
+    let aggregation_collector = get_collector(agg);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
     assert_eq!(
         &aggregation_res_json,

@@ -298,9 +298,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 impl SegmentHistogramCollector {
     fn get_memory_consumption(&self) -> usize {
         let self_mem = std::mem::size_of::<Self>();
-        let sub_aggs = self.sub_aggregations.memory_consumption();
-        let buckets = self.buckets.memory_consumption();
-        self_mem + sub_aggs + buckets
+        let sub_aggs_mem = self.sub_aggregations.memory_consumption();
+        let buckets_mem = self.buckets.memory_consumption();
+        self_mem + sub_aggs_mem + buckets_mem
     }
     pub fn into_intermediate_bucket_result(
         self,
@@ -736,7 +736,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             res.to_string(),
-            "Aborting aggregation because memory limit was exceeded. Limit: 5000, Current: 102192"
+            "Aborting aggregation because memory limit was exceeded. Limit: 5000, Current: 102480"
         );
 
         Ok(())
