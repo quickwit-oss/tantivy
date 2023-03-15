@@ -29,92 +29,90 @@ the intersection with an automaton
 
 # On disk format
 
-The on disk format is made to allow for partial loading from a sparse FileSlice. A single SSTable is composed of a sequence of independant blocks followed by an index.
+Overview of the SSTable format. Unless noted otherwise, numbers are little-endian.
 
-This definition uses a rust like syntax. Numbers are encoded in little endian unless noted otherwise.
-```rust
-struct SSTable {
-    /// terminated by an empty last block
-    blocks: [Block],
-    index: Index,
-}
-
-struct Block {
-    /// byte_len(values) + byte_len(deltas)
-    block_len: u32,
-    /// user defined format, represent a sequence of values, in the same order as the sequence of key encoded in deltas.
-    /// this format must be able to extract its own lenght.
-    values: [u8],
-    deltas: [Delta]
-}
-
-struct Delta {
-    keep_add: KeepAdd,
-    /// keep_add.add
-    suffix: [u8],
-}
-
-union KeepAdd {
-    /// when both `keep < 16` and `add < 16`
-    Small {
-        add: u4,
-        keep: u4,
-    },
-    /// otherwise
-    Large {
-        /// 0x01
-        _vint_mode_marker: u8,
-        keep: VInt,
-        add: VInt,
-    }
-}
-
-union VInt {
-    LastByte {
-        /// 0b0
-        _continue_bit: u1,
-        value: u7
-    },
-    WithContinuation {
-        // 0b1
-        _continue_bit: u1,
-        value: u7,
-        continuation: VInt,
-    }
-}
-
-impl VInt {
-    fn get_u64(self) -> u64 {
-        if self._continue_bit == 0 {
-            self.value
-        } else {
-            self.value + self.continuation.get_u64() << 7
-        }
-    }
-}
-
-// TODO this isn't actually implemented. Current format is cbor encoding of the struct
-struct Index {
-    // this block is a bit unusual as it has no target size like others usually do
-    index: Block,
-    num_term: u64,
-    // TODO insert a version field somewhere along here
-    // TODO encode dictionary type
-    index_start_offset: u64,
-}
-
-/// The format for Block::values for a block inside the Index
-struct IndexSSTableValue {
-    entry_count: VInt,
-    entries: [IndexEntry],
-}
-
-struct IndexEntry {
-    // last_key_or_greater is encoded inside the key part
-    byte_range_start: VInt,
-    byte_range_len: VInt,
-    first_ordinal: VInt,
-}
-
+### SSTable
 ```
-All numbers are little endian.
++-------+-------+-----+--------+
+| Block | Block | ... | Footer |
++-------+-------+-----+--------+
+|----( # of blocks)---|
+```
+- Block(`SSTBlock`): list of independant block, terminated by a single empty block.
+- Footer(`SSTFooter`)
+
+### SSTBlock
+```
++----------+--------+-------+-------+-----+
+| BlockLen | Values | Delta | Delta | ... |
++----------+--------+-------+-------+-----+
+                    |----( # of deltas)---|
+```
+- BlockLen(u32): lenght of the block
+- Values: an application defined format storing a sequence of value, capable of determining it own lenght
+- Delta
+
+### Delta
+```
++---------+--------+
+| KeepAdd | Suffix |
++---------+--------+
+```
+- KeepAdd
+- Suffix: KeepAdd.add bytes of key suffix
+
+### KeepAdd
+KeepAdd can be represented in two different representation, a very compact 1byte one which is enough for most usage, and a longer variable-len one when required
+
+When keep < 16 and add < 16
+```
++-----+------+
+| Add | Keep |
++-----+------+
+```
+- Add(u4): number of bytes to push
+- Keep(u4): number of bytes to pop
+
+Otherwise:
+```
++------+------+-----+
+| 0x01 | Keep | Add |
++------+------+-----+
+```
+- Add(VInt): number of bytes to push
+- Keep(VInt): number of bytes to pop
+
+
+Note: there is no ambiguity between both representation as Add is always guarantee to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
+
+### SSTFooter
+```
++-------+---------+---------+------+-------------+
+| Block | NumTerm | Version | Type | IndexOffset |
++-------+---------+---------+------+-------------+
+```
+- Block(SSTBlock): uses IndexValue for its Values format
+- NumTerm(u64): number of terms in the sstable
+- Version(u32): Currently defined to 0x00\_00\_00\_01
+- Type(u32): Defined to 0x00\_00\_00\_02
+- IndexOffset(u64): Offset to the start of the SSTFooter
+
+### IndexValue
+```
++------------+-------+-------+-----+
+| EntryCount | Entry | Entry | ... |
++------------+-------+-------+-----+
+             |---( # of entries)---|
+```
+
+- EntryCount(VInt): number of entries
+- Entry (IndexEntry)
+
+### Entry
+```
++----------+--------------+
+| BlockLen | FirstOrdinal |
++----------+--------------+
+```
+- BlockLen(VInt): lenght of the block
+- FirstOrdinal(VInt): ordinal of the first element in the given block
