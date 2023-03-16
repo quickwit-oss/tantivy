@@ -186,10 +186,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let version = u32::deserialize(&mut footer_len_bytes)?;
         let type_ = u32::deserialize(&mut footer_len_bytes)?;
         if type_ != 2 {
-            todo!("not an sstable")
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Invalid dictionary type, expected 2 (sstable), found {type_}"),
+            ));
         }
         if version != 1 {
-            todo!("unsupported version")
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Unsupported version, expected 1, found {version}"),
+            ));
         }
 
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
