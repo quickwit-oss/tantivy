@@ -519,8 +519,8 @@ mod test {
         fn test_proptest_sstable_ranges(words in prop::collection::btree_set("[a-c]{0,6}", 1..100),
             (lower_bound, upper_bound) in bounds_strategy(),
         ) {
-            // TODO tweak block size.
             let mut builder = Dictionary::<VoidSSTable>::builder(Vec::new()).unwrap();
+            builder.set_block_len(16);
             for word in &words {
                 builder.insert(word.as_bytes(), &()).unwrap();
             }

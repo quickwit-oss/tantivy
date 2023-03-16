@@ -87,9 +87,10 @@ Note: there is no ambiguity between both representation as Add is always guarant
 
 ### SSTFooter
 ```
-+-------+-------------+---------+---------+------+
-| Block | IndexOffset | NumTerm | Version | Type |
-+-------+-------------+---------+---------+------+
++-------+-------+-----+-------------+---------+---------+------+
+| Block | Block | ... | IndexOffset | NumTerm | Version | Type |
++-------+-------+-----+-------------+---------+---------+------+
+|----( # of blocks)---|
 ```
 - Block(SSTBlock): uses IndexValue for its Values format
 - IndexOffset(u64): Offset to the start of the SSTFooter

@@ -140,8 +140,11 @@ impl SSTableIndexBuilder {
     pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
         // we can't use a plain writer as it would generate an index
         let mut sstable_writer = IndexSSTable::delta_writer(wrt);
-        // create only a single block
-        sstable_writer.set_block_len(usize::MAX);
+
+        // in tests, set a smaller block size to stress-test
+        #[cfg(test)]
+        sstable_writer.set_block_len(16);
+
         let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
         for block in self.index.blocks.iter() {
             let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
