@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+use common::ByteCount;
+
 use super::collector::DEFAULT_MEMORY_LIMIT;
 use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
 use crate::TantivyError;
@@ -24,7 +26,7 @@ pub struct AggregationLimits {
     /// The counter which is shared between the aggregations for one request.
     memory_consumption: Arc<AtomicU64>,
     /// The memory_limit in bytes
-    memory_limit: u64,
+    memory_limit: ByteCount,
     /// The maximum number of buckets _returned_
     /// This is not counting intermediate buckets.
     bucket_limit: u32,
@@ -43,7 +45,7 @@ impl Default for AggregationLimits {
     fn default() -> Self {
         Self {
             memory_consumption: Default::default(),
-            memory_limit: DEFAULT_MEMORY_LIMIT,
+            memory_limit: DEFAULT_MEMORY_LIMIT.into(),
             bucket_limit: DEFAULT_BUCKET_LIMIT,
         }
     }
@@ -62,7 +64,7 @@ impl AggregationLimits {
     pub fn new(memory_limit: Option<u64>, bucket_limit: Option<u32>) -> Self {
         Self {
             memory_consumption: Default::default(),
-            memory_limit: memory_limit.unwrap_or(DEFAULT_MEMORY_LIMIT),
+            memory_limit: memory_limit.unwrap_or(DEFAULT_MEMORY_LIMIT).into(),
             bucket_limit: bucket_limit.unwrap_or(DEFAULT_BUCKET_LIMIT),
         }
     }
@@ -81,9 +83,10 @@ impl AggregationLimits {
         self.memory_consumption
             .fetch_add(num_bytes, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn get_memory_consumed(&self) -> u64 {
+    pub fn get_memory_consumed(&self) -> ByteCount {
         self.memory_consumption
             .load(std::sync::atomic::Ordering::Relaxed)
+            .into()
     }
     pub fn get_bucket_limit(&self) -> u32 {
         self.bucket_limit

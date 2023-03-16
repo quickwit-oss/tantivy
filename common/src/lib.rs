@@ -5,6 +5,7 @@ use std::ops::Deref;
 pub use byteorder::LittleEndian as Endianness;
 
 mod bitset;
+mod byte_count;
 mod datetime;
 pub mod file_slice;
 mod group_by;
@@ -12,6 +13,7 @@ mod serialize;
 mod vint;
 mod writer;
 pub use bitset::*;
+pub use byte_count::ByteCount;
 pub use datetime::{DatePrecision, DateTime};
 pub use group_by::GroupByIteratorExtended;
 pub use ownedbytes::{OwnedBytes, StableDeref};

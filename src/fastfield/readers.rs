@@ -6,6 +6,7 @@ use columnar::{
     BytesColumn, Column, ColumnType, ColumnValues, ColumnarReader, DynamicColumn,
     DynamicColumnHandle, HasAssociatedColumnType, StrColumn,
 };
+use common::ByteCount;
 
 use crate::core::json_utils::encode_column_name;
 use crate::directory::FileSlice;
@@ -42,7 +43,7 @@ impl FastFieldReaders {
         let mut per_field_usages: Vec<FieldUsage> = Default::default();
         for (field, field_entry) in schema.fields() {
             let column_handles = self.columnar.read_columns(field_entry.name())?;
-            let num_bytes: usize = column_handles
+            let num_bytes: ByteCount = column_handles
                 .iter()
                 .map(|column_handle| column_handle.num_bytes())
                 .sum();
@@ -136,9 +137,9 @@ impl FastFieldReaders {
     /// Returns the number of `bytes` associated with a column.
     ///
     /// Returns 0 if the column does not exist.
-    pub fn column_num_bytes(&self, field: &str) -> crate::Result<usize> {
+    pub fn column_num_bytes(&self, field: &str) -> crate::Result<ByteCount> {
         let Some(resolved_field_name) = self.resolve_field(field)? else {
-            return Ok(0);
+            return Ok(0u64.into());
         };
         Ok(self
             .columnar

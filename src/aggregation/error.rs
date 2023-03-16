@@ -1,3 +1,5 @@
+use common::ByteCount;
+
 use super::bucket::DateHistogramParseError;
 
 /// Error that may occur when opening a directory
@@ -13,9 +15,9 @@ pub enum AggregationError {
     )]
     MemoryExceeded {
         /// Memory consumption limit
-        limit: u64,
+        limit: ByteCount,
         /// Current memory consumption
-        current: u64,
+        current: ByteCount,
     },
     /// Bucket limit exceeded
     #[error(

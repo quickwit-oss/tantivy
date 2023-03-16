@@ -4,6 +4,8 @@ use std::{fmt, io, u64};
 
 use ownedbytes::OwnedBytes;
 
+use crate::ByteCount;
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct TinySet(u64);
 
@@ -386,8 +388,8 @@ impl ReadOnlyBitSet {
     }
 
     /// Number of bytes used in the bitset representation.
-    pub fn num_bytes(&self) -> usize {
-        self.data.len()
+    pub fn num_bytes(&self) -> ByteCount {
+        self.data.len().into()
     }
 }
 
