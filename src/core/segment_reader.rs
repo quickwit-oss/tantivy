@@ -327,7 +327,7 @@ impl SegmentReader {
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)
-                .unwrap_or(0),
+                .unwrap_or_default(),
         ))
     }
 }

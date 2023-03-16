@@ -1,7 +1,5 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
-use std::rc::Rc;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
 use columnar::{Column, ColumnType, ColumnValues, StrColumn};
@@ -14,7 +12,7 @@ use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
     SumAggregation,
 };
-use super::segment_agg_result::BucketCount;
+use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::SegmentReader;
 
@@ -46,7 +44,7 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) field_type: ColumnType,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
-    pub(crate) bucket_count: BucketCount,
+    pub(crate) limits: AggregationLimits,
 }
 
 impl BucketAggregationWithAccessor {
@@ -54,8 +52,7 @@ impl BucketAggregationWithAccessor {
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
-        bucket_count: Rc<AtomicU32>,
-        max_bucket_count: u32,
+        limits: AggregationLimits,
     ) -> crate::Result<BucketAggregationWithAccessor> {
         let mut str_dict_column = None;
         let (accessor, field_type) = match &bucket {
@@ -83,15 +80,11 @@ impl BucketAggregationWithAccessor {
             sub_aggregation: get_aggs_with_accessor_and_validate(
                 &sub_aggregation,
                 reader,
-                bucket_count.clone(),
-                max_bucket_count,
+                &limits.clone(),
             )?,
             bucket_agg: bucket.clone(),
             str_dict_column,
-            bucket_count: BucketCount {
-                bucket_count,
-                max_bucket_count,
-            },
+            limits,
         })
     }
 }
@@ -131,8 +124,7 @@ impl MetricAggregationWithAccessor {
 pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
-    bucket_count: Rc<AtomicU32>,
-    max_bucket_count: u32,
+    limits: &AggregationLimits,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut metrics = vec![];
     let mut buckets = vec![];
@@ -144,8 +136,7 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
-                    Rc::clone(&bucket_count),
-                    max_bucket_count,
+                    limits.clone(),
                 )?,
             )),
             Aggregation::Metric(metric) => metrics.push((

@@ -22,9 +22,11 @@ use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
     IntermediateSum,
 };
-use super::{format_date, Key, SerializedKey, VecWithNames};
+use super::segment_agg_result::AggregationLimits;
+use super::{format_date, AggregationError, Key, SerializedKey, VecWithNames};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
+use crate::TantivyError;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
@@ -38,8 +40,23 @@ pub struct IntermediateAggregationResults {
 
 impl IntermediateAggregationResults {
     /// Convert intermediate result and its aggregation request to the final result.
-    pub fn into_final_bucket_result(self, req: Aggregations) -> crate::Result<AggregationResults> {
-        self.into_final_bucket_result_internal(&(req.into()))
+    pub fn into_final_bucket_result(
+        self,
+        req: Aggregations,
+        limits: &AggregationLimits,
+    ) -> crate::Result<AggregationResults> {
+        // TODO count and validate buckets
+        let res = self.into_final_bucket_result_internal(&(req.into()), limits)?;
+        let bucket_count = res.get_bucket_count() as u32;
+        if bucket_count > limits.get_bucket_limit() {
+            return Err(TantivyError::AggregationError(
+                AggregationError::BucketLimitExceeded {
+                    limit: limits.get_bucket_limit(),
+                    current: bucket_count,
+                },
+            ));
+        }
+        Ok(res)
     }
 
     /// Convert intermediate result and its aggregation request to the final result.
@@ -49,6 +66,7 @@ impl IntermediateAggregationResults {
     pub(crate) fn into_final_bucket_result_internal(
         self,
         req: &AggregationsInternal,
+        limits: &AggregationLimits,
     ) -> crate::Result<AggregationResults> {
         // Important assumption:
         // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
@@ -56,11 +74,11 @@ impl IntermediateAggregationResults {
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
 
         if let Some(buckets) = self.buckets {
-            convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets)?
+            convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets, limits)?
         } else {
             // When there are no buckets, we create empty buckets, so that the serialized json
             // format is constant
-            add_empty_final_buckets_to_result(&mut results, &req.buckets)?
+            add_empty_final_buckets_to_result(&mut results, &req.buckets, limits)?
         };
 
         if let Some(metrics) = self.metrics {
@@ -161,10 +179,12 @@ fn add_empty_final_metrics_to_result(
 fn add_empty_final_buckets_to_result(
     results: &mut FxHashMap<String, AggregationResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
+    limits: &AggregationLimits,
 ) -> crate::Result<()> {
     let requested_buckets = req_buckets.iter();
     for (key, req) in requested_buckets {
-        let empty_bucket = AggregationResult::BucketResult(BucketResult::empty_from_req(req)?);
+        let empty_bucket =
+            AggregationResult::BucketResult(BucketResult::empty_from_req(req, limits)?);
         results.insert(key.to_string(), empty_bucket);
     }
     Ok(())
@@ -174,12 +194,13 @@ fn convert_and_add_final_buckets_to_result(
     results: &mut FxHashMap<String, AggregationResult>,
     buckets: VecWithNames<IntermediateBucketResult>,
     req_buckets: &VecWithNames<BucketAggregationInternal>,
+    limits: &AggregationLimits,
 ) -> crate::Result<()> {
     assert_eq!(buckets.len(), req_buckets.len());
 
     let buckets_with_request = buckets.into_iter().zip(req_buckets.values());
     for ((key, bucket), req) in buckets_with_request {
-        let result = AggregationResult::BucketResult(bucket.into_final_bucket_result(req)?);
+        let result = AggregationResult::BucketResult(bucket.into_final_bucket_result(req, limits)?);
         results.insert(key, result);
     }
     Ok(())
@@ -287,6 +308,7 @@ impl IntermediateBucketResult {
     pub(crate) fn into_final_bucket_result(
         self,
         req: &BucketAggregationInternal,
+        limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         match self {
             IntermediateBucketResult::Range(range_res) => {
@@ -299,6 +321,7 @@ impl IntermediateBucketResult {
                             req.as_range()
                                 .expect("unexpected aggregation, expected histogram aggregation"),
                             range_res.column_type,
+                            limits,
                         )
                     })
                     .collect::<crate::Result<Vec<_>>>()?;
@@ -337,6 +360,7 @@ impl IntermediateBucketResult {
                     column_type,
                     histogram_req,
                     &req.sub_aggregation,
+                    limits,
                 )?;
 
                 let buckets = if histogram_req.keyed {
@@ -355,6 +379,7 @@ impl IntermediateBucketResult {
                 req.as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
                 &req.sub_aggregation,
+                limits,
             ),
         }
     }
@@ -449,6 +474,7 @@ impl IntermediateTermBucketResult {
         self,
         req: &TermsAggregation,
         sub_aggregation_req: &AggregationsInternal,
+        limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
         let mut buckets: Vec<BucketEntry> = self
@@ -462,7 +488,7 @@ impl IntermediateTermBucketResult {
                     doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
-                        .into_final_bucket_result_internal(sub_aggregation_req)?,
+                        .into_final_bucket_result_internal(sub_aggregation_req, limits)?,
                 })
             })
             .collect::<crate::Result<_>>()?;
@@ -582,6 +608,7 @@ impl IntermediateHistogramBucketEntry {
     pub(crate) fn into_final_bucket_entry(
         self,
         req: &AggregationsInternal,
+        limits: &AggregationLimits,
     ) -> crate::Result<BucketEntry> {
         Ok(BucketEntry {
             key_as_string: None,
@@ -589,7 +616,7 @@ impl IntermediateHistogramBucketEntry {
             doc_count: self.doc_count,
             sub_aggregation: self
                 .sub_aggregation
-                .into_final_bucket_result_internal(req)?,
+                .into_final_bucket_result_internal(req, limits)?,
         })
     }
 }
@@ -628,13 +655,14 @@ impl IntermediateRangeBucketEntry {
         req: &AggregationsInternal,
         _range_req: &RangeAggregation,
         column_type: Option<ColumnType>,
+        limits: &AggregationLimits,
     ) -> crate::Result<RangeBucketEntry> {
         let mut range_bucket_entry = RangeBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
             sub_aggregation: self
                 .sub_aggregation
-                .into_final_bucket_result_internal(req)?,
+                .into_final_bucket_result_internal(req, limits)?,
             to: self.to,
             from: self.from,
             to_as_string: None,

@@ -7,6 +7,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
 
+use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::AggregationsInternal;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
@@ -16,7 +17,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, SegmentAggregationCollector,
+    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
 use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
 use crate::{DocId, TantivyError};
@@ -249,6 +250,8 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let sub_aggregation_accessor =
             &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
+        let mem_pre = self.get_memory_consumption();
+
         let bounds = self.bounds;
         let interval = self.interval;
         let offset = self.offset;
@@ -271,6 +274,12 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
                 }
             }
         }
+
+        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let limits = &agg_with_accessor.buckets.values[self.accessor_idx].limits;
+        limits.add_memory_consumed(mem_delta as u64);
+        limits.validate_memory_consumption()?;
+
         Ok(())
     }
 
@@ -287,6 +296,12 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 }
 
 impl SegmentHistogramCollector {
+    fn get_memory_consumption(&self) -> usize {
+        let self_mem = std::mem::size_of::<Self>();
+        let sub_aggs_mem = self.sub_aggregations.memory_consumption();
+        let buckets_mem = self.buckets.memory_consumption();
+        self_mem + sub_aggs_mem + buckets_mem
+    }
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
@@ -389,6 +404,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
+    limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
     //
@@ -396,7 +412,17 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     // extended_bounds from the request
     let min_max = minmax(buckets.iter().map(|bucket| bucket.key));
 
-    // TODO add memory check
+    // memory check upfront
+    let (_, first_bucket_num, last_bucket_num) =
+        generate_bucket_pos_with_opt_minmax(histogram_req, min_max);
+    let added_buckets = (first_bucket_num..=last_bucket_num)
+        .count()
+        .saturating_sub(buckets.len());
+    limits.add_memory_consumed(
+        added_buckets as u64 * std::mem::size_of::<IntermediateHistogramBucketEntry>() as u64,
+    );
+    limits.validate_memory_consumption()?;
+    // create buckets
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 
     let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(sub_aggregation);
@@ -425,7 +451,9 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
                 sub_aggregation: empty_sub_aggregation.clone(),
             },
         })
-        .map(|intermediate_bucket| intermediate_bucket.into_final_bucket_entry(sub_aggregation))
+        .map(|intermediate_bucket| {
+            intermediate_bucket.into_final_bucket_entry(sub_aggregation, limits)
+        })
         .collect::<crate::Result<Vec<_>>>()
 }
 
@@ -435,18 +463,26 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     column_type: Option<ColumnType>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &AggregationsInternal,
+    limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     let mut buckets = if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
         // reduce serialization size).
 
-        intermediate_buckets_to_final_buckets_fill_gaps(buckets, histogram_req, sub_aggregation)?
+        intermediate_buckets_to_final_buckets_fill_gaps(
+            buckets,
+            histogram_req,
+            sub_aggregation,
+            limits,
+        )?
     } else {
         buckets
             .into_iter()
             .filter(|histogram_bucket| histogram_bucket.doc_count >= histogram_req.min_doc_count())
-            .map(|histogram_bucket| histogram_bucket.into_final_bucket_entry(sub_aggregation))
+            .map(|histogram_bucket| {
+                histogram_bucket.into_final_bucket_entry(sub_aggregation, limits)
+            })
             .collect::<crate::Result<Vec<_>>>()?
     };
 
@@ -485,15 +521,27 @@ fn get_req_min_max(req: &HistogramAggregation, min_max: Option<(f64, f64)>) -> (
 /// Generates buckets with req.interval
 /// Range is computed for provided min_max and request extended_bounds/hard_bounds
 /// returns empty vec when there is no range to span
-pub(crate) fn generate_buckets_with_opt_minmax(
+pub(crate) fn generate_bucket_pos_with_opt_minmax(
     req: &HistogramAggregation,
     min_max: Option<(f64, f64)>,
-) -> Vec<f64> {
+) -> (f64, i64, i64) {
     let (min, max) = get_req_min_max(req, min_max);
 
     let offset = req.offset.unwrap_or(0.0);
     let first_bucket_num = get_bucket_pos_f64(min, req.interval, offset) as i64;
     let last_bucket_num = get_bucket_pos_f64(max, req.interval, offset) as i64;
+    (offset, first_bucket_num, last_bucket_num)
+}
+
+/// Generates buckets with req.interval
+/// Range is computed for provided min_max and request extended_bounds/hard_bounds
+/// returns empty vec when there is no range to span
+pub(crate) fn generate_buckets_with_opt_minmax(
+    req: &HistogramAggregation,
+    min_max: Option<(f64, f64)>,
+) -> Vec<f64> {
+    let (offset, first_bucket_num, last_bucket_num) =
+        generate_bucket_pos_with_opt_minmax(req, min_max);
     let mut buckets = Vec::with_capacity((first_bucket_num..=last_bucket_num).count());
     for bucket_pos in first_bucket_num..=last_bucket_num {
         let bucket_key = bucket_pos as f64 * req.interval + offset;
@@ -515,8 +563,8 @@ mod tests {
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{
-        exec_request, exec_request_with_query, get_test_index_2_segments,
-        get_test_index_from_values, get_test_index_with_num_docs,
+        exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
+        get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
     };
 
     #[test]
@@ -658,6 +706,40 @@ mod tests {
         assert_eq!(res["histogram"]["buckets"][99]["key"], 99.0);
         assert_eq!(res["histogram"]["buckets"][99]["doc_count"], 1);
         assert_eq!(res["histogram"]["buckets"][100], Value::Null);
+        Ok(())
+    }
+
+    #[test]
+    fn histogram_memory_limit() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(true, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "histogram".to_string(),
+            Aggregation::Bucket(Box::new(BucketAggregation {
+                bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
+                    field: "score_f64".to_string(),
+                    interval: 0.1,
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            })),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query_and_memory_limit(
+            agg_req,
+            &index,
+            None,
+            AggregationLimits::new(Some(5_000), None),
+        )
+        .unwrap_err();
+        assert_eq!(
+            res.to_string(),
+            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
+             102.48 KB"
+        );
+
         Ok(())
     }
 

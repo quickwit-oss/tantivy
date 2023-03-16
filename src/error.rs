@@ -55,7 +55,7 @@ impl fmt::Debug for DataCorruption {
 #[derive(Debug, Clone, Error)]
 pub enum TantivyError {
     /// Error when handling aggregations.
-    #[error("AggregationError {0:?}")]
+    #[error(transparent)]
     AggregationError(#[from] AggregationError),
     /// Failed to open the directory.
     #[error("Failed to open the directory: '{0:?}'")]

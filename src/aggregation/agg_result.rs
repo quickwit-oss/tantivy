@@ -11,6 +11,7 @@ use super::agg_req::BucketAggregationInternal;
 use super::bucket::GetDocCount;
 use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
 use super::metric::{SingleMetricResult, Stats};
+use super::segment_agg_result::AggregationLimits;
 use super::Key;
 use crate::TantivyError;
 
@@ -19,6 +20,13 @@ use crate::TantivyError;
 pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        self.0
+            .values()
+            .map(|agg| agg.get_bucket_count())
+            .sum::<u64>()
+    }
+
     pub(crate) fn get_value_from_aggregation(
         &self,
         name: &str,
@@ -47,6 +55,13 @@ pub enum AggregationResult {
 }
 
 impl AggregationResult {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            AggregationResult::BucketResult(bucket) => bucket.get_bucket_count(),
+            AggregationResult::MetricResult(_) => 0,
+        }
+    }
+
     pub(crate) fn get_value_from_aggregation(
         &self,
         _name: &str,
@@ -153,9 +168,28 @@ pub enum BucketResult {
 }
 
 impl BucketResult {
-    pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            BucketResult::Range { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Histogram { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Terms {
+                buckets,
+                sum_other_doc_count: _,
+                doc_count_error_upper_bound: _,
+            } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
+        }
+    }
+
+    pub(crate) fn empty_from_req(
+        req: &BucketAggregationInternal,
+        limits: &AggregationLimits,
+    ) -> crate::Result<Self> {
         let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-        empty_bucket.into_final_bucket_result(req)
+        empty_bucket.into_final_bucket_result(req, limits)
     }
 }
 
@@ -168,6 +202,15 @@ pub enum BucketEntries<T> {
     Vec(Vec<T>),
     /// HashMap format bucket entries
     HashMap(FxHashMap<String, T>),
+}
+
+impl<T> BucketEntries<T> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+        match self {
+            BucketEntries::Vec(vec) => Box::new(vec.iter()),
+            BucketEntries::HashMap(map) => Box::new(map.values()),
+        }
+    }
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally
@@ -208,6 +251,11 @@ pub struct BucketEntry {
     #[serde(flatten)]
     /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
+}
+impl BucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
 }
 impl GetDocCount for &BucketEntry {
     fn doc_count(&self) -> u64 {
@@ -271,4 +319,9 @@ pub struct RangeBucketEntry {
     /// The optional string representation for the `to` range.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_as_string: Option<String>,
+}
+impl RangeBucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
 }

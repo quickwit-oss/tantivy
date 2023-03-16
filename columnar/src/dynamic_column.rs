@@ -3,7 +3,7 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use common::file_slice::FileSlice;
-use common::{DateTime, HasLen, OwnedBytes};
+use common::{ByteCount, DateTime, HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
@@ -248,8 +248,8 @@ impl DynamicColumnHandle {
         Ok(dynamic_column)
     }
 
-    pub fn num_bytes(&self) -> usize {
-        self.file_slice.len()
+    pub fn num_bytes(&self) -> ByteCount {
+        self.file_slice.len().into()
     }
 
     pub fn column_type(&self) -> ColumnType {

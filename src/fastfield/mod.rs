@@ -80,7 +80,7 @@ mod tests {
     use std::path::Path;
 
     use columnar::{Column, MonotonicallyMappableToU64, StrColumn};
-    use common::{HasLen, TerminatingWrite};
+    use common::{ByteCount, HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -862,16 +862,16 @@ mod tests {
     #[test]
     pub fn test_gcd_date() {
         let size_prec_sec = test_gcd_date_with_codec(DatePrecision::Seconds);
-        assert!((1000 * 13 / 8..100 + 1000 * 13 / 8).contains(&size_prec_sec)); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
+        assert!((1000 * 13 / 8..100 + 1000 * 13 / 8).contains(&size_prec_sec.get_bytes())); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
         let size_prec_micros = test_gcd_date_with_codec(DatePrecision::Microseconds);
-        assert!((1000 * 33 / 8..100 + 1000 * 33 / 8).contains(&size_prec_micros));
+        assert!((1000 * 33 / 8..100 + 1000 * 33 / 8).contains(&size_prec_micros.get_bytes()));
         // 33 bits per
         // val = ceil(log_2(number
         // of microsecsseconds
         // in 2hours);
     }
 
-    fn test_gcd_date_with_codec(precision: DatePrecision) -> usize {
+    fn test_gcd_date_with_codec(precision: DatePrecision) -> ByteCount {
         let mut rng = StdRng::seed_from_u64(2u64);
         const T0: i64 = 1_662_345_825_012_529i64;
         const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;

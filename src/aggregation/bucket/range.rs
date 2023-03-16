@@ -11,7 +11,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, BucketCount, SegmentAggregationCollector,
+    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
 use crate::aggregation::{
     f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey, VecWithNames,
@@ -260,7 +260,7 @@ impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
-        bucket_count: &BucketCount,
+        limits: &AggregationLimits,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -304,8 +304,10 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        bucket_count.add_count(buckets.len() as u32);
-        bucket_count.validate_bucket_count()?;
+        limits.add_memory_consumed(
+            buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
+        );
+        limits.validate_memory_consumption()?;
 
         Ok(SegmentRangeCollector {
             buckets,
