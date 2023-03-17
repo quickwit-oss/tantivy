@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
 use common::StableDeref;
-use fs2::FileExt;
+use fs4::FileExt;
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
