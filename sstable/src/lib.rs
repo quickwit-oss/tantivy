@@ -30,7 +30,7 @@ pub type TermOrdinal = u64;
 const DEFAULT_KEY_CAPACITY: usize = 50;
 const FOOTER: DictionaryFooter = DictionaryFooter {
     kind: DictionaryKind::SSTable,
-    version: 1,
+    version: 2,
 };
 
 /// Given two byte string returns the length of
@@ -380,24 +380,16 @@ mod test {
             &buffer,
             &[
                 // block
-                7u8, 0u8, 0u8, 0u8, // block len
-                16u8, 17u8, // keep 0 push 1 | 17
-                33u8, 18u8, 19u8, // keep 1 push 2 | 18 19
-                17u8, 20u8, // keep 1 push 1 | 20
-                // end of block
-                0u8, 0u8, 0u8, 0u8, // no more blocks
+                16, 0, 0, 0, // size of block
+                40, 181, 47, 253, 0, 72, 57, 0, 0, 16, 17, 33, 18, 19, 17, 20, // zstd block
+                0, 0, 0, 0, // no more block
                 // index
-                7u8, 0u8, 0u8, 0u8, // block len
-                1,   // num blocks
-                0,   // offset
-                11,  // len of 1st block
-                0,   // first ord of 1st block
-                32, 17, 20, // keep 0 push 2 | 17 20
-                // end of block
-                0, 0, 0, 0, // no more blocks
-                15, 0, 0, 0, 0, 0, 0, 0, // index start offset
-                3, 0, 0, 0, 0, 0, 0, 0, // num_term
-                1, 0, 0, 0, // version
+                16, 0, 0, 0, // size of index block
+                40, 181, 47, 253, 0, 72, 57, 0, 0, 1, 0, 20, 0, 32, 17, 20, // zstd block
+                0, 0, 0, 0, // no more index block
+                24, 0, 0, 0, 0, 0, 0, 0, // index start offset
+                3, 0, 0, 0, 0, 0, 0, 0, // num term
+                2, 0, 0, 0, // version
                 2, 0, 0, 0, // dictionary kind. sstable = 2
             ]
         );

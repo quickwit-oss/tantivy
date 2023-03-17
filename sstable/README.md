@@ -46,7 +46,8 @@ Overview of the SSTable format. Unless noted otherwise, numbers are little-endia
 +----------+--------+-------+-------+-----+
 | BlockLen | Values | Delta | Delta | ... |
 +----------+--------+-------+-------+-----+
-                    |----( # of deltas)---|
+           |        |----( # of deltas)---|
+           |----(compressed with zstd)----|
 ```
 - BlockLen(u32): length of the block
 - Values: an application defined format storing a sequence of value, capable of determining it own length
@@ -95,8 +96,8 @@ Note: there is no ambiguity between both representation as Add is always guarant
 - Block(SSTBlock): uses IndexValue for its Values format
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
-- Version(u32): Currently defined to 0x00\_00\_00\_01
-- Type(u32): Defined to 0x00\_00\_00\_02
+- Version(u32): Currently equal to 2
+- Type(u32): Defined to 2
 
 ### IndexValue
 ```

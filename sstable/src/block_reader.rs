@@ -1,5 +1,7 @@
-use std::io;
+use std::io::{self, Read};
 use std::ops::Range;
+
+use zstd::stream::read::Decoder as ZstdDecoder;
 
 pub struct BlockReader<'a> {
     buffer: Vec<u8>,
@@ -12,6 +14,29 @@ fn read_u32(read: &mut dyn io::Read) -> io::Result<u32> {
     let mut buf = [0u8; 4];
     read.read_exact(&mut buf)?;
     Ok(u32::from_le_bytes(buf))
+}
+
+struct ReadLimiter<T> {
+    inner: T,
+    budget_left: usize,
+}
+
+impl<T> ReadLimiter<T> {
+    fn new(read: T, budget: usize) -> ReadLimiter<T> {
+        ReadLimiter {
+            inner: read,
+            budget_left: budget,
+        }
+    }
+}
+
+impl<T: Read> Read for ReadLimiter<T> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let to_read = buf.len().min(self.budget_left);
+        let read = self.inner.read(&mut buf[..to_read])?;
+        self.budget_left -= read;
+        Ok(read)
+    }
 }
 
 impl<'a> BlockReader<'a> {
@@ -36,19 +61,18 @@ impl<'a> BlockReader<'a> {
 
     pub fn read_block(&mut self) -> io::Result<bool> {
         self.offset = 0;
-        let block_len_res = read_u32(self.reader.as_mut());
-        if let Err(err) = &block_len_res {
-            if err.kind() == io::ErrorKind::UnexpectedEof {
-                return Ok(false);
-            }
-        }
-        let block_len = block_len_res?;
-        if block_len == 0u32 {
-            self.buffer.clear();
-            return Ok(false);
-        }
-        self.buffer.resize(block_len as usize, 0u8);
-        self.reader.read_exact(&mut self.buffer[..])?;
+        self.buffer.clear();
+
+        let block_len = match read_u32(self.reader.as_mut()) {
+            Ok(0) => return Ok(false),
+            Ok(n) => n,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(false),
+            Err(err) => return Err(err),
+        };
+
+        ZstdDecoder::new(ReadLimiter::new(self.reader.as_mut(), block_len as usize))?
+            .read_to_end(&mut self.buffer)?;
+
         Ok(true)
     }
 

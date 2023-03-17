@@ -8,7 +8,7 @@ use super::{value, vint, BlockReader};
 
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
-const BLOCK_LEN: usize = 32_000;
+const BLOCK_LEN: usize = 4_000;
 
 pub struct DeltaWriter<W, TValueWriter>
 where W: io::Write
@@ -45,13 +45,19 @@ where
             return Ok(None);
         }
         let start_offset = self.write.written_bytes() as usize;
+
         let buffer: &mut Vec<u8> = &mut self.stateless_buffer;
         self.value_writer.serialize_block(buffer);
         self.value_writer.clear();
-        let block_len = buffer.len() + self.block.len();
-        self.write.write_all(&(block_len as u32).to_le_bytes())?;
-        self.write.write_all(&buffer[..])?;
+
+        buffer.extend_from_slice(&self.block);
+        self.block.clear();
+        zstd::stream::copy_encode(&**buffer, &mut self.block, 1)?;
+
+        self.write
+            .write_all(&(self.block.len() as u32).to_le_bytes())?;
         self.write.write_all(&self.block[..])?;
+
         let end_offset = self.write.written_bytes() as usize;
         self.block.clear();
         buffer.clear();
