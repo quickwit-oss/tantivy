@@ -42,7 +42,7 @@ fn main() -> tantivy::Result<()> {
                 .set_index_option(IndexRecordOption::WithFreqs)
                 .set_tokenizer("raw"),
         )
-        .set_fast()
+        .set_fast(None)
         .set_stored();
     schema_builder.add_text_field("category", text_fieldtype);
     schema_builder.add_f64_field("stock", FAST);
