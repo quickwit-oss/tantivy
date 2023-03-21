@@ -397,8 +397,9 @@ mod test {
                 // end of block
                 0u8, 0u8, 0u8, 0u8, // no more blocks
                 // index
-                6u8, 0u8, 0u8, 0u8, // block len
+                7u8, 0u8, 0u8, 0u8, // block len
                 1,   // num blocks
+                0,   // offset
                 11,  // len of 1st block
                 0,   // first ord of 1st block
                 32, 17, 20, // keep 0 push 2 | 17 20

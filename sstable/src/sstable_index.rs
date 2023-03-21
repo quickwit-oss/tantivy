@@ -151,6 +151,7 @@ impl SSTableIndexBuilder {
 
             sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
             sstable_writer.write_value(&block.block_addr);
+            sstable_writer.flush_block_if_required()?;
 
             previous_key.clear();
             previous_key.extend_from_slice(&block.last_key_or_greater);
@@ -184,7 +185,7 @@ mod tests {
     #[test]
     fn test_sstable_index() {
         let mut sstable_builder = SSTableIndexBuilder::default();
-        sstable_builder.add_block(b"aaa", 0..20, 0u64);
+        sstable_builder.add_block(b"aaa", 10..20, 0u64);
         sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
