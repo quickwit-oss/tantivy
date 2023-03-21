@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{ColumnBlockAccessor, ColumnType};
+use columnar::ColumnType;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -210,7 +210,10 @@ struct TermBuckets {
 }
 
 impl TermBuckets {
-    fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn force_flush(
+        &mut self,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
         for sub_aggregations in &mut self.sub_aggs.values_mut() {
             sub_aggregations.as_mut().flush(agg_with_accessor)?;
         }
@@ -228,7 +231,6 @@ pub struct SegmentTermCollector {
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     field_type: ColumnType,
     accessor_idx: usize,
-    column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -257,7 +259,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_with_accessor)
     }
@@ -266,34 +268,34 @@ impl SegmentAggregationCollector for SegmentTermCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let accessor = &agg_with_accessor.buckets.values[self.accessor_idx].accessor;
-        let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
 
-        self.column_block_accessor.fetch_block(docs, accessor);
-        for term_id in self.column_block_accessor.iter_vals() {
+        bucket_agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &bucket_agg_accessor.accessor);
+        for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
             let entry = self.term_buckets.entries.entry(term_id).or_default();
             *entry += 1;
         }
         // has subagg
         if let Some(blueprint) = self.blueprint.as_ref() {
-            for (doc, term_id) in self.column_block_accessor.iter_docid_vals() {
+            for (doc, term_id) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
                 let sub_aggregations = self
                     .term_buckets
                     .sub_aggs
                     .entry(term_id)
                     .or_insert_with(|| blueprint.clone());
-                sub_aggregations.collect(doc, sub_aggregation_accessor)?;
+                sub_aggregations.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
             }
         }
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
         self.term_buckets.force_flush(sub_aggregation_accessor)?;
         Ok(())
@@ -337,7 +339,6 @@ impl SegmentTermCollector {
             blueprint,
             field_type,
             accessor_idx,
-            column_block_accessor: Default::default(),
         })
     }
 

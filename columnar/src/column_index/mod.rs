@@ -81,13 +81,13 @@ impl ColumnIndex {
     /// DocId In:  [0, 5, 6]
     /// DocId Out: [0, 0, 6, 6]
     /// RowId Out: [0, 1, 2, 3]
+    #[inline]
     pub fn docids_to_rowids(
         &self,
         doc_ids: &[DocId],
         doc_ids_out: &mut Vec<DocId>,
         row_ids: &mut Vec<RowId>,
     ) {
-        row_ids.clear();
         match self {
             ColumnIndex::Empty { .. } => {}
             ColumnIndex::Full => {

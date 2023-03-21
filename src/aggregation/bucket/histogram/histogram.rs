@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use columnar::{ColumnBlockAccessor, ColumnType};
+use columnar::ColumnType;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -212,7 +212,6 @@ pub struct SegmentHistogramCollector {
     offset: f64,
     bounds: HistogramBounds,
     accessor_idx: usize,
-    column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl SegmentAggregationCollector for SegmentHistogramCollector {
@@ -236,7 +235,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_with_accessor)
     }
@@ -245,11 +244,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let accessor = &agg_with_accessor.buckets.values[self.accessor_idx].accessor;
-        let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
 
         let mem_pre = self.get_memory_consumption();
 
@@ -258,9 +255,11 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let offset = self.offset;
         let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
 
-        self.column_block_accessor.fetch_block(docs, accessor);
+        bucket_agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-        for (doc, val) in self.column_block_accessor.iter_docid_vals() {
+        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
             let val = self.f64_from_fastfield_u64(val);
 
             let bucket_pos = get_bucket_pos(val);
@@ -275,7 +274,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
                     self.sub_aggregations
                         .entry(bucket_pos)
                         .or_insert_with(|| sub_aggregation_blueprint.clone())
-                        .collect(doc, sub_aggregation_accessor)?;
+                        .collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
                 }
             }
         }
@@ -288,9 +287,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
         for sub_aggregation in self.sub_aggregations.values_mut() {
             sub_aggregation.flush(sub_aggregation_accessor)?;
@@ -362,7 +361,6 @@ impl SegmentHistogramCollector {
             sub_aggregations: Default::default(),
             sub_aggregation_blueprint,
             accessor_idx,
-            column_block_accessor: Default::default(),
         })
     }
 

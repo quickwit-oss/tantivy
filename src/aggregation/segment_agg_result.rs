@@ -28,18 +28,18 @@ pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()>;
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()>;
 
     /// Finalize method. Some Aggregator collect blocks of docs before calling `collect_block`.
     /// This method ensures those staged docs will be collected.
-    fn flush(&mut self, _agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, _agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         Ok(())
     }
 }
@@ -206,7 +206,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_with_accessor)?;
 
@@ -216,7 +216,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         if let Some(metrics) = self.metrics.as_mut() {
             for collector in metrics {
@@ -233,7 +233,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         if let Some(metrics) = &mut self.metrics {
             for collector in metrics {
                 collector.flush(agg_with_accessor)?;

@@ -212,7 +212,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_with_accessor)
     }
@@ -221,30 +221,31 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let accessor = &agg_with_accessor.buckets.values[self.accessor_idx].accessor;
-        let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
-        for doc in docs {
-            for val in accessor.values_for_doc(*doc) {
-                let bucket_pos = self.get_bucket_pos(val);
+        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
 
-                let bucket = &mut self.buckets[bucket_pos];
+        bucket_agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-                bucket.bucket.doc_count += 1;
-                if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-                    sub_aggregation.collect(*doc, sub_aggregation_accessor)?;
-                }
+        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+            let bucket_pos = self.get_bucket_pos(val);
+
+            let bucket = &mut self.buckets[bucket_pos];
+
+            bucket.bucket.doc_count += 1;
+            if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
+                sub_aggregation.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
             }
         }
 
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
         for bucket in self.buckets.iter_mut() {
             if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {

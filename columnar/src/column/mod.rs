@@ -68,6 +68,14 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values_for_doc(row_id).next()
     }
 
+    /// Translates a block of docis to row_ids.
+    ///
+    /// returns the row_ids and the matching docids on the same index
+    /// e.g.
+    /// DocId In:  [0, 5, 6]
+    /// DocId Out: [0, 0, 6, 6]
+    /// RowId Out: [0, 1, 2, 3]
+    #[inline]
     pub fn row_ids_for_docs(
         &self,
         doc_ids: &[DocId],

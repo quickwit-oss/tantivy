@@ -1,8 +1,10 @@
-use columnar::{Cardinality, Column, ColumnType};
+use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::agg_req_with_accessor::{
+    AggregationsWithAccessor, MetricAggregationWithAccessor,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -174,21 +176,18 @@ impl SegmentStatsCollector {
         }
     }
     #[inline]
-    pub(crate) fn collect_block_with_field(&mut self, docs: &[DocId], field: &Column<u64>) {
-        if field.get_cardinality() == Cardinality::Full {
-            self.val_cache.resize(docs.len(), 0);
-            field.values.get_vals(docs, &mut self.val_cache);
-            for val in self.val_cache.iter() {
-                let val1 = f64_from_fastfield_u64(*val, &self.field_type);
-                self.stats.collect(val1);
-            }
-        } else {
-            for doc in docs {
-                for val in field.values_for_doc(*doc) {
-                    let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                    self.stats.collect(val1);
-                }
-            }
+    pub(crate) fn collect_block_with_field(
+        &mut self,
+        docs: &[DocId],
+        agg_accessor: &mut MetricAggregationWithAccessor,
+    ) {
+        agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &agg_accessor.accessor);
+
+        for val in agg_accessor.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.stats.collect(val1);
         }
     }
 }
@@ -235,7 +234,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
 
@@ -251,9 +250,9 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
+        let field = &mut agg_with_accessor.metrics.values[self.accessor_idx];
         self.collect_block_with_field(docs, field);
         Ok(())
     }
