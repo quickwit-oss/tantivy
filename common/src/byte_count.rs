@@ -13,6 +13,12 @@ impl std::fmt::Debug for ByteCount {
     }
 }
 
+impl std::fmt::Display for ByteCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.human_readable())
+    }
+}
+
 const SUFFIX_AND_THRESHOLD: [(&str, u64); 5] = [
     ("KB", 1_000),
     ("MB", 1_000_000),
