@@ -31,7 +31,7 @@ impl SSTableIndex {
             .map(|block_meta| block_meta.block_addr.clone())
     }
 
-    /// Get the block id of the block that woudl contain `key`.
+    /// Get the block id of the block that would contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<usize> {
@@ -164,8 +164,8 @@ impl SSTableIndexBuilder {
 /// SSTable representing an index
 ///
 /// `last_key_or_greater` is used as the key, the value contains the
-/// lenght and first ordinal of each block. The start offset is implicitly
-/// obtained from lenghts.
+/// length and first ordinal of each block. The start offset is implicitly
+/// obtained from lengths.
 struct IndexSSTable;
 
 impl SSTable for IndexSSTable {

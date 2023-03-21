@@ -110,7 +110,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// only block for up to `limit` matching terms.
     ///
     /// It works by identifying
-    /// - `first_block`: the block containing the start boudary key
+    /// - `first_block`: the block containing the start boundary key
     /// - `last_block`: the block containing the end boundary key.
     ///
     /// And then returning the range that spans over all blocks between.
@@ -247,7 +247,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let suffix = sstable_delta_reader.suffix();
 
             match prefix_len.cmp(&ok_bytes) {
-                Ordering::Less => return Ok(None), // poped bytes already matched => too far
+                Ordering::Less => return Ok(None), // popped bytes already matched => too far
                 Ordering::Equal => (),
                 Ordering::Greater => {
                     // the ok prefix is less than current entry prefix => continue to next elem

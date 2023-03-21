@@ -38,7 +38,7 @@ Overview of the SSTable format. Unless noted otherwise, numbers are little-endia
 +-------+-------+-----+--------+
 |----( # of blocks)---|
 ```
-- Block(`SSTBlock`): list of independant block, terminated by a single empty block.
+- Block(`SSTBlock`): list of independent block, terminated by a single empty block.
 - Footer(`SSTFooter`)
 
 ### SSTBlock
@@ -48,8 +48,8 @@ Overview of the SSTable format. Unless noted otherwise, numbers are little-endia
 +----------+--------+-------+-------+-----+
                     |----( # of deltas)---|
 ```
-- BlockLen(u32): lenght of the block
-- Values: an application defined format storing a sequence of value, capable of determining it own lenght
+- BlockLen(u32): length of the block
+- Values: an application defined format storing a sequence of value, capable of determining it own length
 - Delta
 
 ### Delta
@@ -115,5 +115,5 @@ Note: there is no ambiguity between both representation as Add is always guarant
 | BlockLen | FirstOrdinal |
 +----------+--------------+
 ```
-- BlockLen(VInt): lenght of the block
+- BlockLen(VInt): length of the block
 - FirstOrdinal(VInt): ordinal of the first element in the given block

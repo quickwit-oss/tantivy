@@ -201,9 +201,9 @@ where
         }
     }
 
-    /// Set the target block lenght.
+    /// Set the target block length.
     ///
-    /// The delta part of a block will generaly be slighly larger than the requested `block_len`,
+    /// The delta part of a block will generally be slightly larger than the requested `block_len`,
     /// however this does not account for the length of the Value part of the table.
     pub fn set_block_len(&mut self, block_len: usize) {
         self.delta_writer.set_block_len(block_len)
