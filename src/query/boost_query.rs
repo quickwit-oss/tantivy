@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::docset::BUFFER_LEN;
 use crate::fastfield::AliveBitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
@@ -106,7 +107,7 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.seek(target)
     }
 
-    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
+    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
         self.underlying.fill_buffer(buffer)
     }
 

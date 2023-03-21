@@ -53,7 +53,7 @@ use crate::TantivyError;
 /// into segment_size.
 ///
 /// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
-/// [`TermBucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
+/// [`BucketEntry`](crate::aggregation::agg_result::BucketEntry) on the
 /// `AggregationCollector`.
 ///
 /// Result type is
@@ -209,45 +209,6 @@ struct TermBuckets {
     pub(crate) sub_aggs: FxHashMap<u64, Box<dyn SegmentAggregationCollector>>,
 }
 
-#[derive(Clone, Default)]
-struct TermBucketEntry {
-    doc_count: u64,
-    sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
-}
-
-impl Debug for TermBucketEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TermBucketEntry")
-            .field("doc_count", &self.doc_count)
-            .finish()
-    }
-}
-
-impl TermBucketEntry {
-    fn from_blueprint(blueprint: &Option<Box<dyn SegmentAggregationCollector>>) -> Self {
-        Self {
-            doc_count: 0,
-            sub_aggregations: blueprint.clone(),
-        }
-    }
-
-    pub(crate) fn into_intermediate_bucket_entry(
-        self,
-        agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateTermBucketEntry> {
-        let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregations {
-            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
-        } else {
-            Default::default()
-        };
-
-        Ok(IntermediateTermBucketEntry {
-            doc_count: self.doc_count,
-            sub_aggregation,
-        })
-    }
-}
-
 impl TermBuckets {
     fn force_flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
         for sub_aggregations in &mut self.sub_aggs.values_mut() {
@@ -314,7 +275,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         if accessor.get_cardinality() == Cardinality::Full {
             self.val_cache.resize(docs.len(), 0);
             accessor.values.get_vals(docs, &mut self.val_cache);
-            for (doc, term_id) in docs.iter().zip(self.val_cache.iter().cloned()) {
+            for term_id in self.val_cache.iter().cloned() {
                 let entry = self.term_buckets.entries.entry(term_id).or_default();
                 *entry += 1;
             }
@@ -445,17 +406,19 @@ impl SegmentTermCollector {
 
         let mut into_intermediate_bucket_entry =
             |id, doc_count| -> crate::Result<IntermediateTermBucketEntry> {
-                let intermediate_entry = if let Some(blueprint) = self.blueprint.as_ref() {
+                let intermediate_entry = if self.blueprint.as_ref().is_some() {
                     IntermediateTermBucketEntry {
                         doc_count,
                         sub_aggregation: self
                             .term_buckets
                             .sub_aggs
                             .remove(&id)
-                            .expect(&format!(
-                                "Internal Error: could not find subaggregation for id {}",
-                                id
-                            ))
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Internal Error: could not find subaggregation for id {}",
+                                    id
+                                )
+                            })
                             .into_intermediate_aggregations_result(
                                 &agg_with_accessor.sub_aggregation,
                             )?,
@@ -525,19 +488,9 @@ impl SegmentTermCollector {
 pub(crate) trait GetDocCount {
     fn doc_count(&self) -> u64;
 }
-impl GetDocCount for (u32, TermBucketEntry) {
-    fn doc_count(&self) -> u64 {
-        self.1.doc_count
-    }
-}
 impl GetDocCount for (u64, u64) {
     fn doc_count(&self) -> u64 {
         self.1
-    }
-}
-impl GetDocCount for (u64, TermBucketEntry) {
-    fn doc_count(&self) -> u64 {
-        self.1.doc_count
     }
 }
 impl GetDocCount for (String, IntermediateTermBucketEntry) {

@@ -8,7 +8,7 @@ use super::segment_agg_result::{
 };
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::{SegmentReader, TantivyError};
+use crate::{DocId, SegmentReader, TantivyError};
 
 /// The default max bucket count, before the aggregation fails.
 pub const DEFAULT_BUCKET_LIMIT: u32 = 65000;
@@ -125,7 +125,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsWithAccessor,
-    result: BufAggregationCollector,
+    agg_collector: BufAggregationCollector,
     error: Option<TantivyError>,
 }
 
@@ -142,7 +142,7 @@ impl AggregationSegmentCollector {
             BufAggregationCollector::new(build_segment_agg_collector(&aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
-            result,
+            agg_collector: result,
             error: None,
         })
     }
@@ -152,11 +152,26 @@ impl SegmentCollector for AggregationSegmentCollector {
     type Fruit = crate::Result<IntermediateAggregationResults>;
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
+    fn collect(&mut self, doc: DocId, _score: crate::Score) {
         if self.error.is_some() {
             return;
         }
-        if let Err(err) = self.result.collect(doc, &self.aggs_with_accessor) {
+        if let Err(err) = self.agg_collector.collect(doc, &self.aggs_with_accessor) {
+            self.error = Some(err);
+        }
+    }
+
+    /// The query pushes the documents to the collector via this method.
+    ///
+    /// Only valid for Collectors that ignore docs
+    fn collect_block(&mut self, docs: &[DocId]) {
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(err) = self
+            .agg_collector
+            .collect_block(docs, &self.aggs_with_accessor)
+        {
             self.error = Some(err);
         }
     }
@@ -165,7 +180,7 @@ impl SegmentCollector for AggregationSegmentCollector {
         if let Some(err) = self.error {
             return Err(err);
         }
-        self.result.flush(&self.aggs_with_accessor)?;
-        Box::new(self.result).into_intermediate_aggregations_result(&self.aggs_with_accessor)
+        self.agg_collector.flush(&self.aggs_with_accessor)?;
+        Box::new(self.agg_collector).into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }
 }
