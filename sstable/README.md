@@ -84,7 +84,7 @@ Otherwise:
 - Keep(VInt): number of bytes to pop
 
 
-Note: there is no ambiguity between both representation as Add is always guarantee to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
+Note: as the SSTable does not support redundant keys, there is no ambiguity between both representation. Add is always guaranteed to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
 
 ### SSTFooter
 ```
