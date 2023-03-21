@@ -5,7 +5,7 @@ use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
 use common::file_slice::FileSlice;
-use common::{BinarySerializable, OwnedBytes};
+use common::{BinarySerializable, DictionaryFooter, OwnedBytes};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
@@ -183,20 +183,9 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
-        let version = u32::deserialize(&mut footer_len_bytes)?;
-        let type_ = u32::deserialize(&mut footer_len_bytes)?;
-        if type_ != 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Invalid dictionary type, expected 2 (sstable), found {type_}"),
-            ));
-        }
-        if version != 1 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Unsupported version, expected 1, found {version}"),
-            ));
-        }
+
+        let footer = DictionaryFooter::deserialize(&mut footer_len_bytes)?;
+        crate::FOOTER.verify_equal(&footer)?;
 
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
