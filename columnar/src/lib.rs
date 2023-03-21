@@ -9,6 +9,7 @@ extern crate test;
 
 use std::io;
 
+mod block_accessor;
 mod column;
 mod column_index;
 pub mod column_values;
@@ -19,6 +20,7 @@ mod iterable;
 pub(crate) mod utils;
 mod value;
 
+pub use block_accessor::ColumnBlockAccessor;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
 pub use column_values::{ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64};

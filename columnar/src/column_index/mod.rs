@@ -74,6 +74,45 @@ impl ColumnIndex {
         }
     }
 
+    /// Translates a block of docis to row_ids.
+    ///
+    /// returns the row_ids and the matching docids on the same index
+    /// e.g.
+    /// DocId In:  [0, 5, 6]
+    /// DocId Out: [0, 0, 6, 6]
+    /// RowId Out: [0, 1, 2, 3]
+    pub fn docids_to_rowids(
+        &self,
+        doc_ids: &[DocId],
+        doc_ids_out: &mut Vec<DocId>,
+        row_ids: &mut Vec<RowId>,
+    ) {
+        row_ids.clear();
+        match self {
+            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Full => {
+                doc_ids_out.extend_from_slice(doc_ids);
+                row_ids.extend_from_slice(doc_ids);
+            }
+            ColumnIndex::Optional(optional_index) => {
+                for doc_id in doc_ids {
+                    if let Some(row_id) = optional_index.rank_if_exists(*doc_id) {
+                        doc_ids_out.push(*doc_id);
+                        row_ids.push(row_id);
+                    }
+                }
+            }
+            ColumnIndex::Multivalued(multivalued_index) => {
+                for doc_id in doc_ids {
+                    for row_id in multivalued_index.range(*doc_id) {
+                        doc_ids_out.push(*doc_id);
+                        row_ids.push(row_id);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn docid_range_to_rowids(&self, doc_id: Range<DocId>) -> Range<RowId> {
         match self {
             ColumnIndex::Empty { .. } => 0..0,

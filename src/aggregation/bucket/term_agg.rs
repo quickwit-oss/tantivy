@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{Cardinality, ColumnType};
+use columnar::{ColumnBlockAccessor, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -228,7 +228,7 @@ pub struct SegmentTermCollector {
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     field_type: ColumnType,
     accessor_idx: usize,
-    val_cache: Vec<u64>,
+    column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -272,39 +272,20 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         let sub_aggregation_accessor =
             &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
 
-        if accessor.get_cardinality() == Cardinality::Full {
-            self.val_cache.resize(docs.len(), 0);
-            accessor.values.get_vals(docs, &mut self.val_cache);
-            for term_id in self.val_cache.iter().cloned() {
-                let entry = self.term_buckets.entries.entry(term_id).or_default();
-                *entry += 1;
-            }
-            // has subagg
-            if let Some(blueprint) = self.blueprint.as_ref() {
-                for (doc, term_id) in docs.iter().zip(self.val_cache.iter().cloned()) {
-                    let sub_aggregations = self
-                        .term_buckets
-                        .sub_aggs
-                        .entry(term_id)
-                        .or_insert_with(|| blueprint.clone());
-                    sub_aggregations.collect(*doc, sub_aggregation_accessor)?;
-                }
-            }
-        } else {
-            for doc in docs {
-                for term_id in accessor.values_for_doc(*doc) {
-                    let entry = self.term_buckets.entries.entry(term_id).or_default();
-                    *entry += 1;
-                    // TODO: check if seperate loop is faster (may depend on the codec)
-                    if let Some(blueprint) = self.blueprint.as_ref() {
-                        let sub_aggregations = self
-                            .term_buckets
-                            .sub_aggs
-                            .entry(term_id)
-                            .or_insert_with(|| blueprint.clone());
-                        sub_aggregations.collect(*doc, sub_aggregation_accessor)?;
-                    }
-                }
+        self.column_block_accessor.fetch_block(docs, accessor);
+        for term_id in self.column_block_accessor.iter_vals() {
+            let entry = self.term_buckets.entries.entry(term_id).or_default();
+            *entry += 1;
+        }
+        // has subagg
+        if let Some(blueprint) = self.blueprint.as_ref() {
+            for (doc, term_id) in self.column_block_accessor.iter_docid_vals() {
+                let sub_aggregations = self
+                    .term_buckets
+                    .sub_aggs
+                    .entry(term_id)
+                    .or_insert_with(|| blueprint.clone());
+                sub_aggregations.collect(doc, sub_aggregation_accessor)?;
             }
         }
         Ok(())
@@ -356,7 +337,7 @@ impl SegmentTermCollector {
             blueprint,
             field_type,
             accessor_idx,
-            val_cache: Default::default(),
+            column_block_accessor: Default::default(),
         })
     }
 
