@@ -42,15 +42,15 @@ pub struct CompactSpace {
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct RangeMapping {
     value_range: RangeInclusive<u128>,
-    compact_start: u64,
+    compact_start: u32,
 }
 impl RangeMapping {
-    fn range_length(&self) -> u64 {
-        (self.value_range.end() - self.value_range.start()) as u64 + 1
+    fn range_length(&self) -> u32 {
+        (self.value_range.end() - self.value_range.start()) as u32 + 1
     }
 
     // The last value of the compact space in this range
-    fn compact_end(&self) -> u64 {
+    fn compact_end(&self) -> u32 {
         self.compact_start + self.range_length() - 1
     }
 }
@@ -81,7 +81,7 @@ impl BinarySerializable for CompactSpace {
         let num_ranges = VInt::deserialize(reader)?.0;
         let mut ranges_mapping: Vec<RangeMapping> = vec![];
         let mut value = 0u128;
-        let mut compact_start = 1u64; // 0 is reserved for `null`
+        let mut compact_start = 1u32; // 0 is reserved for `null`
         for _ in 0..num_ranges {
             let blank_delta_start = VIntU128::deserialize(reader)?.0;
             value += blank_delta_start;
@@ -122,10 +122,10 @@ impl CompactSpace {
 
     /// Returns either Ok(the value in the compact space) or if it is outside the compact space the
     /// Err(position where it would be inserted)
-    fn u128_to_compact(&self, value: u128) -> Result<u64, usize> {
+    fn u128_to_compact(&self, value: u128) -> Result<u32, usize> {
         self.ranges_mapping
             .binary_search_by(|probe| {
-                let value_range = &probe.value_range;
+                let value_range: &RangeInclusive<u128> = &probe.value_range;
                 if value < *value_range.start() {
                     Ordering::Greater
                 } else if value > *value_range.end() {
@@ -136,13 +136,13 @@ impl CompactSpace {
             })
             .map(|pos| {
                 let range_mapping = &self.ranges_mapping[pos];
-                let pos_in_range = (value - range_mapping.value_range.start()) as u64;
+                let pos_in_range: u32 = (value - range_mapping.value_range.start()) as u32;
                 range_mapping.compact_start + pos_in_range
             })
     }
 
-    /// Unpacks a value from compact space u64 to u128 space
-    fn compact_to_u128(&self, compact: u64) -> u128 {
+    /// Unpacks a value from compact space u32 to u128 space
+    fn compact_to_u128(&self, compact: u32) -> u128 {
         let pos = self
             .ranges_mapping
             .binary_search_by_key(&compact, |range_mapping| range_mapping.compact_start)
@@ -199,7 +199,7 @@ impl CompactSpaceCompressor {
             compact_space
                 .u128_to_compact(max_value)
                 .expect("could not convert max value to compact space"),
-            amplitude_compact_space as u64
+            amplitude_compact_space as u32
         );
         CompactSpaceCompressor {
             params: IPCodecParams {
@@ -240,7 +240,7 @@ impl CompactSpaceCompressor {
                         "Could not convert value to compact_space. This is a bug.",
                     )
                 })?;
-            bitpacker.write(compact, self.params.num_bits, write)?;
+            bitpacker.write(compact as u64, self.params.num_bits, write)?;
         }
         bitpacker.close(write)?;
         self.write_footer(write)?;
@@ -316,48 +316,6 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
     fn get_row_ids_for_value_range(
         &self,
         value_range: RangeInclusive<u128>,
-        positions_range: Range<u32>,
-        positions: &mut Vec<u32>,
-    ) {
-        self.get_positions_for_value_range(value_range, positions_range, positions)
-    }
-}
-
-impl CompactSpaceDecompressor {
-    pub fn open(data: OwnedBytes) -> io::Result<CompactSpaceDecompressor> {
-        let (data_slice, footer_len_bytes) = data.split_at(data.len() - 4);
-        let footer_len = u32::deserialize(&mut &footer_len_bytes[..])?;
-
-        let data_footer = &data_slice[data_slice.len() - footer_len as usize..];
-        let params = IPCodecParams::deserialize(&mut &data_footer[..])?;
-        let decompressor = CompactSpaceDecompressor { data, params };
-
-        Ok(decompressor)
-    }
-
-    /// Converting to compact space for the decompressor is more complex, since we may get values
-    /// which are outside the compact space. e.g. if we map
-    /// 1000 => 5
-    /// 2000 => 6
-    ///
-    /// and we want a mapping for 1005, there is no equivalent compact space. We instead return an
-    /// error with the index of the next range.
-    fn u128_to_compact(&self, value: u128) -> Result<u64, usize> {
-        self.params.compact_space.u128_to_compact(value)
-    }
-
-    fn compact_to_u128(&self, compact: u64) -> u128 {
-        self.params.compact_space.compact_to_u128(compact)
-    }
-
-    /// Comparing on compact space: Random dataset 0,24 (50% random hit) - 1.05 GElements/s
-    /// Comparing on compact space: Real dataset 1.08 GElements/s
-    ///
-    /// Comparing on original space: Real dataset .06 GElements/s (not completely optimized)
-    #[inline]
-    pub fn get_positions_for_value_range(
-        &self,
-        value_range: RangeInclusive<u128>,
         position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
@@ -395,44 +353,42 @@ impl CompactSpaceDecompressor {
             range_mapping.compact_end()
         });
 
-        let range = compact_from..=compact_to;
+        let value_range = compact_from..=compact_to;
+        self.get_positions_for_compact_value_range(value_range, position_range, positions);
+    }
+}
 
-        let scan_num_docs = position_range.end - position_range.start;
+impl CompactSpaceDecompressor {
+    pub fn open(data: OwnedBytes) -> io::Result<CompactSpaceDecompressor> {
+        let (data_slice, footer_len_bytes) = data.split_at(data.len() - 4);
+        let footer_len = u32::deserialize(&mut &footer_len_bytes[..])?;
 
-        let step_size = 4;
-        let cutoff = position_range.start + scan_num_docs - scan_num_docs % step_size;
+        let data_footer = &data_slice[data_slice.len() - footer_len as usize..];
+        let params = IPCodecParams::deserialize(&mut &data_footer[..])?;
+        let decompressor = CompactSpaceDecompressor { data, params };
 
-        let mut push_if_in_range = |idx, val| {
-            if range.contains(&val) {
-                positions.push(idx);
-            }
-        };
-        let get_val = |idx| self.params.bit_unpacker.get(idx, &self.data);
-        // unrolled loop
-        for idx in (position_range.start..cutoff).step_by(step_size as usize) {
-            let idx1 = idx;
-            let idx2 = idx + 1;
-            let idx3 = idx + 2;
-            let idx4 = idx + 3;
-            let val1 = get_val(idx1);
-            let val2 = get_val(idx2);
-            let val3 = get_val(idx3);
-            let val4 = get_val(idx4);
-            push_if_in_range(idx1, val1);
-            push_if_in_range(idx2, val2);
-            push_if_in_range(idx3, val3);
-            push_if_in_range(idx4, val4);
-        }
+        Ok(decompressor)
+    }
 
-        // handle rest
-        for idx in cutoff..position_range.end {
-            push_if_in_range(idx, get_val(idx));
-        }
+    /// Converting to compact space for the decompressor is more complex, since we may get values
+    /// which are outside the compact space. e.g. if we map
+    /// 1000 => 5
+    /// 2000 => 6
+    ///
+    /// and we want a mapping for 1005, there is no equivalent compact space. We instead return an
+    /// error with the index of the next range.
+    fn u128_to_compact(&self, value: u128) -> Result<u32, usize> {
+        self.params.compact_space.u128_to_compact(value)
+    }
+
+    fn compact_to_u128(&self, compact: u32) -> u128 {
+        self.params.compact_space.compact_to_u128(compact)
     }
 
     #[inline]
-    fn iter_compact(&self) -> impl Iterator<Item = u64> + '_ {
-        (0..self.params.num_vals).map(move |idx| self.params.bit_unpacker.get(idx, &self.data))
+    fn iter_compact(&self) -> impl Iterator<Item = u32> + '_ {
+        (0..self.params.num_vals)
+            .map(move |idx| self.params.bit_unpacker.get(idx, &self.data) as u32)
     }
 
     #[inline]
@@ -445,7 +401,7 @@ impl CompactSpaceDecompressor {
 
     #[inline]
     pub fn get(&self, idx: u32) -> u128 {
-        let compact = self.params.bit_unpacker.get(idx, &self.data);
+        let compact = self.params.bit_unpacker.get(idx, &self.data) as u32;
         self.compact_to_u128(compact)
     }
 
@@ -455,6 +411,20 @@ impl CompactSpaceDecompressor {
 
     pub fn max_value(&self) -> u128 {
         self.params.max_value
+    }
+
+    fn get_positions_for_compact_value_range(
+        &self,
+        value_range: RangeInclusive<u32>,
+        position_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        self.params.bit_unpacker.get_ids_for_value_range(
+            *value_range.start() as u64..=*value_range.end() as u64,
+            position_range,
+            &self.data,
+            positions,
+        );
     }
 }
 
@@ -524,7 +494,7 @@ mod tests {
                     .map(|pos| pos as u32)
                     .collect::<Vec<_>>();
                 let mut positions = Vec::new();
-                decompressor.get_positions_for_value_range(
+                decompressor.get_row_ids_for_value_range(
                     range,
                     0..decompressor.num_vals(),
                     &mut positions,
@@ -569,7 +539,7 @@ mod tests {
             let val = *val;
             let pos = pos as u32;
             let mut positions = Vec::new();
-            decomp.get_positions_for_value_range(val..=val, pos..pos + 1, &mut positions);
+            decomp.get_row_ids_for_value_range(val..=val, pos..pos + 1, &mut positions);
             assert_eq!(positions, vec![pos]);
         }
 

@@ -93,6 +93,7 @@ pub fn get_compact_space(
         let staged_spaces_sum: u128 = blank_collector.staged_blanks_sum();
         let amplitude_new_compact_space = amplitude_compact_space - staged_spaces_sum;
         let amplitude_new_bits = num_bits(amplitude_new_compact_space);
+
         if amplitude_bits == amplitude_new_bits {
             continue;
         }
@@ -100,6 +101,16 @@ pub fn get_compact_space(
         // TODO: Maybe calculate exact cost of blanks and run this more expensive computation only,
         // when amplitude_new_bits changes
         let cost = blank_collector.num_staged_blanks() * cost_per_blank;
+
+        // We want to end up with a compact space that fits into 32 bits.
+        // In order to deal with pathological cases, we force the algorithm to keep
+        // refining the compact space the amplitude bits is lower than 32.
+        //
+        // The worst case scenario happens for a large number of u128s regularly
+        // spread over the full u128 space.
+        //
+        // This change will force the algorithm to degenerate into dictionary encoding.
+        // if amplitude_bits > 32 && cost >= saved_bits {
         if cost >= saved_bits {
             // Continue here, since although we walk over the blanks by size,
             // we can potentially save a lot at the last bits, which are smaller blanks
@@ -114,6 +125,8 @@ pub fn get_compact_space(
         amplitude_bits = amplitude_new_bits;
         compact_space_builder.add_blanks(blank_collector.drain().map(|blank| blank.blank_range()));
     }
+
+    assert!(amplitude_bits <= 32);
 
     // special case, when we don't collected any blanks because:
     // * the data is empty (early exit)
@@ -199,7 +212,7 @@ impl CompactSpaceBuilder {
             covered_space.push(0..=0); // empty data case
         };
 
-        let mut compact_start: u64 = 1; // 0 is reserved for `null`
+        let mut compact_start: u32 = 1; // 0 is reserved for `null`
         let mut ranges_mapping: Vec<RangeMapping> = Vec::with_capacity(covered_space.len());
         for cov in covered_space {
             let range_mapping = super::RangeMapping {
@@ -227,5 +240,20 @@ mod tests {
         blanks.push((100..=110).try_into().unwrap());
         assert_eq!(blanks.pop().unwrap().blank_size(), 101);
         assert_eq!(blanks.pop().unwrap().blank_size(), 11);
+    }
+
+    #[test]
+    fn test_worst_case_scenario() {
+        for n in [2, 3, 5, 10, 100, 1_000, 10_000] {
+            let mut compact_space_builder = CompactSpaceBuilder::new();
+            let blanks: Vec<u128> = (0..n).map(|i| i * (u128::MAX / n)).collect();
+            let ranges = blanks
+                .iter()
+                .tuple_windows()
+                .map(|(left, right)| *left + 1..=*right - 1);
+            compact_space_builder.add_blanks(ranges);
+            let compact_space = compact_space_builder.finish();
+            assert!(compact_space.amplitude_compact_space() < u32::MAX as u128);
+        }
     }
 }

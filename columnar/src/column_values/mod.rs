@@ -94,7 +94,6 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Get the row ids of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
-    #[inline(always)]
     fn get_row_ids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
