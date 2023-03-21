@@ -1,11 +1,9 @@
-use std::io;
+use std::io::{self, Write};
 use std::ops::Range;
 
-use serde::{Deserialize, Serialize};
+use crate::{common_prefix_len, SSTable, SSTableDataCorruption, TermOrdinal};
 
-use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
-
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone)]
 pub struct SSTableIndex {
     blocks: Vec<BlockMeta>,
 }
@@ -13,7 +11,17 @@ pub struct SSTableIndex {
 impl SSTableIndex {
     /// Load an index from its binary representation
     pub fn load(data: &[u8]) -> Result<SSTableIndex, SSTableDataCorruption> {
-        ciborium::de::from_reader(data).map_err(|_| SSTableDataCorruption)
+        let mut reader = IndexSSTable::reader(data);
+        let mut blocks = Vec::new();
+
+        while reader.advance().map_err(|_| SSTableDataCorruption)? {
+            blocks.push(BlockMeta {
+                last_key_or_greater: reader.key().to_vec(),
+                block_addr: reader.value().clone(),
+            });
+        }
+
+        Ok(SSTableIndex { blocks })
     }
 
     /// Get the [`BlockAddr`] of the requested block.
@@ -23,7 +31,7 @@ impl SSTableIndex {
             .map(|block_meta| block_meta.block_addr.clone())
     }
 
-    /// Get the block id of the block that woudl contain `key`.
+    /// Get the block id of the block that would contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<usize> {
@@ -69,13 +77,13 @@ impl SSTableIndex {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BlockAddr {
     pub byte_range: Range<usize>,
     pub first_ordinal: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
     /// the last key in the block,
@@ -130,9 +138,42 @@ impl SSTableIndexBuilder {
     }
 
     pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
-        ciborium::ser::into_writer(&self.index, wrt)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        // we can't use a plain writer as it would generate an index
+        let mut sstable_writer = IndexSSTable::delta_writer(wrt);
+
+        // in tests, set a smaller block size to stress-test
+        #[cfg(test)]
+        sstable_writer.set_block_len(16);
+
+        let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
+        for block in self.index.blocks.iter() {
+            let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
+
+            sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
+            sstable_writer.write_value(&block.block_addr);
+
+            previous_key.clear();
+            previous_key.extend_from_slice(&block.last_key_or_greater);
+        }
+        sstable_writer.flush_block()?;
+        sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
+        Ok(())
     }
+}
+
+/// SSTable representing an index
+///
+/// `last_key_or_greater` is used as the key, the value contains the
+/// length and first ordinal of each block. The start offset is implicitly
+/// obtained from lengths.
+struct IndexSSTable;
+
+impl SSTable for IndexSSTable {
+    type Value = BlockAddr;
+
+    type ValueReader = crate::value::index::IndexValueReader;
+
+    type ValueWriter = crate::value::index::IndexValueWriter;
 }
 
 #[cfg(test)]
@@ -143,7 +184,7 @@ mod tests {
     #[test]
     fn test_sstable_index() {
         let mut sstable_builder = SSTableIndexBuilder::default();
-        sstable_builder.add_block(b"aaa", 10..20, 0u64);
+        sstable_builder.add_block(b"aaa", 0..20, 0u64);
         sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);

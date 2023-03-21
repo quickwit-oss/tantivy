@@ -5,7 +5,7 @@ use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
 use common::file_slice::FileSlice;
-use common::{BinarySerializable, OwnedBytes};
+use common::{BinarySerializable, DictionaryFooter, OwnedBytes};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
@@ -110,7 +110,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// only block for up to `limit` matching terms.
     ///
     /// It works by identifying
-    /// - `first_block`: the block containing the start boudary key
+    /// - `first_block`: the block containing the start boundary key
     /// - `last_block`: the block containing the end boundary key.
     ///
     /// And then returning the range that spans over all blocks between.
@@ -178,10 +178,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(16);
+        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(24);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
+
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
+
+        let footer = DictionaryFooter::deserialize(&mut footer_len_bytes)?;
+        crate::FOOTER.verify_equal(&footer)?;
+
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
         let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())
@@ -231,7 +236,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let suffix = sstable_delta_reader.suffix();
 
             match prefix_len.cmp(&ok_bytes) {
-                Ordering::Less => return Ok(None), // poped bytes already matched => too far
+                Ordering::Less => return Ok(None), // popped bytes already matched => too far
                 Ordering::Equal => (),
                 Ordering::Greater => {
                     // the ok prefix is less than current entry prefix => continue to next elem

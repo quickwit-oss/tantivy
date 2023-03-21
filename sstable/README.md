@@ -26,3 +26,94 @@ possible.
 - it allows incremental encoding of the keys
 - the front compression is leveraged to optimize
 the intersection with an automaton
+
+# On disk format
+
+Overview of the SSTable format. Unless noted otherwise, numbers are little-endian.
+
+### SSTable
+```
++-------+-------+-----+--------+
+| Block | Block | ... | Footer |
++-------+-------+-----+--------+
+|----( # of blocks)---|
+```
+- Block(`SSTBlock`): list of independent block, terminated by a single empty block.
+- Footer(`SSTFooter`)
+
+### SSTBlock
+```
++----------+--------+-------+-------+-----+
+| BlockLen | Values | Delta | Delta | ... |
++----------+--------+-------+-------+-----+
+                    |----( # of deltas)---|
+```
+- BlockLen(u32): length of the block
+- Values: an application defined format storing a sequence of value, capable of determining it own length
+- Delta
+
+### Delta
+```
++---------+--------+
+| KeepAdd | Suffix |
++---------+--------+
+```
+- KeepAdd
+- Suffix: KeepAdd.add bytes of key suffix
+
+### KeepAdd
+KeepAdd can be represented in two different representation, a very compact 1byte one which is enough for most usage, and a longer variable-len one when required
+
+When keep < 16 and add < 16
+```
++-----+------+
+| Add | Keep |
++-----+------+
+```
+- Add(u4): number of bytes to push
+- Keep(u4): number of bytes to pop
+
+Otherwise:
+```
++------+------+-----+
+| 0x01 | Keep | Add |
++------+------+-----+
+```
+- Add(VInt): number of bytes to push
+- Keep(VInt): number of bytes to pop
+
+
+Note: there is no ambiguity between both representation as Add is always guarantee to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
+
+### SSTFooter
+```
++-------+-------+-----+-------------+---------+---------+------+
+| Block | Block | ... | IndexOffset | NumTerm | Version | Type |
++-------+-------+-----+-------------+---------+---------+------+
+|----( # of blocks)---|
+```
+- Block(SSTBlock): uses IndexValue for its Values format
+- IndexOffset(u64): Offset to the start of the SSTFooter
+- NumTerm(u64): number of terms in the sstable
+- Version(u32): Currently defined to 0x00\_00\_00\_01
+- Type(u32): Defined to 0x00\_00\_00\_02
+
+### IndexValue
+```
++------------+-------+-------+-----+
+| EntryCount | Entry | Entry | ... |
++------------+-------+-------+-----+
+             |---( # of entries)---|
+```
+
+- EntryCount(VInt): number of entries
+- Entry (IndexEntry)
+
+### Entry
+```
++----------+--------------+
+| BlockLen | FirstOrdinal |
++----------+--------------+
+```
+- BlockLen(VInt): length of the block
+- FirstOrdinal(VInt): ordinal of the first element in the given block

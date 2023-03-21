@@ -17,7 +17,7 @@ fn test_dataframe_writer_str() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 158);
+    assert_eq!(cols[0].num_bytes(), 88);
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn test_dataframe_writer_bytes() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 158);
+    assert_eq!(cols[0].num_bytes(), 88);
 }
 
 #[test]
