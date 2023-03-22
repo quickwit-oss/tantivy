@@ -21,7 +21,7 @@ impl ValueReader for IndexValueReader {
         let num_vals = deserialize_vint_u64(&mut data) as usize;
         self.vals.clear();
         let mut first_ordinal = 0u64;
-        let mut prev_start = 0usize;
+        let mut prev_start = deserialize_vint_u64(&mut data) as usize;
         for _ in 0..num_vals {
             let len = deserialize_vint_u64(&mut data);
             let delta_ordinal = deserialize_vint_u64(&mut data);
@@ -53,6 +53,14 @@ impl ValueWriter for IndexValueWriter {
     fn serialize_block(&self, output: &mut Vec<u8>) {
         let mut prev_ord = 0u64;
         vint::serialize_into_vec(self.vals.len() as u64, output);
+
+        let start_pos = if let Some(block_addr) = self.vals.first() {
+            block_addr.byte_range.start as u64
+        } else {
+            0
+        };
+        vint::serialize_into_vec(start_pos, output);
+
         // TODO use array_windows when it gets stabilized
         for elem in self.vals.windows(2) {
             let [current, next] = elem else {
@@ -112,6 +120,12 @@ mod tests {
             BlockAddr {
                 byte_range: 20..30,
                 first_ordinal: 10,
+            },
+        ]);
+        crate::value::tests::test_value_reader_writer::<_, IndexValueReader, IndexValueWriter>(&[
+            BlockAddr {
+                byte_range: 5..10,
+                first_ordinal: 2,
             },
         ]);
     }

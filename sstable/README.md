@@ -100,13 +100,14 @@ Note: there is no ambiguity between both representation as Add is always guarant
 
 ### IndexValue
 ```
-+------------+-------+-------+-----+
-| EntryCount | Entry | Entry | ... |
-+------------+-------+-------+-----+
-             |---( # of entries)---|
++------------+----------+-------+-------+-----+
+| EntryCount | StartPos | Entry | Entry | ... |
++------------+----------+-------+-------+-----+
+                        |---( # of entries)---|
 ```
 
 - EntryCount(VInt): number of entries
+- StartPos(VInt): the start pos of the first (data) block referenced by this (index) block
 - Entry (IndexEntry)
 
 ### Entry
