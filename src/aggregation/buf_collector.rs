@@ -46,7 +46,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
@@ -62,7 +62,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.collector.collect_block(docs, agg_with_accessor)?;
 
@@ -70,7 +70,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     }
 
     #[inline]
-    fn flush(&mut self, agg_with_accessor: &AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         self.collector
             .collect_block(&self.staged_docs[..self.num_staged_docs], agg_with_accessor)?;
         self.num_staged_docs = 0;

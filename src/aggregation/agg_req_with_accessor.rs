@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use columnar::{Column, ColumnType, ColumnValues, StrColumn};
+use columnar::{Column, ColumnBlockAccessor, ColumnType, ColumnValues, StrColumn};
 
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
 use super::bucket::{
@@ -45,6 +45,7 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: AggregationLimits,
+    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl BucketAggregationWithAccessor {
@@ -85,6 +86,7 @@ impl BucketAggregationWithAccessor {
             bucket_agg: bucket.clone(),
             str_dict_column,
             limits,
+            column_block_accessor: Default::default(),
         })
     }
 }
@@ -95,6 +97,7 @@ pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
     pub field_type: ColumnType,
     pub accessor: Column<u64>,
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl MetricAggregationWithAccessor {
@@ -115,6 +118,7 @@ impl MetricAggregationWithAccessor {
                     accessor,
                     field_type,
                     metric: metric.clone(),
+                    column_block_accessor: Default::default(),
                 })
             }
         }

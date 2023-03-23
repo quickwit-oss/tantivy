@@ -156,7 +156,10 @@ impl SegmentCollector for AggregationSegmentCollector {
         if self.error.is_some() {
             return;
         }
-        if let Err(err) = self.agg_collector.collect(doc, &self.aggs_with_accessor) {
+        if let Err(err) = self
+            .agg_collector
+            .collect(doc, &mut self.aggs_with_accessor)
+        {
             self.error = Some(err);
         }
     }
@@ -170,7 +173,7 @@ impl SegmentCollector for AggregationSegmentCollector {
         }
         if let Err(err) = self
             .agg_collector
-            .collect_block(docs, &self.aggs_with_accessor)
+            .collect_block(docs, &mut self.aggs_with_accessor)
         {
             self.error = Some(err);
         }
@@ -180,7 +183,7 @@ impl SegmentCollector for AggregationSegmentCollector {
         if let Some(err) = self.error {
             return Err(err);
         }
-        self.agg_collector.flush(&self.aggs_with_accessor)?;
+        self.agg_collector.flush(&mut self.aggs_with_accessor)?;
         Box::new(self.agg_collector).into_intermediate_aggregations_result(&self.aggs_with_accessor)
     }
 }

@@ -16,7 +16,7 @@ pub use serialize::{
 use crate::column_index::ColumnIndex;
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{monotonic_map_column, ColumnValues};
-use crate::{Cardinality, MonotonicallyMappableToU64, RowId};
+use crate::{Cardinality, DocId, MonotonicallyMappableToU64, RowId};
 
 #[derive(Clone)]
 pub struct Column<T = u64> {
@@ -68,8 +68,25 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values_for_doc(row_id).next()
     }
 
-    pub fn values_for_doc(&self, row_id: RowId) -> impl Iterator<Item = T> + '_ {
-        self.value_row_ids(row_id)
+    /// Translates a block of docis to row_ids.
+    ///
+    /// returns the row_ids and the matching docids on the same index
+    /// e.g.
+    /// DocId In:  [0, 5, 6]
+    /// DocId Out: [0, 0, 6, 6]
+    /// RowId Out: [0, 1, 2, 3]
+    #[inline]
+    pub fn row_ids_for_docs(
+        &self,
+        doc_ids: &[DocId],
+        doc_ids_out: &mut Vec<DocId>,
+        row_ids: &mut Vec<RowId>,
+    ) {
+        self.idx.docids_to_rowids(doc_ids, doc_ids_out, row_ids)
+    }
+
+    pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
+        self.value_row_ids(doc_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
 
