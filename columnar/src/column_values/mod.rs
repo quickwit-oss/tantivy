@@ -178,54 +178,5 @@ impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> 
     }
 }
 
-/// Wraps an cloneable iterator into a `Column`.
-pub struct IterColumn<T>(T);
-
-impl<T> From<T> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator
-{
-    fn from(iter: T) -> Self {
-        IterColumn(iter)
-    }
-}
-
-impl<T> ColumnValues<T::Item> for IterColumn<T>
-where
-    T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd + Debug,
-{
-    fn get_val(&self, idx: u32) -> T::Item {
-        self.0.clone().nth(idx as usize).unwrap()
-    }
-
-    fn min_value(&self) -> T::Item {
-        self.0.clone().next().unwrap()
-    }
-
-    fn max_value(&self) -> T::Item {
-        self.0.clone().last().unwrap()
-    }
-
-    fn num_vals(&self) -> u32 {
-        self.0.len() as u32
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = T::Item> + '_> {
-        Box::new(self.0.clone())
-    }
-}
-
 #[cfg(all(test, feature = "unstable"))]
 mod bench;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_range_as_col() {
-        let col = IterColumn::from(10..100);
-        assert_eq!(col.num_vals(), 90);
-        assert_eq!(col.max_value(), 99);
-    }
-}

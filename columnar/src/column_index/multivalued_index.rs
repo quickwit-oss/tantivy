@@ -106,11 +106,8 @@ impl MultiValueIndex {
 #[cfg(test)]
 mod tests {
     use std::ops::Range;
-    use std::sync::Arc;
 
     use super::MultiValueIndex;
-    use crate::column_values::IterColumn;
-    use crate::{ColumnValues, RowId};
 
     fn index_to_pos_helper(
         index: &MultiValueIndex,
@@ -124,9 +121,7 @@ mod tests {
 
     #[test]
     fn test_positions_to_docid() {
-        let offsets: Vec<RowId> = vec![0, 10, 12, 15, 22, 23]; // docid values are [0..10, 10..12, 12..15, etc.]
-        let column: Arc<dyn ColumnValues<RowId>> = Arc::new(IterColumn::from(offsets.into_iter()));
-        let index = MultiValueIndex::from(column);
+        let index = MultiValueIndex::for_test(&[0, 10, 12, 15, 22, 23]);
         assert_eq!(index.num_docs(), 5);
         let positions = &[10u32, 11, 15, 20, 21, 22];
         assert_eq!(index_to_pos_helper(&index, 0..5, positions), vec![1, 3, 4]);
