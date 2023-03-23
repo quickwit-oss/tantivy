@@ -178,11 +178,15 @@ impl CompactSpaceCompressor {
     /// Taking the vals as Vec may cost a lot of memory. It is used to sort the vals.
     pub fn train_from(iter: impl Iterator<Item = u128>) -> Self {
         let mut values_sorted = BTreeSet::new();
+        // Total number of values, with their redundancy.
         let mut total_num_values = 0u32;
         for val in iter {
             total_num_values += 1u32;
             values_sorted.insert(val);
         }
+        let min_value = *values_sorted.iter().next().unwrap_or(&0);
+        let max_value = *values_sorted.iter().last().unwrap_or(&0);
+
         let compact_space =
             get_compact_space(&values_sorted, total_num_values, COST_PER_BLANK_IN_BITS);
         let amplitude_compact_space = compact_space.amplitude_compact_space();
@@ -193,8 +197,7 @@ impl CompactSpaceCompressor {
         );
 
         let num_bits = tantivy_bitpacker::compute_num_bits(amplitude_compact_space as u64);
-        let min_value = *values_sorted.iter().next().unwrap_or(&0);
-        let max_value = *values_sorted.iter().last().unwrap_or(&0);
+
         assert_eq!(
             compact_space
                 .u128_to_compact(max_value)
@@ -439,12 +442,12 @@ mod tests {
 
     #[test]
     fn compact_space_test() {
-        let ips = &[
+        let ips: BTreeSet<u128> = [
             2u128, 4u128, 1000, 1001, 1002, 1003, 1004, 1005, 1008, 1010, 1012, 1260,
         ]
         .into_iter()
         .collect();
-        let compact_space = get_compact_space(ips, ips.len() as u32, 11);
+        let compact_space = get_compact_space(&ips, ips.len() as u32, 11);
         let amplitude = compact_space.amplitude_compact_space();
         assert_eq!(amplitude, 17);
         assert_eq!(1, compact_space.u128_to_compact(2).unwrap());
@@ -467,8 +470,8 @@ mod tests {
         );
 
         for ip in ips {
-            let compact = compact_space.u128_to_compact(*ip).unwrap();
-            assert_eq!(compact_space.compact_to_u128(compact), *ip);
+            let compact = compact_space.u128_to_compact(ip).unwrap();
+            assert_eq!(compact_space.compact_to_u128(compact), ip);
         }
     }
 
