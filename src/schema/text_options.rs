@@ -165,7 +165,7 @@ impl TextOptions {
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
-pub struct TokenizerName(Cow<'static, str>);
+pub(crate) struct TokenizerName(Cow<'static, str>);
 
 const DEFAULT_TOKENIZER_NAME: &str = "default";
 
