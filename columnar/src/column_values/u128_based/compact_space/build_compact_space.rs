@@ -110,7 +110,6 @@ pub fn get_compact_space(
         // spread over the full u128 space.
         //
         // This change will force the algorithm to degenerate into dictionary encoding.
-        // if amplitude_bits > 32 && cost >= saved_bits {
         if cost >= saved_bits {
             // Continue here, since although we walk over the blanks by size,
             // we can potentially save a lot at the last bits, which are smaller blanks
