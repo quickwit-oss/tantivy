@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use common::{BinarySerializable, CountingWriter};
+use common::{BinarySerializable, CountingWriter, DictionaryFooter, DictionaryKind};
 use once_cell::sync::Lazy;
 use tantivy_fst::raw::Fst;
 use tantivy_fst::Automaton;
@@ -14,6 +14,11 @@ use crate::termdict::TermOrdinal;
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
+
+const FOOTER: DictionaryFooter = DictionaryFooter {
+    kind: DictionaryKind::Fst,
+    version: 1,
+};
 
 /// Builder for the new term dictionary.
 ///
@@ -80,6 +85,7 @@ where W: Write
                 .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             footer_size.serialize(&mut counting_writer)?;
+            FOOTER.serialize(&mut counting_writer)?;
         }
         Ok(file)
     }
@@ -118,9 +124,13 @@ pub struct TermDictionary {
 impl TermDictionary {
     /// Opens a `TermDictionary`.
     pub fn open(file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = file.split_from_end(8);
+        let (main_slice, footer_len_slice) = file.split_from_end(8 + DictionaryFooter::LEN);
         let mut footer_len_bytes = footer_len_slice.read_bytes()?;
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
+
+        let footer = DictionaryFooter::deserialize(&mut footer_len_bytes)?;
+        FOOTER.verify_equal(&footer)?;
+
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
         let fst_index = open_fst_index(fst_file_slice)?;
         let term_info_store = TermInfoStore::open(values_file_slice)?;

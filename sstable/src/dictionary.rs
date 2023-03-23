@@ -178,7 +178,8 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(24);
+        let (main_slice, footer_len_slice) =
+            term_dictionary_file.split_from_end(16 + DictionaryFooter::LEN);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
 
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;

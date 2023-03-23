@@ -16,6 +16,8 @@ pub struct DictionaryFooter {
 }
 
 impl DictionaryFooter {
+    pub const LEN: usize = 8;
+
     pub fn verify_equal(&self, other: &DictionaryFooter) -> io::Result<()> {
         if self.kind != other.kind {
             return Err(io::Error::new(
