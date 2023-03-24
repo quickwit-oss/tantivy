@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{CustomOrder, Order, OrderTarget};
+use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
@@ -210,6 +211,12 @@ struct TermBuckets {
 }
 
 impl TermBuckets {
+    fn get_memory_consumption(&self) -> usize {
+        let sub_aggs_mem = self.sub_aggs.memory_consumption();
+        let buckets_mem = self.entries.memory_consumption();
+        sub_aggs_mem + buckets_mem
+    }
+
     fn force_flush(
         &mut self,
         agg_with_accessor: &mut AggregationsWithAccessor,
@@ -272,6 +279,8 @@ impl SegmentAggregationCollector for SegmentTermCollector {
     ) -> crate::Result<()> {
         let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
 
+        let mem_pre = self.get_memory_consumption();
+
         bucket_agg_accessor
             .column_block_accessor
             .fetch_block(docs, &bucket_agg_accessor.accessor);
@@ -290,6 +299,12 @@ impl SegmentAggregationCollector for SegmentTermCollector {
                 sub_aggregations.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
             }
         }
+
+        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let limits = &agg_with_accessor.buckets.values[self.accessor_idx].limits;
+        limits.add_memory_consumed(mem_delta as u64);
+        limits.validate_memory_consumption()?;
+
         Ok(())
     }
 
@@ -303,6 +318,12 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 }
 
 impl SegmentTermCollector {
+    fn get_memory_consumption(&self) -> usize {
+        let self_mem = std::mem::size_of::<Self>();
+        let term_buckets_mem = self.term_buckets.get_memory_consumption();
+        self_mem + term_buckets_mem
+    }
+
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
         sub_aggregations: &AggregationsWithAccessor,
@@ -507,9 +528,10 @@ mod tests {
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{
-        exec_request, exec_request_with_query, get_test_index_from_terms,
-        get_test_index_from_values_and_terms,
+        exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
+        get_test_index_from_terms, get_test_index_from_values_and_terms,
     };
+    use crate::aggregation::AggregationLimits;
 
     #[test]
     fn terms_aggregation_test_single_segment() -> crate::Result<()> {
@@ -1314,34 +1336,40 @@ mod tests {
         Ok(())
     }
 
-    // TODO reenable with memory limit
-    //#[test]
-    // fn terms_aggregation_term_bucket_limit() -> crate::Result<()> {
-    // let terms: Vec<String> = (0..100_000).map(|el| el.to_string()).collect();
-    // let terms_per_segment = vec![terms.iter().map(|el| el.as_str()).collect()];
+    #[test]
+    fn terms_aggregation_term_bucket_limit() -> crate::Result<()> {
+        let terms: Vec<String> = (0..20_000).map(|el| el.to_string()).collect();
+        let terms_per_segment = vec![terms.iter().map(|el| el.as_str()).collect()];
 
-    // let index = get_test_index_from_terms(true, &terms_per_segment)?;
+        let index = get_test_index_from_terms(true, &terms_per_segment)?;
 
-    // let agg_req: Aggregations = vec![(
-    //"my_texts".to_string(),
-    // Aggregation::Bucket(BucketAggregation {
-    // bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-    // field: "string_id".to_string(),
-    // min_doc_count: Some(0),
-    //..Default::default()
-    //}),
-    // sub_aggregation: Default::default(),
-    //}),
-    //)]
-    //.into_iter()
-    //.collect();
+        let agg_req: Aggregations = vec![(
+            "my_texts".to_string(),
+            Aggregation::Bucket(Box::new(BucketAggregation {
+                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
+                    field: "string_id".to_string(),
+                    min_doc_count: Some(0),
+                    ..Default::default()
+                }),
+                sub_aggregation: Default::default(),
+            })),
+        )]
+        .into_iter()
+        .collect();
 
-    // let res = exec_request_with_query(agg_req, &index, None);
+        let res = exec_request_with_query_and_memory_limit(
+            agg_req,
+            &index,
+            None,
+            AggregationLimits::new(Some(50_000), None),
+        )
+        .unwrap_err();
+        assert!(res
+            .to_string()
+            .contains("Aborting aggregation because memory limit was exceeded. Limit: 50.00 KB"));
 
-    // assert!(res.is_err());
-
-    // Ok(())
-    //}
+        Ok(())
+    }
 
     #[test]
     fn terms_aggregation_different_tokenizer_on_ff_test() -> crate::Result<()> {

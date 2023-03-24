@@ -45,7 +45,6 @@ impl IntermediateAggregationResults {
         req: Aggregations,
         limits: &AggregationLimits,
     ) -> crate::Result<AggregationResults> {
-        // TODO count and validate buckets
         let res = self.into_final_bucket_result_internal(&(req.into()), limits)?;
         let bucket_count = res.get_bucket_count() as u32;
         if bucket_count > limits.get_bucket_limit() {

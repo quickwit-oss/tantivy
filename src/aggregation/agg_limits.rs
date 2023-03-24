@@ -8,7 +8,7 @@ use super::collector::DEFAULT_MEMORY_LIMIT;
 use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
 use crate::TantivyError;
 
-/// An estimate for memory consumption
+/// An estimate for memory consumption. Non recursive
 pub trait MemoryConsumption {
     fn memory_consumption(&self) -> usize;
 }
@@ -83,12 +83,13 @@ impl AggregationLimits {
         self.memory_consumption
             .fetch_add(num_bytes, std::sync::atomic::Ordering::Relaxed);
     }
+    /// Returns the estimated memory consumed by the aggregations
     pub fn get_memory_consumed(&self) -> ByteCount {
         self.memory_consumption
             .load(std::sync::atomic::Ordering::Relaxed)
             .into()
     }
-    pub fn get_bucket_limit(&self) -> u32 {
+    pub(crate) fn get_bucket_limit(&self) -> u32 {
         self.bucket_limit
     }
 }
