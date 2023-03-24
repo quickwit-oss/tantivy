@@ -110,20 +110,26 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         }
     }
 
-    /// Returns the minimum value for this fast field.
+    /// Returns a lower bound for this column of values.
     ///
-    /// This min_value may not be exact.
-    /// For instance, the min value does not take in account of possible
-    /// deleted document. All values are however guaranteed to be higher than
-    /// `.min_value()`.
+    /// All values are guaranteed to be higher than `.min_value()`
+    /// but this value is not necessary the best boundary value.
+    ///
+    /// We have
+    /// ∀i < self.num_vals(), self.get_val(i) >= self.min_value()
+    /// But we don't have necessarily
+    /// ∃i < self.num_vals(), self.get_val(i) == self.min_value()
     fn min_value(&self) -> T;
 
-    /// Returns the maximum value for this fast field.
+    /// Returns an upper bound for this column of values.
     ///
-    /// This max_value may not be exact.
-    /// For instance, the max value does not take in account of possible
-    /// deleted document. All values are however guaranteed to be higher than
-    /// `.max_value()`.
+    /// All values are guaranteed to be lower than `.max_value()`
+    /// but this value is not necessary the best boundary value.
+    ///
+    /// We have
+    /// ∀i < self.num_vals(), self.get_val(i) <= self.max_value()
+    /// But we don't have necessarily
+    /// ∃i < self.num_vals(), self.get_val(i) == self.max_value()
     fn max_value(&self) -> T;
 
     /// The number of values in the column.
@@ -132,6 +138,27 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+    }
+}
+
+/// Empty column of values.
+pub struct EmptyColumnValues;
+
+impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
+    fn get_val(&self, _idx: u32) -> T {
+        panic!("Internal Error: Called get_val of empty column.")
+    }
+
+    fn min_value(&self) -> T {
+        T::default()
+    }
+
+    fn max_value(&self) -> T {
+        T::default()
+    }
+
+    fn num_vals(&self) -> u32 {
+        0
     }
 }
 

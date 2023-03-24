@@ -16,12 +16,21 @@ pub use serialize::{
 use crate::column_index::ColumnIndex;
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{monotonic_map_column, ColumnValues};
-use crate::{Cardinality, DocId, MonotonicallyMappableToU64, RowId};
+use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
 
 #[derive(Clone)]
 pub struct Column<T = u64> {
     pub idx: ColumnIndex,
     pub values: Arc<dyn ColumnValues<T>>,
+}
+
+impl<T: PartialOrd + Default> Column<T> {
+    pub fn build_empty_column(num_docs: u32) -> Column<T> {
+        Column {
+            idx: ColumnIndex::Empty { num_docs },
+            values: Arc::new(EmptyColumnValues),
+        }
+    }
 }
 
 impl<T: MonotonicallyMappableToU64> Column<T> {
