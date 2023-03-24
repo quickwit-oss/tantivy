@@ -5,7 +5,7 @@ use crate::iterable::Iterable;
 use crate::{ColumnIndex, ColumnValues, MergeRowOrder};
 
 pub(crate) struct MergedColumnValues<'a, T> {
-    pub(crate) column_indexes: &'a [Option<ColumnIndex>],
+    pub(crate) column_indexes: &'a [ColumnIndex],
     pub(crate) column_values: &'a [Option<Arc<dyn ColumnValues<T>>>],
     pub(crate) merge_row_order: &'a MergeRowOrder,
 }
@@ -23,8 +23,7 @@ impl<'a, T: Copy + PartialOrd + Debug> Iterable<T> for MergedColumnValues<'a, T>
                 shuffle_merge_order
                     .iter_new_to_old_row_addrs()
                     .flat_map(|row_addr| {
-                        let column_index =
-                            self.column_indexes[row_addr.segment_ord as usize].as_ref()?;
+                        let column_index = &self.column_indexes[row_addr.segment_ord as usize];
                         let column_values =
                             self.column_values[row_addr.segment_ord as usize].as_ref()?;
                         let value_range = column_index.value_row_ids(row_addr.row_id);

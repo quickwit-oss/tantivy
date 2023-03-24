@@ -8,17 +8,16 @@ use crate::column_index::SerializableColumnIndex;
 use crate::{Cardinality, ColumnIndex, MergeRowOrder};
 
 // For simplification, we never have cardinality go down due to deletes.
-fn detect_cardinality(columns: &[Option<ColumnIndex>]) -> Cardinality {
+fn detect_cardinality(columns: &[ColumnIndex]) -> Cardinality {
     columns
         .iter()
-        .flatten()
         .map(ColumnIndex::get_cardinality)
         .max()
         .unwrap_or(Cardinality::Full)
 }
 
 pub fn merge_column_index<'a>(
-    columns: &'a [Option<ColumnIndex>],
+    columns: &'a [ColumnIndex],
     merge_row_order: &'a MergeRowOrder,
 ) -> SerializableColumnIndex<'a> {
     // For simplification, we do not try to detect whether the cardinality could be
@@ -53,34 +52,33 @@ mod tests {
         let optional_index: ColumnIndex = OptionalIndex::for_test(1, &[]).into();
         let multivalued_index: ColumnIndex = MultiValueIndex::for_test(&[0, 1]).into();
         assert_eq!(
-            detect_cardinality(&[Some(optional_index.clone()), None]),
+            detect_cardinality(&[optional_index.clone(), ColumnIndex::Empty { num_docs: 0 }]),
             Cardinality::Optional
         );
         assert_eq!(
-            detect_cardinality(&[Some(optional_index.clone()), Some(ColumnIndex::Full)]),
+            detect_cardinality(&[optional_index.clone(), ColumnIndex::Full]),
             Cardinality::Optional
-        );
-        assert_eq!(
-            detect_cardinality(&[Some(multivalued_index.clone()), None]),
-            Cardinality::Multivalued
         );
         assert_eq!(
             detect_cardinality(&[
-                Some(multivalued_index.clone()),
-                Some(optional_index.clone())
+                multivalued_index.clone(),
+                ColumnIndex::Empty { num_docs: 0 }
             ]),
             Cardinality::Multivalued
         );
         assert_eq!(
-            detect_cardinality(&[Some(optional_index), Some(multivalued_index)]),
+            detect_cardinality(&[multivalued_index.clone(), optional_index.clone()]),
+            Cardinality::Multivalued
+        );
+        assert_eq!(
+            detect_cardinality(&[optional_index, multivalued_index]),
             Cardinality::Multivalued
         );
     }
 
     #[test]
     fn test_merge_index_multivalued_sorted() {
-        let column_indexes: Vec<Option<ColumnIndex>> =
-            vec![Some(MultiValueIndex::for_test(&[0, 2, 5]).into())];
+        let column_indexes: Vec<ColumnIndex> = vec![MultiValueIndex::for_test(&[0, 2, 5]).into()];
         let merge_row_order: MergeRowOrder = ShuffleMergeOrder::for_test(
             &[2],
             vec![
@@ -104,10 +102,10 @@ mod tests {
 
     #[test]
     fn test_merge_index_multivalued_sorted_several_segment() {
-        let column_indexes: Vec<Option<ColumnIndex>> = vec![
-            Some(MultiValueIndex::for_test(&[0, 2, 5]).into()),
-            None,
-            Some(MultiValueIndex::for_test(&[0, 1, 4]).into()),
+        let column_indexes: Vec<ColumnIndex> = vec![
+            MultiValueIndex::for_test(&[0, 2, 5]).into(),
+            ColumnIndex::Empty { num_docs: 0 },
+            MultiValueIndex::for_test(&[0, 1, 4]).into(),
         ];
         let merge_row_order: MergeRowOrder = ShuffleMergeOrder::for_test(
             &[2, 0, 2],
