@@ -23,7 +23,9 @@ mod value;
 pub use block_accessor::ColumnBlockAccessor;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
-pub use column_values::{ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+pub use column_values::{
+    ColumnValues, EmptyColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+};
 pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder,
