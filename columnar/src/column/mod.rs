@@ -1,6 +1,7 @@
 mod dictionary_encoded;
 mod serialize;
 
+use core::fmt;
 use std::fmt::Debug;
 use std::io::Write;
 use std::ops::{Deref, Range, RangeInclusive};
@@ -22,6 +23,16 @@ use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, R
 pub struct Column<T = u64> {
     pub index: ColumnIndex,
     pub values: Arc<dyn ColumnValues<T>>,
+}
+
+impl<T: fmt::Debug + PartialOrd + Send + Sync + Copy + 'static> fmt::Debug for Column<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let num_docs = self.num_docs();
+        let entries = (0..num_docs)
+            .map(|i| (i, self.values_for_doc(i).collect::<Vec<_>>()))
+            .filter(|(_, vals)| !vals.is_empty());
+        f.debug_map().entries(entries).finish()
+    }
 }
 
 impl<T: PartialOrd + Default> Column<T> {

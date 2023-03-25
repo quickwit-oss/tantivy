@@ -88,6 +88,15 @@ pub struct OptionalIndex {
     block_metas: Arc<[BlockMeta]>,
 }
 
+impl std::fmt::Debug for OptionalIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OptionalIndex")
+            .field("num_rows", &self.num_rows)
+            .field("num_non_null_rows", &self.num_non_null_rows)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Splits a value address into lower and upper 16bits.
 /// The lower 16 bits are the value in the block
 /// The upper 16 bits are the block index

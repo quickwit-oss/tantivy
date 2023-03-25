@@ -28,7 +28,7 @@ use crate::{
 ///
 /// See also [README.md].
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-enum ColumnTypeCategory {
+pub(crate) enum ColumnTypeCategory {
     Bool,
     Str,
     Numerical,
@@ -78,7 +78,7 @@ pub fn merge_columnar(
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
-    let num_rows_per_column = columnar_readers
+    let num_rows_per_columnar = columnar_readers
         .iter()
         .map(|reader| reader.num_rows())
         .collect::<Vec<u32>>();
@@ -89,7 +89,7 @@ pub fn merge_columnar(
             serializer.serialize_column(column_name.as_bytes(), column_type);
         merge_column(
             column_type,
-            &num_rows_per_column,
+            &num_rows_per_columnar,
             columns,
             &merge_row_order,
             &mut column_serializer,

@@ -1,6 +1,6 @@
-use std::io;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use sstable::{Dictionary, VoidSSTable};
 
@@ -19,6 +19,14 @@ use crate::RowId;
 pub struct BytesColumn {
     pub(crate) dictionary: Arc<Dictionary<VoidSSTable>>,
     pub(crate) term_ord_column: Column<u64>,
+}
+
+impl fmt::Debug for BytesColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BytesColumn")
+            .field("term_ord_column", &self.term_ord_column)
+            .finish()
+    }
 }
 
 impl BytesColumn {
@@ -55,6 +63,12 @@ impl BytesColumn {
 
 #[derive(Clone)]
 pub struct StrColumn(BytesColumn);
+
+impl fmt::Debug for StrColumn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.term_ord_column)
+    }
+}
 
 impl From<StrColumn> for BytesColumn {
     fn from(str_column: StrColumn) -> BytesColumn {

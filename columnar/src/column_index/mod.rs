@@ -12,7 +12,7 @@ pub use serialize::{open_column_index, serialize_column_index, SerializableColum
 use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, DocId, RowId};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ColumnIndex {
     Empty {
         num_docs: u32,
@@ -37,11 +37,15 @@ impl From<MultiValueIndex> for ColumnIndex {
 }
 
 impl ColumnIndex {
+    // Returns the cardinality of the column index.
+    //
+    // By convention, if the column contains no docs, we consider that it is
+    // full.
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
+            ColumnIndex::Empty { num_docs: 0 } | ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Empty { .. } => Cardinality::Optional,
-            ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Optional(_) => Cardinality::Optional,
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
         }
@@ -150,5 +154,23 @@ impl ColumnIndex {
                 multivalued_index.select_batch_in_place(doc_id_start, rank_ids)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Cardinality, ColumnIndex};
+
+    #[test]
+    fn test_column_index_get_cardinality() {
+        assert_eq!(
+            ColumnIndex::Empty { num_docs: 0 }.get_cardinality(),
+            Cardinality::Full
+        );
+        assert_eq!(ColumnIndex::Full.get_cardinality(), Cardinality::Full);
+        assert_eq!(
+            ColumnIndex::Empty { num_docs: 1 }.get_cardinality(),
+            Cardinality::Optional
+        );
     }
 }
