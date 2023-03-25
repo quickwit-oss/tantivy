@@ -9,7 +9,7 @@ use crate::{Cardinality, ColumnIndex, RowId, StackMergeOrder};
 ///
 /// There are no sort nor deletes involved.
 pub fn merge_column_index_stacked<'a>(
-    columns: &'a [Option<ColumnIndex>],
+    columns: &'a [ColumnIndex],
     cardinality_after_merge: Cardinality,
     stack_merge_order: &'a StackMergeOrder,
 ) -> SerializableColumnIndex<'a> {
@@ -33,7 +33,7 @@ pub fn merge_column_index_stacked<'a>(
 }
 
 struct StackedOptionalIndex<'a> {
-    columns: &'a [Option<ColumnIndex>],
+    columns: &'a [ColumnIndex],
     stack_merge_order: &'a StackMergeOrder,
 }
 
@@ -46,16 +46,16 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                 .flat_map(|(columnar_id, column_index_opt)| {
                     let columnar_row_range = self.stack_merge_order.columnar_range(columnar_id);
                     let rows_it: Box<dyn Iterator<Item = RowId>> = match column_index_opt {
-                        Some(ColumnIndex::Full) => Box::new(columnar_row_range),
-                        Some(ColumnIndex::Optional(optional_index)) => Box::new(
+                        ColumnIndex::Full => Box::new(columnar_row_range),
+                        ColumnIndex::Optional(optional_index) => Box::new(
                             optional_index
                                 .iter_rows()
                                 .map(move |row_id: RowId| columnar_row_range.start + row_id),
                         ),
-                        Some(ColumnIndex::Multivalued(_)) => {
+                        ColumnIndex::Multivalued(_) => {
                             panic!("No multivalued index is allowed when stacking column index");
                         }
-                        None | Some(ColumnIndex::Empty { .. }) => Box::new(std::iter::empty()),
+                        ColumnIndex::Empty { .. } => Box::new(std::iter::empty()),
                     };
                     rows_it
                 }),
@@ -65,20 +65,18 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
 
 #[derive(Clone, Copy)]
 struct StackedMultivaluedIndex<'a> {
-    columns: &'a [Option<ColumnIndex>],
+    columns: &'a [ColumnIndex],
     stack_merge_order: &'a StackMergeOrder,
 }
 
 fn convert_column_opt_to_multivalued_index<'a>(
-    column_index_opt: Option<&'a ColumnIndex>,
+    column_index_opt: &'a ColumnIndex,
     num_rows: RowId,
 ) -> Box<dyn Iterator<Item = RowId> + 'a> {
     match column_index_opt {
-        None | Some(ColumnIndex::Empty { .. }) => {
-            Box::new(iter::repeat(0u32).take(num_rows as usize + 1))
-        }
-        Some(ColumnIndex::Full) => Box::new(0..num_rows + 1),
-        Some(ColumnIndex::Optional(optional_index)) => {
+        ColumnIndex::Empty { .. } => Box::new(iter::repeat(0u32).take(num_rows as usize + 1)),
+        ColumnIndex::Full => Box::new(0..num_rows + 1),
+        ColumnIndex::Optional(optional_index) => {
             Box::new(
                 (0..num_rows)
                     // TODO optimize
@@ -86,9 +84,7 @@ fn convert_column_opt_to_multivalued_index<'a>(
                     .chain(std::iter::once(optional_index.num_non_nulls())),
             )
         }
-        Some(ColumnIndex::Multivalued(multivalued_index)) => {
-            multivalued_index.start_index_column.iter()
-        }
+        ColumnIndex::Multivalued(multivalued_index) => multivalued_index.start_index_column.iter(),
     }
 }
 
@@ -97,7 +93,6 @@ impl<'a> Iterable<RowId> for StackedMultivaluedIndex<'a> {
         let multivalued_indexes =
             self.columns
                 .iter()
-                .map(Option::as_ref)
                 .enumerate()
                 .map(|(columnar_id, column_opt)| {
                     let num_rows =

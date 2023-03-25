@@ -5,7 +5,7 @@ use crate::iterable::Iterable;
 use crate::{Cardinality, ColumnIndex, RowId, ShuffleMergeOrder};
 
 pub fn merge_column_index_shuffled<'a>(
-    column_indexes: &'a [Option<ColumnIndex>],
+    column_indexes: &'a [ColumnIndex],
     cardinality_after_merge: Cardinality,
     shuffle_merge_order: &'a ShuffleMergeOrder,
 ) -> SerializableColumnIndex<'a> {
@@ -33,41 +33,41 @@ pub fn merge_column_index_shuffled<'a>(
 ///
 /// In other words the column_indexes passed as argument may NOT be multivalued.
 fn merge_column_index_shuffled_optional<'a>(
-    column_indexes: &'a [Option<ColumnIndex>],
+    column_indexes: &'a [ColumnIndex],
     merge_order: &'a ShuffleMergeOrder,
 ) -> Box<dyn Iterable<RowId> + 'a> {
-    Box::new(ShuffledOptionalIndex {
+    Box::new(ShuffledIndex {
         column_indexes,
         merge_order,
     })
 }
 
-struct ShuffledOptionalIndex<'a> {
-    column_indexes: &'a [Option<ColumnIndex>],
+struct ShuffledIndex<'a> {
+    column_indexes: &'a [ColumnIndex],
     merge_order: &'a ShuffleMergeOrder,
 }
 
-impl<'a> Iterable<u32> for ShuffledOptionalIndex<'a> {
+impl<'a> Iterable<u32> for ShuffledIndex<'a> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.merge_order
-        .iter_new_to_old_row_addrs()
-        .enumerate()
-        .filter_map(|(new_row_id, old_row_addr)| {
-            let Some(column_index) = &self.column_indexes[old_row_addr.segment_ord as usize] else {
-                return None;
-            };
-            let row_id = new_row_id as u32;
-            if column_index.has_value(old_row_addr.row_id) {
-                Some(row_id)
-            } else {
-                None
-            }
-        }))
+        Box::new(
+            self.merge_order
+                .iter_new_to_old_row_addrs()
+                .enumerate()
+                .filter_map(|(new_row_id, old_row_addr)| {
+                    let column_index = &self.column_indexes[old_row_addr.segment_ord as usize];
+                    let row_id = new_row_id as u32;
+                    if column_index.has_value(old_row_addr.row_id) {
+                        Some(row_id)
+                    } else {
+                        None
+                    }
+                }),
+        )
     }
 }
 
 fn merge_column_index_shuffled_multivalued<'a>(
-    column_indexes: &'a [Option<ColumnIndex>],
+    column_indexes: &'a [ColumnIndex],
     merge_order: &'a ShuffleMergeOrder,
 ) -> Box<dyn Iterable<RowId> + 'a> {
     Box::new(ShuffledMultivaluedIndex {
@@ -77,19 +77,16 @@ fn merge_column_index_shuffled_multivalued<'a>(
 }
 
 struct ShuffledMultivaluedIndex<'a> {
-    column_indexes: &'a [Option<ColumnIndex>],
+    column_indexes: &'a [ColumnIndex],
     merge_order: &'a ShuffleMergeOrder,
 }
 
 fn iter_num_values<'a>(
-    column_indexes: &'a [Option<ColumnIndex>],
+    column_indexes: &'a [ColumnIndex],
     merge_order: &'a ShuffleMergeOrder,
 ) -> impl Iterator<Item = u32> + 'a {
     merge_order.iter_new_to_old_row_addrs().map(|row_addr| {
-        let Some(column_index) = &column_indexes[row_addr.segment_ord as usize] else {
-                    // No values in the entire column. It surely means there are 0 values associated to this row.
-                    return 0u32;
-                };
+        let column_index = &column_indexes[row_addr.segment_ord as usize];
         match column_index {
             ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => 1,
@@ -143,7 +140,7 @@ mod tests {
     #[test]
     fn test_merge_column_index_optional_shuffle() {
         let optional_index: ColumnIndex = OptionalIndex::for_test(2, &[0]).into();
-        let column_indexes = vec![Some(optional_index), Some(ColumnIndex::Full)];
+        let column_indexes = vec![optional_index, ColumnIndex::Full];
         let row_addrs = vec![
             RowAddr {
                 segment_ord: 0u32,

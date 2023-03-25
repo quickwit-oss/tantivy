@@ -78,6 +78,10 @@ pub fn merge_columnar(
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
+    let num_rows_per_column = columnar_readers
+        .iter()
+        .map(|reader| reader.num_rows())
+        .collect::<Vec<u32>>();
 
     let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for ((column_name, column_type), columns) in columns_to_merge {
@@ -85,6 +89,7 @@ pub fn merge_columnar(
             serializer.serialize_column(column_name.as_bytes(), column_type);
         merge_column(
             column_type,
+            &num_rows_per_column,
             columns,
             &merge_row_order,
             &mut column_serializer,
@@ -108,6 +113,7 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
 
 fn merge_column(
     column_type: ColumnType,
+    num_docs_per_column: &[u32],
     columns: Vec<Option<DynamicColumn>>,
     merge_row_order: &MergeRowOrder,
     wrt: &mut impl io::Write,
@@ -118,17 +124,19 @@ fn merge_column(
         | ColumnType::F64
         | ColumnType::DateTime
         | ColumnType::Bool => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues>>> =
                 Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
+            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
                 if let Some(Column { idx, values }) =
                     dynamic_column_opt.and_then(dynamic_column_to_u64_monotonic)
                 {
-                    column_indexes.push(Some(idx));
+                    column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
-                    column_indexes.push(None);
+                    column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[idx],
+                    });
                     column_values.push(None);
                 }
             }
@@ -142,15 +150,17 @@ fn merge_column(
             serialize_column_mappable_to_u64(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::IpAddr => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues<Ipv6Addr>>>> =
                 Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
+            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
                 if let Some(DynamicColumn::IpAddr(Column { idx, values })) = dynamic_column_opt {
-                    column_indexes.push(Some(idx));
+                    column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
-                    column_indexes.push(None);
+                    column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[idx],
+                    });
                     column_values.push(None);
                 }
             }
@@ -166,20 +176,22 @@ fn merge_column(
             serialize_column_mappable_to_u128(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::Bytes | ColumnType::Str => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut bytes_columns: Vec<Option<BytesColumn>> = Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
+            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
-                        column_indexes.push(Some(str_column.term_ord_column.idx.clone()));
+                        column_indexes.push(str_column.term_ord_column.idx.clone());
                         bytes_columns.push(Some(str_column.into()));
                     }
                     Some(DynamicColumn::Bytes(bytes_column)) => {
-                        column_indexes.push(Some(bytes_column.term_ord_column.idx.clone()));
+                        column_indexes.push(bytes_column.term_ord_column.idx.clone());
                         bytes_columns.push(Some(bytes_column));
                     }
                     _ => {
-                        column_indexes.push(None);
+                        column_indexes.push(ColumnIndex::Empty {
+                            num_docs: num_docs_per_column[idx],
+                        });
                         bytes_columns.push(None);
                     }
                 }

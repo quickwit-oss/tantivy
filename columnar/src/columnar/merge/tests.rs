@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::*;
 use crate::{Cardinality, ColumnarWriter, HasAssociatedColumnType, RowId};
 
@@ -249,6 +251,8 @@ fn test_merge_columnar_texts() {
     let cols = columnar_reader.read_columns("texts").unwrap();
     let dynamic_column = cols[0].open().unwrap();
     let DynamicColumn::Str(vals) = dynamic_column else { panic!() };
+    assert_eq!(vals.ords().get_cardinality(), Cardinality::Optional);
+
     let get_str_for_ord = |ord| {
         let mut out = String::new();
         vals.ord_to_str(ord, &mut out).unwrap();
@@ -375,4 +379,94 @@ fn test_merge_columnar_byte_with_missing() {
     assert!(get_bytes_for_row(5).is_empty());
     assert_eq!(get_bytes_for_row(6), vec![b"b".to_vec()]);
     assert_eq!(get_bytes_for_row(7), vec![b"a".to_vec(), b"b".to_vec()]);
+}
+
+#[test]
+fn test_merge_columnar_different_types() {
+    let columnar1 = make_text_columnar_multiple_columns(&[("mixed", &[&["a"]])]);
+    let columnar2 = make_text_columnar_multiple_columns(&[("mixed", &[&[], &["b"]])]);
+    let columnar3 = make_columnar("mixed", &[1i64]);
+    let mut buffer = Vec::new();
+    let columnars = &[&columnar1, &columnar2, &columnar3];
+    let stack_merge_order = StackMergeOrder::stack(columnars);
+    crate::columnar::merge_columnar(
+        columnars,
+        &[],
+        MergeRowOrder::Stack(stack_merge_order),
+        &mut buffer,
+    )
+    .unwrap();
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar_reader.num_rows(), 4);
+    assert_eq!(columnar_reader.num_columns(), 2);
+    let cols = columnar_reader.read_columns("mixed").unwrap();
+
+    // numeric column
+    let dynamic_column = cols[0].open().unwrap();
+    let DynamicColumn::I64(vals) = dynamic_column else { panic!() };
+    assert_eq!(vals.get_cardinality(), Cardinality::Optional);
+    assert_eq!(vals.values_for_doc(0).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(1).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(2).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(3).collect_vec(), vec![1]);
+    assert_eq!(vals.values_for_doc(4).collect_vec(), vec![]);
+
+    // text column
+    let dynamic_column = cols[1].open().unwrap();
+    let DynamicColumn::Str(vals) = dynamic_column else { panic!() };
+    assert_eq!(vals.ords().get_cardinality(), Cardinality::Optional);
+    let get_str_for_ord = |ord| {
+        let mut out = String::new();
+        vals.ord_to_str(ord, &mut out).unwrap();
+        out
+    };
+
+    assert_eq!(vals.dictionary.num_terms(), 2);
+    assert_eq!(get_str_for_ord(0), "a");
+    assert_eq!(get_str_for_ord(1), "b");
+
+    let get_str_for_row = |row_id| {
+        let term_ords: Vec<String> = vals
+            .term_ords(row_id)
+            .map(|el| {
+                let mut out = String::new();
+                vals.ord_to_str(el, &mut out).unwrap();
+                out
+            })
+            .collect();
+        term_ords
+    };
+
+    assert_eq!(get_str_for_row(0), vec!["a".to_string()]);
+    assert_eq!(get_str_for_row(1), Vec::<String>::new());
+    assert_eq!(get_str_for_row(2), vec!["b".to_string()]);
+    assert_eq!(get_str_for_row(3), Vec::<String>::new());
+}
+
+#[test]
+fn test_merge_columnar_different_empty_cardinality() {
+    let columnar1 = make_text_columnar_multiple_columns(&[("mixed", &[&["a"]])]);
+    let columnar2 = make_columnar("mixed", &[1i64]);
+    let mut buffer = Vec::new();
+    let columnars = &[&columnar1, &columnar2];
+    let stack_merge_order = StackMergeOrder::stack(columnars);
+    crate::columnar::merge_columnar(
+        columnars,
+        &[],
+        MergeRowOrder::Stack(stack_merge_order),
+        &mut buffer,
+    )
+    .unwrap();
+    let columnar_reader = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar_reader.num_rows(), 2);
+    assert_eq!(columnar_reader.num_columns(), 2);
+    let cols = columnar_reader.read_columns("mixed").unwrap();
+
+    // numeric column
+    let dynamic_column = cols[0].open().unwrap();
+    assert_eq!(dynamic_column.get_cardinality(), Cardinality::Optional);
+
+    // text column
+    let dynamic_column = cols[1].open().unwrap();
+    assert_eq!(dynamic_column.get_cardinality(), Cardinality::Optional);
 }
