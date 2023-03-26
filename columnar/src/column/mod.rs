@@ -20,14 +20,14 @@ use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, R
 
 #[derive(Clone)]
 pub struct Column<T = u64> {
-    pub idx: ColumnIndex,
+    pub index: ColumnIndex,
     pub values: Arc<dyn ColumnValues<T>>,
 }
 
 impl<T: PartialOrd + Default> Column<T> {
     pub fn build_empty_column(num_docs: u32) -> Column<T> {
         Column {
-            idx: ColumnIndex::Empty { num_docs },
+            index: ColumnIndex::Empty { num_docs },
             values: Arc::new(EmptyColumnValues),
         }
     }
@@ -40,7 +40,7 @@ impl<T: MonotonicallyMappableToU64> Column<T> {
             StrictlyMonotonicMappingToInternal::<T>::new(),
         ));
         Column {
-            idx: self.idx,
+            index: self.index,
             values,
         }
     }
@@ -49,11 +49,11 @@ impl<T: MonotonicallyMappableToU64> Column<T> {
 impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
-        self.idx.get_cardinality()
+        self.index.get_cardinality()
     }
 
     pub fn num_docs(&self) -> RowId {
-        match &self.idx {
+        match &self.index {
             ColumnIndex::Empty { num_docs } => *num_docs,
             ColumnIndex::Full => self.values.num_vals(),
             ColumnIndex::Optional(optional_index) => optional_index.num_docs(),
@@ -91,7 +91,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         doc_ids_out: &mut Vec<DocId>,
         row_ids: &mut Vec<RowId>,
     ) {
-        self.idx.docids_to_rowids(doc_ids, doc_ids_out, row_ids)
+        self.index.docids_to_rowids(doc_ids, doc_ids_out, row_ids)
     }
 
     pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
@@ -108,13 +108,15 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         doc_ids: &mut Vec<u32>,
     ) {
         // convert passed docid range to row id range
-        let rowid_range = self.idx.docid_range_to_rowids(selected_docid_range.clone());
+        let rowid_range = self
+            .index
+            .docid_range_to_rowids(selected_docid_range.clone());
 
         // Load rows
         self.values
             .get_row_ids_for_value_range(value_range, rowid_range, doc_ids);
         // Convert rows to docids
-        self.idx
+        self.index
             .select_batch_in_place(selected_docid_range.start, doc_ids);
     }
 
@@ -139,7 +141,7 @@ impl<T> Deref for Column<T> {
     type Target = ColumnIndex;
 
     fn deref(&self) -> &Self::Target {
-        &self.idx
+        &self.index
     }
 }
 
@@ -177,7 +179,7 @@ impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
     }
 
     fn num_vals(&self) -> u32 {
-        match &self.column.idx {
+        match &self.column.index {
             ColumnIndex::Empty { .. } => 0u32,
             ColumnIndex::Full => self.column.values.num_vals(),
             ColumnIndex::Optional(optional_idx) => optional_idx.num_docs(),

@@ -52,7 +52,7 @@ pub fn open_column_u64<T: MonotonicallyMappableToU64>(bytes: OwnedBytes) -> io::
     let column_index = crate::column_index::open_column_index(column_index_data)?;
     let column_values = load_u64_based_column_values(column_values_data)?;
     Ok(Column {
-        idx: column_index,
+        index: column_index,
         values: column_values,
     })
 }
@@ -71,7 +71,7 @@ pub fn open_column_u128<T: MonotonicallyMappableToU128>(
     let column_index = crate::column_index::open_column_index(column_index_data)?;
     let column_values = crate::column_values::open_u128_mapped(column_values_data)?;
     Ok(Column {
-        idx: column_index,
+        index: column_index,
         values: column_values,
     })
 }

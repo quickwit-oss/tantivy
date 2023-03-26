@@ -73,11 +73,11 @@ impl DynamicColumn {
     fn coerce_to_f64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
-                idx: column.idx,
+                index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
             })),
             DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
-                idx: column.idx,
+                index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
             })),
             DynamicColumn::F64(_) => Some(self),
@@ -91,7 +91,7 @@ impl DynamicColumn {
                     return None;
                 }
                 Some(DynamicColumn::I64(Column {
-                    idx: column.idx,
+                    index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
                 }))
             }
@@ -106,7 +106,7 @@ impl DynamicColumn {
                     return None;
                 }
                 Some(DynamicColumn::U64(Column {
-                    idx: column.idx,
+                    index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
                 }))
             }
