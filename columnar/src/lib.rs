@@ -7,6 +7,7 @@ extern crate more_asserts;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
+use std::fmt::Display;
 use std::io;
 
 mod block_accessor;
@@ -75,6 +76,17 @@ pub enum Cardinality {
     Multivalued = 2,
 }
 
+impl Display for Cardinality {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let short_str = match self {
+            Cardinality::Full => "full",
+            Cardinality::Optional => "opt",
+            Cardinality::Multivalued => "mult",
+        };
+        write!(f, "{short_str}")
+    }
+}
+
 impl Cardinality {
     pub fn is_optional(&self) -> bool {
         matches!(self, Cardinality::Optional)
@@ -85,7 +97,6 @@ impl Cardinality {
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }
-
     pub(crate) fn try_from_code(code: u8) -> Result<Cardinality, InvalidData> {
         match code {
             0 => Ok(Cardinality::Full),

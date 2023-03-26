@@ -35,6 +35,14 @@ pub struct MultiValueIndex {
     pub start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
 }
 
+impl std::fmt::Debug for MultiValueIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("MultiValuedIndex")
+            .field("num_rows", &self.start_index_column.num_vals())
+            .finish_non_exhaustive()
+    }
+}
+
 impl From<Arc<dyn ColumnValues<RowId>>> for MultiValueIndex {
     fn from(start_index_column: Arc<dyn ColumnValues<RowId>>) -> Self {
         MultiValueIndex { start_index_column }

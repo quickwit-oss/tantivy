@@ -1,6 +1,6 @@
-use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use common::file_slice::FileSlice;
 use common::{ByteCount, DateTime, HasLen, OwnedBytes};
@@ -8,7 +8,7 @@ use common::{ByteCount, DateTime, HasLen, OwnedBytes};
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::{Cardinality, NumericalType};
+use crate::{Cardinality, ColumnIndex, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -22,19 +22,54 @@ pub enum DynamicColumn {
     Str(StrColumn),
 }
 
-impl DynamicColumn {
-    pub fn get_cardinality(&self) -> Cardinality {
+impl fmt::Debug for DynamicColumn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{} {} |", self.get_cardinality(), self.column_type())?;
         match self {
-            DynamicColumn::Bool(c) => c.get_cardinality(),
-            DynamicColumn::I64(c) => c.get_cardinality(),
-            DynamicColumn::U64(c) => c.get_cardinality(),
-            DynamicColumn::F64(c) => c.get_cardinality(),
-            DynamicColumn::IpAddr(c) => c.get_cardinality(),
-            DynamicColumn::DateTime(c) => c.get_cardinality(),
-            DynamicColumn::Bytes(c) => c.ords().get_cardinality(),
-            DynamicColumn::Str(c) => c.ords().get_cardinality(),
+            DynamicColumn::Bool(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::I64(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::U64(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::F64(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::IpAddr(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::DateTime(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::Bytes(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::Str(col) => write!(f, "{:?}", col)?,
+        }
+        write!(f, "]")
+    }
+}
+
+impl DynamicColumn {
+    pub fn column_index(&self) -> &ColumnIndex {
+        match self {
+            DynamicColumn::Bool(c) => &c.index,
+            DynamicColumn::I64(c) => &c.index,
+            DynamicColumn::U64(c) => &c.index,
+            DynamicColumn::F64(c) => &c.index,
+            DynamicColumn::IpAddr(c) => &c.index,
+            DynamicColumn::DateTime(c) => &c.index,
+            DynamicColumn::Bytes(c) => &c.ords().index,
+            DynamicColumn::Str(c) => &c.ords().index,
         }
     }
+
+    pub fn get_cardinality(&self) -> Cardinality {
+        self.column_index().get_cardinality()
+    }
+
+    pub fn num_values(&self) -> u32 {
+        match self {
+            DynamicColumn::Bool(c) => c.values.num_vals(),
+            DynamicColumn::I64(c) => c.values.num_vals(),
+            DynamicColumn::U64(c) => c.values.num_vals(),
+            DynamicColumn::F64(c) => c.values.num_vals(),
+            DynamicColumn::IpAddr(c) => c.values.num_vals(),
+            DynamicColumn::DateTime(c) => c.values.num_vals(),
+            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
+            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+        }
+    }
+
     pub fn column_type(&self) -> ColumnType {
         match self {
             DynamicColumn::Bool(_) => ColumnType::Bool,
