@@ -127,15 +127,15 @@ fn merge_column(
             let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues>>> =
                 Vec::with_capacity(columns.len());
-            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
-                if let Some(Column { idx, values }) =
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                if let Some(Column { index: idx, values }) =
                     dynamic_column_opt.and_then(dynamic_column_to_u64_monotonic)
                 {
                     column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
                     column_indexes.push(ColumnIndex::Empty {
-                        num_docs: num_docs_per_column[idx],
+                        num_docs: num_docs_per_column[i],
                     });
                     column_values.push(None);
                 }
@@ -153,13 +153,15 @@ fn merge_column(
             let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues<Ipv6Addr>>>> =
                 Vec::with_capacity(columns.len());
-            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
-                if let Some(DynamicColumn::IpAddr(Column { idx, values })) = dynamic_column_opt {
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                if let Some(DynamicColumn::IpAddr(Column { index: idx, values })) =
+                    dynamic_column_opt
+                {
                     column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
                     column_indexes.push(ColumnIndex::Empty {
-                        num_docs: num_docs_per_column[idx],
+                        num_docs: num_docs_per_column[i],
                     });
                     column_values.push(None);
                 }
@@ -178,19 +180,19 @@ fn merge_column(
         ColumnType::Bytes | ColumnType::Str => {
             let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut bytes_columns: Vec<Option<BytesColumn>> = Vec::with_capacity(columns.len());
-            for (idx, dynamic_column_opt) in columns.into_iter().enumerate() {
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
-                        column_indexes.push(str_column.term_ord_column.idx.clone());
+                        column_indexes.push(str_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(str_column.into()));
                     }
                     Some(DynamicColumn::Bytes(bytes_column)) => {
-                        column_indexes.push(bytes_column.term_ord_column.idx.clone());
+                        column_indexes.push(bytes_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(bytes_column));
                     }
                     _ => {
                         column_indexes.push(ColumnIndex::Empty {
-                            num_docs: num_docs_per_column[idx],
+                            num_docs: num_docs_per_column[i],
                         });
                         bytes_columns.push(None);
                     }

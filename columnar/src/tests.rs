@@ -126,7 +126,7 @@ fn test_dataframe_writer_numerical() {
     assert_eq!(cols[0].num_bytes(), 33);
     let column = cols[0].open().unwrap();
     let DynamicColumn::I64(column_i64) = column else { panic!(); };
-    assert_eq!(column_i64.idx.get_cardinality(), Cardinality::Optional);
+    assert_eq!(column_i64.index.get_cardinality(), Cardinality::Optional);
     assert_eq!(column_i64.first(0), None);
     assert_eq!(column_i64.first(1), Some(12i64));
     assert_eq!(column_i64.first(2), Some(13i64));
