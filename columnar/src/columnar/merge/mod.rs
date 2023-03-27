@@ -28,7 +28,7 @@ use crate::{
 ///
 /// See also [README.md].
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-enum ColumnTypeCategory {
+pub(crate) enum ColumnTypeCategory {
     Bool,
     Str,
     Numerical,
@@ -78,25 +78,23 @@ pub fn merge_columnar(
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
-    let num_rows_per_column = columnar_readers
+    let num_rows_per_columnar = columnar_readers
         .iter()
         .map(|reader| reader.num_rows())
         .collect::<Vec<u32>>();
-
     let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for ((column_name, column_type), columns) in columns_to_merge {
         let mut column_serializer =
             serializer.serialize_column(column_name.as_bytes(), column_type);
         merge_column(
             column_type,
-            &num_rows_per_column,
+            &num_rows_per_columnar,
             columns,
             &merge_row_order,
             &mut column_serializer,
         )?;
     }
     serializer.finalize(merge_row_order.num_rows())?;
-
     Ok(())
 }
 
@@ -375,8 +373,8 @@ fn coerce_column(column_type: ColumnType, column: DynamicColumn) -> io::Result<D
 fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, NumericalValue)> {
     match column {
         DynamicColumn::I64(column) => Some((column.min_value().into(), column.max_value().into())),
-        DynamicColumn::U64(column) => Some((column.min_value().into(), column.min_value().into())),
-        DynamicColumn::F64(column) => Some((column.min_value().into(), column.min_value().into())),
+        DynamicColumn::U64(column) => Some((column.min_value().into(), column.max_value().into())),
+        DynamicColumn::F64(column) => Some((column.min_value().into(), column.max_value().into())),
         DynamicColumn::Bool(_)
         | DynamicColumn::IpAddr(_)
         | DynamicColumn::DateTime(_)
