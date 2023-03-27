@@ -1,5 +1,4 @@
 use std::ops::RangeInclusive;
-use std::sync::atomic::AtomicU8;
 
 #[cfg(any(target_arch = "x86_64"))]
 mod avx2;
@@ -32,14 +31,18 @@ const IMPLS: [FilterImplPerInstructionSet; 2] = [
     FilterImplPerInstructionSet::Scalar,
 ];
 
+#[cfg(not(target_arch = "x86_64"))]
+const IMPLS: [FilterImplPerInstructionSet; 1] = [FilterImplPerInstructionSet::Scalar];
+
 impl FilterImplPerInstructionSet {
+    #[allow(unused_variables)]
     #[inline]
     fn from(code: u8) -> FilterImplPerInstructionSet {
+        #[cfg(target_arch = "x86_64")]
         if code == FilterImplPerInstructionSet::AVX2 as u8 {
-            FilterImplPerInstructionSet::AVX2
-        } else {
-            FilterImplPerInstructionSet::Scalar
+            return FilterImplPerInstructionSet::AVX2;
         }
+        FilterImplPerInstructionSet::Scalar
     }
 
     #[inline]
@@ -54,10 +57,9 @@ impl FilterImplPerInstructionSet {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
 #[inline]
 fn get_best_available_instruction_set() -> FilterImplPerInstructionSet {
-    use std::sync::atomic::Ordering;
+    use std::sync::atomic::{AtomicU8, Ordering};
     static INSTRUCTION_SET_BYTE: AtomicU8 = AtomicU8::new(u8::MAX);
     let instruction_set_byte: u8 = INSTRUCTION_SET_BYTE.load(Ordering::Relaxed);
     if instruction_set_byte == u8::MAX {
@@ -70,12 +72,6 @@ fn get_best_available_instruction_set() -> FilterImplPerInstructionSet {
         return instruction_set;
     }
     FilterImplPerInstructionSet::from(instruction_set_byte)
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-#[inline]
-const fn get_best_available_instruction_set() -> FilterImplPerInstructionSet {
-    FilterImplPerInstructionSet::Scalar
 }
 
 pub fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
@@ -138,6 +134,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_arch = "x86_64")]
     fn test_filter_implementation_avx2() {
         if FilterImplPerInstructionSet::AVX2.is_available() {
             test_filter_impl_test_suite(FilterImplPerInstructionSet::AVX2);
@@ -149,9 +146,10 @@ mod tests {
         test_filter_impl_test_suite(FilterImplPerInstructionSet::Scalar);
     }
 
+    #[cfg(target_arch = "x86_64")]
     proptest::proptest! {
         #[test]
-        fn test_filter_impl_proptest(
+        fn test_filter_compare_scalar_and_avx2_impl_proptest(
             start in proptest::prelude::any::<u32>(),
             end in proptest::prelude::any::<u32>(),
             offset in 0u32..2u32,
