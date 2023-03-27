@@ -30,10 +30,21 @@ const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
     }
 }
 
+// The bitpacked codec applies a linear transformation `f` over data that are bitpacked.
+// f is defined by:
+// f: bitpacked -> stats.min_value + stats.gcd * bitpacked
+//
+// In order to run range queries, we invert the transformation.
+// `transform_range_before_linear_transformation` returns the range of values
+// [min_bipacked_value..max_bitpacked_value] such that
+// f(bitpacked) ∈ [min_value, max_value] <=> bitpacked ∈ [min_bitpacked_value, max_bitpacked_value]
 fn transform_range_before_linear_transformation(
     stats: &ColumnStats,
     range: RangeInclusive<u64>,
 ) -> Option<RangeInclusive<u64>> {
+    if range.is_empty() {
+        return None;
+    }
     if stats.min_value > *range.end() {
         return None;
     }

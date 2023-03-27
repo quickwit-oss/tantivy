@@ -129,7 +129,7 @@ impl BitUnpacker {
     // #Panics
     //
     // This methods panics if `num_bits` is > 32.
-    pub fn get_batch_u32s(&self, start_idx: u32, data: &[u8], output: &mut [u32]) {
+    fn get_batch_u32s(&self, start_idx: u32, data: &[u8], output: &mut [u32]) {
         assert!(
             self.bit_width() <= 32,
             "Bitwidth must be <= 32 to use this method."

@@ -230,9 +230,8 @@ impl CompactSpaceBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::column_values::u128_based::compact_space::COST_PER_BLANK_IN_BITS;
-
     use super::*;
+    use crate::column_values::u128_based::compact_space::COST_PER_BLANK_IN_BITS;
 
     #[test]
     fn test_binary_heap_pop_order() {
