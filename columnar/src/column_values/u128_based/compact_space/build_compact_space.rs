@@ -10,7 +10,7 @@ use super::{CompactSpace, RangeMapping};
 /// Put the blanks for the sorted values into a binary heap
 fn get_blanks(values_sorted: &BTreeSet<u128>) -> BinaryHeap<BlankRange> {
     let mut blanks: BinaryHeap<BlankRange> = BinaryHeap::new();
-    for (first, second) in values_sorted.iter().tuple_windows() {
+    for (first, second) in values_sorted.iter().copied().tuple_windows() {
         // Correctness Overflow: the values are deduped and sorted (BTreeSet property), that means
         // there's always space between two values.
         let blank_range = first + 1..=second - 1;
@@ -65,12 +65,12 @@ pub fn get_compact_space(
         return compact_space_builder.finish();
     }
 
-    let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
-    // Replace after stabilization of https://github.com/rust-lang/rust/issues/62924
-
     // We start by space that's limited to min_value..=max_value
-    let min_value = *values_deduped_sorted.iter().next().unwrap_or(&0);
-    let max_value = *values_deduped_sorted.iter().last().unwrap_or(&0);
+    // Replace after stabilization of https://github.com/rust-lang/rust/issues/62924
+    let min_value = values_deduped_sorted.iter().next().copied().unwrap_or(0);
+    let max_value = values_deduped_sorted.iter().last().copied().unwrap_or(0);
+
+    let mut blanks: BinaryHeap<BlankRange> = get_blanks(values_deduped_sorted);
 
     // +1 for null, in case min and max covers the whole space, we are off by one.
     let mut amplitude_compact_space = (max_value - min_value).saturating_add(1);
@@ -84,6 +84,7 @@ pub fn get_compact_space(
     let mut amplitude_bits: u8 = num_bits(amplitude_compact_space);
 
     let mut blank_collector = BlankCollector::new();
+
     // We will stage blanks until they reduce the compact space by at least 1 bit and then flush
     // them if the metadata cost is lower than the total number of saved bits.
     // Binary heap to process the gaps by their size
@@ -93,6 +94,7 @@ pub fn get_compact_space(
         let staged_spaces_sum: u128 = blank_collector.staged_blanks_sum();
         let amplitude_new_compact_space = amplitude_compact_space - staged_spaces_sum;
         let amplitude_new_bits = num_bits(amplitude_new_compact_space);
+
         if amplitude_bits == amplitude_new_bits {
             continue;
         }
@@ -100,7 +102,16 @@ pub fn get_compact_space(
         // TODO: Maybe calculate exact cost of blanks and run this more expensive computation only,
         // when amplitude_new_bits changes
         let cost = blank_collector.num_staged_blanks() * cost_per_blank;
-        if cost >= saved_bits {
+
+        // We want to end up with a compact space that fits into 32 bits.
+        // In order to deal with pathological cases, we force the algorithm to keep
+        // refining the compact space the amplitude bits is lower than 32.
+        //
+        // The worst case scenario happens for a large number of u128s regularly
+        // spread over the full u128 space.
+        //
+        // This change will force the algorithm to degenerate into dictionary encoding.
+        if amplitude_bits <= 32 && cost >= saved_bits {
             // Continue here, since although we walk over the blanks by size,
             // we can potentially save a lot at the last bits, which are smaller blanks
             //
@@ -114,6 +125,8 @@ pub fn get_compact_space(
         amplitude_bits = amplitude_new_bits;
         compact_space_builder.add_blanks(blank_collector.drain().map(|blank| blank.blank_range()));
     }
+
+    assert!(amplitude_bits <= 32);
 
     // special case, when we don't collected any blanks because:
     // * the data is empty (early exit)
@@ -199,7 +212,7 @@ impl CompactSpaceBuilder {
             covered_space.push(0..=0); // empty data case
         };
 
-        let mut compact_start: u64 = 1; // 0 is reserved for `null`
+        let mut compact_start: u32 = 1; // 0 is reserved for `null`
         let mut ranges_mapping: Vec<RangeMapping> = Vec::with_capacity(covered_space.len());
         for cov in covered_space {
             let range_mapping = super::RangeMapping {
@@ -218,6 +231,7 @@ impl CompactSpaceBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::column_values::u128_based::compact_space::COST_PER_BLANK_IN_BITS;
 
     #[test]
     fn test_binary_heap_pop_order() {
@@ -227,5 +241,12 @@ mod tests {
         blanks.push((100..=110).try_into().unwrap());
         assert_eq!(blanks.pop().unwrap().blank_size(), 101);
         assert_eq!(blanks.pop().unwrap().blank_size(), 11);
+    }
+
+    #[test]
+    fn test_worst_case_scenario() {
+        let vals: BTreeSet<u128> = (0..8).map(|i| i * ((1u128 << 34) / 8)).collect();
+        let compact_space = get_compact_space(&vals, vals.len() as u32, COST_PER_BLANK_IN_BITS);
+        assert!(compact_space.amplitude_compact_space() < u32::MAX as u128);
     }
 }
