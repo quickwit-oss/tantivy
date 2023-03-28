@@ -23,47 +23,16 @@ pub struct TextOptions {
     coerce: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 enum FastFieldOptions {
-    Enabled,
-    #[default]
-    Disabled,
-    WithTokenizer(TokenizerName),
+    IsEnabled(bool),
+    EnabledWithTokenizer { with_tokenizer: TokenizerName },
 }
 
-impl Serialize for FastFieldOptions {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
-        use serde::ser::SerializeMap;
-        match self {
-            FastFieldOptions::Enabled => serializer.serialize_bool(true),
-            FastFieldOptions::Disabled => serializer.serialize_bool(false),
-            FastFieldOptions::WithTokenizer(name) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("tokenizer", name)?;
-                map.end()
-            }
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for FastFieldOptions {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: serde::Deserializer<'de> {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum BoolOrStr {
-            Bool(bool),
-            TokenizerName { tokenizer: TokenizerName },
-        }
-        let val = serde::de::Deserialize::deserialize(deserializer)?;
-        match val {
-            BoolOrStr::Bool(true) => Ok(FastFieldOptions::Enabled),
-            BoolOrStr::Bool(false) => Ok(FastFieldOptions::Disabled),
-            BoolOrStr::TokenizerName { tokenizer } => {
-                Ok(FastFieldOptions::WithTokenizer(tokenizer))
-            }
-        }
+impl Default for FastFieldOptions {
+    fn default() -> Self {
+        FastFieldOptions::IsEnabled(false)
     }
 }
 
@@ -72,14 +41,24 @@ impl BitOr<FastFieldOptions> for FastFieldOptions {
 
     fn bitor(self, other: FastFieldOptions) -> FastFieldOptions {
         match (self, other) {
-            (FastFieldOptions::WithTokenizer(tokenizer), _)
-            | (_, FastFieldOptions::WithTokenizer(tokenizer)) => {
-                FastFieldOptions::WithTokenizer(tokenizer)
+            (
+                FastFieldOptions::EnabledWithTokenizer {
+                    with_tokenizer: tokenizer,
+                },
+                _,
+            )
+            | (
+                _,
+                FastFieldOptions::EnabledWithTokenizer {
+                    with_tokenizer: tokenizer,
+                },
+            ) => FastFieldOptions::EnabledWithTokenizer {
+                with_tokenizer: tokenizer,
+            },
+            (FastFieldOptions::IsEnabled(true), _) | (_, FastFieldOptions::IsEnabled(true)) => {
+                FastFieldOptions::IsEnabled(true)
             }
-            (FastFieldOptions::Enabled, _) | (_, FastFieldOptions::Enabled) => {
-                FastFieldOptions::Enabled
-            }
-            (_, FastFieldOptions::Disabled) => FastFieldOptions::Disabled,
+            (_, FastFieldOptions::IsEnabled(false)) => FastFieldOptions::IsEnabled(false),
         }
     }
 }
@@ -101,15 +80,20 @@ impl TextOptions {
 
     /// Returns true if and only if the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        matches!(self.fast, FastFieldOptions::Enabled)
-            || matches!(self.fast, FastFieldOptions::WithTokenizer(_))
+        matches!(self.fast, FastFieldOptions::IsEnabled(true))
+            || matches!(
+                &self.fast,
+                FastFieldOptions::EnabledWithTokenizer { with_tokenizer: _ }
+            )
     }
 
     /// Returns true if and only if the value is a fast field.
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
         match &self.fast {
-            FastFieldOptions::Enabled | FastFieldOptions::Disabled => None,
-            FastFieldOptions::WithTokenizer(tok) => Some(tok.name()),
+            FastFieldOptions::IsEnabled(true) | FastFieldOptions::IsEnabled(false) => None,
+            FastFieldOptions::EnabledWithTokenizer {
+                with_tokenizer: tokenizer,
+            } => Some(tokenizer.name()),
         }
     }
 
@@ -135,9 +119,11 @@ impl TextOptions {
     pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> TextOptions {
         if let Some(tokenizer) = tokenizer_name {
             let tokenizer = TokenizerName::from_name(tokenizer);
-            self.fast = FastFieldOptions::WithTokenizer(tokenizer)
+            self.fast = FastFieldOptions::EnabledWithTokenizer {
+                with_tokenizer: tokenizer,
+            }
         } else {
-            self.fast = FastFieldOptions::Enabled;
+            self.fast = FastFieldOptions::IsEnabled(true);
         }
         self
     }
@@ -272,7 +258,7 @@ pub const STRING: TextOptions = TextOptions {
         record: IndexRecordOption::Basic,
     }),
     stored: false,
-    fast: FastFieldOptions::Disabled,
+    fast: FastFieldOptions::IsEnabled(false),
     coerce: false,
 };
 
@@ -285,7 +271,7 @@ pub const TEXT: TextOptions = TextOptions {
     }),
     stored: false,
     coerce: false,
-    fast: FastFieldOptions::Disabled,
+    fast: FastFieldOptions::IsEnabled(false),
 };
 
 impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
@@ -313,7 +299,7 @@ impl From<StoredFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: true,
-            fast: FastFieldOptions::Disabled,
+            fast: FastFieldOptions::IsEnabled(false),
             coerce: false,
         }
     }
@@ -324,7 +310,7 @@ impl From<CoerceFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldOptions::Disabled,
+            fast: FastFieldOptions::IsEnabled(false),
             coerce: true,
         }
     }
@@ -335,7 +321,7 @@ impl From<FastFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldOptions::Enabled,
+            fast: FastFieldOptions::IsEnabled(true),
             coerce: false,
         }
     }
@@ -401,36 +387,40 @@ mod tests {
     #[test]
     fn serde_fast_field_tokenizer() {
         let json = r#" {
-            "fast": { "tokenizer": "default" }
+            "fast": { "with_tokenizer": "default" }
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldOptions::WithTokenizer(TokenizerName::from_static("default"))
+            FastFieldOptions::EnabledWithTokenizer {
+                with_tokenizer: TokenizerName::from_static("default")
+            }
         );
         let options: TextOptions =
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldOptions::WithTokenizer(TokenizerName::from_static("default"))
+            FastFieldOptions::EnabledWithTokenizer {
+                with_tokenizer: TokenizerName::from_static("default")
+            }
         );
 
         let json = r#" {
             "fast": true
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::Enabled);
+        assert_eq!(options.fast, FastFieldOptions::IsEnabled(true));
         let options: TextOptions =
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::Enabled);
+        assert_eq!(options.fast, FastFieldOptions::IsEnabled(true));
 
         let json = r#" {
             "fast": false
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::Disabled);
+        assert_eq!(options.fast, FastFieldOptions::IsEnabled(false));
         let options: TextOptions =
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::Disabled);
+        assert_eq!(options.fast, FastFieldOptions::IsEnabled(false));
     }
 }
