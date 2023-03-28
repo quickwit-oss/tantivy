@@ -332,6 +332,9 @@ where TValueWriter: value::ValueWriter
 mod test {
     use std::io;
     use std::ops::Bound;
+    use std::sync::Arc;
+
+    use common::OwnedBytes;
 
     use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
 
@@ -386,6 +389,7 @@ mod test {
             assert!(sstable_writer.insert([17u8, 20u8], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
+        // on change, this should be kept in sync with :/src/termdict/fst_termdict/mod.rs test
         assert_eq!(
             &buffer,
             &[
@@ -419,6 +423,23 @@ mod test {
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &[17u8, 20u8]);
         assert!(!sstable_reader.advance().unwrap());
+    }
+
+    #[test]
+    fn test_error_reading_fst_with_sstable() {
+        let fst_file = OwnedBytes::new(vec![
+            2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 157, 194, 231, 1, 0, 0, 0, 0, 0,
+            0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 2, 0, 0, 0, 0, 1, 2, 5, 56, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+        ]);
+
+        let fst_file = FileSlice::new(Arc::new(fst_file));
+
+        match Dictionary::<VoidSSTable>::open(fst_file) {
+            Ok(_) => panic!("successfully parsed fst with sstable"),
+            Err(e) => assert!(e.to_string().contains("Invalid dictionary type")),
+        }
     }
 
     #[test]
