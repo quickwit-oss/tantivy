@@ -171,7 +171,7 @@ mod tests {
             index_writer.set_merge_policy(Box::new(log_merge_policy));
 
             // after every commit the merge checker is started, it will merge only segments with 1
-            // element in it because of the max_merge_size.
+            // element in it because of the max_docs_before_merge.
             index_writer.add_document(doc!(int_field=>1_u64))?;
             index_writer.commit()?;
 
