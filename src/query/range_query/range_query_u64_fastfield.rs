@@ -33,7 +33,7 @@ impl FastFieldRangeWeight {
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let fast_field_reader = reader.fast_fields();
-        let Some(column) = fast_field_reader.u64_lenient(&self.field)? else {
+        let Some((column, _)) = fast_field_reader.u64_lenient(&self.field)? else {
             return Ok(Box::new(EmptyScorer));
         };
         let value_range = bound_to_value_range(

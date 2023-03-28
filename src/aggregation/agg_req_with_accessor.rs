@@ -46,6 +46,15 @@ pub struct BucketAggregationWithAccessor {
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
+fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
+    &[
+        ColumnType::F64,
+        ColumnType::U64,
+        ColumnType::I64,
+        ColumnType::DateTime,
+    ]
+}
+
 impl BucketAggregationWithAccessor {
     fn try_from_bucket(
         bucket: &BucketAggregationType,
@@ -57,19 +66,31 @@ impl BucketAggregationWithAccessor {
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
                 field: field_name, ..
-            }) => get_ff_reader_and_validate(reader, field_name)?,
+            }) => get_ff_reader_and_validate(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
-            }) => get_ff_reader_and_validate(reader, field_name)?,
+            }) => get_ff_reader_and_validate(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?,
             BucketAggregationType::DateHistogram(DateHistogramAggregationReq {
                 field: field_name,
                 ..
-            }) => get_ff_reader_and_validate(reader, field_name)?,
+            }) => get_ff_reader_and_validate(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?,
             BucketAggregationType::Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
                 str_dict_column = reader.fast_fields().str(field_name)?;
-                get_ff_reader_and_validate(reader, field_name)?
+                get_ff_reader_and_validate(reader, field_name, None)?
             }
         };
         let sub_aggregation = sub_aggregation.clone();
@@ -110,7 +131,11 @@ impl MetricAggregationWithAccessor {
             | MetricAggregation::Min(MinAggregation { field: field_name })
             | MetricAggregation::Stats(StatsAggregation { field: field_name })
             | MetricAggregation::Sum(SumAggregation { field: field_name }) => {
-                let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
+                let (accessor, field_type) = get_ff_reader_and_validate(
+                    reader,
+                    field_name,
+                    Some(get_numeric_or_date_column_types()),
+                )?;
 
                 Ok(MetricAggregationWithAccessor {
                     accessor,
@@ -157,10 +182,11 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
 fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
+    allowed_column_types: Option<&[ColumnType]>,
 ) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
     let ff_fields = reader.fast_fields();
     let ff_field_with_type = ff_fields
-        .u64_lenient_with_type(field_name)?
+        .u64_lenient_for_type(allowed_column_types, field_name)?
         .unwrap_or_else(|| {
             (
                 Column::build_empty_column(reader.num_docs()),

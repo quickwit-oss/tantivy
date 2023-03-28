@@ -252,31 +252,41 @@ impl FastFieldReaders {
         Ok(columns)
     }
 
-    /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
-    #[doc(hidden)]
-    pub fn u64_lenient(&self, field_name: &str) -> crate::Result<Option<Column<u64>>> {
-        Ok(self
-            .u64_lenient_with_type(field_name)?
-            .map(|(u64_column, _)| u64_column))
-    }
-
-    /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
+    /// Returns the `u64` column used to represent any `u64`-mapped typed (String/Bytes term ids,
+    /// i64, u64, f64, DateTime).
     ///
     /// Returns Ok(None) for empty columns
     #[doc(hidden)]
-    pub fn u64_lenient_with_type(
+    pub fn u64_lenient_for_type(
         &self,
+        type_white_list: Option<&[ColumnType]>,
         field_name: &str,
     ) -> crate::Result<Option<(Column<u64>, ColumnType)>> {
         let Some(resolved_field_name) = self.resolve_field(field_name)? else {
             return Ok(None);
         };
         for col in self.columnar.read_columns(&resolved_field_name)? {
+            if let Some(type_white_list) = type_white_list {
+                if !type_white_list.contains(&col.column_type()) {
+                    continue;
+                }
+            }
             if let Some(col_u64) = col.open_u64_lenient()? {
                 return Ok(Some((col_u64, col.column_type())));
             }
         }
         Ok(None)
+    }
+
+    /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
+    ///
+    /// Returns Ok(None) for empty columns
+    #[doc(hidden)]
+    pub fn u64_lenient(
+        &self,
+        field_name: &str,
+    ) -> crate::Result<Option<(Column<u64>, ColumnType)>> {
+        self.u64_lenient_for_type(None, field_name)
     }
 
     /// Returns the `i64` fast field reader reader associated with `field`.
