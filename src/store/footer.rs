@@ -2,13 +2,13 @@ use std::io;
 
 use common::{BinarySerializable, FixedSize, HasLen};
 
+use super::{Decompressor, DOC_STORE_VERSION};
 use crate::directory::FileSlice;
-use crate::store::Compressor;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocStoreFooter {
     pub offset: u64,
-    pub compressor: Compressor,
+    pub decompressor: Decompressor,
 }
 
 /// Serialises the footer to a byte-array
@@ -16,32 +16,43 @@ pub struct DocStoreFooter {
 /// - compressor id: 1 byte
 /// - reserved for future use: 15 bytes
 impl BinarySerializable for DocStoreFooter {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        BinarySerializable::serialize(&DOC_STORE_VERSION, writer)?;
         BinarySerializable::serialize(&self.offset, writer)?;
-        BinarySerializable::serialize(&self.compressor.get_id(), writer)?;
+        BinarySerializable::serialize(&self.decompressor.get_id(), writer)?;
         writer.write_all(&[0; 15])?;
         Ok(())
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let doc_store_version = u32::deserialize(reader)?;
+        if doc_store_version != DOC_STORE_VERSION {
+            panic!(
+                "actual doc store version: {}, expected: {}",
+                doc_store_version, DOC_STORE_VERSION
+            );
+        }
         let offset = u64::deserialize(reader)?;
         let compressor_id = u8::deserialize(reader)?;
         let mut skip_buf = [0; 15];
         reader.read_exact(&mut skip_buf)?;
         Ok(DocStoreFooter {
             offset,
-            compressor: Compressor::from_id(compressor_id),
+            decompressor: Decompressor::from_id(compressor_id),
         })
     }
 }
 
 impl FixedSize for DocStoreFooter {
-    const SIZE_IN_BYTES: usize = 24;
+    const SIZE_IN_BYTES: usize = 28;
 }
 
 impl DocStoreFooter {
-    pub fn new(offset: u64, compressor: Compressor) -> Self {
-        DocStoreFooter { offset, compressor }
+    pub fn new(offset: u64, decompressor: Decompressor) -> Self {
+        DocStoreFooter {
+            offset,
+            decompressor,
+        }
     }
 
     pub fn extract_footer(file: FileSlice) -> io::Result<(DocStoreFooter, FileSlice)> {

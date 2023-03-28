@@ -8,12 +8,17 @@ use crate::Score;
 #[derive(Clone)]
 pub enum LogicalLiteral {
     Term(Term),
-    Phrase(Vec<(usize, Term)>),
+    Phrase(Vec<(usize, Term)>, u32),
     Range {
-        field: Field,
+        field: String,
         value_type: Type,
         lower: Bound<Term>,
         upper: Bound<Term>,
+    },
+    Set {
+        field: Field,
+        value_type: Type,
+        elements: Vec<Term>,
     },
     All,
 }
@@ -49,9 +54,9 @@ impl fmt::Debug for LogicalAst {
                 if clause.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
-                    let (ref occur, ref subquery) = clause[0];
+                    let (occur, subquery) = &clause[0];
                     write!(formatter, "({}{:?}", occur_letter(*occur), subquery)?;
-                    for &(ref occur, ref subquery) in &clause[1..] {
+                    for (occur, subquery) in &clause[1..] {
                         write!(formatter, " {}{:?}", occur_letter(*occur), subquery)?;
                     }
                     formatter.write_str(")")?;
@@ -74,12 +79,40 @@ impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
-            LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),
+            LogicalLiteral::Phrase(ref terms, slop) => {
+                write!(formatter, "\"{:?}\"", terms)?;
+                if slop > 0 {
+                    write!(formatter, "~{:?}", slop)
+                } else {
+                    Ok(())
+                }
+            }
             LogicalLiteral::Range {
                 ref lower,
                 ref upper,
                 ..
             } => write!(formatter, "({:?} TO {:?})", lower, upper),
+            LogicalLiteral::Set { ref elements, .. } => {
+                const MAX_DISPLAYED: usize = 10;
+
+                write!(formatter, "IN [")?;
+                for (i, element) in elements.iter().enumerate() {
+                    if i == 0 {
+                        write!(formatter, "{:?}", element)?;
+                    } else if i == MAX_DISPLAYED - 1 {
+                        write!(
+                            formatter,
+                            ", {:?}, ... ({} more)",
+                            element,
+                            elements.len() - i - 1
+                        )?;
+                        break;
+                    } else {
+                        write!(formatter, ", {:?}", element)?;
+                    }
+                }
+                write!(formatter, "]")
+            }
             LogicalLiteral::All => write!(formatter, "*"),
         }
     }

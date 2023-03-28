@@ -10,12 +10,12 @@ pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
 /// `Warmer` can be used to maintain segment-level state e.g. caches.
 ///
-/// They must be registered with the [super::IndexReaderBuilder].
+/// They must be registered with the [`IndexReaderBuilder`](super::IndexReaderBuilder).
 pub trait Warmer: Sync + Send {
-    /// Perform any warming work using the provided [Searcher].
+    /// Perform any warming work using the provided [`Searcher`].
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
-    /// Discards internal state for any [SearcherGeneration] not provided.
+    /// Discards internal state for any [`SearcherGeneration`] not provided.
     fn garbage_collect(&self, live_generations: &[&SearcherGeneration]);
 }
 
@@ -38,11 +38,11 @@ impl WarmingState {
         }))))
     }
 
-    /// Start tracking a new generation of [Searcher], and [Warmer::warm] it if there are active
+    /// Start tracking a new generation of [`Searcher`], and [`Warmer::warm`] it if there are active
     /// warmers.
     ///
-    /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are
-    /// active warmers.
+    /// A background GC thread for [`Warmer::garbage_collect`] calls is uniquely created if there
+    /// are active warmers.
     pub fn warm_new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
         self.0
             .lock()
@@ -90,7 +90,7 @@ impl WarmingStateInner {
         Ok(())
     }
 
-    /// Attempt to upgrade the weak Warmer references, pruning those which cannot be upgraded.
+    /// Attempt to upgrade the weak `Warmer` references, pruning those which cannot be upgraded.
     /// Return the strong references.
     fn pruned_warmers(&mut self) -> Vec<Arc<dyn Warmer>> {
         let strong_warmers = self
@@ -102,7 +102,7 @@ impl WarmingStateInner {
         strong_warmers
     }
 
-    /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have
+    /// [`Warmer::garbage_collect`] active warmers if some searcher generation is observed to have
     /// been dropped.
     fn gc_maybe(&mut self) -> bool {
         let live_generations = self.searcher_generation_inventory.list();
@@ -144,10 +144,10 @@ impl WarmingStateInner {
         Ok(true)
     }
 
-    /// Every [GC_INTERVAL] attempt to GC, with panics caught and logged using
-    /// [std::panic::catch_unwind].
+    /// Every [`GC_INTERVAL`] attempt to GC, with panics caught and logged using
+    /// [`std::panic::catch_unwind`].
     fn gc_loop(inner: Weak<Mutex<WarmingStateInner>>) {
-        for _ in crossbeam::channel::tick(GC_INTERVAL) {
+        for _ in crossbeam_channel::tick(GC_INTERVAL) {
             if let Some(inner) = inner.upgrade() {
                 // rely on deterministic gc in tests
                 #[cfg(not(test))]
@@ -273,7 +273,6 @@ mod tests {
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .num_warming_threads(num_warming_threads)
-            .num_searchers(num_searchers)
             .warmers(vec![
                 Arc::downgrade(&warmer1) as Weak<dyn Warmer>,
                 Arc::downgrade(&warmer2) as Weak<dyn Warmer>,

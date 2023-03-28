@@ -3,6 +3,7 @@ mod phrase_scorer;
 mod phrase_weight;
 
 pub use self::phrase_query::PhraseQuery;
+pub(crate) use self::phrase_scorer::intersection_count;
 pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
 
@@ -14,7 +15,7 @@ pub mod tests {
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
     use crate::core::Index;
-    use crate::query::{QueryParser, Weight};
+    use crate::query::{EnableScoring, QueryParser, Weight};
     use crate::schema::{Schema, Term, TEXT};
     use crate::{assert_nearly_equals, DocAddress, DocId, TERMINATED};
 
@@ -79,7 +80,8 @@ pub mod tests {
             .map(|text| Term::from_field_text(text_field, text))
             .collect();
         let phrase_query = PhraseQuery::new(terms);
-        let phrase_weight = phrase_query.phrase_weight(&searcher, false)?;
+        let phrase_weight =
+            phrase_query.phrase_weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
@@ -359,7 +361,9 @@ pub mod tests {
         let matching_docs = |query: &str| {
             let query_parser = QueryParser::for_index(&index, vec![json_field]);
             let phrase_query = query_parser.parse_query(query).unwrap();
-            let phrase_weight = phrase_query.weight(&*searcher, false).unwrap();
+            let phrase_weight = phrase_query
+                .weight(EnableScoring::disabled_from_schema(searcher.schema()))
+                .unwrap();
             let mut phrase_scorer = phrase_weight
                 .scorer(searcher.segment_reader(0), 1.0f32)
                 .unwrap();

@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::str;
+use std::{io, str};
 
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
@@ -99,7 +99,7 @@ fn test_term_dictionary_stream() -> crate::Result<()> {
         .collect();
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
-        for &(ref id, ref i) in &ids {
+        for (id, i) in &ids {
             term_dictionary_builder
                 .insert(id.as_bytes(), &make_term_info(*i as u64))
                 .unwrap();
@@ -112,14 +112,14 @@ fn test_term_dictionary_stream() -> crate::Result<()> {
         let mut streamer = term_dictionary.stream()?;
         let mut i = 0;
         while let Some((streamer_k, streamer_v)) = streamer.next() {
-            let &(ref key, ref v) = &ids[i];
+            let (key, v) = &ids[i];
             assert_eq!(streamer_k, key.as_bytes());
             assert_eq!(streamer_v, &make_term_info(*v as u64));
             i += 1;
         }
     }
 
-    let &(ref key, ref val) = &ids[2047];
+    let (key, val) = &ids[2047];
     assert_eq!(
         term_dictionary.get(key.as_bytes())?,
         Some(make_term_info(*val as u64))
@@ -160,7 +160,7 @@ fn test_stream_range() -> crate::Result<()> {
         .collect();
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
-        for &(ref id, ref i) in &ids {
+        for (id, i) in &ids {
             term_dictionary_builder
                 .insert(id.as_bytes(), &make_term_info(*i as u64))
                 .unwrap();
@@ -173,14 +173,14 @@ fn test_stream_range() -> crate::Result<()> {
     let term_dictionary: TermDictionary = TermDictionary::open(file)?;
     {
         for i in (0..20).chain(6000..8_000) {
-            let &(ref target_key, _) = &ids[i];
+            let (target_key, _) = &ids[i];
             let mut streamer = term_dictionary
                 .range()
                 .ge(target_key.as_bytes())
                 .into_stream()?;
             for j in 0..3 {
                 let (streamer_k, streamer_v) = streamer.next().unwrap();
-                let &(ref key, ref v) = &ids[i + j];
+                let (key, v) = &ids[i + j];
                 assert_eq!(str::from_utf8(streamer_k).unwrap(), key);
                 assert_eq!(streamer_v.doc_freq, *v);
                 assert_eq!(streamer_v, &make_term_info(*v as u64));
@@ -190,14 +190,14 @@ fn test_stream_range() -> crate::Result<()> {
 
     {
         for i in (0..20).chain(BLOCK_SIZE - 10..BLOCK_SIZE + 10) {
-            let &(ref target_key, _) = &ids[i];
+            let (target_key, _) = &ids[i];
             let mut streamer = term_dictionary
                 .range()
                 .gt(target_key.as_bytes())
                 .into_stream()?;
             for j in 0..3 {
                 let (streamer_k, streamer_v) = streamer.next().unwrap();
-                let &(ref key, ref v) = &ids[i + j + 1];
+                let (key, v) = &ids[i + j + 1];
                 assert_eq!(streamer_k, key.as_bytes());
                 assert_eq!(streamer_v.doc_freq, *v);
             }
@@ -207,8 +207,8 @@ fn test_stream_range() -> crate::Result<()> {
     {
         for i in (0..20).chain(BLOCK_SIZE - 10..BLOCK_SIZE + 10) {
             for j in 0..3 {
-                let &(ref fst_key, _) = &ids[i];
-                let &(ref last_key, _) = &ids[i + j];
+                let (fst_key, _) = &ids[i];
+                let (last_key, _) = &ids[i + j];
                 let mut streamer = term_dictionary
                     .range()
                     .ge(fst_key.as_bytes())
@@ -229,10 +229,10 @@ fn test_empty_string() -> crate::Result<()> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
         term_dictionary_builder
-            .insert(&[], &make_term_info(1_u64))
+            .insert([], &make_term_info(1_u64))
             .unwrap();
         term_dictionary_builder
-            .insert(&[1u8], &make_term_info(2_u64))
+            .insert([1u8], &make_term_info(2_u64))
             .unwrap();
         term_dictionary_builder.finish()?
     };
@@ -247,12 +247,12 @@ fn test_empty_string() -> crate::Result<()> {
     Ok(())
 }
 
-fn stream_range_test_dict() -> crate::Result<TermDictionary> {
+fn stream_range_test_dict() -> io::Result<TermDictionary> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
         for i in 0u8..10u8 {
             let number_arr = [i; 1];
-            term_dictionary_builder.insert(&number_arr, &make_term_info(i as u64))?;
+            term_dictionary_builder.insert(number_arr, &make_term_info(i as u64))?;
         }
         term_dictionary_builder.finish()?
     };

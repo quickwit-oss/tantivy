@@ -1,31 +1,29 @@
-mod pool;
 mod warming;
 
 use std::convert::TryInto;
-use std::io;
 use std::sync::atomic::AtomicU64;
 use std::sync::{atomic, Arc, Weak};
 
+use arc_swap::ArcSwap;
 pub use warming::Warmer;
 
-pub use self::pool::LeasedItem;
-use self::pool::Pool;
 use self::warming::WarmingState;
-use crate::core::searcher::SearcherGeneration;
+use crate::core::searcher::{SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
+use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
 ///
 /// Regardless of whether you search and index in the same process, tantivy does not necessarily
-/// reflects the change that are commited to your index. `ReloadPolicy` precisely helps you define
+/// reflects the change that are committed to your index. `ReloadPolicy` precisely helps you define
 /// when you want your index to be reloaded.
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
     /// The index is entirely reloaded manually.
     /// All updates of the index should be manual.
     ///
-    /// No change is reflected automatically. You are required to call `IndexReader::reload()`
+    /// No change is reflected automatically. You are required to call [`IndexReader::reload()`]
     /// manually.
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
@@ -33,31 +31,31 @@ pub enum ReloadPolicy {
     OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
-/// [IndexReader] builder
+/// [`IndexReader`] builder
 ///
 /// It makes it possible to configure:
-/// - [Searcher] pool size
-/// - [ReloadPolicy] defining when new index versions are detected
-/// - [Warmer] implementations
+/// - [`ReloadPolicy`] defining when new index versions are detected
+/// - [`Warmer`] implementations
 /// - number of warming threads, for parallelizing warming work
+/// - The cache size of the underlying doc store readers.
 #[derive(Clone)]
 pub struct IndexReaderBuilder {
-    num_searchers: usize,
     reload_policy: ReloadPolicy,
     index: Index,
     warmers: Vec<Weak<dyn Warmer>>,
     num_warming_threads: usize,
+    doc_store_cache_num_blocks: usize,
 }
 
 impl IndexReaderBuilder {
     #[must_use]
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
-            num_searchers: num_cpus::get(),
             reload_policy: ReloadPolicy::OnCommit,
             index,
             warmers: Vec::new(),
             num_warming_threads: 1,
+            doc_store_cache_num_blocks: DOCSTORE_CACHE_CAPACITY,
         }
     }
 
@@ -73,15 +71,12 @@ impl IndexReaderBuilder {
             self.warmers,
             searcher_generation_inventory.clone(),
         )?;
-        let inner_reader = InnerIndexReader {
-            index: self.index,
-            num_searchers: self.num_searchers,
-            searcher_pool: Pool::new(),
+        let inner_reader = InnerIndexReader::new(
+            self.doc_store_cache_num_blocks,
+            self.index,
             warming_state,
-            searcher_generation_counter: Default::default(),
             searcher_generation_inventory,
-        };
-        inner_reader.reload()?;
+        )?;
         let inner_reader_arc = Arc::new(inner_reader);
         let watch_handle_opt: Option<WatchHandle> = match self.reload_policy {
             ReloadPolicy::Manual => {
@@ -113,23 +108,26 @@ impl IndexReaderBuilder {
 
     /// Sets the reload_policy.
     ///
-    /// See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
+    /// See [`ReloadPolicy`] for more details.
     #[must_use]
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
         self
     }
 
-    /// Sets the number of [Searcher] to pool.
+    /// Sets the cache size of the doc store readers.
     ///
-    /// See [IndexReader::searcher()].
+    /// The doc store readers cache by default DOCSTORE_CACHE_CAPACITY(100) decompressed blocks.
     #[must_use]
-    pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
-        self.num_searchers = num_searchers;
+    pub fn doc_store_cache_num_blocks(
+        mut self,
+        doc_store_cache_num_blocks: usize,
+    ) -> IndexReaderBuilder {
+        self.doc_store_cache_num_blocks = doc_store_cache_num_blocks;
         self
     }
 
-    /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    /// Set the [`Warmer`]s that are invoked when reloading searchable segments.
     #[must_use]
     pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
         self.warmers = warmers;
@@ -138,8 +136,8 @@ impl IndexReaderBuilder {
 
     /// Sets the number of warming threads.
     ///
-    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the
-    /// [IndexReader].
+    /// This allows parallelizing warming work when there are multiple [`Warmer`] registered with
+    /// the [`IndexReader`].
     #[must_use]
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
@@ -156,23 +154,49 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 }
 
 struct InnerIndexReader {
-    num_searchers: usize,
+    doc_store_cache_num_blocks: usize,
     index: Index,
     warming_state: WarmingState,
-    searcher_pool: Pool<Searcher>,
+    searcher: arc_swap::ArcSwap<SearcherInner>,
     searcher_generation_counter: Arc<AtomicU64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
 
 impl InnerIndexReader {
-    /// Opens the freshest segments `SegmentReader`.
+    fn new(
+        doc_store_cache_num_blocks: usize,
+        index: Index,
+        warming_state: WarmingState,
+        // The searcher_generation_inventory is not used as source, but as target to track the
+        // loaded segments.
+        searcher_generation_inventory: Inventory<SearcherGeneration>,
+    ) -> crate::Result<Self> {
+        let searcher_generation_counter: Arc<AtomicU64> = Default::default();
+
+        let searcher = Self::create_searcher(
+            &index,
+            doc_store_cache_num_blocks,
+            &warming_state,
+            &searcher_generation_counter,
+            &searcher_generation_inventory,
+        )?;
+        Ok(InnerIndexReader {
+            doc_store_cache_num_blocks,
+            index,
+            warming_state,
+            searcher: ArcSwap::from(searcher),
+            searcher_generation_counter,
+            searcher_generation_inventory,
+        })
+    }
+    /// Opens the freshest segments [`SegmentReader`].
     ///
     /// This function acquires a lot to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(&self) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
-        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.index.searchable_segments()?;
+        let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
+        let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
             .map(SegmentReader::open)
@@ -180,41 +204,60 @@ impl InnerIndexReader {
         Ok(segment_readers)
     }
 
-    fn create_new_searcher_generation(
-        &self,
+    fn track_segment_readers_in_inventory(
         segment_readers: &[SegmentReader],
+        searcher_generation_counter: &Arc<AtomicU64>,
+        searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {
-        let generation_id = self
-            .searcher_generation_counter
-            .fetch_add(1, atomic::Ordering::Relaxed);
+        let generation_id = searcher_generation_counter.fetch_add(1, atomic::Ordering::AcqRel);
         let searcher_generation =
             SearcherGeneration::from_segment_readers(segment_readers, generation_id);
-        self.searcher_generation_inventory
-            .track(searcher_generation)
+        searcher_generation_inventory.track(searcher_generation)
+    }
+
+    fn create_searcher(
+        index: &Index,
+        doc_store_cache_num_blocks: usize,
+        warming_state: &WarmingState,
+        searcher_generation_counter: &Arc<AtomicU64>,
+        searcher_generation_inventory: &Inventory<SearcherGeneration>,
+    ) -> crate::Result<Arc<SearcherInner>> {
+        let segment_readers = Self::open_segment_readers(index)?;
+        let searcher_generation = Self::track_segment_readers_in_inventory(
+            &segment_readers,
+            searcher_generation_counter,
+            searcher_generation_inventory,
+        );
+
+        let schema = index.schema();
+        let searcher = Arc::new(SearcherInner::new(
+            schema,
+            index.clone(),
+            segment_readers,
+            searcher_generation,
+            doc_store_cache_num_blocks,
+        )?);
+
+        warming_state.warm_new_searcher_generation(&searcher.clone().into())?;
+        Ok(searcher)
     }
 
     fn reload(&self) -> crate::Result<()> {
-        let segment_readers = self.open_segment_readers()?;
-        let searcher_generation = self.create_new_searcher_generation(&segment_readers);
-        let schema = self.index.schema();
-        let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
-            Searcher::new(
-                schema.clone(),
-                self.index.clone(),
-                segment_readers.clone(),
-                searcher_generation.clone(),
-            )
-        })
-        .take(self.num_searchers)
-        .collect::<io::Result<_>>()?;
-        self.warming_state
-            .warm_new_searcher_generation(&searchers[0])?;
-        self.searcher_pool.publish_new_generation(searchers);
+        let searcher = Self::create_searcher(
+            &self.index,
+            self.doc_store_cache_num_blocks,
+            &self.warming_state,
+            &self.searcher_generation_counter,
+            &self.searcher_generation_inventory,
+        )?;
+
+        self.searcher.store(searcher);
+
         Ok(())
     }
 
-    fn searcher(&self) -> LeasedItem<Searcher> {
-        self.searcher_pool.acquire()
+    fn searcher(&self) -> Searcher {
+        self.searcher.load().clone().into()
     }
 }
 
@@ -223,8 +266,7 @@ impl InnerIndexReader {
 /// It controls when a new version of the index should be loaded and lends
 /// you instances of `Searcher` for the last loaded version.
 ///
-/// `Clone` does not clone the different pool of searcher. `IndexReader`
-/// just wraps and `Arc`.
+/// `IndexReader` just wraps an `Arc`.
 #[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
@@ -240,7 +282,7 @@ impl IndexReader {
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///
-    /// If you set up the `OnCommit` `ReloadPolicy` (which is the default)
+    /// If you set up the [`ReloadPolicy::OnCommit`] (which is the default)
     /// every commit should be rapidly reflected on your `IndexReader` and you should
     /// not need to call `reload()` at all.
     ///
@@ -254,13 +296,10 @@ impl IndexReader {
     ///
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
     ///
     /// The same searcher must be used for a given query, as it ensures
     /// the use of a consistent segment set.
-    pub fn searcher(&self) -> LeasedItem<Searcher> {
+    pub fn searcher(&self) -> Searcher {
         self.inner.searcher()
     }
 }

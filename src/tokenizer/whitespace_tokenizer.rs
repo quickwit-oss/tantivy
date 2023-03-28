@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 
-use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use super::{Token, TokenStream, Tokenizer};
 
 /// Tokenize the text by splitting on whitespaces.
 #[derive(Clone)]
@@ -13,12 +13,13 @@ pub struct WhitespaceTokenStream<'a> {
 }
 
 impl Tokenizer for WhitespaceTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(WhitespaceTokenStream {
+    type TokenStream<'a> = WhitespaceTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> WhitespaceTokenStream<'a> {
+        WhitespaceTokenStream {
             text,
             chars: text.char_indices(),
             token: Token::default(),
-        })
+        }
     }
 }
 
@@ -26,7 +27,7 @@ impl<'a> WhitespaceTokenStream<'a> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
-            .filter(|&(_, ref c)| c.is_ascii_whitespace())
+            .filter(|(_, c)| c.is_ascii_whitespace())
             .map(|(offset, _)| offset)
             .next()
             .unwrap_or(self.text.len())

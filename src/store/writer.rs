@@ -1,17 +1,13 @@
-use std::io::{self, Write};
+use std::io;
 
-use common::{BinarySerializable, CountingWriter, VInt};
+use common::BinarySerializable;
 
 use super::compressors::Compressor;
-use super::footer::DocStoreFooter;
-use super::index::SkipIndexBuilder;
 use super::StoreReader;
-use crate::directory::{TerminatingWrite, WritePtr};
-use crate::schema::Document;
-use crate::store::index::Checkpoint;
+use crate::directory::WritePtr;
+use crate::schema::{Document, Schema};
+use crate::store::store_compressor::BlockCompressor;
 use crate::DocId;
-
-const BLOCK_SIZE: usize = 16_384;
 
 /// Write tantivy's [`Store`](./index.html)
 ///
@@ -22,12 +18,11 @@ const BLOCK_SIZE: usize = 16_384;
 /// The skip list index on the other hand, is built in memory.
 pub struct StoreWriter {
     compressor: Compressor,
-    doc: DocId,
-    first_doc_in_block: DocId,
-    offset_index_writer: SkipIndexBuilder,
-    writer: CountingWriter<WritePtr>,
-    intermediary_buffer: Vec<u8>,
+    block_size: usize,
+    num_docs_in_current_block: DocId,
     current_block: Vec<u8>,
+    doc_pos: Vec<u32>,
+    block_compressor: BlockCompressor,
 }
 
 impl StoreWriter {
@@ -35,16 +30,21 @@ impl StoreWriter {
     ///
     /// The store writer will writes blocks on disc as
     /// document are added.
-    pub fn new(writer: WritePtr, compressor: Compressor) -> StoreWriter {
-        StoreWriter {
+    pub fn new(
+        writer: WritePtr,
+        compressor: Compressor,
+        block_size: usize,
+        dedicated_thread: bool,
+    ) -> io::Result<StoreWriter> {
+        let block_compressor = BlockCompressor::new(compressor, writer, dedicated_thread)?;
+        Ok(StoreWriter {
             compressor,
-            doc: 0,
-            first_doc_in_block: 0,
-            offset_index_writer: SkipIndexBuilder::new(),
-            writer: CountingWriter::wrap(writer),
-            intermediary_buffer: Vec::new(),
+            block_size,
+            num_docs_in_current_block: 0,
+            doc_pos: Vec::new(),
             current_block: Vec::new(),
-        }
+            block_compressor,
+        })
     }
 
     pub(crate) fn compressor(&self) -> Compressor {
@@ -53,42 +53,65 @@ impl StoreWriter {
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        self.intermediary_buffer.capacity() + self.current_block.capacity()
+        self.current_block.capacity() + self.doc_pos.capacity() * std::mem::size_of::<u32>()
     }
 
-    /// Store bytes of a serialized document.
-    ///
-    /// The document id is implicitely the current number
-    /// of documents.
-    pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
-        let doc_num_bytes = serialized_document.len();
-        VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
-        self.current_block.write_all(serialized_document)?;
-        self.doc += 1;
-        if self.current_block.len() > BLOCK_SIZE {
-            self.write_and_compress_block()?;
+    /// Checks if the current block is full, and if so, compresses and flushes it.
+    fn check_flush_block(&mut self) -> io::Result<()> {
+        // this does not count the VInt storing the index lenght itself, but it is negligible in
+        // front of everything else.
+        let index_len = self.doc_pos.len() * std::mem::size_of::<usize>();
+        if self.current_block.len() + index_len > self.block_size {
+            self.send_current_block_to_compressor()?;
         }
+        Ok(())
+    }
+
+    /// Flushes current uncompressed block and sends to compressor.
+    fn send_current_block_to_compressor(&mut self) -> io::Result<()> {
+        // We don't do anything if the current block is empty to begin with.
+        if self.current_block.is_empty() {
+            return Ok(());
+        }
+
+        let size_of_u32 = std::mem::size_of::<u32>();
+        self.current_block
+            .reserve((self.doc_pos.len() + 1) * size_of_u32);
+
+        for pos in self.doc_pos.iter() {
+            pos.serialize(&mut self.current_block)?;
+        }
+        (self.doc_pos.len() as u32).serialize(&mut self.current_block)?;
+
+        self.block_compressor
+            .compress_block_and_write(&self.current_block, self.num_docs_in_current_block)?;
+        self.doc_pos.clear();
+        self.current_block.clear();
+        self.num_docs_in_current_block = 0;
         Ok(())
     }
 
     /// Store a new document.
     ///
-    /// The document id is implicitely the current number
+    /// The document id is implicitly the current number
     /// of documents.
-    pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
-        self.intermediary_buffer.clear();
-        stored_document.serialize(&mut self.intermediary_buffer)?;
-        // calling store bytes would be preferable for code reuse, but then we can't use
-        // intermediary_buffer due to the borrow checker
-        // a new buffer costs ~1% indexing performance
-        let doc_num_bytes = self.intermediary_buffer.len();
-        VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
-        self.current_block
-            .write_all(&self.intermediary_buffer[..])?;
-        self.doc += 1;
-        if self.current_block.len() > BLOCK_SIZE {
-            self.write_and_compress_block()?;
-        }
+    pub fn store(&mut self, document: &Document, schema: &Schema) -> io::Result<()> {
+        self.doc_pos.push(self.current_block.len() as u32);
+        document.serialize_stored(schema, &mut self.current_block)?;
+        self.num_docs_in_current_block += 1;
+        self.check_flush_block()?;
+        Ok(())
+    }
+
+    /// Store bytes of a serialized document.
+    ///
+    /// The document id is implicitly the current number
+    /// of documents.
+    pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
+        self.doc_pos.push(self.current_block.len() as u32);
+        self.current_block.extend_from_slice(serialized_document);
+        self.num_docs_in_current_block += 1;
+        self.check_flush_block()?;
         Ok(())
     }
 
@@ -96,50 +119,10 @@ impl StoreWriter {
     /// This method is an optimization compared to iterating over the documents
     /// in the store and adding them one by one, as the store's data will
     /// not be decompressed and then recompressed.
-    pub fn stack(&mut self, store_reader: &StoreReader) -> io::Result<()> {
-        if !self.current_block.is_empty() {
-            self.write_and_compress_block()?;
-        }
-        assert_eq!(self.first_doc_in_block, self.doc);
-        let doc_shift = self.doc;
-        let start_shift = self.writer.written_bytes() as usize;
-
-        // just bulk write all of the block of the given reader.
-        self.writer
-            .write_all(store_reader.block_data()?.as_slice())?;
-
-        // concatenate the index of the `store_reader`, after translating
-        // its start doc id and its start file offset.
-        for mut checkpoint in store_reader.block_checkpoints() {
-            checkpoint.doc_range.start += doc_shift;
-            checkpoint.doc_range.end += doc_shift;
-            checkpoint.byte_range.start += start_shift;
-            checkpoint.byte_range.end += start_shift;
-            self.register_checkpoint(checkpoint);
-        }
-        Ok(())
-    }
-
-    fn register_checkpoint(&mut self, checkpoint: Checkpoint) {
-        self.offset_index_writer.insert(checkpoint.clone());
-        self.first_doc_in_block = checkpoint.doc_range.end;
-        self.doc = checkpoint.doc_range.end;
-    }
-
-    fn write_and_compress_block(&mut self) -> io::Result<()> {
-        assert!(self.doc > 0);
-        self.intermediary_buffer.clear();
-        self.compressor
-            .compress(&self.current_block[..], &mut self.intermediary_buffer)?;
-        let start_offset = self.writer.written_bytes() as usize;
-        self.writer.write_all(&self.intermediary_buffer)?;
-        let end_offset = self.writer.written_bytes() as usize;
-        let end_doc = self.doc;
-        self.register_checkpoint(Checkpoint {
-            doc_range: self.first_doc_in_block..end_doc,
-            byte_range: start_offset..end_offset,
-        });
-        self.current_block.clear();
+    pub fn stack(&mut self, store_reader: StoreReader) -> io::Result<()> {
+        // We flush the current block first before stacking
+        self.send_current_block_to_compressor()?;
+        self.block_compressor.stack_reader(store_reader)?;
         Ok(())
     }
 
@@ -148,13 +131,8 @@ impl StoreWriter {
     /// Compress the last unfinished block if any,
     /// and serializes the skip list index on disc.
     pub fn close(mut self) -> io::Result<()> {
-        if !self.current_block.is_empty() {
-            self.write_and_compress_block()?;
-        }
-        let header_offset: u64 = self.writer.written_bytes() as u64;
-        let footer = DocStoreFooter::new(header_offset, self.compressor);
-        self.offset_index_writer.write(&mut self.writer)?;
-        footer.serialize(&mut self.writer)?;
-        self.writer.terminate()
+        self.send_current_block_to_compressor()?;
+        self.block_compressor.close()?;
+        Ok(())
     }
 }

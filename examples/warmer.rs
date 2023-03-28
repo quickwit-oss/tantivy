@@ -3,9 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock, Weak};
 
 use tantivy::collector::TopDocs;
-use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, FAST, TEXT};
+use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{
     doc, DocAddress, DocId, Index, IndexReader, Opstamp, Searcher, SearcherGeneration, SegmentId,
     SegmentReader, Warmer,
@@ -18,7 +17,6 @@ use tantivy::{
 
 type ProductId = u64;
 
-/// Price
 type Price = u32;
 
 pub trait PriceFetcher: Send + Sync + 'static {
@@ -26,13 +24,13 @@ pub trait PriceFetcher: Send + Sync + 'static {
 }
 
 struct DynamicPriceColumn {
-    field: Field,
+    field: String,
     price_cache: RwLock<HashMap<(SegmentId, Option<Opstamp>), Arc<Vec<Price>>>>,
     price_fetcher: Box<dyn PriceFetcher>,
 }
 
 impl DynamicPriceColumn {
-    pub fn with_product_id_field<T: PriceFetcher>(field: Field, price_fetcher: T) -> Self {
+    pub fn with_product_id_field<T: PriceFetcher>(field: String, price_fetcher: T) -> Self {
         DynamicPriceColumn {
             field,
             price_cache: Default::default(),
@@ -49,10 +47,13 @@ impl Warmer for DynamicPriceColumn {
     fn warm(&self, searcher: &Searcher) -> tantivy::Result<()> {
         for segment in searcher.segment_readers() {
             let key = (segment.segment_id(), segment.delete_opstamp());
-            let product_id_reader = segment.fast_fields().u64(self.field)?;
+            let product_id_reader = segment
+                .fast_fields()
+                .u64(&self.field)?
+                .first_or_default_col(0);
             let product_ids: Vec<ProductId> = segment
                 .doc_ids_alive()
-                .map(|doc| product_id_reader.get(doc))
+                .map(|doc| product_id_reader.get_val(doc))
                 .collect();
             let mut prices_it = self.price_fetcher.fetch_prices(&product_ids).into_iter();
             let mut price_vals: Vec<Price> = Vec::new();
@@ -88,10 +89,10 @@ impl Warmer for DynamicPriceColumn {
     }
 }
 
-/// For the sake of this example, the table is just an editable HashMap behind a RwLock.
-/// This map represents a map (ProductId -> Price)
-///
-/// In practise, it could be fetching things from an external service, like a SQL table.
+// For the sake of this example, the table is just an editable HashMap behind a RwLock.
+// This map represents a map (ProductId -> Price)
+//
+// In practise, it could be fetching things from an external service, like a SQL table.
 #[derive(Default, Clone)]
 pub struct ExternalPriceTable {
     prices: Arc<RwLock<HashMap<ProductId, Price>>>,
@@ -124,7 +125,7 @@ fn main() -> tantivy::Result<()> {
 
     let price_table = ExternalPriceTable::default();
     let price_dynamic_column = Arc::new(DynamicPriceColumn::with_product_id_field(
-        product_id,
+        "product_id".to_string(),
         price_table.clone(),
     ));
     price_table.update_price(OLIVE_OIL, 12);
@@ -145,11 +146,7 @@ fn main() -> tantivy::Result<()> {
     let warmers: Vec<Weak<dyn Warmer>> = vec![Arc::downgrade(
         &(price_dynamic_column.clone() as Arc<dyn Warmer>),
     )];
-    let reader: IndexReader = index
-        .reader_builder()
-        .warmers(warmers)
-        .num_searchers(1)
-        .try_into()?;
+    let reader: IndexReader = index.reader_builder().warmers(warmers).try_into()?;
     reader.reload()?;
 
     let query_parser = QueryParser::for_index(&index, vec![text]);

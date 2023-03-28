@@ -6,11 +6,11 @@ use crate::directory::OwnedBytes;
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::postings::compression::{BlockDecoder, VIntDecoder};
 
-/// When accessing the position of a term, we get a positions_idx from the `Terminfo`.
-/// This means we need to skip to the `nth` positions efficiently.
+/// When accessing the positions of a term, we get a positions_idx from the `Terminfo`.
+/// This means we need to skip to the `nth` position efficiently.
 ///
 /// Blocks are compressed using bitpacking, so `skip_read` contains the number of bits
-/// (values can go from 0bit to 32 bits) required to decompress every block.
+/// (values can go from 0 to 32 bits) required to decompress every block.
 ///
 /// A given block obviously takes `(128 x  num_bit_for_the_block / num_bits_in_a_byte)`,
 /// so skipping a block without decompressing it is just a matter of advancing that many
@@ -47,7 +47,7 @@ impl PositionReader {
             bit_widths: bit_widths.clone(),
             positions: positions.clone(),
             block_decoder: BlockDecoder::default(),
-            block_offset: std::i64::MAX as u64,
+            block_offset: i64::MAX as u64,
             anchor_offset: 0u64,
             original_bit_widths: bit_widths,
             original_positions: positions,
@@ -57,7 +57,7 @@ impl PositionReader {
     fn reset(&mut self) {
         self.positions = self.original_positions.clone();
         self.bit_widths = self.original_bit_widths.clone();
-        self.block_offset = std::i64::MAX as u64;
+        self.block_offset = i64::MAX as u64;
         self.anchor_offset = 0u64;
     }
 
@@ -71,7 +71,7 @@ impl PositionReader {
             .map(|num_bits| num_bits as usize)
             .sum();
         let num_bytes_to_skip = num_bits * COMPRESSION_BLOCK_SIZE / 8;
-        self.bit_widths.advance(num_blocks as usize);
+        self.bit_widths.advance(num_blocks);
         self.positions.advance(num_bytes_to_skip);
         self.anchor_offset += (num_blocks * COMPRESSION_BLOCK_SIZE) as u64;
     }

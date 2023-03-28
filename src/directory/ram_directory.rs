@@ -15,7 +15,7 @@ use crate::directory::{
     WatchHandle, WritePtr,
 };
 
-/// Writer associated with the `RamDirectory`
+/// Writer associated with the [`RamDirectory`].
 ///
 /// The Writer just writes a buffer.
 struct VecWriter {
@@ -40,7 +40,7 @@ impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_flushed {
             warn!(
-                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop. This \
+                "You forgot to flush {:?} before its writer got Drop. Do not rely on drop. This \
                  also occurs when the indexer crashed, so you may want to check the logs for the \
                  root cause.",
                 self.path
@@ -136,18 +136,32 @@ impl RamDirectory {
         Self::default()
     }
 
+    /// Deep clones the directory.
+    ///
+    /// Ulterior writes on one of the copy
+    /// will not affect the other copy.
+    pub fn deep_clone(&self) -> RamDirectory {
+        let inner_clone = InnerDirectory {
+            fs: self.fs.read().unwrap().fs.clone(),
+            watch_router: Default::default(),
+        };
+        RamDirectory {
+            fs: Arc::new(RwLock::new(inner_clone)),
+        }
+    }
+
     /// Returns the sum of the size of the different files
-    /// in the RamDirectory.
+    /// in the [`RamDirectory`].
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
     }
 
-    /// Write a copy of all of the files saved in the RamDirectory in the target `Directory`.
+    /// Write a copy of all of the files saved in the [`RamDirectory`] in the target [`Directory`].
     ///
-    /// Files are all written using the `Directory::write` meaning, even if they were
-    /// written using the `atomic_write` api.
+    /// Files are all written using the [`Directory::open_write()`] meaning, even if they were
+    /// written using the [`Directory::atomic_write()`] api.
     ///
-    /// If an error is encounterred, files may be persisted partially.
+    /// If an error is encountered, files may be persisted partially.
     pub fn persist(&self, dest: &dyn Directory) -> crate::Result<()> {
         let wlock = self.fs.write().unwrap();
         for (path, file) in wlock.fs.iter() {
@@ -160,9 +174,9 @@ impl RamDirectory {
 }
 
 impl Directory for RamDirectory {
-    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
         let file_slice = self.open_read(path)?;
-        Ok(Box::new(file_slice))
+        Ok(Arc::new(file_slice))
     }
 
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
@@ -172,7 +186,7 @@ impl Directory for RamDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         fail_point!("RamDirectory::delete", |_| {
             Err(DeleteError::IoError {
-                io_error: io::Error::from(io::ErrorKind::Other),
+                io_error: Arc::new(io::Error::from(io::ErrorKind::Other)),
                 filepath: path.to_path_buf(),
             })
         });
@@ -184,7 +198,7 @@ impl Directory for RamDirectory {
             .fs
             .read()
             .map_err(|e| OpenReadError::IoError {
-                io_error: io::Error::new(io::ErrorKind::Other, e.to_string()),
+                io_error: Arc::new(io::Error::new(io::ErrorKind::Other, e.to_string())),
                 filepath: path.to_path_buf(),
             })?
             .exists(path))
@@ -208,7 +222,7 @@ impl Directory for RamDirectory {
             self.open_read(path)?
                 .read_bytes()
                 .map_err(|io_error| OpenReadError::IoError {
-                    io_error,
+                    io_error: Arc::new(io_error),
                     filepath: path.to_path_buf(),
                 })?;
         Ok(bytes.as_slice().to_owned())
@@ -218,7 +232,7 @@ impl Directory for RamDirectory {
         let path_buf = PathBuf::from(path);
         self.fs.write().unwrap().write(path_buf, data);
         if path == *META_FILEPATH {
-            let _ = self.fs.write().unwrap().watch_router.broadcast();
+            drop(self.fs.write().unwrap().watch_router.broadcast());
         }
         Ok(())
     }
@@ -255,5 +269,24 @@ mod tests {
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
+    }
+
+    #[test]
+    fn test_ram_directory_deep_clone() {
+        let dir = RamDirectory::default();
+        let test = Path::new("test");
+        let test2 = Path::new("test2");
+        dir.atomic_write(test, b"firstwrite").unwrap();
+        let dir_clone = dir.deep_clone();
+        assert_eq!(
+            dir_clone.atomic_read(test).unwrap(),
+            dir.atomic_read(test).unwrap()
+        );
+        dir.atomic_write(test, b"original").unwrap();
+        dir_clone.atomic_write(test, b"clone").unwrap();
+        dir_clone.atomic_write(test2, b"clone2").unwrap();
+        assert_eq!(dir.atomic_read(test).unwrap(), b"original");
+        assert_eq!(&dir_clone.atomic_read(test).unwrap(), b"clone");
+        assert_eq!(&dir_clone.atomic_read(test2).unwrap(), b"clone2");
     }
 }

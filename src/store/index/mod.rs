@@ -54,7 +54,7 @@ mod tests {
     fn test_skip_index_empty() -> io::Result<()> {
         let mut output: Vec<u8> = Vec::new();
         let skip_index_builder: SkipIndexBuilder = SkipIndexBuilder::new();
-        skip_index_builder.write(&mut output)?;
+        skip_index_builder.serialize_into(&mut output)?;
         let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         let mut skip_cursor = skip_index.checkpoints();
         assert!(skip_cursor.next().is_none());
@@ -70,7 +70,7 @@ mod tests {
             byte_range: 0..3,
         };
         skip_index_builder.insert(checkpoint.clone());
-        skip_index_builder.write(&mut output)?;
+        skip_index_builder.serialize_into(&mut output)?;
         let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         let mut skip_cursor = skip_index.checkpoints();
         assert_eq!(skip_cursor.next(), Some(checkpoint));
@@ -108,7 +108,7 @@ mod tests {
         for checkpoint in &checkpoints {
             skip_index_builder.insert(checkpoint.clone());
         }
-        skip_index_builder.write(&mut output)?;
+        skip_index_builder.serialize_into(&mut output)?;
 
         let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         assert_eq!(
@@ -167,7 +167,7 @@ mod tests {
         for checkpoint in &checkpoints {
             skip_index_builder.insert(checkpoint.clone());
         }
-        skip_index_builder.write(&mut output)?;
+        skip_index_builder.serialize_into(&mut output)?;
         assert_eq!(output.len(), 4035);
         let resulting_checkpoints: Vec<Checkpoint> = SkipIndex::open(OwnedBytes::new(output))
             .checkpoints()
@@ -193,8 +193,8 @@ mod tests {
         (0..max_len)
             .prop_flat_map(move |len: usize| {
                 (
-                    proptest::collection::vec(1usize..20, len as usize).prop_map(integrate_delta),
-                    proptest::collection::vec(1usize..26, len as usize).prop_map(integrate_delta),
+                    proptest::collection::vec(1usize..20, len).prop_map(integrate_delta),
+                    proptest::collection::vec(1usize..26, len).prop_map(integrate_delta),
                 )
                     .prop_map(|(docs, offsets)| {
                         (0..docs.len() - 1)
@@ -238,7 +238,7 @@ mod tests {
                  skip_index_builder.insert(checkpoint);
              }
              let mut buffer = Vec::new();
-             skip_index_builder.write(&mut buffer).unwrap();
+             skip_index_builder.serialize_into(&mut buffer).unwrap();
              let skip_index = SkipIndex::open(OwnedBytes::new(buffer));
              let iter_checkpoints: Vec<Checkpoint> = skip_index.checkpoints().collect();
              assert_eq!(&checkpoints[..], &iter_checkpoints[..]);

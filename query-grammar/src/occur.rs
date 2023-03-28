@@ -2,11 +2,11 @@ use std::fmt;
 use std::fmt::Write;
 
 /// Defines whether a term in a query must be present,
-/// should be present or must be not present.
+/// should be present or must not be present.
 #[derive(Debug, Clone, Hash, Copy, Eq, PartialEq)]
 pub enum Occur {
     /// For a given document to be considered for scoring,
-    /// at least one of the document with the Should or the Must
+    /// at least one of the terms with the Should or the Must
     /// Occur constraint must be within the document.
     Should,
     /// Document without the term are excluded from the search.

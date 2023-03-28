@@ -12,6 +12,10 @@ pub enum UserInputLeaf {
         lower: UserInputBound,
         upper: UserInputBound,
     },
+    Set {
+        field: Option<String>,
+        elements: Vec<String>,
+    },
 }
 
 impl Debug for UserInputLeaf {
@@ -31,6 +35,19 @@ impl Debug for UserInputLeaf {
                 upper.display_upper(formatter)?;
                 Ok(())
             }
+            UserInputLeaf::Set { field, elements } => {
+                if let Some(ref field) = field {
+                    write!(formatter, "\"{}\": ", field)?;
+                }
+                write!(formatter, "IN [")?;
+                for (i, element) in elements.iter().enumerate() {
+                    if i != 0 {
+                        write!(formatter, " ")?;
+                    }
+                    write!(formatter, "\"{}\"", element)?;
+                }
+                write!(formatter, "]")
+            }
             UserInputLeaf::All => write!(formatter, "*"),
         }
     }
@@ -40,14 +57,19 @@ impl Debug for UserInputLeaf {
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
+    pub slop: u32,
 }
 
 impl fmt::Debug for UserInputLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self.field_name {
-            Some(ref field_name) => write!(formatter, "\"{}\":\"{}\"", field_name, self.phrase),
-            None => write!(formatter, "\"{}\"", self.phrase),
+        if let Some(ref field) = self.field_name {
+            write!(formatter, "\"{}\":", field)?;
         }
+        write!(formatter, "\"{}\"", self.phrase)?;
+        if self.slop > 0 {
+            write!(formatter, "~{}", self.slop)?;
+        }
+        Ok(())
     }
 }
 

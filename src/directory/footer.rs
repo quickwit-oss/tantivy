@@ -38,7 +38,7 @@ impl Footer {
         counting_write.write_all(serde_json::to_string(&self)?.as_ref())?;
         let footer_payload_len = counting_write.written_bytes();
         BinarySerializable::serialize(&(footer_payload_len as u32), write)?;
-        BinarySerializable::serialize(&(FOOTER_MAGIC_NUMBER as u32), write)?;
+        BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, write)?;
         Ok(())
     }
 
@@ -90,9 +90,10 @@ impl Footer {
             ));
         }
 
-        let footer: Footer = serde_json::from_slice(&file.read_bytes_slice(
-            file.len() - total_footer_size..file.len() - footer_metadata_len as usize,
-        )?)?;
+        let footer: Footer =
+            serde_json::from_slice(&file.read_bytes_slice(
+                file.len() - total_footer_size..file.len() - footer_metadata_len,
+            )?)?;
 
         let body = file.slice_to(file.len() - total_footer_size);
         Ok((footer, body))
@@ -156,6 +157,7 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 mod tests {
 
     use std::io;
+    use std::sync::Arc;
 
     use common::BinarySerializable;
 
@@ -168,7 +170,7 @@ mod tests {
         let footer = Footer::new(123);
         footer.append_footer(&mut buf).unwrap();
         let owned_bytes = OwnedBytes::new(buf);
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let (footer_deser, _body) = Footer::extract_footer(fileslice).unwrap();
         assert_eq!(footer_deser.crc(), footer.crc());
     }
@@ -181,7 +183,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -198,7 +200,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
         assert_eq!(
@@ -217,7 +219,7 @@ mod tests {
 
         let owned_bytes = OwnedBytes::new(buf);
 
-        let fileslice = FileSlice::new(Box::new(owned_bytes));
+        let fileslice = FileSlice::new(Arc::new(owned_bytes));
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert_eq!(

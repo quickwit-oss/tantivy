@@ -9,7 +9,7 @@ use crc32fast::Hasher;
 
 use crate::directory::{WatchCallback, WatchCallbackList, WatchHandle};
 
-pub const POLLING_INTERVAL: Duration = Duration::from_millis(if cfg!(test) { 1 } else { 500 });
+const POLLING_INTERVAL: Duration = Duration::from_millis(if cfg!(test) { 1 } else { 500 });
 
 // Watches a file and executes registered callbacks when the file is modified.
 pub struct FileWatcher {
@@ -110,7 +110,7 @@ mod tests {
         let tmp_file = tmp_dir.path().join("watched.txt");
 
         let counter: Arc<AtomicUsize> = Default::default();
-        let (tx, rx) = crossbeam::channel::unbounded();
+        let (tx, rx) = crossbeam_channel::unbounded();
         let timeout = Duration::from_millis(100);
 
         let watcher = FileWatcher::new(&tmp_file);
@@ -153,7 +153,7 @@ mod tests {
         let tmp_file = tmp_dir.path().join("watched.txt");
 
         let counter: Arc<AtomicUsize> = Default::default();
-        let (tx, rx) = crossbeam::channel::unbounded();
+        let (tx, rx) = crossbeam_channel::unbounded();
         let timeout = Duration::from_millis(100);
 
         let watcher = FileWatcher::new(&tmp_file);

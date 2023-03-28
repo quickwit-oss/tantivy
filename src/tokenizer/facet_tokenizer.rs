@@ -1,4 +1,4 @@
-use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use super::{Token, TokenStream, Tokenizer};
 use crate::schema::FACET_SEP_BYTE;
 
 /// The `FacetTokenizer` process a `Facet` binary representation
@@ -26,13 +26,17 @@ pub struct FacetTokenStream<'a> {
 }
 
 impl Tokenizer for FacetTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+    type TokenStream<'a> = FacetTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> FacetTokenStream<'a> {
+        let token = Token {
+            position: 0,
+            ..Default::default()
+        };
         FacetTokenStream {
             text,
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
-            token: Token::default(),
+            token,
         }
-        .into()
     }
 }
 
@@ -83,7 +87,7 @@ mod tests {
 
     use super::FacetTokenizer;
     use crate::schema::Facet;
-    use crate::tokenizer::{Token, Tokenizer};
+    use crate::tokenizer::{Token, TokenStream, Tokenizer};
 
     #[test]
     fn test_facet_tokenizer() {

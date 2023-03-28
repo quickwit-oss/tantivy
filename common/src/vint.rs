@@ -5,6 +5,75 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use super::BinarySerializable;
 
+/// Variable int serializes a u128 number
+pub fn serialize_vint_u128(mut val: u128, output: &mut Vec<u8>) {
+    loop {
+        let next_byte: u8 = (val % 128u128) as u8;
+        val /= 128u128;
+        if val == 0 {
+            output.push(next_byte | STOP_BIT);
+            return;
+        } else {
+            output.push(next_byte);
+        }
+    }
+}
+
+/// Deserializes a u128 number
+///
+/// Returns the number and the slice after the vint
+pub fn deserialize_vint_u128(data: &[u8]) -> io::Result<(u128, &[u8])> {
+    let mut result = 0u128;
+    let mut shift = 0u64;
+    for i in 0..19 {
+        let b = data[i];
+        result |= u128::from(b % 128u8) << shift;
+        if b >= STOP_BIT {
+            return Ok((result, &data[i + 1..]));
+        }
+        shift += 7;
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Failed to deserialize u128 vint",
+    ))
+}
+
+///   Wrapper over a `u128` that serializes as a variable int.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VIntU128(pub u128);
+
+impl BinarySerializable for VIntU128 {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        let mut buffer = vec![];
+        serialize_vint_u128(self.0, &mut buffer);
+        writer.write_all(&buffer)
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = reader.bytes();
+        let mut result = 0u128;
+        let mut shift = 0u64;
+        loop {
+            match bytes.next() {
+                Some(Ok(b)) => {
+                    result |= u128::from(b % 128u8) << shift;
+                    if b >= STOP_BIT {
+                        return Ok(VIntU128(result));
+                    }
+                    shift += 7;
+                }
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Reach end of buffer while reading VInt",
+                    ));
+                }
+            }
+        }
+    }
+}
+
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
@@ -88,7 +157,7 @@ fn vint_len(data: &[u8]) -> usize {
 /// If the buffer does not start by a valid
 /// vint payload
 pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
-    let (result, vlen) = read_u32_vint_no_advance(*data);
+    let (result, vlen) = read_u32_vint_no_advance(data);
     *data = &data[vlen..];
     result
 }
@@ -142,7 +211,7 @@ impl VInt {
 }
 
 impl BinarySerializable for VInt {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let mut buffer = [0u8; 10];
         let num_bytes = self.serialize_into(&mut buffer);
         writer.write_all(&buffer[0..num_bytes])
@@ -176,6 +245,7 @@ impl BinarySerializable for VInt {
 mod tests {
 
     use super::{serialize_vint_u32, BinarySerializable, VInt};
+    use crate::vint::{deserialize_vint_u128, serialize_vint_u128, VIntU128};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -199,7 +269,7 @@ mod tests {
         aux_test_vint(0);
         aux_test_vint(1);
         aux_test_vint(5);
-        aux_test_vint(u64::max_value());
+        aux_test_vint(u64::MAX);
         for i in 1..9 {
             let power_of_128 = 1u64 << (7 * i);
             aux_test_vint(power_of_128 - 1u64);
@@ -217,6 +287,26 @@ mod tests {
         assert_eq!(&buffer[..len_vint], res2, "array wrong for {}", val);
     }
 
+    fn aux_test_vint_u128(val: u128) {
+        let mut data = vec![];
+        serialize_vint_u128(val, &mut data);
+        let (deser_val, _data) = deserialize_vint_u128(&data).unwrap();
+        assert_eq!(val, deser_val);
+
+        let mut out = vec![];
+        VIntU128(val).serialize(&mut out).unwrap();
+        let deser_val = VIntU128::deserialize(&mut &out[..]).unwrap();
+        assert_eq!(val, deser_val.0);
+    }
+
+    #[test]
+    fn test_vint_u128() {
+        aux_test_vint_u128(0);
+        aux_test_vint_u128(1);
+        aux_test_vint_u128(u128::MAX / 3);
+        aux_test_vint_u128(u128::MAX);
+    }
+
     #[test]
     fn test_vint_u32() {
         aux_test_serialize_vint_u32(0);
@@ -228,6 +318,6 @@ mod tests {
             aux_test_serialize_vint_u32(power_of_128);
             aux_test_serialize_vint_u32(power_of_128 + 1u32);
         }
-        aux_test_serialize_vint_u32(u32::max_value());
+        aux_test_serialize_vint_u32(u32::MAX);
     }
 }

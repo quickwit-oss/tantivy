@@ -40,25 +40,17 @@ impl FieldNormReaders {
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
         self.data.space_usage()
     }
+
+    /// Returns a handle to inner file
+    pub fn get_inner_file(&self) -> Arc<CompositeFile> {
+        self.data.clone()
+    }
 }
 
-/// Reads the fieldnorm associated to a document.
-/// The fieldnorm represents the length associated to
+/// Reads the fieldnorm associated with a document.
+///
+/// The [fieldnorm](FieldNormReader::fieldnorm) represents the length associated with
 /// a given Field of a given document.
-///
-/// This metric is important to compute the score of a
-/// document : a document having a query word in one its short fields
-/// (e.g. title)  is likely to be more relevant than in one of its longer field
-/// (e.g. body).
-///
-/// tantivy encodes `fieldnorm` on one byte with some precision loss,
-/// using the same scheme as Lucene. Each value is place on a log-scale
-/// that takes values from `0` to `255`.
-///
-/// A value on this scale is identified by a `fieldnorm_id`.
-/// Apart from compression, this scale also makes it possible to
-/// precompute computationally expensive functions of the fieldnorm
-/// in a very short array.
 #[derive(Clone)]
 pub struct FieldNormReader(ReaderImplEnum);
 
@@ -112,7 +104,7 @@ impl FieldNormReader {
         }
     }
 
-    /// Returns the `fieldnorm` associated to a doc id.
+    /// Returns the `fieldnorm` associated with a doc id.
     /// The fieldnorm is a value approximating the number
     /// of tokens in a given field of the `doc_id`.
     ///
@@ -131,7 +123,7 @@ impl FieldNormReader {
         }
     }
 
-    /// Returns the `fieldnorm_id` associated to a document.
+    /// Returns the `fieldnorm_id` associated with a document.
     #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {

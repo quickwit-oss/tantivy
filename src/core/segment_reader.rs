@@ -9,7 +9,7 @@ use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::schema::{Field, FieldType, IndexRecordOption, Schema};
+use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
@@ -38,7 +38,7 @@ pub struct SegmentReader {
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
-    fast_fields_readers: Arc<FastFieldReaders>,
+    fast_fields_readers: FastFieldReaders,
     fieldnorm_readers: FieldNormReaders,
 
     store_file: FileSlice,
@@ -89,25 +89,20 @@ impl SegmentReader {
         &self.fast_fields_readers
     }
 
-    /// Accessor to the `FacetReader` associated to a given `Field`.
-    pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
-        let field_entry = self.schema.get_field_entry(field);
-
-        match field_entry.field_type() {
-            FieldType::Facet(_) => {
-                let term_ords_reader = self.fast_fields().u64s(field)?;
-                let termdict = self
-                    .termdict_composite
-                    .open_read(field)
-                    .map(TermDictionary::open)
-                    .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
-                Ok(FacetReader::new(term_ords_reader, termdict))
-            }
-            _ => Err(crate::TantivyError::InvalidArgument(format!(
-                "Field {:?} is not a facet field.",
-                field_entry.name()
-            ))),
+    /// Accessor to the `FacetReader` associated with a given `Field`.
+    pub fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
+        let schema = self.schema();
+        let field = schema.get_field(field_name)?;
+        let field_entry = schema.get_field_entry(field);
+        if field_entry.field_type().value_type() != Type::Facet {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "`{field_name}` is not a facet field.`"
+            )));
         }
+        let Some(facet_column) = self.fast_fields().str(field_name)? else {
+            panic!("Facet Field `{field_name}` is missing. This should not happen");
+        };
+        Ok(FacetReader::new(facet_column))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.
@@ -128,13 +123,17 @@ impl SegmentReader {
         })
     }
 
-    pub(crate) fn fieldnorms_readers(&self) -> &FieldNormReaders {
+    #[doc(hidden)]
+    pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
         &self.fieldnorm_readers
     }
 
-    /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone())
+    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
+    ///
+    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
+    /// The size of blocks is configurable, this should be reflexted in the
+    pub fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone(), cache_num_blocks)
     }
 
     /// Open a new segment for reading.
@@ -168,16 +167,14 @@ impl SegmentReader {
         let schema = segment.schema();
 
         let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
-        let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
-        let fast_fields_readers =
-            Arc::new(FastFieldReaders::new(schema.clone(), fast_fields_composite));
+        let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let original_bitset = if segment.meta().has_deletes() {
-            let delete_file_slice = segment.open_read(SegmentComponent::Delete)?;
-            let delete_data = delete_file_slice.read_bytes()?;
-            Some(AliveBitSet::open(delete_data))
+            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
+            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
+            Some(AliveBitSet::open(alive_doc_data))
         } else {
             None
         };
@@ -207,18 +204,18 @@ impl SegmentReader {
         })
     }
 
-    /// Returns a field reader associated to the field given in argument.
+    /// Returns a field reader associated with the field given in argument.
     /// If the field was not present in the index during indexing time,
     /// the InvertedIndexReader is empty.
     ///
     /// The field reader is in charge of iterating through the
-    /// term dictionary associated to a specific field,
-    /// and opening the posting list associated to any term.
+    /// term dictionary associated with a specific field,
+    /// and opening the posting list associated with any term.
     ///
-    /// If the field is marked as index, a warn is logged and an empty `InvertedIndexReader`
+    /// If the field is not marked as index, a warning is logged and an empty `InvertedIndexReader`
     /// is returned.
-    /// Similarly if the field is marked as indexed but no term has been indexed for the given
-    /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
+    /// Similarly, if the field is marked as indexed but no term has been indexed for the given
+    /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
     pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
@@ -240,7 +237,7 @@ impl SegmentReader {
 
         if postings_file_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
-            // As a result, no data is associated to the inverted index.
+            // As a result, no data is associated with the inverted index.
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
@@ -295,8 +292,7 @@ impl SegmentReader {
         self.delete_opstamp
     }
 
-    /// Returns the bitset representing
-    /// the documents that have been deleted.
+    /// Returns the bitset representing the alive `DocId`s.
     pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
         self.alive_bitset_opt.as_ref()
     }
@@ -305,7 +301,7 @@ impl SegmentReader {
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.alive_bitset()
-            .map(|delete_set| delete_set.is_deleted(doc))
+            .map(|alive_bitset| alive_bitset.is_deleted(doc))
             .unwrap_or(false)
     }
 
@@ -325,13 +321,13 @@ impl SegmentReader {
             self.termdict_composite.space_usage(),
             self.postings_composite.space_usage(),
             self.positions_composite.space_usage(),
-            self.fast_fields_readers.space_usage(),
+            self.fast_fields_readers.space_usage(self.schema())?,
             self.fieldnorm_readers.space_usage(),
-            self.get_store_reader()?.space_usage(),
+            self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)
-                .unwrap_or(0),
+                .unwrap_or_default(),
         ))
     }
 }

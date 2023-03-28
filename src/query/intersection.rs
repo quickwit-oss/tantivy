@@ -5,7 +5,7 @@ use crate::{DocId, Score};
 
 /// Returns the intersection scorer.
 ///
-/// The score associated to the documents is the sum of the
+/// The score associated with the documents is the sum of the
 /// score of the `Scorer`s given in argument.
 ///
 /// For better performance, the function uses a

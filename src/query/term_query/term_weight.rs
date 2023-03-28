@@ -1,11 +1,11 @@
 use super::term_scorer::TermScorer;
 use crate::core::SegmentReader;
-use crate::docset::DocSet;
+use crate::docset::{DocSet, BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::weight::for_each_scorer;
+use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
 use crate::query::{Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, Term};
@@ -53,6 +53,19 @@ impl Weight for TermWeight {
     ) -> crate::Result<()> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
         for_each_scorer(&mut scorer, callback);
+        Ok(())
+    }
+
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
+    fn for_each_no_score(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(&[DocId]),
+    ) -> crate::Result<()> {
+        let mut scorer = self.specialized_scorer(reader, 1.0)?;
+        let mut buffer = [0u32; BUFFER_LEN];
+        for_each_docset_buffered(&mut scorer, &mut buffer, callback);
         Ok(())
     }
 

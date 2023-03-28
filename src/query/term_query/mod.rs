@@ -12,7 +12,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::query::{Query, QueryParser, Scorer, TermQuery};
+    use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
     use crate::{assert_nearly_equals, DocAddress, Index, Term, TERMINATED};
 
@@ -34,7 +34,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
         );
-        let term_weight = term_query.weight(&searcher, true)?;
+        let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
         assert_eq!(term_scorer.doc(), 0);
@@ -62,7 +62,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
         );
-        let term_weight = term_query.weight(&searcher, true)?;
+        let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
         for i in 0u32..COMPRESSION_BLOCK_SIZE as u32 {
@@ -141,7 +141,7 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let reader = index.reader()?;
-        assert_eq!(term_query.count(&*reader.searcher())?, 1);
+        assert_eq!(term_query.count(&reader.searcher())?, 1);
         Ok(())
     }
 
@@ -158,7 +158,8 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let searcher = index.reader()?.searcher();
-        let term_weight = term_query.weight(&searcher, false)?;
+        let term_weight =
+            term_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1u32);

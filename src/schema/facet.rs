@@ -7,6 +7,7 @@ use std::string::FromUtf8Error;
 use common::BinarySerializable;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 const SLASH_BYTE: u8 = b'/';
@@ -34,13 +35,13 @@ pub enum FacetParseError {
 /// For instance, an e-commerce website could
 /// have a `Facet` for `/electronics/tv_and_video/led_tv`.
 ///
-/// A document can be associated to any number of facets.
-/// The hierarchy implicitely imply that a document
+/// A document can be associated with any number of facets.
+/// The hierarchy implicitly imply that a document
 /// belonging to a facet also belongs to the ancestor of
 /// its facet. In the example above, `/electronics/tv_and_video/`
 /// and `/electronics`.
 #[derive(Clone, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct Facet(String);
+pub struct Facet(pub(crate) String);
 
 impl Facet {
     /// Returns a new instance of the "root facet"
@@ -74,15 +75,14 @@ impl Facet {
     /// Creates a `Facet` from its binary representation.
     pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, FromUtf8Error> {
         // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
-        // Ok(Facet(String::from_utf8(encoded_bytes)?))
         String::from_utf8(encoded_bytes).map(Facet)
     }
 
     /// Parse a text representation of a facet.
     ///
-    /// It is conceptually, if one of the steps of this path
-    /// contains a `/` or a `\`, it should be escaped
-    /// using an anti-slash `/`.
+    /// If one of the segments of this path
+    /// contains a `/`, it should be escaped
+    /// using an anti-slash `\`.
     pub fn from_text<T>(path: &T) -> Result<Facet, FacetParseError>
     where T: ?Sized + AsRef<str> {
         #[derive(Copy, Clone)]
@@ -145,19 +145,26 @@ impl Facet {
         Facet(facet_string)
     }
 
-    /// Accessor for the inner buffer of the `Facet`.
-    pub(crate) fn set_facet_str(&mut self, facet_str: &str) {
-        self.0.clear();
-        self.0.push_str(facet_str);
-    }
-
-    /// Returns `true` if other is a subfacet of `self`.
+    /// Returns `true` if other is a `strict` subfacet of `self`.
+    ///
+    /// Disclaimer: By strict we mean that the relation is not reflexive.
+    /// `/happy` is not a prefix of `/happy`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
         let self_str = self.encoded_str();
         let other_str = other.encoded_str();
-        self_str.len() < other_str.len()
-            && other_str.starts_with(self_str)
-            && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
+
+        // Fast path, but also required to ensure that / is not a prefix of /.
+        if other_str.len() <= self_str.len() {
+            return false;
+        }
+
+        // Root is a prefix of every other path.
+        // This is not just an optimisation. It is necessary for correctness.
+        if self.is_root() {
+            return true;
+        }
+
+        other_str.starts_with(self_str) && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
     }
 
     /// Extract path from the `Facet`.
@@ -184,7 +191,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
 }
 
 impl BinarySerializable for Facet {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         <String as BinarySerializable>::serialize(&self.0, writer)
     }
 
@@ -218,7 +225,9 @@ impl Serialize for Facet {
 impl<'de> Deserialize<'de> for Facet {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        <&'de str as Deserialize<'de>>::deserialize(deserializer).map(Facet::from)
+        <Cow<'de, str> as Deserialize<'de>>::deserialize(deserializer).and_then(|path| {
+            Facet::from_text(&*path).map_err(|err| D::Error::custom(err.to_string()))
+        })
     }
 }
 
@@ -300,6 +309,40 @@ mod tests {
         assert_eq!(
             Err(FacetParseError::FacetParseError("INVALID".to_string())),
             Facet::from_text("INVALID")
+        );
+    }
+
+    #[test]
+    fn only_proper_prefixes() {
+        assert!(Facet::from("/foo").is_prefix_of(&Facet::from("/foo/bar")));
+
+        assert!(!Facet::from("/foo/bar").is_prefix_of(&Facet::from("/foo/bar")));
+    }
+
+    #[test]
+    fn root_is_a_prefix() {
+        assert!(Facet::from("/").is_prefix_of(&Facet::from("/foobar")));
+        assert!(!Facet::from("/").is_prefix_of(&Facet::from("/")));
+    }
+
+    #[test]
+    fn deserialize_from_borrowed_string() {
+        let facet = serde_json::from_str::<Facet>(r#""/foo/bar""#).unwrap();
+        assert_eq!(facet, Facet::from_path(["foo", "bar"]));
+    }
+
+    #[test]
+    fn deserialize_from_owned_string() {
+        let facet = serde_json::from_str::<Facet>(r#""/foo/\u263A""#).unwrap();
+        assert_eq!(facet, Facet::from_path(["foo", "☺"]));
+    }
+
+    #[test]
+    fn deserialize_from_invalid_string() {
+        let error = serde_json::from_str::<Facet>(r#""foo/bar""#).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Failed to parse the facet string: 'foo/bar'"
         );
     }
 }

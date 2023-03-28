@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-query-grammar"
-version = "0.15.0"
+version = "0.19.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -9,9 +9,9 @@ homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 combine = {version="4", default-features=false, features=[] }
 once_cell = "1.7.2"
-regex ={ version = "1.5.4", default-features = false, features = ["std"] }
+regex ={ version = "1.5.4", default-features = false, features = ["std", "unicode"] }

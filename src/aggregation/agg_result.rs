@@ -4,86 +4,43 @@
 //! intermediate average results, which is the sum and the number of values. The actual average is
 //! calculated on the step from intermediate to final aggregation result tree.
 
-use std::cmp::Ordering;
-use std::collections::HashMap;
-
-use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::{Aggregations, AggregationsInternal, BucketAggregationInternal};
-use super::bucket::intermediate_buckets_to_final_buckets;
-use super::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
-    IntermediateMetricResult, IntermediateRangeBucketEntry,
-};
+use super::agg_req::BucketAggregationInternal;
+use super::bucket::GetDocCount;
+use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
 use super::metric::{SingleMetricResult, Stats};
+use super::segment_agg_result::AggregationLimits;
 use super::Key;
+use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 /// The final aggegation result.
-pub struct AggregationResults(pub HashMap<String, AggregationResult>);
+pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
-    /// Convert and intermediate result and its aggregation request to the final result
-    pub fn from_intermediate_and_req(
-        results: IntermediateAggregationResults,
-        agg: Aggregations,
-    ) -> Self {
-        AggregationResults::from_intermediate_and_req_internal(results, &(agg.into()))
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        self.0
+            .values()
+            .map(|agg| agg.get_bucket_count())
+            .sum::<u64>()
     }
-    /// Convert and intermediate result and its aggregation request to the final result
-    ///
-    /// Internal function, CollectorAggregations is used instead Aggregations, which is optimized
-    /// for internal processing
-    fn from_intermediate_and_req_internal(
-        results: IntermediateAggregationResults,
-        req: &AggregationsInternal,
-    ) -> Self {
-        let mut result = HashMap::default();
 
-        // Important assumption:
-        // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
-        // request
-        if let Some(buckets) = results.buckets {
-            result.extend(buckets.into_iter().zip(req.buckets.values()).map(
-                |((key, bucket), req)| {
-                    (
-                        key,
-                        AggregationResult::BucketResult(BucketResult::from_intermediate_and_req(
-                            bucket, req,
-                        )),
-                    )
-                },
-            ));
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        if let Some(agg) = self.0.get(name) {
+            agg.get_value_from_aggregation(name, agg_property)
         } else {
-            result.extend(req.buckets.iter().map(|(key, req)| {
-                let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-                (
-                    key.to_string(),
-                    AggregationResult::BucketResult(BucketResult::from_intermediate_and_req(
-                        empty_bucket,
-                        req,
-                    )),
-                )
-            }));
+            // Validation is be done during request parsing, so we can't reach this state.
+            Err(TantivyError::InternalError(format!(
+                "Can't find aggregation {:?} in sub-aggregations",
+                name
+            )))
         }
-
-        if let Some(metrics) = results.metrics {
-            result.extend(
-                metrics
-                    .into_iter()
-                    .map(|(key, metric)| (key, AggregationResult::MetricResult(metric.into()))),
-            );
-        } else {
-            result.extend(req.metrics.iter().map(|(key, req)| {
-                let empty_bucket = IntermediateMetricResult::empty_from_req(req);
-                (
-                    key.to_string(),
-                    AggregationResult::MetricResult(empty_bucket.into()),
-                )
-            }));
-        }
-        Self(result)
     }
 }
 
@@ -97,24 +54,80 @@ pub enum AggregationResult {
     MetricResult(MetricResult),
 }
 
+impl AggregationResult {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            AggregationResult::BucketResult(bucket) => bucket.get_bucket_count(),
+            AggregationResult::MetricResult(_) => 0,
+        }
+    }
+
+    pub(crate) fn get_value_from_aggregation(
+        &self,
+        _name: &str,
+        agg_property: &str,
+    ) -> crate::Result<Option<f64>> {
+        match self {
+            AggregationResult::BucketResult(_bucket) => Err(TantivyError::InternalError(
+                "Tried to retrieve value from bucket aggregation. This is not supported and \
+                 should not happen during collection phase, but should be caught during validation"
+                    .to_string(),
+            )),
+            AggregationResult::MetricResult(metric) => metric.get_value(agg_property),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// MetricResult
 pub enum MetricResult {
     /// Average metric result.
     Average(SingleMetricResult),
+    /// Count metric result.
+    Count(SingleMetricResult),
+    /// Max metric result.
+    Max(SingleMetricResult),
+    /// Min metric result.
+    Min(SingleMetricResult),
     /// Stats metric result.
     Stats(Stats),
+    /// Sum metric result.
+    Sum(SingleMetricResult),
 }
 
+impl MetricResult {
+    fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match self {
+            MetricResult::Average(avg) => Ok(avg.value),
+            MetricResult::Count(count) => Ok(count.value),
+            MetricResult::Max(max) => Ok(max.value),
+            MetricResult::Min(min) => Ok(min.value),
+            MetricResult::Stats(stats) => stats.get_value(agg_property),
+            MetricResult::Sum(sum) => Ok(sum.value),
+        }
+    }
+}
 impl From<IntermediateMetricResult> for MetricResult {
     fn from(metric: IntermediateMetricResult) -> Self {
         match metric {
-            IntermediateMetricResult::Average(avg_data) => {
-                MetricResult::Average(avg_data.finalize().into())
+            IntermediateMetricResult::Average(intermediate_avg) => {
+                MetricResult::Average(intermediate_avg.finalize().into())
+            }
+            IntermediateMetricResult::Count(intermediate_count) => {
+                MetricResult::Count(intermediate_count.finalize().into())
+            }
+            IntermediateMetricResult::Max(intermediate_max) => {
+                MetricResult::Max(intermediate_max.finalize().into())
+            }
+            IntermediateMetricResult::Min(intermediate_min) => {
+                MetricResult::Min(intermediate_min.finalize().into())
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())
+            }
+            IntermediateMetricResult::Sum(intermediate_sum) => {
+                MetricResult::Sum(intermediate_sum.finalize().into())
             }
         }
     }
@@ -125,60 +138,83 @@ impl From<IntermediateMetricResult> for MetricResult {
 #[serde(untagged)]
 pub enum BucketResult {
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
-    /// sub_aggregations.
+    /// sub-aggregations.
     Range {
         /// The range buckets sorted by range.
-        buckets: Vec<RangeBucketEntry>,
+        buckets: BucketEntries<RangeBucketEntry>,
     },
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
-    /// sub_aggregations.
+    /// sub-aggregations.
     Histogram {
         /// The buckets.
         ///
         /// If there are holes depends on the request, if min_doc_count is 0, then there are no
         /// holes between the first and last bucket.
-        /// See [HistogramAggregation](super::bucket::HistogramAggregation)
+        /// See [`HistogramAggregation`](super::bucket::HistogramAggregation)
+        buckets: BucketEntries<BucketEntry>,
+    },
+    /// This is the term result
+    Terms {
+        /// The buckets.
+        ///
+        /// See [`TermsAggregation`](super::bucket::TermsAggregation)
         buckets: Vec<BucketEntry>,
+        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
+        sum_other_doc_count: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        /// The upper bound error for the doc count of each term.
+        doc_count_error_upper_bound: Option<u64>,
     },
 }
 
 impl BucketResult {
-    fn from_intermediate_and_req(
-        bucket_result: IntermediateBucketResult,
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            BucketResult::Range { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Histogram { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Terms {
+                buckets,
+                sum_other_doc_count: _,
+                doc_count_error_upper_bound: _,
+            } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
+        }
+    }
+
+    pub(crate) fn empty_from_req(
         req: &BucketAggregationInternal,
-    ) -> Self {
-        match bucket_result {
-            IntermediateBucketResult::Range(range_map) => {
-                let mut buckets: Vec<RangeBucketEntry> = range_map
-                    .into_iter()
-                    .map(|(_, bucket)| {
-                        RangeBucketEntry::from_intermediate_and_req(bucket, &req.sub_aggregation)
-                    })
-                    .collect_vec();
+        limits: &AggregationLimits,
+    ) -> crate::Result<Self> {
+        let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
+        empty_bucket.into_final_bucket_result(req, limits)
+    }
+}
 
-                buckets.sort_by(|a, b| {
-                    a.from
-                        .unwrap_or(f64::MIN)
-                        .partial_cmp(&b.from.unwrap_or(f64::MIN))
-                        .unwrap_or(Ordering::Equal)
-                });
-                BucketResult::Range { buckets }
-            }
-            IntermediateBucketResult::Histogram { buckets } => {
-                let buckets = intermediate_buckets_to_final_buckets(
-                    buckets,
-                    req.as_histogram(),
-                    &req.sub_aggregation,
-                );
+/// This is the wrapper of buckets entries, which can be vector or hashmap
+/// depending on if it's keyed or not.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BucketEntries<T> {
+    /// Vector format bucket entries
+    Vec(Vec<T>),
+    /// HashMap format bucket entries
+    HashMap(FxHashMap<String, T>),
+}
 
-                BucketResult::Histogram { buckets }
-            }
+impl<T> BucketEntries<T> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+        match self {
+            BucketEntries::Vec(vec) => Box::new(vec.iter()),
+            BucketEntries::HashMap(map) => Box::new(map.values()),
         }
     }
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally
-/// sub_aggregations.
+/// sub-aggregations.
 ///
 /// # JSON Format
 /// ```json
@@ -205,33 +241,35 @@ impl BucketResult {
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BucketEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The string representation of the bucket.
+    pub key_as_string: Option<String>,
     /// The identifier of the bucket.
     pub key: Key,
     /// Number of documents in the bucket.
     pub doc_count: u64,
     #[serde(flatten)]
-    /// sub-aggregations in this bucket.
+    /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
 }
-
 impl BucketEntry {
-    pub(crate) fn from_intermediate_and_req(
-        entry: IntermediateHistogramBucketEntry,
-        req: &AggregationsInternal,
-    ) -> Self {
-        BucketEntry {
-            key: Key::F64(entry.key),
-            doc_count: entry.doc_count,
-            sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
-                entry.sub_aggregation,
-                req,
-            ),
-        }
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
+}
+impl GetDocCount for &BucketEntry {
+    fn doc_count(&self) -> u64 {
+        self.doc_count
+    }
+}
+impl GetDocCount for BucketEntry {
+    fn doc_count(&self) -> u64 {
+        self.doc_count
     }
 }
 
 /// This is the range entry for a bucket, which contains a key, count, and optionally
-/// sub_aggregations.
+/// sub-aggregations.
 ///
 /// # JSON Format
 /// ```json
@@ -267,30 +305,23 @@ pub struct RangeBucketEntry {
     /// Number of documents in the bucket.
     pub doc_count: u64,
     #[serde(flatten)]
-    /// sub-aggregations in this bucket.
+    /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
-    /// The from range of the bucket. Equals f64::MIN when None.
+    /// The from range of the bucket. Equals `f64::MIN` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<f64>,
-    /// The to range of the bucket. Equals f64::MAX when None.
+    /// The to range of the bucket. Equals `f64::MAX` when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
+    /// The optional string representation for the `from` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_as_string: Option<String>,
+    /// The optional string representation for the `to` range.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_as_string: Option<String>,
 }
-
 impl RangeBucketEntry {
-    fn from_intermediate_and_req(
-        entry: IntermediateRangeBucketEntry,
-        req: &AggregationsInternal,
-    ) -> Self {
-        RangeBucketEntry {
-            key: entry.key,
-            doc_count: entry.doc_count,
-            sub_aggregation: AggregationResults::from_intermediate_and_req_internal(
-                entry.sub_aggregation,
-                req,
-            ),
-            to: entry.to,
-            from: entry.from,
-        }
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
     }
 }

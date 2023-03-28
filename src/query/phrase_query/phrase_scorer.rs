@@ -50,8 +50,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     right: Vec<u32>,
     phrase_count: u32,
     fieldnorm_reader: FieldNormReader,
-    similarity_weight: Bm25Weight,
-    scoring_enabled: bool,
+    similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
 }
 
@@ -77,7 +76,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -184,19 +183,96 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     count
 }
 
+fn intersection_count_with_slop(left: &[u32], right: &[u32], slop: u32) -> usize {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    let mut count = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_index < left_len && right_index < right_len {
+        let left_val = left[left_index];
+        let right_val = right[right_index];
+        let right_slop = if right_val >= slop {
+            right_val - slop
+        } else {
+            0
+        };
+
+        if left_val < right_slop {
+            left_index += 1;
+        } else if right_slop <= left_val && left_val <= right_val {
+            while left_index + 1 < left_len {
+                let next_left_val = left[left_index + 1];
+                if next_left_val > right_val {
+                    break;
+                }
+                left_index += 1;
+            }
+            count += 1;
+            left_index += 1;
+            right_index += 1;
+        } else if left_val > right_val {
+            right_index += 1;
+        }
+    }
+    count
+}
+
+fn intersection_exists_with_slop(left: &[u32], right: &[u32], slop: u32) -> bool {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_index < left_len && right_index < right_len {
+        let left_val = left[left_index];
+        let right_val = right[right_index];
+        let right_slop = if right_val >= slop {
+            right_val - slop
+        } else {
+            0
+        };
+
+        if left_val < right_slop {
+            left_index += 1;
+        } else if right_slop <= left_val && left_val <= right_val {
+            return true;
+        } else if left_val > right_val {
+            right_index += 1;
+        }
+    }
+    false
+}
+
 impl<TPostings: Postings> PhraseScorer<TPostings> {
+    // If similarity_weight is None, then scoring is disabled.
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
-        similarity_weight: Bm25Weight,
+        similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
-        scoring_enabled: bool,
         slop: u32,
+    ) -> PhraseScorer<TPostings> {
+        Self::new_with_offset(
+            term_postings,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+            0,
+        )
+    }
+
+    pub(crate) fn new_with_offset(
+        term_postings: Vec<(usize, TPostings)>,
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        offset: usize,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
             .iter()
             .map(|&(offset, _)| offset)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            + offset;
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
@@ -210,9 +286,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             left: Vec::with_capacity(100),
             right: Vec::with_capacity(100),
             phrase_count: 0u32,
-            similarity_weight,
+            similarity_weight_opt,
             fieldnorm_reader,
-            scoring_enabled,
             slop,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
@@ -225,8 +300,13 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         self.phrase_count
     }
 
+    pub(crate) fn get_intersection(&mut self) -> &[u32] {
+        let len = intersection(&mut self.left, &self.right);
+        &self.left[..len]
+    }
+
     fn phrase_match(&mut self) -> bool {
-        if self.scoring_enabled {
+        if self.similarity_weight_opt.is_some() {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
             count > 0u32
@@ -237,11 +317,25 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_exists(&mut self) -> bool {
         let intersection_len = self.compute_phrase_match();
+        if self.has_slop() {
+            return intersection_exists_with_slop(
+                &self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            );
+        }
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
         let intersection_len = self.compute_phrase_match();
+        if self.has_slop() {
+            return intersection_count_with_slop(
+                &self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            ) as u32;
+        }
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 
@@ -252,12 +346,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        let end_term = if self.has_slop() {
-            self.num_terms
-        } else {
-            self.num_terms - 1
-        };
-        for i in 1..end_term {
+        for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
@@ -319,8 +408,11 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-        self.similarity_weight
-            .score(fieldnorm_id, self.phrase_count)
+        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+            similarity_weight.score(fieldnorm_id, self.phrase_count)
+        } else {
+            1.0f32
+        }
     }
 }
 
@@ -359,7 +451,7 @@ mod tests {
     }
     #[test]
     fn test_slop() {
-        // The slop is not symetric. It does not allow for the phrase to be out of order.
+        // The slop is not symmetric. It does not allow for the phrase to be out of order.
         test_intersection_aux(&[1], &[2], &[2], 1);
         test_intersection_aux(&[1], &[3], &[], 1);
         test_intersection_aux(&[1], &[3], &[3], 2);

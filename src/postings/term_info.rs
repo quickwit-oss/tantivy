@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use common::{BinarySerializable, FixedSize};
 
-/// `TermInfo` wraps the metadata associated to a Term.
+/// `TermInfo` wraps the metadata associated with a Term.
 /// It is segment-local.
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct TermInfo {
@@ -19,13 +19,13 @@ pub struct TermInfo {
 impl TermInfo {
     pub(crate) fn posting_num_bytes(&self) -> u32 {
         let num_bytes = self.postings_range.len();
-        assert!(num_bytes <= std::u32::MAX as usize);
+        assert!(num_bytes <= u32::MAX as usize);
         num_bytes as u32
     }
 
     pub(crate) fn positions_num_bytes(&self) -> u32 {
         let num_bytes = self.positions_range.len();
-        assert!(num_bytes <= std::u32::MAX as usize);
+        assert!(num_bytes <= u32::MAX as usize);
         num_bytes as u32
     }
 }
@@ -39,7 +39,7 @@ impl FixedSize for TermInfo {
 }
 
 impl BinarySerializable for TermInfo {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.doc_freq.serialize(writer)?;
         (self.postings_range.start as u64).serialize(writer)?;
         self.posting_num_bytes().serialize(writer)?;

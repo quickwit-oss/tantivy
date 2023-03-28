@@ -181,7 +181,7 @@ fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
 
 fn test_watch(directory: &dyn Directory) {
     let counter: Arc<AtomicUsize> = Default::default();
-    let (tx, rx) = crossbeam::channel::unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     let timeout = Duration::from_millis(500);
 
     let handle = directory
@@ -247,7 +247,7 @@ fn test_lock_blocking(directory: &dyn Directory) {
         //< lock_a_res is sent to the thread.
         in_thread_clone.store(true, SeqCst);
         let _just_sync = receiver.recv();
-        // explicitely dropping lock_a_res. It would have been sufficient to just force it
+        // explicitly dropping lock_a_res. It would have been sufficient to just force it
         // to be part of the move, but the intent seems clearer that way.
         drop(lock_a_res);
     });

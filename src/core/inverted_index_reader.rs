@@ -9,18 +9,17 @@ use crate::schema::{IndexRecordOption, Term};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
-/// the inverted index associated to a specific field.
+/// the inverted index associated with a specific field.
 ///
 /// # Note
 ///
-/// It is safe to delete the segment associated to
+/// It is safe to delete the segment associated with
 /// an `InvertedIndexReader`. As long as it is open,
-/// the `FileSlice` it is relying on should
+/// the [`FileSlice`] it is relying on should
 /// stay available.
 ///
-///
 /// `InvertedIndexReader` are created by calling
-/// the `SegmentReader`'s [`.inverted_index(...)`] method
+/// [`SegmentReader::inverted_index()`](crate::SegmentReader::inverted_index).
 pub struct InvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
@@ -30,7 +29,7 @@ pub struct InvertedIndexReader {
 }
 
 impl InvertedIndexReader {
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))] // for symmetry
+    #[allow(clippy::needless_pass_by_value)] // for symmetry
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
@@ -75,7 +74,7 @@ impl InvertedIndexReader {
     ///
     /// This is useful for enumerating through a list of terms,
     /// and consuming the associated posting lists while avoiding
-    /// reallocating a `BlockSegmentPostings`.
+    /// reallocating a [`BlockSegmentPostings`].
     ///
     /// # Warning
     ///
@@ -96,7 +95,7 @@ impl InvertedIndexReader {
     /// Returns a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_block_postings(
         &self,
         term: &Term,
@@ -110,7 +109,7 @@ impl InvertedIndexReader {
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_block_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
@@ -130,12 +129,14 @@ impl InvertedIndexReader {
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
+    /// Most users should prefer using [`Self::read_postings()`] instead.
     pub fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<SegmentPostings> {
+        let option = option.downgrade(self.record_option);
+
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
         let position_reader = {
             if option.has_positions() {
@@ -164,12 +165,12 @@ impl InvertedIndexReader {
     /// or `None` if the term has never been encountered and indexed.
     ///
     /// If the field was not indexed with the indexing options that cover
-    /// the requested options, the returned `SegmentPostings` the method does not fail
+    /// the requested options, the returned [`SegmentPostings`] the method does not fail
     /// and returns a `SegmentPostings` with as much information as possible.
     ///
-    /// For instance, requesting `IndexRecordOption::Freq` for a
-    /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
-    /// with `DocId`s and frequencies.
+    /// For instance, requesting [`IndexRecordOption::WithFreqs`] for a
+    /// [`TextOptions`](crate::schema::TextOptions) that does not index position
+    /// will return a [`SegmentPostings`] with `DocId`s and frequencies.
     pub fn read_postings(
         &self,
         term: &Term,
@@ -201,23 +202,16 @@ impl InvertedIndexReader {
 
 #[cfg(feature = "quickwit")]
 impl InvertedIndexReader {
-    pub(crate) async fn get_term_info_async(
-        &self,
-        term: &Term,
-    ) -> crate::AsyncIoResult<Option<TermInfo>> {
+    pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get_async(term.value_bytes()).await
     }
 
     /// Returns a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
-    /// Most user should prefer using `read_postings` instead.
-    pub async fn warm_postings(
-        &self,
-        term: &Term,
-        with_positions: bool,
-    ) -> crate::AsyncIoResult<()> {
-        let term_info_opt = self.get_term_info_async(term).await?;
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
+        let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
             self.postings_file_slice
                 .read_bytes_slice_async(term_info.postings_range.clone())
@@ -229,5 +223,26 @@ impl InvertedIndexReader {
             }
         }
         Ok(())
+    }
+
+    /// Read the block postings for all terms.
+    /// This method is for an advanced usage only.
+    ///
+    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] instead.
+    pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
+        self.postings_file_slice.read_bytes_async().await?;
+        if with_positions {
+            self.positions_file_slice.read_bytes_async().await?;
+        }
+        Ok(())
+    }
+
+    /// Returns the number of documents containing the term asynchronously.
+    pub async fn doc_freq_async(&self, term: &Term) -> io::Result<u32> {
+        Ok(self
+            .get_term_info_async(term)
+            .await?
+            .map(|term_info| term_info.doc_freq)
+            .unwrap_or(0u32))
     }
 }

@@ -5,7 +5,8 @@ use combine::parser::range::{take_while, take_while1};
 use combine::parser::repeat::escaped;
 use combine::parser::Parser;
 use combine::{
-    attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
+    attempt, between, choice, eof, many, many1, one_of, optional, parser, satisfy, sep_by,
+    skip_many1, value,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -16,14 +17,14 @@ use crate::Occur;
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
 const SPECIAL_CHARS: &[char] = &[
-    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
+    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '!', '\\', '*', ' ',
 ];
-const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|\~|!|\\|\*| )"#;
+const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|!|\\|\*|\s)"#;
 
 /// Parses a field_name
 /// A field name must have at least one character and be followed by a colon.
 /// All characters are allowed including special characters `SPECIAL_CHARS`, but these
-/// need to be escaped with a backslack character '\'.
+/// need to be escaped with a backslash character '\'.
 fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
     static ESCAPED_SPECIAL_CHARS_RE: Lazy<Regex> =
         Lazy::new(|| Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap());
@@ -34,7 +35,8 @@ fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
             take_while(|c| !SPECIAL_CHARS.contains(&c)),
         ),
         '\\',
-        satisfy(|c| SPECIAL_CHARS.contains(&c)),
+        satisfy(|_| true), /* if the next character is not a special char, the \ will be treated
+                            * as the \ character. */
     ))
     .skip(char(':'))
     .map(|s| ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string())
@@ -61,13 +63,27 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
         })
 }
 
+// word variant that allows more characters, e.g. for range queries that don't allow field
+// specifier
+fn relaxed_word<'a>() -> impl Parser<&'a str, Output = String> {
+    (
+        satisfy(|c: char| {
+            !c.is_whitespace() && !['`', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        }),
+        many(satisfy(|c: char| {
+            !c.is_whitespace() && !['{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        })),
+    )
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+}
+
 /// Parses a date time according to rfc3339
 /// 2015-08-02T18:54:42+02
 /// 2021-04-13T19:46:26.266051969+00:00
 ///
 /// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
-/// We delegate rejecting such invalid dates to the logical AST compuation code
-/// which invokes time::OffsetDateTime::parse(..., &Rfc3339) on the value to actually parse
+/// We delegate rejecting such invalid dates to the logical AST computation code
+/// which invokes `time::OffsetDateTime::parse(..., &Rfc3339)` on the value to actually parse
 /// it (instead of merely extracting the datetime value as string as done here).
 fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
     let two_digits = || recognize::<String, _, _>((digit(), digit()));
@@ -119,22 +135,36 @@ fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
     let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
-    phrase.or(word())
+    negative_number().or(phrase.or(word()))
 }
 
 fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
-    let term_val_with_field = negative_number().or(term_val());
-    (field_name(), term_val_with_field).map(|(field_name, phrase)| UserInputLiteral {
+    (field_name(), term_val(), slop_val()).map(|(field_name, phrase, slop)| UserInputLiteral {
         field_name: Some(field_name),
         phrase,
+        slop,
+    })
+}
+
+fn slop_val<'a>() -> impl Parser<&'a str, Output = u32> {
+    let slop =
+        (char('~'), many1(digit())).and_then(|(_, slop): (_, String)| match slop.parse::<u32>() {
+            Ok(d) => Ok(d),
+            _ => Err(StringStreamError::UnexpectedParse),
+        });
+    optional(slop).map(|slop| match slop {
+        Some(d) => d,
+        _ => 0,
     })
 }
 
 fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let term_default_field = term_val().map(|phrase| UserInputLiteral {
+    let term_default_field = (term_val(), slop_val()).map(|(phrase, slop)| UserInputLiteral {
         field_name: None,
         phrase,
+        slop,
     });
+
     attempt(term_query())
         .or(term_default_field)
         .map(UserInputLeaf::from)
@@ -166,8 +196,8 @@ fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
 fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let range_term_val = || {
         attempt(date_time())
-            .or(word())
             .or(negative_number())
+            .or(relaxed_word())
             .or(char('*').with(value("*".to_string())))
     };
 
@@ -235,6 +265,17 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     })
 }
 
+/// Function that parses a set out of a Stream
+/// Supports ranges like: `IN [val1 val2 val3]`
+fn set<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
+    let term_list = between(char('['), char(']'), sep_by(term_val(), spaces()));
+
+    let set_content = ((string("IN"), spaces()), term_list).map(|(_, elements)| elements);
+
+    (optional(attempt(field_name().skip(spaces()))), set_content)
+        .map(|(field, elements)| UserInputLeaf::Set { field, elements })
+}
+
 fn negate(expr: UserInputAst) -> UserInputAst {
     expr.unary(Occur::MustNot)
 }
@@ -249,6 +290,7 @@ fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
                 string("NOT").skip(spaces1()).with(leaf()).map(negate),
             ))
             .or(attempt(range().map(UserInputAst::from)))
+            .or(attempt(set().map(UserInputAst::from)))
             .or(literal().map(UserInputAst::from))
             .parse_stream(input)
             .into_result()
@@ -284,7 +326,7 @@ fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
 
 fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
-        Some(boost) if (boost - 1.0).abs() > std::f64::EPSILON => {
+        Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
             UserInputAst::Boost(Box::new(leaf), boost)
         }
         _ => leaf,
@@ -516,14 +558,18 @@ mod test {
     }
 
     #[test]
-    fn test_field_name() -> TestParseResult {
+    fn test_field_name() {
         assert_eq!(
             super::field_name().parse(".my.field.name:a"),
             Ok((".my.field.name".to_string(), "a"))
         );
         assert_eq!(
-            super::field_name().parse("my\\ field\\ name:a"),
-            Ok(("my field name".to_string(), "a"))
+            super::field_name().parse(r#"にんじん:a"#),
+            Ok(("にんじん".to_string(), "a"))
+        );
+        assert_eq!(
+            super::field_name().parse(r#"my\field:a"#),
+            Ok((r#"my\field"#.to_string(), "a"))
         );
         assert!(super::field_name().parse("my field:a").is_err());
         assert_eq!(
@@ -534,14 +580,32 @@ mod test {
             super::field_name().parse("my_field_name:a"),
             Ok(("my_field_name".to_string(), "a"))
         );
+        assert_eq!(
+            super::field_name().parse("myfield.b:hello").unwrap(),
+            ("myfield.b".to_string(), "hello")
+        );
+        assert_eq!(
+            super::field_name().parse(r#"myfield\.b:hello"#).unwrap(),
+            (r#"myfield\.b"#.to_string(), "hello")
+        );
         assert!(super::field_name().parse("my_field_name").is_err());
         assert!(super::field_name().parse(":a").is_err());
         assert!(super::field_name().parse("-my_field:a").is_err());
         assert_eq!(
-            super::field_name().parse("_my_field:a")?,
-            ("_my_field".to_string(), "a")
+            super::field_name().parse("_my_field:a"),
+            Ok(("_my_field".to_string(), "a"))
         );
-        Ok(())
+        assert_eq!(
+            super::field_name().parse("~my~field:a"),
+            Ok(("~my~field".to_string(), "a"))
+        );
+        for special_char in SPECIAL_CHARS.iter() {
+            let query = &format!("\\{special_char}my\\{special_char}field:a");
+            assert_eq!(
+                super::field_name().parse(query),
+                Ok((format!("{special_char}my{special_char}field"), "a"))
+            );
+        }
     }
 
     #[test]
@@ -612,6 +676,34 @@ mod test {
             .expect("Cannot parse date range")
             .0;
         assert_eq!(res6, expected_flexible_dates);
+        // IP Range Unbounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::1".to_string()),
+            upper: UserInputBound::Unbounded,
+        };
+        let res1 = range()
+            .parse("ip: >=::1")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        let res2 = range()
+            .parse("ip:[::1 TO *}")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+
+        // IP Range Bounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
+        };
+        let res1 = range()
+            .parse("ip:[::0.0.0.50 TO ::0.0.0.52}")
+            .expect("Cannot parse ip v6 format")
+            .0;
+        assert_eq!(res1, expected_weight);
     }
 
     #[test]
@@ -669,6 +761,14 @@ mod test {
     }
 
     #[test]
+    fn test_parse_test_query_set() {
+        test_parse_query_to_ast_helper("abc: IN [a b c]", r#""abc": IN ["a" "b" "c"]"#);
+        test_parse_query_to_ast_helper("abc: IN [1]", r#""abc": IN ["1"]"#);
+        test_parse_query_to_ast_helper("abc: IN []", r#""abc": IN []"#);
+        test_parse_query_to_ast_helper("IN [1 2]", r#"IN ["1" "2"]"#);
+    }
+
+    #[test]
     fn test_parse_test_query_other() {
         test_parse_query_to_ast_helper("(+a +b) d", "(*(+\"a\" +\"b\") *\"d\")");
         test_parse_query_to_ast_helper("+abc:toto", "\"abc\":\"toto\"");
@@ -693,5 +793,23 @@ mod test {
             "\"1.2.foo.bar\":[\"1.1\" TO \"*\"}",
         );
         test_is_parse_err("abc +    ");
+    }
+
+    #[test]
+    fn test_slop() {
+        assert!(parse_to_ast().parse("\"a b\"~").is_err());
+        assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
+        assert!(parse_to_ast().parse("\"a b\"~a").is_err());
+        assert!(parse_to_ast().parse("\"a b\"~100000000000000000").is_err());
+
+        test_parse_query_to_ast_helper("\"a b\"^2~4", "(*(\"a b\")^2 *\"~4\")");
+        test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
+        test_parse_query_to_ast_helper("~Document", "\"~Document\"");
+        test_parse_query_to_ast_helper("a~2", "\"a~2\"");
+        test_parse_query_to_ast_helper("\"a b\"~0", "\"a b\"");
+        test_parse_query_to_ast_helper("\"a b\"~1", "\"a b\"~1");
+        test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
+        test_parse_query_to_ast_helper("foo:\"a b\"~300", "\"foo\":\"a b\"~300");
+        test_parse_query_to_ast_helper("\"a b\"~300^2", "(\"a b\"~300)^2");
     }
 }

@@ -106,7 +106,7 @@ impl BlockDecoder {
 
 pub trait VIntEncoder {
     /// Compresses an array of `u32` integers,
-    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_ encoding)
+    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_encoding)
     /// and variable bytes encoding.
     ///
     /// The method takes an array of ints to compress, and returns
@@ -291,7 +291,7 @@ pub mod tests {
         const PADDING_VALUE: u32 = 234_234_345u32;
         let expected_length = 154;
         let mut encoder = BlockEncoder::new();
-        let input: Vec<u32> = (0u32..123u32).map(|i| 4 + i * 7 / 2).into_iter().collect();
+        let input: Vec<u32> = (0u32..123u32).map(|i| 4 + i * 7 / 2).collect();
         for offset in &[0u32, 1u32, 2u32] {
             let encoded_data = encoder.compress_vint_sorted(&input, *offset);
             assert!(encoded_data.len() <= expected_length);

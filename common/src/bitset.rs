@@ -4,6 +4,8 @@ use std::{fmt, io, u64};
 
 use ownedbytes::OwnedBytes;
 
+use crate::ByteCount;
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct TinySet(u64);
 
@@ -151,7 +153,7 @@ impl TinySet {
         if self.is_empty() {
             None
         } else {
-            let lowest = self.0.trailing_zeros() as u32;
+            let lowest = self.0.trailing_zeros();
             self.0 ^= TinySet::singleton(lowest).0;
             Some(lowest)
         }
@@ -259,11 +261,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len += if self.tinysets[higher as usize].insert_mut(lower) {
-            1
-        } else {
-            0
-        };
+        self.len += u64::from(self.tinysets[higher as usize].insert_mut(lower));
     }
 
     /// Inserts an element in the `BitSet`
@@ -272,11 +270,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len -= if self.tinysets[higher as usize].remove_mut(lower) {
-            1
-        } else {
-            0
-        };
+        self.len -= u64::from(self.tinysets[higher as usize].remove_mut(lower));
     }
 
     /// Returns true iff the elements is in the `BitSet`.
@@ -285,7 +279,7 @@ impl BitSet {
         self.tinyset(el / 64u32).contains(el % 64)
     }
 
-    /// Returns the first non-empty `TinySet` associated to a bucket lower
+    /// Returns the first non-empty `TinySet` associated with a bucket lower
     /// or greater than bucket.
     ///
     /// Reminder: the tiny set with the bucket `bucket`, represents the
@@ -394,8 +388,8 @@ impl ReadOnlyBitSet {
     }
 
     /// Number of bytes used in the bitset representation.
-    pub fn num_bytes(&self) -> usize {
-        self.data.len()
+    pub fn num_bytes(&self) -> ByteCount {
+        self.data.len().into()
     }
 }
 
@@ -429,7 +423,7 @@ mod tests {
             bitset.serialize(&mut out).unwrap();
 
             let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
-            assert_eq!(bitset.len() as usize, i as usize);
+            assert_eq!(bitset.len(), i as usize);
         }
     }
 
@@ -440,7 +434,7 @@ mod tests {
         bitset.serialize(&mut out).unwrap();
 
         let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
-        assert_eq!(bitset.len() as usize, 64);
+        assert_eq!(bitset.len(), 64);
     }
 
     #[test]

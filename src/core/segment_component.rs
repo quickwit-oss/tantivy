@@ -6,7 +6,7 @@ use std::slice;
 /// except the delete component that takes an `segment_uuid`.`delete_opstamp`.`component_extension`
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum SegmentComponent {
-    /// Postings (or inverted list). Sorted lists of document ids, associated to terms
+    /// Postings (or inverted list). Sorted lists of document ids, associated with terms
     Postings,
     /// Positions of terms in each document.
     Positions,
@@ -24,7 +24,8 @@ pub enum SegmentComponent {
     Store,
     /// Temporary storage of the documents, before streamed to `Store`.
     TempStore,
-    /// Bitset describing which document of the segment is deleted.
+    /// Bitset describing which document of the segment is alive.
+    /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
 }
 

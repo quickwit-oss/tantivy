@@ -1,3 +1,5 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 mod occur;
 mod query_grammar;
 mod user_input_ast;

@@ -1,72 +1,80 @@
+use std::fmt::Debug;
 use std::ops::Range;
 
+use columnar::{ColumnType, MonotonicallyMappableToU64};
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationsWithAccessor, BucketAggregationWithAccessor,
+use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResults, IntermediateBucketResult, IntermediateRangeBucketEntry,
+    IntermediateRangeBucketResult,
 };
-use crate::aggregation::intermediate_agg_result::IntermediateBucketResult;
 use crate::aggregation::segment_agg_result::{
-    SegmentAggregationResultsCollector, SegmentRangeBucketEntry,
+    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, Key};
-use crate::fastfield::FastFieldReader;
-use crate::schema::Type;
-use crate::{DocId, TantivyError};
+use crate::aggregation::{
+    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey, VecWithNames,
+};
+use crate::TantivyError;
 
 /// Provide user-defined buckets to aggregate on.
 /// Two special buckets will automatically be created to cover the whole range of values.
-/// The provided buckets have to be continous.
+/// The provided buckets have to be continuous.
 /// During the aggregation, the values extracted from the fast_field `field` will be checked
 /// against each bucket range. Note that this aggregation includes the from value and excludes the
 /// to value for each range.
 ///
-/// Result type is [BucketResult](crate::aggregation::agg_result::BucketResult) with
-/// [RangeBucketEntry](crate::aggregation::agg_result::RangeBucketEntry) on the
-/// AggregationCollector.
+/// Result type is [`BucketResult`](crate::aggregation::agg_result::BucketResult) with
+/// [`RangeBucketEntry`](crate::aggregation::agg_result::RangeBucketEntry) on the
+/// `AggregationCollector`.
 ///
 /// Result type is
-/// [crate::aggregation::intermediate_agg_result::IntermediateBucketResult] with
-/// [crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry] on the
-/// DistributedAggregationCollector.
+/// [`IntermediateBucketResult`](crate::aggregation::intermediate_agg_result::IntermediateBucketResult) with
+/// [`IntermediateRangeBucketEntry`](crate::aggregation::intermediate_agg_result::IntermediateRangeBucketEntry) on the
+/// `DistributedAggregationCollector`.
 ///
 /// # Limitations/Compatibility
 /// Overlapping ranges are not yet supported.
 ///
-/// The keyed parameter (elasticsearch) is not yet supported.
-///
 /// # Request JSON Format
 /// ```json
 /// {
-///     "range": {
+///     "my_ranges": {
 ///         "field": "score",
 ///         "ranges": [
 ///             { "to": 3.0 },
 ///             { "from": 3.0, "to": 7.0 },
-///             { "from": 7.0, "to": 20.0 }
+///             { "from": 7.0, "to": 20.0 },
 ///             { "from": 20.0 }
 ///         ]
 ///     }
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RangeAggregation {
     /// The field to aggregate on.
     pub field: String,
     /// Note that this aggregation includes the from value and excludes the to value for each
     /// range. Extra buckets will be created until the first to, and last from, if necessary.
     pub ranges: Vec<RangeAggregationRange>,
+    /// Whether to return the buckets as a hash map
+    #[serde(default)]
+    pub keyed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// The range for one range bucket.
 pub struct RangeAggregationRange {
+    /// Custom key for the range bucket
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub key: Option<String>,
     /// The from range value, which is inclusive in the range.
-    /// None equals to an open ended interval.
+    /// `None` equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub from: Option<f64>,
     /// The to range value, which is not inclusive in the range.
-    /// None equals to an open ended interval.
+    /// `None` equals to an open ended interval.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub to: Option<f64>,
 }
@@ -83,11 +91,30 @@ impl From<Range<f64>> for RangeAggregationRange {
         } else {
             Some(range.end)
         };
-        RangeAggregationRange { from, to }
+        RangeAggregationRange {
+            key: None,
+            from,
+            to,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Internally used u64 range for one range bucket.
+pub(crate) struct InternalRangeAggregationRange {
+    /// Custom key for the range bucket
+    key: Option<String>,
+    /// `u64` range value
+    range: Range<u64>,
+}
+
+impl From<Range<u64>> for InternalRangeAggregationRange {
+    fn from(range: Range<u64>) -> Self {
+        InternalRangeAggregationRange { key: None, range }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct SegmentRangeAndBucketEntry {
     range: Range<u64>,
     bucket: SegmentRangeBucketEntry,
@@ -95,65 +122,182 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SegmentRangeCollector {
     /// The buckets containing the aggregation data.
     buckets: Vec<SegmentRangeAndBucketEntry>,
-    field_type: Type,
+    column_type: ColumnType,
+    pub(crate) accessor_idx: usize,
 }
 
-impl SegmentRangeCollector {
-    pub fn into_intermediate_bucket_result(self) -> IntermediateBucketResult {
-        let field_type = self.field_type;
+#[derive(Clone)]
+pub(crate) struct SegmentRangeBucketEntry {
+    pub key: Key,
+    pub doc_count: u64,
+    pub sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
+    /// The from range of the bucket. Equals `f64::MIN` when `None`.
+    pub from: Option<f64>,
+    /// The to range of the bucket. Equals `f64::MAX` when `None`. Open interval, `to` is not
+    /// inclusive.
+    pub to: Option<f64>,
+}
 
-        let buckets = self
+impl Debug for SegmentRangeBucketEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentRangeBucketEntry")
+            .field("key", &self.key)
+            .field("doc_count", &self.doc_count)
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .finish()
+    }
+}
+impl SegmentRangeBucketEntry {
+    pub(crate) fn into_intermediate_bucket_entry(
+        self,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateRangeBucketEntry> {
+        let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregation {
+            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
+        } else {
+            Default::default()
+        };
+
+        Ok(IntermediateRangeBucketEntry {
+            key: self.key,
+            doc_count: self.doc_count,
+            sub_aggregation,
+            from: self.from,
+            to: self.to,
+        })
+    }
+}
+
+impl SegmentAggregationCollector for SegmentRangeCollector {
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let field_type = self.column_type;
+        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
+        let sub_agg = &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
             .into_iter()
             .map(move |range_bucket| {
-                (
-                    range_to_string(&range_bucket.range, &field_type),
-                    range_bucket.bucket.into(),
-                )
+                Ok((
+                    range_to_string(&range_bucket.range, &field_type)?,
+                    range_bucket
+                        .bucket
+                        .into_intermediate_bucket_entry(sub_agg)?,
+                ))
             })
-            .collect();
+            .collect::<crate::Result<_>>()?;
 
-        IntermediateBucketResult::Range(buckets)
+        let bucket = IntermediateBucketResult::Range(IntermediateRangeBucketResult {
+            buckets,
+            column_type: Some(self.column_type),
+        });
+
+        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+
+        Ok(IntermediateAggregationResults {
+            metrics: None,
+            buckets,
+        })
     }
 
+    #[inline]
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        self.collect_block(&[doc], agg_with_accessor)
+    }
+
+    #[inline]
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
+
+        bucket_agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &bucket_agg_accessor.accessor);
+
+        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+            let bucket_pos = self.get_bucket_pos(val);
+
+            let bucket = &mut self.buckets[bucket_pos];
+
+            bucket.bucket.doc_count += 1;
+            if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
+                sub_aggregation.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+        let sub_aggregation_accessor =
+            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+
+        for bucket in self.buckets.iter_mut() {
+            if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
+                sub_agg.flush(sub_aggregation_accessor)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &AggregationsWithAccessor,
-        field_type: Type,
+        limits: &AggregationLimits,
+        field_type: ColumnType,
+        accessor_idx: usize,
     ) -> crate::Result<Self> {
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
-        let buckets = extend_validate_ranges(&req.ranges, &field_type)?
+        let buckets: Vec<_> = extend_validate_ranges(&req.ranges, &field_type)?
             .iter()
             .map(|range| {
-                let to = if range.end == u64::MAX {
+                let key = range
+                    .key
+                    .clone()
+                    .map(|key| Ok(Key::Str(key)))
+                    .unwrap_or_else(|| range_to_key(&range.range, &field_type))?;
+                let to = if range.range.end == u64::MAX {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.end, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.end, &field_type))
                 };
-                let from = if range.start == u64::MIN {
+                let from = if range.range.start == u64::MIN {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.start, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.start, &field_type))
                 };
                 let sub_aggregation = if sub_aggregation.is_empty() {
                     None
                 } else {
-                    Some(SegmentAggregationResultsCollector::from_req_and_validate(
-                        sub_aggregation,
-                    )?)
+                    Some(build_segment_agg_collector(sub_aggregation)?)
                 };
+
                 Ok(SegmentRangeAndBucketEntry {
-                    range: range.clone(),
+                    range: range.range.clone(),
                     bucket: SegmentRangeBucketEntry {
-                        key: range_to_key(range, &field_type),
                         doc_count: 0,
                         sub_aggregation,
+                        key,
                         from,
                         to,
                     },
@@ -161,63 +305,16 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
+        limits.add_memory_consumed(
+            buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
+        );
+        limits.validate_memory_consumption()?;
+
         Ok(SegmentRangeCollector {
             buckets,
-            field_type,
+            column_type: field_type,
+            accessor_idx,
         })
-    }
-
-    #[inline]
-    pub(crate) fn collect_block(
-        &mut self,
-        doc: &[DocId],
-        bucket_with_accessor: &BucketAggregationWithAccessor,
-        force_flush: bool,
-    ) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = bucket_with_accessor.accessor.get(docs[0]);
-            let val2 = bucket_with_accessor.accessor.get(docs[1]);
-            let val3 = bucket_with_accessor.accessor.get(docs[2]);
-            let val4 = bucket_with_accessor.accessor.get(docs[3]);
-            let bucket_pos1 = self.get_bucket_pos(val1);
-            let bucket_pos2 = self.get_bucket_pos(val2);
-            let bucket_pos3 = self.get_bucket_pos(val3);
-            let bucket_pos4 = self.get_bucket_pos(val4);
-
-            self.increment_bucket(bucket_pos1, docs[0], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos2, docs[1], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos3, docs[2], &bucket_with_accessor.sub_aggregation);
-            self.increment_bucket(bucket_pos4, docs[3], &bucket_with_accessor.sub_aggregation);
-        }
-        for doc in iter.remainder() {
-            let val = bucket_with_accessor.accessor.get(*doc);
-            let bucket_pos = self.get_bucket_pos(val);
-            self.increment_bucket(bucket_pos, *doc, &bucket_with_accessor.sub_aggregation);
-        }
-        if force_flush {
-            for bucket in &mut self.buckets {
-                if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-                    sub_aggregation
-                        .flush_staged_docs(&bucket_with_accessor.sub_aggregation, force_flush);
-                }
-            }
-        }
-    }
-
-    #[inline]
-    fn increment_bucket(
-        &mut self,
-        bucket_pos: usize,
-        doc: DocId,
-        bucket_with_accessor: &AggregationsWithAccessor,
-    ) {
-        let bucket = &mut self.buckets[bucket_pos];
-
-        bucket.bucket.doc_count += 1;
-        if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-            sub_aggregation.collect(doc, bucket_with_accessor);
-        }
     }
 
     #[inline]
@@ -234,8 +331,8 @@ impl SegmentRangeCollector {
 /// Converts the user provided f64 range value to fast field value space.
 ///
 /// Internally fast field values are always stored as u64.
-/// If the fast field has u64 [1,2,5], these values are stored as is in the fast field.
-/// A fast field with f64 [1.0, 2.0, 5.0] is converted to u64 space, using a
+/// If the fast field has u64 `[1, 2, 5]`, these values are stored as is in the fast field.
+/// A fast field with f64 `[1.0, 2.0, 5.0]` is converted to u64 space, using a
 /// monotonic mapping function, so the order is preserved.
 ///
 /// Consequently, a f64 user range 1.0..3.0 needs to be converted to fast field value space using
@@ -243,7 +340,10 @@ impl SegmentRangeCollector {
 /// fast field.
 /// The alternative would be that every value read would be converted to the f64 range, but that is
 /// more computational expensive when many documents are hit.
-fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> crate::Result<Range<u64>> {
+fn to_u64_range(
+    range: &RangeAggregationRange,
+    field_type: &ColumnType,
+) -> crate::Result<InternalRangeAggregationRange> {
     let start = if let Some(from) = range.from {
         f64_to_fastfield_u64(from, field_type)
             .ok_or_else(|| TantivyError::InvalidArgument("invalid field type".to_string()))?
@@ -258,39 +358,43 @@ fn to_u64_range(range: &RangeAggregationRange, field_type: &Type) -> crate::Resu
         u64::MAX
     };
 
-    Ok(start..end)
+    Ok(InternalRangeAggregationRange {
+        key: range.key.clone(),
+        range: start..end,
+    })
 }
 
 /// Extends the provided buckets to contain the whole value range, by inserting buckets at the
-/// beginning and end.
+/// beginning and end and filling gaps.
 fn extend_validate_ranges(
     buckets: &[RangeAggregationRange],
-    field_type: &Type,
-) -> crate::Result<Vec<Range<u64>>> {
+    field_type: &ColumnType,
+) -> crate::Result<Vec<InternalRangeAggregationRange>> {
     let mut converted_buckets = buckets
         .iter()
         .map(|range| to_u64_range(range, field_type))
         .collect::<crate::Result<Vec<_>>>()?;
 
-    converted_buckets.sort_by_key(|bucket| bucket.start);
-    if converted_buckets[0].start != u64::MIN {
-        converted_buckets.insert(0, u64::MIN..converted_buckets[0].start);
+    converted_buckets.sort_by_key(|bucket| bucket.range.start);
+    if converted_buckets[0].range.start != u64::MIN {
+        converted_buckets.insert(0, (u64::MIN..converted_buckets[0].range.start).into());
     }
 
-    if converted_buckets[converted_buckets.len() - 1].end != u64::MAX {
-        converted_buckets.push(converted_buckets[converted_buckets.len() - 1].end..u64::MAX);
+    if converted_buckets[converted_buckets.len() - 1].range.end != u64::MAX {
+        converted_buckets
+            .push((converted_buckets[converted_buckets.len() - 1].range.end..u64::MAX).into());
     }
 
     // fill up holes in the ranges
-    let find_hole = |converted_buckets: &[Range<u64>]| {
+    let find_hole = |converted_buckets: &[InternalRangeAggregationRange]| {
         for (pos, ranges) in converted_buckets.windows(2).enumerate() {
-            if ranges[0].end > ranges[1].start {
+            if ranges[0].range.end > ranges[1].range.start {
                 return Err(TantivyError::InvalidArgument(format!(
                     "Overlapping ranges not supported range {:?}, range+1 {:?}",
                     ranges[0], ranges[1]
                 )));
             }
-            if ranges[0].end != ranges[1].start {
+            if ranges[0].range.end != ranges[1].range.start {
                 return Ok(Some(pos));
             }
         }
@@ -298,55 +402,76 @@ fn extend_validate_ranges(
     };
 
     while let Some(hole_pos) = find_hole(&converted_buckets)? {
-        let new_range = converted_buckets[hole_pos].end..converted_buckets[hole_pos + 1].start;
-        converted_buckets.insert(hole_pos + 1, new_range);
+        let new_range =
+            converted_buckets[hole_pos].range.end..converted_buckets[hole_pos + 1].range.start;
+        converted_buckets.insert(hole_pos + 1, new_range.into());
     }
 
     Ok(converted_buckets)
 }
 
-pub(crate) fn range_to_string(range: &Range<u64>, field_type: &Type) -> String {
+pub(crate) fn range_to_string(
+    range: &Range<u64>,
+    field_type: &ColumnType,
+) -> crate::Result<String> {
     // is_start is there for malformed requests, e.g. ig the user passes the range u64::MIN..0.0,
-    // it should be rendererd as "*-0" and not "*-*"
+    // it should be rendered as "*-0" and not "*-*"
     let to_str = |val: u64, is_start: bool| {
         if (is_start && val == u64::MIN) || (!is_start && val == u64::MAX) {
-            "*".to_string()
+            Ok("*".to_string())
+        } else if *field_type == ColumnType::DateTime {
+            let val = i64::from_u64(val);
+            format_date(val)
         } else {
-            f64_from_fastfield_u64(val, field_type).to_string()
+            Ok(f64_from_fastfield_u64(val, field_type).to_string())
         }
     };
 
-    format!("{}-{}", to_str(range.start, true), to_str(range.end, false))
+    Ok(format!(
+        "{}-{}",
+        to_str(range.start, true)?,
+        to_str(range.end, false)?
+    ))
 }
 
-pub(crate) fn range_to_key(range: &Range<u64>, field_type: &Type) -> Key {
-    Key::Str(range_to_string(range, field_type))
+pub(crate) fn range_to_key(range: &Range<u64>, field_type: &ColumnType) -> crate::Result<Key> {
+    Ok(Key::Str(range_to_string(range, field_type)?))
 }
 
 #[cfg(test)]
 mod tests {
 
+    use columnar::MonotonicallyMappableToU64;
     use serde_json::Value;
 
     use super::*;
     use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType,
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
     };
-    use crate::aggregation::tests::get_test_index_with_num_docs;
-    use crate::aggregation::AggregationCollector;
-    use crate::fastfield::FastValue;
-    use crate::query::AllQuery;
+    use crate::aggregation::metric::AverageAggregation;
+    use crate::aggregation::tests::{
+        exec_request, exec_request_with_query, get_test_index_2_segments,
+        get_test_index_with_num_docs,
+    };
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
-        field_type: Type,
+        field_type: ColumnType,
     ) -> SegmentRangeCollector {
         let req = RangeAggregation {
             field: "dummy".to_string(),
             ranges,
+            ..Default::default()
         };
 
-        SegmentRangeCollector::from_req_and_validate(&req, &Default::default(), field_type).unwrap()
+        SegmentRangeCollector::from_req_and_validate(
+            &req,
+            &Default::default(),
+            &Default::default(),
+            field_type,
+            0,
+        )
+        .expect("unexpected error")
     }
 
     #[test]
@@ -355,24 +480,22 @@ mod tests {
 
         let agg_req: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "fraction_f64".to_string(),
-                    ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                }),
-                sub_aggregation: Default::default(),
-            }),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        ..Default::default()
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
         )]
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req);
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let agg_res = searcher.search(&AllQuery, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        let res = exec_request_with_query(agg_req, &index, None)?;
 
         assert_eq!(res["range"]["buckets"][0]["key"], "*-0");
         assert_eq!(res["range"]["buckets"][0]["doc_count"], 0);
@@ -387,9 +510,261 @@ mod tests {
     }
 
     #[test]
+    fn range_fraction_test_with_sub_agg() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let sub_agg_req: Aggregations = vec![(
+            "score_f64".to_string(),
+            Aggregation::Metric(MetricAggregation::Average(
+                AverageAggregation::from_field_name("score_f64".to_string()),
+            )),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        ..Default::default()
+                    }),
+                    sub_aggregation: sub_agg_req,
+                }
+                .into(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(res["range"]["buckets"][0]["key"], "*-0");
+        assert_eq!(res["range"]["buckets"][0]["doc_count"], 0);
+        assert_eq!(res["range"]["buckets"][1]["key"], "0-0.1");
+        assert_eq!(res["range"]["buckets"][1]["doc_count"], 10);
+        assert_eq!(res["range"]["buckets"][2]["key"], "0.1-0.2");
+        assert_eq!(res["range"]["buckets"][2]["doc_count"], 10);
+        assert_eq!(res["range"]["buckets"][3]["key"], "0.2-*");
+        assert_eq!(res["range"]["buckets"][3]["doc_count"], 80);
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
+                        keyed: true,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "range": {
+                    "buckets": {
+                        "*-0": { "key": "*-0", "doc_count": 0, "to": 0.0},
+                        "0-0.1": {"key": "0-0.1", "doc_count": 10, "from": 0.0, "to": 0.1},
+                        "0.1-0.2": {"key": "0.1-0.2", "doc_count": 10, "from": 0.1, "to": 0.2},
+                        "0.2-*": {"key": "0.2-*", "doc_count": 80, "from": 0.2},
+                    }
+                }
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_custom_key_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![
+                            RangeAggregationRange {
+                                key: Some("custom-key-0-to-0.1".to_string()),
+                                from: Some(0f64),
+                                to: Some(0.1f64),
+                            },
+                            RangeAggregationRange {
+                                key: None,
+                                from: Some(0.1f64),
+                                to: Some(0.2f64),
+                            },
+                        ],
+                        keyed: false,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "range": {
+                    "buckets": [
+                        {"key": "*-0", "doc_count": 0, "to": 0.0},
+                        {"key": "custom-key-0-to-0.1", "doc_count": 10, "from": 0.0, "to": 0.1},
+                        {"key": "0.1-0.2", "doc_count": 10, "from": 0.1, "to": 0.2},
+                        {"key": "0.2-*", "doc_count": 80, "from": 0.2}
+                    ]
+                }
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_date_test_single_segment() -> crate::Result<()> {
+        range_date_test_with_opt(true)
+    }
+
+    #[test]
+    fn range_date_test_multi_segment() -> crate::Result<()> {
+        range_date_test_with_opt(false)
+    }
+
+    fn range_date_test_with_opt(merge_segments: bool) -> crate::Result<()> {
+        let index = get_test_index_2_segments(merge_segments)?;
+
+        let agg_req: Aggregations = vec![(
+            "date_ranges".to_string(),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "date".to_string(),
+                        ranges: vec![
+                            RangeAggregationRange {
+                                key: None,
+                                from: None,
+                                to: Some(1546300800000000.0f64),
+                            },
+                            RangeAggregationRange {
+                                key: None,
+                                from: Some(1546300800000000.0f64),
+                                to: Some(1546387200000000.0f64),
+                            },
+                        ],
+                        keyed: false,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+
+        let agg_res = exec_request(agg_req, &index)?;
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+
+        assert_eq!(
+            res["date_ranges"]["buckets"][0]["from_as_string"],
+            Value::Null
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][0]["key"],
+            "*-2019-01-01T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][1]["from_as_string"],
+            "2019-01-01T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][1]["to_as_string"],
+            "2019-01-02T00:00:00Z"
+        );
+
+        assert_eq!(
+            res["date_ranges"]["buckets"][2]["from_as_string"],
+            "2019-01-02T00:00:00Z"
+        );
+        assert_eq!(
+            res["date_ranges"]["buckets"][2]["to_as_string"],
+            Value::Null
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn range_custom_key_keyed_buckets_test() -> crate::Result<()> {
+        let index = get_test_index_with_num_docs(false, 100)?;
+
+        let agg_req: Aggregations = vec![(
+            "range".to_string(),
+            Aggregation::Bucket(
+                BucketAggregation {
+                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                        field: "fraction_f64".to_string(),
+                        ranges: vec![RangeAggregationRange {
+                            key: Some("custom-key-0-to-0.1".to_string()),
+                            from: Some(0f64),
+                            to: Some(0.1f64),
+                        }],
+                        keyed: true,
+                    }),
+                    sub_aggregation: Default::default(),
+                }
+                .into(),
+            ),
+        )]
+        .into_iter()
+        .collect();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(
+            res,
+            json!({
+                "range": {
+                    "buckets": {
+                        "*-0": { "key": "*-0", "doc_count": 0, "to": 0.0},
+                        "custom-key-0-to-0.1": {"key": "custom-key-0-to-0.1", "doc_count": 10, "from": 0.0, "to": 0.1},
+                        "0.1-*": {"key": "0.1-*", "doc_count": 90, "from": 0.1},
+                    }
+                }
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn bucket_test_extend_range_hole() {
         let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -412,7 +787,7 @@ mod tests {
             (10f64..20f64).into(),
             (20f64..f64::MAX).into(),
         ];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
@@ -427,7 +802,7 @@ mod tests {
     #[test]
     fn bucket_range_test_negative_vals() {
         let buckets = vec![(-10f64..-1f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
@@ -436,7 +811,7 @@ mod tests {
     #[test]
     fn bucket_range_test_positive_vals() {
         let buckets = vec![(0f64..10f64).into()];
-        let collector = get_collector_from_ranges(buckets, Type::F64);
+        let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
         let buckets = collector.buckets;
         assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
@@ -446,7 +821,7 @@ mod tests {
     #[test]
     fn range_binary_search_test_u64() {
         let check_ranges = |ranges: Vec<RangeAggregationRange>| {
-            let collector = get_collector_from_ranges(ranges, Type::U64);
+            let collector = get_collector_from_ranges(ranges, ColumnType::U64);
             let search = |val: u64| collector.get_bucket_pos(val);
 
             assert_eq!(search(u64::MIN), 0);
@@ -464,6 +839,7 @@ mod tests {
 
         let ranges = vec![
             RangeAggregationRange {
+                key: None,
                 to: Some(10.0),
                 from: None,
             },
@@ -473,11 +849,13 @@ mod tests {
 
         let ranges = vec![
             RangeAggregationRange {
+                key: None,
                 to: Some(10.0),
                 from: None,
             },
             (10.0..100.0).into(),
             RangeAggregationRange {
+                key: None,
                 to: None,
                 from: Some(100.0),
             },
@@ -487,13 +865,9 @@ mod tests {
 
     #[test]
     fn range_binary_search_test_f64() {
-        let ranges = vec![
-            //(f64::MIN..10.0).into(),
-            (10.0..100.0).into(),
-            //(100.0..f64::MAX).into(),
-        ];
+        let ranges = vec![(10.0..100.0).into()];
 
-        let collector = get_collector_from_ranges(ranges, Type::F64);
+        let collector = get_collector_from_ranges(ranges, ColumnType::F64);
         let search = |val: u64| collector.get_bucket_pos(val);
 
         assert_eq!(search(u64::MIN), 0);
@@ -528,7 +902,7 @@ mod bench {
             buckets.push((bucket_start..bucket_start + bucket_size as f64).into())
         }
 
-        get_collector_from_ranges(buckets, Type::U64)
+        get_collector_from_ranges(buckets, ColumnType::U64)
     }
 
     fn get_rand_docs(total_docs: u64, num_docs_returned: u64) -> Vec<u64> {

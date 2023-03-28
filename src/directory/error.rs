@@ -1,10 +1,13 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use crate::Version;
 
-/// Error while trying to acquire a directory lock.
-#[derive(Debug, Error)]
+/// Error while trying to acquire a directory [lock](crate::directory::Lock).
+///
+/// This is returned from [`Directory::acquire_lock`](crate::Directory::acquire_lock).
+#[derive(Debug, Clone, Error)]
 pub enum LockError {
     /// Failed to acquired a lock as it is already held by another
     /// client.
@@ -16,13 +19,20 @@ pub enum LockError {
     LockBusy,
     /// Trying to acquire a lock failed with an `IoError`
     #[error("Failed to acquire the lock due to an io:Error.")]
-    IoError(io::Error),
+    IoError(Arc<io::Error>),
+}
+
+impl LockError {
+    /// Wraps an io error.
+    pub fn wrap_io_error(io_error: io::Error) -> Self {
+        Self::IoError(Arc::new(io_error))
+    }
 }
 
 /// Error that may occur when opening a directory
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum OpenDirectoryError {
-    /// The underlying directory does not exists.
+    /// The underlying directory does not exist.
     #[error("Directory does not exist: '{0}'.")]
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
@@ -30,12 +40,12 @@ pub enum OpenDirectoryError {
     NotADirectory(PathBuf),
     /// Failed to create a temp directory.
     #[error("Failed to create a temporary directory: '{0}'.")]
-    FailedToCreateTempDir(io::Error),
+    FailedToCreateTempDir(Arc<io::Error>),
     /// IoError
     #[error("IoError '{io_error:?}' while create directory in: '{directory_path:?}'.")]
     IoError {
         /// underlying io Error.
-        io_error: io::Error,
+        io_error: Arc<io::Error>,
         /// directory we tried to open.
         directory_path: PathBuf,
     },
@@ -45,14 +55,14 @@ impl OpenDirectoryError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, directory_path: PathBuf) -> Self {
         Self::IoError {
-            io_error,
+            io_error: Arc::new(io_error),
             directory_path,
         }
     }
 }
 
 /// Error that may occur when starting to write in a file
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum OpenWriteError {
     /// Our directory is WORM, writing an existing file is forbidden.
     /// Checkout the `Directory` documentation.
@@ -63,7 +73,7 @@ pub enum OpenWriteError {
     #[error("IoError '{io_error:?}' while opening file for write: '{filepath}'.")]
     IoError {
         /// The underlying `io::Error`.
-        io_error: io::Error,
+        io_error: Arc<io::Error>,
         /// File path of the file that tantivy failed to open for write.
         filepath: PathBuf,
     },
@@ -72,11 +82,15 @@ pub enum OpenWriteError {
 impl OpenWriteError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IoError { io_error, filepath }
+        Self::IoError {
+            io_error: Arc::new(io_error),
+            filepath,
+        }
     }
 }
 /// Type of index incompatibility between the library and the index found on disk
 /// Used to catch and provide a hint to solve this incompatibility issue
+#[derive(Clone)]
 pub enum Incompatibility {
     /// This library cannot decompress the index found on disk
     CompressionMismatch {
@@ -135,10 +149,10 @@ impl fmt::Debug for Incompatibility {
 }
 
 /// Error that may occur when accessing a file read
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum OpenReadError {
-    /// The file does not exists.
-    #[error("Files does not exists: {0:?}")]
+    /// The file does not exist.
+    #[error("Files does not exist: {0:?}")]
     FileDoesNotExist(PathBuf),
     /// Any kind of io::Error.
     #[error(
@@ -146,7 +160,7 @@ pub enum OpenReadError {
     )]
     IoError {
         /// The underlying `io::Error`.
-        io_error: io::Error,
+        io_error: Arc<io::Error>,
         /// File path of the file that tantivy failed to open for read.
         filepath: PathBuf,
     },
@@ -158,21 +172,24 @@ pub enum OpenReadError {
 impl OpenReadError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IoError { io_error, filepath }
+        Self::IoError {
+            io_error: Arc::new(io_error),
+            filepath,
+        }
     }
 }
 /// Error that may occur when trying to delete a file
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum DeleteError {
-    /// The file does not exists.
-    #[error("File does not exists: '{0}'.")]
+    /// The file does not exist.
+    #[error("File does not exist: '{0}'.")]
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     #[error("The following IO error happened while deleting file '{filepath}': '{io_error:?}'.")]
     IoError {
         /// The underlying `io::Error`.
-        io_error: io::Error,
+        io_error: Arc<io::Error>,
         /// File path of the file that tantivy failed to delete.
         filepath: PathBuf,
     },

@@ -130,10 +130,10 @@ impl SegmentMeta {
     /// Returns the relative path of a component of our segment.
     ///
     /// It just joins the segment id with the extension
-    /// associated to a segment component.
+    /// associated with a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
-        path.push_str(&*match component {
+        path.push_str(&match component {
             SegmentComponent::Postings => ".idx".to_string(),
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),
@@ -235,11 +235,19 @@ impl InnerSegmentMeta {
     }
 }
 
+fn return_true() -> bool {
+    true
+}
+
+fn is_true(val: &bool) -> bool {
+    *val
+}
+
 /// Search Index Settings.
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -248,10 +256,36 @@ pub struct IndexSettings {
     /// The `Compressor` used to compress the doc store.
     #[serde(default)]
     pub docstore_compression: Compressor,
+    /// If set to true, docstore compression will happen on a dedicated thread.
+    /// (defaults: true)
+    #[doc(hidden)]
+    #[serde(default = "return_true")]
+    #[serde(skip_serializing_if = "is_true")]
+    pub docstore_compress_dedicated_thread: bool,
+    #[serde(default = "default_docstore_blocksize")]
+    /// The size of each block that will be compressed and written to disk
+    pub docstore_blocksize: usize,
 }
+
+/// Must be a function to be compatible with serde defaults
+fn default_docstore_blocksize() -> usize {
+    16_384
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        Self {
+            sort_by_field: None,
+            docstore_compression: Compressor::default(),
+            docstore_blocksize: default_docstore_blocksize(),
+            docstore_compress_dedicated_thread: true,
+        }
+    }
+}
+
 /// Settings to presort the documents in an index
 ///
-/// Presorting documents can greatly performance
+/// Presorting documents can greatly improve performance
 /// in some scenarios, by applying top n
 /// optimizations.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -292,13 +326,13 @@ pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
     #[serde(default)]
     pub index_settings: IndexSettings,
-    /// List of `SegmentMeta` informations associated to each finalized segment of the index.
+    /// List of `SegmentMeta` information associated with each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
     pub schema: Schema,
-    /// Opstamp associated to the last `commit` operation.
+    /// Opstamp associated with the last `commit` operation.
     pub opstamp: Opstamp,
-    /// Payload associated to the last commit.
+    /// Payload associated with the last commit.
     ///
     /// Upon commit, clients can optionally add a small `String` payload to their commit
     /// to help identify this commit.
@@ -307,7 +341,7 @@ pub struct IndexMeta {
     pub payload: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
     #[serde(default)]
@@ -376,6 +410,7 @@ mod tests {
     use super::IndexMeta;
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
+    use crate::store::{Compressor, ZstdCompressor};
     use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
@@ -401,12 +436,112 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
         assert_eq!(index_metas.index_settings, deser_meta.index_settings);
         assert_eq!(index_metas.schema, deser_meta.schema);
         assert_eq!(index_metas.opstamp, deser_meta.opstamp);
+    }
+
+    #[test]
+    fn test_serialize_metas_zstd_compressor() {
+        let schema = {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_text_field("text", TEXT);
+            schema_builder.build()
+        };
+        let index_metas = IndexMeta {
+            index_settings: IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "text".to_string(),
+                    order: Order::Asc,
+                }),
+                docstore_compression: crate::store::Compressor::Zstd(ZstdCompressor {
+                    compression_level: Some(4),
+                }),
+                docstore_blocksize: 1_000_000,
+                docstore_compress_dedicated_thread: true,
+            },
+            segments: Vec::new(),
+            schema,
+            opstamp: 0u64,
+            payload: None,
+        };
+        let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
+        assert_eq!(
+            json,
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+        );
+
+        let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(index_metas.index_settings, deser_meta.index_settings);
+        assert_eq!(index_metas.schema, deser_meta.schema);
+        assert_eq!(index_metas.opstamp, deser_meta.opstamp);
+    }
+
+    #[test]
+    fn test_serialize_metas_invalid_comp() {
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "unknown variant `zsstd`, expected one of `none`, `lz4`, `brotli`, `snappy`, `zstd`, \
+             `zstd(compression_level=5)` at line 1 column 96"
+                .to_string()
+        );
+
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd(bla=10)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "unknown zstd option \"bla\" at line 1 column 103".to_string()
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lz4-compression")]
+    fn test_index_settings_default() {
+        let mut index_settings = IndexSettings::default();
+        assert_eq!(
+            index_settings,
+            IndexSettings {
+                sort_by_field: None,
+                docstore_compression: Compressor::default(),
+                docstore_compress_dedicated_thread: true,
+                docstore_blocksize: 16_384
+            }
+        );
+        {
+            let index_settings_json = serde_json::to_value(&index_settings).unwrap();
+            assert_eq!(
+                index_settings_json,
+                serde_json::json!({
+                    "docstore_compression": "lz4",
+                    "docstore_blocksize": 16384
+                })
+            );
+            let index_settings_deser: IndexSettings =
+                serde_json::from_value(index_settings_json).unwrap();
+            assert_eq!(index_settings_deser, index_settings);
+        }
+        {
+            index_settings.docstore_compress_dedicated_thread = false;
+            let index_settings_json = serde_json::to_value(&index_settings).unwrap();
+            assert_eq!(
+                index_settings_json,
+                serde_json::json!({
+                    "docstore_compression": "lz4",
+                    "docstore_blocksize": 16384,
+                    "docstore_compress_dedicated_thread": false,
+                })
+            );
+            let index_settings_deser: IndexSettings =
+                serde_json::from_value(index_settings_json).unwrap();
+            assert_eq!(index_settings_deser, index_settings);
+        }
     }
 }

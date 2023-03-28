@@ -1,9 +1,6 @@
-use std::collections::BTreeMap;
-
 use super::PhraseWeight;
-use crate::core::searcher::Searcher;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{Query, Weight};
+use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
 
 /// `PhraseQuery` matches a specific sequence of words.
@@ -16,6 +13,9 @@ use crate::schema::{Field, IndexRecordOption, Term};
 /// On the other hand it will not match the sentence.
 ///
 /// **This is my favorite part of the job.**
+///
+/// [Slop](PhraseQuery::set_slop) allows leniency in term proximity
+/// for some performance tradeof.
 ///
 /// Using a `PhraseQuery` on a field requires positions
 /// to be indexed for this field.
@@ -40,7 +40,12 @@ impl PhraseQuery {
     /// Creates a new `PhraseQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhraseQuery {
+    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> PhraseQuery {
+        PhraseQuery::new_with_offset_and_slop(terms, 0)
+    }
+
+    /// Creates a new `PhraseQuery` given a list of terms, their offsets and a slop
+    pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhraseQuery {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
@@ -54,16 +59,19 @@ impl PhraseQuery {
         PhraseQuery {
             field,
             phrase_terms: terms,
-            slop: 0,
+            slop,
         }
     }
 
     /// Slop allowed for the phrase.
+    ///
+    /// The query will match if its terms are separated by `slop` terms at most.
+    /// By default the slop is 0 meaning query terms need to be adjacent.
     pub fn set_slop(&mut self, value: u32) {
         self.slop = value;
     }
 
-    /// The `Field` this `PhraseQuery` is targeting.
+    /// The [`Field`] this `PhraseQuery` is targeting.
     pub fn field(&self) -> Field {
         self.field
     }
@@ -76,16 +84,15 @@ impl PhraseQuery {
             .collect::<Vec<Term>>()
     }
 
-    /// Returns the `PhraseWeight` for the given phrase query given a specific `searcher`.
+    /// Returns the [`PhraseWeight`] for the given phrase query given a specific `searcher`.
     ///
-    /// This function is the same as `.weight(...)` except it returns
-    /// a specialized type `PhraseWeight` instead of a Boxed trait.
+    /// This function is the same as [`Query::weight()`] except it returns
+    /// a specialized type [`PhraseWeight`] instead of a Boxed trait.
     pub(crate) fn phrase_weight(
         &self,
-        searcher: &Searcher,
-        scoring_enabled: bool,
+        enable_scoring: EnableScoring<'_>,
     ) -> crate::Result<PhraseWeight> {
-        let schema = searcher.schema();
+        let schema = enable_scoring.schema();
         let field_entry = schema.get_field_entry(self.field);
         let has_positions = field_entry
             .field_type()
@@ -100,8 +107,14 @@ impl PhraseQuery {
             )));
         }
         let terms = self.phrase_terms();
-        let bm25_weight = Bm25Weight::for_terms(searcher, &terms)?;
-        let mut weight = PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, scoring_enabled);
+        let bm25_weight_opt = match enable_scoring {
+            EnableScoring::Enabled {
+                statistics_provider,
+                ..
+            } => Some(Bm25Weight::for_terms(statistics_provider, &terms)?),
+            EnableScoring::Disabled { .. } => None,
+        };
+        let mut weight = PhraseWeight::new(self.phrase_terms.clone(), bm25_weight_opt);
         if self.slop > 0 {
             weight.slop(self.slop);
         }
@@ -110,17 +123,17 @@ impl PhraseQuery {
 }
 
 impl Query for PhraseQuery {
-    /// Create the weight associated to a query.
+    /// Create the weight associated with a query.
     ///
-    /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        let phrase_weight = self.phrase_weight(searcher, scoring_enabled)?;
+    /// See [`Weight`].
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let phrase_weight = self.phrase_weight(enable_scoring)?;
         Ok(Box::new(phrase_weight))
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for (_, term) in &self.phrase_terms {
-            terms.insert(term.clone(), true);
+            visitor(term, true);
         }
     }
 }

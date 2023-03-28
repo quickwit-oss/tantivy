@@ -1,20 +1,26 @@
+use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::f64_from_fastfield_u64;
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
-use crate::schema::Type;
-use crate::DocId;
+use super::*;
+use crate::aggregation::agg_req_with_accessor::{
+    AggregationsWithAccessor, MetricAggregationWithAccessor,
+};
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResults, IntermediateMetricResult,
+};
+use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::{f64_from_fastfield_u64, VecWithNames};
+use crate::{DocId, TantivyError};
 
-/// A multi-value metric aggregation that computes stats of numeric values that are
-/// extracted from the aggregated documents.
-/// Supported field types are u64, i64, and f64.
-/// See [Stats] for returned statistics.
+/// A multi-value metric aggregation that computes a collection of statistics on numeric values that
+/// are extracted from the aggregated documents.
+/// See [`Stats`] for returned statistics.
 ///
 /// # JSON Format
 /// ```json
 /// {
 ///     "stats": {
-///         "field": "score",
+///         "field": "score"
 ///     }
 ///  }
 /// ```
@@ -26,11 +32,11 @@ pub struct StatsAggregation {
 }
 
 impl StatsAggregation {
-    /// Create new StatsAggregation from a field.
+    /// Creates a new [`StatsAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
         StatsAggregation { field: field_name }
     }
-    /// Return the field name.
+    /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
         &self.field
     }
@@ -40,34 +46,52 @@ impl StatsAggregation {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Stats {
     /// The number of documents.
-    pub count: usize,
+    pub count: u64,
     /// The sum of the fast field values.
     pub sum: f64,
-    /// The standard deviation of the fast field values. None for count == 0.
-    pub standard_deviation: Option<f64>,
     /// The min value of the fast field values.
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
-    /// The average of the values. None for count == 0.
+    /// The average of the fast field values. `None` if count equals zero.
     pub avg: Option<f64>,
 }
 
-/// IntermediateStats contains the mergeable version for stats.
+impl Stats {
+    pub(crate) fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match agg_property {
+            "count" => Ok(Some(self.count as f64)),
+            "sum" => Ok(Some(self.sum)),
+            "min" => Ok(self.min),
+            "max" => Ok(self.max),
+            "avg" => Ok(self.avg),
+            _ => Err(TantivyError::InvalidArgument(format!(
+                "Unknown property {} on stats metric aggregation",
+                agg_property
+            ))),
+        }
+    }
+}
+
+/// Intermediate result of the stats aggregation that can be combined with other intermediate
+/// results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
-    count: usize,
+    /// The number of extracted values.
+    count: u64,
+    /// The sum of the extracted values.
     sum: f64,
-    squared_sum: f64,
+    /// The min value.
     min: f64,
+    /// The max value.
     max: f64,
 }
+
 impl Default for IntermediateStats {
     fn default() -> Self {
         Self {
             count: 0,
             sum: 0.0,
-            squared_sum: 0.0,
             min: f64::MAX,
             max: f64::MIN,
         }
@@ -75,33 +99,15 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
-    pub(crate) fn avg(&self) -> Option<f64> {
-        if self.count == 0 {
-            None
-        } else {
-            Some(self.sum / (self.count as f64))
-        }
-    }
-
-    fn square_mean(&self) -> f64 {
-        self.squared_sum / (self.count as f64)
-    }
-
-    pub(crate) fn standard_deviation(&self) -> Option<f64> {
-        self.avg()
-            .map(|average| (self.square_mean() - average * average).sqrt())
-    }
-
-    /// Merge data from other stats into this instance.
+    /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
         self.sum += other.sum;
-        self.squared_sum += other.squared_sum;
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
     }
 
-    /// compute final resultimprove_docs
+    /// Computes the final stats value.
     pub fn finalize(&self) -> Stats {
         let min = if self.count == 0 {
             None
@@ -113,13 +119,17 @@ impl IntermediateStats {
         } else {
             Some(self.max)
         };
+        let avg = if self.count == 0 {
+            None
+        } else {
+            Some(self.sum / (self.count as f64))
+        };
         Stats {
             count: self.count,
             sum: self.sum,
-            standard_deviation: self.standard_deviation(),
             min,
             max,
-            avg: self.avg(),
+            avg,
         }
     }
 
@@ -127,46 +137,124 @@ impl IntermediateStats {
     fn collect(&mut self, value: f64) {
         self.count += 1;
         self.sum += value;
-        self.squared_sum += value * value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) enum SegmentStatsType {
+    Average,
+    Count,
+    Max,
+    Min,
+    Stats,
+    Sum,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentStatsCollector {
+    field_type: ColumnType,
+    pub(crate) collecting_for: SegmentStatsType,
     pub(crate) stats: IntermediateStats,
-    field_type: Type,
+    pub(crate) accessor_idx: usize,
+    val_cache: Vec<u64>,
 }
 
 impl SegmentStatsCollector {
-    pub fn from_req(field_type: Type) -> Self {
+    pub fn from_req(
+        field_type: ColumnType,
+        collecting_for: SegmentStatsType,
+        accessor_idx: usize,
+    ) -> Self {
         Self {
             field_type,
+            collecting_for,
             stats: IntermediateStats::default(),
+            accessor_idx,
+            val_cache: Default::default(),
         }
     }
-    pub(crate) fn collect_block(&mut self, doc: &[DocId], field: &DynamicFastFieldReader<u64>) {
-        let mut iter = doc.chunks_exact(4);
-        for docs in iter.by_ref() {
-            let val1 = field.get(docs[0]);
-            let val2 = field.get(docs[1]);
-            let val3 = field.get(docs[2]);
-            let val4 = field.get(docs[3]);
-            let val1 = f64_from_fastfield_u64(val1, &self.field_type);
-            let val2 = f64_from_fastfield_u64(val2, &self.field_type);
-            let val3 = f64_from_fastfield_u64(val3, &self.field_type);
-            let val4 = f64_from_fastfield_u64(val4, &self.field_type);
+    #[inline]
+    pub(crate) fn collect_block_with_field(
+        &mut self,
+        docs: &[DocId],
+        agg_accessor: &mut MetricAggregationWithAccessor,
+    ) {
+        agg_accessor
+            .column_block_accessor
+            .fetch_block(docs, &agg_accessor.accessor);
+
+        for val in agg_accessor.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.stats.collect(val1);
-            self.stats.collect(val2);
-            self.stats.collect(val3);
-            self.stats.collect(val4);
         }
-        for doc in iter.remainder() {
-            let val = field.get(*doc);
-            let val = f64_from_fastfield_u64(val, &self.field_type);
-            self.stats.collect(val);
+    }
+}
+
+impl SegmentAggregationCollector for SegmentStatsCollector {
+    #[inline]
+    fn into_intermediate_aggregations_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+    ) -> crate::Result<IntermediateAggregationResults> {
+        let name = agg_with_accessor.metrics.keys[self.accessor_idx].to_string();
+
+        let intermediate_metric_result = match self.collecting_for {
+            SegmentStatsType::Average => {
+                IntermediateMetricResult::Average(IntermediateAverage::from_collector(*self))
+            }
+            SegmentStatsType::Count => {
+                IntermediateMetricResult::Count(IntermediateCount::from_collector(*self))
+            }
+            SegmentStatsType::Max => {
+                IntermediateMetricResult::Max(IntermediateMax::from_collector(*self))
+            }
+            SegmentStatsType::Min => {
+                IntermediateMetricResult::Min(IntermediateMin::from_collector(*self))
+            }
+            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+            SegmentStatsType::Sum => {
+                IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
+            }
+        };
+
+        let metrics = Some(VecWithNames::from_entries(vec![(
+            name,
+            intermediate_metric_result,
+        )]));
+
+        Ok(IntermediateAggregationResults {
+            metrics,
+            buckets: None,
+        })
+    }
+
+    #[inline]
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
+
+        for val in field.values_for_doc(doc) {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.stats.collect(val1);
         }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &mut agg_with_accessor.metrics.values[self.accessor_idx];
+        self.collect_block_with_field(docs, field);
+        Ok(())
     }
 }
 
@@ -205,7 +293,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -219,8 +307,44 @@ mod tests {
                 "count": 0,
                 "max": Value::Null,
                 "min": Value::Null,
-                "standard_deviation": Value::Null,
                 "sum": 0.0
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_stats_simple() -> crate::Result<()> {
+        // test index without segments
+        let values = vec![10.0];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = vec![(
+            "stats".to_string(),
+            Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
+                "score".to_string(),
+            ))),
+        )]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["stats"],
+            json!({
+                "avg": 10.0,
+                "count": 1,
+                "max": 10.0,
+                "min": 10.0,
+                "sum": 10.0
             })
         );
 
@@ -260,29 +384,33 @@ mod tests {
             ),
             (
                 "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                    }),
-                    sub_aggregation: iter::once((
-                        "stats".to_string(),
-                        Aggregation::Metric(MetricAggregation::Stats(
-                            StatsAggregation::from_field_name("score".to_string()),
-                        )),
-                    ))
-                    .collect(),
-                }),
+                Aggregation::Bucket(
+                    BucketAggregation {
+                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
+                            field: "score".to_string(),
+                            ranges: vec![
+                                (3f64..7f64).into(),
+                                (7f64..19f64).into(),
+                                (19f64..20f64).into(),
+                            ],
+                            ..Default::default()
+                        }),
+                        sub_aggregation: iter::once((
+                            "stats".to_string(),
+                            Aggregation::Metric(MetricAggregation::Stats(
+                                StatsAggregation::from_field_name("score".to_string()),
+                            )),
+                        ))
+                        .collect(),
+                    }
+                    .into(),
+                ),
             ),
         ]
         .into_iter()
         .collect();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1);
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
 
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -295,7 +423,6 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
-                "standard_deviation": 13.65313748796613,
                 "sum": 85.0
             })
         );
@@ -307,7 +434,6 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
-                "standard_deviation": 13.65313748796613,
                 "sum": 85.0
             })
         );
@@ -319,7 +445,6 @@ mod tests {
                 "count": 7,
                 "max": 44.5,
                 "min": 1.0,
-                "standard_deviation": 13.819905785437443,
                 "sum": 85.5
             })
         );
@@ -331,7 +456,6 @@ mod tests {
                 "count": 3,
                 "max": 14.0,
                 "min": 7.0,
-                "standard_deviation": 2.867441755680877,
                 "sum": 32.0
             })
         );
@@ -343,7 +467,6 @@ mod tests {
                 "count": 0,
                 "max": serde_json::Value::Null,
                 "min": serde_json::Value::Null,
-                "standard_deviation": serde_json::Value::Null,
                 "sum": 0.0,
             })
         );

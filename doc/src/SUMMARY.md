@@ -1,7 +1,5 @@
 # Summary
 
-
-
 [Avant Propos](./avant-propos.md)
 
 - [Segments](./basis.md)

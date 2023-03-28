@@ -7,12 +7,12 @@
 // Of course, you can have a look at the tantivy's built-in collectors
 // such as the `CountCollector` for more examples.
 
+use columnar::Column;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
-use tantivy::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, FAST, INDEXED, TEXT};
+use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, Score, SegmentReader};
 
 #[derive(Default)]
@@ -50,11 +50,11 @@ impl Stats {
 }
 
 struct StatsCollector {
-    field: Field,
+    field: String,
 }
 
 impl StatsCollector {
-    fn with_field(field: Field) -> StatsCollector {
+    fn with_field(field: String) -> StatsCollector {
         StatsCollector { field }
     }
 }
@@ -71,7 +71,7 @@ impl Collector for StatsCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> tantivy::Result<StatsSegmentCollector> {
-        let fast_field_reader = segment_reader.fast_fields().u64(self.field)?;
+        let fast_field_reader = segment_reader.fast_fields().u64(&self.field)?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
             stats: Stats::default(),
@@ -95,7 +95,7 @@ impl Collector for StatsCollector {
 }
 
 struct StatsSegmentCollector {
-    fast_field_reader: DynamicFastFieldReader<u64>,
+    fast_field_reader: Column,
     stats: Stats,
 }
 
@@ -103,10 +103,14 @@ impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
     fn collect(&mut self, doc: u32, _score: Score) {
-        let value = self.fast_field_reader.get(doc) as f64;
-        self.stats.count += 1;
-        self.stats.sum += value;
-        self.stats.squared_sum += value * value;
+        // Since we know the values are single value, we could call `first_or_default_col` on the
+        // column and fetch single values.
+        for value in self.fast_field_reader.values_for_doc(doc) {
+            let value = value as f64;
+            self.stats.count += 1;
+            self.stats.sum += value;
+            self.stats.squared_sum += value * value;
+        }
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -167,9 +171,11 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![product_name, product_description]);
 
-    // here we want to get a hit on the 'ken' in Frankenstein
+    // here we want to search for `broom` and use `StatsCollector` on the hits.
     let query = query_parser.parse_query("broom")?;
-    if let Some(stats) = searcher.search(&query, &StatsCollector::with_field(price))? {
+    if let Some(stats) =
+        searcher.search(&query, &StatsCollector::with_field("price".to_string()))?
+    {
         println!("count: {}", stats.count());
         println!("mean: {}", stats.mean());
         println!("standard deviation: {}", stats.standard_deviation());

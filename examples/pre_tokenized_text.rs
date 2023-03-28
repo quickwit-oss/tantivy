@@ -12,7 +12,7 @@
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
-use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, Tokenizer};
+use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, TokenStream, Tokenizer};
 use tantivy::{doc, Index, ReloadPolicy};
 use tempfile::TempDir;
 

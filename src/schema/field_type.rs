@@ -1,12 +1,19 @@
+use std::net::IpAddr;
+use std::str::FromStr;
+
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+use super::ip_options::IpAddrOptions;
+use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
-    Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing, TextOptions,
-    Value,
+    DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing,
+    TextOptions, Value,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -25,6 +32,11 @@ pub enum ValueParsingError {
     #[error("Type error. Expected {expected}, got {json}")]
     TypeError {
         expected: &'static str,
+        json: serde_json::Value,
+    },
+    #[error("Parse  error on {json}: {error}")]
+    ParseError {
+        error: String,
         json: serde_json::Value,
     },
     #[error("Invalid base64: {base64}")]
@@ -46,6 +58,8 @@ pub enum Type {
     I64 = b'i',
     /// `f64`
     F64 = b'f',
+    /// `bool`
+    Bool = b'o',
     /// `date(i64) timestamp`
     Date = b'd',
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
@@ -54,17 +68,21 @@ pub enum Type {
     Bytes = b'b',
     /// Leaf in a Json object.
     Json = b'j',
+    /// IpAddr
+    IpAddr = b'p',
 }
 
-const ALL_TYPES: [Type; 8] = [
+const ALL_TYPES: [Type; 10] = [
     Type::Str,
     Type::U64,
     Type::I64,
     Type::F64,
+    Type::Bool,
     Type::Date,
     Type::Facet,
     Type::Bytes,
     Type::Json,
+    Type::IpAddr,
 ];
 
 impl Type {
@@ -86,25 +104,29 @@ impl Type {
             Type::U64 => "U64",
             Type::I64 => "I64",
             Type::F64 => "F64",
+            Type::Bool => "Bool",
             Type::Date => "Date",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
             Type::Json => "Json",
+            Type::IpAddr => "IpAddr",
         }
     }
 
     /// Interprets a 1byte code as a type.
-    /// Returns None if the code is invalid.
+    /// Returns `None` if the code is invalid.
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             b's' => Some(Type::Str),
             b'u' => Some(Type::U64),
             b'i' => Some(Type::I64),
             b'f' => Some(Type::F64),
+            b'o' => Some(Type::Bool),
             b'd' => Some(Type::Date),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
+            b'p' => Some(Type::IpAddr),
             _ => None,
         }
     }
@@ -125,14 +147,18 @@ pub enum FieldType {
     I64(NumericOptions),
     /// 64-bits float 64 field type configuration
     F64(NumericOptions),
+    /// Bool field type configuration
+    Bool(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
-    Date(NumericOptions),
-    /// Hierachical Facet
+    Date(DateOptions),
+    /// Hierarchical Facet
     Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
     /// Json object
     JsonObject(JsonObjectOptions),
+    /// IpAddr field
+    IpAddr(IpAddrOptions),
 }
 
 impl FieldType {
@@ -143,11 +169,23 @@ impl FieldType {
             FieldType::U64(_) => Type::U64,
             FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
+            FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
+            FieldType::IpAddr(_) => Type::IpAddr,
         }
+    }
+
+    /// returns true if this is an ip address field
+    pub fn is_ip_addr(&self) -> bool {
+        matches!(self, FieldType::IpAddr(_))
+    }
+
+    /// returns true if this is an date field
+    pub fn is_date(&self) -> bool {
+        matches!(self, FieldType::Date(_))
     }
 
     /// returns true if the field is indexed.
@@ -156,11 +194,13 @@ impl FieldType {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options) => int_options.is_indexed(),
+            | FieldType::F64(ref int_options)
+            | FieldType::Bool(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
         }
     }
 
@@ -188,13 +228,16 @@ impl FieldType {
     /// returns true if the field is fast.
     pub fn is_fast(&self) -> bool {
         match *self {
+            FieldType::Bytes(ref bytes_options) => bytes_options.is_fast(),
             FieldType::Str(ref text_options) => text_options.is_fast(),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.get_fastfield_cardinality().is_some(),
+            | FieldType::Bool(ref int_options) => int_options.is_fast(),
+            FieldType::Date(ref date_options) => date_options.is_fast(),
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
-            _ => false,
+            FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
         }
     }
 
@@ -208,10 +251,12 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.fieldnorms(),
+            | FieldType::Bool(ref int_options) => int_options.fieldnorms(),
+            FieldType::Date(ref date_options) => date_options.fieldnorms(),
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
+            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
         }
     }
 
@@ -231,8 +276,15 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => {
+            | FieldType::Bool(ref int_options) => {
                 if int_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
+            FieldType::Date(ref date_options) => {
+                if date_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
@@ -249,6 +301,13 @@ impl FieldType {
             FieldType::JsonObject(ref json_obj_options) => json_obj_options
                 .get_text_indexing_options()
                 .map(TextFieldIndexing::index_option),
+            FieldType::IpAddr(ref ip_addr_options) => {
+                if ip_addr_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -260,30 +319,95 @@ impl FieldType {
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
-                match *self {
+                match self {
                     FieldType::Date(_) => {
                         let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
                             .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
                             })?;
-                        Ok(DateTime::new_utc(dt_with_fixed_tz).into())
+                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
                     FieldType::Str(_) => Ok(Value::Str(field_text)),
-                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                        Err(ValueParsingError::TypeError {
-                            expected: "an integer",
-                            json: JsonValue::String(field_text),
-                        })
+                    FieldType::U64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a u64 or a u64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a u64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::I64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::I64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a i64 or a i64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a i64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::F64(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::F64(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a f64 or a f64 as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a f64",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
+                    }
+                    FieldType::Bool(opt) => {
+                        if opt.should_coerce() {
+                            Ok(Value::Bool(field_text.parse().map_err(|_| {
+                                ValueParsingError::TypeError {
+                                    expected: "a i64 or a bool as string",
+                                    json: JsonValue::String(field_text),
+                                }
+                            })?))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a boolean",
+                                json: JsonValue::String(field_text),
+                            })
+                        }
                     }
                     FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => base64::decode(&field_text)
+                    FieldType::Bytes(_) => BASE64
+                        .decode(&field_text)
                         .map(Value::Bytes)
                         .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
                     FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                         expected: "a json object",
                         json: JsonValue::String(field_text),
                     }),
+                    FieldType::IpAddr(_) => {
+                        let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
+                            ValueParsingError::ParseError {
+                                error: err.to_string(),
+                                json: JsonValue::String(field_text),
+                            }
+                        })?;
+
+                        Ok(Value::IpAddr(ip_addr.into_ipv6_addr()))
+                    }
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -317,14 +441,30 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "a string",
-                        json: JsonValue::Number(field_val_num),
-                    })
+                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                    expected: "a boolean",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(field_val_num.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Number(field_val_num),
+                        })
+                    }
                 }
+                FieldType::Facet(_) | FieldType::Bytes(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string",
+                    json: JsonValue::Number(field_val_num),
+                }),
                 FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
             },
@@ -347,6 +487,40 @@ impl FieldType {
                     json: JsonValue::Object(json_map),
                 }),
             },
+            JsonValue::Bool(json_bool_val) => match self {
+                FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str(json_bool_val.to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Bool(json_bool_val),
+                        })
+                    }
+                }
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Bool(json_bool_val),
+                }),
+            },
+            // Could also just filter them
+            JsonValue::Null => match self {
+                FieldType::Str(opt) => {
+                    if opt.should_coerce() {
+                        Ok(Value::Str("null".to_string()))
+                    } else {
+                        Err(ValueParsingError::TypeError {
+                            expected: "a string",
+                            json: JsonValue::Null,
+                        })
+                    }
+                }
+                _ => Err(ValueParsingError::TypeError {
+                    expected: self.value_type().name(),
+                    json: JsonValue::Null,
+                }),
+            },
             _ => Err(ValueParsingError::TypeError {
                 expected: self.value_type().name(),
                 json: json.clone(),
@@ -361,10 +535,89 @@ mod tests {
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
+    use crate::schema::{NumericOptions, Schema, TextOptions, Type, Value, COERCE, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, Document};
+
+    #[test]
+    fn test_to_string_coercion() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("id", COERCE);
+        let schema = schema_builder.build();
+        let doc = schema.parse_document(r#"{"id": 100}"#).unwrap();
+        assert_eq!(
+            &Value::Str("100".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+
+        let doc = schema.parse_document(r#"{"id": true}"#).unwrap();
+        assert_eq!(
+            &Value::Str("true".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+
+        // Not sure if this null coercion is the best approach
+        let doc = schema.parse_document(r#"{"id": null}"#).unwrap();
+        assert_eq!(
+            &Value::Str("null".to_string()),
+            doc.get_first(text_field).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_to_number_coercion() {
+        let mut schema_builder = Schema::builder();
+        let i64_field = schema_builder.add_i64_field("i64", COERCE);
+        let u64_field = schema_builder.add_u64_field("u64", COERCE);
+        let f64_field = schema_builder.add_f64_field("f64", COERCE);
+        let schema = schema_builder.build();
+        let doc_json = r#"{"i64": "100", "u64": "100", "f64": "100"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::I64(100), doc.get_first(i64_field).unwrap());
+        assert_eq!(&Value::U64(100), doc.get_first(u64_field).unwrap());
+        assert_eq!(&Value::F64(100.0), doc.get_first(f64_field).unwrap());
+    }
+
+    #[test]
+    fn test_to_bool_coercion() {
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("bool", COERCE);
+        let schema = schema_builder.build();
+        let doc_json = r#"{"bool": "true"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::Bool(true), doc.get_first(bool_field).unwrap());
+
+        let doc_json = r#"{"bool": "false"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        assert_eq!(&Value::Bool(false), doc.get_first(bool_field).unwrap());
+    }
+
+    #[test]
+    fn test_to_number_no_coercion() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("i64", NumericOptions::default());
+        schema_builder.add_u64_field("u64", NumericOptions::default());
+        schema_builder.add_f64_field("f64", NumericOptions::default());
+        let schema = schema_builder.build();
+        assert!(schema
+            .parse_document(r#"{"u64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a u64"));
+
+        assert!(schema
+            .parse_document(r#"{"i64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a i64"));
+
+        assert!(schema
+            .parse_document(r#"{"f64": "100"}"#)
+            .unwrap_err()
+            .to_string()
+            .contains("a f64"));
+    }
 
     #[test]
     fn test_deserialize_json_date() {
@@ -374,8 +627,8 @@ mod tests {
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
-        // Time zone is converted to UTC and subseconds are discarded
-        assert_eq!("Date(2019-10-12T05:20:50Z)", format!("{:?}", date));
+        // Time zone is converted to UTC
+        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{:?}", date));
     }
 
     #[test]
@@ -387,7 +640,7 @@ mod tests {
         let naive_date = Date::from_calendar_date(1982, Month::September, 17).unwrap();
         let naive_time = Time::from_hms(13, 20, 0).unwrap();
         let date_time = PrimitiveDateTime::new(naive_date, naive_time);
-        doc.add_date(date_field, DateTime::new_primitive(date_time));
+        doc.add_date(date_field, DateTime::from_primitive(date_time));
         let doc_json = schema.to_json(&doc);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
     }

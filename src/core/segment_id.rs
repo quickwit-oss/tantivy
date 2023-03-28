@@ -16,7 +16,7 @@ use uuid::Uuid;
 /// by a UUID which is used to prefix the filenames
 /// of all of the file associated with the segment.
 ///
-/// In unit test, for reproducability, the `SegmentId` are
+/// In unit test, for reproducibility, the `SegmentId` are
 /// simply generated in an autoincrement fashion.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);
@@ -35,7 +35,7 @@ const ZERO_ARRAY: [u8; 8] = [0u8; 8];
 #[cfg(test)]
 fn create_uuid() -> Uuid {
     let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::SeqCst);
-    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &ZERO_ARRAY).unwrap()
+    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &ZERO_ARRAY)
 }
 
 #[cfg(not(test))]
@@ -57,7 +57,7 @@ impl SegmentId {
     /// Picking the first 8 chars is ok to identify
     /// segments in a display message (e.g. a5c4dfcb).
     pub fn short_uuid_string(&self) -> String {
-        (&self.0.to_simple_ref().to_string()[..8]).to_string()
+        self.0.as_simple().to_string()[..8].to_string()
     }
 
     /// Returns a segment uuid string.
@@ -65,7 +65,7 @@ impl SegmentId {
     /// It consists in 32 lowercase hexadecimal chars
     /// (e.g. a5c4dfcbdfe645089129e308e26d5523)
     pub fn uuid_string(&self) -> String {
-        self.0.to_simple_ref().to_string()
+        self.0.as_simple().to_string()
     }
 
     /// Build a `SegmentId` string from the full uuid string.

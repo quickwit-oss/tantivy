@@ -39,7 +39,7 @@ impl Explanation {
         }
     }
 
-    /// Returns the value associated to the current node.
+    /// Returns the value associated with the current node.
     pub fn value(&self) -> Score {
         self.value
     }

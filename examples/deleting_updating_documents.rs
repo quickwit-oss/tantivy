@@ -113,7 +113,7 @@ fn main() -> tantivy::Result<()> {
     // on its id.
     //
     // Note that `tantivy` does nothing to enforce the idea that
-    // there is only one document associated to this id.
+    // there is only one document associated with this id.
     //
     // Also you might have noticed that we apply the delete before
     // having committed. This does not matter really...

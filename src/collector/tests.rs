@@ -1,9 +1,10 @@
+use columnar::{BytesColumn, Column};
+
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
 use crate::core::SegmentReader;
-use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
 use crate::query::{AllQuery, QueryParser};
-use crate::schema::{Field, Schema, FAST, TEXT};
+use crate::schema::{Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::{doc, DateTime, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
@@ -26,11 +27,11 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let index = Index::create_in_ram(schema);
 
     let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
-    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::new_utc(OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
-    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
-    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap())))?;
-    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::new_utc(OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
-    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::new_utc(OffsetDateTime::parse("2018-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_utc(OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_utc(OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_utc(OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_utc(OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
+    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_utc(OffsetDateTime::parse("2018-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;
@@ -55,7 +56,7 @@ pub fn test_filter_collector() -> crate::Result<()> {
     assert_eq!(filtered_top_docs.len(), 0);
 
     fn date_filter(value: DateTime) -> bool {
-        (value.to_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
+        (value.into_utc() - OffsetDateTime::parse("2019-04-09T00:00:00+00:00", &Rfc3339).unwrap())
             .whole_weeks()
             > 0
     }
@@ -69,10 +70,8 @@ pub fn test_filter_collector() -> crate::Result<()> {
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
-/// It is unusable in pr
-///
-/// actise, as it does not store
-/// the segment ordinals
+/// It is unusable in practise, as it does
+/// not store the segment ordinals
 pub struct TestCollector {
     pub compute_score: bool,
 }
@@ -153,17 +152,19 @@ impl SegmentCollector for TestSegmentCollector {
 ///
 /// This collector is mainly useful for tests.
 pub struct FastFieldTestCollector {
-    field: Field,
+    field: String,
 }
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: DynamicFastFieldReader<u64>,
+    reader: Column,
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: Field) -> FastFieldTestCollector {
-        FastFieldTestCollector { field }
+    pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
+        FastFieldTestCollector {
+            field: field.to_string(),
+        }
     }
 }
 
@@ -178,7 +179,7 @@ impl Collector for FastFieldTestCollector {
     ) -> crate::Result<FastFieldSegmentCollector> {
         let reader = segment_reader
             .fast_fields()
-            .u64(self.field)
+            .u64(&self.field)
             .expect("Requested field is not a fast field.");
         Ok(FastFieldSegmentCollector {
             vals: Vec::new(),
@@ -199,8 +200,7 @@ impl SegmentCollector for FastFieldSegmentCollector {
     type Fruit = Vec<u64>;
 
     fn collect(&mut self, doc: DocId, _score: Score) {
-        let val = self.reader.get(doc);
-        self.vals.push(val);
+        self.vals.extend(self.reader.values_for_doc(doc));
     }
 
     fn harvest(self) -> Vec<u64> {
@@ -212,18 +212,22 @@ impl SegmentCollector for FastFieldSegmentCollector {
 /// docs in the `DocSet`
 ///
 /// This collector is mainly useful for tests.
+/// It is very slow.
 pub struct BytesFastFieldTestCollector {
-    field: Field,
+    field: String,
 }
 
 pub struct BytesFastFieldSegmentCollector {
     vals: Vec<u8>,
-    reader: BytesFastFieldReader,
+    column_opt: Option<BytesColumn>,
+    buffer: Vec<u8>,
 }
 
 impl BytesFastFieldTestCollector {
-    pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
-        BytesFastFieldTestCollector { field }
+    pub fn for_field(field: impl ToString) -> BytesFastFieldTestCollector {
+        BytesFastFieldTestCollector {
+            field: field.to_string(),
+        }
     }
 }
 
@@ -236,10 +240,11 @@ impl Collector for BytesFastFieldTestCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
-        let reader = segment_reader.fast_fields().bytes(self.field)?;
+        let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
-            reader,
+            column_opt,
+            buffer: Vec::new(),
         })
     }
 
@@ -255,9 +260,15 @@ impl Collector for BytesFastFieldTestCollector {
 impl SegmentCollector for BytesFastFieldSegmentCollector {
     type Fruit = Vec<u8>;
 
-    fn collect(&mut self, doc: u32, _score: Score) {
-        let data = self.reader.get_bytes(doc);
-        self.vals.extend(data);
+    fn collect(&mut self, doc: DocId, _score: Score) {
+        if let Some(column) = self.column_opt.as_ref() {
+            for term_ord in column.term_ords(doc) {
+                let (vals, buffer) = (&mut self.vals, &mut self.buffer);
+                if column.ord_to_bytes(term_ord, buffer).unwrap() {
+                    vals.extend(&buffer[..]);
+                }
+            }
+        }
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -265,7 +276,7 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
     }
 }
 
-fn make_test_searcher() -> crate::Result<crate::LeasedItem<Searcher>> {
+fn make_test_searcher() -> crate::Result<Searcher> {
     let schema = Schema::builder().build();
     let index = Index::create_in_ram(schema);
     let mut index_writer = index.writer_for_tests()?;

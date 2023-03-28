@@ -52,26 +52,29 @@
 //! remove their inflection. This tokenizer is slower than the default one,
 //! but is recommended to improve recall.
 //!
+//! # Custom tokenizer Library
+//! Avoid using tantivy as dependency and prefer `tantivy-tokenizer-api` instead.
 //!
 //! # Custom tokenizers
 //!
-//! You can write your own tokenizer by implementing the [`Tokenizer`](./trait.Tokenizer.html)
-//! or you can extend an existing [`Tokenizer`](./trait.Tokenizer.html) by chaining it several
-//! [`TokenFilter`s](./trait.TokenFilter.html).
+//! You can write your own tokenizer by implementing the [`Tokenizer`] trait
+//! or you can extend an existing [`Tokenizer`] by chaining it with several
+//! [`TokenFilter`]s.
 //!
 //! For instance, the `en_stem` is defined as follows.
 //!
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let en_stem = TextAnalyzer::from(SimpleTokenizer)
+//! let en_stem = TextAnalyzer::builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser)
-//!     .filter(Stemmer::new(Language::English));
+//!     .filter(Stemmer::new(Language::English))
+//!     .build();
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
-//! register it with a name in your index's [`TokenizerManager`](./struct.TokenizerManager.html).
+//! register it with a name in your index's [`TokenizerManager`].
 //!
 //! ```rust
 //! # use tantivy::schema::Schema;
@@ -89,7 +92,7 @@
 //! could like this for instance.
 //!
 //! Note that tokens with a len greater or equal to
-//! [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).
+//! [`MAX_TOKEN_LEN`].
 //!
 //! # Example
 //!
@@ -110,9 +113,10 @@
 //! let index = Index::create_in_ram(schema);
 //!
 //! // We need to register our tokenizer :
-//! let custom_en_tokenizer = TextAnalyzer::from(SimpleTokenizer)
+//! let custom_en_tokenizer = TextAnalyzer::builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser);
+//!     .filter(LowerCaser)
+//!     .build();
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
@@ -124,8 +128,10 @@ mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
 mod raw_tokenizer;
+mod regex_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
+mod split_compound_words;
 mod stemmer;
 mod stop_word_filter;
 mod tokenized_string;
@@ -133,29 +139,31 @@ mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
+pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer};
+
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
+pub use self::regex_tokenizer::RegexTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
+pub use self::split_compound_words::SplitCompoundWords;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
-pub use self::tokenizer::{
-    BoxTokenFilter, BoxTokenStream, TextAnalyzer, Token, TokenFilter, TokenStream, Tokenizer,
-};
+pub use self::tokenizer::TextAnalyzer;
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///
-/// Tokenizer are in charge of not emitting tokens larger than this value.
+/// Tokenizers are in charge of not emitting tokens larger than this value.
 /// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
 /// `2^16 - 1 - 5`, the token will simply be ignored downstream.
-pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 5;
+pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
 pub mod tests {
@@ -229,10 +237,11 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Stemmer::new(Language::Greek))
+                .build(),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

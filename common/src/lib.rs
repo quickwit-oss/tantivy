@@ -5,13 +5,25 @@ use std::ops::Deref;
 pub use byteorder::LittleEndian as Endianness;
 
 mod bitset;
+mod byte_count;
+mod datetime;
+mod dictionary_footer;
+pub mod file_slice;
+mod group_by;
 mod serialize;
 mod vint;
 mod writer;
-
 pub use bitset::*;
+pub use byte_count::ByteCount;
+pub use datetime::{DatePrecision, DateTime};
+pub use dictionary_footer::*;
+pub use group_by::GroupByIteratorExtended;
+pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
-pub use vint::{read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt};
+pub use vint::{
+    deserialize_vint_u128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u128,
+    serialize_vint_u32, write_u32_vint, VInt, VIntU128,
+};
 pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
 
 /// Has length trait
@@ -52,13 +64,13 @@ const HIGHEST_BIT: u64 = 1 << 63;
 /// to values over 2^63, and all values end up requiring 64 bits.
 ///
 /// # See also
-/// The [reverse mapping is `u64_to_i64`](./fn.u64_to_i64.html).
+/// The reverse mapping is [`u64_to_i64()`].
 #[inline]
 pub fn i64_to_u64(val: i64) -> u64 {
     (val as u64) ^ HIGHEST_BIT
 }
 
-/// Reverse the mapping given by [`i64_to_u64`](./fn.i64_to_u64.html).
+/// Reverse the mapping given by [`i64_to_u64()`].
 #[inline]
 pub fn u64_to_i64(val: u64) -> i64 {
     (val ^ HIGHEST_BIT) as i64
@@ -80,7 +92,7 @@ pub fn u64_to_i64(val: u64) -> i64 {
 /// explains the mapping in a clear manner.
 ///
 /// # See also
-/// The [reverse mapping is `u64_to_f64`](./fn.u64_to_f64.html).
+/// The reverse mapping is [`u64_to_f64()`].
 #[inline]
 pub fn f64_to_u64(val: f64) -> u64 {
     let bits = val.to_bits();
@@ -91,7 +103,7 @@ pub fn f64_to_u64(val: f64) -> u64 {
     }
 }
 
-/// Reverse the mapping given by [`i64_to_u64`](./fn.i64_to_u64.html).
+/// Reverse the mapping given by [`f64_to_u64()`].
 #[inline]
 pub fn u64_to_f64(val: u64) -> f64 {
     f64::from_bits(if val & HIGHEST_BIT != 0 {
@@ -101,10 +113,23 @@ pub fn u64_to_f64(val: u64) -> f64 {
     })
 }
 
+/// Replaces a given byte in the `bytes` slice of bytes.
+///
+/// This function assumes that the needle is rarely contained in the bytes string
+/// and offers a fast path if the needle is not present.
+pub fn replace_in_place(needle: u8, replacement: u8, bytes: &mut [u8]) {
+    if !bytes.contains(&needle) {
+        return;
+    }
+    for b in bytes {
+        if *b == needle {
+            *b = replacement;
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod test {
-
-    use std::f64;
 
     use proptest::prelude::*;
 
@@ -135,11 +160,11 @@ pub mod test {
 
     #[test]
     fn test_i64_converter() {
-        assert_eq!(i64_to_u64(i64::min_value()), u64::min_value());
-        assert_eq!(i64_to_u64(i64::max_value()), u64::max_value());
+        assert_eq!(i64_to_u64(i64::MIN), u64::MIN);
+        assert_eq!(i64_to_u64(i64::MAX), u64::MAX);
         test_i64_converter_helper(0i64);
-        test_i64_converter_helper(i64::min_value());
-        test_i64_converter_helper(i64::max_value());
+        test_i64_converter_helper(i64::MIN);
+        test_i64_converter_helper(i64::MAX);
         for i in -1000i64..1000i64 {
             test_i64_converter_helper(i);
         }
@@ -166,5 +191,21 @@ pub mod test {
         assert!(f64_to_u64(-1.5) < f64_to_u64(-1.0));
         assert!(f64_to_u64(-2.0) < f64_to_u64(1.0));
         assert!(f64_to_u64(-2.0) < f64_to_u64(-1.5));
+    }
+
+    #[test]
+    fn test_replace_in_place() {
+        let test_aux = |before_replacement: &[u8], expected: &[u8]| {
+            let mut bytes: Vec<u8> = before_replacement.to_vec();
+            super::replace_in_place(b'b', b'c', &mut bytes);
+            assert_eq!(&bytes[..], expected);
+        };
+        test_aux(b"", b"");
+        test_aux(b"b", b"c");
+        test_aux(b"baaa", b"caaa");
+        test_aux(b"aaab", b"aaac");
+        test_aux(b"aaabaa", b"aaacaa");
+        test_aux(b"aaaaaa", b"aaaaaa");
+        test_aux(b"bbbb", b"cccc");
     }
 }

@@ -1,10 +1,11 @@
 use super::Scorer;
 use crate::core::SegmentReader;
+use crate::docset::BUFFER_LEN;
 use crate::query::Explanation;
-use crate::{DocId, Score, TERMINATED};
+use crate::{DocId, DocSet, Score, TERMINATED};
 
-/// Iterates through all of the document matched by the DocSet
-/// `DocSet` and push the scored documents to the collector.
+/// Iterates through all of the documents and scores matched by the DocSet
+/// `DocSet`.
 pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
     callback: &mut dyn FnMut(DocId, Score),
@@ -16,10 +17,27 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
+/// Iterates through all of the documents matched by the DocSet
+/// `DocSet`.
+#[inline]
+pub(crate) fn for_each_docset_buffered<T: DocSet + ?Sized>(
+    docset: &mut T,
+    buffer: &mut [DocId; BUFFER_LEN],
+    mut callback: impl FnMut(&[DocId]),
+) {
+    loop {
+        let num_items = docset.fill_buffer(buffer);
+        callback(&buffer[..num_items]);
+        if num_items != buffer.len() {
+            break;
+        }
+    }
+}
+
 /// Calls `callback` with all of the `(doc, score)` for which score
 /// is exceeding a given threshold.
 ///
-/// This method is useful for the TopDocs collector.
+/// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
 /// For all docsets, the blanket implementation has the benefit
 /// of prefiltering (doc, score) pairs, avoiding the
 /// virtual dispatch cost.
@@ -41,22 +59,22 @@ pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
-/// A Weight is the specialization of a Query
+/// A Weight is the specialization of a `Query`
 /// for a given set of segments.
 ///
-/// See [`Query`](./trait.Query.html).
+/// See [`Query`](crate::query::Query).
 pub trait Weight: Send + Sync + 'static {
     /// Returns the scorer for the given segment.
     ///
     /// `boost` is a multiplier to apply to the score.
     ///
-    /// See [`Query`](./trait.Query.html).
+    /// See [`Query`](crate::query::Query).
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
 
-    /// Returns an `Explanation` for the given document.
+    /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
-    /// Returns the number documents within the given `SegmentReader`.
+    /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if let Some(alive_bitset) = reader.alive_bitset() {
@@ -78,10 +96,24 @@ pub trait Weight: Send + Sync + 'static {
         Ok(())
     }
 
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
+    fn for_each_no_score(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(&[DocId]),
+    ) -> crate::Result<()> {
+        let mut docset = self.scorer(reader, 1.0)?;
+
+        let mut buffer = [0u32; BUFFER_LEN];
+        for_each_docset_buffered(&mut docset, &mut buffer, callback);
+        Ok(())
+    }
+
     /// Calls `callback` with all of the `(doc, score)` for which score
     /// is exceeding a given threshold.
     ///
-    /// This method is useful for the TopDocs collector.
+    /// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
     /// For all docsets, the blanket implementation has the benefit
     /// of prefiltering (doc, score) pairs, avoiding the
     /// virtual dispatch cost.

@@ -1,10 +1,8 @@
 use std::io;
 use std::io::Write;
 
-use common::{intersect_bitsets, BitSet, ReadOnlyBitSet};
-use ownedbytes::OwnedBytes;
+use common::{intersect_bitsets, BitSet, ByteCount, OwnedBytes, ReadOnlyBitSet};
 
-use crate::space_usage::ByteCount;
 use crate::DocId;
 
 /// Write an alive `BitSet`
@@ -48,11 +46,6 @@ impl AliveBitSet {
         write_alive_bitset(&bitset, &mut alive_bitset_buffer).unwrap();
         let alive_bitset_bytes = OwnedBytes::new(alive_bitset_buffer);
         Self::open(alive_bitset_bytes)
-    }
-
-    pub(crate) fn from_bitset(bitset: &BitSet) -> AliveBitSet {
-        let readonly_bitset = ReadOnlyBitSet::from(bitset);
-        AliveBitSet::from(readonly_bitset)
     }
 
     /// Opens an alive bitset given its file.
@@ -176,7 +169,7 @@ mod bench {
 
     fn get_alive() -> Vec<u32> {
         let mut data = (0..1_000_000_u32).collect::<Vec<u32>>();
-        for _ in 0..(1_000_000) * 1 / 8 {
+        for _ in 0..1_000_000 / 8 {
             remove_rand(&mut data);
         }
         data
@@ -188,14 +181,14 @@ mod bench {
     }
 
     #[bench]
-    fn bench_deletebitset_iter_deser_on_fly(bench: &mut Bencher) {
+    fn bench_alive_bitset_iter_deser_on_fly(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]
-    fn bench_deletebitset_access(bench: &mut Bencher) {
+    fn bench_alive_bitset_access(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| {
@@ -206,14 +199,14 @@ mod bench {
     }
 
     #[bench]
-    fn bench_deletebitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
+    fn bench_alive_bitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&get_alive(), 1_000_000);
 
         bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]
-    fn bench_deletebitset_access_1_8_alive(bench: &mut Bencher) {
+    fn bench_alive_bitset_access_1_8_alive(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&get_alive(), 1_000_000);
 
         bench.iter(|| {

@@ -1,13 +1,13 @@
-//! The fieldnorm represents the length associated to
+//! The fieldnorm represents the length associated with
 //! a given Field of a given document.
 //!
 //! This metric is important to compute the score of a
-//! document : a document having a query word in one its short fields
+//! document: a document having a query word in one of its short fields
 //! (e.g. title)  is likely to be more relevant than in one of its longer field
 //! (e.g. body).
 //!
 //! It encodes `fieldnorm` on one byte with some precision loss,
-//! using the exact same scheme as Lucene. Each value is place on a log-scale
+//! using the exact same scheme as Lucene. Each value is placed on a log-scale
 //! that takes values from `0` to `255`.
 //!
 //! A value on this scale is identified by a `fieldnorm_id`.
@@ -34,7 +34,7 @@ mod tests {
 
     use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
     use crate::fieldnorm::{FieldNormReader, FieldNormsSerializer, FieldNormsWriter};
-    use crate::query::{Query, TermQuery};
+    use crate::query::{EnableScoring, Query, TermQuery};
     use crate::schema::{
         Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
     };
@@ -112,7 +112,7 @@ mod tests {
             Term::from_field_text(text, "hello"),
             IndexRecordOption::WithFreqs,
         );
-        let weight = query.weight(&*searcher, true)?;
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
@@ -141,7 +141,7 @@ mod tests {
             Term::from_field_text(text, "hello"),
             IndexRecordOption::WithFreqs,
         );
-        let weight = query.weight(&*searcher, true)?;
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);

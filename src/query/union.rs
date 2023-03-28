@@ -36,34 +36,6 @@ pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     score: Score,
 }
 
-impl<TScorer, TScoreCombiner> From<Vec<TScorer>> for Union<TScorer, TScoreCombiner>
-where
-    TScoreCombiner: ScoreCombiner,
-    TScorer: Scorer,
-{
-    fn from(docsets: Vec<TScorer>) -> Union<TScorer, TScoreCombiner> {
-        let non_empty_docsets: Vec<TScorer> = docsets
-            .into_iter()
-            .filter(|docset| docset.doc() != TERMINATED)
-            .collect();
-        let mut union = Union {
-            docsets: non_empty_docsets,
-            bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
-            scores: Box::new([TScoreCombiner::default(); HORIZON as usize]),
-            cursor: HORIZON_NUM_TINYBITSETS,
-            offset: 0,
-            doc: 0,
-            score: 0.0,
-        };
-        if union.refill() {
-            union.advance();
-        } else {
-            union.doc = TERMINATED;
-        }
-        union
-    }
-}
-
 fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     scorers: &mut Vec<TScorer>,
     bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
@@ -71,7 +43,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     min_doc: DocId,
 ) {
     unordered_drain_filter(scorers, |scorer| {
-        let horizon = min_doc + HORIZON as u32;
+        let horizon = min_doc + HORIZON;
         loop {
             let doc = scorer.doc();
             if doc >= horizon {
@@ -90,6 +62,31 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
+    pub(crate) fn build(
+        docsets: Vec<TScorer>,
+        score_combiner_fn: impl FnOnce() -> TScoreCombiner,
+    ) -> Union<TScorer, TScoreCombiner> {
+        let non_empty_docsets: Vec<TScorer> = docsets
+            .into_iter()
+            .filter(|docset| docset.doc() != TERMINATED)
+            .collect();
+        let mut union = Union {
+            docsets: non_empty_docsets,
+            bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
+            scores: Box::new([score_combiner_fn(); HORIZON as usize]),
+            cursor: HORIZON_NUM_TINYBITSETS,
+            offset: 0,
+            doc: 0,
+            score: 0.0,
+        };
+        if union.refill() {
+            union.advance();
+        } else {
+            union.doc = TERMINATED;
+        }
+        union
+    }
+
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             self.offset = min_doc;
@@ -97,8 +94,8 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
             self.doc = min_doc;
             refill(
                 &mut self.docsets,
-                &mut *self.bitsets,
-                &mut *self.scores,
+                &mut self.bitsets,
+                &mut self.scores,
                 min_doc,
             );
             true
@@ -179,7 +176,6 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            #[cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::collapsible_if))]
             unordered_drain_filter(&mut self.docsets, |docset| {
                 if docset.doc() < target {
                     docset.seek(target);
@@ -188,7 +184,7 @@ where
             });
 
             // at this point all of the docsets
-            // are positionned on a doc >= to the target.
+            // are positioned on a doc >= to the target.
             if !self.refill() {
                 self.doc = TERMINATED;
                 return TERMINATED;
@@ -266,12 +262,13 @@ mod tests {
         let union_vals: Vec<u32> = val_set.into_iter().collect();
         let mut union_expected = VecDocSet::from(union_vals);
         let make_union = || {
-            Union::from(
+            Union::build(
                 vals.iter()
                     .cloned()
                     .map(VecDocSet::from)
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<ConstScorer<VecDocSet>>>(),
+                DoNothingCombiner::default,
             )
         };
         let mut union: Union<_, DoNothingCombiner> = make_union();
@@ -312,13 +309,14 @@ mod tests {
             btree_set.extend(docs.iter().cloned());
         }
         let docset_factory = || {
-            let res: Box<dyn DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
+            let res: Box<dyn DocSet> = Box::new(Union::build(
                 docs_list
                     .iter()
                     .cloned()
                     .map(VecDocSet::from)
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
+                DoNothingCombiner::default,
             ));
             res
         };
@@ -346,10 +344,13 @@ mod tests {
 
     #[test]
     fn test_union_skip_corner_case3() {
-        let mut docset = Union::<_, DoNothingCombiner>::from(vec![
-            ConstScorer::from(VecDocSet::from(vec![0u32, 5u32])),
-            ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
-        ]);
+        let mut docset = Union::build(
+            vec![
+                ConstScorer::from(VecDocSet::from(vec![0u32, 5u32])),
+                ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
+            ],
+            DoNothingCombiner::default,
+        );
         assert_eq!(docset.doc(), 0u32);
         assert_eq!(docset.seek(0u32), 0u32);
         assert_eq!(docset.seek(0u32), 0u32);
@@ -405,12 +406,13 @@ mod bench {
             tests::sample_with_seed(100_000, 0.2, 1),
         ];
         bench.iter(|| {
-            let mut v = Union::<_, DoNothingCombiner>::from(
+            let mut v = Union::build(
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
+                DoNothingCombiner::default,
             );
             while v.doc() != TERMINATED {
                 v.advance();
@@ -425,12 +427,13 @@ mod bench {
             tests::sample_with_seed(100_000, 0.001, 2),
         ];
         bench.iter(|| {
-            let mut v = Union::<_, DoNothingCombiner>::from(
+            let mut v = Union::build(
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
+                DoNothingCombiner::default,
             );
             while v.doc() != TERMINATED {
                 v.advance();

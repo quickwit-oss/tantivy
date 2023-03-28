@@ -21,16 +21,17 @@ For instance,  if user is a json field, the following document:
 ```
 
 emits the following tokens:
--  ("name", Text, "Paul")
--  ("name", Text, "Masurel")
--  ("address.city", Text, "Tokyo")
--  ("address.country", Text, "Japan")
--  ("created_at", Date, 15420648505)
 
+- ("name", Text, "Paul")
+- ("name", Text, "Masurel")
+- ("address.city", Text, "Tokyo")
+- ("address.country", Text, "Japan")
+- ("created_at", Date, 15420648505)
 
-# Bytes-encoding and lexicographical sort.
+## Bytes-encoding and lexicographical sort
 
 Like any other terms, these triplets are encoded into a binary format as follows.
+
 - `json_path`: the json path is a sequence of "segments". In the example above, `address.city`
 is just a debug representation of the json path `["address", "city"]`.
 Its representation is done by separating segments by a unicode char `\x01`, and ending the path by `\x00`.
@@ -41,16 +42,16 @@ This representation is designed to align the natural sort of Terms with the lexi
 of their binary representation (Tantivy's dictionary (whether fst or sstable) is sorted and does prefix encoding).
 
 In the example above, the terms will be sorted as
--  ("address.city", Text, "Tokyo")
--  ("address.country", Text, "Japan")
--  ("name", Text, "Masurel")
--  ("name", Text, "Paul")
--  ("created_at", Date, 15420648505)
+
+- ("address.city", Text, "Tokyo")
+- ("address.country", Text, "Japan")
+- ("name", Text, "Masurel")
+- ("name", Text, "Paul")
+- ("created_at", Date, 15420648505)
 
 As seen in "pitfalls", we may end up having to search for a value for a same path in several different fields. Putting the field code after the path makes it maximizes compression opportunities but also increases the chances for the two terms to end up in the actual same term dictionary block.
 
-
-# Pitfalls, limitation and corner cases.
+## Pitfalls, limitation and corner cases
 
 Json gives very little information about the type of the literals it stores.
 All numeric types end up mapped as a "Number" and there are no types for dates.
@@ -70,23 +71,25 @@ For instance, we do not even know if the type is a number or string based.
 
 So the query
 
-```
+```rust
 my_path.my_segment:233
 ```
 
 Will be interpreted as
-`(my_path.my_segment, String, 233) or (my_path.my_segment, u64, 233)`
+
+```rust
+(my_path.my_segment, String, 233) or (my_path.my_segment, u64, 233)
+```
 
 Likewise, we need to emit two tokens if the query contains an rfc3999 date.
 Indeed the date could have been actually a single token inside the text of a document at ingestion time. Generally speaking, we will always at least emit a string token in query parsing, and sometimes more.
 
 If one more json field is defined, things get even more complicated.
 
-
 ## Default json field
 
 If the schema contains a text field called "text" and a json field that is set as a default field:
-`text:hello` could be reasonably interpreted as targetting the text field or as targetting the json field called `json_dynamic` with the json_path "text".
+`text:hello` could be reasonably interpreted as targeting the text field or as targeting the json field called `json_dynamic` with the json_path "text".
 
 If there is such an ambiguity, we decide to only search in the "text" field: `text:hello`.
 
@@ -96,11 +99,11 @@ This is a product decision.
 The user can still target the JSON field by specifying its name explicitly:
 `json_dynamic.text:hello`.
 
-## Range queries are not supported.
+## Range queries are not supported
 
 Json field do not support range queries.
 
-## Arrays do not work like nested object.
+## Arrays do not work like nested object
 
 If json object contains an array, a search query might return more documents
 than what might be expected.
@@ -120,9 +123,8 @@ Let's take an example.
 Despite the array structure, a document in tantivy is a bag of terms.
 The query:
 
-```
+```rust
 cart.product_type:sneakers AND cart.attributes.color:red
 ```
 
 Actually match the document above.
-

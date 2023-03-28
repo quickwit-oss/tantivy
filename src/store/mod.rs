@@ -4,8 +4,8 @@
 //! order to be handled in the `Store`.
 //!
 //! Internally, documents (or rather their stored fields) are serialized to a buffer.
-//! When the buffer exceeds 16K, the buffer is compressed using `brotli`, `LZ4` or `snappy`
-//! and the resulting block is written to disk.
+//! When the buffer exceeds `block_size` (defaults to 16K), the buffer is compressed using `brotli`,
+//! `LZ4` or `snappy` and the resulting block is written to disk.
 //!
 //! One can then request for a specific `DocId`.
 //! A skip list helps navigating to the right block,
@@ -27,19 +27,23 @@
 //!
 //! - at the segment level, the
 //! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
-//! - at the index level, the
-//! [`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
-//!
-//! !
+//! - at the index level, the [`Searcher::doc()`](crate::Searcher::doc) method
 
 mod compressors;
+mod decompressors;
 mod footer;
 mod index;
 mod reader;
 mod writer;
-pub use self::compressors::Compressor;
-pub use self::reader::StoreReader;
+pub use self::compressors::{Compressor, ZstdCompressor};
+pub use self::decompressors::Decompressor;
+pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
+pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
+mod store_compressor;
+
+/// Doc store version in footer to handle format changes.
+pub(crate) const DOC_STORE_VERSION: u32 = 1;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
@@ -49,6 +53,9 @@ mod compression_brotli;
 
 #[cfg(feature = "snappy-compression")]
 mod compression_snap;
+
+#[cfg(feature = "zstd-compression")]
+mod compression_zstd_block;
 
 #[cfg(test)]
 pub mod tests {
@@ -69,10 +76,14 @@ pub mod tests {
                          sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt \
                          mollit anim id est laborum.";
 
+    const BLOCK_SIZE: usize = 16_384;
+
     pub fn write_lorem_ipsum_store(
         writer: WritePtr,
         num_docs: usize,
         compressor: Compressor,
+        blocksize: usize,
+        separate_thread: bool,
     ) -> Schema {
         let mut schema_builder = Schema::builder();
         let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
@@ -80,12 +91,13 @@ pub mod tests {
             schema_builder.add_text_field("title", TextOptions::default().set_stored());
         let schema = schema_builder.build();
         {
-            let mut store_writer = StoreWriter::new(writer, compressor);
+            let mut store_writer =
+                StoreWriter::new(writer, compressor, blocksize, separate_thread).unwrap();
             for i in 0..num_docs {
                 let mut doc = Document::default();
                 doc.add_field_value(field_body, LOREM.to_string());
                 doc.add_field_value(field_title, format!("Doc {i}"));
-                store_writer.store(&doc).unwrap();
+                store_writer.store(&doc, &schema).unwrap();
             }
             store_writer.close().unwrap();
         }
@@ -103,10 +115,11 @@ pub mod tests {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4);
+        let schema =
+            write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4, BLOCK_SIZE, true);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
@@ -139,14 +152,19 @@ pub mod tests {
         Ok(())
     }
 
-    fn test_store(compressor: Compressor) -> crate::Result<()> {
+    fn test_store(
+        compressor: Compressor,
+        blocksize: usize,
+        separate_thread: bool,
+    ) -> crate::Result<()> {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor);
+        let schema =
+            write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor, blocksize, separate_thread);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file)?;
+        let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
@@ -168,23 +186,39 @@ pub mod tests {
     }
 
     #[test]
-    fn test_store_noop() -> crate::Result<()> {
-        test_store(Compressor::None)
+    fn test_store_no_compression_same_thread() -> crate::Result<()> {
+        test_store(Compressor::None, BLOCK_SIZE, false)
     }
+
+    #[test]
+    fn test_store_no_compression() -> crate::Result<()> {
+        test_store(Compressor::None, BLOCK_SIZE, true)
+    }
+
     #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_store_lz4_block() -> crate::Result<()> {
-        test_store(Compressor::Lz4)
+        test_store(Compressor::Lz4, BLOCK_SIZE, true)
     }
     #[cfg(feature = "snappy-compression")]
     #[test]
     fn test_store_snap() -> crate::Result<()> {
-        test_store(Compressor::Snappy)
+        test_store(Compressor::Snappy, BLOCK_SIZE, true)
     }
     #[cfg(feature = "brotli-compression")]
     #[test]
     fn test_store_brotli() -> crate::Result<()> {
-        test_store(Compressor::Brotli)
+        test_store(Compressor::Brotli, BLOCK_SIZE, true)
+    }
+
+    #[cfg(feature = "zstd-compression")]
+    #[test]
+    fn test_store_zstd() -> crate::Result<()> {
+        test_store(
+            Compressor::Zstd(ZstdCompressor::default()),
+            BLOCK_SIZE,
+            true,
+        )
     }
 
     #[test]
@@ -217,7 +251,7 @@ pub mod tests {
 
         let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
-        let store = reader.get_store_reader()?;
+        let store = reader.get_store_reader(10)?;
         for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().as_text().unwrap(),
@@ -253,10 +287,10 @@ pub mod tests {
         }
         assert_eq!(
             index.reader().unwrap().searcher().segment_readers()[0]
-                .get_store_reader()
+                .get_store_reader(10)
                 .unwrap()
-                .compressor(),
-            Compressor::Lz4
+                .decompressor(),
+            Decompressor::Lz4
         );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
@@ -274,7 +308,7 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader().unwrap();
+        let store = reader.get_store_reader(10).unwrap();
 
         for doc in store.iter(reader.alive_bitset()).take(50) {
             assert_eq!(
@@ -282,7 +316,7 @@ pub mod tests {
                 LOREM.to_string()
             );
         }
-        assert_eq!(store.compressor(), Compressor::Snappy);
+        assert_eq!(store.decompressor(), Decompressor::Snappy);
 
         Ok(())
     }
@@ -321,7 +355,7 @@ pub mod tests {
         let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader()?;
+        let store = reader.get_store_reader(10)?;
         assert_eq!(store.block_checkpoints().count(), 1);
         Ok(())
     }
@@ -348,6 +382,8 @@ mod bench {
                 directory.open_write(path).unwrap(),
                 1_000,
                 Compressor::default(),
+                16_384,
+                true,
             );
             directory.delete(path).unwrap();
         });
@@ -361,9 +397,11 @@ mod bench {
             directory.open_write(path).unwrap(),
             1_000,
             Compressor::default(),
+            16_384,
+            true,
         );
         let store_file = directory.open_read(path).unwrap();
-        let store = StoreReader::open(store_file).unwrap();
+        let store = StoreReader::open(store_file, 10).unwrap();
         b.iter(|| store.iter(None).collect::<Vec<_>>());
     }
 }

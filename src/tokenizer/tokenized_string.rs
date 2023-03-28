@@ -25,7 +25,7 @@ impl PartialOrd for PreTokenizedString {
     }
 }
 
-/// TokenStream implementation which wraps PreTokenizedString
+/// [`TokenStream`] implementation which wraps [`PreTokenizedString`]
 pub struct PreTokenizedStream {
     tokenized_string: PreTokenizedString,
     current_token: i64,

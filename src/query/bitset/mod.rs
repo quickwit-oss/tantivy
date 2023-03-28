@@ -14,7 +14,7 @@ use crate::DocId;
 /// when the bitset is sparse
 pub struct BitSetDocSet {
     docs: BitSet,
-    cursor_bucket: u32, //< index associated to the current tiny bitset
+    cursor_bucket: u32, //< index associated with the current tiny bitset
     cursor_tinybitset: TinySet,
     doc: u32,
 }
@@ -45,9 +45,10 @@ impl From<BitSet> for BitSetDocSet {
 }
 
 impl DocSet for BitSetDocSet {
+    #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
-            self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
+            self.doc = (self.cursor_bucket * 64u32) | lower;
             return self.doc;
         }
         if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {
@@ -86,10 +87,7 @@ impl DocSet for BitSetDocSet {
         self.doc
     }
 
-    /// Returns half of the `max_doc`
-    /// This is quite a terrible heuristic,
-    /// but we don't have access to any better
-    /// value.
+    /// Returns the number of values set in the underlying bitset.
     fn size_hint(&self) -> u32 {
         self.docs.len() as u32
     }

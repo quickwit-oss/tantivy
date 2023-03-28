@@ -1,9 +1,6 @@
-use std::collections::BTreeMap;
-
 use super::boolean_weight::BooleanWeight;
-use crate::query::{Occur, Query, TermQuery, Weight};
+use crate::query::{EnableScoring, Occur, Query, SumWithCoordsCombiner, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
-use crate::Searcher;
 
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
@@ -11,11 +8,11 @@ use crate::Searcher;
 /// The documents matched by the boolean query are
 /// those which
 /// * match all of the sub queries associated with the
-/// `Must` occurence
+/// `Must` occurrence
 /// * match none of the sub queries associated with the
-/// `MustNot` occurence.
+/// `MustNot` occurrence.
 /// * match at least one of the subqueries that is not
-/// a `MustNot` occurence.
+/// a `MustNot` occurrence.
 ///
 ///
 /// You can combine other query types and their `Occur`ances into one `BooleanQuery`
@@ -145,20 +142,22 @@ impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let sub_weights = self
             .subqueries
             .iter()
-            .map(|&(ref occur, ref subquery)| {
-                Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
-            })
+            .map(|(occur, subquery)| Ok((*occur, subquery.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
-        Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
+        Ok(Box::new(BooleanWeight::new(
+            sub_weights,
+            enable_scoring.is_scoring_enabled(),
+            Box::new(SumWithCoordsCombiner::default),
+        )))
     }
 
-    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         for (_occur, subquery) in &self.subqueries {
-            subquery.query_terms(terms);
+            subquery.query_terms(visitor);
         }
     }
 }

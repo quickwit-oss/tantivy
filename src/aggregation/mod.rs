@@ -1,6 +1,5 @@
 //! # Aggregations
 //!
-//!
 //! An aggregation summarizes your data as statistics on buckets or metrics.
 //!
 //! Aggregations can provide answer to questions like:
@@ -10,40 +9,45 @@
 //!
 //! There are two categories: [Metrics](metric) and [Buckets](bucket).
 //!
-//! # Usage
+//! ## Prerequisite
+//! Currently aggregations work only on [fast fields](`crate::fastfield`). Fast fields
+//! of type `u64`, `f64`, `i64`, `date` and fast fields on text fields.
 //!
-//!
+//! ## Usage
 //! To use aggregations, build an aggregation request by constructing
-//! [Aggregations](agg_req::Aggregations).
-//! Create an [AggregationCollector] from this request. AggregationCollector implements the
-//! `Collector` trait and can be passed as collector into `searcher.search()`.
+//! [`Aggregations`](agg_req::Aggregations).
+//! Create an [`AggregationCollector`] from this request. `AggregationCollector` implements the
+//! [`Collector`](crate::collector::Collector) trait and can be passed as collector into
+//! [`Searcher::search()`](crate::Searcher::search).
 //!
-//! #### Limitations
 //!
-//! Currently aggregations work only on single value fast fields of type u64, f64 and i64.
-//!
-//! # JSON Format
+//! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
-//! let collector = AggregationCollector::from_aggs(agg_req);
+//! let collector = AggregationCollector::from_aggs(agg_req, None);
 //! let searcher = reader.searcher();
 //! let agg_res = searcher.search(&term_query, &collector).unwrap_err();
 //! let json_response_string: String = &serde_json::to_string(&agg_res)?;
 //! ```
 //!
-//! # Supported Aggregations
+//! ## Supported Aggregations
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
 //!     - [Range](bucket::RangeAggregation)
+//!     - [Terms](bucket::TermsAggregation)
 //! - [Metric](metric)
 //!     - [Average](metric::AverageAggregation)
 //!     - [Stats](metric::StatsAggregation)
+//!     - [Min](metric::MinAggregation)
+//!     - [Max](metric::MaxAggregation)
+//!     - [Sum](metric::SumAggregation)
+//!     - [Count](metric::CountAggregation)
 //!
 //! # Example
-//! Compute the average metric, by building [agg_req::Aggregations], which is built from an (String,
-//! [agg_req::Aggregation]) iterator.
+//! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
+//! `(String, agg_req::Aggregation)` iterator.
 //!
 //! ```
 //! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
@@ -66,14 +70,14 @@
 //!     .into_iter()
 //!     .collect();
 //!
-//!     let collector = AggregationCollector::from_aggs(agg_req);
+//!     let collector = AggregationCollector::from_aggs(agg_req, Default::default());
 //!
 //!     let searcher = reader.searcher();
 //!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
 //! }
 //! ```
 //! # Example JSON
-//! Requests are compatible with the elasticsearch json request format.
+//! Requests are compatible with the elasticsearch JSON request format.
 //!
 //! ```
 //! use tantivy::aggregation::agg_req::Aggregations;
@@ -126,13 +130,14 @@
 //! let agg_req_1: Aggregations = vec![
 //!     (
 //!         "range".to_string(),
-//!         Aggregation::Bucket(BucketAggregation {
+//!         Aggregation::Bucket(Box::new(BucketAggregation {
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: false,
 //!             }),
 //!             sub_aggregation: sub_agg_req_1.clone(),
-//!         }),
+//!         })),
 //!     ),
 //! ]
 //! .into_iter()
@@ -140,41 +145,50 @@
 //! ```
 //!
 //! # Distributed Aggregation
-//! When the data is distributed on different [crate::Index] instances, the
-//! [DistributedAggregationCollector] provides functionality to merge data between independent
+//! When the data is distributed on different [`Index`](crate::Index) instances, the
+//! [`DistributedAggregationCollector`] provides functionality to merge data between independent
 //! search calls by returning
-//! [IntermediateAggregationResults](intermediate_agg_result::IntermediateAggregationResults).
-//! IntermediateAggregationResults provides the
-//! [merge_fruits](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method to
-//! merge multiple results. The merged result can then be converted into
-//! [agg_result::AggregationResults] via the
-//! [agg_result::AggregationResults::from_intermediate_and_req] method.
+//! [`IntermediateAggregationResults`](intermediate_agg_result::IntermediateAggregationResults).
+//! `IntermediateAggregationResults` provides the
+//! [`merge_fruits`](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method
+//! to merge multiple results. The merged result can then be converted into
+//! [`AggregationResults`](agg_result::AggregationResults) via the
+//! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
 
+mod agg_limits;
 pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
+mod buf_collector;
 mod collector;
+mod date;
+mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
-mod segment_agg_result;
 
+mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
 
+#[cfg(test)]
+mod agg_tests;
+
+pub use agg_limits::AggregationLimits;
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
+    DEFAULT_BUCKET_LIMIT,
 };
+use columnar::{ColumnType, MonotonicallyMappableToU64};
+pub(crate) use date::format_date;
+pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
-use crate::fastfield::FastValue;
-use crate::schema::Type;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct VecWithNames<T: Clone> {
-    values: Vec<T>,
+    pub(crate) values: Vec<T>,
     keys: Vec<String>,
 }
 
@@ -200,19 +214,16 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T: Clone> VecWithNames<T> {
-    fn from_other<K: Clone + Into<T>>(entries: VecWithNames<K>) -> Self {
-        let values = entries.values.into_iter().map(Into::into).collect();
-        Self {
-            keys: entries.keys,
-            values,
-        }
+    fn extend(&mut self, entries: VecWithNames<T>) {
+        self.keys.extend(entries.keys);
+        self.values.extend(entries.values);
     }
 
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
         entries.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut data = vec![];
-        let mut data_names = vec![];
+        let mut data = Vec::with_capacity(entries.len());
+        let mut data_names = Vec::with_capacity(entries.len());
         for entry in entries {
             data_names.push(entry.0);
             data.push(entry.1);
@@ -240,25 +251,50 @@ impl<T: Clone> VecWithNames<T> {
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()
     }
-    fn entries(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
-        self.keys().zip(self.values.iter())
-    }
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
+    fn len(&self) -> usize {
+        self.keys.len()
+    }
+    fn get(&self, name: &str) -> Option<&T> {
+        self.keys()
+            .position(|key| key == name)
+            .map(|pos| &self.values[pos])
+    }
 }
 
-/// The serialized key is used in a HashMap.
+/// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, PartialOrd)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd)]
 /// The key to identify a bucket.
 #[serde(untagged)]
 pub enum Key {
     /// String key
     Str(String),
-    /// f64 key
+    /// `f64` key
     F64(f64),
+}
+impl Eq for Key {}
+impl std::hash::Hash for Key {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Key::Str(text) => text.hash(state),
+            Key::F64(val) => val.to_bits().hash(state),
+        }
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Str(l), Self::Str(r)) => l == r,
+            (Self::F64(l), Self::F64(r)) => l == r,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Key {
@@ -270,62 +306,54 @@ impl Display for Key {
     }
 }
 
-/// Invert of to_fastfield_u64. Used to convert to f64 for metrics.
+/// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
-/// Only u64, f64, i64 is supported
-pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
+/// Only `u64`, `f64`, `date`, and `i64` are supported.
+pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
     match field_type {
-        Type::U64 => val as f64,
-        Type::I64 => i64::from_u64(val) as f64,
-        Type::F64 => f64::from_u64(val),
+        ColumnType::U64 => val as f64,
+        ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
+        ColumnType::F64 => f64::from_u64(val),
         _ => {
             panic!("unexpected type {:?}. This should not happen", field_type)
         }
     }
 }
 
-/// Converts the f64 value to fast field value space.
+/// Converts the `f64` value to fast field value space, which is always u64.
 ///
-/// If the fast field has u64, values are stored as u64 in the fast field.
-/// A f64 value of e.g. 2.0 therefore needs to be converted to 1u64
+/// If the fast field has `u64`, values are stored unchanged as `u64` in the fast field.
 ///
-/// If the fast field has f64 values are converted and stored to u64 using a
+/// If the fast field has `f64` values are converted and stored to `u64` using a
 /// monotonic mapping.
-/// A f64 value of e.g. 2.0 needs to be converted using the same monotonic
-/// conversion function, so that the value matches the u64 value stored in the fast
+/// A `f64` value of e.g. `2.0` needs to be converted using the same monotonic
+/// conversion function, so that the value matches the `u64` value stored in the fast
 /// field.
-pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
+pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &ColumnType) -> Option<u64> {
     match field_type {
-        Type::U64 => Some(val as u64),
-        Type::I64 => Some((val as i64).to_u64()),
-        Type::F64 => Some(val.to_u64()),
+        ColumnType::U64 => Some(val as u64),
+        ColumnType::I64 | ColumnType::DateTime => Some((val as i64).to_u64()),
+        ColumnType::F64 => Some(val.to_u64()),
         _ => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv6Addr;
+
+    use columnar::DateTime;
     use serde_json::Value;
+    use time::OffsetDateTime;
 
-    use super::agg_req::{Aggregation, Aggregations, BucketAggregation};
-    use super::bucket::RangeAggregation;
-    use super::collector::AggregationCollector;
-    use super::metric::AverageAggregation;
-    use crate::aggregation::agg_req::{BucketAggregationType, MetricAggregation};
-    use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-    use crate::aggregation::segment_agg_result::DOC_BLOCK_SIZE;
-    use crate::aggregation::DistributedAggregationCollector;
+    use super::agg_req::Aggregations;
+    use super::segment_agg_result::AggregationLimits;
+    use super::*;
+    use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
-    use crate::schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing};
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::{Index, Term};
-
-    fn get_avg_req(field_name: &str) -> Aggregation {
-        Aggregation::Metric(MetricAggregation::Average(
-            AverageAggregation::from_field_name(field_name.to_string()),
-        ))
-    }
 
     pub fn get_test_index_with_num_docs(
         merge_segments: bool,
@@ -337,38 +365,118 @@ mod tests {
         )
     }
 
+    pub fn exec_request(agg_req: Aggregations, index: &Index) -> crate::Result<Value> {
+        exec_request_with_query(agg_req, index, None)
+    }
+    pub fn exec_request_with_query(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+    ) -> crate::Result<Value> {
+        exec_request_with_query_and_memory_limit(agg_req, index, query, Default::default())
+    }
+
+    pub fn exec_request_with_query_and_memory_limit(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+        limits: AggregationLimits,
+    ) -> crate::Result<Value> {
+        let collector = AggregationCollector::from_aggs(agg_req, limits);
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res = if let Some((field, term)) = query {
+            let text_field = reader.searcher().schema().get_field(field).unwrap();
+
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+
+            searcher.search(&term_query, &collector)?
+        } else {
+            searcher.search(&AllQuery, &collector)?
+        };
+
+        // Test serialization/deserialization roundtrip
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        Ok(res)
+    }
+
     pub fn get_test_index_from_values(
         merge_segments: bool,
         values: &[f64],
     ) -> crate::Result<Index> {
+        // Every value gets its own segment
+        let mut segment_and_values = vec![];
+        for value in values {
+            segment_and_values.push(vec![(*value, value.to_string())]);
+        }
+        get_test_index_from_values_and_terms(merge_segments, &segment_and_values)
+    }
+
+    pub fn get_test_index_from_terms(
+        merge_segments: bool,
+        values: &[Vec<&str>],
+    ) -> crate::Result<Index> {
+        // Every value gets its own segment
+        let segment_and_values = values
+            .iter()
+            .map(|terms| {
+                terms
+                    .iter()
+                    .enumerate()
+                    .map(|(i, term)| (i as f64, term.to_string()))
+                    .collect()
+            })
+            .collect::<Vec<_>>();
+        get_test_index_from_values_and_terms(merge_segments, &segment_and_values)
+    }
+
+    pub fn get_test_index_from_values_and_terms(
+        merge_segments: bool,
+        segment_and_values: &[Vec<(f64, String)>],
+    ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_fieldtype = crate::schema::TextOptions::default()
             .set_indexing_options(
-                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::Basic)
+                    .set_fieldnorms(false),
             )
+            .set_fast()
             .set_stored();
-        let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
+        let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
+        let string_field_id = schema_builder.add_text_field("string_id", STRING | FAST);
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let fraction_field = schema_builder.add_f64_field(
             "fraction_f64",
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue),
+            crate::schema::NumericOptions::default().set_fast(),
         );
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_for_tests()?;
-            for &i in values {
-                // writing the segment
-                index_writer.add_document(doc!(
-                    text_field => "cool",
-                    score_field => i as u64,
-                    score_field_f64 => i as f64,
-                    score_field_i64 => i as i64,
-                    fraction_field => i as f64/100.0,
-                ))?;
+            // let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            for values in segment_and_values {
+                for (i, term) in values {
+                    let i = *i;
+                    // writing the segment
+                    index_writer.add_document(doc!(
+                        text_field => "cool",
+                        text_field_id => term.to_string(),
+                        string_field_id => term.to_string(),
+                        score_field => i as u64,
+                        score_field_f64 => i,
+                        score_field_i64 => i as i64,
+                        fraction_field => i/100.0,
+                    ))?;
+                }
                 index_writer.commit()?;
             }
         }
@@ -376,130 +484,14 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
-            index_writer.merge(&segment_ids).wait()?;
-            index_writer.wait_merging_threads()?;
+            if segment_ids.len() > 1 {
+                let mut index_writer = index.writer_for_tests()?;
+                index_writer.merge(&segment_ids).wait()?;
+                index_writer.wait_merging_threads()?;
+            }
         }
 
         Ok(index)
-    }
-
-    // *** EVERY BUCKET-TYPE SHOULD BE TESTED HERE ***
-    fn test_aggregation_flushing(
-        merge_segments: bool,
-        use_distributed_collector: bool,
-    ) -> crate::Result<()> {
-        let index = get_test_index_with_num_docs(merge_segments, 80)?;
-
-        let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
-
-        assert_eq!(DOC_BLOCK_SIZE, 64);
-        // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
-        //
-        // Build a request so that on the first level we have one full cache, which is then flushed.
-        // The same cache should have some residue docs at the end, which are flushed (Range 0-70)
-        // -> 70 docs
-        //
-        // The second level should also have some residue docs in the cache that are flushed at the
-        // end.
-        //
-        // A second bucket on the first level should have the cache unfilled
-
-        // let elasticsearch_compatible_json_req = r#"
-        let elasticsearch_compatible_json = json!(
-        {
-        "bucketsL1": {
-            "range": {
-                "field": "score",
-                "ranges": [ { "to": 3.0f64 }, { "from": 3.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
-            },
-            "aggs": {
-                "bucketsL2": {
-                    "range": {
-                        "field": "score",
-                        "ranges": [ { "to": 30.0f64 }, { "from": 30.0f64, "to": 70.0f64 }, { "from": 70.0f64 } ]
-                    }
-                }
-            }
-        },
-        "histogram_test":{
-            "histogram": {
-                "field": "score",
-                "interval":  70.0,
-                "offset": 3.0,
-            },
-            "aggs": {
-                "bucketsL2": {
-                    "histogram": {
-                        "field": "score",
-                        "interval":  70.0
-                    }
-                }
-            }
-        }
-        });
-
-        let agg_req: Aggregations =
-            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
-                .unwrap();
-
-        let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
-
-            let searcher = reader.searcher();
-            AggregationResults::from_intermediate_and_req(
-                searcher.search(&term_query, &collector).unwrap(),
-                agg_req,
-            )
-        } else {
-            let collector = AggregationCollector::from_aggs(agg_req);
-
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        };
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-
-        assert_eq!(res["bucketsL1"]["buckets"][0]["doc_count"], 3);
-        assert_eq!(
-            res["bucketsL1"]["buckets"][0]["bucketsL2"]["buckets"][0]["doc_count"],
-            3
-        );
-        assert_eq!(res["bucketsL1"]["buckets"][1]["key"], "3-70");
-        assert_eq!(res["bucketsL1"]["buckets"][1]["doc_count"], 70 - 3);
-        assert_eq!(
-            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][0]["doc_count"],
-            27
-        );
-        assert_eq!(
-            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][1]["doc_count"],
-            40
-        );
-        assert_eq!(
-            res["bucketsL1"]["buckets"][1]["bucketsL2"]["buckets"][2]["doc_count"],
-            0
-        );
-        assert_eq!(
-            res["bucketsL1"]["buckets"][2]["bucketsL2"]["buckets"][2]["doc_count"],
-            80 - 70
-        );
-        assert_eq!(res["bucketsL1"]["buckets"][2]["doc_count"], 80 - 70);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_aggregation_flushing_variants() {
-        test_aggregation_flushing(false, false).unwrap();
-        test_aggregation_flushing(false, true).unwrap();
-        test_aggregation_flushing(true, false).unwrap();
-        test_aggregation_flushing(true, true).unwrap();
     }
 
     pub fn get_test_index_2_segments(merge_segments: bool) -> crate::Result<Index> {
@@ -508,15 +500,17 @@ mod tests {
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
+            .set_fast()
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
+        let date_field = schema_builder.add_date_field("date", FAST);
+        schema_builder.add_text_field("dummy_text", STRING);
+        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
+        let ip_addr_field = schema_builder.add_ip_addr_field("ip_addr", FAST);
 
-        let multivalue =
-            crate::schema::NumericOptions::default().set_fast(Cardinality::MultiValues);
+        let multivalue = crate::schema::NumericOptions::default().set_fast();
         let scores_field_i64 = schema_builder.add_i64_field("scores_i64", multivalue);
 
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
@@ -526,7 +520,9 @@ mod tests {
             // writing the segment
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800).unwrap()),
                 score_field => 1u64,
+                ip_addr_field => Ipv6Addr::from(1u128),
                 score_field_f64 => 1f64,
                 score_field_i64 => 1i64,
                 scores_field_i64 => 1i64,
@@ -534,6 +530,7 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 3u64,
                 score_field_f64 => 3f64,
                 score_field_i64 => 3i64,
@@ -542,18 +539,21 @@ mod tests {
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 5u64,
                 score_field_f64 => 5f64,
                 score_field_i64 => 5i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 6u64,
                 score_field_f64 => 6f64,
                 score_field_i64 => 6i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 7u64,
                 score_field_f64 => 7f64,
                 score_field_i64 => 7i64,
@@ -561,12 +561,14 @@ mod tests {
             index_writer.commit()?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400).unwrap()),
                 score_field => 11u64,
                 score_field_f64 => 11f64,
                 score_field_i64 => 11i64,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 14u64,
                 score_field_f64 => 14f64,
                 score_field_i64 => 14i64,
@@ -574,6 +576,7 @@ mod tests {
 
             index_writer.add_document(doc!(
                 text_field => "cool",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,
@@ -584,6 +587,7 @@ mod tests {
             // no hits segment
             index_writer.add_document(doc!(
                 text_field => "nohit",
+                date_field => DateTime::from_utc(OffsetDateTime::from_unix_timestamp(1_546_300_800 + 86400 + 86400).unwrap()),
                 score_field => 44u64,
                 score_field_f64 => 44.5f64,
                 score_field_i64 => 44i64,
@@ -601,770 +605,5 @@ mod tests {
         }
 
         Ok(index)
-    }
-
-    #[test]
-    fn test_aggregation_level1() -> crate::Result<()> {
-        let index = get_test_index_2_segments(true)?;
-
-        let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
-
-        let agg_req_1: Aggregations = vec![
-            ("average_i64".to_string(), get_avg_req("score_i64")),
-            ("average_f64".to_string(), get_avg_req("score_f64")),
-            ("average".to_string(), get_avg_req("score")),
-            (
-                "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score".to_string(),
-                        ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            ),
-            (
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            ),
-            (
-                "rangei64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_i64".to_string(),
-                        ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        let collector = AggregationCollector::from_aggs(agg_req_1);
-
-        let searcher = reader.searcher();
-        let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        assert_eq!(res["average"]["value"], 12.142857142857142);
-        assert_eq!(res["average_f64"]["value"], 12.214285714285714);
-        assert_eq!(res["average_i64"]["value"], 12.142857142857142);
-        assert_eq!(
-            res["range"]["buckets"],
-            json!(
-            [
-            {
-              "key": "*-3",
-              "doc_count": 1,
-              "to": 3.0
-            },
-            {
-              "key": "3-7",
-              "doc_count": 2,
-              "from": 3.0,
-              "to": 7.0
-            },
-            {
-              "key": "7-20",
-              "doc_count": 3,
-              "from": 7.0,
-              "to": 20.0
-            },
-            {
-              "key": "20-*",
-              "doc_count": 1,
-              "from": 20.0
-            }
-            ])
-        );
-
-        Ok(())
-    }
-
-    fn test_aggregation_level2(
-        merge_segments: bool,
-        use_distributed_collector: bool,
-        use_elastic_json_req: bool,
-    ) -> crate::Result<()> {
-        let index = get_test_index_2_segments(merge_segments)?;
-
-        let reader = index.reader()?;
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "cool"),
-            IndexRecordOption::Basic,
-        );
-
-        let query_with_no_hits = TermQuery::new(
-            Term::from_field_text(text_field, "thistermdoesnotexist"),
-            IndexRecordOption::Basic,
-        );
-
-        let sub_agg_req: Aggregations =
-            vec![("average_in_range".to_string(), get_avg_req("score"))]
-                .into_iter()
-                .collect();
-        let agg_req: Aggregations = if use_elastic_json_req {
-            let elasticsearch_compatible_json_req = r#"
-{
-  "rangef64": {
-    "range": {
-      "field": "score_f64",
-      "ranges": [
-        { "to": 3.0 },
-        { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 19.0 },
-        { "from": 19.0, "to": 20.0 },
-        { "from": 20.0 }
-      ]
-    },
-    "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
-    }
-  },
-  "rangei64": {
-    "range": {
-      "field": "score_i64",
-      "ranges": [
-        { "to": 3.0 },
-        { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 19.0 },
-        { "from": 19.0, "to": 20.0 },
-        { "from": 20.0 }
-      ]
-    },
-    "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
-    }
-  },
-  "average": {
-    "avg": { "field": "score" }
-  },
-  "range": {
-    "range": {
-      "field": "score",
-      "ranges": [
-        { "to": 3.0 },
-        { "from": 3.0, "to": 7.0 },
-        { "from": 7.0, "to": 19.0 },
-        { "from": 19.0, "to": 20.0 },
-        { "from": 20.0 }
-      ]
-    },
-    "aggs": {
-      "average_in_range": { "avg": { "field": "score" } }
-    }
-  }
-}
-"#;
-            let value: Aggregations =
-                serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
-            value
-        } else {
-            let agg_req: Aggregations = vec![
-                ("average".to_string(), get_avg_req("score")),
-                (
-                    "range".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score".to_string(),
-                            ranges: vec![
-                                (3f64..7f64).into(),
-                                (7f64..19f64).into(),
-                                (19f64..20f64).into(),
-                            ],
-                        }),
-                        sub_aggregation: sub_agg_req.clone(),
-                    }),
-                ),
-                (
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7f64).into(),
-                                (7f64..19f64).into(),
-                                (19f64..20f64).into(),
-                            ],
-                        }),
-                        sub_aggregation: sub_agg_req.clone(),
-                    }),
-                ),
-                (
-                    "rangei64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_i64".to_string(),
-                            ranges: vec![
-                                (3f64..7f64).into(),
-                                (7f64..19f64).into(),
-                                (19f64..20f64).into(),
-                            ],
-                        }),
-                        sub_aggregation: sub_agg_req,
-                    }),
-                ),
-            ]
-            .into_iter()
-            .collect();
-            agg_req
-        };
-
-        let agg_res: AggregationResults = if use_distributed_collector {
-            let collector = DistributedAggregationCollector::from_aggs(agg_req.clone());
-
-            let searcher = reader.searcher();
-            let res = searcher.search(&term_query, &collector).unwrap();
-            // Test de/serialization roundtrip on intermediate_agg_result
-            let res: IntermediateAggregationResults =
-                serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-            AggregationResults::from_intermediate_and_req(res, agg_req.clone())
-        } else {
-            let collector = AggregationCollector::from_aggs(agg_req.clone());
-
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        };
-
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-
-        assert_eq!(res["range"]["buckets"][1]["key"], "3-7");
-        assert_eq!(res["range"]["buckets"][1]["doc_count"], 2u64);
-        assert_eq!(res["rangef64"]["buckets"][1]["doc_count"], 2u64);
-        assert_eq!(res["rangei64"]["buckets"][1]["doc_count"], 2u64);
-
-        assert_eq!(res["average"]["value"], 12.142857142857142f64);
-        assert_eq!(res["range"]["buckets"][2]["key"], "7-19");
-        assert_eq!(res["range"]["buckets"][2]["doc_count"], 3u64);
-        assert_eq!(res["rangef64"]["buckets"][2]["doc_count"], 3u64);
-        assert_eq!(res["rangei64"]["buckets"][2]["doc_count"], 3u64);
-        assert_eq!(res["rangei64"]["buckets"][5], serde_json::Value::Null);
-
-        assert_eq!(res["range"]["buckets"][4]["key"], "20-*");
-        assert_eq!(res["range"]["buckets"][4]["doc_count"], 1u64);
-        assert_eq!(res["rangef64"]["buckets"][4]["doc_count"], 1u64);
-        assert_eq!(res["rangei64"]["buckets"][4]["doc_count"], 1u64);
-
-        assert_eq!(res["range"]["buckets"][3]["key"], "19-20");
-        assert_eq!(res["range"]["buckets"][3]["doc_count"], 0u64);
-        assert_eq!(res["rangef64"]["buckets"][3]["doc_count"], 0u64);
-        assert_eq!(res["rangei64"]["buckets"][3]["doc_count"], 0u64);
-
-        assert_eq!(
-            res["range"]["buckets"][3]["average_in_range"]["value"],
-            serde_json::Value::Null
-        );
-
-        assert_eq!(
-            res["range"]["buckets"][4]["average_in_range"]["value"],
-            44.0f64
-        );
-        assert_eq!(
-            res["rangef64"]["buckets"][4]["average_in_range"]["value"],
-            44.0f64
-        );
-        assert_eq!(
-            res["rangei64"]["buckets"][4]["average_in_range"]["value"],
-            44.0f64
-        );
-
-        assert_eq!(
-            res["range"]["7-19"]["average_in_range"]["value"],
-            res["rangef64"]["7-19"]["average_in_range"]["value"]
-        );
-        assert_eq!(
-            res["range"]["7-19"]["average_in_range"]["value"],
-            res["rangei64"]["7-19"]["average_in_range"]["value"]
-        );
-
-        // Test empty result set
-        let collector = AggregationCollector::from_aggs(agg_req);
-        let searcher = reader.searcher();
-        searcher.search(&query_with_no_hits, &collector).unwrap();
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_aggregation_level2_multi_segments() -> crate::Result<()> {
-        test_aggregation_level2(false, false, false)
-    }
-
-    #[test]
-    fn test_aggregation_level2_single_segment() -> crate::Result<()> {
-        test_aggregation_level2(true, false, false)
-    }
-
-    #[test]
-    fn test_aggregation_level2_multi_segments_distributed_collector() -> crate::Result<()> {
-        test_aggregation_level2(false, true, false)
-    }
-
-    #[test]
-    fn test_aggregation_level2_single_segment_distributed_collector() -> crate::Result<()> {
-        test_aggregation_level2(true, true, false)
-    }
-
-    #[test]
-    fn test_aggregation_level2_multi_segments_use_json() -> crate::Result<()> {
-        test_aggregation_level2(false, false, true)
-    }
-
-    #[test]
-    fn test_aggregation_level2_single_segment_use_json() -> crate::Result<()> {
-        test_aggregation_level2(true, false, true)
-    }
-
-    #[test]
-    fn test_aggregation_level2_multi_segments_distributed_collector_use_json() -> crate::Result<()>
-    {
-        test_aggregation_level2(false, true, true)
-    }
-
-    #[test]
-    fn test_aggregation_level2_single_segment_distributed_collector_use_json() -> crate::Result<()>
-    {
-        test_aggregation_level2(true, true, true)
-    }
-
-    #[test]
-    fn test_aggregation_invalid_requests() -> crate::Result<()> {
-        let index = get_test_index_2_segments(false)?;
-
-        let reader = index.reader()?;
-
-        let avg_on_field = |field_name: &str| {
-            let agg_req_1: Aggregations = vec![(
-                "average".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name(field_name.to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1);
-
-            let searcher = reader.searcher();
-
-            searcher.search(&AllQuery, &collector).unwrap_err()
-        };
-
-        let agg_res = avg_on_field("text");
-        assert_eq!(
-            format!("{:?}", agg_res),
-            r#"InvalidArgument("Only single value fast fields of type f64, u64, i64 are supported, but got Str ")"#
-        );
-
-        let agg_res = avg_on_field("not_exist_field");
-        assert_eq!(
-            format!("{:?}", agg_res),
-            r#"FieldNotFound("not_exist_field")"#
-        );
-
-        let agg_res = avg_on_field("scores_i64");
-        assert_eq!(
-            format!("{:?}", agg_res),
-            r#"InvalidArgument("Invalid field type in aggregation I64, only Cardinality::SingleValue supported")"#
-        );
-
-        Ok(())
-    }
-
-    #[cfg(all(test, feature = "unstable"))]
-    mod bench {
-
-        use rand::{thread_rng, Rng};
-        use test::{self, Bencher};
-
-        use super::*;
-        use crate::aggregation::bucket::{HistogramAggregation, HistogramBounds};
-        use crate::aggregation::metric::StatsAggregation;
-        use crate::query::AllQuery;
-
-        fn get_test_index_bench(merge_segments: bool) -> crate::Result<Index> {
-            let mut schema_builder = Schema::builder();
-            let text_fieldtype = crate::schema::TextOptions::default()
-                .set_indexing_options(
-                    TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
-                )
-                .set_stored();
-            let text_field = schema_builder.add_text_field("text", text_fieldtype);
-            let score_fieldtype =
-                crate::schema::NumericOptions::default().set_fast(Cardinality::SingleValue);
-            let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
-            let score_field_f64 =
-                schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
-            let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
-            let index = Index::create_from_tempdir(schema_builder.build())?;
-            {
-                let mut rng = thread_rng();
-                let mut index_writer = index.writer_for_tests()?;
-                // writing the segment
-                for _ in 0..1_000_000 {
-                    let val: f64 = rng.gen_range(0.0..1_000_000.0);
-                    index_writer.add_document(doc!(
-                        text_field => "cool",
-                        score_field => val as u64,
-                        score_field_f64 => val as f64,
-                        score_field_i64 => val as i64,
-                    ))?;
-                }
-                index_writer.commit()?;
-            }
-            if merge_segments {
-                let segment_ids = index
-                    .searchable_segment_ids()
-                    .expect("Searchable segments failed.");
-                let mut index_writer = index.writer_for_tests()?;
-                index_writer.merge(&segment_ids).wait()?;
-                index_writer.wait_merging_threads()?;
-            }
-
-            Ok(index)
-        }
-
-        #[bench]
-        fn bench_aggregation_average_u64(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-            let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-            b.iter(|| {
-                let term_query = TermQuery::new(
-                    Term::from_field_text(text_field, "cool"),
-                    IndexRecordOption::Basic,
-                );
-
-                let agg_req_1: Aggregations = vec![(
-                    "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_stats_f64(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-            let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-            b.iter(|| {
-                let term_query = TermQuery::new(
-                    Term::from_field_text(text_field, "cool"),
-                    IndexRecordOption::Basic,
-                );
-
-                let agg_req_1: Aggregations = vec![(
-                    "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Stats(
-                        StatsAggregation::from_field_name("score_f64".to_string()),
-                    )),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_average_f64(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-            let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-            b.iter(|| {
-                let term_query = TermQuery::new(
-                    Term::from_field_text(text_field, "cool"),
-                    IndexRecordOption::Basic,
-                );
-
-                let agg_req_1: Aggregations = vec![(
-                    "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score_f64".to_string()),
-                    )),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_average_u64_and_f64(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-            let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-            b.iter(|| {
-                let term_query = TermQuery::new(
-                    Term::from_field_text(text_field, "cool"),
-                    IndexRecordOption::Basic,
-                );
-
-                let agg_req_1: Aggregations = vec![
-                    (
-                        "average_f64".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average(
-                            AverageAggregation::from_field_name("score_f64".to_string()),
-                        )),
-                    ),
-                    (
-                        "average".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average(
-                            AverageAggregation::from_field_name("score".to_string()),
-                        )),
-                    ),
-                ]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_range_only(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-
-            b.iter(|| {
-                let agg_req_1: Aggregations = vec![(
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7000f64).into(),
-                                (7000f64..20000f64).into(),
-                                (20000f64..30000f64).into(),
-                                (30000f64..40000f64).into(),
-                                (40000f64..50000f64).into(),
-                                (50000f64..60000f64).into(),
-                            ],
-                        }),
-                        sub_aggregation: Default::default(),
-                    }),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        // hard bounds has a different algorithm, because it actually limits collection range
-        #[bench]
-        fn bench_aggregation_histogram_only_hard_bounds(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-
-            b.iter(|| {
-                let agg_req_1: Aggregations = vec![(
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64,
-                            hard_bounds: Some(HistogramBounds {
-                                min: 1000.0,
-                                max: 300_000.0,
-                            }),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_histogram_with_avg(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-
-            b.iter(|| {
-                let sub_agg_req: Aggregations = vec![(
-                    "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score_f64".to_string()),
-                    )),
-                )]
-                .into_iter()
-                .collect();
-
-                let agg_req_1: Aggregations = vec![(
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64, // 1000 buckets
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req,
-                    }),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_histogram_only(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-
-            b.iter(|| {
-                let agg_req_1: Aggregations = vec![(
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64, // 1000 buckets
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }),
-                )]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&AllQuery, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
-
-        #[bench]
-        fn bench_aggregation_sub_tree(b: &mut Bencher) {
-            let index = get_test_index_bench(false).unwrap();
-            let reader = index.reader().unwrap();
-            let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-            b.iter(|| {
-                let term_query = TermQuery::new(
-                    Term::from_field_text(text_field, "cool"),
-                    IndexRecordOption::Basic,
-                );
-
-                let sub_agg_req_1: Aggregations = vec![(
-                    "average_in_range".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                )]
-                .into_iter()
-                .collect();
-
-                let agg_req_1: Aggregations = vec![
-                    (
-                        "average".to_string(),
-                        Aggregation::Metric(MetricAggregation::Average(
-                            AverageAggregation::from_field_name("score".to_string()),
-                        )),
-                    ),
-                    (
-                        "rangef64".to_string(),
-                        Aggregation::Bucket(BucketAggregation {
-                            bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                                field: "score_f64".to_string(),
-                                ranges: vec![
-                                    (3f64..7000f64).into(),
-                                    (7000f64..20000f64).into(),
-                                    (20000f64..60000f64).into(),
-                                ],
-                            }),
-                            sub_aggregation: sub_agg_req_1.clone(),
-                        }),
-                    ),
-                ]
-                .into_iter()
-                .collect();
-
-                let collector = AggregationCollector::from_aggs(agg_req_1);
-
-                let searcher = reader.searcher();
-                let agg_res: AggregationResults =
-                    searcher.search(&term_query, &collector).unwrap().into();
-
-                agg_res
-            });
-        }
     }
 }

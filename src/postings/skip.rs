@@ -250,7 +250,7 @@ impl SkipReader {
             BlockInfo::VInt { num_docs } => {
                 debug_assert_eq!(num_docs, self.remaining_docs);
                 self.remaining_docs = 0;
-                self.byte_offset = std::usize::MAX;
+                self.byte_offset = usize::MAX;
             }
         }
         self.last_doc_in_previous_block = self.last_doc_in_block;

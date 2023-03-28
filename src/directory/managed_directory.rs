@@ -114,7 +114,7 @@ impl ManagedDirectory {
         let mut files_to_delete = vec![];
 
         // It is crucial to get the living files after acquiring the
-        // read lock of meta informations. That way, we
+        // read lock of meta information. That way, we
         // avoid the following scenario.
         //
         // 1) we get the list of living files.
@@ -242,16 +242,13 @@ impl ManagedDirectory {
     /// Verify checksum of a managed file
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
-        let (footer, data) =
-            Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IoError {
-                io_error,
-                filepath: path.to_path_buf(),
-            })?;
+        let (footer, data) = Footer::extract_footer(reader)
+            .map_err(|io_error| OpenReadError::wrap_io_error(io_error, path.to_path_buf()))?;
         let bytes = data
             .read_bytes()
             .map_err(|io_error| OpenReadError::IoError {
+                io_error: Arc::new(io_error),
                 filepath: path.to_path_buf(),
-                io_error,
             })?;
         let mut hasher = Hasher::new();
         hasher.update(bytes.as_slice());
@@ -272,9 +269,9 @@ impl ManagedDirectory {
 }
 
 impl Directory for ManagedDirectory {
-    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
         let file_slice = self.open_read(path)?;
-        Ok(Box::new(file_slice))
+        Ok(Arc::new(file_slice))
     }
 
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
@@ -391,7 +388,7 @@ mod tests_mmap_specific {
         let tempdir_path = PathBuf::from(tempdir.path());
         let living_files = HashSet::new();
 
-        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mmap_directory = MmapDirectory::open(tempdir_path).unwrap();
         let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
         let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();

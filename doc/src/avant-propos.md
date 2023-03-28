@@ -3,7 +3,7 @@
 > Tantivy is a **search** engine **library** for Rust.
 
 If you are familiar with Lucene, it's an excellent approximation to consider tantivy as Lucene for rust. tantivy is heavily inspired by Lucene's design and
-they both have the same scope and targetted use cases.
+they both have the same scope and targeted use cases.
 
 If you are not familiar with Lucene, let's break down our little tagline.
 

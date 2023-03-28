@@ -1,7 +1,7 @@
 // # Defining a tokenizer pipeline
 //
-// In this example, we'll see how to define a tokenizer pipeline
-// by aligning a bunch of `TokenFilter`.
+// In this example, we'll see how to define a tokenizer
+// by creating a custom `NgramTokenizer`.
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
@@ -36,8 +36,7 @@ fn main() -> tantivy::Result<()> {
     // need to be able to be able to retrieve it
     // for our application.
     //
-    // We can make our index lighter and
-    // by omitting `STORED` flag.
+    // We can make our index lighter by omitting the `STORED` flag.
     let body = schema_builder.add_text_field("body", TEXT);
 
     let schema = schema_builder.build();
@@ -50,7 +49,7 @@ fn main() -> tantivy::Result<()> {
     // for your unit tests... Or this example.
     let index = Index::create_in_ram(schema.clone());
 
-    // here we are registering our custome tokenizer
+    // here we are registering our custom tokenizer
     // this will store tokens of 3 characters each
     index
         .tokenizers()

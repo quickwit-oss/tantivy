@@ -11,7 +11,7 @@ directory shipped with tantivy is the `MmapDirectory`.
 While this design has some downsides, this greatly simplifies the source code of
 tantivy. Caching is also entirely delegated to the OS.
 
-`tantivy` works entirely (or almost) by directly reading the datastructures as they are layed on disk. As a result, the act of opening an indexing does not involve loading different datastructures from the disk into random access memory : starting a process, opening an index, and performing your first query can typically be done in a matter of milliseconds.
+`tantivy` works entirely (or almost) by directly reading the datastructures as they are laid on disk. As a result, the act of opening an indexing does not involve loading different datastructures from the disk into random access memory : starting a process, opening an index, and performing your first query can typically be done in a matter of milliseconds.
 
 This is an interesting property for a command line search engine, or for some multi-tenant log search engine : spawning a new process for each new query can be a perfectly sensible solution in some use case.
 
@@ -21,7 +21,6 @@ Of course this is crucial to reduce IO, and ensure that as much of our index can
 
 Also, whenever possible its data is accessed sequentially. Of course, this is an amazing property when tantivy needs to access the data from your spinning hard disk, but this is also
 critical for performance, if your data is read from and an `SSD` or even already in your pagecache.
-
 
 ## Segments, and the log method
 
@@ -51,13 +50,9 @@ to get tantivy to fit your use case:
 
 *Example 1* You could for instance use hadoop to build a very large search index in a timely manner, copy all of the resulting segment files in the same directory and edit the `meta.json` to get a functional index.[^2]
 
-*Example 2* You could also disable your merge policy and enforce daily segments. Removing data after one week can then be done very efficiently by just editing the `meta.json` and deleting the files associated to segment `D-7`.
+*Example 2* You could also disable your merge policy and enforce daily segments. Removing data after one week can then be done very efficiently by just editing the `meta.json` and deleting the files associated with segment `D-7`.
 
-
-
-
-
-# Merging
+## Merging
 
 As you index more and more data, your index will accumulate more and more segments.
 Having a lot of small segments is not really optimal. There is a bit of redundancy in having
@@ -66,11 +61,7 @@ all these term dictionary. Also when searching, we will need to do term lookups 
 That's where merging or compacting comes into place. Tantivy will continuously consider merge
 opportunities and start merging segments in the background.
 
-
-# Indexing throughput, number of indexing threads
-
-
-
+## Indexing throughput, number of indexing threads
 
 [^1]: This may eventually change.
 

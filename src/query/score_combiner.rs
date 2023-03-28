@@ -77,3 +77,40 @@ impl ScoreCombiner for SumWithCoordsCombiner {
         self.score
     }
 }
+
+/// Take max score of different scorers
+/// and optionally sum it with other matches multiplied by `tie_breaker`
+#[derive(Default, Clone, Copy)]
+pub struct DisjunctionMaxCombiner {
+    max: Score,
+    sum: Score,
+    tie_breaker: Score,
+}
+
+impl DisjunctionMaxCombiner {
+    /// Creates `DisjunctionMaxCombiner` with tie breaker
+    pub fn with_tie_breaker(tie_breaker: Score) -> DisjunctionMaxCombiner {
+        DisjunctionMaxCombiner {
+            max: 0.0,
+            sum: 0.0,
+            tie_breaker,
+        }
+    }
+}
+
+impl ScoreCombiner for DisjunctionMaxCombiner {
+    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
+        let score = scorer.score();
+        self.max = Score::max(score, self.max);
+        self.sum += score;
+    }
+
+    fn clear(&mut self) {
+        self.max = 0.0;
+        self.sum = 0.0;
+    }
+
+    fn score(&self) -> Score {
+        self.max + (self.sum - self.max) * self.tie_breaker
+    }
+}

@@ -7,7 +7,7 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{branchless_binary_search, BlockSegmentPostings, Postings};
 use crate::{DocId, TERMINATED};
 
-/// `SegmentPostings` represents the inverted list or postings associated to
+/// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
@@ -216,7 +216,7 @@ impl HasLen for SegmentPostings {
 }
 
 impl Postings for SegmentPostings {
-    /// Returns the frequency associated to the current document.
+    /// Returns the frequency associated with the current document.
     /// If the schema is set up so that no frequency have been encoded,
     /// this method should always return 1.
     ///

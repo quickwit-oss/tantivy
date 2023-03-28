@@ -12,7 +12,7 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 /// ```
 /// 
 /// the `start` argument is just used to hint that the response is
-/// greater than beyond `start`. the implementation may or may not use
+/// greater than beyond `start`. The implementation may or may not use
 /// it for optimization.
 ///
 /// # Assumption

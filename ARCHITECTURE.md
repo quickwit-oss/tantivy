@@ -10,6 +10,7 @@ Tantivy's bread and butter is to address the problem of full-text search :
 Given a large set of textual documents, and a text query, return the K-most relevant documents in a very efficient way. To execute these queries rapidly, the tantivy needs to build an index beforehand. The relevance score implemented in the tantivy is not configurable. Tantivy uses the same score as the default similarity used in Lucene / Elasticsearch, called [BM25](https://en.wikipedia.org/wiki/Okapi_BM25).
 
 But tantivy's scope does not stop there. Numerous features are required to power rich-search applications. For instance, one may want to:
+
 - compute the count of documents matching a query in the different section of an e-commerce website,
 - display an average price per meter square for a real estate search engine,
 - take into account historical user data to rank documents in a specific way,
@@ -22,27 +23,28 @@ rapidly select all documents matching a given predicate (also known as a query) 
 collect some information about them ([See collector](#collector-define-what-to-do-with-matched-documents)).
 
 Roughly speaking the design is following these guiding principles:
+
 - Search should be O(1) in memory.
 - Indexing should be O(1) in memory. (In practice it is just sublinear)
 - Search should be as fast as possible
 
 This comes at the cost of the dynamicity of the index: while it is possible to add, and delete documents from our corpus, the tantivy is designed to handle these updates in large batches.
 
-## [core/](src/core): Index, segments, searchers.
+## [core/](src/core): Index, segments, searchers
 
 Core contains all of the high-level code to make it possible to create an index, add documents, delete documents and commit.
 
 This is both the most high-level part of tantivy, the least performance-sensitive one, the seemingly most mundane code... And paradoxically the most complicated part.
 
-### Index and Segments...
+### Index and Segments
 
-A tantivy index is a collection of smaller independent immutable segments. 
+A tantivy index is a collection of smaller independent immutable segments.
 Each segment contains its own independent set of data structures.
 
 A segment is identified by a segment id that is in fact a UUID.
 The file of a segment has the format
 
- ```segment-id . ext ```
+ ```segment-id . ext```
 
 The extension signals which data structure (or [`SegmentComponent`](src/core/segment_component.rs)) is stored in the file.
 
@@ -52,16 +54,14 @@ On commit, one segment per indexing thread is written to disk, and the `meta.jso
 
 For a better idea of how indexing works, you may read the [following blog post](https://fulmicoton.com/posts/behold-tantivy-part2/).
 
-
 ### Deletes
 
 Deletes happen by deleting a "term". Tantivy does not offer any notion of primary id, so it is up to the user to use a field in their schema as if it was a primary id, and delete the associated term if they want to delete only one specific document.
 
-On commit, tantivy will find all of the segments with documents matching this existing term and create a [tombstone file](src/fastfield/delete.rs) that represents the bitset of the document that are deleted.
-Like all segment files, this file is immutable. Because it is possible to have more than one tombstone file at a given instant, the tombstone filename has the format ``` segment_id . commit_opstamp . del```.
+On commit, tantivy will find all of the segments with documents matching this existing term and remove from [alive bitset file](src/fastfield/alive_bitset.rs) that represents the bitset of the alive document ids.
+Like all segment files, this file is immutable. Because it is possible to have more than one alive bitset file at a given instant, the alive bitset filename has the format ```segment_id . commit_opstamp . del```.
 
 An opstamp is simply an incremental id that identifies any operation applied to the index. For instance, performing a commit or adding a document.
-
 
 ### DocId
 
@@ -74,6 +74,7 @@ The DocIds are simply allocated in the order documents are added to the index.
 
 In separate threads, tantivy's index writer search for opportunities to merge segments.
 The point of segment merge is to:
+
 - eventually get rid of tombstoned documents
 - reduce the otherwise ever-growing number of segments.
 
@@ -94,7 +95,7 @@ called [`Directory`](src/directory/directory.rs).
 Contrary to Lucene however, "files" are quite different from some kind of `io::Read` object.
 Check out [`src/directory/directory.rs`](src/directory/directory.rs) trait for more details.
 
-Tantivy ships two main directory implementation: the `MMapDirectory` and the `RAMDirectory`,
+Tantivy ships two main directory implementation: the `MmapDirectory` and the `RamDirectory`,
 but users can extend tantivy with their own implementation.
 
 ## [schema/](src/schema): What are documents?
@@ -104,6 +105,7 @@ Tantivy's document follows a very strict schema, decided before building any ind
 The schema defines all of the fields that the indexes [`Document`](src/schema/document.rs) may and should contain, their types (`text`, `i64`, `u64`, `Date`, ...) as well as how it should be indexed / represented in tantivy.
 
 Depending on the type of the field, you can decide to
+
 - put it in the docstore
 - store it as a fast field
 - index it
@@ -117,9 +119,10 @@ As of today, tantivy's schema imposes a 1:1 relationship between a field that is
 
 This is not something tantivy supports, and it is up to the user to duplicate field / concatenate fields before feeding them to tantivy.
 
-## General information about these data structures.
+## General information about these data structures
 
 All data structures in tantivy, have:
+
 - a writer
 - a serializer
 - a reader
@@ -132,7 +135,7 @@ This conversion is done by the serializer.
 Finally, the reader is in charge of offering an API to read on this on-disk read-only representation.
 In tantivy, readers are designed to require very little anonymous memory. The data is read straight from an mmapped file, and loading an index is as fast as mmapping its files.
 
-## [store/](src/store): Here is my DocId, Gimme my document!
+## [store/](src/store): Here is my DocId, Gimme my document
 
 The docstore is a row-oriented storage that, for each document, stores a subset of the fields
 that are marked as stored in the schema. The docstore is compressed using a general-purpose algorithm
@@ -146,6 +149,7 @@ Once the top 10 documents have been identified, we fetch them from the store, an
 **Not useful for**
 
 Fetching a document from the store is typically a "slow" operation. It usually consists in
+
 - searching into a compact tree-like data structure to find the position of the right block.
 - decompressing a small block
 - returning the document from this block.
@@ -154,8 +158,7 @@ It is NOT meant to be called for every document matching a query.
 
 As a rule of thumb, if you hit the docstore more than 100 times per search query, you are probably misusing tantivy.
 
-
-## [fastfield/](src/fastfield): Here is my DocId, Gimme my value!
+## [fastfield/](src/fastfield): Here is my DocId, Gimme my value
 
 Fast fields are stored in a column-oriented storage that allows for random access.
 The only compression applied is bitpacking. The column comes with two meta data.
@@ -163,7 +166,7 @@ The minimum value in the column and the number of bits per doc.
 
 Fetching a value for a `DocId` is then as simple as computing
 
-```
+```rust
 min_value + fetch_bits(num_bits * doc_id..num_bits * (doc_id+1))
 ```
 
@@ -190,7 +193,7 @@ For advanced search engine, it is possible to store all of the features required
 
 Finally facets are a specific kind of fast field, and the associated source code is in [`fastfield/facet_reader.rs`](src/fastfield/facet_reader.rs).
 
-# The inverted search index.
+# The inverted search index
 
 The inverted index is the core part of full-text search.
 When presented a new document with the text field "Hello, happy tax payer!", tantivy breaks it into a list of so-called tokens. In addition to just splitting these strings into tokens, it might also do different kinds of operations like dropping the punctuation, converting the character to lowercase, apply stemming, etc. Tantivy makes it possible to configure the operations to be applied in the schema (tokenizer/ is the place where these operations are implemented).
@@ -215,19 +218,18 @@ The inverted index actually consists of two data structures chained together.
 
 Where [TermInfo](src/postings/term_info.rs) is an object containing some meta data about a term.
 
-
-## [termdict/](src/termdict): Here is a term, give me the [TermInfo](src/postings/term_info.rs)!
+## [termdict/](src/termdict): Here is a term, give me the [TermInfo](src/postings/term_info.rs)
 
 Tantivy's term dictionary is mainly in charge of supplying the function
 
 [Term](src/schema/term.rs) ⟶ [TermInfo](src/postings/term_info.rs)
 
 It is itself broken into two parts.
+
 - [Term](src/schema/term.rs) ⟶ [TermOrdinal](src/termdict/mod.rs) is addressed by a finite state transducer, implemented by the fst crate.
 - [TermOrdinal](src/termdict/mod.rs) ⟶ [TermInfo](src/postings/term_info.rs) is addressed by the term info store.
 
-
-## [postings/](src/postings): Iterate over documents... very fast!
+## [postings/](src/postings): Iterate over documents... very fast
 
 A posting list makes it possible to store a sorted list of doc ids and for each doc store
 a term frequency as well.
@@ -249,14 +251,13 @@ For instance, when the phrase query "the art of war" does not match "the war of 
 To make it possible, it is possible to specify in the schema that a field should store positions in addition to being indexed.
 
 The token positions of all of the terms are then stored in a separate file with the extension `.pos`.
-The [TermInfo](src/postings/term_info.rs) gives an offset (expressed in position this time) in this file. As we iterate throught the docset,
+The [TermInfo](src/postings/term_info.rs) gives an offset (expressed in position this time) in this file. As we iterate through the docset,
 we advance the position reader by the number of term frequencies of the current document.
 
 ## [fieldnorms/](src/fieldnorms): Here is my doc, how many tokens in this field?
 
 The [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) formula also requires to know the number of tokens stored in a specific field for a given document. We store this information on one byte per document in the fieldnorm.
 The fieldnorm is therefore compressed. Values up to 40 are encoded unchanged.
-
 
 ## [tokenizer/](src/tokenizer): How should we process text?
 
@@ -267,7 +268,6 @@ Do not normalize, or under split your text, you will end up with a higher precis
 Text processing can be configured by selecting an off-the-shelf [`Tokenizer`](./src/tokenizer/tokenizer.rs) or implementing your own to first split the text into tokens, and then chain different [`TokenFilter`](src/tokenizer/tokenizer.rs)'s to it.
 
 Tantivy's comes with few tokenizers, but external crates are offering advanced tokenizers, such as [Lindera](https://crates.io/crates/lindera) for Japanese.
-
 
 ## [query/](src/query): Define and compose queries
 

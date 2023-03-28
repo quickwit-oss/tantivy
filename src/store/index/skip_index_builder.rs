@@ -28,7 +28,7 @@ impl LayerBuilder {
     /// Serializes the block, and return a checkpoint representing
     /// the entire block.
     ///
-    /// If the block was empty to begin with, simply return None.
+    /// If the block was empty to begin with, simply return `None`.
     fn flush_block(&mut self) -> Option<Checkpoint> {
         if let Some(doc_range) = self.block.doc_interval() {
             let start_offset = self.buffer.len();
@@ -87,7 +87,7 @@ impl SkipIndexBuilder {
         }
     }
 
-    pub fn write<W: Write>(mut self, output: &mut W) -> io::Result<()> {
+    pub fn serialize_into<W: Write>(mut self, output: &mut W) -> io::Result<()> {
         let mut last_pointer = None;
         for skip_layer in self.layers.iter_mut() {
             if let Some(checkpoint) = last_pointer {

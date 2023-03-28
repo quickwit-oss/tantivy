@@ -1,16 +1,14 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(
-        clippy::module_inception,
-        clippy::needless_range_loop,
-        clippy::bool_assert_comparison
-    )
-)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
-#![allow(clippy::len_without_is_empty)]
+#![allow(
+    clippy::len_without_is_empty,
+    clippy::derive_partial_eq_without_eq,
+    clippy::module_inception,
+    clippy::needless_range_loop,
+    clippy::bool_assert_comparison
+)]
 
 //! # `tantivy`
 //!
@@ -125,90 +123,9 @@ mod functional_test;
 mod macros;
 mod future_result;
 
-/// Re-export of the `time` crate
-///
-/// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
-pub use time;
-
-use crate::time::format_description::well_known::Rfc3339;
-use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
-
-/// A date/time value with second precision.
-///
-/// This timestamp does not carry any explicit time zone information.
-/// Users are responsible for applying the provided conversion
-/// functions consistently. Internally the time zone is assumed
-/// to be UTC, which is also used implicitly for JSON serialization.
-///
-/// All constructors and conversions are provided as explicit
-/// functions and not by implementing any `From`/`Into` traits
-/// to prevent unintended usage.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DateTime {
-    unix_timestamp: i64,
-}
-
-impl DateTime {
-    /// Create new from UNIX timestamp
-    pub const fn from_unix_timestamp(unix_timestamp: i64) -> Self {
-        Self { unix_timestamp }
-    }
-
-    /// Create new from `OffsetDateTime`
-    ///
-    /// The given date/time is converted to UTC and the actual
-    /// time zone is discarded.
-    pub const fn new_utc(dt: OffsetDateTime) -> Self {
-        Self::from_unix_timestamp(dt.unix_timestamp())
-    }
-
-    /// Create new from `PrimitiveDateTime`
-    ///
-    /// Implicitly assumes that the given date/time is in UTC!
-    /// Otherwise the original value must only be reobtained with
-    /// [`to_primitive()`].
-    pub const fn new_primitive(dt: PrimitiveDateTime) -> Self {
-        Self::new_utc(dt.assume_utc())
-    }
-
-    /// Convert to UNIX timestamp
-    pub const fn to_unix_timestamp(self) -> i64 {
-        let Self { unix_timestamp } = self;
-        unix_timestamp
-    }
-
-    /// Convert to UTC `OffsetDateTime`
-    pub fn to_utc(self) -> OffsetDateTime {
-        let Self { unix_timestamp } = self;
-        let utc_datetime =
-            OffsetDateTime::from_unix_timestamp(unix_timestamp).expect("valid UNIX timestamp");
-        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
-        utc_datetime
-    }
-
-    /// Convert to `OffsetDateTime` with the given time zone
-    pub fn to_offset(self, offset: UtcOffset) -> OffsetDateTime {
-        self.to_utc().to_offset(offset)
-    }
-
-    /// Convert to `PrimitiveDateTime` without any time zone
-    ///
-    /// The value should have been constructed with [`from_primitive()`].
-    /// Otherwise the time zone is implicitly assumed to be UTC.
-    pub fn to_primitive(self) -> PrimitiveDateTime {
-        let utc_datetime = self.to_utc();
-        // Discard the UTC time zone offset
-        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
-        PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
-    }
-}
-
-impl fmt::Debug for DateTime {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let utc_rfc3339 = self.to_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
-        f.write_str(&utc_rfc3339)
-    }
-}
+// Re-exports
+pub use common::DateTime;
+pub use {columnar, query_grammar, time};
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
@@ -218,10 +135,6 @@ pub use crate::future_result::FutureResult;
 /// Within tantivy, please avoid importing `Result` using `use crate::Result`
 /// and instead, refer to this as `crate::Result<T>`.
 pub type Result<T> = std::result::Result<T, TantivyError>;
-
-/// Result for an Async io operation.
-#[cfg(feature = "quickwit")]
-pub type AsyncIoResult<T> = std::result::Result<T, crate::error::AsyncIoError>;
 
 mod core;
 mod indexer;
@@ -237,6 +150,8 @@ pub mod fastfield;
 pub mod fieldnorm;
 pub mod positions;
 pub mod postings;
+
+/// Module containing the different query implementations.
 pub mod query;
 pub mod schema;
 pub mod space_usage;
@@ -261,18 +176,16 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
     Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
-    SegmentReader,
+    SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
-pub use crate::indexer::demuxer::*;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
-pub use crate::reader::LeasedItem;
-pub use crate::schema::{Document, Term};
+pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 4;
+const INDEX_FORMAT_VERSION: u32 = 5;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -385,15 +298,15 @@ pub mod tests {
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    use time::OffsetDateTime;
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::FastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::*;
-    use crate::{DocAddress, Index, Postings, ReloadPolicy};
+    use crate::{DateTime, DocAddress, Index, Postings, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -780,7 +693,7 @@ pub mod tests {
     fn test_indexedfield_not_in_documents() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
-        let absent_field = schema_builder.add_text_field("text", TEXT);
+        let absent_field = schema_builder.add_text_field("absent_text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -961,8 +874,8 @@ pub mod tests {
         let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
         let fast_field_float = schema_builder.add_f64_field("float", FAST);
-        let text_field = schema_builder.add_text_field("text", TEXT);
-        let stored_int_field = schema_builder.add_u64_field("text", STORED);
+        schema_builder.add_text_field("text", TEXT);
+        schema_builder.add_u64_field("stored_int", STORED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
@@ -977,40 +890,40 @@ pub mod tests {
         let searcher = reader.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
-            let fast_field_reader_res = segment_reader.fast_fields().u64(text_field);
+            let fast_field_reader_res = segment_reader.fast_fields().u64("text");
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().u64(stored_int_field);
+            let fast_field_reader_opt = segment_reader.fast_fields().u64("stored_int");
             assert!(fast_field_reader_opt.is_err());
         }
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_signed);
+            let fast_field_reader_opt = segment_reader.fast_fields().u64("signed");
             assert!(fast_field_reader_opt.is_err());
         }
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_float);
+            let fast_field_reader_opt = segment_reader.fast_fields().u64("float");
             assert!(fast_field_reader_opt.is_err());
         }
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
+            let fast_field_reader_opt = segment_reader.fast_fields().u64("unsigned");
             assert!(fast_field_reader_opt.is_ok());
             let fast_field_reader = fast_field_reader_opt.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4u64)
+            assert_eq!(fast_field_reader.first(0), Some(4u64))
         }
 
         {
-            let fast_field_reader_res = segment_reader.fast_fields().i64(fast_field_signed);
+            let fast_field_reader_res = segment_reader.fast_fields().i64("signed");
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4i64)
+            assert_eq!(fast_field_reader.first(0), Some(4i64))
         }
 
         {
-            let fast_field_reader_res = segment_reader.fast_fields().f64(fast_field_float);
+            let fast_field_reader_res = segment_reader.fast_fields().f64("float");
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4f64)
+            assert_eq!(fast_field_reader.first(0), Some(4f64))
         }
         Ok(())
     }
@@ -1101,5 +1014,36 @@ pub mod tests {
         writer.merge(&segment_ids).wait()?;
         assert!(index.validate_checksum()?.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn test_datetime() {
+        let now = OffsetDateTime::now_utc();
+
+        let dt = DateTime::from_utc(now).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+        // We don't store nanosecond level precision.
+        assert_eq!(dt.nanosecond(), now.microsecond() * 1000);
+
+        let dt = DateTime::from_timestamp_secs(now.unix_timestamp()).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms(), now.to_hms());
+        // Constructed from a second precision.
+        assert_ne!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt =
+            DateTime::from_timestamp_micros((now.unix_timestamp_nanos() / 1_000) as i64).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt_from_ts_nanos =
+            OffsetDateTime::from_unix_timestamp_nanos(18446744073709551615i128).unwrap();
+        let offset_dt = DateTime::from_utc(dt_from_ts_nanos).into_utc();
+        assert_eq!(
+            dt_from_ts_nanos.to_ordinal_date(),
+            offset_dt.to_ordinal_date()
+        );
+        assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
     }
 }

@@ -1,5 +1,4 @@
 use super::{Token, TokenStream, Tokenizer};
-use crate::tokenizer::BoxTokenStream;
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
@@ -132,8 +131,9 @@ pub struct NgramTokenStream<'a> {
 }
 
 impl Tokenizer for NgramTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        From::from(NgramTokenStream {
+    type TokenStream<'a> = NgramTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> NgramTokenStream<'a> {
+        NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
                 self.min_gram,
@@ -142,7 +142,7 @@ impl Tokenizer for NgramTokenizer {
             prefix_only: self.prefix_only,
             text,
             token: Token::default(),
-        })
+        }
     }
 }
 
@@ -255,7 +255,7 @@ where T: Iterator<Item = usize>
 /// Emits all of the offsets where a codepoint starts
 /// or a codepoint ends.
 ///
-/// By convention, we emit [0] for the empty string.
+/// By convention, we emit `[0]` for the empty string.
 struct CodepointFrontiers<'a> {
     s: &'a str,
     next_el: Option<usize>,
@@ -303,10 +303,9 @@ mod tests {
 
     use super::{utf8_codepoint_width, CodepointFrontiers, NgramTokenizer, StutteringIterator};
     use crate::tokenizer::tests::assert_token;
-    use crate::tokenizer::tokenizer::Tokenizer;
-    use crate::tokenizer::{BoxTokenStream, Token};
+    use crate::tokenizer::{Token, TokenStream, Tokenizer};
 
-    fn test_helper(mut tokenizer: BoxTokenStream) -> Vec<Token> {
+    fn test_helper<T: TokenStream>(mut tokenizer: T) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];
         tokenizer.process(&mut |token: &Token| tokens.push(token.clone()));
         tokens

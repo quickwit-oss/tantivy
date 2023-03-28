@@ -15,7 +15,7 @@ impl IndexWriterStatus {
     }
 
     /// Returns a copy of the operation receiver.
-    /// If the index writer was killed, returns None.
+    /// If the index writer was killed, returns `None`.
     pub fn operation_receiver(&self) -> Option<AddBatchReceiver> {
         let rlock = self
             .inner
@@ -92,7 +92,7 @@ impl Drop for IndexWriterBomb {
 mod tests {
     use std::mem;
 
-    use crossbeam::channel;
+    use crossbeam_channel as channel;
 
     use super::IndexWriterStatus;
 

@@ -1,12 +1,18 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
+use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
+
 use super::agg_req::{Aggregation, Aggregations, BucketAggregationType, MetricAggregation};
-use super::bucket::{HistogramAggregation, RangeAggregation};
-use super::metric::{AverageAggregation, StatsAggregation};
+use super::bucket::{
+    DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
+};
+use super::metric::{
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
+    SumAggregation,
+};
+use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
-use crate::fastfield::{type_and_cardinality, DynamicFastFieldReader, FastType};
-use crate::schema::{Cardinality, Type};
-use crate::{SegmentReader, TantivyError};
+use crate::SegmentReader;
 
 #[derive(Clone, Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -31,10 +37,13 @@ impl AggregationsWithAccessor {
 pub struct BucketAggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. So eventually this needs to be Option or moved.
-    pub(crate) accessor: DynamicFastFieldReader<u64>,
-    pub(crate) field_type: Type,
+    pub(crate) accessor: Column<u64>,
+    pub(crate) str_dict_column: Option<StrColumn>,
+    pub(crate) field_type: ColumnType,
     pub(crate) bucket_agg: BucketAggregationType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
+    pub(crate) limits: AggregationLimits,
+    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl BucketAggregationWithAccessor {
@@ -42,22 +51,40 @@ impl BucketAggregationWithAccessor {
         bucket: &BucketAggregationType,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
+        limits: AggregationLimits,
     ) -> crate::Result<BucketAggregationWithAccessor> {
+        let mut str_dict_column = None;
         let (accessor, field_type) = match &bucket {
             BucketAggregationType::Range(RangeAggregation {
-                field: field_name,
-                ranges: _,
+                field: field_name, ..
             }) => get_ff_reader_and_validate(reader, field_name)?,
             BucketAggregationType::Histogram(HistogramAggregation {
                 field: field_name, ..
             }) => get_ff_reader_and_validate(reader, field_name)?,
+            BucketAggregationType::DateHistogram(DateHistogramAggregationReq {
+                field: field_name,
+                ..
+            }) => get_ff_reader_and_validate(reader, field_name)?,
+            BucketAggregationType::Terms(TermsAggregation {
+                field: field_name, ..
+            }) => {
+                str_dict_column = reader.fast_fields().str(field_name)?;
+                get_ff_reader_and_validate(reader, field_name)?
+            }
         };
         let sub_aggregation = sub_aggregation.clone();
         Ok(BucketAggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggs_with_accessor_and_validate(&sub_aggregation, reader)?,
+            sub_aggregation: get_aggs_with_accessor_and_validate(
+                &sub_aggregation,
+                reader,
+                &limits.clone(),
+            )?,
             bucket_agg: bucket.clone(),
+            str_dict_column,
+            limits,
+            column_block_accessor: Default::default(),
         })
     }
 }
@@ -66,8 +93,9 @@ impl BucketAggregationWithAccessor {
 #[derive(Clone)]
 pub struct MetricAggregationWithAccessor {
     pub metric: MetricAggregation,
-    pub field_type: Type,
-    pub accessor: DynamicFastFieldReader<u64>,
+    pub field_type: ColumnType,
+    pub accessor: Column<u64>,
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl MetricAggregationWithAccessor {
@@ -77,13 +105,18 @@ impl MetricAggregationWithAccessor {
     ) -> crate::Result<MetricAggregationWithAccessor> {
         match &metric {
             MetricAggregation::Average(AverageAggregation { field: field_name })
-            | MetricAggregation::Stats(StatsAggregation { field: field_name }) => {
+            | MetricAggregation::Count(CountAggregation { field: field_name })
+            | MetricAggregation::Max(MaxAggregation { field: field_name })
+            | MetricAggregation::Min(MinAggregation { field: field_name })
+            | MetricAggregation::Stats(StatsAggregation { field: field_name })
+            | MetricAggregation::Sum(SumAggregation { field: field_name }) => {
                 let (accessor, field_type) = get_ff_reader_and_validate(reader, field_name)?;
 
                 Ok(MetricAggregationWithAccessor {
                     accessor,
                     field_type,
                     metric: metric.clone(),
+                    column_block_accessor: Default::default(),
                 })
             }
         }
@@ -93,6 +126,7 @@ impl MetricAggregationWithAccessor {
 pub(crate) fn get_aggs_with_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
+    limits: &AggregationLimits,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut metrics = vec![];
     let mut buckets = vec![];
@@ -104,6 +138,7 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                     &bucket.bucket_agg,
                     &bucket.sub_aggregation,
                     reader,
+                    limits.clone(),
                 )?,
             )),
             Aggregation::Metric(metric) => metrics.push((
@@ -118,32 +153,19 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
     ))
 }
 
+/// Get fast field reader with given cardinatility.
 fn get_ff_reader_and_validate(
     reader: &SegmentReader,
     field_name: &str,
-) -> crate::Result<(DynamicFastFieldReader<u64>, Type)> {
-    let field = reader
-        .schema()
-        .get_field(field_name)
-        .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))?;
-    let field_type = reader.schema().get_field_entry(field).field_type();
-
-    if let Some((ff_type, cardinality)) = type_and_cardinality(field_type) {
-        if cardinality == Cardinality::MultiValues || ff_type == FastType::Date {
-            return Err(TantivyError::InvalidArgument(format!(
-                "Invalid field type in aggregation {:?}, only Cardinality::SingleValue supported",
-                field_type.value_type()
-            )));
-        }
-    } else {
-        return Err(TantivyError::InvalidArgument(format!(
-            "Only single value fast fields of type f64, u64, i64 are supported, but got {:?} ",
-            field_type.value_type()
-        )));
-    };
-
+) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
     let ff_fields = reader.fast_fields();
-    ff_fields
-        .u64_lenient(field)
-        .map(|field| (field, field_type.value_type()))
+    let ff_field_with_type = ff_fields
+        .u64_lenient_with_type(field_name)?
+        .unwrap_or_else(|| {
+            (
+                Column::build_empty_column(reader.num_docs()),
+                ColumnType::U64,
+            )
+        });
+    Ok(ff_field_with_type)
 }

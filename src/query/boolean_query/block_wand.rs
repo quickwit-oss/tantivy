@@ -12,7 +12,7 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 ///
 /// We always have `before_pivot_len` < `pivot_len`.
 ///
-/// None is returned if we establish that no document can exceed the threshold.
+/// `None` is returned if we establish that no document can exceed the threshold.
 fn find_pivot_doc(
     term_scorers: &[TermScorerWithMaxScore],
     threshold: Score,
@@ -144,7 +144,7 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
 
 /// Implements the WAND (Weak AND) algorithm for dynamic pruning
 /// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
-/// Link: http://engineering.nyu.edu/~suel/papers/bmw.pdf
+/// Link: <http://engineering.nyu.edu/~suel/papers/bmw.pdf>
 pub fn block_wand(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
@@ -212,12 +212,12 @@ pub fn block_wand(
 }
 
 /// Specialized version of [`block_wand`] for a single scorer.
-/// In this case, the algorithm is simple and readable and faster (~ x3)
+/// In this case, the algorithm is simple, readable and faster (~ x3)
 /// than the generic algorithm.
 /// The algorithm behaves as follows:
 /// - While we don't hit the end of the docset:
 ///   - While the block max score is under the `threshold`, go to the next block.
-///   - On a block, advance until the end and execute `callback`` when the doc score is greater or
+///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
     mut scorer: TermScorer,
@@ -371,7 +371,7 @@ mod tests {
     fn compute_checkpoints_manual(term_scorers: Vec<TermScorer>, n: usize) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
-        let mut scorer: Union<TermScorer, SumCombiner> = Union::from(term_scorers);
+        let mut scorer = Union::build(term_scorers, SumCombiner::default);
 
         let mut limit = Score::MIN;
         loop {

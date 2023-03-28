@@ -10,33 +10,27 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  check:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose --workspace
-    - name: Install latest nightly to test also against unstable feature flag
+
+    - name: Install nightly
       uses: actions-rs/toolchain@v1
       with:
             toolchain: nightly
-            override: true
+            profile: minimal
             components: rustfmt
-
-    - name: Install latest nightly to test also against unstable feature flag
+    - name: Install stable
       uses: actions-rs/toolchain@v1
       with:
             toolchain: stable
-            override: true
-            components: rustfmt, clippy
+            profile: minimal
+            components: clippy
 
-    - name: Run tests
-      run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,failpoints --verbose --workspace
-
-    - name: Run tests quickwit feature
-      run: cargo +stable test --features mmap,quickwit,failpoints --verbose --workspace
+    - uses: Swatinem/rust-cache@v2
 
     - name: Check Formatting
       run: cargo +nightly fmt --all -- --check
@@ -47,3 +41,34 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         args: --tests
 
+  test:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [
+            { label: "all", flags: "mmap,stopwords,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints" },
+            { label: "quickwit", flags: "mmap,quickwit,failpoints" }
+        ]
+
+    name: test-${{ matrix.features.label}}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install stable
+      uses: actions-rs/toolchain@v1
+      with:
+            toolchain: stable
+            profile: minimal
+            override: true
+
+    - uses: taiki-e/install-action@nextest
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Run tests
+      run: cargo +stable nextest run --features ${{ matrix.features.flags }} --verbose --workspace
+
+    - name: Run doctests
+      run: cargo +stable test --doc --features ${{ matrix.features.flags }} --verbose --workspace

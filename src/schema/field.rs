@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 
 use common::BinarySerializable;
 
-/// `Field` is represented by an unsigned 32-bit integer type
+/// `Field` is represented by an unsigned 32-bit integer type.
 /// The schema holds the mapping between field names and `Field` objects.
 #[derive(
     Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, serde::Serialize, serde::Deserialize,
@@ -23,7 +23,7 @@ impl Field {
 }
 
 impl BinarySerializable for Field {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.0.serialize(writer)
     }
 

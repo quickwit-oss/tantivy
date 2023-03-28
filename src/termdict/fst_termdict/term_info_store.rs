@@ -21,7 +21,7 @@ struct TermInfoBlockMeta {
 }
 
 impl BinarySerializable for TermInfoBlockMeta {
-    fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
+    fn serialize<W: Write + ?Sized>(&self, write: &mut W) -> io::Result<()> {
         self.offset.serialize(write)?;
         self.ref_term_info.serialize(write)?;
         write.write_all(&[
@@ -69,7 +69,7 @@ impl TermInfoBlockMeta {
         let posting_end_addr = posting_start_addr + num_bits;
         let positions_start_addr = posting_start_addr + self.postings_offset_nbits as usize;
         // the position_end is the positions_start of the next term info.
-        let positions_end_addr = positions_start_addr + num_bits as usize;
+        let positions_end_addr = positions_start_addr + num_bits;
 
         let doc_freq_addr = positions_start_addr + self.positions_offset_nbits as usize;
 
@@ -121,7 +121,7 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 }
 
 impl TermInfoStore {
-    pub fn open(term_info_store_file: FileSlice) -> crate::Result<TermInfoStore> {
+    pub fn open(term_info_store_file: FileSlice) -> io::Result<TermInfoStore> {
         let (len_slice, main_slice) = term_info_store_file.split(16);
         let mut bytes = len_slice.read_bytes()?;
         let len = u64::deserialize(&mut bytes)? as usize;
@@ -272,7 +272,7 @@ impl TermInfoStoreWriter {
         Ok(())
     }
 
-    pub fn serialize<W: io::Write>(&mut self, write: &mut W) -> io::Result<()> {
+    pub fn serialize<W: io::Write + ?Sized>(&mut self, write: &mut W) -> io::Result<()> {
         if !self.term_infos.is_empty() {
             self.flush_block()?;
         }
@@ -312,7 +312,7 @@ mod tests {
         bitpack.write(51, 6, &mut buffer).unwrap();
         assert_eq!(compute_num_bits(51), 6);
         bitpack.close(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), 3 + 7);
+        assert_eq!(buffer.len(), 3);
         assert_eq!(extract_bits(&buffer[..], 0, 9), 321u64);
         assert_eq!(extract_bits(&buffer[..], 9, 2), 2u64);
         assert_eq!(extract_bits(&buffer[..], 11, 6), 51u64);

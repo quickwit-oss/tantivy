@@ -1,7 +1,7 @@
 //! Contains the aggregation request tree. Used to build an
-//! [AggregationCollector](super::AggregationCollector).
+//! [`AggregationCollector`](super::AggregationCollector).
 //!
-//! [Aggregations] is the top level entry point to create a request, which is a `HashMap<String,
+//! [`Aggregations`] is the top level entry point to create a request, which is a `HashMap<String,
 //! Aggregation>`.
 //!
 //! Requests are compatible with the json format of elasticsearch.
@@ -16,13 +16,14 @@
 //! let agg_req1: Aggregations = vec![
 //!     (
 //!         "range".to_string(),
-//!         Aggregation::Bucket(BucketAggregation {
+//!         Aggregation::Bucket(Box::new(BucketAggregation {
 //!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
 //!                 field: "score".to_string(),
 //!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
+//!                 keyed: false,
 //!             }),
 //!             sub_aggregation: Default::default(),
-//!         }),
+//!         })),
 //!     ),
 //! ]
 //! .into_iter()
@@ -48,13 +49,16 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::bucket::HistogramAggregation;
 pub use super::bucket::RangeAggregation;
-use super::metric::{AverageAggregation, StatsAggregation};
+use super::bucket::{DateHistogramAggregationReq, HistogramAggregation, TermsAggregation};
+use super::metric::{
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
+    SumAggregation,
+};
 use super::VecWithNames;
 
-/// The top-level aggregation request structure, which contains [Aggregation] and their user defined
-/// names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
+/// The top-level aggregation request structure, which contains [`Aggregation`] and their user
+/// defined names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
@@ -100,10 +104,25 @@ pub(crate) struct BucketAggregationInternal {
 }
 
 impl BucketAggregationInternal {
-    pub(crate) fn as_histogram(&self) -> &HistogramAggregation {
+    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
         match &self.bucket_agg {
-            BucketAggregationType::Range(_) => panic!("unexpected aggregation"),
-            BucketAggregationType::Histogram(histogram) => histogram,
+            BucketAggregationType::Range(range) => Some(range),
+            _ => None,
+        }
+    }
+    pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
+        match &self.bucket_agg {
+            BucketAggregationType::Histogram(histogram) => Ok(Some(histogram.clone())),
+            BucketAggregationType::DateHistogram(histogram) => {
+                Ok(Some(histogram.to_histogram_req()?))
+            }
+            _ => Ok(None),
+        }
+    }
+    pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
+        match &self.bucket_agg {
+            BucketAggregationType::Terms(terms) => Some(terms),
+            _ => None,
         }
     }
 }
@@ -117,15 +136,15 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
-/// Aggregation request of [BucketAggregation] or [MetricAggregation].
+/// Aggregation request of [`BucketAggregation`] or [`MetricAggregation`].
 ///
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Aggregation {
-    /// Bucket aggregation, see [BucketAggregation] for details.
-    Bucket(BucketAggregation),
-    /// Metric aggregation, see [MetricAggregation] for details.
+    /// Bucket aggregation, see [`BucketAggregation`] for details.
+    Bucket(Box<BucketAggregation>),
+    /// Metric aggregation, see [`MetricAggregation`] for details.
     Metric(MetricAggregation),
 }
 
@@ -133,7 +152,9 @@ impl Aggregation {
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         match self {
             Aggregation::Bucket(bucket) => bucket.get_fast_field_names(fast_field_names),
-            Aggregation::Metric(metric) => metric.get_fast_field_names(fast_field_names),
+            Aggregation::Metric(metric) => {
+                fast_field_names.insert(metric.get_fast_field_name().to_string());
+            }
         }
     }
 }
@@ -163,7 +184,8 @@ pub struct BucketAggregation {
 
 impl BucketAggregation {
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
-        self.bucket_agg.get_fast_field_names(fast_field_names);
+        let fast_field_name = self.bucket_agg.get_fast_field_name();
+        fast_field_names.insert(fast_field_name.to_string());
         fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
     }
 }
@@ -177,16 +199,22 @@ pub enum BucketAggregationType {
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "histogram")]
     Histogram(HistogramAggregation),
+    /// Put data into buckets of user-defined ranges.
+    #[serde(rename = "date_histogram")]
+    DateHistogram(DateHistogramAggregationReq),
+    /// Put data into buckets of terms.
+    #[serde(rename = "terms")]
+    Terms(TermsAggregation),
 }
 
 impl BucketAggregationType {
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+    fn get_fast_field_name(&self) -> &str {
         match self {
-            BucketAggregationType::Range(range) => fast_field_names.insert(range.field.to_string()),
-            BucketAggregationType::Histogram(histogram) => {
-                fast_field_names.insert(histogram.field.to_string())
-            }
-        };
+            BucketAggregationType::Terms(terms) => terms.field.as_str(),
+            BucketAggregationType::Range(range) => range.field.as_str(),
+            BucketAggregationType::Histogram(histogram) => histogram.field.as_str(),
+            BucketAggregationType::DateHistogram(histogram) => histogram.field.as_str(),
+        }
     }
 }
 
@@ -199,20 +227,37 @@ impl BucketAggregationType {
 /// called multi-value numeric metrics aggregation.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MetricAggregation {
-    /// Calculates the average.
+    /// Computes the average of the extracted values.
     #[serde(rename = "avg")]
     Average(AverageAggregation),
-    /// Calculates stats sum, average, min, max, standard_deviation on a field.
+    /// Counts the number of extracted values.
+    #[serde(rename = "value_count")]
+    Count(CountAggregation),
+    /// Finds the maximum value.
+    #[serde(rename = "max")]
+    Max(MaxAggregation),
+    /// Finds the minimum value.
+    #[serde(rename = "min")]
+    Min(MinAggregation),
+    /// Computes a collection of statistics (`min`, `max`, `sum`, `count`, and `avg`) over the
+    /// extracted values.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
+    /// Computes the sum of the extracted values.
+    #[serde(rename = "sum")]
+    Sum(SumAggregation),
 }
 
 impl MetricAggregation {
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+    fn get_fast_field_name(&self) -> &str {
         match self {
-            MetricAggregation::Average(avg) => fast_field_names.insert(avg.field.to_string()),
-            MetricAggregation::Stats(stats) => fast_field_names.insert(stats.field.to_string()),
-        };
+            MetricAggregation::Average(avg) => avg.field_name(),
+            MetricAggregation::Count(count) => count.field_name(),
+            MetricAggregation::Max(max) => max.field_name(),
+            MetricAggregation::Min(min) => min.field_name(),
+            MetricAggregation::Stats(stats) => stats.field_name(),
+            MetricAggregation::Sum(sum) => sum.field_name(),
+        }
     }
 }
 
@@ -221,10 +266,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_metric_aggregations_deser() {
+        let agg_req_json = r#"{
+            "price_avg": { "avg": { "field": "price" } },
+            "price_count": { "value_count": { "field": "price" } },
+            "price_max": { "max": { "field": "price" } },
+            "price_min": { "min": { "field": "price" } },
+            "price_stats": { "stats": { "field": "price" } },
+            "price_sum": { "sum": { "field": "price" } }
+        }"#;
+        let agg_req: Aggregations = serde_json::from_str(agg_req_json).unwrap();
+
+        assert!(
+            matches!(agg_req.get("price_avg").unwrap(), Aggregation::Metric(MetricAggregation::Average(avg)) if avg.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_count").unwrap(), Aggregation::Metric(MetricAggregation::Count(count)) if count.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_max").unwrap(), Aggregation::Metric(MetricAggregation::Max(max)) if max.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_min").unwrap(), Aggregation::Metric(MetricAggregation::Min(min)) if min.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_stats").unwrap(), Aggregation::Metric(MetricAggregation::Stats(stats)) if stats.field == "price")
+        );
+        assert!(
+            matches!(agg_req.get("price_sum").unwrap(), Aggregation::Metric(MetricAggregation::Sum(sum)) if sum.field == "price")
+        );
+    }
+
+    #[test]
     fn serialize_to_json_test() {
         let agg_req1: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score".to_string(),
                     ranges: vec![
@@ -233,9 +310,10 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    keyed: true,
                 }),
                 sub_aggregation: Default::default(),
-            }),
+            })),
         )]
         .into_iter()
         .collect();
@@ -259,7 +337,8 @@ mod tests {
         {
           "from": 20.0
         }
-      ]
+      ],
+      "keyed": true
     }
   }
 }"#;
@@ -272,7 +351,7 @@ mod tests {
         let agg_req2: Aggregations = vec![
             (
                 "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
+                Aggregation::Bucket(Box::new(BucketAggregation {
                     bucket_agg: BucketAggregationType::Range(RangeAggregation {
                         field: "score2".to_string(),
                         ranges: vec![
@@ -281,9 +360,10 @@ mod tests {
                             (7f64..20f64).into(),
                             (20f64..f64::MAX).into(),
                         ],
+                        ..Default::default()
                     }),
                     sub_aggregation: Default::default(),
-                }),
+                })),
             ),
             (
                 "metric".to_string(),
@@ -297,7 +377,7 @@ mod tests {
 
         let agg_req1: Aggregations = vec![(
             "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
+            Aggregation::Bucket(Box::new(BucketAggregation {
                 bucket_agg: BucketAggregationType::Range(RangeAggregation {
                     field: "score".to_string(),
                     ranges: vec![
@@ -306,9 +386,10 @@ mod tests {
                         (7f64..20f64).into(),
                         (20f64..f64::MAX).into(),
                     ],
+                    ..Default::default()
                 }),
                 sub_aggregation: agg_req2,
-            }),
+            })),
         )]
         .into_iter()
         .collect();

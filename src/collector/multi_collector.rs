@@ -5,6 +5,7 @@ use super::{Collector, SegmentCollector};
 use crate::collector::Fruit;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
+/// MultiFruit keeps Fruits from every nested Collector
 pub struct MultiFruit {
     sub_fruits: Vec<Option<Box<dyn Fruit>>>,
 }
@@ -79,12 +80,17 @@ impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector
     }
 }
 
+/// FruitHandle stores reference to the corresponding collector inside MultiCollector
 pub struct FruitHandle<TFruit: Fruit> {
     pos: usize,
     _phantom: PhantomData<TFruit>,
 }
 
 impl<TFruit: Fruit> FruitHandle<TFruit> {
+    /// Extract a typed fruit off a multifruit.
+    ///
+    /// This function involves downcasting and can panic if the multifruit was
+    /// created using faulty code.
     pub fn extract(self, fruits: &mut MultiFruit) -> TFruit {
         let boxed_fruit = fruits.sub_fruits[self.pos].take().expect("");
         *boxed_fruit
