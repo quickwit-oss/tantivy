@@ -104,16 +104,25 @@ impl ColumnarWriter {
         };
         let mut symbols_buffer = Vec::new();
         let mut values = Vec::new();
-        let mut last_doc_opt: Option<RowId> = None;
+        let mut start_doc_check_fill = 0;
+        let mut current_doc_opt: Option<RowId> = None;
+        // Assumption: NewDoc will never call the same doc twice and is strictly increasing between
+        // calls
         for op in numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer) {
             match op {
                 ColumnOperation::NewDoc(doc) => {
-                    last_doc_opt = Some(doc);
+                    current_doc_opt = Some(doc);
                 }
                 ColumnOperation::Value(numerical_value) => {
-                    if let Some(last_doc) = last_doc_opt {
+                    if let Some(current_doc) = current_doc_opt {
+                        // Fill up with 0.0 since last doc
+                        values.extend((start_doc_check_fill..current_doc).map(|doc| (0.0, doc)));
+                        start_doc_check_fill = current_doc + 1;
+                        // handle multi values
+                        current_doc_opt = None;
+
                         let score: f32 = f64::coerce(numerical_value) as f32;
-                        values.push((score, last_doc));
+                        values.push((score, current_doc));
                     }
                 }
             }
@@ -123,9 +132,9 @@ impl ColumnarWriter {
         }
         values.sort_by(|(left_score, _), (right_score, _)| {
             if reversed {
-                right_score.partial_cmp(left_score).unwrap()
+                right_score.total_cmp(left_score)
             } else {
-                left_score.partial_cmp(right_score).unwrap()
+                left_score.total_cmp(right_score)
             }
         });
         values.into_iter().map(|(_score, doc)| doc).collect()
