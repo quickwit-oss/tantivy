@@ -158,6 +158,22 @@ where
     upper_bound: Bound<Vec<u8>>,
 }
 
+impl<'a, TSSTable> Streamer<'a, TSSTable, AlwaysMatch>
+where TSSTable: SSTable
+{
+    pub fn empty() -> Self {
+        Streamer {
+            automaton: AlwaysMatch,
+            states: Vec::new(),
+            delta_reader: DeltaReader::empty(),
+            key: Vec::new(),
+            term_ord: None,
+            lower_bound: Bound::Unbounded,
+            upper_bound: Bound::Unbounded,
+        }
+    }
+}
+
 impl<'a, TSSTable, A> Streamer<'a, TSSTable, A>
 where
     A: Automaton,
