@@ -2163,7 +2163,7 @@ mod tests {
             // load all id_opt in each segment and check they are in order
 
             for reader in searcher.segment_readers() {
-                let ff_reader = reader.fast_fields().u64_lenient("id_opt").unwrap().unwrap();
+                let (ff_reader, _) = reader.fast_fields().u64_lenient("id_opt").unwrap().unwrap();
                 let mut ids_in_segment: Vec<u64> = Vec::new();
 
                 for doc in 0..reader.num_docs() {
