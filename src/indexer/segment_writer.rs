@@ -111,7 +111,10 @@ impl SegmentWriter {
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             segment_serializer,
-            fast_field_writers: FastFieldsWriter::from_schema(&schema),
+            fast_field_writers: FastFieldsWriter::from_schema_and_tokenizer_manager(
+                &schema,
+                tokenizer_manager,
+            )?,
             doc_opstamps: Vec::with_capacity(1_000),
             per_field_text_analyzers,
             term_buffer: Term::with_capacity(16),
