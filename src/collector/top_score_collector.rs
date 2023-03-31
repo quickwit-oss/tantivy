@@ -155,12 +155,13 @@ impl CustomScorer<u64> for ScorerByField {
         //
         // The conversion will then happen only on the top-K docs.
         let sort_column_opt = segment_reader.fast_fields().u64_lenient(&self.field)?;
-        let sort_column = sort_column_opt
-            .ok_or_else(|| FastFieldNotAvailableError {
+        let (sort_column, _sort_column_type) =
+            sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
                 field_name: self.field.clone(),
-            })?
-            .first_or_default_col(0u64);
-        Ok(ScorerByFastFieldReader { sort_column })
+            })?;
+        Ok(ScorerByFastFieldReader {
+            sort_column: sort_column.first_or_default_col(0u64),
+        })
     }
 }
 
