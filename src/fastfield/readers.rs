@@ -259,14 +259,14 @@ impl FastFieldReaders {
     #[doc(hidden)]
     pub fn u64_lenient_for_type(
         &self,
-        type_white_list: Option<&[ColumnType]>,
+        type_white_list_opt: Option<&[ColumnType]>,
         field_name: &str,
     ) -> crate::Result<Option<(Column<u64>, ColumnType)>> {
         let Some(resolved_field_name) = self.resolve_field(field_name)? else {
             return Ok(None);
         };
         for col in self.columnar.read_columns(&resolved_field_name)? {
-            if let Some(type_white_list) = type_white_list {
+            if let Some(type_white_list) = type_white_list_opt {
                 if !type_white_list.contains(&col.column_type()) {
                     continue;
                 }
