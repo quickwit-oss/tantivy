@@ -144,6 +144,46 @@ fn test_dataframe_writer_numerical() {
 }
 
 #[test]
+fn test_dataframe_sort_by_full() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(0u32, "value", NumericalValue::U64(1));
+    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(2));
+    let data = dataframe_writer.sort_order("value", 2, false);
+    assert_eq!(data, vec![0, 1]);
+}
+
+#[test]
+fn test_dataframe_sort_by_opt() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(3));
+    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(2));
+    let data = dataframe_writer.sort_order("value", 5, false);
+    // 0, 2, 4 is 0.0
+    assert_eq!(data, vec![0, 2, 4, 3, 1]);
+    let data = dataframe_writer.sort_order("value", 5, true);
+    assert_eq!(
+        data,
+        vec![4, 2, 0, 3, 1].into_iter().rev().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_dataframe_sort_by_multi() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    // valid for sort
+    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(2));
+    // those are ignored for sort
+    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(4));
+    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(4));
+    // valid for sort
+    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(3));
+    // ignored, would change sort order
+    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(1));
+    let data = dataframe_writer.sort_order("value", 4, false);
+    assert_eq!(data, vec![0, 2, 1, 3]);
+}
+
+#[test]
 fn test_dictionary_encoded_str() {
     let mut buffer = Vec::new();
     let mut columnar_writer = ColumnarWriter::default();
@@ -244,7 +284,7 @@ impl ColumnValue {
         match self {
             ColumnValue::Str(_) => ColumnTypeCategory::Str,
             ColumnValue::Bytes(_) => ColumnTypeCategory::Bytes,
-            ColumnValue::Numerical(numerical_val) => ColumnTypeCategory::Numerical,
+            ColumnValue::Numerical(_) => ColumnTypeCategory::Numerical,
             ColumnValue::IpAddr(_) => ColumnTypeCategory::IpAddr,
             ColumnValue::Bool(_) => ColumnTypeCategory::Bool,
             ColumnValue::DateTime(_) => ColumnTypeCategory::DateTime,
@@ -393,7 +433,7 @@ fn assert_bytes_column_eq(left: &BytesColumn, right: &BytesColumn) {
     let num_terms = left.dictionary.num_terms();
     let mut left_terms = left.dictionary.stream().unwrap();
     let mut right_terms = right.dictionary.stream().unwrap();
-    for i in 0..num_terms {
+    for _ in 0..num_terms {
         assert!(left_terms.advance());
         assert!(right_terms.advance());
         assert_eq!(left_terms.key(), right_terms.key());
@@ -531,8 +571,8 @@ fn assert_bytes_column_values(
     assert_eq!(num_non_empty_rows, expected.len());
 }
 
-/// This proptest attempts to create a tiny columnar based of up to 3 rows, and checks that the
-/// resulting columnar matches the row data.
+// This proptest attempts to create a tiny columnar based of up to 3 rows, and checks that the
+// resulting columnar matches the row data.
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(500))]
     #[test]
@@ -578,7 +618,7 @@ proptest! {
     }
 }
 
-/// Same as `test_single_columnar_builder_proptest` but with a shuffling mapping.
+// Same as `test_single_columnar_builder_proptest` but with a shuffling mapping.
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(500))]
     #[test]
@@ -602,7 +642,7 @@ proptest! {
             let dynamic_column = column.open().unwrap();
             let col_category: ColumnTypeCategory = dynamic_column.column_type().into();
             let expected_col_values: &HashMap<u32, Vec<&ColumnValue>> = expected_columns.get(&(column_name.as_str(), col_category)).unwrap();
-            for doc_id in 0..columnar.num_rows() {
+            for _doc_id in 0..columnar.num_rows() {
                 match &dynamic_column {
                     DynamicColumn::Bool(col) =>
                         assert_column_values(col, expected_col_values),
@@ -626,9 +666,9 @@ proptest! {
     }
 }
 
-/// This tests create 2 or 3 random small columnar and attempts to merge them.
-/// It compares the resulting merged dataframe with what would have been obtained by building the
-/// dataframe from the concatenated rows to begin with.
+// This tests create 2 or 3 random small columnar and attempts to merge them.
+// It compares the resulting merged dataframe with what would have been obtained by building the
+// dataframe from the concatenated rows to begin with.
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
