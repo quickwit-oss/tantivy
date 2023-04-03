@@ -56,9 +56,9 @@ impl<'a> RemappedTermOrdinalsValues<'a> {
             .bytes_columns
             .iter()
             .enumerate()
-            .flat_map(|(columnar_ord, bytes_column_opt)| {
+            .flat_map(|(seg_ord, bytes_column_opt)| {
                 let bytes_column = bytes_column_opt.as_ref()?;
-                Some((columnar_ord, bytes_column))
+                Some((seg_ord, bytes_column))
             })
             .flat_map(move |(seg_ord, bytes_column)| {
                 let term_ord_after_merge_mapping =

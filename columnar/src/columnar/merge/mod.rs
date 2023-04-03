@@ -308,7 +308,7 @@ fn is_empty_after_merge(
                 let column_index = column.column_index();
                 match column_index {
                     ColumnIndex::Empty { .. } => true,
-                    ColumnIndex::Full => { alive_bitset.len() == 0 },
+                    ColumnIndex::Full => alive_bitset.len() == 0,
                     ColumnIndex::Optional(optional_index) => {
                         for doc in optional_index.iter_rows() {
                             if alive_bitset.contains(doc as u32) {
@@ -319,7 +319,12 @@ fn is_empty_after_merge(
                     }
                     ColumnIndex::Multivalued(multivalued_index) => {
                         let mut prev_start_index = 0;
-                        for (doc, end_index) in multivalued_index.start_index_column.iter().skip(1).enumerate() {
+                        for (doc, end_index) in multivalued_index
+                            .start_index_column
+                            .iter()
+                            .skip(1)
+                            .enumerate()
+                        {
                             if end_index == prev_start_index {
                                 continue;
                             }
