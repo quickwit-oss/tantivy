@@ -17,7 +17,7 @@ pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
-use common::{BinarySerializable, DictionaryFooter, DictionaryKind};
+use common::BinarySerializable;
 
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
@@ -28,10 +28,7 @@ use crate::value::{RangeValueReader, RangeValueWriter};
 pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
-const FOOTER: DictionaryFooter = DictionaryFooter {
-    kind: DictionaryKind::SSTable,
-    version: 1,
-};
+const SSTABLE_VERSION: u32 = 1;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
@@ -311,7 +308,7 @@ where
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
 
-        FOOTER.serialize(&mut wrt)?;
+        SSTABLE_VERSION.serialize(&mut wrt)?;
 
         let wrt = wrt.finish();
         Ok(wrt.into_inner()?)
@@ -332,9 +329,6 @@ where TValueWriter: value::ValueWriter
 mod test {
     use std::io;
     use std::ops::Bound;
-    use std::sync::Arc;
-
-    use common::OwnedBytes;
 
     use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
 
@@ -389,7 +383,6 @@ mod test {
             assert!(sstable_writer.insert([17u8, 20u8], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
-        // on change, this should be kept in sync with :/src/termdict/fst_termdict/mod.rs test
         assert_eq!(
             &buffer,
             &[
@@ -412,7 +405,6 @@ mod test {
                 15, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num_term
                 1, 0, 0, 0, // version
-                2, 0, 0, 0, // dictionary kind. sstable = 2
             ]
         );
         let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
@@ -423,23 +415,6 @@ mod test {
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &[17u8, 20u8]);
         assert!(!sstable_reader.advance().unwrap());
-    }
-
-    #[test]
-    fn test_error_reading_fst_with_sstable() {
-        let fst_file = OwnedBytes::new(vec![
-            2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 157, 194, 231, 1, 0, 0, 0, 0, 0,
-            0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 2, 0, 0, 0, 0, 1, 2, 5, 56, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
-        ]);
-
-        let fst_file = FileSlice::new(Arc::new(fst_file));
-
-        match Dictionary::<VoidSSTable>::open(fst_file) {
-            Ok(_) => panic!("successfully parsed fst with sstable"),
-            Err(e) => assert!(e.to_string().contains("Invalid dictionary type")),
-        }
     }
 
     #[test]

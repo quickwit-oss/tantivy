@@ -5,7 +5,7 @@ use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
 use common::file_slice::FileSlice;
-use common::{BinarySerializable, DictionaryFooter, OwnedBytes};
+use common::{BinarySerializable, OwnedBytes};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
@@ -178,15 +178,22 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) =
-            term_dictionary_file.split_from_end(16 + DictionaryFooter::LEN);
+        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(20);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
 
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
-
-        let footer = DictionaryFooter::deserialize(&mut footer_len_bytes)?;
-        crate::FOOTER.verify_equal(&footer)?;
+        let version = u32::deserialize(&mut footer_len_bytes)?;
+        if version != crate::SSTABLE_VERSION {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "Unsuported sstable version, expected {}, found {}",
+                    version,
+                    crate::SSTABLE_VERSION,
+                ),
+            ));
+        }
 
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
