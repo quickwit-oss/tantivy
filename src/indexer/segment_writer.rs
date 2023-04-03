@@ -556,7 +556,7 @@ mod tests {
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("complexobject");
         json_term_writer.push_path_segment("field.with.dot");
-        json_term_writer.set_fast_value(1u64);
+        json_term_writer.set_fast_value(1i64);
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
 
@@ -577,15 +577,15 @@ mod tests {
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("my_arr");
-        json_term_writer.set_fast_value(2u64);
+        json_term_writer.set_fast_value(2i64);
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
 
-        json_term_writer.set_fast_value(3u64);
+        json_term_writer.set_fast_value(3i64);
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
 
-        json_term_writer.set_fast_value(4u64);
+        json_term_writer.set_fast_value(4i64);
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
 
@@ -613,7 +613,7 @@ mod tests {
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("unsigned");
-        json_term_writer.set_fast_value(1u64);
+        json_term_writer.set_fast_value(1i64);
         assert!(term_stream.advance());
         assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
         assert!(!term_stream.advance());
