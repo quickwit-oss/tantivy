@@ -2,7 +2,8 @@ use std::str::CharIndices;
 
 use super::{Token, TokenStream, Tokenizer};
 
-/// Tokenize the text by splitting on whitespaces and punctuation.
+/// Tokenize the text by returning only tokens of consecutive
+/// [`alphanumeric`](char::is_alphanumeric).
 #[derive(Clone)]
 pub struct SimpleTokenizer;
 
