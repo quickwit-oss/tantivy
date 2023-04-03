@@ -5,8 +5,8 @@ use common::ReadOnlyBitSet;
 use shuffled::merge_column_index_shuffled;
 use stacked::merge_column_index_stacked;
 
-use crate::column_index::SerializableColumnIndex;
-use crate::{Cardinality, ColumnIndex, MergeRowOrder};
+use crate::column_index::{SerializableColumnIndex, optional_index};
+use crate::{Cardinality, ColumnIndex, MergeRowOrder, Column};
 
 fn detect_cardinality_single_column_index(
     column_index: &ColumnIndex,
@@ -41,7 +41,6 @@ fn detect_cardinality_single_column_index(
     cardinality_so_far
 }
 
-// For simplification, we never have cardinality go down due to deletes.
 fn detect_cardinality(
     column_indexes: &[ColumnIndex],
     merge_row_order: &MergeRowOrder,

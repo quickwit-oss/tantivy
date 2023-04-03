@@ -306,13 +306,31 @@ fn is_empty_after_merge(
         MergeRowOrder::Shuffled(shuffled) => {
             if let Some(alive_bitset) = &shuffled.alive_bitsets[columnar_id] {
                 let column_index = column.column_index();
-                for doc in alive_bitset.iter() {
-                    if column_index.has_value(doc) {
-                        return false;
+                match column_index {
+                    ColumnIndex::Empty { .. } => true,
+                    ColumnIndex::Full => { alive_bitset.len() == 0 },
+                    ColumnIndex::Optional(optional_index) => {
+                        for doc in optional_index.iter_rows() {
+                            if alive_bitset.contains(doc as u32) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                    ColumnIndex::Multivalued(multivalued_index) => {
+                        let mut prev_start_index = 0;
+                        for (doc, end_index) in multivalued_index.start_index_column.iter().skip(1).enumerate() {
+                            if end_index == prev_start_index {
+                                continue;
+                            }
+                            if alive_bitset.contains(doc as u32) {
+                                return false;
+                            }
+                            prev_start_index = end_index;
+                        }
+                        true
                     }
                 }
-                // No non-deleted documents has been found having a value.
-                true
             } else {
                 // No document is being deleted.
                 // The shuffle is applying a permutation.
