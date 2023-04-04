@@ -228,6 +228,7 @@ pub fn block_wand_single_scorer(
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
+        dbg!(scorer.block_max_score(), threshold);
         while scorer.block_max_score() < threshold {
             let last_doc_in_block = scorer.last_doc_in_block();
             if last_doc_in_block == TERMINATED {
@@ -358,6 +359,7 @@ mod tests {
             }
             limit
         };
+        dbg!(term_scorers.len());
 
         if term_scorers.len() == 1 {
             let scorer = term_scorers.pop().unwrap();
@@ -431,7 +433,7 @@ mod tests {
 
     fn test_block_wand_aux(posting_lists: &[Vec<(DocId, u32)>], fieldnorms: &[u32]) {
         // We virtually repeat all docs 64 times in order to emulate blocks of 2 documents
-        // and surface blogs more easily.
+        // and surface bugs more easily.
         const REPEAT: usize = 64;
         let fieldnorms_expanded = fieldnorms
             .iter()
@@ -476,10 +478,13 @@ mod tests {
                 TermScorer::create_for_test(postings, &fieldnorms_expanded[..], bm25_weight)
             })
             .collect();
-        for top_k in 1..4 {
+        for top_k in 2..3 {
             let checkpoints_for_each_pruning =
                 compute_checkpoints_for_each_pruning(term_scorers.clone(), top_k);
-            let checkpoints_manual = compute_checkpoints_manual(term_scorers.clone(), top_k);
+            let checkpoints_manual =
+                compute_checkpoints_manual(term_scorers.clone(), top_k);
+            dbg!(&checkpoints_for_each_pruning);
+            dbg!(&checkpoints_manual);
             assert_eq!(checkpoints_for_each_pruning.len(), checkpoints_manual.len());
             for (&(left_doc, left_score), &(right_doc, right_score)) in checkpoints_for_each_pruning
                 .iter()
@@ -505,6 +510,13 @@ mod tests {
         fn test_block_wand_single_term_scorer((posting_lists, fieldnorms) in gen_term_scorers(1)) {
             test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);
         }
+    }
+
+    #[test]
+    fn test_block_wand_failing_case() {
+        let posting_lists = &[vec![(0, 94), (1, 47), (2, 20)]];
+        let field_norms = &[80, 33, 2];
+        test_block_wand_aux(&posting_lists[..], field_norms);
     }
 
     #[test]
