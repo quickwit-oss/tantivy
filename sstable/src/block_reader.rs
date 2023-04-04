@@ -3,6 +3,8 @@ use std::ops::Range;
 
 use zstd::stream::read::Decoder as ZstdDecoder;
 
+use crate::delta::COMPRESSION_FLAG;
+
 pub struct BlockReader<'a> {
     buffer: Vec<u8>,
     reader: Box<dyn io::Read + 'a>,
@@ -70,8 +72,17 @@ impl<'a> BlockReader<'a> {
             Err(err) => return Err(err),
         };
 
-        ZstdDecoder::new(ReadLimiter::new(self.reader.as_mut(), block_len as usize))?
+        let real_block_len = block_len & !COMPRESSION_FLAG;
+        if real_block_len != block_len {
+            ZstdDecoder::new(ReadLimiter::new(
+                self.reader.as_mut(),
+                real_block_len as usize,
+            ))?
             .read_to_end(&mut self.buffer)?;
+        } else {
+            self.buffer.resize(real_block_len as usize, 0u8);
+            self.reader.read_exact(&mut self.buffer[..])?;
+        }
 
         Ok(true)
     }

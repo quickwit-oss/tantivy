@@ -47,9 +47,9 @@ Overview of the SSTable format. Unless noted otherwise, numbers are little-endia
 | BlockLen | Values | Delta | Delta | ... |
 +----------+--------+-------+-------+-----+
            |        |----( # of deltas)---|
-           |----(compressed with zstd)----|
+           |------(maybe compressed)------|
 ```
-- BlockLen(u32): length of the block
+- BlockLen(u32): length of the block. If MSB is 1, block is compressed with zstd, otherwise it's not.
 - Values: an application defined format storing a sequence of value, capable of determining it own length
 - Delta
 

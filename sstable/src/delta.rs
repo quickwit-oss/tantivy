@@ -9,6 +9,7 @@ use super::{value, vint, BlockReader};
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
 const BLOCK_LEN: usize = 4_000;
+pub(crate) const COMPRESSION_FLAG: u32 = 1 << 31;
 
 pub struct DeltaWriter<W, TValueWriter>
 where W: io::Write
@@ -50,13 +51,27 @@ where
         self.value_writer.serialize_block(buffer);
         self.value_writer.clear();
 
-        buffer.extend_from_slice(&self.block);
-        self.block.clear();
-        zstd::stream::copy_encode(&**buffer, &mut self.block, 1)?;
+        let block_len = buffer.len() + self.block.len();
 
-        self.write
-            .write_all(&(self.block.len() as u32).to_le_bytes())?;
-        self.write.write_all(&self.block[..])?;
+        if block_len > 2048 {
+            buffer.extend_from_slice(&self.block);
+            self.block.clear();
+            zstd::stream::copy_encode(&**buffer, &mut self.block, -5)?;
+
+            // verify compression had a positive impact
+            if self.block.len() < buffer.len() {
+                self.write
+                    .write_all(&(self.block.len() as u32 | COMPRESSION_FLAG).to_le_bytes())?;
+                self.write.write_all(&self.block[..])?;
+            } else {
+                self.write.write_all(&(block_len as u32).to_le_bytes())?;
+                self.write.write_all(&buffer[..])?;
+            }
+        } else {
+            self.write.write_all(&(block_len as u32).to_le_bytes())?;
+            self.write.write_all(&buffer[..])?;
+            self.write.write_all(&self.block[..])?;
+        }
 
         let end_offset = self.write.written_bytes() as usize;
         self.block.clear();

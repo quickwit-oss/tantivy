@@ -380,14 +380,14 @@ mod test {
             &buffer,
             &[
                 // block
-                16, 0, 0, 0, // size of block
-                40, 181, 47, 253, 0, 72, 57, 0, 0, 16, 17, 33, 18, 19, 17, 20, // zstd block
+                7, 0, 0, 0, // size of block
+                16, 17, 33, 18, 19, 17, 20, // data block
                 0, 0, 0, 0, // no more block
                 // index
-                16, 0, 0, 0, // size of index block
-                40, 181, 47, 253, 0, 72, 57, 0, 0, 1, 0, 20, 0, 32, 17, 20, // zstd block
+                7, 0, 0, 0, // size of index block
+                1, 0, 11, 0, 32, 17, 20, // index block
                 0, 0, 0, 0, // no more index block
-                24, 0, 0, 0, 0, 0, 0, 0, // index start offset
+                15, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
                 2, 0, 0, 0, // version
                 2, 0, 0, 0, // dictionary kind. sstable = 2
