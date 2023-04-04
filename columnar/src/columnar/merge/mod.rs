@@ -7,6 +7,7 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+use itertools::Itertools;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
@@ -311,27 +312,29 @@ fn is_empty_after_merge(
                     ColumnIndex::Full => alive_bitset.len() == 0,
                     ColumnIndex::Optional(optional_index) => {
                         for doc in optional_index.iter_rows() {
-                            if alive_bitset.contains(doc as u32) {
+                            if alive_bitset.contains(doc) {
                                 return false;
                             }
                         }
                         true
                     }
                     ColumnIndex::Multivalued(multivalued_index) => {
-                        let mut prev_start_index = 0;
-                        for (doc, end_index) in multivalued_index
+                        for (doc_id, (start_index, end_index)) in multivalued_index
                             .start_index_column
                             .iter()
-                            .skip(1)
+                            .tuple_windows()
                             .enumerate()
                         {
-                            if end_index == prev_start_index {
+                            let doc_id = doc_id as u32;
+                            if start_index == end_index {
+                                // There are no values in this document
                                 continue;
                             }
-                            if alive_bitset.contains(doc as u32) {
+                            // The document contains values and is present in the alive bitset.
+                            // The column is therefore not empty.
+                            if alive_bitset.contains(doc_id) {
                                 return false;
                             }
-                            prev_start_index = end_index;
                         }
                         true
                     }

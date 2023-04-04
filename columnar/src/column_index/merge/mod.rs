@@ -5,8 +5,8 @@ use common::ReadOnlyBitSet;
 use shuffled::merge_column_index_shuffled;
 use stacked::merge_column_index_stacked;
 
-use crate::column_index::{optional_index, SerializableColumnIndex};
-use crate::{Cardinality, Column, ColumnIndex, MergeRowOrder};
+use crate::column_index::SerializableColumnIndex;
+use crate::{Cardinality, ColumnIndex, MergeRowOrder};
 
 fn detect_cardinality_single_column_index(
     column_index: &ColumnIndex,
@@ -18,8 +18,8 @@ fn detect_cardinality_single_column_index(
     let cardinality_before_deletes = column_index.get_cardinality();
     if cardinality_before_deletes == Cardinality::Full {
         // The columnar cardinality can only become more restrictive in the presence of deletes
-        // (where from the more restrictive to the least restrictive cardinality are Full, Optional,
-        // Multivalued)
+        // (where cardinality sorted from the more restrictive to the least restrictive are Full,
+        // Optional, Multivalued)
         //
         // If we are already "Full", we are guaranteed to stay "Full" after deletes.
         return Cardinality::Full;
