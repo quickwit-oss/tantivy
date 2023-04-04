@@ -39,7 +39,7 @@ pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 pub type RowId = u32;
 pub type DocId = u32;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct RowAddr {
     pub segment_ord: u32,
     pub row_id: RowId,

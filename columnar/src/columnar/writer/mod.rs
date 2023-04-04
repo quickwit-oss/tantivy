@@ -370,7 +370,7 @@ impl ColumnarWriter {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type);
+                        serializer.start_serialize_column(column_name, column_type);
                     serialize_bool_column(
                         cardinality,
                         num_docs,
@@ -382,12 +382,13 @@ impl ColumnarWriter {
                         buffers,
                         &mut column_serializer,
                     )?;
+                    column_serializer.finalize()?;
                 }
                 ColumnType::IpAddr => {
                     let column_writer: ColumnWriter = self.ip_addr_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, ColumnType::IpAddr);
+                        serializer.start_serialize_column(column_name, ColumnType::IpAddr);
                     serialize_ip_addr_column(
                         cardinality,
                         num_docs,
@@ -399,6 +400,7 @@ impl ColumnarWriter {
                         buffers,
                         &mut column_serializer,
                     )?;
+                    column_serializer.finalize()?;
                 }
                 ColumnType::Bytes | ColumnType::Str => {
                     let str_or_bytes_column_writer: StrOrBytesColumnWriter =
@@ -413,7 +415,7 @@ impl ColumnarWriter {
                         .column_writer
                         .get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type);
+                        serializer.start_serialize_column(column_name, column_type);
                     serialize_bytes_or_str_column(
                         cardinality,
                         num_docs,
@@ -427,13 +429,14 @@ impl ColumnarWriter {
                         buffers,
                         &mut column_serializer,
                     )?;
+                    column_serializer.finalize()?;
                 }
                 ColumnType::F64 | ColumnType::I64 | ColumnType::U64 => {
                     let numerical_column_writer: NumericalColumnWriter =
                         self.numerical_field_hash_map.read(addr);
                     let cardinality = numerical_column_writer.cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, column_type);
+                        serializer.start_serialize_column(column_name, column_type);
                     let numerical_type = column_type.numerical_type().unwrap();
                     serialize_numerical_column(
                         cardinality,
@@ -447,12 +450,13 @@ impl ColumnarWriter {
                         buffers,
                         &mut column_serializer,
                     )?;
+                    column_serializer.finalize()?;
                 }
                 ColumnType::DateTime => {
                     let column_writer: ColumnWriter = self.datetime_field_hash_map.read(addr);
                     let cardinality = column_writer.get_cardinality(num_docs);
                     let mut column_serializer =
-                        serializer.serialize_column(column_name, ColumnType::DateTime);
+                        serializer.start_serialize_column(column_name, ColumnType::DateTime);
                     serialize_numerical_column(
                         cardinality,
                         num_docs,
@@ -465,6 +469,7 @@ impl ColumnarWriter {
                         buffers,
                         &mut column_serializer,
                     )?;
+                    column_serializer.finalize()?;
                 }
             };
         }

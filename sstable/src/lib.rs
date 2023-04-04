@@ -318,16 +318,6 @@ where
     }
 }
 
-impl<TValueWriter> Writer<Vec<u8>, TValueWriter>
-where TValueWriter: value::ValueWriter
-{
-    #[inline]
-    pub fn insert_cannot_fail<K: AsRef<[u8]>>(&mut self, key: K, value: &TValueWriter::Value) {
-        self.insert(key, value)
-            .expect("SSTable over a Vec should never fail");
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::io;

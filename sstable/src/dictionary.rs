@@ -427,7 +427,7 @@ mod tests {
         // this makes 256k keys, enough to fill multiple blocks.
         for elem in 0..0x3ffff {
             let key = format!("{elem:05X}").into_bytes();
-            builder.insert_cannot_fail(&key, &elem);
+            builder.insert(&key, &elem).unwrap();
         }
 
         let table = builder.finish().unwrap();

@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use common::{BitSet, CountingWriter, ReadOnlyBitSet};
-use sstable::{SSTable, TermOrdinal};
+use sstable::{SSTable, Streamer, TermOrdinal, VoidSSTable};
 
 use super::term_merger::TermMerger;
 use crate::column::serialize_column_mappable_to_u64;
@@ -52,18 +52,23 @@ impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
 
 impl<'a> RemappedTermOrdinalsValues<'a> {
     fn boxed_iter_stacked(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        let iter = self.bytes_columns.iter().flatten().enumerate().flat_map(
-            move |(seg_ord_with_column, bytes_column)| {
-                let term_ord_after_merge_mapping = self
-                    .term_ord_mapping
-                    .get_segment(seg_ord_with_column as u32);
+        let iter = self
+            .bytes_columns
+            .iter()
+            .enumerate()
+            .flat_map(|(seg_ord, bytes_column_opt)| {
+                let bytes_column = bytes_column_opt.as_ref()?;
+                Some((seg_ord, bytes_column))
+            })
+            .flat_map(move |(seg_ord, bytes_column)| {
+                let term_ord_after_merge_mapping =
+                    self.term_ord_mapping.get_segment(seg_ord as u32);
                 bytes_column
                     .ords()
                     .values
                     .iter()
                     .map(move |term_ord| term_ord_after_merge_mapping[term_ord as usize])
-            },
-        );
+            });
         Box::new(iter)
     }
 
@@ -121,10 +126,15 @@ fn serialize_merged_dict(
     let mut term_ord_mapping = TermOrdinalMapping::default();
 
     let mut field_term_streams = Vec::new();
-    for column in bytes_columns.iter().flatten() {
-        term_ord_mapping.add_segment(column.dictionary.num_terms());
-        let terms = column.dictionary.stream()?;
-        field_term_streams.push(terms);
+    for column_opt in bytes_columns.iter() {
+        if let Some(column) = column_opt {
+            term_ord_mapping.add_segment(column.dictionary.num_terms());
+            let terms: Streamer<VoidSSTable> = column.dictionary.stream()?;
+            field_term_streams.push(terms);
+        } else {
+            term_ord_mapping.add_segment(0);
+            field_term_streams.push(Streamer::empty());
+        }
     }
 
     let mut merged_terms = TermMerger::new(field_term_streams);

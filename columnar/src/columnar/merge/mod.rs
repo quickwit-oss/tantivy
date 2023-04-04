@@ -7,6 +7,7 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+use itertools::Itertools;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
@@ -82,10 +83,11 @@ pub fn merge_columnar(
         .iter()
         .map(|reader| reader.num_rows())
         .collect::<Vec<u32>>();
-    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
+    let columns_to_merge =
+        group_columns_for_merge(columnar_readers, required_columns, &merge_row_order)?;
     for ((column_name, column_type), columns) in columns_to_merge {
         let mut column_serializer =
-            serializer.serialize_column(column_name.as_bytes(), column_type);
+            serializer.start_serialize_column(column_name.as_bytes(), column_type);
         merge_column(
             column_type,
             &num_rows_per_columnar,
@@ -93,6 +95,7 @@ pub fn merge_columnar(
             &merge_row_order,
             &mut column_serializer,
         )?;
+        column_serializer.finalize()?;
     }
     serializer.finalize(merge_row_order.num_rows())?;
     Ok(())
@@ -287,10 +290,69 @@ fn merged_numerical_columns_type<'a>(
     compatible_numerical_types.to_numerical_type()
 }
 
+fn is_empty_after_merge(
+    merge_row_order: &MergeRowOrder,
+    column: &DynamicColumn,
+    columnar_id: usize,
+) -> bool {
+    if column.num_values() == 0u32 {
+        // It was empty before the merge.
+        return true;
+    }
+    match merge_row_order {
+        MergeRowOrder::Stack(_) => {
+            // If we are stacking the columnar, no rows are being deleted.
+            false
+        }
+        MergeRowOrder::Shuffled(shuffled) => {
+            if let Some(alive_bitset) = &shuffled.alive_bitsets[columnar_id] {
+                let column_index = column.column_index();
+                match column_index {
+                    ColumnIndex::Empty { .. } => true,
+                    ColumnIndex::Full => alive_bitset.len() == 0,
+                    ColumnIndex::Optional(optional_index) => {
+                        for doc in optional_index.iter_rows() {
+                            if alive_bitset.contains(doc) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                    ColumnIndex::Multivalued(multivalued_index) => {
+                        for (doc_id, (start_index, end_index)) in multivalued_index
+                            .start_index_column
+                            .iter()
+                            .tuple_windows()
+                            .enumerate()
+                        {
+                            let doc_id = doc_id as u32;
+                            if start_index == end_index {
+                                // There are no values in this document
+                                continue;
+                            }
+                            // The document contains values and is present in the alive bitset.
+                            // The column is therefore not empty.
+                            if alive_bitset.contains(doc_id) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                }
+            } else {
+                // No document is being deleted.
+                // The shuffle is applying a permutation.
+                false
+            }
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn group_columns_for_merge(
     columnar_readers: &[&ColumnarReader],
     required_columns: &[(String, ColumnType)],
+    merge_row_order: &MergeRowOrder,
 ) -> io::Result<BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
     // For merging we are interested in the same column type category since they can be merged.
@@ -307,9 +369,16 @@ fn group_columns_for_merge(
 
     for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {
         let column_name_and_handle = columnar_reader.list_columns()?;
+        // We skip columns that end up with 0 documents.
+        // That way, we make sure they don't end up influencing the merge type or
+        // creating empty columns.
+
         for (column_name, handle) in column_name_and_handle {
             let column_category: ColumnTypeCategory = handle.column_type().into();
             let column = handle.open()?;
+            if is_empty_after_merge(merge_row_order, &column, columnar_id) {
+                continue;
+            }
             columns_grouped
                 .entry((column_name, column_category))
                 .or_insert_with(|| {
