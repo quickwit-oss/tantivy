@@ -1,7 +1,7 @@
 use std::io::{self, BufWriter, Write};
 use std::ops::Range;
 
-use common::CountingWriter;
+use common::{CountingWriter, OwnedBytes};
 
 use super::value::ValueWriter;
 use super::{value, vint, BlockReader};
@@ -56,7 +56,7 @@ where
         if block_len > 2048 {
             buffer.extend_from_slice(&self.block);
             self.block.clear();
-            zstd::stream::copy_encode(&**buffer, &mut self.block, -5)?;
+            zstd::stream::copy_encode(&**buffer, &mut self.block, -1)?;
 
             // verify compression had a positive impact
             if self.block.len() < buffer.len() {
@@ -114,29 +114,29 @@ where
     }
 }
 
-pub struct DeltaReader<'a, TValueReader> {
+pub struct DeltaReader<TValueReader> {
     common_prefix_len: usize,
     suffix_range: Range<usize>,
     value_reader: TValueReader,
-    block_reader: BlockReader<'a>,
+    block_reader: BlockReader,
     idx: usize,
 }
 
-impl<'a, TValueReader> DeltaReader<'a, TValueReader>
+impl<TValueReader> DeltaReader<TValueReader>
 where TValueReader: value::ValueReader
 {
-    pub fn new<R: io::Read + 'a>(reader: R) -> Self {
+    pub fn new(reader: OwnedBytes) -> Self {
         DeltaReader {
             idx: 0,
             common_prefix_len: 0,
             suffix_range: 0..0,
             value_reader: TValueReader::default(),
-            block_reader: BlockReader::new(Box::new(reader)),
+            block_reader: BlockReader::new(reader),
         }
     }
 
     pub fn empty() -> Self {
-        DeltaReader::new(&b""[..])
+        DeltaReader::new(OwnedBytes::empty())
     }
 
     fn deserialize_vint(&mut self) -> u64 {

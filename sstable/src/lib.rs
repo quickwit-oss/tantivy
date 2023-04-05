@@ -17,7 +17,7 @@ pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
-use common::{BinarySerializable, DictionaryFooter, DictionaryKind};
+use common::{BinarySerializable, DictionaryFooter, DictionaryKind, OwnedBytes};
 
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
@@ -61,11 +61,11 @@ pub trait SSTable: Sized {
         Writer::new(wrt)
     }
 
-    fn delta_reader<'a, R: io::Read + 'a>(reader: R) -> DeltaReader<'a, Self::ValueReader> {
+    fn delta_reader(reader: OwnedBytes) -> DeltaReader<Self::ValueReader> {
         DeltaReader::new(reader)
     }
 
-    fn reader<'a, R: io::Read + 'a>(reader: R) -> Reader<'a, Self::ValueReader> {
+    fn reader(reader: OwnedBytes) -> Reader<Self::ValueReader> {
         Reader {
             key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             delta_reader: Self::delta_reader(reader),
@@ -73,12 +73,12 @@ pub trait SSTable: Sized {
     }
 
     /// Returns an empty static reader.
-    fn create_empty_reader() -> Reader<'static, Self::ValueReader> {
-        Self::reader(&b""[..])
+    fn create_empty_reader() -> Reader<Self::ValueReader> {
+        Self::reader(OwnedBytes::empty())
     }
 
-    fn merge<R: io::Read, W: io::Write, M: ValueMerger<Self::Value>>(
-        io_readers: Vec<R>,
+    fn merge<W: io::Write, M: ValueMerger<Self::Value>>(
+        io_readers: Vec<OwnedBytes>,
         w: W,
         merger: M,
     ) -> io::Result<()> {
@@ -135,12 +135,12 @@ impl SSTable for RangeSSTable {
 }
 
 /// SSTable reader.
-pub struct Reader<'a, TValueReader> {
+pub struct Reader<TValueReader> {
     key: Vec<u8>,
-    delta_reader: DeltaReader<'a, TValueReader>,
+    delta_reader: DeltaReader<TValueReader>,
 }
 
-impl<'a, TValueReader> Reader<'a, TValueReader>
+impl<TValueReader> Reader<TValueReader>
 where TValueReader: ValueReader
 {
     pub fn advance(&mut self) -> io::Result<bool> {
@@ -166,7 +166,7 @@ where TValueReader: ValueReader
     }
 }
 
-impl<'a, TValueReader> AsRef<[u8]> for Reader<'a, TValueReader> {
+impl<TValueReader> AsRef<[u8]> for Reader<TValueReader> {
     #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         &self.key
@@ -323,6 +323,8 @@ mod test {
     use std::io;
     use std::ops::Bound;
 
+    use common::OwnedBytes;
+
     use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
 
     fn aux_test_common_prefix_len(left: &str, right: &str, expect_len: usize) {
@@ -356,7 +358,8 @@ mod test {
             assert!(sstable_writer.insert(&long_key2[..], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
-        let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut sstable_reader = VoidSSTable::reader(buffer);
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &long_key[..]);
         assert!(sstable_reader.advance().unwrap());
@@ -393,7 +396,8 @@ mod test {
                 2, 0, 0, 0, // dictionary kind. sstable = 2
             ]
         );
-        let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut sstable_reader = VoidSSTable::reader(buffer);
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &[17u8]);
         assert!(sstable_reader.advance().unwrap());
@@ -421,8 +425,12 @@ mod test {
             writer.insert(b"abe", &()).unwrap();
             writer.finish().unwrap();
         }
+        let buffer = OwnedBytes::new(buffer);
         let mut output = Vec::new();
-        assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
+        assert!(
+            VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
+                .is_ok()
+        );
         assert_eq!(&output[..], &buffer[..]);
     }
 
@@ -438,8 +446,12 @@ mod test {
             assert_eq!(writer.last_inserted_key(), b"abe");
             writer.finish().unwrap();
         }
+        let buffer = OwnedBytes::new(buffer);
         let mut output = Vec::new();
-        assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
+        assert!(
+            VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
+                .is_ok()
+        );
         assert_eq!(&output[..], &buffer[..]);
     }
 
@@ -451,7 +463,8 @@ mod test {
         writer.insert(b"abe", &4u64)?;
         writer.insert(b"gogo", &4324234234234234u64)?;
         writer.finish()?;
-        let mut reader = MonotonicU64SSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut reader = MonotonicU64SSTable::reader(buffer);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abcd");
         assert_eq!(reader.value(), &1u64);

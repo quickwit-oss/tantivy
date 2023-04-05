@@ -139,6 +139,16 @@ impl OwnedBytes {
         self.advance(8);
         u64::from_le_bytes(octlet)
     }
+
+    /// Reads an `u32` encoded as little-endian from the `OwnedBytes` and advance by 4 bytes.
+    #[inline]
+    pub fn read_u32(&mut self) -> u32 {
+        assert!(self.len() > 3);
+
+        let quad: [u8; 4] = self.as_slice()[..4].try_into().unwrap();
+        self.advance(4);
+        u32::from_le_bytes(quad)
+    }
 }
 
 impl fmt::Debug for OwnedBytes {

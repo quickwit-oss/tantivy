@@ -1,48 +1,19 @@
 use std::io::{self, Read};
 use std::ops::Range;
 
-use zstd::stream::read::Decoder as ZstdDecoder;
+use common::OwnedBytes;
+use zstd::bulk::Decompressor as ZstdDecompressor;
 
 use crate::delta::COMPRESSION_FLAG;
 
-pub struct BlockReader<'a> {
+pub struct BlockReader {
     buffer: Vec<u8>,
-    reader: Box<dyn io::Read + 'a>,
+    reader: OwnedBytes,
     offset: usize,
 }
 
-#[inline]
-fn read_u32(read: &mut dyn io::Read) -> io::Result<u32> {
-    let mut buf = [0u8; 4];
-    read.read_exact(&mut buf)?;
-    Ok(u32::from_le_bytes(buf))
-}
-
-struct ReadLimiter<T> {
-    inner: T,
-    budget_left: usize,
-}
-
-impl<T> ReadLimiter<T> {
-    fn new(read: T, budget: usize) -> ReadLimiter<T> {
-        ReadLimiter {
-            inner: read,
-            budget_left: budget,
-        }
-    }
-}
-
-impl<T: Read> Read for ReadLimiter<T> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let to_read = buf.len().min(self.budget_left);
-        let read = self.inner.read(&mut buf[..to_read])?;
-        self.budget_left -= read;
-        Ok(read)
-    }
-}
-
-impl<'a> BlockReader<'a> {
-    pub fn new(reader: Box<dyn io::Read + 'a>) -> BlockReader<'a> {
+impl BlockReader {
+    pub fn new(reader: OwnedBytes) -> BlockReader {
         BlockReader {
             buffer: Vec::new(),
             reader,
@@ -65,22 +36,58 @@ impl<'a> BlockReader<'a> {
         self.offset = 0;
         self.buffer.clear();
 
-        let block_len = match read_u32(self.reader.as_mut()) {
-            Ok(0) => return Ok(false),
-            Ok(n) => n,
-            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(false),
-            Err(err) => return Err(err),
+        let block_len = match self.reader.len() {
+            0 => return Ok(false),
+            1..=3 => {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "failed to read block_len",
+                ))
+            }
+            _ => self.reader.read_u32(),
         };
+        if block_len == 0 {
+            return Ok(false);
+        }
 
-        let real_block_len = block_len & !COMPRESSION_FLAG;
-        if real_block_len != block_len {
-            ZstdDecoder::new(ReadLimiter::new(
-                self.reader.as_mut(),
-                real_block_len as usize,
-            ))?
-            .read_to_end(&mut self.buffer)?;
+        let real_block_len = (block_len & !COMPRESSION_FLAG) as usize;
+        if self.reader.len() < real_block_len {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "failed to read block content",
+            ));
+        }
+        if real_block_len as u32 != block_len {
+            // TODO this way of growing the Vec isn't very good, but using the friendlier APIs
+            // comes with an important performance hit. Maybe we should encode the uncompressed
+            // size of block somewhere, so we can know upfront.
+            // In practice, it's rare to hit a 4:1 compression ratio, and the buffer is kept
+            // arround so these reallocation are amortized.
+            if self.buffer.capacity() < real_block_len * 4 {
+                self.buffer.reserve((real_block_len) * 5);
+            }
+            loop {
+                match ZstdDecompressor::new()
+                    .unwrap()
+                    .decompress_to_buffer::<Vec<u8>>(
+                        &self.reader[..real_block_len],
+                        &mut self.buffer,
+                    ) {
+                    Ok(_) => break,
+                    Err(e) if e.kind() == io::ErrorKind::Other => {
+                        if self.buffer.capacity() < 1024 * 1024 {
+                            self.buffer.reserve(self.buffer.capacity() * 2);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+
+            self.reader.advance(real_block_len);
         } else {
-            self.buffer.resize(real_block_len as usize, 0u8);
+            self.buffer.resize(real_block_len, 0u8);
             self.reader.read_exact(&mut self.buffer[..])?;
         }
 
@@ -103,7 +110,7 @@ impl<'a> BlockReader<'a> {
     }
 }
 
-impl<'a> io::Read for BlockReader<'a> {
+impl io::Read for BlockReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let len = self.buffer().read(buf)?;
         self.advance(len);

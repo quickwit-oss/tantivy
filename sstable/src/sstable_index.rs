@@ -1,6 +1,8 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
+use common::OwnedBytes;
+
 use crate::{common_prefix_len, SSTable, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Default, Debug, Clone)]
@@ -10,7 +12,7 @@ pub struct SSTableIndex {
 
 impl SSTableIndex {
     /// Load an index from its binary representation
-    pub fn load(data: &[u8]) -> Result<SSTableIndex, SSTableDataCorruption> {
+    pub fn load(data: OwnedBytes) -> Result<SSTableIndex, SSTableDataCorruption> {
         let mut reader = IndexSSTable::reader(data);
         let mut blocks = Vec::new();
 
@@ -179,6 +181,8 @@ impl SSTable for IndexSSTable {
 
 #[cfg(test)]
 mod tests {
+    use common::OwnedBytes;
+
     use super::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
     use crate::SSTableDataCorruption;
 
@@ -191,7 +195,8 @@ mod tests {
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
         sstable_builder.serialize(&mut buffer).unwrap();
-        let sstable_index = SSTableIndex::load(&buffer[..]).unwrap();
+        let buffer = OwnedBytes::new(buffer);
+        let sstable_index = SSTableIndex::load(buffer).unwrap();
         assert_eq!(
             sstable_index.get_block_with_key(b"bbbde"),
             Some(BlockAddr {
@@ -223,7 +228,8 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         sstable_builder.serialize(&mut buffer).unwrap();
         buffer[1] = 9u8;
-        let data_corruption_err = SSTableIndex::load(&buffer[..]).err().unwrap();
+        let buffer = OwnedBytes::new(buffer);
+        let data_corruption_err = SSTableIndex::load(buffer).err().unwrap();
         assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 
