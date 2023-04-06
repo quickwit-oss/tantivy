@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use super::agg_req::BucketAggregationInternal;
 use super::bucket::GetDocCount;
-use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
-use super::metric::{SingleMetricResult, Stats};
+use super::intermediate_agg_result::IntermediateBucketResult;
+use super::metric::{PercentilesMetricResult, SingleMetricResult, Stats};
 use super::segment_agg_result::AggregationLimits;
-use super::Key;
+use super::{AggregationError, Key};
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -94,6 +94,8 @@ pub enum MetricResult {
     Stats(Stats),
     /// Sum metric result.
     Sum(SingleMetricResult),
+    /// Sum metric result.
+    Percentiles(PercentilesMetricResult),
 }
 
 impl MetricResult {
@@ -105,30 +107,9 @@ impl MetricResult {
             MetricResult::Min(min) => Ok(min.value),
             MetricResult::Stats(stats) => stats.get_value(agg_property),
             MetricResult::Sum(sum) => Ok(sum.value),
-        }
-    }
-}
-impl From<IntermediateMetricResult> for MetricResult {
-    fn from(metric: IntermediateMetricResult) -> Self {
-        match metric {
-            IntermediateMetricResult::Average(intermediate_avg) => {
-                MetricResult::Average(intermediate_avg.finalize().into())
-            }
-            IntermediateMetricResult::Count(intermediate_count) => {
-                MetricResult::Count(intermediate_count.finalize().into())
-            }
-            IntermediateMetricResult::Max(intermediate_max) => {
-                MetricResult::Max(intermediate_max.finalize().into())
-            }
-            IntermediateMetricResult::Min(intermediate_min) => {
-                MetricResult::Min(intermediate_min.finalize().into())
-            }
-            IntermediateMetricResult::Stats(intermediate_stats) => {
-                MetricResult::Stats(intermediate_stats.finalize())
-            }
-            IntermediateMetricResult::Sum(intermediate_sum) => {
-                MetricResult::Sum(intermediate_sum.finalize().into())
-            }
+            MetricResult::Percentiles(_) => Err(TantivyError::AggregationError(
+                AggregationError::InvalidRequest("percentiles can't be used to order".to_string()),
+            )),
         }
     }
 }

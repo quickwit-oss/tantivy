@@ -104,7 +104,7 @@ impl Collector for AggregationCollector {
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
         let res = merge_fruits(segment_fruits)?;
-        res.into_final_bucket_result(self.agg.clone(), &self.limits)
+        res.into_final_result(self.agg.clone(), &self.limits)
     }
 }
 
@@ -114,7 +114,7 @@ fn merge_fruits(
     if let Some(fruit) = segment_fruits.pop() {
         let mut fruit = fruit?;
         for next_fruit in segment_fruits {
-            fruit.merge_fruits(next_fruit?);
+            fruit.merge_fruits(next_fruit?)?;
         }
         Ok(fruit)
     } else {

@@ -144,6 +144,20 @@ impl MetricAggregationWithAccessor {
                     column_block_accessor: Default::default(),
                 })
             }
+            MetricAggregation::Percentiles(percentiles) => {
+                let (accessor, field_type) = get_ff_reader_and_validate(
+                    reader,
+                    percentiles.field_name(),
+                    Some(get_numeric_or_date_column_types()),
+                )?;
+
+                Ok(MetricAggregationWithAccessor {
+                    accessor,
+                    field_type,
+                    metric: metric.clone(),
+                    column_block_accessor: Default::default(),
+                })
+            }
         }
     }
 }

@@ -174,6 +174,8 @@ use std::fmt::Display;
 #[cfg(test)]
 mod agg_tests;
 
+mod agg_bench;
+
 pub use agg_limits::AggregationLimits;
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,

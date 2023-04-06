@@ -111,7 +111,7 @@ fn test_aggregation_flushing(
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
         intermediate_agg_result
-            .into_final_bucket_result(agg_req, &Default::default())
+            .into_final_result(agg_req, &Default::default())
             .unwrap()
     } else {
         let collector = get_collector(agg_req);
@@ -448,7 +448,7 @@ fn test_aggregation_level2(
         // Test de/serialization roundtrip on intermediate_agg_result
         let res: IntermediateAggregationResults =
             serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-        res.into_final_bucket_result(agg_req.clone(), &Default::default())
+        res.into_final_result(agg_req.clone(), &Default::default())
             .unwrap()
     } else {
         let collector = get_collector(agg_req.clone());

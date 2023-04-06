@@ -6,12 +6,15 @@ mod average;
 mod count;
 mod max;
 mod min;
+mod percentiles;
 mod stats;
 mod sum;
 pub use average::*;
 pub use count::*;
 pub use max::*;
 pub use min::*;
+pub use percentiles::*;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 pub use stats::*;
 pub use sum::*;
@@ -35,6 +38,33 @@ impl From<Option<f64>> for SingleMetricResult {
     fn from(value: Option<f64>) -> Self {
         Self { value }
     }
+}
+
+/// This is the wrapper of percentile entries, which can be vector or hashmap
+/// depending on if it's keyed or not.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PercentileValues {
+    /// Vector format percentile entries
+    Vec(Vec<PercentileValuesVecEntry>),
+    /// HashMap format percentile entries. Key is the serialized percentile
+    HashMap(FxHashMap<String, f64>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// The entry when requesting percentiles with keyed: false
+pub struct PercentileValuesVecEntry {
+    key: f64,
+    value: f64,
+}
+
+/// Single-metric aggregations use this common result structure.
+///
+/// Main reason to wrap it in value is to match elasticsearch output structure.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PercentilesMetricResult {
+    /// The result of the percentile metric.
+    pub values: PercentileValues,
 }
 
 #[cfg(test)]

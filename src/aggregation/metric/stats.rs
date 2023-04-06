@@ -316,7 +316,6 @@ mod tests {
 
     #[test]
     fn test_aggregation_stats_simple() -> crate::Result<()> {
-        // test index without segments
         let values = vec![10.0];
 
         let index = get_test_index_from_values(false, &values)?;
