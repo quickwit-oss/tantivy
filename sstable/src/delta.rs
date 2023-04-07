@@ -2,6 +2,7 @@ use std::io::{self, BufWriter, Write};
 use std::ops::Range;
 
 use common::{CountingWriter, OwnedBytes};
+use zstd::bulk::Compressor;
 
 use super::value::ValueWriter;
 use super::{value, vint, BlockReader};
@@ -56,7 +57,10 @@ where
         if block_len > 2048 {
             buffer.extend_from_slice(&self.block);
             self.block.clear();
-            zstd::stream::copy_encode(&**buffer, &mut self.block, -1)?;
+
+            let max_len = zstd::zstd_safe::compress_bound(buffer.len());
+            self.block.reserve(max_len);
+            Compressor::new(-1)?.compress_to_buffer(&**buffer, &mut self.block)?;
 
             // verify compression had a positive impact
             if self.block.len() < buffer.len() {

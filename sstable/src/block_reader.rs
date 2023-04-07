@@ -2,7 +2,7 @@ use std::io::{self, Read};
 use std::ops::Range;
 
 use common::OwnedBytes;
-use zstd::bulk::Decompressor as ZstdDecompressor;
+use zstd::bulk::Decompressor;
 
 use crate::delta::COMPRESSION_FLAG;
 
@@ -58,32 +58,11 @@ impl BlockReader {
             ));
         }
         if real_block_len as u32 != block_len {
-            // TODO this way of growing the Vec isn't very good, but using the friendlier APIs
-            // comes with an important performance hit. Maybe we should encode the uncompressed
-            // size of block somewhere, so we can know upfront.
-            // In practice, it's rare to hit a 4:1 compression ratio, and the buffer is kept
-            // arround so these reallocation are amortized.
-            if self.buffer.capacity() < real_block_len * 4 {
-                self.buffer.reserve((real_block_len) * 5);
-            }
-            loop {
-                match ZstdDecompressor::new()
-                    .unwrap()
-                    .decompress_to_buffer::<Vec<u8>>(
-                        &self.reader[..real_block_len],
-                        &mut self.buffer,
-                    ) {
-                    Ok(_) => break,
-                    Err(e) if e.kind() == io::ErrorKind::Other => {
-                        if self.buffer.capacity() < 1024 * 1024 {
-                            self.buffer.reserve(self.buffer.capacity() * 2);
-                        } else {
-                            return Err(e);
-                        }
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
+            let required_capacity =
+                Decompressor::upper_bound(&self.reader[..real_block_len]).unwrap_or(1024 * 1024);
+            self.buffer.reserve(required_capacity);
+            Decompressor::new()?
+                .decompress_to_buffer(&self.reader[..real_block_len], &mut self.buffer)?;
 
             self.reader.advance(real_block_len);
         } else {
