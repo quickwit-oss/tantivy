@@ -26,7 +26,7 @@ Your mileage WILL vary depending on the nature of queries and their load.
 
 <img src="doc/assets/images/searchbenchmark.png">
 
-Deatils about the bechmark can be found at this [repository](https://github.com/quickwit-oss/search-benchmark-game).
+Details about the bechmark can be found at this [repository](https://github.com/quickwit-oss/search-benchmark-game).
 
 # Features
 
