@@ -82,7 +82,7 @@ pub struct PercentilesAggregationReq {
     #[serde(default = "default_as_true")]
     pub keyed: bool,
 }
-pub(crate) fn default_percentiles() -> Vec<f64> {
+fn default_percentiles() -> &[f64] {
     &[1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0]
 }
 fn default_as_true() -> bool {
@@ -142,7 +142,7 @@ impl Default for PercentilesCollector {
 }
 
 impl Debug for PercentilesCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("IntermediatePercentiles")
             .field("sketch_len", &self.sketch.length())
             .finish()
@@ -167,8 +167,7 @@ impl PercentilesCollector {
     /// Convert result into final result. This will query the quantils from the underlying quantil
     /// collector.
     pub fn into_final_result(self, req: &PercentilesAggregationReq) -> PercentilesMetricResult {
-        let default = default_percentiles();
-        let percentiles = req.percents.as_ref().unwrap_or(&default);
+        let percentiles: &[f64] = req.percents.as_ref().unwrap_or(default);
         let iter_quantile_and_values = percentiles.iter().cloned().map(|percentile| {
             (
                 percentile,
@@ -199,12 +198,12 @@ impl PercentilesCollector {
     }
 
     fn new() -> Self {
-        let c = sketches_ddsketch::Config::defaults();
-        let sketch = sketches_ddsketch::DDSketch::new(c);
+        let ddsketch_config = sketches_ddsketch::Config::defaults();
+        let sketch = sketches_ddsketch::DDSketch::new(ddsketch_config);
         Self { sketch }
     }
-    fn collect(&mut self, val1: f64) {
-        self.sketch.add(val1);
+    fn collect(&mut self, val: f64) {
+        self.sketch.add(val);
     }
 
     pub(crate) fn merge_fruits(&mut self, right: PercentilesCollector) -> crate::Result<()> {
