@@ -3,17 +3,27 @@ mod bench {
 
     use columnar::Cardinality;
     use rand::prelude::SliceRandom;
-    use rand::{thread_rng, Rng};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use rand_distr::Distribution;
     use test::{self, Bencher};
 
-    use super::*;
-    use crate::aggregation::bucket::{
-        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, TermsAggregation,
+    use crate::aggregation::agg_req::{
+        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
     };
-    use crate::aggregation::metric::StatsAggregation;
-    use crate::query::AllQuery;
-    use crate::schema::{Schema, TextFieldIndexing, FAST, STRING};
-    use crate::Index;
+    use crate::aggregation::bucket::{
+        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, RangeAggregation,
+        TermsAggregation,
+    };
+    use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
+    use crate::aggregation::AggregationCollector;
+    use crate::query::{AllQuery, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
+    use crate::{Index, Term};
+
+    fn get_collector(agg_req: Aggregations) -> AggregationCollector {
+        AggregationCollector::from_aggs(agg_req, Default::default())
+    }
 
     fn get_test_index_bench(cardinality: Cardinality) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -31,11 +41,14 @@ mod bench {
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let index = Index::create_from_tempdir(schema_builder.build())?;
         let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
+
+        let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
+
         let many_terms_data = (0..150_000)
             .map(|num| format!("author{}", num))
             .collect::<Vec<_>>();
         {
-            let mut rng = thread_rng();
+            let mut rng = StdRng::from_seed([1u8; 32]);
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
             // To make the different test cases comparable we just change one doc to force the
             // cardinality
@@ -52,8 +65,8 @@ mod bench {
                     text_field_few_terms => "cool",
                     score_field => 1u64,
                     score_field => 1u64,
-                    score_field_f64 => 1.0,
-                    score_field_f64 => 1.0,
+                    score_field_f64 => lg_norm.sample(&mut rng),
+                    score_field_f64 => lg_norm.sample(&mut rng),
                     score_field_i64 => 1i64,
                     score_field_i64 => 1i64,
                 ))?;
@@ -65,7 +78,7 @@ mod bench {
                     text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                     text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                     score_field => val as u64,
-                    score_field_f64 => val,
+                    score_field_f64 => lg_norm.sample(&mut rng),
                     score_field_i64 => val as i64,
                 ))?;
             }
@@ -183,6 +196,31 @@ mod bench {
 
             let searcher = reader.searcher();
             searcher.search(&term_query, &collector).unwrap()
+        });
+    }
+
+    bench_all_cardinalities!(bench_aggregation_percentiles_f64);
+
+    fn bench_aggregation_percentiles_f64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
+        let reader = index.reader().unwrap();
+
+        b.iter(|| {
+            let agg_req_str = r#"
+            {
+              "mypercentiles": {
+                "percentiles": {
+                  "field": "score_f64",
+                  "percents": [ 95, 99, 99.9 ]
+                }
+              }
+            } "#;
+            let agg_req_1: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+
+            let collector = get_collector(agg_req_1);
+
+            let searcher = reader.searcher();
+            searcher.search(&AllQuery, &collector).unwrap()
         });
     }
 

@@ -49,11 +49,12 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-pub use super::bucket::RangeAggregation;
-use super::bucket::{DateHistogramAggregationReq, HistogramAggregation, TermsAggregation};
+use super::bucket::{
+    DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
+};
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
-    SumAggregation,
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
+    PercentilesAggregationReq, StatsAggregation, SumAggregation,
 };
 use super::VecWithNames;
 
@@ -246,9 +247,19 @@ pub enum MetricAggregation {
     /// Computes the sum of the extracted values.
     #[serde(rename = "sum")]
     Sum(SumAggregation),
+    /// Computes the sum of the extracted values.
+    #[serde(rename = "percentiles")]
+    Percentiles(PercentilesAggregationReq),
 }
 
 impl MetricAggregation {
+    pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
+        match &self {
+            MetricAggregation::Percentiles(percentile_req) => Some(percentile_req),
+            _ => None,
+        }
+    }
+
     fn get_fast_field_name(&self) -> &str {
         match self {
             MetricAggregation::Average(avg) => avg.field_name(),
@@ -257,6 +268,7 @@ impl MetricAggregation {
             MetricAggregation::Min(min) => min.field_name(),
             MetricAggregation::Stats(stats) => stats.field_name(),
             MetricAggregation::Sum(sum) => sum.field_name(),
+            MetricAggregation::Percentiles(per) => per.field_name(),
         }
     }
 }

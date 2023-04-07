@@ -267,9 +267,9 @@ mod tests {
 
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-        RangeAggregation,
     };
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::bucket::RangeAggregation;
     use crate::aggregation::metric::StatsAggregation;
     use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values};
     use crate::aggregation::AggregationCollector;
@@ -316,7 +316,6 @@ mod tests {
 
     #[test]
     fn test_aggregation_stats_simple() -> crate::Result<()> {
-        // test index without segments
         let values = vec![10.0];
 
         let index = get_test_index_from_values(false, &values)?;

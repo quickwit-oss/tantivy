@@ -13,8 +13,9 @@ use super::agg_req_with_accessor::{
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, SegmentStatsCollector,
-    SegmentStatsType, StatsAggregation, SumAggregation,
+    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
+    SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
+    SumAggregation,
 };
 use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
@@ -87,28 +88,37 @@ pub(crate) fn build_metric_segment_agg_collector(
     req: &MetricAggregationWithAccessor,
     accessor_idx: usize,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let stats_collector = match &req.metric {
+    match &req.metric {
         MetricAggregation::Average(AverageAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Average, accessor_idx)
+            Ok(Box::new(SegmentStatsCollector::from_req(
+                req.field_type,
+                SegmentStatsType::Average,
+                accessor_idx,
+            )))
         }
-        MetricAggregation::Count(CountAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count, accessor_idx)
-        }
-        MetricAggregation::Max(MaxAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max, accessor_idx)
-        }
-        MetricAggregation::Min(MinAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min, accessor_idx)
-        }
-        MetricAggregation::Stats(StatsAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats, accessor_idx)
-        }
-        MetricAggregation::Sum(SumAggregation { .. }) => {
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum, accessor_idx)
-        }
-    };
-
-    Ok(Box::new(stats_collector))
+        MetricAggregation::Count(CountAggregation { .. }) => Ok(Box::new(
+            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count, accessor_idx),
+        )),
+        MetricAggregation::Max(MaxAggregation { .. }) => Ok(Box::new(
+            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max, accessor_idx),
+        )),
+        MetricAggregation::Min(MinAggregation { .. }) => Ok(Box::new(
+            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min, accessor_idx),
+        )),
+        MetricAggregation::Stats(StatsAggregation { .. }) => Ok(Box::new(
+            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats, accessor_idx),
+        )),
+        MetricAggregation::Sum(SumAggregation { .. }) => Ok(Box::new(
+            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum, accessor_idx),
+        )),
+        MetricAggregation::Percentiles(percentiles_req) => Ok(Box::new(
+            SegmentPercentilesCollector::from_req_and_validate(
+                percentiles_req,
+                req.field_type,
+                accessor_idx,
+            )?,
+        )),
+    }
 }
 
 pub(crate) fn build_bucket_segment_agg_collector(
