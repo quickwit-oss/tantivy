@@ -10,10 +10,10 @@ mod bench {
 
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-        RangeAggregation,
     };
     use crate::aggregation::bucket::{
-        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, TermsAggregation,
+        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, RangeAggregation,
+        TermsAggregation,
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::AggregationCollector;
