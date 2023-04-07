@@ -83,7 +83,7 @@ pub struct PercentilesAggregationReq {
     pub keyed: bool,
 }
 pub(crate) fn default_percentiles() -> Vec<f64> {
-    vec![1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0]
+    &[1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0]
 }
 fn default_as_true() -> bool {
     true
