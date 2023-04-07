@@ -130,10 +130,10 @@ fn index_json_value(
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
         serde_json::Value::Number(number) => {
-            if let Some(number_u64) = number.as_u64() {
-                json_term_writer.set_fast_value(number_u64);
-            } else if let Some(number_i64) = number.as_i64() {
+            if let Some(number_i64) = number.as_i64() {
                 json_term_writer.set_fast_value(number_i64);
+            } else if let Some(number_u64) = number.as_u64() {
+                json_term_writer.set_fast_value(number_u64);
             } else if let Some(number_f64) = number.as_f64() {
                 json_term_writer.set_fast_value(number_f64);
             }
