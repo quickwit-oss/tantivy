@@ -82,7 +82,7 @@ pub struct PercentilesAggregationReq {
     #[serde(default = "default_as_true")]
     pub keyed: bool,
 }
-fn default_percentiles() -> &[f64] {
+fn default_percentiles() -> &'static [f64] {
     &[1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0]
 }
 fn default_as_true() -> bool {
@@ -167,7 +167,11 @@ impl PercentilesCollector {
     /// Convert result into final result. This will query the quantils from the underlying quantil
     /// collector.
     pub fn into_final_result(self, req: &PercentilesAggregationReq) -> PercentilesMetricResult {
-        let percentiles: &[f64] = req.percents.as_ref().unwrap_or(default);
+        let percentiles: &[f64] = req
+            .percents
+            .as_ref()
+            .map(|el| el.as_ref())
+            .unwrap_or(default_percentiles());
         let iter_quantile_and_values = percentiles.iter().cloned().map(|percentile| {
             (
                 percentile,

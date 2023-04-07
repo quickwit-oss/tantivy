@@ -12,12 +12,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::agg_req::{
     Aggregations, AggregationsInternal, BucketAggregationInternal, BucketAggregationType,
-    MetricAggregation, RangeAggregation,
+    MetricAggregation,
 };
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
-    GetDocCount, Order, OrderTarget, SegmentHistogramBucketEntry, TermsAggregation,
+    GetDocCount, Order, OrderTarget, RangeAggregation, SegmentHistogramBucketEntry,
+    TermsAggregation,
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,

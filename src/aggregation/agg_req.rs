@@ -49,8 +49,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-pub use super::bucket::RangeAggregation;
-use super::bucket::{DateHistogramAggregationReq, HistogramAggregation, TermsAggregation};
+use super::bucket::{
+    DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
+};
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
     PercentilesAggregationReq, StatsAggregation, SumAggregation,

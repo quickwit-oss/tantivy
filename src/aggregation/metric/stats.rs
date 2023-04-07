@@ -267,9 +267,9 @@ mod tests {
 
     use crate::aggregation::agg_req::{
         Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-        RangeAggregation,
     };
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::bucket::RangeAggregation;
     use crate::aggregation::metric::StatsAggregation;
     use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values};
     use crate::aggregation::AggregationCollector;

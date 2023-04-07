@@ -9,10 +9,9 @@
 use serde_json::{Deserializer, Value};
 use tantivy::aggregation::agg_req::{
     Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-    RangeAggregation,
 };
 use tantivy::aggregation::agg_result::AggregationResults;
-use tantivy::aggregation::bucket::RangeAggregationRange;
+use tantivy::aggregation::bucket::{RangeAggregation, RangeAggregationRange};
 use tantivy::aggregation::metric::AverageAggregation;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
