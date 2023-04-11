@@ -21,7 +21,7 @@ mod bench {
     use crate::{Index, Term};
 
     #[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    pub enum Cardinality {
+    enum Cardinality {
         /// All documents contain exactly one value.
         /// `Full` is the default for auto-detecting the Cardinality, since it is the most strict.
         #[default]
