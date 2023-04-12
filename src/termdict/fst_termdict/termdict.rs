@@ -15,6 +15,8 @@ fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
+const FST_VERSION: u32 = 1;
+
 /// Builder for the new term dictionary.
 ///
 /// Inserting must be done in the order of the `keys`.
@@ -80,6 +82,7 @@ where W: Write
                 .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             footer_size.serialize(&mut counting_writer)?;
+            FST_VERSION.serialize(&mut counting_writer)?;
         }
         Ok(file)
     }
@@ -118,9 +121,20 @@ pub struct TermDictionary {
 impl TermDictionary {
     /// Opens a `TermDictionary`.
     pub fn open(file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = file.split_from_end(8);
+        let (main_slice, footer_len_slice) = file.split_from_end(12);
         let mut footer_len_bytes = footer_len_slice.read_bytes()?;
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
+        let version = u32::deserialize(&mut footer_len_bytes)?;
+        if version != FST_VERSION {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "Unsuported fst version, expected {}, found {}",
+                    version, FST_VERSION,
+                ),
+            ));
+        }
+
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
         let fst_index = open_fst_index(fst_file_slice)?;
         let term_info_store = TermInfoStore::open(values_file_slice)?;

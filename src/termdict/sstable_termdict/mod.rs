@@ -30,6 +30,8 @@ pub type TermStreamer<'a, A = AlwaysMatch> = sstable::Streamer<'a, TermSSTable, 
 /// SSTable used to store TermInfo objects.
 pub struct TermSSTable;
 
+pub type TermStreamerBuilder<'a, A = AlwaysMatch> = sstable::StreamerBuilder<'a, TermSSTable, A>;
+
 impl SSTable for TermSSTable {
     type Value = TermInfo;
     type ValueReader = TermInfoValueReader;

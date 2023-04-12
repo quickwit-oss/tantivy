@@ -2,8 +2,9 @@ use tantivy_fst::map::{OpBuilder, Union};
 use tantivy_fst::raw::IndexedValue;
 use tantivy_fst::Streamer;
 
+use super::termdict::TermDictionary;
 use crate::postings::TermInfo;
-use crate::termdict::{TermDictionary, TermOrdinal, TermStreamer};
+use crate::termdict::{TermOrdinal, TermStreamer};
 
 /// Given a list of sorted term streams,
 /// returns an iterator over sorted unique terms.

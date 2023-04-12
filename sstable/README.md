@@ -87,16 +87,15 @@ Note: there is no ambiguity between both representation as Add is always guarant
 
 ### SSTFooter
 ```
-+-------+-------+-----+-------------+---------+---------+------+
-| Block | Block | ... | IndexOffset | NumTerm | Version | Type |
-+-------+-------+-----+-------------+---------+---------+------+
++-------+-------+-----+-------------+---------+---------+
+| Block | Block | ... | IndexOffset | NumTerm | Version |
++-------+-------+-----+-------------+---------+---------+
 |----( # of blocks)---|
 ```
 - Block(SSTBlock): uses IndexValue for its Values format
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
 - Version(u32): Currently defined to 0x00\_00\_00\_01
-- Type(u32): Defined to 0x00\_00\_00\_02
 
 ### IndexValue
 ```
