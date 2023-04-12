@@ -4,8 +4,6 @@ use std::ops::Range;
 use common::OwnedBytes;
 use zstd::bulk::Decompressor;
 
-use crate::delta::COMPRESSION_FLAG;
-
 pub struct BlockReader {
     buffer: Vec<u8>,
     reader: OwnedBytes,
@@ -36,37 +34,36 @@ impl BlockReader {
         self.offset = 0;
         self.buffer.clear();
 
-        let block_len = match self.reader.len() {
+        let (compress, block_len) = match self.reader.len() {
             0 => return Ok(false),
-            1..=3 => {
+            1..=4 => {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "failed to read block_len",
                 ))
             }
-            _ => self.reader.read_u32(),
+            _ => (self.reader.read_u8(), self.reader.read_u32() as usize),
         };
         if block_len == 0 {
             return Ok(false);
         }
 
-        let real_block_len = (block_len & !COMPRESSION_FLAG) as usize;
-        if self.reader.len() < real_block_len {
+        if self.reader.len() < block_len {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 "failed to read block content",
             ));
         }
-        if real_block_len as u32 != block_len {
+        if compress == 1 {
             let required_capacity =
-                Decompressor::upper_bound(&self.reader[..real_block_len]).unwrap_or(1024 * 1024);
+                Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
             self.buffer.reserve(required_capacity);
             Decompressor::new()?
-                .decompress_to_buffer(&self.reader[..real_block_len], &mut self.buffer)?;
+                .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
 
-            self.reader.advance(real_block_len);
+            self.reader.advance(block_len);
         } else {
-            self.buffer.resize(real_block_len, 0u8);
+            self.buffer.resize(block_len, 0u8);
             self.reader.read_exact(&mut self.buffer[..])?;
         }
 

@@ -303,7 +303,7 @@ where
         }
         let mut wrt = self.delta_writer.finish();
         // add a final empty block as an end marker
-        wrt.write_all(&0u32.to_le_bytes())?;
+        wrt.write_all(&[0; 5])?;
 
         let offset = wrt.written_bytes();
 
@@ -383,14 +383,14 @@ mod test {
             &buffer,
             &[
                 // block
-                7, 0, 0, 0, // size of block
+                0, 7, 0, 0, 0, // size of block
                 16, 17, 33, 18, 19, 17, 20, // data block
-                0, 0, 0, 0, // no more block
+                0, 0, 0, 0, 0, // no more block
                 // index
-                7, 0, 0, 0, // size of index block
-                1, 0, 11, 0, 32, 17, 20, // index block
-                0, 0, 0, 0, // no more index block
-                15, 0, 0, 0, 0, 0, 0, 0, // index start offset
+                0, 7, 0, 0, 0, // size of index block
+                1, 0, 12, 0, 32, 17, 20, // index block
+                0, 0, 0, 0, 0, // no more index block
+                17, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
                 2, 0, 0, 0, // version
                 2, 0, 0, 0, // dictionary kind. sstable = 2

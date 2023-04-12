@@ -10,7 +10,6 @@ use super::{value, vint, BlockReader};
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
 const BLOCK_LEN: usize = 4_000;
-pub(crate) const COMPRESSION_FLAG: u32 = 1 << 31;
 
 pub struct DeltaWriter<W, TValueWriter>
 where W: io::Write
@@ -60,18 +59,21 @@ where
 
             let max_len = zstd::zstd_safe::compress_bound(buffer.len());
             self.block.reserve(max_len);
-            Compressor::new(-1)?.compress_to_buffer(&**buffer, &mut self.block)?;
+            Compressor::new(-1)?.compress_to_buffer(buffer, &mut self.block)?;
 
             // verify compression had a positive impact
             if self.block.len() < buffer.len() {
+                self.write.write_all(&[1])?;
                 self.write
-                    .write_all(&(self.block.len() as u32 | COMPRESSION_FLAG).to_le_bytes())?;
+                    .write_all(&(self.block.len() as u32).to_le_bytes())?;
                 self.write.write_all(&self.block[..])?;
             } else {
+                self.write.write_all(&[0])?;
                 self.write.write_all(&(block_len as u32).to_le_bytes())?;
                 self.write.write_all(&buffer[..])?;
             }
         } else {
+            self.write.write_all(&[0])?;
             self.write.write_all(&(block_len as u32).to_le_bytes())?;
             self.write.write_all(&buffer[..])?;
             self.write.write_all(&self.block[..])?;

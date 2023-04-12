@@ -159,7 +159,7 @@ impl SSTableIndexBuilder {
             previous_key.extend_from_slice(&block.last_key_or_greater);
         }
         sstable_writer.flush_block()?;
-        sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
+        sstable_writer.finish().write_all(&[0; 5])?;
         Ok(())
     }
 }
@@ -227,7 +227,7 @@ mod tests {
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
         sstable_builder.serialize(&mut buffer).unwrap();
-        buffer[1] = 9u8;
+        buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
         let data_corruption_err = SSTableIndex::load(buffer).err().unwrap();
         assert!(matches!(data_corruption_err, SSTableDataCorruption));
