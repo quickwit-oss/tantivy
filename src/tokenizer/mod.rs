@@ -149,7 +149,7 @@ pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
 pub use self::regex_tokenizer::RegexTokenizer;
 pub use self::remove_long::RemoveLongFilter;
-pub use self::simple_tokenizer::SimpleTokenizer;
+pub use self::simple_tokenizer::{SimpleTokenStream, SimpleTokenizer};
 pub use self::split_compound_words::SplitCompoundWords;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
