@@ -63,18 +63,20 @@ where
 
             // verify compression had a positive impact
             if self.block.len() < buffer.len() {
-                self.write.write_all(&[1])?;
                 self.write
-                    .write_all(&(self.block.len() as u32).to_le_bytes())?;
+                    .write_all(&(self.block.len() as u32 + 1).to_le_bytes())?;
+                self.write.write_all(&[1])?;
                 self.write.write_all(&self.block[..])?;
             } else {
+                self.write
+                    .write_all(&(block_len as u32 + 1).to_le_bytes())?;
                 self.write.write_all(&[0])?;
-                self.write.write_all(&(block_len as u32).to_le_bytes())?;
                 self.write.write_all(&buffer[..])?;
             }
         } else {
+            self.write
+                .write_all(&(block_len as u32 + 1).to_le_bytes())?;
             self.write.write_all(&[0])?;
-            self.write.write_all(&(block_len as u32).to_le_bytes())?;
             self.write.write_all(&buffer[..])?;
             self.write.write_all(&self.block[..])?;
         }

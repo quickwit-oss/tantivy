@@ -34,19 +34,21 @@ impl BlockReader {
         self.offset = 0;
         self.buffer.clear();
 
-        let (compress, block_len) = match self.reader.len() {
+        let block_len = match self.reader.len() {
             0 => return Ok(false),
-            1..=4 => {
+            1..=3 => {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "failed to read block_len",
                 ))
             }
-            _ => (self.reader.read_u8(), self.reader.read_u32() as usize),
+            _ => self.reader.read_u32() as usize,
         };
-        if block_len == 0 {
+        if block_len <= 1 {
             return Ok(false);
         }
+        let compress = self.reader.read_u8();
+        let block_len = block_len - 1;
 
         if self.reader.len() < block_len {
             return Err(io::Error::new(

@@ -159,7 +159,7 @@ impl SSTableIndexBuilder {
             previous_key.extend_from_slice(&block.last_key_or_greater);
         }
         sstable_writer.flush_block()?;
-        sstable_writer.finish().write_all(&[0; 5])?;
+        sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
         Ok(())
     }
 }
