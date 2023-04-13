@@ -17,7 +17,7 @@ pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
-use common::{BinarySerializable, DictionaryFooter, DictionaryKind, OwnedBytes};
+use common::{BinarySerializable, OwnedBytes};
 
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
@@ -28,10 +28,7 @@ use crate::value::{RangeValueReader, RangeValueWriter};
 pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
-const FOOTER: DictionaryFooter = DictionaryFooter {
-    kind: DictionaryKind::SSTable,
-    version: 2,
-};
+const SSTABLE_VERSION: u32 = 2;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
@@ -311,7 +308,7 @@ where
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
 
-        FOOTER.serialize(&mut wrt)?;
+        SSTABLE_VERSION.serialize(&mut wrt)?;
 
         let wrt = wrt.finish();
         Ok(wrt.into_inner()?)
@@ -395,7 +392,6 @@ mod test {
                 16, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
                 2, 0, 0, 0, // version
-                2, 0, 0, 0, // dictionary kind. sstable = 2
             ]
         );
         let buffer = OwnedBytes::new(buffer);

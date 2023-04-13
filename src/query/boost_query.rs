@@ -54,12 +54,14 @@ impl Query for BoostQuery {
     }
 }
 
-pub(crate) struct BoostWeight {
+/// Weight associated to the BoostQuery.
+pub struct BoostWeight {
     weight: Box<dyn Weight>,
     boost: Score,
 }
 
 impl BoostWeight {
+    /// Creates a new BoostWeight.
     pub fn new(weight: Box<dyn Weight>, boost: Score) -> Self {
         BoostWeight { weight, boost }
     }

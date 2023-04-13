@@ -89,16 +89,15 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 
 ### SSTFooter
 ```
-+-------+-------+-----+-------------+---------+---------+------+
-| Block | Block | ... | IndexOffset | NumTerm | Version | Type |
-+-------+-------+-----+-------------+---------+---------+------+
++-------+-------+-----+-------------+---------+---------+
+| Block | Block | ... | IndexOffset | NumTerm | Version |
++-------+-------+-----+-------------+---------+---------+
 |----( # of blocks)---|
 ```
 - Block(SSTBlock): uses IndexValue for its Values format
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
 - Version(u32): Currently equal to 2
-- Type(u32): Defined to 2
 
 ### IndexValue
 ```

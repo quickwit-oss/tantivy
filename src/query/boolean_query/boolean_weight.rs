@@ -67,6 +67,7 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
     }
 }
 
+/// Weight associated to the `BoolQuery`.
 pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
     weights: Vec<(Occur, Box<dyn Weight>)>,
     scoring_enabled: bool,
@@ -74,6 +75,7 @@ pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
 }
 
 impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
+    /// Creates a new boolean weight.
     pub fn new(
         weights: Vec<(Occur, Box<dyn Weight>)>,
         scoring_enabled: bool,

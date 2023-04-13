@@ -1,7 +1,6 @@
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use columnar::Cardinality;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
@@ -20,6 +19,20 @@ mod bench {
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
     use crate::{Index, Term};
+
+    #[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum Cardinality {
+        /// All documents contain exactly one value.
+        /// `Full` is the default for auto-detecting the Cardinality, since it is the most strict.
+        #[default]
+        Full = 0,
+        /// All documents contain at most one value.
+        Optional = 1,
+        /// All documents may contain any number of values.
+        Multivalued = 2,
+        /// 1 / 20 documents has a value
+        Sparse = 3,
+    }
 
     fn get_collector(agg_req: Aggregations) -> AggregationCollector {
         AggregationCollector::from_aggs(agg_req, Default::default())
@@ -71,7 +84,11 @@ mod bench {
                     score_field_i64 => 1i64,
                 ))?;
             }
-            for _ in 0..1_000_000 {
+            let mut doc_with_value = 1_000_000;
+            if cardinality == Cardinality::Sparse {
+                doc_with_value /= 20;
+            }
+            for _ in 0..doc_with_value {
                 let val: f64 = rng.gen_range(0.0..1_000_000.0);
                 index_writer.add_document(doc!(
                     text_field => "cool",
@@ -81,6 +98,11 @@ mod bench {
                     score_field_f64 => lg_norm.sample(&mut rng),
                     score_field_i64 => val as i64,
                 ))?;
+                if cardinality == Cardinality::Sparse {
+                    for _ in 0..20 {
+                        index_writer.add_document(doc!(text_field => "cool"))?;
+                    }
+                }
             }
             // writing the segment
             index_writer.commit()?;
@@ -108,6 +130,12 @@ mod bench {
                 fn [<$x _multi>](b: &mut Bencher) {
                     [<$x _card>](b, Cardinality::Multivalued)
                 }
+
+                #[bench]
+                fn [<$x _sparse>](b: &mut Bencher) {
+                    [<$x _card>](b, Cardinality::Sparse)
+                }
+
             }
         };
     }
