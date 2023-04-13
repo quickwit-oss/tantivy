@@ -3,12 +3,12 @@
 //! indices.
 
 use std::cmp::Ordering;
+use std::hash::Hash;
 
 use columnar::ColumnType;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
@@ -29,9 +29,40 @@ use crate::TantivyError;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
 /// intermediate results.
+///
+/// Notice: This struct should not be de/serialized via JSON format.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults {
     pub(crate) aggs_res: VecWithNames<IntermediateAggregationResult>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
+/// The key to identify a bucket.
+pub enum IntermediateKey {
+    /// String key
+    Str(String),
+    /// `f64` key
+    F64(f64),
+}
+impl From<Key> for IntermediateKey {
+    fn from(value: Key) -> Self {
+        match value {
+            Key::Str(s) => Self::Str(s),
+            Key::F64(f) => Self::F64(f),
+        }
+    }
+}
+
+impl Eq for IntermediateKey {}
+
+impl std::hash::Hash for IntermediateKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            IntermediateKey::Str(text) => text.hash(state),
+            IntermediateKey::F64(val) => val.to_bits().hash(state),
+        }
+    }
 }
 
 impl IntermediateAggregationResults {
@@ -387,7 +418,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Terms(term_res_left),
                 IntermediateBucketResult::Terms(term_res_right),
             ) => {
-                merge_key_maps(&mut term_res_left.entries, term_res_right.entries)?;
+                merge_maps(&mut term_res_left.entries, term_res_right.entries)?;
                 term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
                 term_res_left.doc_count_error_upper_bound +=
                     term_res_right.doc_count_error_upper_bound;
@@ -397,7 +428,7 @@ impl IntermediateBucketResult {
                 IntermediateBucketResult::Range(range_res_left),
                 IntermediateBucketResult::Range(range_res_right),
             ) => {
-                merge_serialized_key_maps(&mut range_res_left.buckets, range_res_right.buckets)?;
+                merge_maps(&mut range_res_left.buckets, range_res_right.buckets)?;
             }
             (
                 IntermediateBucketResult::Histogram {
@@ -451,37 +482,9 @@ pub struct IntermediateRangeBucketResult {
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Term aggregation including error counts
 pub struct IntermediateTermBucketResult {
-    #[serde(
-        serialize_with = "serialize_entries",
-        deserialize_with = "deserialize_entries"
-    )]
-    pub(crate) entries: FxHashMap<Key, IntermediateTermBucketEntry>,
+    pub(crate) entries: FxHashMap<IntermediateKey, IntermediateTermBucketEntry>,
     pub(crate) sum_other_doc_count: u64,
     pub(crate) doc_count_error_upper_bound: u64,
-}
-
-// Serialize into a Vec to circument the JSON limitation, where keys can't be numbers
-fn serialize_entries<S>(
-    entries: &FxHashMap<Key, IntermediateTermBucketEntry>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut seq = serializer.serialize_seq(Some(entries.len()))?;
-    for (k, v) in entries {
-        seq.serialize_element(&(k, v))?;
-    }
-    seq.end()
-}
-
-fn deserialize_entries<'de, D>(
-    deserializer: D,
-) -> Result<FxHashMap<Key, IntermediateTermBucketEntry>, D::Error>
-where D: Deserializer<'de> {
-    let vec_entries: Vec<(Key, IntermediateTermBucketEntry)> =
-        Deserialize::deserialize(deserializer)?;
-    Ok(vec_entries.into_iter().collect())
 }
 
 impl IntermediateTermBucketResult {
@@ -499,7 +502,7 @@ impl IntermediateTermBucketResult {
             .map(|(key, entry)| {
                 Ok(BucketEntry {
                     key_as_string: None,
-                    key,
+                    key: key.into(),
                     doc_count: entry.doc_count,
                     sub_aggregation: entry
                         .sub_aggregation
@@ -577,25 +580,9 @@ trait MergeFruits {
     fn merge_fruits(&mut self, other: Self) -> crate::Result<()>;
 }
 
-fn merge_serialized_key_maps<V: MergeFruits + Clone>(
-    entries_left: &mut FxHashMap<SerializedKey, V>,
-    mut entries_right: FxHashMap<SerializedKey, V>,
-) -> crate::Result<()> {
-    for (name, entry_left) in entries_left.iter_mut() {
-        if let Some(entry_right) = entries_right.remove(name) {
-            entry_left.merge_fruits(entry_right)?;
-        }
-    }
-
-    for (key, res) in entries_right.into_iter() {
-        entries_left.entry(key).or_insert(res);
-    }
-    Ok(())
-}
-
-fn merge_key_maps<V: MergeFruits + Clone>(
-    entries_left: &mut FxHashMap<Key, V>,
-    mut entries_right: FxHashMap<Key, V>,
+fn merge_maps<V: MergeFruits + Clone, T: Eq + PartialEq + Hash>(
+    entries_left: &mut FxHashMap<T, V>,
+    mut entries_right: FxHashMap<T, V>,
 ) -> crate::Result<()> {
     for (name, entry_left) in entries_left.iter_mut() {
         if let Some(entry_right) = entries_right.remove(name) {
@@ -652,17 +639,15 @@ impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateRangeBucketEntry {
-    /// The unique the bucket is identified.
-    pub key: Key,
+    /// The unique key the bucket is identified with.
+    pub key: IntermediateKey,
     /// The number of documents in the bucket.
     pub doc_count: u64,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
     /// The from range of the bucket. Equals `f64::MIN` when `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<f64>,
     /// The to range of the bucket. Equals `f64::MAX` when `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<f64>,
 }
 
@@ -675,7 +660,7 @@ impl IntermediateRangeBucketEntry {
         limits: &AggregationLimits,
     ) -> crate::Result<RangeBucketEntry> {
         let mut range_bucket_entry = RangeBucketEntry {
-            key: self.key,
+            key: self.key.into(),
             doc_count: self.doc_count,
             sub_aggregation: self
                 .sub_aggregation
@@ -752,7 +737,7 @@ mod tests {
             buckets.insert(
                 key.to_string(),
                 IntermediateRangeBucketEntry {
-                    key: Key::Str(key.to_string()),
+                    key: IntermediateKey::Str(key.to_string()),
                     doc_count: *doc_count,
                     sub_aggregation: Default::default(),
                     from: None,
@@ -783,7 +768,7 @@ mod tests {
             buckets.insert(
                 key.to_string(),
                 IntermediateRangeBucketEntry {
-                    key: Key::Str(key.to_string()),
+                    key: IntermediateKey::Str(key.to_string()),
                     doc_count: *doc_count,
                     from: None,
                     to: None,
@@ -865,27 +850,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(tree_left, orig);
-    }
-
-    #[test]
-    fn test_term_bucket_json_roundtrip() {
-        let term_buckets = IntermediateTermBucketResult {
-            entries: vec![(
-                Key::F64(5.0),
-                IntermediateTermBucketEntry {
-                    doc_count: 10,
-                    sub_aggregation: Default::default(),
-                },
-            )]
-            .into_iter()
-            .collect(),
-            sum_other_doc_count: 0,
-            doc_count_error_upper_bound: 0,
-        };
-
-        let term_buckets_round: IntermediateTermBucketResult =
-            serde_json::from_str(&serde_json::to_string(&term_buckets).unwrap()).unwrap();
-
-        assert_eq!(term_buckets, term_buckets_round);
     }
 }

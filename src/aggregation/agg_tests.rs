@@ -4,7 +4,6 @@ use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
-use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
 use crate::aggregation::segment_agg_result::AggregationLimits;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
@@ -421,9 +420,6 @@ fn test_aggregation_level2(
 
         let searcher = reader.searcher();
         let res = searcher.search(&term_query, &collector).unwrap();
-        // Test de/serialization roundtrip on intermediate_agg_result
-        let res: IntermediateAggregationResults =
-            serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
         res.into_final_result(agg_req.clone(), &Default::default())
             .unwrap()
     } else {

@@ -166,7 +166,7 @@ impl SegmentRangeBucketEntry {
         };
 
         Ok(IntermediateRangeBucketEntry {
-            key: self.key,
+            key: self.key.into(),
             doc_count: self.doc_count,
             sub_aggregation: sub_aggregation_res,
             from: self.from,

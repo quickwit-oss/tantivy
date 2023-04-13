@@ -24,6 +24,10 @@
 //! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
+//! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
+//! See compatibility tests here: https://github.com/PSeitz/test_serde_formats
+//! TLDR: use ciborium.
+//!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
 //! let collector = AggregationCollector::from_aggs(agg_req, None);
@@ -151,6 +155,8 @@ pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use self::intermediate_agg_result::IntermediateKey;
+
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct VecWithNames<T: Clone> {
@@ -238,6 +244,14 @@ pub enum Key {
     Str(String),
     /// `f64` key
     F64(f64),
+}
+impl From<IntermediateKey> for Key {
+    fn from(value: IntermediateKey) -> Self {
+        match value {
+            IntermediateKey::Str(s) => Self::Str(s),
+            IntermediateKey::F64(f) => Self::F64(f),
+        }
+    }
 }
 impl Eq for Key {}
 impl std::hash::Hash for Key {
