@@ -45,7 +45,7 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
 
 pub struct PhraseScorer<TPostings: Postings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
-    num_terms: usize,
+    slops: Vec<u32>,
     left: Vec<u32>,
     right: Vec<u32>,
     phrase_count: u32,
@@ -161,6 +161,8 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
         if left_val < right_slop {
             left_index += 1;
         } else if right_slop <= left_val && left_val <= right_val {
+            left[count] = left_val;
+            count += 1;
             while left_index + 1 < left_len {
                 // there could be a better match
                 let next_left_val = left[left_index + 1];
@@ -170,13 +172,12 @@ fn intersection_with_slop(left: &mut [u32], right: &[u32], slop: u32) -> usize {
                 }
                 // the next value is better.
                 left_index += 1;
+                left[count] = next_left_val;
+                count += 1;
             }
-            // store the match in left.
-            left[count] = right_val;
-            count += 1;
             left_index += 1;
             right_index += 1;
-        } else if left_val > right_val {
+        } else {
             right_index += 1;
         }
     }
@@ -264,7 +265,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         term_postings: Vec<(usize, TPostings)>,
         similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
-        slop: u32,
+        mut slop: u32,
         offset: usize,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
@@ -273,16 +274,21 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             .max()
             .unwrap_or(0)
             + offset;
-        let num_docsets = term_postings.len();
+        // if slop is inconsistent with number of terms, ignore
+        if max_offset as u32 > slop + 1 {
+            slop = 0;
+        }
+        let mut slops = Vec::new();
         let postings_with_offsets = term_postings
             .into_iter()
             .map(|(offset, postings)| {
+                slops.push(slop + 1 - offset as u32);
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
         let mut scorer = PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
-            num_terms: num_docsets,
+            slops,
             left: Vec::with_capacity(100),
             right: Vec::with_capacity(100),
             phrase_count: 0u32,
@@ -307,9 +313,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_match(&mut self) -> bool {
         if self.similarity_weight_opt.is_some() {
-            let count = self.compute_phrase_count();
-            self.phrase_count = count;
-            count > 0u32
+            self.phrase_count = self.compute_phrase_count();
+            self.phrase_count > 0
         } else {
             self.phrase_exists()
         }
@@ -320,11 +325,11 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         if self.has_slop() {
             return intersection_exists_with_slop(
                 &self.left[..intersection_len],
-                &self.right[..],
-                self.slop,
+                &self.right,
+                self.slops[self.slops.len() - 1],
             );
         }
-        intersection_exists(&self.left[..intersection_len], &self.right[..])
+        intersection_exists(&self.left[..intersection_len], &self.right)
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
@@ -332,41 +337,37 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         if self.has_slop() {
             return intersection_count_with_slop(
                 &self.left[..intersection_len],
-                &self.right[..],
-                self.slop,
+                &self.right,
+                self.slops[self.slops.len() - 1],
             ) as u32;
         }
-        intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
+        intersection_count(&self.left[..intersection_len], &self.right) as u32
     }
 
     fn compute_phrase_match(&mut self) -> usize {
-        {
-            self.intersection_docset
-                .docset_mut_specialized(0)
-                .positions(&mut self.left);
-        }
+        self.intersection_docset
+            .docset_mut_specialized(0)
+            .positions(&mut self.left);
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_terms - 1 {
-            {
-                self.intersection_docset
-                    .docset_mut_specialized(i)
-                    .positions(&mut self.right);
-            }
+        for i in 1..self.slops.len() - 1 {
+            self.intersection_docset
+                .docset_mut_specialized(i)
+                .positions(&mut self.right);
             intersection_len = if self.has_slop() {
                 intersection_with_slop(
                     &mut self.left[..intersection_len],
-                    &self.right[..],
-                    self.slop,
+                    &self.right,
+                    self.slops[i],
                 )
             } else {
-                intersection(&mut self.left[..intersection_len], &self.right[..])
+                intersection(&mut self.left[..intersection_len], &self.right)
             };
             if intersection_len == 0 {
                 return 0;
             }
         }
         self.intersection_docset
-            .docset_mut_specialized(self.num_terms - 1)
+            .docset_mut_specialized(self.slops.len() - 1)
             .positions(&mut self.right);
         intersection_len
     }
@@ -429,7 +430,6 @@ mod tests {
         let mut left_vec = Vec::from(left);
         let left_mut = &mut left_vec[..];
         if slop == 0 {
-            let left_mut = &mut left_vec[..];
             assert_eq!(intersection_count(left_mut, right), expected.len());
             let count = intersection(left_mut, right);
             assert_eq!(&left_mut[..count], expected);
@@ -452,14 +452,19 @@ mod tests {
     #[test]
     fn test_slop() {
         // The slop is not symmetric. It does not allow for the phrase to be out of order.
-        test_intersection_aux(&[1], &[2], &[2], 1);
+        test_intersection_aux(&[1], &[2], &[1], 1);
         test_intersection_aux(&[1], &[3], &[], 1);
-        test_intersection_aux(&[1], &[3], &[3], 2);
+        test_intersection_aux(&[1], &[3], &[1], 2);
         test_intersection_aux(&[], &[2], &[], 100000);
-        test_intersection_aux(&[5, 7, 11], &[1, 5, 10, 12], &[5, 12], 1);
-        test_intersection_aux(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12], 1);
-        test_intersection_aux(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12], 10);
-        test_intersection_aux(&[1, 3, 5], &[2, 4, 6], &[2, 4, 6], 1);
+        test_intersection_aux(&[5, 7, 11], &[1, 5, 10, 12], &[5, 11], 1);
+        test_intersection_aux(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[5, 6, 9, 12], 1);
+        test_intersection_aux(
+            &[1, 5, 6, 9, 10, 12],
+            &[6, 8, 9, 12],
+            &[1, 5, 6, 9, 10, 12],
+            10,
+        );
+        test_intersection_aux(&[1, 3, 5], &[2, 4, 6], &[1, 3, 5], 1);
         test_intersection_aux(&[1, 3, 5], &[2, 4, 6], &[], 0);
     }
 
@@ -472,12 +477,36 @@ mod tests {
         assert_eq!(&left_mut[..count], expected_left);
     }
 
+    fn test_equal(x: &[u32], y: &[u32], z: &[u32], slop: u32) {
+        let mut one = x.to_vec();
+        let mut two = x.to_vec();
+        let countone = intersection_with_slop(&mut one, z, slop);
+        let countone = intersection_with_slop(&mut one[..countone], y, slop);
+        let counttwo = intersection_with_slop(&mut two, y, slop);
+        let counttwo = intersection_with_slop(&mut two[..counttwo], z, slop);
+        assert_eq!(&one[..countone], &two[..counttwo]);
+    }
+
+    #[test]
+    fn test_bug_when_elements_skipped() {
+        // testcase showing the old fn intersection_with_slop cannot be applied in any order
+        // and that when switching from
+        // left[count] = right_val to left[count] = left_val the secondary skipping loop must be
+        // removed
+        test_equal(&[1, 2], &[4, 6], &[5], 3);
+    }
+
     #[test]
     fn test_merge_slop() {
         test_merge(&[1, 2], &[1], &[1], 1);
-        test_merge(&[3], &[4], &[4], 2);
-        test_merge(&[3], &[4], &[4], 2);
-        test_merge(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12], 10);
+        test_merge(&[3], &[4], &[3], 2);
+        test_merge(&[3], &[4], &[3], 2);
+        test_merge(
+            &[1, 5, 6, 9, 10, 12],
+            &[6, 8, 9, 12],
+            &[1, 5, 6, 9, 10, 12],
+            10,
+        );
     }
 }
 
