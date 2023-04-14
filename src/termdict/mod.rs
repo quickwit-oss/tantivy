@@ -149,6 +149,23 @@ impl TermDictionary {
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
         self.0.get_async(key).await
     }
+
+    #[cfg(feature = "quickwit")]
+    #[doc(hidden)]
+    pub async fn warm_up_dictionary(&self) -> io::Result<()> {
+        self.0.warm_up_dictionary().await
+    }
+
+    #[cfg(feature = "quickwit")]
+    /// This function returns a file slice covering a set of sstable blocks
+    /// that include the key range passed in arguments.
+    pub fn file_slice_for_range(
+        &self,
+        key_range: impl std::ops::RangeBounds<[u8]>,
+        limit: Option<u64>,
+    ) -> FileSlice {
+        self.0.file_slice_for_range(key_range, limit)
+    }
 }
 
 /// A TermDictionaryBuilder wrapping either an FST or a SSTable dictionary builder.
