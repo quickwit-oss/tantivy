@@ -59,7 +59,7 @@ where
 
             let max_len = zstd::zstd_safe::compress_bound(buffer.len());
             self.block.reserve(max_len);
-            Compressor::new(-1)?.compress_to_buffer(buffer, &mut self.block)?;
+            Compressor::new(3)?.compress_to_buffer(buffer, &mut self.block)?;
 
             // verify compression had a positive impact
             if self.block.len() < buffer.len() {
