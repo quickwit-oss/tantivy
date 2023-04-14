@@ -157,8 +157,8 @@ impl TermDictionary {
     }
 
     #[cfg(feature = "quickwit")]
-    /// This function returns a file slice covering a set of sstable blocks
-    /// that include the key range passed in arguments.
+    /// Returns a file slice covering a set of sstable blocks
+    /// that includes the key range passed in arguments.
     pub fn file_slice_for_range(
         &self,
         key_range: impl std::ops::RangeBounds<[u8]>,
