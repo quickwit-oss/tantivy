@@ -43,12 +43,14 @@ Overview of the SSTable format. Unless noted otherwise, numbers are little-endia
 
 ### SSTBlock
 ```
-+----------+--------+-------+-------+-----+
-| BlockLen | Values | Delta | Delta | ... |
-+----------+--------+-------+-------+-----+
-                    |----( # of deltas)---|
++----------+----------+--------+-------+-------+-----+
+| BlockLen | Compress | Values | Delta | Delta | ... |
++----------+----------+--------+-------+-------+-----+
+                      |        |----( # of deltas)---|
+                      |------(maybe compressed)------|
 ```
-- BlockLen(u32): length of the block
+- BlockLen(u32): length of the block, including the compress byte.
+- Compress(u8): indicate whether block is compressed. 0 if not compressed, 1 if compressed.
 - Values: an application defined format storing a sequence of value, capable of determining it own length
 - Delta
 
@@ -83,7 +85,7 @@ Otherwise:
 - Keep(VInt): number of bytes to pop
 
 
-Note: there is no ambiguity between both representation as Add is always guarantee to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
+Note: as the SSTable does not support redundant keys, there is no ambiguity between both representation. Add is always guaranteed to be non-zero, except for the very first key of an SSTable, where Keep is guaranteed to be zero.
 
 ### SSTFooter
 ```
@@ -95,7 +97,7 @@ Note: there is no ambiguity between both representation as Add is always guarant
 - Block(SSTBlock): uses IndexValue for its Values format
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
-- Version(u32): Currently defined to 0x00\_00\_00\_01
+- Version(u32): Currently equal to 2
 
 ### IndexValue
 ```

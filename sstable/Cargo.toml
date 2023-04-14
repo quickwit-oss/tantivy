@@ -7,6 +7,8 @@ license = "MIT"
 [dependencies]
 common = {path="../common", package="tantivy-common"}
 tantivy-fst = "0.4"
+# experimental gives us access to Decompressor::upper_bound
+zstd = { version = "0.12", features = ["experimental"] }
 
 [dev-dependencies]
 proptest = "1"

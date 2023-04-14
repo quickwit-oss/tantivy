@@ -61,7 +61,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub(crate) fn sstable_reader_block(
         &self,
         block_addr: BlockAddr,
-    ) -> io::Result<Reader<'static, TSSTable::ValueReader>> {
+    ) -> io::Result<Reader<TSSTable::ValueReader>> {
         let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
         Ok(TSSTable::reader(data))
     }
@@ -69,7 +69,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub(crate) async fn sstable_reader_block_async(
         &self,
         block_addr: BlockAddr,
-    ) -> io::Result<Reader<'static, TSSTable::ValueReader>> {
+    ) -> io::Result<Reader<TSSTable::ValueReader>> {
         let data = self
             .sstable_slice
             .read_bytes_slice_async(block_addr.byte_range)
@@ -81,7 +81,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
-    ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
+    ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let slice = self.file_slice_for_range(key_range, limit);
         let data = slice.read_bytes_async().await?;
         Ok(TSSTable::delta_reader(data))
@@ -91,7 +91,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
-    ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
+    ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let slice = self.file_slice_for_range(key_range, limit);
         let data = slice.read_bytes()?;
         Ok(TSSTable::delta_reader(data))
@@ -100,7 +100,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub(crate) fn sstable_delta_reader_block(
         &self,
         block_addr: BlockAddr,
-    ) -> io::Result<DeltaReader<'static, TSSTable::ValueReader>> {
+    ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
         Ok(TSSTable::delta_reader(data))
     }
@@ -197,7 +197,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
-        let sstable_index = SSTableIndex::load(sstable_index_bytes.as_slice())
+        let sstable_index = SSTableIndex::load(sstable_index_bytes)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption"))?;
         Ok(Dictionary {
             sstable_slice,
@@ -351,12 +351,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range(&self) -> StreamerBuilder<'_, TSSTable> {
+    pub fn range(&self) -> StreamerBuilder<TSSTable> {
         StreamerBuilder::new(self, AlwaysMatch)
     }
 
     /// A stream of all the sorted terms.
-    pub fn stream(&self) -> io::Result<Streamer<'_, TSSTable>> {
+    pub fn stream(&self) -> io::Result<Streamer<TSSTable>> {
         self.range().into_stream()
     }
 

@@ -71,10 +71,12 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::str;
 
+    use common::OwnedBytes;
+
     use super::super::{MonotonicU64SSTable, SSTable, VoidSSTable};
     use super::{U64Merge, VoidMerge};
 
-    fn write_sstable(keys: &[&'static str]) -> Vec<u8> {
+    fn write_sstable(keys: &[&'static str]) -> OwnedBytes {
         let mut buffer: Vec<u8> = vec![];
         {
             let mut sstable_writer = VoidSSTable::writer(&mut buffer);
@@ -83,10 +85,10 @@ mod tests {
             }
             assert!(sstable_writer.finish().is_ok());
         }
-        buffer
+        OwnedBytes::new(buffer)
     }
 
-    fn write_sstable_u64(keys: &[(&'static str, u64)]) -> Vec<u8> {
+    fn write_sstable_u64(keys: &[(&'static str, u64)]) -> OwnedBytes {
         let mut buffer: Vec<u8> = vec![];
         {
             let mut sstable_writer = MonotonicU64SSTable::writer(&mut buffer);
@@ -95,12 +97,11 @@ mod tests {
             }
             assert!(sstable_writer.finish().is_ok());
         }
-        buffer
+        OwnedBytes::new(buffer)
     }
 
     fn merge_test_aux(arrs: &[&[&'static str]]) {
         let sstables = arrs.iter().cloned().map(write_sstable).collect::<Vec<_>>();
-        let sstables_ref: Vec<&[u8]> = sstables.iter().map(|s| s.as_ref()).collect();
         let mut merged = BTreeSet::new();
         for &arr in arrs.iter() {
             for &s in arr {
@@ -108,8 +109,9 @@ mod tests {
             }
         }
         let mut w = Vec::new();
-        assert!(VoidSSTable::merge(sstables_ref, &mut w, VoidMerge).is_ok());
-        let mut reader = VoidSSTable::reader(&w[..]);
+        assert!(VoidSSTable::merge(sstables, &mut w, VoidMerge).is_ok());
+        let w = OwnedBytes::new(w);
+        let mut reader = VoidSSTable::reader(w);
         for k in merged {
             assert!(reader.advance().unwrap());
             assert_eq!(reader.key(), k.as_bytes());
@@ -123,7 +125,6 @@ mod tests {
             .cloned()
             .map(write_sstable_u64)
             .collect::<Vec<_>>();
-        let sstables_ref: Vec<&[u8]> = sstables.iter().map(|s| s.as_ref()).collect();
         let mut merged = BTreeMap::new();
         for &arr in arrs.iter() {
             for (key, val) in arr {
@@ -132,8 +133,9 @@ mod tests {
             }
         }
         let mut w = Vec::new();
-        assert!(MonotonicU64SSTable::merge(sstables_ref, &mut w, U64Merge).is_ok());
-        let mut reader = MonotonicU64SSTable::reader(&w[..]);
+        assert!(MonotonicU64SSTable::merge(sstables, &mut w, U64Merge).is_ok());
+        let w = OwnedBytes::new(w);
+        let mut reader = MonotonicU64SSTable::reader(w);
         for (k, v) in merged {
             assert!(reader.advance().unwrap());
             assert_eq!(reader.key(), k.as_bytes());
@@ -145,7 +147,7 @@ mod tests {
     #[test]
     fn test_merge_simple_reproduce() {
         let sstable_data = write_sstable(&["a"]);
-        let mut reader = VoidSSTable::reader(&sstable_data[..]);
+        let mut reader = VoidSSTable::reader(sstable_data);
         assert!(reader.advance().unwrap());
         assert_eq!(reader.key(), b"a");
         assert!(!reader.advance().unwrap());
