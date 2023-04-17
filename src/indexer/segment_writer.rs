@@ -9,7 +9,7 @@ use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
-    compute_table_size, serialize_postings, IndexingContext, IndexingPosition,
+    compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
 use crate::schema::{FieldEntry, FieldType, Schema, Term, Value};
@@ -26,7 +26,7 @@ fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<
     let table_memory_upper_bound = per_thread_memory_budget / 3;
     (10..20) // We cap it at 2^19 = 512K capacity.
         .map(|power| 1 << power)
-        .take_while(|capacity| compute_table_size(*capacity) < table_memory_upper_bound)
+        .take_while(|capacity| compute_table_memory_size(*capacity) < table_memory_upper_bound)
         .last()
         .ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!(
@@ -455,7 +455,7 @@ mod tests {
     fn test_hashmap_size() {
         assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
         assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
-        assert_eq!(compute_initial_table_size(10_000_000).unwrap(), 1 << 17);
+        assert_eq!(compute_initial_table_size(10_000_000).unwrap(), 1 << 18);
         assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
     }

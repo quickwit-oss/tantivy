@@ -41,42 +41,50 @@ pub struct Addr(u32);
 
 impl Addr {
     /// Creates a null pointer.
+    #[inline]
     pub fn null_pointer() -> Addr {
         Addr(u32::MAX)
     }
 
     /// Returns the `Addr` object for `addr + offset`
+    #[inline]
     pub fn offset(self, offset: u32) -> Addr {
         Addr(self.0.wrapping_add(offset))
     }
 
+    #[inline]
     fn new(page_id: usize, local_addr: usize) -> Addr {
         Addr((page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
     }
 
+    #[inline]
     fn page_id(self) -> usize {
         (self.0 as usize) >> NUM_BITS_PAGE_ADDR
     }
 
+    #[inline]
     fn page_local_addr(self) -> usize {
         (self.0 as usize) & (PAGE_SIZE - 1)
     }
 
     /// Returns true if and only if the `Addr` is null.
+    #[inline]
     pub fn is_null(self) -> bool {
         self.0 == u32::MAX
     }
 }
 
+#[inline]
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
-    assert_eq!(dest.len(), std::mem::size_of::<Item>());
+    debug_assert_eq!(dest.len(), std::mem::size_of::<Item>());
     unsafe {
         ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);
     }
 }
 
+#[inline]
 pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {
-    assert_eq!(data.len(), std::mem::size_of::<Item>());
+    debug_assert_eq!(data.len(), std::mem::size_of::<Item>());
     unsafe { ptr::read_unaligned(data.as_ptr() as *const Item) }
 }
 
@@ -111,6 +119,7 @@ impl MemoryArena {
         self.pages.len() * PAGE_SIZE
     }
 
+    #[inline]
     pub fn write_at<Item: Copy + 'static>(&mut self, addr: Addr, val: Item) {
         let dest = self.slice_mut(addr, std::mem::size_of::<Item>());
         store(dest, val);
@@ -121,14 +130,17 @@ impl MemoryArena {
     /// # Panics
     ///
     /// If the address is erroneous
+    #[inline]
     pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
         load(self.slice(addr, mem::size_of::<Item>()))
     }
 
+    #[inline]
     pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
         self.pages[addr.page_id()].slice(addr.page_local_addr(), len)
     }
 
+    #[inline]
     pub fn slice_from(&self, addr: Addr) -> &[u8] {
         self.pages[addr.page_id()].slice_from(addr.page_local_addr())
     }
@@ -168,14 +180,17 @@ impl Page {
         len + self.len <= PAGE_SIZE
     }
 
+    #[inline]
     fn slice(&self, local_addr: usize, len: usize) -> &[u8] {
         &self.slice_from(local_addr)[..len]
     }
 
+    #[inline]
     fn slice_from(&self, local_addr: usize) -> &[u8] {
         &self.data[local_addr..]
     }
 
+    #[inline]
     fn slice_mut(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
         &mut self.data[local_addr..][..len]
     }
