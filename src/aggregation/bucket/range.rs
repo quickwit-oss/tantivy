@@ -445,10 +445,7 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::aggregation::agg_req::{
-        Aggregations,
-    };
-    
+    use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,
