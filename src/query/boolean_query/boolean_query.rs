@@ -12,7 +12,7 @@ use crate::schema::{IndexRecordOption, Term};
 /// * match none of the sub queries associated with the
 /// `MustNot` occurrence.
 /// * match at least one of the sub queries associated
-/// with the `Should` occurrence.
+/// with the `Must` or `Should` occurrence.
 ///
 ///
 /// You can combine other query types and their `Occur`ances into one `BooleanQuery`
