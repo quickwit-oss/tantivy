@@ -9,25 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use tantivy::aggregation::bucket::RangeAggregation;
-//! use tantivy::aggregation::agg_req::BucketAggregationType;
-//! use tantivy::aggregation::agg_req::{Aggregation, Aggregations};
-//! use tantivy::aggregation::agg_req::BucketAggregation;
-//! let agg_req1: Aggregations = vec![
-//!     (
-//!         "range".to_string(),
-//!         Aggregation::Bucket(Box::new(BucketAggregation {
-//!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
-//!                 field: "score".to_string(),
-//!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-//!                 keyed: false,
-//!             }),
-//!             sub_aggregation: Default::default(),
-//!         })),
-//!     ),
-//! ]
-//! .into_iter()
-//! .collect();
+//! use tantivy::aggregation::agg_req::Aggregations;
 //!
 //! let elasticsearch_compatible_json_req = r#"
 //! {
@@ -41,8 +23,7 @@
 //!     }
 //!   }
 //! }"#;
-//! let agg_req2: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
-//! assert_eq!(agg_req1, agg_req2);
+//! let _agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
 //! ```
 
 use std::collections::{HashMap, HashSet};
@@ -104,10 +85,13 @@ pub(crate) struct BucketAggregationInternal {
     pub bucket_agg: BucketAggregationType,
     /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
     /// bucket.
-    pub sub_aggregation: AggregationsInternal,
+    sub_aggregation: AggregationsInternal,
 }
 
 impl BucketAggregationInternal {
+    pub(crate) fn sub_aggregation(&self) -> &AggregationsInternal {
+        &self.sub_aggregation
+    }
     pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
         match &self.bucket_agg {
             BucketAggregationType::Range(range) => Some(range),

@@ -540,7 +540,7 @@ mod tests {
 
     use super::*;
     use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
+        Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
     };
     use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
     use crate::aggregation::tests::{

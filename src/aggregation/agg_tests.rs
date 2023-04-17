@@ -1,10 +1,7 @@
 use serde_json::Value;
 
-use crate::aggregation::agg_req::{
-    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-};
+use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
 use crate::aggregation::agg_result::AggregationResults;
-use crate::aggregation::bucket::{RangeAggregation, TermsAggregation};
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;

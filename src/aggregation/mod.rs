@@ -157,7 +157,7 @@
 
 mod agg_limits;
 pub mod agg_req;
-pub mod agg_req_deser;
+// pub mod agg_req_deser;
 mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;

@@ -365,7 +365,7 @@ impl IntermediateBucketResult {
                     .into_values()
                     .map(|bucket| {
                         bucket.into_final_bucket_entry(
-                            &req.sub_aggregation,
+                            req.sub_aggregation(),
                             req.as_range()
                                 .expect("unexpected aggregation, expected histogram aggregation"),
                             range_res.column_type,
@@ -407,7 +407,7 @@ impl IntermediateBucketResult {
                     buckets,
                     column_type,
                     histogram_req,
-                    &req.sub_aggregation,
+                    req.sub_aggregation(),
                     limits,
                 )?;
 
@@ -426,7 +426,7 @@ impl IntermediateBucketResult {
             IntermediateBucketResult::Terms(terms) => terms.into_final_result(
                 req.as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
-                &req.sub_aggregation,
+                req.sub_aggregation(),
                 limits,
             ),
         }
