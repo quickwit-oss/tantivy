@@ -262,12 +262,15 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     pub(crate) fn new_with_offset(
-        term_postings: Vec<(usize, TPostings)>,
+        mut term_postings: Vec<(usize, TPostings)>,
         similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
         mut slop: u32,
         offset: usize,
     ) -> PhraseScorer<TPostings> {
+        if !term_postings.is_empty() {
+            term_postings[1..].sort_by_key(|(_, post)| post.size_hint());
+        }
         let max_offset = term_postings
             .iter()
             .map(|&(offset, _)| offset)
@@ -282,7 +285,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         let postings_with_offsets = term_postings
             .into_iter()
             .map(|(offset, postings)| {
-                slops.push(slop + 1 - offset as u32);
+                slops.push((slop + 1).saturating_sub(offset as u32));
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
@@ -490,9 +493,6 @@ mod tests {
     #[test]
     fn test_bug_when_elements_skipped() {
         // testcase showing the old fn intersection_with_slop cannot be applied in any order
-        // and that when switching from
-        // left[count] = right_val to left[count] = left_val the secondary skipping loop must be
-        // removed
         test_equal(&[1, 2], &[4, 6], &[5], 3);
     }
 

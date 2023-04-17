@@ -69,7 +69,6 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     pub(crate) fn new(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);
-        docsets.sort_by_key(|docset| docset.size_hint());
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
         let right = docsets.remove(0);
