@@ -77,13 +77,16 @@ impl From<Aggregations> for AggregationsInternal {
         let mut buckets = vec![];
         for (key, agg) in aggs {
             match agg {
-                Aggregation::Bucket(bucket) => buckets.push((
-                    key,
-                    BucketAggregationInternal {
-                        bucket_agg: bucket.bucket_agg,
-                        sub_aggregation: bucket.sub_aggregation.into(),
-                    },
-                )),
+                Aggregation::Bucket(bucket) => {
+                    let sub_aggregation = bucket.get_sub_aggs().clone().into();
+                    buckets.push((
+                        key,
+                        BucketAggregationInternal {
+                            bucket_agg: bucket.bucket_agg,
+                            sub_aggregation,
+                        },
+                    ))
+                }
                 Aggregation::Metric(metric) => metrics.push((key, metric)),
             }
         }
@@ -184,6 +187,9 @@ pub struct BucketAggregation {
 }
 
 impl BucketAggregation {
+    pub(crate) fn get_sub_aggs(&self) -> &Aggregations {
+        &self.sub_aggregation
+    }
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
         let fast_field_name = self.bucket_agg.get_fast_field_name();
         fast_field_names.insert(fast_field_name.to_string());
@@ -311,25 +317,6 @@ mod tests {
 
     #[test]
     fn serialize_to_json_test() {
-        let agg_req1: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score".to_string(),
-                    ranges: vec![
-                        (f64::MIN..3f64).into(),
-                        (3f64..7f64).into(),
-                        (7f64..20f64).into(),
-                        (20f64..f64::MAX).into(),
-                    ],
-                    keyed: true,
-                }),
-                sub_aggregation: Default::default(),
-            })),
-        )]
-        .into_iter()
-        .collect();
-
         let elasticsearch_compatible_json_req = r#"{
   "range": {
     "range": {
@@ -354,57 +341,56 @@ mod tests {
     }
   }
 }"#;
+
+        let agg_req1: Aggregations =
+            { serde_json::from_str(elasticsearch_compatible_json_req).unwrap() };
+
         let agg_req2: String = serde_json::to_string_pretty(&agg_req1).unwrap();
         assert_eq!(agg_req2, elasticsearch_compatible_json_req);
     }
 
     #[test]
     fn test_get_fast_field_names() {
-        let agg_req2: Aggregations = vec![
-            (
-                "range".to_string(),
-                Aggregation::Bucket(Box::new(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score2".to_string(),
-                        ranges: vec![
-                            (f64::MIN..3f64).into(),
-                            (3f64..7f64).into(),
-                            (7f64..20f64).into(),
-                            (20f64..f64::MAX).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                })),
-            ),
-            (
-                "metric".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("field123".to_string()),
-                )),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        let agg_req1: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score".to_string(),
-                    ranges: vec![
-                        (f64::MIN..3f64).into(),
-                        (3f64..7f64).into(),
-                        (7f64..20f64).into(),
-                        (20f64..f64::MAX).into(),
+        let range_agg: Aggregation = {
+            serde_json::from_value(json!({
+                "range": {
+                    "field": "score",
+                    "ranges": [
+                        { "to": 3.0 },
+                        { "from": 3.0, "to": 7.0 },
+                        { "from": 7.0, "to": 20.0 },
+                        { "from": 20.0 }
                     ],
-                    ..Default::default()
-                }),
-                sub_aggregation: agg_req2,
-            })),
-        )]
-        .into_iter()
-        .collect();
+                }
+
+            }))
+            .unwrap()
+        };
+
+        let agg_req1: Aggregations = {
+            serde_json::from_value(json!({
+                "range1": range_agg,
+                "range2":{
+                    "range": {
+                        "field": "score2",
+                        "ranges": [
+                            { "to": 3.0 },
+                            { "from": 3.0, "to": 7.0 },
+                            { "from": 7.0, "to": 20.0 },
+                            { "from": 20.0 }
+                        ],
+                    },
+                    "aggs": {
+                        "metric": {
+                            "avg": {
+                                "field": "field123"
+                            }
+                        }
+                    }
+                }
+            }))
+            .unwrap()
+        };
 
         assert_eq!(
             get_fast_field_names(&agg_req1),
