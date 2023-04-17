@@ -223,7 +223,7 @@ impl ArenaHashMap {
         self.mask = mask;
         let new_table = vec![KeyValue::default(); new_len];
         let old_table = mem::replace(&mut self.table, new_table);
-        for key_value in old_table.into_iter().filter(|kv| !kv.is_empty()) {
+        for key_value in old_table.into_iter().filter(KeyValue::is_not_empty_ref) {
             let mut probe = LinearProbing::compute(key_value.hash, mask);
             loop {
                 let bucket = probe.next_probe();
