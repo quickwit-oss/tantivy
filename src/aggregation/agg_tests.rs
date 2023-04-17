@@ -1,10 +1,7 @@
 use serde_json::Value;
 
-use crate::aggregation::agg_req::{
-    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-};
+use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
 use crate::aggregation::agg_result::AggregationResults;
-use crate::aggregation::bucket::{RangeAggregation, TermsAggregation};
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
@@ -210,43 +207,23 @@ fn test_aggregation_level1() -> crate::Result<()> {
         IndexRecordOption::Basic,
     );
 
+    let range_agg = |field_name: &str| -> Aggregation {
+        serde_json::from_value(json!({
+            "range": {
+                "field": field_name,
+                "ranges": [ { "from": 3.0f64, "to": 7.0f64 }, { "from": 7.0f64, "to": 20.0f64 } ]
+            }
+        }))
+        .unwrap()
+    };
+
     let agg_req_1: Aggregations = vec![
         ("average_i64".to_string(), get_avg_req("score_i64")),
         ("average_f64".to_string(), get_avg_req("score_f64")),
         ("average".to_string(), get_avg_req("score")),
-        (
-            "range".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            })),
-        ),
-        (
-            "rangef64".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score_f64".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            })),
-        ),
-        (
-            "rangei64".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score_i64".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            })),
-        ),
+        ("range".to_string(), range_agg("score")),
+        ("rangef64".to_string(), range_agg("score_f64")),
+        ("rangei64".to_string(), range_agg("score_i64")),
     ]
     .into_iter()
     .collect();
@@ -295,7 +272,6 @@ fn test_aggregation_level1() -> crate::Result<()> {
 fn test_aggregation_level2(
     merge_segments: bool,
     use_distributed_collector: bool,
-    use_elastic_json_req: bool,
 ) -> crate::Result<()> {
     let index = get_test_index_2_segments(merge_segments)?;
 
@@ -312,23 +288,7 @@ fn test_aggregation_level2(
         IndexRecordOption::Basic,
     );
 
-    let sub_agg_req: Aggregations = vec![
-        ("average_in_range".to_string(), get_avg_req("score")),
-        (
-            "term_agg".to_string(),
-            Aggregation::Bucket(Box::new(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "text".to_string(),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            })),
-        ),
-    ]
-    .into_iter()
-    .collect();
-    let agg_req: Aggregations = if use_elastic_json_req {
-        let elasticsearch_compatible_json_req = r#"
+    let elasticsearch_compatible_json_req = r#"
 {
   "rangef64": {
     "range": {
@@ -383,61 +343,7 @@ fn test_aggregation_level2(
   }
 }
 "#;
-        let value: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
-        value
-    } else {
-        let agg_req: Aggregations = vec![
-            ("average".to_string(), get_avg_req("score")),
-            (
-                "range".to_string(),
-                Aggregation::Bucket(Box::new(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req.clone(),
-                })),
-            ),
-            (
-                "rangef64".to_string(),
-                Aggregation::Bucket(Box::new(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req.clone(),
-                })),
-            ),
-            (
-                "rangei64".to_string(),
-                Aggregation::Bucket(Box::new(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_i64".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                })),
-            ),
-        ]
-        .into_iter()
-        .collect();
-        agg_req
-    };
+    let agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
         let collector =
@@ -518,42 +424,22 @@ fn test_aggregation_level2(
 
 #[test]
 fn test_aggregation_level2_multi_segments() -> crate::Result<()> {
-    test_aggregation_level2(false, false, false)
+    test_aggregation_level2(false, false)
 }
 
 #[test]
 fn test_aggregation_level2_single_segment() -> crate::Result<()> {
-    test_aggregation_level2(true, false, false)
+    test_aggregation_level2(true, false)
 }
 
 #[test]
 fn test_aggregation_level2_multi_segments_distributed_collector() -> crate::Result<()> {
-    test_aggregation_level2(false, true, false)
+    test_aggregation_level2(false, true)
 }
 
 #[test]
 fn test_aggregation_level2_single_segment_distributed_collector() -> crate::Result<()> {
-    test_aggregation_level2(true, true, false)
-}
-
-#[test]
-fn test_aggregation_level2_multi_segments_use_json() -> crate::Result<()> {
-    test_aggregation_level2(false, false, true)
-}
-
-#[test]
-fn test_aggregation_level2_single_segment_use_json() -> crate::Result<()> {
-    test_aggregation_level2(true, false, true)
-}
-
-#[test]
-fn test_aggregation_level2_multi_segments_distributed_collector_use_json() -> crate::Result<()> {
-    test_aggregation_level2(false, true, true)
-}
-
-#[test]
-fn test_aggregation_level2_single_segment_distributed_collector_use_json() -> crate::Result<()> {
-    test_aggregation_level2(true, true, true)
+    test_aggregation_level2(true, true)
 }
 
 #[test]
@@ -618,18 +504,16 @@ fn test_aggregation_on_json_object() {
     index_writer.commit().unwrap();
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
-    let agg: Aggregations = vec![(
-        "jsonagg".to_string(),
-        Aggregation::Bucket(Box::new(BucketAggregation {
-            bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                field: "json.color".to_string(),
-                ..Default::default()
-            }),
-            sub_aggregation: Default::default(),
-        })),
-    )]
-    .into_iter()
-    .collect();
+
+    let agg: Aggregations = serde_json::from_value(json!({
+        "jsonagg": {
+            "terms": {
+                "field": "json.color",
+            }
+        }
+    }))
+    .unwrap();
+
     let aggregation_collector = get_collector(agg);
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
@@ -687,18 +571,15 @@ fn test_aggregation_on_json_object_empty_columns() {
 
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
-    let agg: Aggregations = vec![(
-        "jsonagg".to_string(),
-        Aggregation::Bucket(Box::new(BucketAggregation {
-            bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                field: "json.color".to_string(),
-                ..Default::default()
-            }),
-            sub_aggregation: Default::default(),
-        })),
-    )]
-    .into_iter()
-    .collect();
+
+    let agg: Aggregations = serde_json::from_value(json!({
+        "jsonagg": {
+            "terms": {
+                "field": "json.color",
+            }
+        }
+    }))
+    .unwrap();
 
     let aggregation_collector = get_collector(agg);
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();

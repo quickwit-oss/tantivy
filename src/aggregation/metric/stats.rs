@@ -261,15 +261,10 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
 #[cfg(test)]
 mod tests {
 
-    use std::iter;
-
     use serde_json::Value;
 
-    use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-    };
+    use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::bucket::RangeAggregation;
     use crate::aggregation::metric::StatsAggregation;
     use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values};
     use crate::aggregation::AggregationCollector;
@@ -362,6 +357,23 @@ mod tests {
             IndexRecordOption::Basic,
         );
 
+        let range_agg: Aggregation = {
+            serde_json::from_value(json!({
+                "range": {
+                    "field": "score",
+                    "ranges": [ { "from": 3.0f64, "to": 7.0f64 }, { "from": 7.0f64, "to": 19.0f64 }, { "from": 19.0f64, "to": 20.0f64 }  ]
+                },
+                "aggs": {
+                    "stats": {
+                        "stats": {
+                            "field": "score"
+                        }
+                    }
+                }
+            }))
+            .unwrap()
+        };
+
         let agg_req_1: Aggregations = vec![
             (
                 "stats_i64".to_string(),
@@ -381,30 +393,7 @@ mod tests {
                     "score".to_string(),
                 ))),
             ),
-            (
-                "range".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score".to_string(),
-                            ranges: vec![
-                                (3f64..7f64).into(),
-                                (7f64..19f64).into(),
-                                (19f64..20f64).into(),
-                            ],
-                            ..Default::default()
-                        }),
-                        sub_aggregation: iter::once((
-                            "stats".to_string(),
-                            Aggregation::Metric(MetricAggregation::Stats(
-                                StatsAggregation::from_field_name("score".to_string()),
-                            )),
-                        ))
-                        .collect(),
-                    }
-                    .into(),
-                ),
-            ),
+            ("range".to_string(), range_agg),
         ]
         .into_iter()
         .collect();

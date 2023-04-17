@@ -463,7 +463,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             // let mut index_writer = index.writer_for_tests()?;
-            let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for values in segment_and_values {
                 for (i, term) in values {

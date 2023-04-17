@@ -445,10 +445,7 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-    };
-    use crate::aggregation::metric::AverageAggregation;
+    use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,
@@ -478,22 +475,18 @@ mod tests {
     fn range_fraction_test() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(false, 100)?;
 
-        let agg_req: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "fraction_f64".to_string(),
-                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "fraction_f64",
+                    "ranges": [
+                        {"from": 0.0, "to": 0.1},
+                        {"from": 0.1, "to": 0.2},
+                    ]
+                },
+            }
+        }))
+        .unwrap();
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
@@ -513,31 +506,25 @@ mod tests {
     fn range_fraction_test_with_sub_agg() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(false, 100)?;
 
-        let sub_agg_req: Aggregations = vec![(
-            "score_f64".to_string(),
-            Aggregation::Metric(MetricAggregation::Average(
-                AverageAggregation::from_field_name("score_f64".to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+        let sub_agg_req: Aggregations = serde_json::from_value(json!({
+            "avg": { "avg": { "field": "score_f64", } }
 
-        let agg_req: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "fraction_f64".to_string(),
-                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        }))
+        .unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "fraction_f64",
+                    "ranges": [
+                        {"from": 0.0, "to": 0.1},
+                        {"from": 0.1, "to": 0.2},
+                    ]
+                },
+                "aggs": sub_agg_req
+            }
+        }))
+        .unwrap();
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
@@ -557,22 +544,19 @@ mod tests {
     fn range_keyed_buckets_test() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(false, 100)?;
 
-        let agg_req: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "fraction_f64".to_string(),
-                        ranges: vec![(0f64..0.1f64).into(), (0.1f64..0.2f64).into()],
-                        keyed: true,
-                    }),
-                    sub_aggregation: Default::default(),
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "fraction_f64",
+                    "ranges": [
+                        {"from": 0.0, "to": 0.1},
+                        {"from": 0.1, "to": 0.2},
+                    ],
+                    "keyed": true
+                },
+            }
+        }))
+        .unwrap();
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
@@ -597,33 +581,19 @@ mod tests {
     fn range_custom_key_test() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(false, 100)?;
 
-        let agg_req: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "fraction_f64".to_string(),
-                        ranges: vec![
-                            RangeAggregationRange {
-                                key: Some("custom-key-0-to-0.1".to_string()),
-                                from: Some(0f64),
-                                to: Some(0.1f64),
-                            },
-                            RangeAggregationRange {
-                                key: None,
-                                from: Some(0.1f64),
-                                to: Some(0.2f64),
-                            },
-                        ],
-                        keyed: false,
-                    }),
-                    sub_aggregation: Default::default(),
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "fraction_f64",
+                    "ranges": [
+                        {"key": "custom-key-0-to-0.1", "from": 0.0, "to": 0.1},
+                        {"from": 0.1, "to": 0.2},
+                    ],
+                    "keyed": false
+                },
+            }
+        }))
+        .unwrap();
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
@@ -657,33 +627,19 @@ mod tests {
     fn range_date_test_with_opt(merge_segments: bool) -> crate::Result<()> {
         let index = get_test_index_2_segments(merge_segments)?;
 
-        let agg_req: Aggregations = vec![(
-            "date_ranges".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "date".to_string(),
-                        ranges: vec![
-                            RangeAggregationRange {
-                                key: None,
-                                from: None,
-                                to: Some(1546300800000000.0f64),
-                            },
-                            RangeAggregationRange {
-                                key: None,
-                                from: Some(1546300800000000.0f64),
-                                to: Some(1546387200000000.0f64),
-                            },
-                        ],
-                        keyed: false,
-                    }),
-                    sub_aggregation: Default::default(),
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "date_ranges": {
+                "range": {
+                    "field": "date",
+                    "ranges": [
+                        {"to": 1546300800000000i64},
+                        {"from": 1546300800000000i64, "to": 1546387200000000i64},
+                    ],
+                    "keyed": false
+                },
+            }
+        }))
+        .unwrap();
 
         let agg_res = exec_request(agg_req, &index)?;
 
@@ -722,26 +678,18 @@ mod tests {
     fn range_custom_key_keyed_buckets_test() -> crate::Result<()> {
         let index = get_test_index_with_num_docs(false, 100)?;
 
-        let agg_req: Aggregations = vec![(
-            "range".to_string(),
-            Aggregation::Bucket(
-                BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "fraction_f64".to_string(),
-                        ranges: vec![RangeAggregationRange {
-                            key: Some("custom-key-0-to-0.1".to_string()),
-                            from: Some(0f64),
-                            to: Some(0.1f64),
-                        }],
-                        keyed: true,
-                    }),
-                    sub_aggregation: Default::default(),
-                }
-                .into(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "range": {
+                "range": {
+                    "field": "fraction_f64",
+                    "ranges": [
+                        {"key": "custom-key-0-to-0.1", "from": 0.0, "to": 0.1},
+                    ],
+                    "keyed": true
+                },
+            }
+        }))
+        .unwrap();
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
