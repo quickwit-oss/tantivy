@@ -175,7 +175,7 @@ pub(crate) fn get_aggs_with_accessor_and_validate(
                 key.to_string(),
                 BucketAggregationWithAccessor::try_from_bucket(
                     &bucket.bucket_agg,
-                    &bucket.get_sub_aggs(),
+                    bucket.get_sub_aggs(),
                     reader,
                     limits.clone(),
                 )?,

@@ -446,9 +446,9 @@ mod tests {
 
     use super::*;
     use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
+        Aggregations,
     };
-    use crate::aggregation::metric::AverageAggregation;
+    
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,

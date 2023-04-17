@@ -638,7 +638,7 @@ mod tests {
         ];
         let index = get_test_index_from_values_and_terms(merge_segments, &segment_and_terms)?;
 
-        let sub_agg: Aggregations = vec![
+        let _sub_agg: Aggregations = vec![
             (
                 "avg_score".to_string(),
                 Aggregation::Metric(MetricAggregation::Average(

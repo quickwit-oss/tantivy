@@ -30,7 +30,7 @@ impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     #[cfg(test)]
     pub fn from_schema(schema: &Schema) -> crate::Result<FastFieldsWriter> {
-        FastFieldsWriter::from_schema_and_tokenizer_manager(&schema, TokenizerManager::new())
+        FastFieldsWriter::from_schema_and_tokenizer_manager(schema, TokenizerManager::new())
     }
 
     /// Create all `FastFieldWriter` required by the schema.
