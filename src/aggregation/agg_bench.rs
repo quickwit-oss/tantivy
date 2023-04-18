@@ -5,16 +5,10 @@ mod bench {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use rand_distr::Distribution;
+    use serde_json::json;
     use test::{self, Bencher};
 
-    use crate::aggregation::agg_req::{
-        Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-    };
-    use crate::aggregation::bucket::{
-        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, RangeAggregation,
-        TermsAggregation,
-    };
-    use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
+    use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::AggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
@@ -153,14 +147,10 @@ mod bench {
                 IndexRecordOption::Basic,
             );
 
-            let agg_req_1: Aggregations = vec![(
-                "average".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "average": { "avg": { "field": "score", } }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -182,14 +172,10 @@ mod bench {
                 IndexRecordOption::Basic,
             );
 
-            let agg_req_1: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
-                    "score_f64".to_string(),
-                ))),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "average_f64": { "stats": { "field": "score_f64", } }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -211,14 +197,10 @@ mod bench {
                 IndexRecordOption::Basic,
             );
 
-            let agg_req_1: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "average_f64": { "avg": { "field": "score_f64", } }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -265,22 +247,11 @@ mod bench {
                 IndexRecordOption::Basic,
             );
 
-            let agg_req_1: Aggregations = vec![
-                (
-                    "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score_f64".to_string()),
-                    )),
-                ),
-                (
-                    "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                ),
-            ]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "average_f64": { "avg": { "field": "score_f64" } },
+                "average": { "avg": { "field": "score" } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -296,21 +267,10 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                            field: "text_few_terms".to_string(),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": { "terms": { "field": "text_few_terms" } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req);
 
@@ -326,30 +286,15 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                            field: "text_many_terms".to_string(),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req,
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": {
+                    "terms": { "field": "text_many_terms" },
+                    "aggs": {
+                        "average_f64": { "avg": { "field": "score_f64" } }
                     }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+                },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req);
 
@@ -365,21 +310,10 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                            field: "text_many_terms".to_string(),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": { "terms": { "field": "text_many_terms" } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req);
 
@@ -395,25 +329,10 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                            field: "text_many_terms".to_string(),
-                            order: Some(CustomOrder {
-                                order: Order::Desc,
-                                target: OrderTarget::Key,
-                            }),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": { "terms": { "field": "text_many_terms", "order": { "_key": "desc" } } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req);
 
@@ -429,29 +348,17 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7000f64).into(),
-                                (7000f64..20000f64).into(),
-                                (20000f64..30000f64).into(),
-                                (30000f64..40000f64).into(),
-                                (40000f64..50000f64).into(),
-                                (50000f64..60000f64).into(),
-                            ],
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "range_f64": { "range": { "field": "score_f64", "ranges": [
+                    { "from": 3, "to": 7000 },
+                    { "from": 7000, "to": 20000 },
+                    { "from": 20000, "to": 30000 },
+                    { "from": 30000, "to": 40000 },
+                    { "from": 40000, "to": 50000 },
+                    { "from": 50000, "to": 60000 }
+                ] } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -467,38 +374,25 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7000f64).into(),
-                                (7000f64..20000f64).into(),
-                                (20000f64..30000f64).into(),
-                                (30000f64..40000f64).into(),
-                                (40000f64..50000f64).into(),
-                                (50000f64..60000f64).into(),
-                            ],
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req,
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "rangef64": {
+                    "range": {
+                        "field": "score_f64",
+                        "ranges": [
+                            { "from": 3, "to": 7000 },
+                            { "from": 7000, "to": 20000 },
+                            { "from": 20000, "to": 30000 },
+                            { "from": 30000, "to": 40000 },
+                            { "from": 40000, "to": 50000 },
+                            { "from": 50000, "to": 60000 }
+                        ]
+                    },
+                    "aggs": {
+                        "average_f64": { "avg": { "field": "score_f64" } }
                     }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+                },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -519,26 +413,10 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64,
-                            hard_bounds: Some(HistogramBounds {
-                                min: 1000.0,
-                                max: 300_000.0,
-                            }),
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "rangef64": { "histogram": { "field": "score_f64", "interval": 100, "hard_bounds": { "min": 1000, "max": 300000 } } },
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
             let searcher = reader.searcher();
@@ -553,31 +431,15 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64, // 1000 buckets
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req,
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "rangef64": {
+                    "histogram": { "field": "score_f64", "interval": 100 },
+                    "aggs": {
+                        "average_f64": { "avg": { "field": "score_f64" } }
                     }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+                }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -593,22 +455,15 @@ mod bench {
         let reader = index.reader().unwrap();
 
         b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(
-                    BucketAggregation {
-                        bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                            field: "score_f64".to_string(),
-                            interval: 100f64, // 1000 buckets
-                            ..Default::default()
-                        }),
-                        sub_aggregation: Default::default(),
-                    }
-                    .into(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "rangef64": {
+                    "histogram": {
+                        "field": "score_f64",
+                        "interval": 100 // 1000 buckets
+                    },
+                }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 
@@ -630,43 +485,23 @@ mod bench {
                 IndexRecordOption::Basic,
             );
 
-            let sub_agg_req_1: Aggregations = vec![(
-                "average_in_range".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![
-                (
-                    "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                ),
-                (
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(
-                        BucketAggregation {
-                            bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                                field: "score_f64".to_string(),
-                                ranges: vec![
-                                    (3f64..7000f64).into(),
-                                    (7000f64..20000f64).into(),
-                                    (20000f64..60000f64).into(),
-                                ],
-                                ..Default::default()
-                            }),
-                            sub_aggregation: sub_agg_req_1,
-                        }
-                        .into(),
-                    ),
-                ),
-            ]
-            .into_iter()
-            .collect();
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "rangef64": {
+                    "range": {
+                        "field": "score_f64",
+                        "ranges": [
+                            { "from": 3, "to": 7000 },
+                            { "from": 7000, "to": 20000 },
+                            { "from": 20000, "to": 60000 }
+                        ]
+                    },
+                    "aggs": {
+                        "average_in_range": { "avg": { "field": "score" } }
+                    }
+                },
+                "average": { "avg": { "field": "score" } }
+            }))
+            .unwrap();
 
             let collector = get_collector(agg_req_1);
 

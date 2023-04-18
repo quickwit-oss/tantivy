@@ -260,7 +260,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         agg_with_accessor: &AggregationsWithAccessor,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.metrics.keys[self.accessor_idx].to_string();
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
         let intermediate_metric_result = IntermediateMetricResult::Percentiles(self.percentiles);
 
         results.push(
@@ -277,7 +277,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         doc: crate::DocId,
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.metrics.values[self.accessor_idx].accessor;
+        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
 
         for val in field.values_for_doc(doc) {
             let val1 = f64_from_fastfield_u64(val, &self.field_type);
@@ -293,7 +293,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.metrics.values[self.accessor_idx];
+        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
         self.collect_block_with_field(docs, field);
         Ok(())
     }
@@ -308,9 +308,8 @@ mod tests {
     use rand::SeedableRng;
     use serde_json::Value;
 
-    use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
+    use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::metric::PercentilesAggregationReq;
     use crate::aggregation::tests::{
         get_test_index_from_values, get_test_index_from_values_and_terms,
     };
@@ -324,14 +323,14 @@ mod tests {
 
         let index = get_test_index_from_values(false, &values)?;
 
-        let agg_req_1: Aggregations = vec![(
-            "percentiles".to_string(),
-            Aggregation::Metric(MetricAggregation::Percentiles(
-                PercentilesAggregationReq::from_field_name("score".to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "percentiles": {
+                "percentiles": {
+                    "field": "score",
+                }
+            },
+        }))
+        .unwrap();
 
         let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
 
@@ -362,14 +361,14 @@ mod tests {
 
         let index = get_test_index_from_values(false, &values)?;
 
-        let agg_req_1: Aggregations = vec![(
-            "percentiles".to_string(),
-            Aggregation::Metric(MetricAggregation::Percentiles(
-                PercentilesAggregationReq::from_field_name("score".to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "percentiles": {
+                "percentiles": {
+                    "field": "score",
+                }
+            },
+        }))
+        .unwrap();
 
         let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
 

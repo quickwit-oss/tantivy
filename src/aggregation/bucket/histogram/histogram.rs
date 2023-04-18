@@ -223,8 +223,8 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         agg_with_accessor: &AggregationsWithAccessor,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
-        let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
         results.push(name, IntermediateAggregationResult::Bucket(bucket));
@@ -247,7 +247,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
+        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
 
         let mem_pre = self.get_memory_consumption();
 
@@ -281,7 +281,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.buckets.values[self.accessor_idx].limits;
+        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
         limits.add_memory_consumed(mem_delta as u64);
         limits.validate_memory_consumption()?;
 
@@ -290,7 +290,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
 
         for sub_aggregation in self.sub_aggregations.values_mut() {
             sub_aggregation.flush(sub_aggregation_accessor)?;

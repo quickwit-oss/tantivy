@@ -1,11 +1,10 @@
 use serde_json::Value;
 
-use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
+use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::metric::AverageAggregation;
 use crate::aggregation::segment_agg_result::AggregationLimits;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
@@ -14,9 +13,12 @@ use crate::schema::{IndexRecordOption, Schema, FAST};
 use crate::{Index, Term};
 
 fn get_avg_req(field_name: &str) -> Aggregation {
-    Aggregation::Metric(MetricAggregation::Average(
-        AverageAggregation::from_field_name(field_name.to_string()),
-    ))
+    serde_json::from_value(json!({
+        "avg": {
+            "field": field_name,
+        }
+    }))
+    .unwrap()
 }
 
 fn get_collector(agg_req: Aggregations) -> AggregationCollector {
@@ -517,14 +519,14 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
     let reader = index.reader()?;
 
     let avg_on_field = |field_name: &str| {
-        let agg_req_1: Aggregations = vec![(
-            "average".to_string(),
-            Aggregation::Metric(MetricAggregation::Average(
-                AverageAggregation::from_field_name(field_name.to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "average": {
+                "avg": {
+                    "field": field_name,
+                },
+            }
+        }))
+        .unwrap();
 
         let collector = get_collector(agg_req_1);
 
@@ -537,6 +539,32 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
     assert_eq!(
         format!("{:?}", agg_res),
         r#"InvalidArgument("Field \"dummy_text\" is not configured as fast field")"#
+    );
+
+    let agg_req_1: Result<Aggregations, serde_json::Error> = serde_json::from_value(json!({
+        "average": {
+            "avg": {
+                "fieldd": "a",
+            },
+        }
+    }));
+
+    assert_eq!(agg_req_1.is_err(), true);
+    assert_eq!(agg_req_1.unwrap_err().to_string(), "missing field `field`");
+
+    let agg_req_1: Result<Aggregations, serde_json::Error> = serde_json::from_value(json!({
+        "average": {
+            "doesnotmatchanyagg": {
+                "field": "a",
+            },
+        }
+    }));
+
+    assert_eq!(agg_req_1.is_err(), true);
+    // TODO: This should list valid values
+    assert_eq!(
+        agg_req_1.unwrap_err().to_string(),
+        "no variant of enum AggregationVariants found in flattened data"
     );
 
     // TODO: This should return an error

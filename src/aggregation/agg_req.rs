@@ -44,45 +44,30 @@ use super::metric::{
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
-impl Aggregation {
-    pub fn as_bucket(&self) -> Option<&Box<BucketAggregation>> {
-        match self {
-            Aggregation::Bucket(bucket) => Some(bucket),
-            _ => None,
-        }
-    }
-    pub fn as_metric(&self) -> Option<&MetricAggregation> {
-        match self {
-            Aggregation::Metric(metric) => Some(metric),
-            _ => None,
-        }
-    }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Aggregation request.
+///
+/// An aggregation is either a bucket or a metric.
+pub struct Aggregation {
+    /// The aggregation variant, which can be either a bucket or a metric.
+    #[serde(flatten)]
+    pub agg: AggregationVariants,
+    /// The sub_aggregations, only valid for bucket type aggregations. Each bucket will aggregate
+    /// on the document set in the bucket.
+    #[serde(rename = "aggs")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Aggregations::is_empty")]
+    pub sub_aggregation: Aggregations,
 }
 
-impl BucketAggregation {
+impl Aggregation {
     pub(crate) fn sub_aggregation(&self) -> &Aggregations {
         &self.sub_aggregation
     }
-    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
-        match &self.bucket_agg {
-            BucketAggregationType::Range(range) => Some(range),
-            _ => None,
-        }
-    }
-    pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
-        match &self.bucket_agg {
-            BucketAggregationType::Histogram(histogram) => Ok(Some(histogram.clone())),
-            BucketAggregationType::DateHistogram(histogram) => {
-                Ok(Some(histogram.to_histogram_req()?))
-            }
-            _ => Ok(None),
-        }
-    }
-    pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
-        match &self.bucket_agg {
-            BucketAggregationType::Terms(terms) => Some(terms),
-            _ => None,
-        }
+
+    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
+        fast_field_names.insert(self.agg.get_fast_field_name().to_string());
+        fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
     }
 }
 
@@ -95,100 +80,24 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
-/// Aggregation request of [`BucketAggregation`] or [`MetricAggregation`].
-///
-/// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Aggregation {
-    /// Bucket aggregation, see [`BucketAggregation`] for details.
-    Bucket(Box<BucketAggregation>),
-    /// Metric aggregation, see [`MetricAggregation`] for details.
-    Metric(MetricAggregation),
-}
-
-impl Aggregation {
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
-        match self {
-            Aggregation::Bucket(bucket) => bucket.get_fast_field_names(fast_field_names),
-            Aggregation::Metric(metric) => {
-                fast_field_names.insert(metric.get_fast_field_name().to_string());
-            }
-        }
-    }
-}
-
-/// BucketAggregations create buckets of documents. Each bucket is associated with a rule which
-/// determines whether or not a document in the falls into it. In other words, the buckets
-/// effectively define document sets. Buckets are not necessarily disjunct, therefore a document can
-/// fall into multiple buckets. In addition to the buckets themselves, the bucket aggregations also
-/// compute and return the number of documents for each bucket. Bucket aggregations, as opposed to
-/// metric aggregations, can hold sub-aggregations. These sub-aggregations will be aggregated for
-/// the buckets created by their "parent" bucket aggregation. There are different bucket
-/// aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
-/// define fixed number of multiple buckets, and others dynamically create the buckets during the
-/// aggregation process.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BucketAggregation {
-    /// Bucket aggregation strategy to group documents.
-    #[serde(flatten)]
-    pub bucket_agg: BucketAggregationType,
-    /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
-    /// bucket.
-    #[serde(rename = "aggs")]
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Aggregations::is_empty")]
-    pub sub_aggregation: Aggregations,
-}
-
-impl BucketAggregation {
-    pub(crate) fn get_sub_aggs(&self) -> &Aggregations {
-        &self.sub_aggregation
-    }
-    fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
-        let fast_field_name = self.bucket_agg.get_fast_field_name();
-        fast_field_names.insert(fast_field_name.to_string());
-        fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
-    }
-}
-
-/// The bucket aggregation types.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BucketAggregationType {
+/// All aggregation types.
+pub enum AggregationVariants {
+    // Bucket aggregation types
     /// Put data into buckets of user-defined ranges.
     #[serde(rename = "range")]
     Range(RangeAggregation),
-    /// Put data into buckets of user-defined ranges.
+    /// Put data into a histogram.
     #[serde(rename = "histogram")]
     Histogram(HistogramAggregation),
-    /// Put data into buckets of user-defined ranges.
+    /// Put data into a date histogram.
     #[serde(rename = "date_histogram")]
     DateHistogram(DateHistogramAggregationReq),
     /// Put data into buckets of terms.
     #[serde(rename = "terms")]
     Terms(TermsAggregation),
-}
 
-impl BucketAggregationType {
-    fn get_fast_field_name(&self) -> &str {
-        match self {
-            BucketAggregationType::Terms(terms) => terms.field.as_str(),
-            BucketAggregationType::Range(range) => range.field.as_str(),
-            BucketAggregationType::Histogram(histogram) => histogram.field.as_str(),
-            BucketAggregationType::DateHistogram(histogram) => histogram.field.as_str(),
-        }
-    }
-}
-
-/// The aggregations in this family compute metrics based on values extracted
-/// from the documents that are being aggregated. Values are extracted from the fast field of
-/// the document.
-
-/// Some aggregations output a single numeric metric (e.g. Average) and are called
-/// single-value numeric metrics aggregation, others generate multiple metrics (e.g. Stats) and are
-/// called multi-value numeric metrics aggregation.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum MetricAggregation {
+    // Metric aggregation types
     /// Computes the average of the extracted values.
     #[serde(rename = "avg")]
     Average(AverageAggregation),
@@ -213,30 +122,101 @@ pub enum MetricAggregation {
     Percentiles(PercentilesAggregationReq),
 }
 
-impl MetricAggregation {
-    pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
+impl AggregationVariants {
+    fn get_fast_field_name(&self) -> &str {
+        match self {
+            AggregationVariants::Terms(terms) => terms.field.as_str(),
+            AggregationVariants::Range(range) => range.field.as_str(),
+            AggregationVariants::Histogram(histogram) => histogram.field.as_str(),
+            AggregationVariants::DateHistogram(histogram) => histogram.field.as_str(),
+            AggregationVariants::Average(avg) => avg.field_name(),
+            AggregationVariants::Count(count) => count.field_name(),
+            AggregationVariants::Max(max) => max.field_name(),
+            AggregationVariants::Min(min) => min.field_name(),
+            AggregationVariants::Stats(stats) => stats.field_name(),
+            AggregationVariants::Sum(sum) => sum.field_name(),
+            AggregationVariants::Percentiles(per) => per.field_name(),
+        }
+    }
+
+    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
         match &self {
-            MetricAggregation::Percentiles(percentile_req) => Some(percentile_req),
+            AggregationVariants::Range(range) => Some(range),
+            _ => None,
+        }
+    }
+    pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
+        match &self {
+            AggregationVariants::Histogram(histogram) => Ok(Some(histogram.clone())),
+            AggregationVariants::DateHistogram(histogram) => {
+                Ok(Some(histogram.to_histogram_req()?))
+            }
+            _ => Ok(None),
+        }
+    }
+    pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
+        match &self {
+            AggregationVariants::Terms(terms) => Some(terms),
             _ => None,
         }
     }
 
-    fn get_fast_field_name(&self) -> &str {
-        match self {
-            MetricAggregation::Average(avg) => avg.field_name(),
-            MetricAggregation::Count(count) => count.field_name(),
-            MetricAggregation::Max(max) => max.field_name(),
-            MetricAggregation::Min(min) => min.field_name(),
-            MetricAggregation::Stats(stats) => stats.field_name(),
-            MetricAggregation::Sum(sum) => sum.field_name(),
-            MetricAggregation::Percentiles(per) => per.field_name(),
+    pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
+        match &self {
+            AggregationVariants::Percentiles(percentile_req) => Some(percentile_req),
+            _ => None,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+
+    #[test]
+    fn deser_json_test() {
+        let agg_req_json = r#"{
+            "price_avg": { "avg": { "field": "price" } },
+            "price_count": { "value_count": { "field": "price" } },
+            "price_max": { "max": { "field": "price" } },
+            "price_min": { "min": { "field": "price" } },
+            "price_stats": { "stats": { "field": "price" } },
+            "price_sum": { "sum": { "field": "price" } }
+        }"#;
+        let _agg_req: Aggregations = serde_json::from_str(agg_req_json).unwrap();
+    }
+
+    #[test]
+    fn deser_json_test_bucket() {
+        let agg_req_json = r#"
+    {
+        "termagg": {
+            "terms": {
+                "field": "json.mixed_type",
+                "order": { "min_price": "desc" }
+            },
+            "aggs": {
+                "min_price": { "min": { "field": "json.mixed_type" } }
+            }
+        },
+        "rangeagg": {
+            "range": {
+                "field": "json.mixed_type",
+                "ranges": [
+                    { "to": 3.0 },
+                    { "from": 19.0, "to": 20.0 },
+                    { "from": 20.0 }
+                ]
+            },
+            "aggs": {
+                "average_in_range": { "avg": { "field": "json.mixed_type" } }
+            }
+        }
+    } "#;
+
+        let _agg_req: Aggregations = serde_json::from_str(agg_req_json).unwrap();
+    }
 
     #[test]
     fn test_metric_aggregations_deser() {
@@ -251,22 +231,22 @@ mod tests {
         let agg_req: Aggregations = serde_json::from_str(agg_req_json).unwrap();
 
         assert!(
-            matches!(agg_req.get("price_avg").unwrap(), Aggregation::Metric(MetricAggregation::Average(avg)) if avg.field == "price")
+            matches!(&agg_req.get("price_avg").unwrap().agg, AggregationVariants::Average(avg) if avg.field == "price")
         );
         assert!(
-            matches!(agg_req.get("price_count").unwrap(), Aggregation::Metric(MetricAggregation::Count(count)) if count.field == "price")
+            matches!(&agg_req.get("price_count").unwrap().agg, AggregationVariants::Count(count) if count.field == "price")
         );
         assert!(
-            matches!(agg_req.get("price_max").unwrap(), Aggregation::Metric(MetricAggregation::Max(max)) if max.field == "price")
+            matches!(&agg_req.get("price_max").unwrap().agg, AggregationVariants::Max(max) if max.field == "price")
         );
         assert!(
-            matches!(agg_req.get("price_min").unwrap(), Aggregation::Metric(MetricAggregation::Min(min)) if min.field == "price")
+            matches!(&agg_req.get("price_min").unwrap().agg, AggregationVariants::Min(min) if min.field == "price")
         );
         assert!(
-            matches!(agg_req.get("price_stats").unwrap(), Aggregation::Metric(MetricAggregation::Stats(stats)) if stats.field == "price")
+            matches!(&agg_req.get("price_stats").unwrap().agg, AggregationVariants::Stats(stats) if stats.field == "price")
         );
         assert!(
-            matches!(agg_req.get("price_sum").unwrap(), Aggregation::Metric(MetricAggregation::Sum(sum)) if sum.field == "price")
+            matches!(&agg_req.get("price_sum").unwrap().agg, AggregationVariants::Sum(sum) if sum.field == "price")
         );
     }
 

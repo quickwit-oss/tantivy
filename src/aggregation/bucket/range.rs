@@ -182,8 +182,8 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let field_type = self.column_type;
-        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
-        let sub_agg = &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let sub_agg = &agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
 
         let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
@@ -223,7 +223,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
+        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
 
         bucket_agg_accessor
             .column_block_accessor
@@ -245,7 +245,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
 
         for bucket in self.buckets.iter_mut() {
             if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
