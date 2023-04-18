@@ -7,11 +7,8 @@
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::BucketAggregationInternal;
 use super::bucket::GetDocCount;
-use super::intermediate_agg_result::IntermediateBucketResult;
 use super::metric::{PercentilesMetricResult, SingleMetricResult, Stats};
-use super::segment_agg_result::AggregationLimits;
 use super::{AggregationError, Key};
 use crate::TantivyError;
 
@@ -163,14 +160,6 @@ impl BucketResult {
                 doc_count_error_upper_bound: _,
             } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
         }
-    }
-
-    pub(crate) fn empty_from_req(
-        req: &BucketAggregationInternal,
-        limits: &AggregationLimits,
-    ) -> crate::Result<Self> {
-        let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-        empty_bucket.into_final_bucket_result(req, limits)
     }
 }
 

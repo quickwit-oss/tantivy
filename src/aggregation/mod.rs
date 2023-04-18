@@ -157,6 +157,7 @@
 
 mod agg_limits;
 pub mod agg_req;
+pub mod agg_req_deser;
 mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
@@ -216,9 +217,9 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T: Clone> VecWithNames<T> {
-    fn extend(&mut self, entries: VecWithNames<T>) {
-        self.keys.extend(entries.keys);
-        self.values.extend(entries.values);
+    fn push(&mut self, key: String, value: T) {
+        self.keys.push(key);
+        self.values.push(value);
     }
 
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
@@ -246,9 +247,6 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn into_values(self) -> impl Iterator<Item = T> {
         self.values.into_iter()
-    }
-    fn values(&self) -> impl Iterator<Item = &T> + '_ {
-        self.values.iter()
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()

@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateRangeBucketEntry,
-    IntermediateRangeBucketResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
 use crate::aggregation::{
-    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey, VecWithNames,
+    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
 };
 use crate::TantivyError;
 
@@ -157,8 +157,10 @@ impl SegmentRangeBucketEntry {
         self,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateRangeBucketEntry> {
-        let sub_aggregation = if let Some(sub_aggregation) = self.sub_aggregation {
-            sub_aggregation.into_intermediate_aggregations_result(agg_with_accessor)?
+        let mut sub_aggregation_res = IntermediateAggregationResults::default();
+        if let Some(sub_aggregation) = self.sub_aggregation {
+            sub_aggregation
+                .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?
         } else {
             Default::default()
         };
@@ -166,7 +168,7 @@ impl SegmentRangeBucketEntry {
         Ok(IntermediateRangeBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
-            sub_aggregation,
+            sub_aggregation: sub_aggregation_res,
             from: self.from,
             to: self.to,
         })
@@ -174,10 +176,11 @@ impl SegmentRangeBucketEntry {
 }
 
 impl SegmentAggregationCollector for SegmentRangeCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
         let field_type = self.column_type;
         let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
         let sub_agg = &agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
@@ -200,12 +203,9 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
             column_type: Some(self.column_type),
         });
 
-        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket));
 
-        Ok(IntermediateAggregationResults {
-            metrics: None,
-            buckets,
-        })
+        Ok(())
     }
 
     #[inline]

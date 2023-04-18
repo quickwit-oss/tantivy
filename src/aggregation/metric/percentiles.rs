@@ -8,10 +8,10 @@ use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, MetricAggregationWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateMetricResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::{f64_from_fastfield_u64, AggregationError, VecWithNames};
+use crate::aggregation::{f64_from_fastfield_u64, AggregationError};
 use crate::{DocId, TantivyError};
 
 /// # Percentiles
@@ -255,22 +255,20 @@ impl SegmentPercentilesCollector {
 
 impl SegmentAggregationCollector for SegmentPercentilesCollector {
     #[inline]
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
         let name = agg_with_accessor.metrics.keys[self.accessor_idx].to_string();
         let intermediate_metric_result = IntermediateMetricResult::Percentiles(self.percentiles);
 
-        let metrics = Some(VecWithNames::from_entries(vec![(
+        results.push(
             name,
-            intermediate_metric_result,
-        )]));
+            IntermediateAggregationResult::Metric(intermediate_metric_result),
+        );
 
-        Ok(IntermediateAggregationResults {
-            metrics,
-            buckets: None,
-        })
+        Ok(())
     }
 
     #[inline]

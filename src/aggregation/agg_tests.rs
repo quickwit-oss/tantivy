@@ -196,6 +196,74 @@ fn test_aggregation_flushing_variants() {
 }
 
 #[test]
+fn test_aggregation_level1_simple() -> crate::Result<()> {
+    let index = get_test_index_2_segments(true)?;
+
+    let reader = index.reader()?;
+    let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+    let term_query = TermQuery::new(
+        Term::from_field_text(text_field, "cool"),
+        IndexRecordOption::Basic,
+    );
+
+    let range_agg = |field_name: &str| -> Aggregation {
+        serde_json::from_value(json!({
+            "range": {
+                "field": field_name,
+                "ranges": [ { "from": 3.0f64, "to": 7.0f64 }, { "from": 7.0f64, "to": 20.0f64 } ]
+            }
+        }))
+        .unwrap()
+    };
+
+    let agg_req_1: Aggregations = vec![
+        ("average".to_string(), get_avg_req("score")),
+        ("range".to_string(), range_agg("score")),
+    ]
+    .into_iter()
+    .collect();
+
+    let collector = get_collector(agg_req_1);
+
+    let searcher = reader.searcher();
+    let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
+
+    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    assert_eq!(res["average"]["value"], 12.142857142857142);
+    assert_eq!(
+        res["range"]["buckets"],
+        json!(
+        [
+        {
+          "key": "*-3",
+          "doc_count": 1,
+          "to": 3.0
+        },
+        {
+          "key": "3-7",
+          "doc_count": 2,
+          "from": 3.0,
+          "to": 7.0
+        },
+        {
+          "key": "7-20",
+          "doc_count": 3,
+          "from": 7.0,
+          "to": 20.0
+        },
+        {
+          "key": "20-*",
+          "doc_count": 1,
+          "from": 20.0
+        }
+        ])
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_aggregation_level1() -> crate::Result<()> {
     let index = get_test_index_2_segments(true)?;
 

@@ -17,14 +17,14 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use super::VecWithNames;
 use crate::aggregation::agg_req::BucketAggregationType;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults>;
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()>;
 
     fn collect(
         &mut self,
@@ -50,7 +50,8 @@ pub(crate) trait CollectorClone {
 }
 
 impl<T> CollectorClone for T
-where T: 'static + SegmentAggregationCollector + Clone
+where
+    T: 'static + SegmentAggregationCollector + Clone,
 {
     fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
         Box::new(self.clone())
@@ -181,36 +182,23 @@ impl Debug for GenericSegmentAggregationResultsCollector {
 }
 
 impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
-        let buckets = if let Some(buckets) = self.buckets {
-            let mut intermeditate_buckets = VecWithNames::default();
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        if let Some(buckets) = self.buckets {
             for bucket in buckets {
-                // TODO too many allocations?
-                let res = bucket.into_intermediate_aggregations_result(agg_with_accessor)?;
-                // unwrap is fine since we only have buckets here
-                intermeditate_buckets.extend(res.buckets.unwrap());
+                bucket.add_intermediate_aggregation_result(agg_with_accessor, results)?;
             }
-            Some(intermeditate_buckets)
-        } else {
-            None
         };
-        let metrics = if let Some(metrics) = self.metrics {
-            let mut intermeditate_metrics = VecWithNames::default();
+        if let Some(metrics) = self.metrics {
             for metric in metrics {
-                // TODO too many allocations?
-                let res = metric.into_intermediate_aggregations_result(agg_with_accessor)?;
-                // unwrap is fine since we only have metrics here
-                intermeditate_metrics.extend(res.metrics.unwrap());
+                metric.add_intermediate_aggregation_result(agg_with_accessor, results)?;
             }
-            Some(intermeditate_metrics)
-        } else {
-            None
         };
 
-        Ok(IntermediateAggregationResults { metrics, buckets })
+        Ok(())
     }
 
     fn collect(

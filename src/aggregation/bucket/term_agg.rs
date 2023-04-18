@@ -10,13 +10,13 @@ use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateTermBucketEntry,
-    IntermediateTermBucketResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, Key, VecWithNames};
+use crate::aggregation::{f64_from_fastfield_u64, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -246,20 +246,18 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
 }
 
 impl SegmentAggregationCollector for SegmentTermCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
         let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
         let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket));
 
-        Ok(IntermediateAggregationResults {
-            metrics: None,
-            buckets,
-        })
+        Ok(())
     }
 
     #[inline]
@@ -410,21 +408,24 @@ impl SegmentTermCollector {
         let mut into_intermediate_bucket_entry =
             |id, doc_count| -> crate::Result<IntermediateTermBucketEntry> {
                 let intermediate_entry = if self.blueprint.as_ref().is_some() {
+                    let mut sub_aggregation_res = IntermediateAggregationResults::default();
+                    self.term_buckets
+                        .sub_aggs
+                        .remove(&id)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Internal Error: could not find subaggregation for id {}",
+                                id
+                            )
+                        })
+                        .add_intermediate_aggregation_result(
+                            &agg_with_accessor.sub_aggregation,
+                            &mut sub_aggregation_res,
+                        )?;
+
                     IntermediateTermBucketEntry {
                         doc_count,
-                        sub_aggregation: self
-                            .term_buckets
-                            .sub_aggs
-                            .remove(&id)
-                            .unwrap_or_else(|| {
-                                panic!(
-                                    "Internal Error: could not find subaggregation for id {}",
-                                    id
-                                )
-                            })
-                            .into_intermediate_aggregations_result(
-                                &agg_with_accessor.sub_aggregation,
-                            )?,
+                        sub_aggregation: sub_aggregation_res,
                     }
                 } else {
                     IntermediateTermBucketEntry {

@@ -14,12 +14,13 @@ use crate::aggregation::agg_req_with_accessor::{
 };
 use crate::aggregation::agg_result::BucketEntry;
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
+use crate::aggregation::{f64_from_fastfield_u64, format_date};
 use crate::TantivyError;
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -190,11 +191,13 @@ impl SegmentHistogramBucketEntry {
         sub_aggregation: Box<dyn SegmentAggregationCollector>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
+        let mut sub_aggregation_res = IntermediateAggregationResults::default();
+        sub_aggregation
+            .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?;
         Ok(IntermediateHistogramBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
-            sub_aggregation: sub_aggregation
-                .into_intermediate_aggregations_result(agg_with_accessor)?,
+            sub_aggregation: sub_aggregation_res,
         })
     }
 }
@@ -215,20 +218,18 @@ pub struct SegmentHistogramCollector {
 }
 
 impl SegmentAggregationCollector for SegmentHistogramCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
         let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
         let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket));
 
-        Ok(IntermediateAggregationResults {
-            metrics: None,
-            buckets,
-        })
+        Ok(())
     }
 
     #[inline]
@@ -695,7 +696,7 @@ mod tests {
         assert_eq!(
             res.to_string(),
             "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             102.48 KB"
+             59.71 KB"
         );
 
         Ok(())

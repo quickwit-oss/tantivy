@@ -11,8 +11,8 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::agg_req::{
-    Aggregations, AggregationsInternal, BucketAggregationInternal, BucketAggregationType,
-    MetricAggregation,
+    AggregationInternal, Aggregations, AggregationsInternal, BucketAggregationInternal,
+    BucketAggregationType, MetricAggregation,
 };
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
@@ -34,13 +34,14 @@ use crate::TantivyError;
 /// intermediate results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) metrics: Option<VecWithNames<IntermediateMetricResult>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) buckets: Option<VecWithNames<IntermediateBucketResult>>,
+    pub(crate) aggs_res: VecWithNames<IntermediateAggregationResult>,
 }
 
 impl IntermediateAggregationResults {
+    pub fn push(&mut self, key: String, value: IntermediateAggregationResult) {
+        self.aggs_res.push(key, value);
+    }
+
     /// Convert intermediate result and its aggregation request to the final result.
     pub fn into_final_result(
         self,
@@ -69,64 +70,46 @@ impl IntermediateAggregationResults {
         req: &AggregationsInternal,
         limits: &AggregationLimits,
     ) -> crate::Result<AggregationResults> {
-        // Important assumption:
-        // When the tree contains buckets/metric, we expect it to have all buckets/metrics from the
-        // request
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
-
-        if let Some(buckets) = self.buckets {
-            convert_and_add_final_buckets_to_result(&mut results, buckets, &req.buckets, limits)?
-        } else {
-            // When there are no buckets, we create empty buckets, so that the serialized json
-            // format is constant
-            add_empty_final_buckets_to_result(&mut results, &req.buckets, limits)?
-        };
-
-        if let Some(metrics) = self.metrics {
-            convert_and_add_final_metrics_to_result(&mut results, metrics, &req.metrics);
-        } else {
-            // When there are no metrics, we create empty metric results, so that the serialized
-            // json format is constant
-            add_empty_final_metrics_to_result(&mut results, &req.metrics)?;
+        for (key, agg_res) in self.aggs_res.into_iter() {
+            let req = req.aggs.get(key.as_str()).unwrap();
+            results.insert(key, agg_res.into_final_result(req, limits)?);
+        }
+        // Handle empty results
+        if results.len() != req.aggs.len() {
+            for (key, req) in req.aggs.iter() {
+                if !results.contains_key(key) {
+                    let empty_res = match req {
+                        AggregationInternal::Bucket(b) => IntermediateAggregationResult::Bucket(
+                            IntermediateBucketResult::empty_from_req(&b.bucket_agg),
+                        ),
+                        AggregationInternal::Metric(m) => IntermediateAggregationResult::Metric(
+                            IntermediateMetricResult::empty_from_req(m),
+                        ),
+                    };
+                    results.insert(key.to_string(), empty_res.into_final_result(req, limits)?);
+                }
+            }
         }
 
         Ok(AggregationResults(results))
     }
 
     pub(crate) fn empty_from_req(req: &AggregationsInternal) -> Self {
-        let metrics = if req.metrics.is_empty() {
-            None
-        } else {
-            let metrics = req
-                .metrics
-                .iter()
-                .map(|(key, req)| {
-                    (
-                        key.to_string(),
-                        IntermediateMetricResult::empty_from_req(req),
-                    )
-                })
-                .collect();
-            Some(VecWithNames::from_entries(metrics))
-        };
+        let mut aggs_res: VecWithNames<IntermediateAggregationResult> = VecWithNames::default();
+        for (key, req) in req.aggs.iter() {
+            let empty_res = match req {
+                AggregationInternal::Bucket(b) => IntermediateAggregationResult::Bucket(
+                    IntermediateBucketResult::empty_from_req(&b.bucket_agg),
+                ),
+                AggregationInternal::Metric(m) => IntermediateAggregationResult::Metric(
+                    IntermediateMetricResult::empty_from_req(m),
+                ),
+            };
+            aggs_res.push(key.to_string(), empty_res);
+        }
 
-        let buckets = if req.buckets.is_empty() {
-            None
-        } else {
-            let buckets = req
-                .buckets
-                .iter()
-                .map(|(key, req)| {
-                    (
-                        key.to_string(),
-                        IntermediateBucketResult::empty_from_req(&req.bucket_agg),
-                    )
-                })
-                .collect();
-            Some(VecWithNames::from_entries(buckets))
-        };
-
-        Self { metrics, buckets }
+        Self { aggs_res }
     }
 
     /// Merge another intermediate aggregation result into this result.
@@ -134,85 +117,11 @@ impl IntermediateAggregationResults {
     /// The order of the values need to be the same on both results. This is ensured when the same
     /// (key values) are present on the underlying `VecWithNames` struct.
     pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) -> crate::Result<()> {
-        if let (Some(buckets_left), Some(buckets_right)) = (&mut self.buckets, other.buckets) {
-            for (bucket_left, bucket_right) in
-                buckets_left.values_mut().zip(buckets_right.into_values())
-            {
-                bucket_left.merge_fruits(bucket_right)?;
-            }
-        }
-
-        if let (Some(metrics_left), Some(metrics_right)) = (&mut self.metrics, other.metrics) {
-            for (metric_left, metric_right) in
-                metrics_left.values_mut().zip(metrics_right.into_values())
-            {
-                metric_left.merge_fruits(metric_right)?;
-            }
+        for (left, right) in self.aggs_res.values_mut().zip(other.aggs_res.into_values()) {
+            left.merge_fruits(right)?;
         }
         Ok(())
     }
-}
-
-fn convert_and_add_final_metrics_to_result(
-    results: &mut FxHashMap<String, AggregationResult>,
-    metrics: VecWithNames<IntermediateMetricResult>,
-    metrics_req: &VecWithNames<MetricAggregation>,
-) {
-    let metric_result_with_request = metrics.into_iter().zip(metrics_req.values());
-    results.extend(
-        metric_result_with_request
-            .into_iter()
-            .map(|((key, metric), req)| {
-                (
-                    key,
-                    AggregationResult::MetricResult(metric.into_final_metric_result(req)),
-                )
-            }),
-    );
-}
-
-fn add_empty_final_metrics_to_result(
-    results: &mut FxHashMap<String, AggregationResult>,
-    req_metrics: &VecWithNames<MetricAggregation>,
-) -> crate::Result<()> {
-    results.extend(req_metrics.iter().map(|(key, req)| {
-        let empty_bucket = IntermediateMetricResult::empty_from_req(req);
-        (
-            key.to_string(),
-            AggregationResult::MetricResult(empty_bucket.into_final_metric_result(req)),
-        )
-    }));
-    Ok(())
-}
-
-fn add_empty_final_buckets_to_result(
-    results: &mut FxHashMap<String, AggregationResult>,
-    req_buckets: &VecWithNames<BucketAggregationInternal>,
-    limits: &AggregationLimits,
-) -> crate::Result<()> {
-    let requested_buckets = req_buckets.iter();
-    for (key, req) in requested_buckets {
-        let empty_bucket =
-            AggregationResult::BucketResult(BucketResult::empty_from_req(req, limits)?);
-        results.insert(key.to_string(), empty_bucket);
-    }
-    Ok(())
-}
-
-fn convert_and_add_final_buckets_to_result(
-    results: &mut FxHashMap<String, AggregationResult>,
-    buckets: VecWithNames<IntermediateBucketResult>,
-    req_buckets: &VecWithNames<BucketAggregationInternal>,
-    limits: &AggregationLimits,
-) -> crate::Result<()> {
-    assert_eq!(buckets.len(), req_buckets.len());
-
-    let buckets_with_request = buckets.into_iter().zip(req_buckets.values());
-    for ((key, bucket), req) in buckets_with_request {
-        let result = AggregationResult::BucketResult(bucket.into_final_bucket_result(req, limits)?);
-        results.insert(key, result);
-    }
-    Ok(())
 }
 
 /// An aggregation is either a bucket or a metric.
@@ -222,6 +131,44 @@ pub enum IntermediateAggregationResult {
     Bucket(IntermediateBucketResult),
     /// Metric variant
     Metric(IntermediateMetricResult),
+}
+
+impl IntermediateAggregationResult {
+    pub(crate) fn into_final_result(
+        self,
+        req: &AggregationInternal,
+        limits: &AggregationLimits,
+    ) -> crate::Result<AggregationResult> {
+        let res = match self {
+            IntermediateAggregationResult::Bucket(bucket) => AggregationResult::BucketResult(
+                bucket.into_final_bucket_result(
+                    req.as_bucket()
+                        .expect("mismatch bucket result and metric request type"),
+                    limits,
+                )?,
+            ),
+            IntermediateAggregationResult::Metric(metric) => AggregationResult::MetricResult(
+                metric.into_final_metric_result(
+                    req.as_metric()
+                        .expect("mismatch metric result and bucket request type"),
+                ),
+            ),
+        };
+        Ok(res)
+    }
+    fn merge_fruits(&mut self, other: IntermediateAggregationResult) -> crate::Result<()> {
+        match (self, other) {
+            (
+                IntermediateAggregationResult::Bucket(b1),
+                IntermediateAggregationResult::Bucket(b2),
+            ) => b1.merge_fruits(b2),
+            (
+                IntermediateAggregationResult::Metric(m1),
+                IntermediateAggregationResult::Metric(m2),
+            ) => m1.merge_fruits(m2),
+            _ => panic!("aggregation result type mismatch (mixed metric and buckets)"),
+        }
+    }
 }
 
 /// Holds the intermediate data for metric results
@@ -541,7 +488,9 @@ where
 fn deserialize_entries<'de, D>(
     deserializer: D,
 ) -> Result<FxHashMap<Key, IntermediateTermBucketEntry>, D::Error>
-where D: Deserializer<'de> {
+where
+    D: Deserializer<'de>,
+{
     let vec_entries: Vec<(Key, IntermediateTermBucketEntry)> =
         Deserialize::deserialize(deserializer)?;
     Ok(vec_entries.into_iter().collect())
@@ -825,14 +774,15 @@ mod tests {
         }
         map.insert(
             "my_agg_level2".to_string(),
-            IntermediateBucketResult::Range(IntermediateRangeBucketResult {
-                buckets,
-                column_type: None,
-            }),
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
+                IntermediateRangeBucketResult {
+                    buckets,
+                    column_type: None,
+                },
+            )),
         );
         IntermediateAggregationResults {
-            buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
-            metrics: Default::default(),
+            aggs_res: VecWithNames::from_entries(map.into_iter().collect()),
         }
     }
 
@@ -858,14 +808,15 @@ mod tests {
         }
         map.insert(
             "my_agg_level1".to_string(),
-            IntermediateBucketResult::Range(IntermediateRangeBucketResult {
-                buckets,
-                column_type: None,
-            }),
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
+                IntermediateRangeBucketResult {
+                    buckets,
+                    column_type: None,
+                },
+            )),
         );
         IntermediateAggregationResults {
-            buckets: Some(VecWithNames::from_entries(map.into_iter().collect())),
-            metrics: Default::default(),
+            aggs_res: VecWithNames::from_entries(map.into_iter().collect()),
         }
     }
 
