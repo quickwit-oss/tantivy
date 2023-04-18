@@ -28,7 +28,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::bucket::{
@@ -45,76 +44,23 @@ use super::metric::{
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
-/// Like Aggregations, but optimized to work with the aggregation result
-#[derive(Clone, Debug)]
-pub(crate) struct AggregationsInternal {
-    pub(crate) aggs: FxHashMap<String, AggregationInternal>,
-}
-
-impl From<Aggregations> for AggregationsInternal {
-    fn from(aggs: Aggregations) -> Self {
-        let mut aggs_internal = FxHashMap::default();
-        for (key, agg) in aggs {
-            match agg {
-                Aggregation::Bucket(bucket) => {
-                    let sub_aggregation = bucket.get_sub_aggs().clone().into();
-                    aggs_internal.insert(
-                        key,
-                        AggregationInternal::Bucket(Box::new(BucketAggregationInternal {
-                            bucket_agg: bucket.bucket_agg,
-                            sub_aggregation,
-                        })),
-                    );
-                }
-                Aggregation::Metric(metric) => {
-                    aggs_internal.insert(key, AggregationInternal::Metric(metric));
-                }
-            }
-        }
-        Self {
-            aggs: aggs_internal,
-        }
-    }
-}
-
-/// Aggregation request of [`BucketAggregation`] or [`MetricAggregation`].
-///
-/// An aggregation is either a bucket or a metric.
-#[derive(Clone, Debug)]
-pub(crate) enum AggregationInternal {
-    /// Bucket aggregation, see [`BucketAggregation`] for details.
-    Bucket(Box<BucketAggregationInternal>),
-    /// Metric aggregation, see [`MetricAggregation`] for details.
-    Metric(MetricAggregation),
-}
-
-impl AggregationInternal {
-    pub fn as_bucket(&self) -> Option<&Box<BucketAggregationInternal>> {
+impl Aggregation {
+    pub fn as_bucket(&self) -> Option<&Box<BucketAggregation>> {
         match self {
-            AggregationInternal::Bucket(bucket) => Some(bucket),
+            Aggregation::Bucket(bucket) => Some(bucket),
             _ => None,
         }
     }
     pub fn as_metric(&self) -> Option<&MetricAggregation> {
         match self {
-            AggregationInternal::Metric(metric) => Some(metric),
+            Aggregation::Metric(metric) => Some(metric),
             _ => None,
         }
     }
 }
 
-#[derive(Clone, Debug)]
-// Like BucketAggregation, but optimized to work with the result
-pub(crate) struct BucketAggregationInternal {
-    /// Bucket aggregation strategy to group documents.
-    pub bucket_agg: BucketAggregationType,
-    /// The sub_aggregations in the buckets. Each bucket will aggregate on the document set in the
-    /// bucket.
-    sub_aggregation: AggregationsInternal,
-}
-
-impl BucketAggregationInternal {
-    pub(crate) fn sub_aggregation(&self) -> &AggregationsInternal {
+impl BucketAggregation {
+    pub(crate) fn sub_aggregation(&self) -> &Aggregations {
         &self.sub_aggregation
     }
     pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {

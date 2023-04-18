@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
 
 use crate::aggregation::agg_limits::MemoryConsumption;
-use crate::aggregation::agg_req::AggregationsInternal;
+use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationsWithAccessor, BucketAggregationWithAccessor,
 };
@@ -385,7 +385,7 @@ fn get_bucket_key_from_pos(bucket_pos: f64, interval: f64, offset: f64) -> f64 {
 fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &AggregationsInternal,
+    sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
@@ -444,7 +444,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     column_type: Option<ColumnType>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &AggregationsInternal,
+    sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     let mut buckets = if histogram_req.min_doc_count() == 0 {

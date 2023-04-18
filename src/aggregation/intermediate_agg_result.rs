@@ -11,8 +11,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::agg_req::{
-    AggregationInternal, Aggregations, AggregationsInternal, BucketAggregationInternal,
-    BucketAggregationType, MetricAggregation,
+    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
 };
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
@@ -38,6 +37,7 @@ pub struct IntermediateAggregationResults {
 }
 
 impl IntermediateAggregationResults {
+    /// Add a result
     pub fn push(&mut self, key: String, value: IntermediateAggregationResult) {
         self.aggs_res.push(key, value);
     }
@@ -67,23 +67,23 @@ impl IntermediateAggregationResults {
     /// for internal processing, by splitting metric and buckets into separate groups.
     pub(crate) fn into_final_result_internal(
         self,
-        req: &AggregationsInternal,
+        req: &Aggregations,
         limits: &AggregationLimits,
     ) -> crate::Result<AggregationResults> {
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
         for (key, agg_res) in self.aggs_res.into_iter() {
-            let req = req.aggs.get(key.as_str()).unwrap();
+            let req = req.get(key.as_str()).unwrap();
             results.insert(key, agg_res.into_final_result(req, limits)?);
         }
         // Handle empty results
-        if results.len() != req.aggs.len() {
-            for (key, req) in req.aggs.iter() {
+        if results.len() != req.len() {
+            for (key, req) in req.iter() {
                 if !results.contains_key(key) {
                     let empty_res = match req {
-                        AggregationInternal::Bucket(b) => IntermediateAggregationResult::Bucket(
+                        Aggregation::Bucket(b) => IntermediateAggregationResult::Bucket(
                             IntermediateBucketResult::empty_from_req(&b.bucket_agg),
                         ),
-                        AggregationInternal::Metric(m) => IntermediateAggregationResult::Metric(
+                        Aggregation::Metric(m) => IntermediateAggregationResult::Metric(
                             IntermediateMetricResult::empty_from_req(m),
                         ),
                     };
@@ -95,14 +95,14 @@ impl IntermediateAggregationResults {
         Ok(AggregationResults(results))
     }
 
-    pub(crate) fn empty_from_req(req: &AggregationsInternal) -> Self {
+    pub(crate) fn empty_from_req(req: &Aggregations) -> Self {
         let mut aggs_res: VecWithNames<IntermediateAggregationResult> = VecWithNames::default();
-        for (key, req) in req.aggs.iter() {
+        for (key, req) in req.iter() {
             let empty_res = match req {
-                AggregationInternal::Bucket(b) => IntermediateAggregationResult::Bucket(
+                Aggregation::Bucket(b) => IntermediateAggregationResult::Bucket(
                     IntermediateBucketResult::empty_from_req(&b.bucket_agg),
                 ),
-                AggregationInternal::Metric(m) => IntermediateAggregationResult::Metric(
+                Aggregation::Metric(m) => IntermediateAggregationResult::Metric(
                     IntermediateMetricResult::empty_from_req(m),
                 ),
             };
@@ -136,7 +136,7 @@ pub enum IntermediateAggregationResult {
 impl IntermediateAggregationResult {
     pub(crate) fn into_final_result(
         self,
-        req: &AggregationInternal,
+        req: &Aggregation,
         limits: &AggregationLimits,
     ) -> crate::Result<AggregationResult> {
         let res = match self {
@@ -302,7 +302,7 @@ pub enum IntermediateBucketResult {
 impl IntermediateBucketResult {
     pub(crate) fn into_final_bucket_result(
         self,
-        req: &BucketAggregationInternal,
+        req: &BucketAggregation,
         limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         match self {
@@ -488,9 +488,7 @@ where
 fn deserialize_entries<'de, D>(
     deserializer: D,
 ) -> Result<FxHashMap<Key, IntermediateTermBucketEntry>, D::Error>
-where
-    D: Deserializer<'de>,
-{
+where D: Deserializer<'de> {
     let vec_entries: Vec<(Key, IntermediateTermBucketEntry)> =
         Deserialize::deserialize(deserializer)?;
     Ok(vec_entries.into_iter().collect())
@@ -500,7 +498,7 @@ impl IntermediateTermBucketResult {
     pub(crate) fn into_final_result(
         self,
         req: &TermsAggregation,
-        sub_aggregation_req: &AggregationsInternal,
+        sub_aggregation_req: &Aggregations,
         limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
@@ -636,7 +634,7 @@ pub struct IntermediateHistogramBucketEntry {
 impl IntermediateHistogramBucketEntry {
     pub(crate) fn into_final_bucket_entry(
         self,
-        req: &AggregationsInternal,
+        req: &Aggregations,
         limits: &AggregationLimits,
     ) -> crate::Result<BucketEntry> {
         Ok(BucketEntry {
@@ -681,7 +679,7 @@ pub struct IntermediateRangeBucketEntry {
 impl IntermediateRangeBucketEntry {
     pub(crate) fn into_final_bucket_entry(
         self,
-        req: &AggregationsInternal,
+        req: &Aggregations,
         _range_req: &RangeAggregation,
         column_type: Option<ColumnType>,
         limits: &AggregationLimits,
