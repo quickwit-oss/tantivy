@@ -92,6 +92,35 @@ impl AggregationVariants {
             AggregationVariants::Percentiles(per) => per.field_name(),
         }
     }
+
+    pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
+        match &self {
+            AggregationVariants::Range(range) => Some(range),
+            _ => None,
+        }
+    }
+    pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
+        match &self {
+            AggregationVariants::Histogram(histogram) => Ok(Some(histogram.clone())),
+            AggregationVariants::DateHistogram(histogram) => {
+                Ok(Some(histogram.to_histogram_req()?))
+            }
+            _ => Ok(None),
+        }
+    }
+    pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
+        match &self {
+            AggregationVariants::Terms(terms) => Some(terms),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
+        match &self {
+            AggregationVariants::Percentiles(percentile_req) => Some(percentile_req),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]

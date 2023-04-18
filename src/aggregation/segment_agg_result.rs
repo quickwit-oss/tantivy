@@ -6,10 +6,8 @@
 use std::fmt::Debug;
 
 pub(crate) use super::agg_limits::AggregationLimits;
-use super::agg_req::MetricAggregation;
-use super::agg_req_with_accessor::{
-    AggregationsWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
-};
+use super::agg_req::{Aggregation, MetricAggregation};
+use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor};
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
@@ -70,95 +68,111 @@ pub(crate) fn build_segment_agg_collector(
     if req.buckets.is_empty() && req.metrics.len() == 1 {
         let req = &req.metrics.values[0];
         let accessor_idx = 0;
-        return build_metric_segment_agg_collector(req, accessor_idx);
+        return build_single_agg_segment_collector(req, accessor_idx);
     }
 
     // Single bucket special case
     if req.metrics.is_empty() && req.buckets.len() == 1 {
         let req = &req.buckets.values[0];
         let accessor_idx = 0;
-        return build_bucket_segment_agg_collector(req, accessor_idx);
+        return build_single_agg_segment_collector(req, accessor_idx);
     }
 
     let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate(req)?;
     Ok(Box::new(agg))
 }
 
-pub(crate) fn build_metric_segment_agg_collector(
-    req: &MetricAggregationWithAccessor,
+pub(crate) fn build_single_agg_segment_collector(
+    req: &AggregationWithAccessor,
     accessor_idx: usize,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    match &req.metric {
-        MetricAggregation::Average(AverageAggregation { .. }) => {
-            Ok(Box::new(SegmentStatsCollector::from_req(
-                req.field_type,
-                SegmentStatsType::Average,
-                accessor_idx,
-            )))
-        }
-        MetricAggregation::Count(CountAggregation { .. }) => Ok(Box::new(
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Count, accessor_idx),
-        )),
-        MetricAggregation::Max(MaxAggregation { .. }) => Ok(Box::new(
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Max, accessor_idx),
-        )),
-        MetricAggregation::Min(MinAggregation { .. }) => Ok(Box::new(
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Min, accessor_idx),
-        )),
-        MetricAggregation::Stats(StatsAggregation { .. }) => Ok(Box::new(
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Stats, accessor_idx),
-        )),
-        MetricAggregation::Sum(SumAggregation { .. }) => Ok(Box::new(
-            SegmentStatsCollector::from_req(req.field_type, SegmentStatsType::Sum, accessor_idx),
-        )),
-        MetricAggregation::Percentiles(percentiles_req) => Ok(Box::new(
-            SegmentPercentilesCollector::from_req_and_validate(
-                percentiles_req,
-                req.field_type,
-                accessor_idx,
-            )?,
-        )),
-    }
-}
-
-pub(crate) fn build_bucket_segment_agg_collector(
-    req: &BucketAggregationWithAccessor,
-    accessor_idx: usize,
-) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    match &req.bucket_agg {
-        BucketAggregationType::Terms(terms_req) => {
-            Ok(Box::new(SegmentTermCollector::from_req_and_validate(
-                terms_req,
-                &req.sub_aggregation,
-                req.field_type,
-                accessor_idx,
-            )?))
-        }
-        BucketAggregationType::Range(range_req) => {
-            Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
-                range_req,
-                &req.sub_aggregation,
-                &req.limits,
-                req.field_type,
-                accessor_idx,
-            )?))
-        }
-        BucketAggregationType::Histogram(histogram) => {
-            Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-                histogram,
-                &req.sub_aggregation,
-                req.field_type,
-                accessor_idx,
-            )?))
-        }
-        BucketAggregationType::DateHistogram(histogram) => {
-            Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-                &histogram.to_histogram_req()?,
-                &req.sub_aggregation,
-                req.field_type,
-                accessor_idx,
-            )?))
-        }
+    match &req.agg {
+        Aggregation::Bucket(bucket) => match &bucket.bucket_agg {
+            BucketAggregationType::Terms(terms_req) => {
+                Ok(Box::new(SegmentTermCollector::from_req_and_validate(
+                    terms_req,
+                    &req.sub_aggregation,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            }
+            BucketAggregationType::Range(range_req) => {
+                Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
+                    range_req,
+                    &req.sub_aggregation,
+                    &req.limits,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            }
+            BucketAggregationType::Histogram(histogram) => {
+                Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
+                    histogram,
+                    &req.sub_aggregation,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            }
+            BucketAggregationType::DateHistogram(histogram) => {
+                Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
+                    &histogram.to_histogram_req()?,
+                    &req.sub_aggregation,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            }
+        },
+        Aggregation::Metric(metric) => match &metric {
+            MetricAggregation::Average(AverageAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Average,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Count(CountAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Count,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Max(MaxAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Max,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Min(MinAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Min,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Stats(StatsAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Stats,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Sum(SumAggregation { .. }) => {
+                Ok(Box::new(SegmentStatsCollector::from_req(
+                    req.field_type,
+                    SegmentStatsType::Sum,
+                    accessor_idx,
+                )))
+            }
+            MetricAggregation::Percentiles(percentiles_req) => Ok(Box::new(
+                SegmentPercentilesCollector::from_req_and_validate(
+                    percentiles_req,
+                    req.field_type,
+                    accessor_idx,
+                )?,
+            )),
+        },
     }
 }
 
@@ -252,7 +266,7 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                build_bucket_segment_agg_collector(req, accessor_idx)
+                build_single_agg_segment_collector(req, accessor_idx)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
         let metrics = req
@@ -260,7 +274,7 @@ impl GenericSegmentAggregationResultsCollector {
             .iter()
             .enumerate()
             .map(|(accessor_idx, (_key, req))| {
-                build_metric_segment_agg_collector(req, accessor_idx)
+                build_single_agg_segment_collector(req, accessor_idx)
             })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
 

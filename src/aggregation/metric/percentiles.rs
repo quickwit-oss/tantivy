@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationsWithAccessor, MetricAggregationWithAccessor,
+    AggregationWithAccessor, AggregationsWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -240,7 +240,7 @@ impl SegmentPercentilesCollector {
     pub(crate) fn collect_block_with_field(
         &mut self,
         docs: &[DocId],
-        agg_accessor: &mut MetricAggregationWithAccessor,
+        agg_accessor: &mut AggregationWithAccessor,
     ) {
         agg_accessor
             .column_block_accessor
