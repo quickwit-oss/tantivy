@@ -49,34 +49,6 @@
 //! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
 //! `(String, agg_req::Aggregation)` iterator.
 //!
-//! ```
-//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
-//! use tantivy::aggregation::AggregationCollector;
-//! use tantivy::aggregation::metric::AverageAggregation;
-//! use tantivy::query::AllQuery;
-//! use tantivy::aggregation::agg_result::AggregationResults;
-//! use tantivy::IndexReader;
-//!
-//! # #[allow(dead_code)]
-//! fn aggregate_on_index(reader: &IndexReader) {
-//!     let agg_req: Aggregations = vec![
-//!     (
-//!             "average".to_string(),
-//!             Aggregation::Metric(MetricAggregation::Average(
-//!                 AverageAggregation::from_field_name("score".to_string()),
-//!             )),
-//!         ),
-//!     ]
-//!     .into_iter()
-//!     .collect();
-//!
-//!     let collector = AggregationCollector::from_aggs(agg_req, Default::default());
-//!
-//!     let searcher = reader.searcher();
-//!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
-//! }
-//! ```
-//! # Example JSON
 //! Requests are compatible with the elasticsearch JSON request format.
 //!
 //! ```
@@ -116,32 +88,24 @@
 //! aggregation and then calculate the average on each bucket.
 //! ```
 //! use tantivy::aggregation::agg_req::*;
-//! use tantivy::aggregation::metric::AverageAggregation;
-//! use tantivy::aggregation::bucket::RangeAggregation;
-//! let sub_agg_req_1: Aggregations = vec![(
-//!    "average_in_range".to_string(),
-//!         Aggregation::Metric(MetricAggregation::Average(
-//!             AverageAggregation::from_field_name("score".to_string()),
-//!         )),
-//! )]
-//! .into_iter()
-//! .collect();
+//! use serde_json::json;
 //!
-//! let agg_req_1: Aggregations = vec![
-//!     (
-//!         "range".to_string(),
-//!         Aggregation::Bucket(Box::new(BucketAggregation {
-//!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
-//!                 field: "score".to_string(),
-//!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-//!                 keyed: false,
-//!             }),
-//!             sub_aggregation: sub_agg_req_1.clone(),
-//!         })),
-//!     ),
-//! ]
-//! .into_iter()
-//! .collect();
+//! let agg_req_1: Aggregations = serde_json::from_value(json!({
+//!     "rangef64": {
+//!         "range": {
+//!             "field": "score",
+//!             "ranges": [
+//!                 { "from": 3, "to": 7000 },
+//!                 { "from": 7000, "to": 20000 },
+//!                 { "from": 50000, "to": 60000 }
+//!             ]
+//!         },
+//!         "aggs": {
+//!             "average_in_range": { "avg": { "field": "score" } }
+//!         }
+//!     },
+//! }))
+//! .unwrap();
 //! ```
 //!
 //! # Distributed Aggregation
