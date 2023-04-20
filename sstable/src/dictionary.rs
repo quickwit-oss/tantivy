@@ -233,7 +233,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// If the key was not found, returns Ok(None).
     /// After calling this function, it is possible to call `DeltaReader::value` to get the
     /// associated value.
-    fn decode_to_key<K: AsRef<[u8]>>(
+    fn decode_up_to_key<K: AsRef<[u8]>>(
         &self,
         key: K,
         sstable_delta_reader: &mut DeltaReader<TSSTable::ValueReader>,
@@ -289,7 +289,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         let first_ordinal = block_addr.first_ordinal;
         let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
-        self.decode_to_key(key_bytes, &mut sstable_delta_reader)
+        self.decode_up_to_key(key_bytes, &mut sstable_delta_reader)
             .map(|opt| opt.map(|ord| ord + first_ordinal))
     }
 
@@ -358,7 +358,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key: K,
         mut reader: DeltaReader<TSSTable::ValueReader>,
     ) -> io::Result<Option<TSSTable::Value>> {
-        if let Some(_ord) = self.decode_to_key(key, &mut reader)? {
+        if let Some(_ord) = self.decode_up_to_key(key, &mut reader)? {
             Ok(Some(reader.value().clone()))
         } else {
             Ok(None)
