@@ -6,6 +6,7 @@ use super::{Token, TokenStream, Tokenizer};
 #[derive(Clone)]
 pub struct SimpleTokenizer;
 
+/// TokenStream produced by the `SimpleTokenizer`.
 pub struct SimpleTokenStream<'a> {
     text: &'a str,
     chars: CharIndices<'a>,

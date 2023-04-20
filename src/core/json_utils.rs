@@ -201,7 +201,7 @@ fn infer_type_from_str(text: &str) -> TextOrDateTime {
 }
 
 // Tries to infer a JSON type from a string.
-pub(crate) fn convert_to_fast_value_and_get_term(
+pub fn convert_to_fast_value_and_get_term(
     json_term_writer: &mut JsonTermWriter,
     phrase: &str,
 ) -> Option<Term> {
@@ -405,8 +405,7 @@ impl<'a> JsonTermWriter<'a> {
             .append_bytes(value.to_be_bytes().as_slice());
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_str(&mut self, text: &str) {
+    pub fn set_str(&mut self, text: &str) {
         self.close_path_and_set_type(Type::Str);
         self.term_buffer.append_bytes(text.as_bytes());
     }

@@ -30,7 +30,8 @@ where B: AsRef<[u8]>;
 const TERM_METADATA_LENGTH: usize = 5;
 
 impl Term {
-    pub(crate) fn with_capacity(capacity: usize) -> Term {
+    /// Create a new Term with a buffer with a given capacity.
+    pub fn with_capacity(capacity: usize) -> Term {
         let mut data = Vec::with_capacity(TERM_METADATA_LENGTH + capacity);
         data.resize(TERM_METADATA_LENGTH, 0u8);
         Term(data)
