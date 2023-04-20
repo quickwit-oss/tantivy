@@ -61,7 +61,7 @@ impl InvertedIndexReader {
 
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
-        self.termdict.get(term.value_bytes())
+        self.termdict.get(term.serialized_value_bytes())
     }
 
     /// Return the term dictionary datastructure.
@@ -203,7 +203,7 @@ impl InvertedIndexReader {
 #[cfg(feature = "quickwit")]
 impl InvertedIndexReader {
     pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
-        self.termdict.get_async(term.value_bytes()).await
+        self.termdict.get_async(term.serialized_value_bytes()).await
     }
 
     /// Returns a block postings given a `Term`.

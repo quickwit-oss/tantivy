@@ -131,7 +131,8 @@ impl FuzzyTermQuery {
                 LevenshteinAutomatonBuilder::new(self.distance, self.transposition_cost_one)
             });
 
-        let term_text = self.term.as_str().ok_or_else(|| {
+        let term_value = self.term.value();
+        let term_text = term_value.as_str().ok_or_else(|| {
             InvalidArgument("The fuzzy term query requires a string term.".to_string())
         })?;
         let automaton = if self.prefix {

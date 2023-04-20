@@ -5,12 +5,12 @@ use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::term::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Field, Type};
+use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
+use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
-use crate::{DatePrecision, DateTime, DocId, Term};
+use crate::{DateTime, DocId, Term};
 
 /// This object is a map storing the last position for a given path for the current document
 /// being indexed.
@@ -59,7 +59,7 @@ struct IndexingPositionsPerPath {
 impl IndexingPositionsPerPath {
     fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
         self.positions_per_path
-            .entry(murmurhash2(term.as_slice()))
+            .entry(murmurhash2(term.serialized_term()))
             .or_insert_with(Default::default)
     }
 }
@@ -257,6 +257,9 @@ pub(crate) fn set_string_and_get_terms(
     positions_and_terms
 }
 
+/// Writes a value of a JSON field to a `Term`.
+/// The Term format is as follows:
+/// [JSON_TYPE][JSON_PATH][JSON_END_OF_PATH][VALUE_BYTES]
 pub struct JsonTermWriter<'a> {
     term_buffer: &'a mut Term,
     path_stack: Vec<usize>,
@@ -355,27 +358,23 @@ impl<'a> JsonTermWriter<'a> {
 
     pub fn close_path_and_set_type(&mut self, typ: Type) {
         self.trim_to_end_of_path();
-        let buffer = self.term_buffer.value_bytes_mut();
-        let buffer_len = buffer.len();
-        buffer[buffer_len - 1] = JSON_END_OF_PATH;
+        self.term_buffer.set_json_path_end();
         self.term_buffer.append_bytes(&[typ.to_code()]);
     }
 
     pub fn push_path_segment(&mut self, segment: &str) {
         // the path stack should never be empty.
         self.trim_to_end_of_path();
-        let buffer = self.term_buffer.value_bytes_mut();
-        let buffer_len = buffer.len();
 
         if self.path_stack.len() > 1 {
-            buffer[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
+            self.term_buffer.set_json_path_separator();
         }
         let appended_segment = self.term_buffer.append_bytes(segment.as_bytes());
         if self.expand_dots_enabled {
             // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
             replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, appended_segment);
         }
-        self.term_buffer.push_byte(JSON_PATH_SEGMENT_SEP);
+        self.term_buffer.add_json_path_separator();
         self.path_stack.push(self.term_buffer.len_bytes());
     }
 
@@ -389,14 +388,14 @@ impl<'a> JsonTermWriter<'a> {
     #[cfg(test)]
     pub(crate) fn path(&self) -> &[u8] {
         let end_of_path = self.path_stack.last().cloned().unwrap_or(1);
-        &self.term().value_bytes()[..end_of_path - 1]
+        &self.term().serialized_value_bytes()[..end_of_path - 1]
     }
 
     pub(crate) fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.close_path_and_set_type(T::to_type());
         let value = if T::to_type() == Type::Date {
             DateTime::from_u64(val.to_u64())
-                .truncate(DatePrecision::Seconds)
+                .truncate(DATE_TIME_PRECISION_INDEXED)
                 .to_u64()
         } else {
             val.to_u64()
@@ -431,12 +430,12 @@ mod tests {
         json_writer.set_str("red");
         assert_eq!(
             format!("{:?}", json_writer.term()),
-            "Term(type=Json, field=1, path=attributes.color, vtype=Str, \"red\")"
+            "Term(field=1, type=Json, path=attributes.color, type=Str, \"red\")"
         );
         json_writer.set_str("blue");
         assert_eq!(
             format!("{:?}", json_writer.term()),
-            "Term(type=Json, field=1, path=attributes.color, vtype=Str, \"blue\")"
+            "Term(field=1, type=Json, path=attributes.color, type=Str, \"blue\")"
         );
         json_writer.pop_path_segment();
         json_writer.push_path_segment("dimensions");
@@ -444,14 +443,14 @@ mod tests {
         json_writer.set_fast_value(400i64);
         assert_eq!(
             format!("{:?}", json_writer.term()),
-            "Term(type=Json, field=1, path=attributes.dimensions.width, vtype=I64, 400)"
+            "Term(field=1, type=Json, path=attributes.dimensions.width, type=I64, 400)"
         );
         json_writer.pop_path_segment();
         json_writer.push_path_segment("height");
         json_writer.set_fast_value(300i64);
         assert_eq!(
             format!("{:?}", json_writer.term()),
-            "Term(type=Json, field=1, path=attributes.dimensions.height, vtype=I64, 300)"
+            "Term(field=1, type=Json, path=attributes.dimensions.height, type=I64, 300)"
         );
     }
 
@@ -463,7 +462,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00sred"
         )
     }
@@ -476,7 +475,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(-4i64);
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
         )
     }
@@ -489,7 +488,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4u64);
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
         )
     }
@@ -502,7 +501,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(4.0f64);
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
         )
     }
@@ -515,7 +514,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_fast_value(true);
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
         )
     }
@@ -530,7 +529,7 @@ mod tests {
         json_writer.push_path_segment("color");
         json_writer.set_str("red");
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jattribute\x01color\x00sred"
         )
     }
@@ -545,7 +544,7 @@ mod tests {
         json_writer.pop_path_segment();
         json_writer.set_str("red");
         assert_eq!(
-            json_writer.term().as_slice(),
+            json_writer.term().serialized_term(),
             b"\x00\x00\x00\x01jcolor\x00sred"
         )
     }

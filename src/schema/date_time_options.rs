@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
+/// The precision of the indexed date/time values in the inverted index.
+pub const DATE_TIME_PRECISION_INDEXED: DatePrecision = DatePrecision::Seconds;
+
 /// Defines how DateTime field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DateOptions {
@@ -85,7 +88,8 @@ impl DateOptions {
         self
     }
 
-    /// Sets the precision for this DateTime field.
+    /// Sets the precision for this DateTime field on the fast field.
+    /// Indexed precision is always [`DATE_TIME_PRECISION_INDEXED`].
     ///
     /// Internal storage precision, used to optimize storage
     /// compression on fast fields.

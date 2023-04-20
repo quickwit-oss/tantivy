@@ -14,7 +14,7 @@
 //! Fields have to be declared as `FAST` in the schema.
 //! Currently supported fields are: u64, i64, f64, bytes, ip and text.
 //!
-//! Fast fields are stored in with [different codecs](fastfield_codecs). The best codec is detected
+//! Fast fields are stored in with [different codecs](columnar). The best codec is detected
 //! automatically, when serializing.
 //!
 //! Read access performance is comparable to that of an array lookup.
