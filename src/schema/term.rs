@@ -209,7 +209,7 @@ impl Term {
     /// Appends a JSON_PATH_SEGMENT_SEP to the term.
     /// Only used for JSON type.
     #[inline]
-    pub fn add_json_path_seperator(&mut self) {
+    pub fn add_json_path_separator(&mut self) {
         self.0.push(JSON_PATH_SEGMENT_SEP);
     }
     /// Sets the current end to JSON_END_OF_PATH.
@@ -222,7 +222,7 @@ impl Term {
     /// Sets the current end to JSON_PATH_SEGMENT_SEP.
     /// Only used for JSON type.
     #[inline]
-    pub fn set_json_path_seperator(&mut self) {
+    pub fn set_json_path_separator(&mut self) {
         let buffer_len = self.0.len();
         self.0[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
     }

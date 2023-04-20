@@ -367,14 +367,14 @@ impl<'a> JsonTermWriter<'a> {
         self.trim_to_end_of_path();
 
         if self.path_stack.len() > 1 {
-            self.term_buffer.set_json_path_seperator();
+            self.term_buffer.set_json_path_separator();
         }
         let appended_segment = self.term_buffer.append_bytes(segment.as_bytes());
         if self.expand_dots_enabled {
             // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
             replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, appended_segment);
         }
-        self.term_buffer.add_json_path_seperator();
+        self.term_buffer.add_json_path_separator();
         self.path_stack.push(self.term_buffer.len_bytes());
     }
 
