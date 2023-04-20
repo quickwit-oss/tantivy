@@ -6,7 +6,6 @@ use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::term::as_json_path_type_value_bytes;
 use crate::schema::Type;
 use crate::tokenizer::TokenStream;
 use crate::{DocId, Term};
@@ -61,8 +60,8 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (term, addr) in term_addrs {
-            // TODO optimization opportunity here.
-            if let Some((_, typ, _)) = as_json_path_type_value_bytes(term.value_bytes()) {
+            if let Some(json_value) = term.value().as_json_value_bytes() {
+                let typ = json_value.typ();
                 if typ == Type::Str {
                     SpecializedPostingsWriter::<Rec>::serialize_one_term(
                         term,

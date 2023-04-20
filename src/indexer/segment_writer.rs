@@ -12,10 +12,10 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::{FieldEntry, FieldType, Schema, Term, Value};
+use crate::schema::{FieldEntry, FieldType, Schema, Term, Value, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DatePrecision, DocId, Document, Opstamp, SegmentComponent};
+use crate::{DocId, Document, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
 ///
@@ -246,7 +246,8 @@ impl SegmentWriter {
                     for value in values {
                         num_vals += 1;
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
-                        term_buffer.set_u64(date_val.truncate(DatePrecision::Seconds).to_u64());
+                        term_buffer
+                            .set_u64(date_val.truncate(DATE_TIME_PRECISION_INDEXED).to_u64());
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                     if field_entry.has_fieldnorms() {
@@ -551,14 +552,20 @@ mod tests {
         json_term_writer.push_path_segment("bool");
         json_term_writer.set_fast_value(true);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("complexobject");
         json_term_writer.push_path_segment("field.with.dot");
         json_term_writer.set_fast_value(1i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.pop_path_segment();
@@ -567,55 +574,85 @@ mod tests {
             OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
         ));
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("float");
         json_term_writer.set_fast_value(-0.2f64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("my_arr");
         json_term_writer.set_fast_value(2i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.set_fast_value(3i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.set_fast_value(4i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.push_path_segment("my_key");
         json_term_writer.set_str("tokens");
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.set_str("two");
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("signed");
         json_term_writer.set_fast_value(-2i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("toto");
         json_term_writer.set_str("titi");
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
 
         json_term_writer.pop_path_segment();
         json_term_writer.push_path_segment("unsigned");
         json_term_writer.set_fast_value(1i64);
         assert!(term_stream.advance());
-        assert_eq!(term_stream.key(), json_term_writer.term().value_bytes());
+        assert_eq!(
+            term_stream.key(),
+            json_term_writer.term().serialized_value_bytes()
+        );
         assert!(!term_stream.advance());
     }
 

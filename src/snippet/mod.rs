@@ -310,7 +310,8 @@ impl SnippetGenerator {
         });
         let mut terms_text: BTreeMap<String, Score> = Default::default();
         for term in terms {
-            let term_str = if let Some(term_str) = term.as_str() {
+            let term_value = term.value();
+            let term_str = if let Some(term_str) = term_value.as_str() {
                 term_str
             } else {
                 continue;

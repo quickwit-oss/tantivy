@@ -1,5 +1,5 @@
 //! SIMD filtering of a vector as described in the following blog post.
-//! https://quickwit.io/blog/filtering%20a%20vector%20with%20simd%20instructions%20avx-2%20and%20avx-512
+//! <https://quickwit.io/blog/filtering%20a%20vector%20with%20simd%20instructions%20avx-2%20and%20avx-512>
 use std::arch::x86_64::{
     __m256i as DataType, _mm256_add_epi32 as op_add, _mm256_cmpgt_epi32 as op_greater,
     _mm256_lddqu_si256 as load_unaligned, _mm256_or_si256 as op_or, _mm256_set1_epi32 as set1,

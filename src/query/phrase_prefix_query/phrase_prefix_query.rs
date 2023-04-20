@@ -138,14 +138,15 @@ impl Query for PhrasePrefixQuery {
             Ok(Box::new(phrase_weight))
         } else {
             // There are no prefix. Let's just match the suffix.
-            let end_term = if let Some(end_value) = prefix_end(self.prefix.1.value_bytes()) {
-                let mut end_term = Term::with_capacity(end_value.len());
-                end_term.set_field_and_type(self.field, self.prefix.1.typ());
-                end_term.append_bytes(&end_value);
-                Bound::Excluded(end_term)
-            } else {
-                Bound::Unbounded
-            };
+            let end_term =
+                if let Some(end_value) = prefix_end(self.prefix.1.serialized_value_bytes()) {
+                    let mut end_term = Term::with_capacity(end_value.len());
+                    end_term.set_field_and_type(self.field, self.prefix.1.typ());
+                    end_term.append_bytes(&end_value);
+                    Bound::Excluded(end_term)
+                } else {
+                    Bound::Unbounded
+                };
 
             let mut range_query = RangeQuery::new_term_bounds(
                 enable_scoring
