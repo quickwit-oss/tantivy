@@ -66,17 +66,6 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(TSSTable::reader(data))
     }
 
-    pub(crate) async fn sstable_reader_block_async(
-        &self,
-        block_addr: BlockAddr,
-    ) -> io::Result<Reader<TSSTable::ValueReader>> {
-        let data = self
-            .sstable_slice
-            .read_bytes_slice_async(block_addr.byte_range)
-            .await?;
-        Ok(TSSTable::reader(data))
-    }
-
     pub(crate) async fn sstable_delta_reader_for_key_range_async(
         &self,
         key_range: impl RangeBounds<[u8]>,
@@ -102,6 +91,17 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         block_addr: BlockAddr,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
+        Ok(TSSTable::delta_reader(data))
+    }
+
+    pub(crate) async fn sstable_delta_reader_block_async(
+        &self,
+        block_addr: BlockAddr,
+    ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
+        let data = self
+            .sstable_slice
+            .read_bytes_slice_async(block_addr.byte_range)
+            .await?;
         Ok(TSSTable::delta_reader(data))
     }
 
@@ -228,17 +228,19 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         self.num_terms as usize
     }
 
-    /// Returns the ordinal associated with a given term.
-    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
+    /// Decode a DeltaReader up to key, returning the number of terms traversed
+    ///
+    /// If the key was not found, returns Ok(None).
+    /// After calling this function, it is possible to call `DeltaReader::value` to get the
+    /// associated value.
+    fn decode_up_to_key<K: AsRef<[u8]>>(
+        &self,
+        key: K,
+        sstable_delta_reader: &mut DeltaReader<TSSTable::ValueReader>,
+    ) -> io::Result<Option<TermOrdinal>> {
+        let mut term_ord = 0;
         let key_bytes = key.as_ref();
-
-        let Some(block_addr) = self.sstable_index.get_block_with_key(key_bytes) else {
-            return Ok(None);
-        };
-
-        let mut term_ord = block_addr.first_ordinal;
         let mut ok_bytes = 0;
-        let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
         while sstable_delta_reader.advance()? {
             let prefix_len = sstable_delta_reader.common_prefix_len();
             let suffix = sstable_delta_reader.suffix();
@@ -275,6 +277,20 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         }
 
         Ok(None)
+    }
+
+    /// Returns the ordinal associated with a given term.
+    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
+        let key_bytes = key.as_ref();
+
+        let Some(block_addr) = self.sstable_index.get_block_with_key(key_bytes) else {
+            return Ok(None);
+        };
+
+        let first_ordinal = block_addr.first_ordinal;
+        let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
+        self.decode_up_to_key(key_bytes, &mut sstable_delta_reader)
+            .map(|opt| opt.map(|ord| ord + first_ordinal))
     }
 
     /// Returns the term associated with a given term ordinal.
@@ -322,14 +338,8 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
         if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {
-            let mut sstable_reader = self.sstable_reader_block(block_addr)?;
-            let key_bytes = key.as_ref();
-            while sstable_reader.advance()? {
-                if sstable_reader.key() == key_bytes {
-                    let value = sstable_reader.value().clone();
-                    return Ok(Some(value));
-                }
-            }
+            let sstable_reader = self.sstable_delta_reader_block(block_addr)?;
+            return self.do_get(key, sstable_reader);
         }
         Ok(None)
     }
@@ -337,16 +347,22 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Lookups the value corresponding to the key.
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
         if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {
-            let mut sstable_reader = self.sstable_reader_block_async(block_addr).await?;
-            let key_bytes = key.as_ref();
-            while sstable_reader.advance()? {
-                if sstable_reader.key() == key_bytes {
-                    let value = sstable_reader.value().clone();
-                    return Ok(Some(value));
-                }
-            }
+            let sstable_reader = self.sstable_delta_reader_block_async(block_addr).await?;
+            return self.do_get(key, sstable_reader);
         }
         Ok(None)
+    }
+
+    fn do_get<K: AsRef<[u8]>>(
+        &self,
+        key: K,
+        mut reader: DeltaReader<TSSTable::ValueReader>,
+    ) -> io::Result<Option<TSSTable::Value>> {
+        if let Some(_ord) = self.decode_up_to_key(key, &mut reader)? {
+            Ok(Some(reader.value().clone()))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns a range builder, to stream all of the terms

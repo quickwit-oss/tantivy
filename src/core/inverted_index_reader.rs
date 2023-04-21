@@ -213,13 +213,16 @@ impl InvertedIndexReader {
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
         let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
-            self.postings_file_slice
-                .read_bytes_slice_async(term_info.postings_range.clone())
-                .await?;
+            let postings = self
+                .postings_file_slice
+                .read_bytes_slice_async(term_info.postings_range.clone());
             if with_positions {
-                self.positions_file_slice
-                    .read_bytes_slice_async(term_info.positions_range.clone())
-                    .await?;
+                let positions = self
+                    .positions_file_slice
+                    .read_bytes_slice_async(term_info.positions_range.clone());
+                futures::future::try_join(postings, positions).await?;
+            } else {
+                postings.await?;
             }
         }
         Ok(())
