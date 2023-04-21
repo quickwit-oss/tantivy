@@ -1021,3 +1021,6 @@ mod tests {
         assert_eq!(schema.find_field("baz.bar.foo"), None);
     }
 }
+for field in schema.fields():
+    if field.is_stored():
+        create_file_for_field(field)
