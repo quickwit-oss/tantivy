@@ -99,12 +99,14 @@ fn ensure_capacity<'a>(
 }
 
 impl<'a> ExpUnrolledLinkedListWriter<'a> {
+    #[inline]
     pub fn write_u32_vint(&mut self, val: u32) {
         let mut buf = [0u8; 8];
         let data = serialize_vint_u32(val, &mut buf);
         self.extend_from_slice(data);
     }
 
+    #[inline]
     pub fn extend_from_slice(&mut self, mut buf: &[u8]) {
         while !buf.is_empty() {
             let add_len: usize;
