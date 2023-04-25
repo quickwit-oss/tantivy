@@ -268,6 +268,7 @@ where B: AsRef<[u8]>
     ///
     /// Do NOT rely on this byte representation in the index.
     /// This value is likely to change in the future.
+    #[inline]
     pub fn serialized_term(&self) -> &[u8] {
         self.0.as_ref()
     }

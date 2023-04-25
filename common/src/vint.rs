@@ -1,8 +1,6 @@
 use std::io;
 use std::io::{Read, Write};
 
-use byteorder::{ByteOrder, LittleEndian};
-
 use super::BinarySerializable;
 
 /// Variable int serializes a u128 number
@@ -17,26 +15,6 @@ pub fn serialize_vint_u128(mut val: u128, output: &mut Vec<u8>) {
             output.push(next_byte);
         }
     }
-}
-
-/// Deserializes a u128 number
-///
-/// Returns the number and the slice after the vint
-pub fn deserialize_vint_u128(data: &[u8]) -> io::Result<(u128, &[u8])> {
-    let mut result = 0u128;
-    let mut shift = 0u64;
-    for i in 0..19 {
-        let b = data[i];
-        result |= u128::from(b % 128u8) << shift;
-        if b >= STOP_BIT {
-            return Ok((result, &data[i + 1..]));
-        }
-        shift += 7;
-    }
-    Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "Failed to deserialize u128 vint",
-    ))
 }
 
 ///   Wrapper over a `u128` that serializes as a variable int.
@@ -80,16 +58,12 @@ pub struct VInt(pub u64);
 
 const STOP_BIT: u8 = 128;
 
+#[inline]
 pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
     const START_2: u64 = 1 << 7;
     const START_3: u64 = 1 << 14;
     const START_4: u64 = 1 << 21;
     const START_5: u64 = 1 << 28;
-
-    const STOP_1: u64 = START_2 - 1;
-    const STOP_2: u64 = START_3 - 1;
-    const STOP_3: u64 = START_4 - 1;
-    const STOP_4: u64 = START_5 - 1;
 
     const MASK_1: u64 = 127;
     const MASK_2: u64 = MASK_1 << 7;
@@ -99,25 +73,29 @@ pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
 
     let val = u64::from(val);
     const STOP_BIT: u64 = 128u64;
-    let (res, num_bytes) = match val {
-        0..=STOP_1 => (val | STOP_BIT, 1),
-        START_2..=STOP_2 => (
+    let (res, num_bytes) = if val < START_2 {
+        (val | STOP_BIT, 1)
+    } else if val < START_3 {
+        (
             (val & MASK_1) | ((val & MASK_2) << 1) | (STOP_BIT << (8)),
             2,
-        ),
-        START_3..=STOP_3 => (
+        )
+    } else if val < START_4 {
+        (
             (val & MASK_1) | ((val & MASK_2) << 1) | ((val & MASK_3) << 2) | (STOP_BIT << (8 * 2)),
             3,
-        ),
-        START_4..=STOP_4 => (
+        )
+    } else if val < START_5 {
+        (
             (val & MASK_1)
                 | ((val & MASK_2) << 1)
                 | ((val & MASK_3) << 2)
                 | ((val & MASK_4) << 3)
                 | (STOP_BIT << (8 * 3)),
             4,
-        ),
-        _ => (
+        )
+    } else {
+        (
             (val & MASK_1)
                 | ((val & MASK_2) << 1)
                 | ((val & MASK_3) << 2)
@@ -125,9 +103,9 @@ pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
                 | ((val & MASK_5) << 4)
                 | (STOP_BIT << (8 * 4)),
             5,
-        ),
+        )
     };
-    LittleEndian::write_u64(&mut buf[..], res);
+    *buf = res.to_le_bytes();
     &buf[0..num_bytes]
 }
 
@@ -245,7 +223,6 @@ impl BinarySerializable for VInt {
 mod tests {
 
     use super::{serialize_vint_u32, BinarySerializable, VInt};
-    use crate::vint::{deserialize_vint_u128, serialize_vint_u128, VIntU128};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -285,26 +262,6 @@ mod tests {
         let len_vint = VInt(val as u64).serialize_into(&mut buffer);
         let res2 = serialize_vint_u32(val, &mut buffer2);
         assert_eq!(&buffer[..len_vint], res2, "array wrong for {}", val);
-    }
-
-    fn aux_test_vint_u128(val: u128) {
-        let mut data = vec![];
-        serialize_vint_u128(val, &mut data);
-        let (deser_val, _data) = deserialize_vint_u128(&data).unwrap();
-        assert_eq!(val, deser_val);
-
-        let mut out = vec![];
-        VIntU128(val).serialize(&mut out).unwrap();
-        let deser_val = VIntU128::deserialize(&mut &out[..]).unwrap();
-        assert_eq!(val, deser_val.0);
-    }
-
-    #[test]
-    fn test_vint_u128() {
-        aux_test_vint_u128(0);
-        aux_test_vint_u128(1);
-        aux_test_vint_u128(u128::MAX / 3);
-        aux_test_vint_u128(u128::MAX);
     }
 
     #[test]
