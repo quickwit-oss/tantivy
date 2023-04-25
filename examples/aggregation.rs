@@ -7,12 +7,8 @@
 // ---
 
 use serde_json::{Deserializer, Value};
-use tantivy::aggregation::agg_req::{
-    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-};
+use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::agg_result::AggregationResults;
-use tantivy::aggregation::bucket::{RangeAggregation, RangeAggregationRange};
-use tantivy::aggregation::metric::AverageAggregation;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{self, IndexRecordOption, Schema, TextFieldIndexing, FAST};

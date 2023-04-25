@@ -184,6 +184,13 @@ impl SegmentCollector for AggregationSegmentCollector {
             return Err(err);
         }
         self.agg_collector.flush(&mut self.aggs_with_accessor)?;
-        Box::new(self.agg_collector).into_intermediate_aggregations_result(&self.aggs_with_accessor)
+
+        let mut sub_aggregation_res = IntermediateAggregationResults::default();
+        Box::new(self.agg_collector).add_intermediate_aggregation_result(
+            &self.aggs_with_accessor,
+            &mut sub_aggregation_res,
+        )?;
+
+        Ok(sub_aggregation_res)
     }
 }

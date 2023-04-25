@@ -8,18 +8,19 @@ use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
 
 use crate::aggregation::agg_limits::MemoryConsumption;
-use crate::aggregation::agg_req::AggregationsInternal;
+use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationsWithAccessor, BucketAggregationWithAccessor,
+    AggregationWithAccessor, AggregationsWithAccessor,
 };
 use crate::aggregation::agg_result::BucketEntry;
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateHistogramBucketEntry,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date, VecWithNames};
+use crate::aggregation::{f64_from_fastfield_u64, format_date};
 use crate::TantivyError;
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -190,11 +191,13 @@ impl SegmentHistogramBucketEntry {
         sub_aggregation: Box<dyn SegmentAggregationCollector>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
+        let mut sub_aggregation_res = IntermediateAggregationResults::default();
+        sub_aggregation
+            .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?;
         Ok(IntermediateHistogramBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
-            sub_aggregation: sub_aggregation
-                .into_intermediate_aggregations_result(agg_with_accessor)?,
+            sub_aggregation: sub_aggregation_res,
         })
     }
 }
@@ -215,20 +218,18 @@ pub struct SegmentHistogramCollector {
 }
 
 impl SegmentAggregationCollector for SegmentHistogramCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
-        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
-        let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket));
 
-        Ok(IntermediateAggregationResults {
-            metrics: None,
-            buckets,
-        })
+        Ok(())
     }
 
     #[inline]
@@ -246,7 +247,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
+        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
 
         let mem_pre = self.get_memory_consumption();
 
@@ -280,7 +281,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.buckets.values[self.accessor_idx].limits;
+        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
         limits.add_memory_consumed(mem_delta as u64);
         limits.validate_memory_consumption()?;
 
@@ -289,7 +290,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
 
         for sub_aggregation in self.sub_aggregations.values_mut() {
             sub_aggregation.flush(sub_aggregation_accessor)?;
@@ -308,7 +309,7 @@ impl SegmentHistogramCollector {
     }
     pub fn into_intermediate_bucket_result(
         self,
-        agg_with_accessor: &BucketAggregationWithAccessor,
+        agg_with_accessor: &AggregationWithAccessor,
     ) -> crate::Result<IntermediateBucketResult> {
         let mut buckets = Vec::with_capacity(self.buckets.len());
 
@@ -384,7 +385,7 @@ fn get_bucket_key_from_pos(bucket_pos: f64, interval: f64, offset: f64) -> f64 {
 fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &AggregationsInternal,
+    sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
@@ -443,7 +444,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     column_type: Option<ColumnType>,
     histogram_req: &HistogramAggregation,
-    sub_aggregation: &AggregationsInternal,
+    sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     let mut buckets = if histogram_req.min_doc_count() == 0 {
@@ -695,7 +696,7 @@ mod tests {
         assert_eq!(
             res.to_string(),
             "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             102.48 KB"
+             59.71 KB"
         );
 
         Ok(())

@@ -1,7 +1,12 @@
 //! Module for all metric aggregations.
 //!
-//! The aggregations in this family compute metrics, see [super::agg_req::MetricAggregation] for
-//! details.
+//! The aggregations in this family compute metrics based on values extracted
+//! from the documents that are being aggregated. Values are extracted from the fast field of
+//! the document.
+//! Some aggregations output a single numeric metric (e.g. Average) and are called
+//! single-value numeric metrics aggregation, others generate multiple metrics (e.g. Stats) and are
+//! called multi-value numeric metrics aggregation.
+
 mod average;
 mod count;
 mod max;

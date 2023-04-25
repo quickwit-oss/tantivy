@@ -35,11 +35,12 @@ impl BufAggregationCollector {
 
 impl SegmentAggregationCollector for BufAggregationCollector {
     #[inline]
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
-        Box::new(self.collector).into_intermediate_aggregations_result(agg_with_accessor)
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        Box::new(self.collector).add_intermediate_aggregation_result(agg_with_accessor, results)
     }
 
     #[inline]

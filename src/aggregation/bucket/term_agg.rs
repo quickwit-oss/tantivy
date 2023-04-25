@@ -7,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use super::{CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationsWithAccessor, BucketAggregationWithAccessor,
+    AggregationWithAccessor, AggregationsWithAccessor,
 };
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResults, IntermediateBucketResult, IntermediateTermBucketEntry,
-    IntermediateTermBucketResult,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
+    IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, Key, VecWithNames};
+use crate::aggregation::{f64_from_fastfield_u64, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -246,20 +246,18 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
 }
 
 impl SegmentAggregationCollector for SegmentTermCollector {
-    fn into_intermediate_aggregations_result(
+    fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
-    ) -> crate::Result<IntermediateAggregationResults> {
-        let name = agg_with_accessor.buckets.keys[self.accessor_idx].to_string();
-        let agg_with_accessor = &agg_with_accessor.buckets.values[self.accessor_idx];
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        let buckets = Some(VecWithNames::from_entries(vec![(name, bucket)]));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket));
 
-        Ok(IntermediateAggregationResults {
-            metrics: None,
-            buckets,
-        })
+        Ok(())
     }
 
     #[inline]
@@ -277,7 +275,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         docs: &[crate::DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.buckets.values[self.accessor_idx];
+        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
 
         let mem_pre = self.get_memory_consumption();
 
@@ -301,7 +299,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.buckets.values[self.accessor_idx].limits;
+        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
         limits.add_memory_consumed(mem_delta as u64);
         limits.validate_memory_consumption()?;
 
@@ -310,7 +308,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         let sub_aggregation_accessor =
-            &mut agg_with_accessor.buckets.values[self.accessor_idx].sub_aggregation;
+            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
 
         self.term_buckets.force_flush(sub_aggregation_accessor)?;
         Ok(())
@@ -337,7 +335,7 @@ impl SegmentTermCollector {
             if let OrderTarget::SubAggregation(sub_agg_name) = &custom_order.target {
                 let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
 
-                sub_aggregations.metrics.get(agg_name).ok_or_else(|| {
+                sub_aggregations.aggs.get(agg_name).ok_or_else(|| {
                     TantivyError::InvalidArgument(format!(
                         "could not find aggregation with name {} in metric sub_aggregations",
                         agg_name
@@ -366,7 +364,7 @@ impl SegmentTermCollector {
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
         mut self,
-        agg_with_accessor: &BucketAggregationWithAccessor,
+        agg_with_accessor: &AggregationWithAccessor,
     ) -> crate::Result<IntermediateBucketResult> {
         let mut entries: Vec<(u64, u64)> = self.term_buckets.entries.into_iter().collect();
 
@@ -410,21 +408,24 @@ impl SegmentTermCollector {
         let mut into_intermediate_bucket_entry =
             |id, doc_count| -> crate::Result<IntermediateTermBucketEntry> {
                 let intermediate_entry = if self.blueprint.as_ref().is_some() {
+                    let mut sub_aggregation_res = IntermediateAggregationResults::default();
+                    self.term_buckets
+                        .sub_aggs
+                        .remove(&id)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Internal Error: could not find subaggregation for id {}",
+                                id
+                            )
+                        })
+                        .add_intermediate_aggregation_result(
+                            &agg_with_accessor.sub_aggregation,
+                            &mut sub_aggregation_res,
+                        )?;
+
                     IntermediateTermBucketEntry {
                         doc_count,
-                        sub_aggregation: self
-                            .term_buckets
-                            .sub_aggs
-                            .remove(&id)
-                            .unwrap_or_else(|| {
-                                panic!(
-                                    "Internal Error: could not find subaggregation for id {}",
-                                    id
-                                )
-                            })
-                            .into_intermediate_aggregations_result(
-                                &agg_with_accessor.sub_aggregation,
-                            )?,
+                        sub_aggregation: sub_aggregation_res,
                     }
                 } else {
                     IntermediateTermBucketEntry {
@@ -522,8 +523,7 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 
 #[cfg(test)]
 mod tests {
-    use crate::aggregation::agg_req::{Aggregation, Aggregations, MetricAggregation};
-    use crate::aggregation::metric::{AverageAggregation, StatsAggregation};
+    use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
@@ -637,23 +637,6 @@ mod tests {
             vec![(5.0, "terma".to_string())],
         ];
         let index = get_test_index_from_values_and_terms(merge_segments, &segment_and_terms)?;
-
-        let _sub_agg: Aggregations = vec![
-            (
-                "avg_score".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score".to_string()),
-                )),
-            ),
-            (
-                "stats_score".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
-                    "score".to_string(),
-                ))),
-            ),
-        ]
-        .into_iter()
-        .collect();
 
         let sub_agg: Aggregations = serde_json::from_value(json!({
             "avg_score": {
