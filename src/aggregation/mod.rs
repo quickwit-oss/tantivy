@@ -24,6 +24,10 @@
 //! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
+//! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
+//! See compatibility tests here: https://github.com/PSeitz/test_serde_formats
+//! TLDR: use ciborium.
+//!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
 //! let collector = AggregationCollector::from_aggs(agg_req, None);
@@ -150,6 +154,8 @@ pub(crate) use date::format_date;
 pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+
+use self::intermediate_agg_result::IntermediateKey;
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

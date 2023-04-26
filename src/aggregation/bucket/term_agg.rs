@@ -9,14 +9,14 @@ use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor,
 };
+use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
-    IntermediateTermBucketEntry, IntermediateTermBucketResult,
+    IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -29,10 +29,6 @@ use crate::TantivyError;
 /// ## Prerequisite
 /// Term aggregations work only on [fast fields](`crate::fastfield`) of type `u64`, `f64`, `i64` and
 /// text.
-///
-/// ### Terminology
-/// Shard parameters are supposed to be equivalent to elasticsearch shard parameter.
-/// Since they are
 ///
 /// ## Document count error
 /// To improve performance, results from one segment are cut off at `segment_size`. On a index with
@@ -402,7 +398,7 @@ impl SegmentTermCollector {
             cut_off_buckets(&mut entries, self.req.segment_size as usize)
         };
 
-        let mut dict: FxHashMap<Key, IntermediateTermBucketEntry> = Default::default();
+        let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
 
         let mut into_intermediate_bucket_entry =
@@ -453,7 +449,7 @@ impl SegmentTermCollector {
 
                 let intermediate_entry = into_intermediate_bucket_entry(term_id, doc_count)?;
 
-                dict.insert(Key::Str(buffer.to_string()), intermediate_entry);
+                dict.insert(IntermediateKey::Str(buffer.to_string()), intermediate_entry);
             }
             if self.req.min_doc_count == 0 {
                 // TODO: Handle rev streaming for descending sorting by keys
@@ -463,7 +459,7 @@ impl SegmentTermCollector {
                         break;
                     }
 
-                    let key = Key::Str(
+                    let key = IntermediateKey::Str(
                         std::str::from_utf8(key)
                             .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?
                             .to_string(),
@@ -475,7 +471,7 @@ impl SegmentTermCollector {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
                 let val = f64_from_fastfield_u64(val, &self.field_type);
-                dict.insert(Key::F64(val), intermediate_entry);
+                dict.insert(IntermediateKey::F64(val), intermediate_entry);
             }
         };
 
