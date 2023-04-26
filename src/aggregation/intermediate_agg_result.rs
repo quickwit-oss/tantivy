@@ -38,6 +38,8 @@ pub struct IntermediateAggregationResults {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
 /// The key to identify a bucket.
+/// This might seem redundant with `Key`, but the point is to have a different
+/// Serialize implementation.
 pub enum IntermediateKey {
     /// String key
     Str(String),
