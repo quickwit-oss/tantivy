@@ -54,6 +54,14 @@ impl From<Key> for IntermediateKey {
         }
     }
 }
+impl From<IntermediateKey> for Key {
+    fn from(value: IntermediateKey) -> Self {
+        match value {
+            IntermediateKey::Str(s) => Self::Str(s),
+            IntermediateKey::F64(f) => Self::F64(f),
+        }
+    }
+}
 
 impl Eq for IntermediateKey {}
 

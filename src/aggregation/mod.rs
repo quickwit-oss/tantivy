@@ -245,14 +245,6 @@ pub enum Key {
     /// `f64` key
     F64(f64),
 }
-impl From<IntermediateKey> for Key {
-    fn from(value: IntermediateKey) -> Self {
-        match value {
-            IntermediateKey::Str(s) => Self::Str(s),
-            IntermediateKey::F64(f) => Self::F64(f),
-        }
-    }
-}
 impl Eq for Key {}
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
