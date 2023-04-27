@@ -27,7 +27,7 @@ pub struct StatsCollector {
     // This is the same as computing the difference between the values and the first value.
     //
     // This way, we can compress i64-converted-to-u64 (e.g. timestamp that were supplied in
-    // seconds, only to be converted in microseconds).
+    // seconds, only to be converted in nanoseconds).
     increment_gcd_opt: Option<(NonZeroU64, DividerU64)>,
     first_value_opt: Option<u64>,
 }

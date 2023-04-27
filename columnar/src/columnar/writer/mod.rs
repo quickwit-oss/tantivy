@@ -266,7 +266,7 @@ impl ColumnarWriter {
             let mut column: ColumnWriter = column_opt.unwrap_or_default();
             column.record(
                 doc,
-                NumericalValue::I64(datetime.into_timestamp_micros()),
+                NumericalValue::I64(datetime.into_timestamp_nanos()),
                 arena,
             );
             column

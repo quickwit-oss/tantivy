@@ -1025,8 +1025,8 @@ pub mod tests {
         let dt = DateTime::from_utc(now).into_utc();
         assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
         assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
-        // We don't store nanosecond level precision.
-        assert_eq!(dt.nanosecond(), now.microsecond() * 1000);
+        // We store nanosecond level precision.
+        assert_eq!(dt.nanosecond(), now.nanosecond());
 
         let dt = DateTime::from_timestamp_secs(now.unix_timestamp()).into_utc();
         assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
@@ -1040,7 +1040,7 @@ pub mod tests {
         assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
 
         let dt_from_ts_nanos =
-            OffsetDateTime::from_unix_timestamp_nanos(18446744073709551615i128).unwrap();
+            OffsetDateTime::from_unix_timestamp_nanos(1492432621123456789).unwrap();
         let offset_dt = DateTime::from_utc(dt_from_ts_nanos).into_utc();
         assert_eq!(
             dt_from_ts_nanos.to_ordinal_date(),
