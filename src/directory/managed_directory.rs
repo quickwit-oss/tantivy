@@ -53,7 +53,6 @@ fn save_managed_paths(
     directory: &dyn Directory,
     wlock: &RwLockWriteGuard<'_, MetaInformation>,
 ) -> io::Result<()> {
-    dbg!(&wlock.managed_paths);
     let mut w = serde_json::to_vec(&wlock.managed_paths)?;
     writeln!(&mut w)?;
     directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
