@@ -155,8 +155,6 @@ pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use self::intermediate_agg_result::IntermediateKey;
-
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct VecWithNames<T: Clone> {

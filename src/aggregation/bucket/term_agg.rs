@@ -202,7 +202,7 @@ impl TermsAggregationInternal {
 #[derive(Clone, Debug, Default)]
 /// Container to store term_ids/or u64 values and their buckets.
 struct TermBuckets {
-    pub(crate) entries: FxHashMap<u64, u64>,
+    pub(crate) entries: FxHashMap<u64, u32>,
     pub(crate) sub_aggs: FxHashMap<u64, Box<dyn SegmentAggregationCollector>>,
 }
 
@@ -362,7 +362,7 @@ impl SegmentTermCollector {
         mut self,
         agg_with_accessor: &AggregationWithAccessor,
     ) -> crate::Result<IntermediateBucketResult> {
-        let mut entries: Vec<(u64, u64)> = self.term_buckets.entries.into_iter().collect();
+        let mut entries: Vec<(u64, u32)> = self.term_buckets.entries.into_iter().collect();
 
         let order_by_sub_aggregation =
             matches!(self.req.order.target, OrderTarget::SubAggregation(_));
@@ -488,14 +488,14 @@ impl SegmentTermCollector {
 pub(crate) trait GetDocCount {
     fn doc_count(&self) -> u64;
 }
-impl GetDocCount for (u64, u64) {
+impl GetDocCount for (u64, u32) {
     fn doc_count(&self) -> u64 {
-        self.1
+        self.1 as u64
     }
 }
 impl GetDocCount for (String, IntermediateTermBucketEntry) {
     fn doc_count(&self) -> u64 {
-        self.1.doc_count
+        self.1.doc_count as u64
     }
 }
 
