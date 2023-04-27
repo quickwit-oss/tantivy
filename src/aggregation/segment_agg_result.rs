@@ -64,7 +64,7 @@ pub(crate) fn build_segment_agg_collector(
     req: &AggregationsWithAccessor,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Single collector special case
-    if req.aggs.is_empty() && req.aggs.len() == 1 {
+    if req.aggs.len() == 1 {
         let req = &req.aggs.values[0];
         let accessor_idx = 0;
         return build_single_agg_segment_collector(req, accessor_idx);
