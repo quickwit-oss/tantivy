@@ -508,12 +508,12 @@ impl IntermediateTermBucketResult {
         let mut buckets: Vec<BucketEntry> = self
             .entries
             .into_iter()
-            .filter(|bucket| bucket.1.doc_count >= req.min_doc_count)
+            .filter(|bucket| bucket.1.doc_count as u64 >= req.min_doc_count)
             .map(|(key, entry)| {
                 Ok(BucketEntry {
                     key_as_string: None,
                     key: key.into(),
-                    doc_count: entry.doc_count,
+                    doc_count: entry.doc_count as u64,
                     sub_aggregation: entry
                         .sub_aggregation
                         .into_final_result_internal(sub_aggregation_req, limits)?,
@@ -703,7 +703,7 @@ impl IntermediateRangeBucketEntry {
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateTermBucketEntry {
     /// The number of documents in the bucket.
-    pub doc_count: u64,
+    pub doc_count: u32,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
 }
