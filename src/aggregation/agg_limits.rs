@@ -16,7 +16,7 @@ pub trait MemoryConsumption {
 impl<K, V, S> MemoryConsumption for HashMap<K, V, S> {
     fn memory_consumption(&self) -> usize {
         let capacity = self.capacity();
-        (std::mem::size_of::<K>() + std::mem::size_of::<V>()) * capacity
+        (std::mem::size_of::<K>() + std::mem::size_of::<V>() + 1) * capacity
     }
 }
 
