@@ -7,8 +7,10 @@ extern crate more_asserts;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
+use std::fmt::Display;
 use std::io;
 
+mod block_accessor;
 mod column;
 mod column_index;
 pub mod column_values;
@@ -19,9 +21,12 @@ mod iterable;
 pub(crate) mod utils;
 mod value;
 
+pub use block_accessor::ColumnBlockAccessor;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
-pub use column_values::{ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+pub use column_values::{
+    ColumnValues, EmptyColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+};
 pub use columnar::{
     merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder,
@@ -34,7 +39,7 @@ pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
 pub type RowId = u32;
 pub type DocId = u32;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct RowAddr {
     pub segment_ord: u32,
     pub row_id: RowId,
@@ -71,6 +76,17 @@ pub enum Cardinality {
     Multivalued = 2,
 }
 
+impl Display for Cardinality {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let short_str = match self {
+            Cardinality::Full => "full",
+            Cardinality::Optional => "opt",
+            Cardinality::Multivalued => "mult",
+        };
+        write!(f, "{short_str}")
+    }
+}
+
 impl Cardinality {
     pub fn is_optional(&self) -> bool {
         matches!(self, Cardinality::Optional)
@@ -81,7 +97,6 @@ impl Cardinality {
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }
-
     pub(crate) fn try_from_code(code: u8) -> Result<Cardinality, InvalidData> {
         match code {
             0 => Ok(Cardinality::Full),

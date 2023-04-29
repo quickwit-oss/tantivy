@@ -13,3 +13,5 @@ benchmark
 .idea
 trace.dat
 cargo-timing*
+control
+variable

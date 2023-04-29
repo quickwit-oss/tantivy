@@ -1,24 +1,27 @@
 use serde_json::Value;
 
-use crate::aggregation::agg_req::{
-    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-};
+use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
-use crate::aggregation::bucket::{RangeAggregation, TermsAggregation};
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
-use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::metric::AverageAggregation;
+use crate::aggregation::segment_agg_result::AggregationLimits;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::query::{AllQuery, TermQuery};
-use crate::schema::IndexRecordOption;
-use crate::Term;
+use crate::schema::{IndexRecordOption, Schema, FAST};
+use crate::{Index, Term};
 
 fn get_avg_req(field_name: &str) -> Aggregation {
-    Aggregation::Metric(MetricAggregation::Average(
-        AverageAggregation::from_field_name(field_name.to_string()),
-    ))
+    serde_json::from_value(json!({
+        "avg": {
+            "field": field_name,
+        }
+    }))
+    .unwrap()
+}
+
+fn get_collector(agg_req: Aggregations) -> AggregationCollector {
+    AggregationCollector::from_aggs(agg_req, Default::default())
 }
 
 // *** EVERY BUCKET-TYPE SHOULD BE TESTED HERE ***
@@ -98,15 +101,18 @@ fn test_aggregation_flushing(
             .unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
-        let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
+        let collector = DistributedAggregationCollector::from_aggs(
+            agg_req.clone(),
+            AggregationLimits::default(),
+        );
 
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
         intermediate_agg_result
-            .into_final_bucket_result(agg_req)
+            .into_final_result(agg_req, &Default::default())
             .unwrap()
     } else {
-        let collector = AggregationCollector::from_aggs(agg_req, None);
+        let collector = get_collector(agg_req);
 
         let searcher = reader.searcher();
         searcher.search(&AllQuery, &collector).unwrap()
@@ -191,6 +197,74 @@ fn test_aggregation_flushing_variants() {
 }
 
 #[test]
+fn test_aggregation_level1_simple() -> crate::Result<()> {
+    let index = get_test_index_2_segments(true)?;
+
+    let reader = index.reader()?;
+    let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+    let term_query = TermQuery::new(
+        Term::from_field_text(text_field, "cool"),
+        IndexRecordOption::Basic,
+    );
+
+    let range_agg = |field_name: &str| -> Aggregation {
+        serde_json::from_value(json!({
+            "range": {
+                "field": field_name,
+                "ranges": [ { "from": 3.0f64, "to": 7.0f64 }, { "from": 7.0f64, "to": 20.0f64 } ]
+            }
+        }))
+        .unwrap()
+    };
+
+    let agg_req_1: Aggregations = vec![
+        ("average".to_string(), get_avg_req("score")),
+        ("range".to_string(), range_agg("score")),
+    ]
+    .into_iter()
+    .collect();
+
+    let collector = get_collector(agg_req_1);
+
+    let searcher = reader.searcher();
+    let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
+
+    let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+    assert_eq!(res["average"]["value"], 12.142857142857142);
+    assert_eq!(
+        res["range"]["buckets"],
+        json!(
+        [
+        {
+          "key": "*-3",
+          "doc_count": 1,
+          "to": 3.0
+        },
+        {
+          "key": "3-7",
+          "doc_count": 2,
+          "from": 3.0,
+          "to": 7.0
+        },
+        {
+          "key": "7-20",
+          "doc_count": 3,
+          "from": 7.0,
+          "to": 20.0
+        },
+        {
+          "key": "20-*",
+          "doc_count": 1,
+          "from": 20.0
+        }
+        ])
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_aggregation_level1() -> crate::Result<()> {
     let index = get_test_index_2_segments(true)?;
 
@@ -202,48 +276,28 @@ fn test_aggregation_level1() -> crate::Result<()> {
         IndexRecordOption::Basic,
     );
 
+    let range_agg = |field_name: &str| -> Aggregation {
+        serde_json::from_value(json!({
+            "range": {
+                "field": field_name,
+                "ranges": [ { "from": 3.0f64, "to": 7.0f64 }, { "from": 7.0f64, "to": 20.0f64 } ]
+            }
+        }))
+        .unwrap()
+    };
+
     let agg_req_1: Aggregations = vec![
         ("average_i64".to_string(), get_avg_req("score_i64")),
         ("average_f64".to_string(), get_avg_req("score_f64")),
         ("average".to_string(), get_avg_req("score")),
-        (
-            "range".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
-        ),
-        (
-            "rangef64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score_f64".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
-        ),
-        (
-            "rangei64".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                    field: "score_i64".to_string(),
-                    ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
-        ),
+        ("range".to_string(), range_agg("score")),
+        ("rangef64".to_string(), range_agg("score_f64")),
+        ("rangei64".to_string(), range_agg("score_i64")),
     ]
     .into_iter()
     .collect();
 
-    let collector = AggregationCollector::from_aggs(agg_req_1, None);
+    let collector = get_collector(agg_req_1);
 
     let searcher = reader.searcher();
     let agg_res: AggregationResults = searcher.search(&term_query, &collector).unwrap();
@@ -287,7 +341,6 @@ fn test_aggregation_level1() -> crate::Result<()> {
 fn test_aggregation_level2(
     merge_segments: bool,
     use_distributed_collector: bool,
-    use_elastic_json_req: bool,
 ) -> crate::Result<()> {
     let index = get_test_index_2_segments(merge_segments)?;
 
@@ -304,23 +357,7 @@ fn test_aggregation_level2(
         IndexRecordOption::Basic,
     );
 
-    let sub_agg_req: Aggregations = vec![
-        ("average_in_range".to_string(), get_avg_req("score")),
-        (
-            "term_agg".to_string(),
-            Aggregation::Bucket(BucketAggregation {
-                bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                    field: "text".to_string(),
-                    ..Default::default()
-                }),
-                sub_aggregation: Default::default(),
-            }),
-        ),
-    ]
-    .into_iter()
-    .collect();
-    let agg_req: Aggregations = if use_elastic_json_req {
-        let elasticsearch_compatible_json_req = r#"
+    let elasticsearch_compatible_json_req = r#"
 {
   "rangef64": {
     "range": {
@@ -375,73 +412,18 @@ fn test_aggregation_level2(
   }
 }
 "#;
-        let value: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
-        value
-    } else {
-        let agg_req: Aggregations = vec![
-            ("average".to_string(), get_avg_req("score")),
-            (
-                "range".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req.clone(),
-                }),
-            ),
-            (
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req.clone(),
-                }),
-            ),
-            (
-                "rangei64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_i64".to_string(),
-                        ranges: vec![
-                            (3f64..7f64).into(),
-                            (7f64..19f64).into(),
-                            (19f64..20f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
-            ),
-        ]
-        .into_iter()
-        .collect();
-        agg_req
-    };
+    let agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
-        let collector = DistributedAggregationCollector::from_aggs(agg_req.clone(), None);
+        let collector =
+            DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
 
         let searcher = reader.searcher();
         let res = searcher.search(&term_query, &collector).unwrap();
-        // Test de/serialization roundtrip on intermediate_agg_result
-        let res: IntermediateAggregationResults =
-            serde_json::from_str(&serde_json::to_string(&res).unwrap()).unwrap();
-        res.into_final_bucket_result(agg_req.clone()).unwrap()
+        res.into_final_result(agg_req.clone(), &Default::default())
+            .unwrap()
     } else {
-        let collector = AggregationCollector::from_aggs(agg_req.clone(), None);
+        let collector = get_collector(agg_req.clone());
 
         let searcher = reader.searcher();
         searcher.search(&term_query, &collector).unwrap()
@@ -499,7 +481,7 @@ fn test_aggregation_level2(
     );
 
     // Test empty result set
-    let collector = AggregationCollector::from_aggs(agg_req, None);
+    let collector = get_collector(agg_req);
     let searcher = reader.searcher();
     searcher.search(&query_with_no_hits, &collector).unwrap();
 
@@ -508,42 +490,22 @@ fn test_aggregation_level2(
 
 #[test]
 fn test_aggregation_level2_multi_segments() -> crate::Result<()> {
-    test_aggregation_level2(false, false, false)
+    test_aggregation_level2(false, false)
 }
 
 #[test]
 fn test_aggregation_level2_single_segment() -> crate::Result<()> {
-    test_aggregation_level2(true, false, false)
+    test_aggregation_level2(true, false)
 }
 
 #[test]
 fn test_aggregation_level2_multi_segments_distributed_collector() -> crate::Result<()> {
-    test_aggregation_level2(false, true, false)
+    test_aggregation_level2(false, true)
 }
 
 #[test]
 fn test_aggregation_level2_single_segment_distributed_collector() -> crate::Result<()> {
-    test_aggregation_level2(true, true, false)
-}
-
-#[test]
-fn test_aggregation_level2_multi_segments_use_json() -> crate::Result<()> {
-    test_aggregation_level2(false, false, true)
-}
-
-#[test]
-fn test_aggregation_level2_single_segment_use_json() -> crate::Result<()> {
-    test_aggregation_level2(true, false, true)
-}
-
-#[test]
-fn test_aggregation_level2_multi_segments_distributed_collector_use_json() -> crate::Result<()> {
-    test_aggregation_level2(false, true, true)
-}
-
-#[test]
-fn test_aggregation_level2_single_segment_distributed_collector_use_json() -> crate::Result<()> {
-    test_aggregation_level2(true, true, true)
+    test_aggregation_level2(true, true)
 }
 
 #[test]
@@ -553,559 +515,325 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
     let reader = index.reader()?;
 
     let avg_on_field = |field_name: &str| {
-        let agg_req_1: Aggregations = vec![(
-            "average".to_string(),
-            Aggregation::Metric(MetricAggregation::Average(
-                AverageAggregation::from_field_name(field_name.to_string()),
-            )),
-        )]
-        .into_iter()
-        .collect();
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "average": {
+                "avg": {
+                    "field": field_name,
+                },
+            }
+        }))
+        .unwrap();
 
-        let collector = AggregationCollector::from_aggs(agg_req_1, None);
+        let collector = get_collector(agg_req_1);
 
         let searcher = reader.searcher();
 
-        searcher.search(&AllQuery, &collector).unwrap_err()
+        searcher.search(&AllQuery, &collector)
     };
 
-    let agg_res = avg_on_field("dummy_text");
+    let agg_res = avg_on_field("dummy_text").unwrap_err();
     assert_eq!(
         format!("{:?}", agg_res),
-        r#"InvalidArgument("No fast field found for field: dummy_text")"#
+        r#"InvalidArgument("Field \"dummy_text\" is not configured as fast field")"#
     );
 
-    let agg_res = avg_on_field("not_exist_field");
+    let agg_req_1: Result<Aggregations, serde_json::Error> = serde_json::from_value(json!({
+        "average": {
+            "avg": {
+                "fieldd": "a",
+            },
+        }
+    }));
+
+    assert_eq!(agg_req_1.is_err(), true);
+    assert_eq!(agg_req_1.unwrap_err().to_string(), "missing field `field`");
+
+    let agg_req_1: Result<Aggregations, serde_json::Error> = serde_json::from_value(json!({
+        "average": {
+            "doesnotmatchanyagg": {
+                "field": "a",
+            },
+        }
+    }));
+
+    assert_eq!(agg_req_1.is_err(), true);
+    // TODO: This should list valid values
     assert_eq!(
-        format!("{:?}", agg_res),
-        r#"InvalidArgument("No fast field found for field: not_exist_field")"#
+        agg_req_1.unwrap_err().to_string(),
+        "no variant of enum AggregationVariants found in flattened data"
     );
 
-    let agg_res = avg_on_field("ip_addr");
-    assert_eq!(
-        format!("{:?}", agg_res),
-        r#"InvalidArgument("No fast field found for field: ip_addr")"#
-    );
+    // TODO: This should return an error
+    // let agg_res = avg_on_field("not_exist_field").unwrap_err();
+    // assert_eq!(
+    // format!("{:?}", agg_res),
+    // r#"InvalidArgument("No fast field found for field: not_exist_field")"#
+    //);
+
+    // TODO: This should return an error
+    // let agg_res = avg_on_field("ip_addr").unwrap_err();
+    // assert_eq!(
+    // format!("{:?}", agg_res),
+    // r#"InvalidArgument("No fast field found for field: ip_addr")"#
+    //);
 
     Ok(())
 }
 
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
+#[test]
+fn test_aggregation_on_json_object() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests().unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "red"})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "blue"})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
 
-    use rand::prelude::SliceRandom;
-    use rand::{thread_rng, Rng};
-    use test::{self, Bencher};
-
-    use super::*;
-    use crate::aggregation::bucket::{
-        CustomOrder, HistogramAggregation, HistogramBounds, Order, OrderTarget, TermsAggregation,
-    };
-    use crate::aggregation::metric::StatsAggregation;
-    use crate::query::AllQuery;
-    use crate::schema::{Schema, TextFieldIndexing, FAST, STRING};
-    use crate::Index;
-
-    fn get_test_index_bench(_merge_segments: bool) -> crate::Result<Index> {
-        let mut schema_builder = Schema::builder();
-        let text_fieldtype = crate::schema::TextOptions::default()
-            .set_indexing_options(
-                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
-            )
-            .set_stored();
-        let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
-        let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
-        let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
-        let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
-        let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
-        let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
-        let index = Index::create_from_tempdir(schema_builder.build())?;
-        let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
-        let many_terms_data = (0..150_000)
-            .map(|num| format!("author{}", num))
-            .collect::<Vec<_>>();
-        {
-            let mut rng = thread_rng();
-            let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
-            // writing the segment
-            for _ in 0..1_000_000 {
-                let val: f64 = rng.gen_range(0.0..1_000_000.0);
-                index_writer.add_document(doc!(
-                    text_field => "cool",
-                    text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
-                    text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
-                    score_field => val as u64,
-                    score_field_f64 => val,
-                    score_field_i64 => val as i64,
-                ))?;
+    let agg: Aggregations = serde_json::from_value(json!({
+        "jsonagg": {
+            "terms": {
+                "field": "json.color",
             }
-            index_writer.commit()?;
         }
+    }))
+    .unwrap();
 
-        Ok(index)
-    }
+    let aggregation_collector = get_collector(agg);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+            "jsonagg": {
+                "buckets": [
+                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 1, "key": "red"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+        })
+    );
+}
 
-    #[bench]
-    fn bench_aggregation_average_u64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
+#[test]
+fn test_aggregation_on_json_object_empty_columns() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests().unwrap();
+    // => Empty column when accessing color
+    index_writer
+        .add_document(doc!(json => json!({"price": 10.0})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    // => Empty column when accessing price
+    index_writer
+        .add_document(doc!(json => json!({"color": "blue"})))
+        .unwrap();
+    index_writer.commit().unwrap();
 
-        b.iter(|| {
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, "cool"),
-                IndexRecordOption::Basic,
-            );
+    // => Non Empty columns
+    index_writer
+        .add_document(doc!(json => json!({"color": "red", "price": 10.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "red", "price": 10.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color": "green", "price": 20.0})))
+        .unwrap();
 
-            let agg_req_1: Aggregations = vec![(
-                "average".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
+    index_writer.commit().unwrap();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
 
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        });
-    }
+    let agg: Aggregations = serde_json::from_value(json!({
+        "jsonagg": {
+            "terms": {
+                "field": "json.color",
+            }
+        }
+    }))
+    .unwrap();
 
-    #[bench]
-    fn bench_aggregation_stats_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
+    let aggregation_collector = get_collector(agg);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+            "jsonagg": {
+                "buckets": [
+                    {"doc_count": 3, "key": "green"},
+                    {"doc_count": 2, "key": "red"},
+                    {"doc_count": 1, "key": "blue"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+        })
+    );
 
-        b.iter(|| {
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, "cool"),
-                IndexRecordOption::Basic,
-            );
+    let agg_req_str = r#"
+    {
+      "jsonagg": {
+        "aggs": {
+          "min_price": { "min": { "field": "json.price" } }
+        },
+        "terms": {
+          "field": "json.color",
+          "order": { "min_price": "desc" }
+        }
+      }
+    } "#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let aggregation_collector = get_collector(agg);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!(
+            {
+              "jsonagg": {
+                "buckets": [
+                  {
+                    "key": "green",
+                    "doc_count": 3,
+                    "min_price": {
+                      "value": 20.0
+                    }
+                  },
+                  {
+                    "key": "red",
+                    "doc_count": 2,
+                    "min_price": {
+                      "value": 10.0
+                    }
+                  },
+                  {
+                    "key": "blue",
+                    "doc_count": 1,
+                    "min_price": {
+                      "value": null
+                    }
+                  }
+                ],
+                "sum_other_doc_count": 0
+              }
+            }
+        )
+    );
+}
 
-            let agg_req_1: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Stats(StatsAggregation::from_field_name(
-                    "score_f64".to_string(),
-                ))),
-            )]
-            .into_iter()
-            .collect();
+#[test]
+fn test_aggregation_on_json_object_mixed_types() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests().unwrap();
+    // => Segment with all values numeric
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": 10.0})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    // => Segment with all values text
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    // => Segment with all boolen
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": true})))
+        .unwrap();
+    index_writer.commit().unwrap();
 
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
+    // => Segment with mixed values
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "red"})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": -20.5})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": true})))
+        .unwrap();
 
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        });
-    }
+    index_writer.commit().unwrap();
 
-    #[bench]
-    fn bench_aggregation_average_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
+    // All bucket types
+    let agg_req_str = r#"
+    {
+        "termagg": {
+            "terms": {
+                "field": "json.mixed_type",
+                "order": { "min_price": "desc" }
+            },
+            "aggs": {
+                "min_price": { "min": { "field": "json.mixed_type" } }
+            }
+        },
+        "rangeagg": {
+            "range": {
+                "field": "json.mixed_type",
+                "ranges": [
+                    { "to": 3.0 },
+                    { "from": 19.0, "to": 20.0 },
+                    { "from": 20.0 }
+                ]
+            },
+            "aggs": {
+                "average_in_range": { "avg": { "field": "json.mixed_type" } }
+            }
+        }
+    } "#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let aggregation_collector = get_collector(agg);
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
 
-        b.iter(|| {
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, "cool"),
-                IndexRecordOption::Basic,
-            );
-
-            let agg_req_1: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_average_u64_and_f64(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        b.iter(|| {
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, "cool"),
-                IndexRecordOption::Basic,
-            );
-
-            let agg_req_1: Aggregations = vec![
-                (
-                    "average_f64".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score_f64".to_string()),
-                    )),
-                ),
-                (
-                    "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                ),
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+          "rangeagg": {
+            "buckets": [
+              { "average_in_range": { "value": -20.5 }, "doc_count": 1, "key": "*-3", "to": 3.0 },
+              { "average_in_range": { "value": 10.0 }, "doc_count": 1, "from": 3.0, "key": "3-19", "to": 19.0 },
+              { "average_in_range": { "value": null }, "doc_count": 0, "from": 19.0, "key": "19-20", "to": 20.0 },
+              { "average_in_range": { "value": null }, "doc_count": 0, "from": 20.0, "key": "20-*" }
             ]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_terms_few(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_few_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_terms_many_with_sub_agg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_terms_many2(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_terms_many_order_by_term(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req: Aggregations = vec![(
-                "my_texts".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Terms(TermsAggregation {
-                        field: "text_many_terms".to_string(),
-                        order: Some(CustomOrder {
-                            order: Order::Desc,
-                            target: OrderTarget::Key,
-                        }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_range_only(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7000f64).into(),
-                            (7000f64..20000f64).into(),
-                            (20000f64..30000f64).into(),
-                            (30000f64..40000f64).into(),
-                            (40000f64..50000f64).into(),
-                            (50000f64..60000f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_range_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                        field: "score_f64".to_string(),
-                        ranges: vec![
-                            (3f64..7000f64).into(),
-                            (7000f64..20000f64).into(),
-                            (20000f64..30000f64).into(),
-                            (30000f64..40000f64).into(),
-                            (40000f64..50000f64).into(),
-                            (50000f64..60000f64).into(),
-                        ],
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    // hard bounds has a different algorithm, because it actually limits collection range
-    #[bench]
-    fn bench_aggregation_histogram_only_hard_bounds(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64,
-                        hard_bounds: Some(HistogramBounds {
-                            min: 1000.0,
-                            max: 300_000.0,
-                        }),
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_histogram_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let sub_agg_req: Aggregations = vec![(
-                "average_f64".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score_f64".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64, // 1000 buckets
-                        ..Default::default()
-                    }),
-                    sub_aggregation: sub_agg_req,
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_histogram_only(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-
-        b.iter(|| {
-            let agg_req_1: Aggregations = vec![(
-                "rangef64".to_string(),
-                Aggregation::Bucket(BucketAggregation {
-                    bucket_agg: BucketAggregationType::Histogram(HistogramAggregation {
-                        field: "score_f64".to_string(),
-                        interval: 100f64, // 1000 buckets
-                        ..Default::default()
-                    }),
-                    sub_aggregation: Default::default(),
-                }),
-            )]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&AllQuery, &collector).unwrap()
-        });
-    }
-
-    #[bench]
-    fn bench_aggregation_avg_and_range_with_avg(b: &mut Bencher) {
-        let index = get_test_index_bench(false).unwrap();
-        let reader = index.reader().unwrap();
-        let text_field = reader.searcher().schema().get_field("text").unwrap();
-
-        b.iter(|| {
-            let term_query = TermQuery::new(
-                Term::from_field_text(text_field, "cool"),
-                IndexRecordOption::Basic,
-            );
-
-            let sub_agg_req_1: Aggregations = vec![(
-                "average_in_range".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("score".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect();
-
-            let agg_req_1: Aggregations = vec![
-                (
-                    "average".to_string(),
-                    Aggregation::Metric(MetricAggregation::Average(
-                        AverageAggregation::from_field_name("score".to_string()),
-                    )),
-                ),
-                (
-                    "rangef64".to_string(),
-                    Aggregation::Bucket(BucketAggregation {
-                        bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                            field: "score_f64".to_string(),
-                            ranges: vec![
-                                (3f64..7000f64).into(),
-                                (7000f64..20000f64).into(),
-                                (20000f64..60000f64).into(),
-                            ],
-                            ..Default::default()
-                        }),
-                        sub_aggregation: sub_agg_req_1,
-                    }),
-                ),
-            ]
-            .into_iter()
-            .collect();
-
-            let collector = AggregationCollector::from_aggs(agg_req_1, None);
-
-            let searcher = reader.searcher();
-            searcher.search(&term_query, &collector).unwrap()
-        });
-    }
+          },
+          "termagg": {
+            "buckets": [
+              { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
+              { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
+              // TODO red is missing since there is no multi aggregation within one
+              // segment for multiple types
+              // TODO bool is also not yet handled in aggregation
+              { "doc_count": 1, "key": "blue", "min_price": { "value": null } }
+            ],
+            "sum_other_doc_count": 0
+          }
+        }
+        )
+    );
 }

@@ -5,7 +5,7 @@ use std::{fmt, io};
 use async_trait::async_trait;
 use ownedbytes::{OwnedBytes, StableDeref};
 
-use crate::HasLen;
+use crate::{ByteCount, HasLen};
 
 /// Objects that represents files sections in tantivy.
 ///
@@ -215,6 +215,11 @@ impl FileSlice {
     #[must_use]
     pub fn slice_to(&self, to_offset: usize) -> FileSlice {
         self.slice(0..to_offset)
+    }
+
+    /// Returns the byte count of the FileSlice.
+    pub fn num_bytes(&self) -> ByteCount {
+        self.range.len().into()
     }
 }
 

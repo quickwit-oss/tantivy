@@ -7,13 +7,8 @@
 // ---
 
 use serde_json::{Deserializer, Value};
-use tantivy::aggregation::agg_req::{
-    Aggregation, Aggregations, BucketAggregation, BucketAggregationType, MetricAggregation,
-    RangeAggregation,
-};
+use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::agg_result::AggregationResults;
-use tantivy::aggregation::bucket::RangeAggregationRange;
-use tantivy::aggregation::metric::AverageAggregation;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{self, IndexRecordOption, Schema, TextFieldIndexing, FAST};
@@ -42,7 +37,7 @@ fn main() -> tantivy::Result<()> {
                 .set_index_option(IndexRecordOption::WithFreqs)
                 .set_tokenizer("raw"),
         )
-        .set_fast()
+        .set_fast(None)
         .set_stored();
     schema_builder.add_text_field("category", text_fieldtype);
     schema_builder.add_f64_field("stock", FAST);
@@ -192,58 +187,11 @@ fn main() -> tantivy::Result<()> {
     //
 
     let agg_req: Aggregations = serde_json::from_str(agg_req_str)?;
-    let collector = AggregationCollector::from_aggs(agg_req, None);
+    let collector = AggregationCollector::from_aggs(agg_req, Default::default());
 
-    let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
-    let res2: Value = serde_json::to_value(agg_res)?;
-
-    // ### Request Rust API
-    //
-    // This is exactly the same request as above, but via the rust structures.
-    //
-
-    let agg_req: Aggregations = vec![(
-        "group_by_stock".to_string(),
-        Aggregation::Bucket(BucketAggregation {
-            bucket_agg: BucketAggregationType::Range(RangeAggregation {
-                field: "stock".to_string(),
-                ranges: vec![
-                    RangeAggregationRange {
-                        key: Some("few".into()),
-                        from: None,
-                        to: Some(1f64),
-                    },
-                    RangeAggregationRange {
-                        key: Some("some".into()),
-                        from: Some(1f64),
-                        to: Some(10f64),
-                    },
-                    RangeAggregationRange {
-                        key: Some("many".into()),
-                        from: Some(10f64),
-                        to: None,
-                    },
-                ],
-                ..Default::default()
-            }),
-            sub_aggregation: vec![(
-                "average_price".to_string(),
-                Aggregation::Metric(MetricAggregation::Average(
-                    AverageAggregation::from_field_name("price".to_string()),
-                )),
-            )]
-            .into_iter()
-            .collect(),
-        }),
-    )]
-    .into_iter()
-    .collect();
-
-    let collector = AggregationCollector::from_aggs(agg_req, None);
     // We use the `AllQuery` which will pass all documents to the AggregationCollector.
     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
-
-    let res1: Value = serde_json::to_value(agg_res)?;
+    let res: Value = serde_json::to_value(agg_res)?;
 
     // ### Aggregation Result
     //
@@ -261,8 +209,7 @@ fn main() -> tantivy::Result<()> {
     }
     "#;
     let expected_json: Value = serde_json::from_str(expected_res)?;
-    assert_eq!(expected_json, res1);
-    assert_eq!(expected_json, res2);
+    assert_eq!(expected_json, res);
 
     // ### Request 2
     //
@@ -287,7 +234,7 @@ fn main() -> tantivy::Result<()> {
 
     let agg_req: Aggregations = serde_json::from_str(agg_req_str)?;
 
-    let collector = AggregationCollector::from_aggs(agg_req, None);
+    let collector = AggregationCollector::from_aggs(agg_req, Default::default());
 
     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
     let res: Value = serde_json::to_value(agg_res)?;

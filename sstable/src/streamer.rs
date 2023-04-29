@@ -80,7 +80,7 @@ where
         self
     }
 
-    fn delta_reader(&self) -> io::Result<DeltaReader<'a, TSSTable::ValueReader>> {
+    fn delta_reader(&self) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let key_range = (
             bound_as_byte_slice(&self.lower),
             bound_as_byte_slice(&self.upper),
@@ -89,7 +89,7 @@ where
             .sstable_delta_reader_for_key_range(key_range, self.limit)
     }
 
-    async fn delta_reader_async(&self) -> io::Result<DeltaReader<'a, TSSTable::ValueReader>> {
+    async fn delta_reader_async(&self) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let key_range = (
             bound_as_byte_slice(&self.lower),
             bound_as_byte_slice(&self.upper),
@@ -101,7 +101,7 @@ where
 
     fn into_stream_given_delta_reader(
         self,
-        delta_reader: DeltaReader<'a, <TSSTable as SSTable>::ValueReader>,
+        delta_reader: DeltaReader<<TSSTable as SSTable>::ValueReader>,
     ) -> io::Result<Streamer<'a, TSSTable, A>> {
         let start_state = self.automaton.start();
         let start_key = bound_as_byte_slice(&self.lower);
@@ -124,6 +124,7 @@ where
             term_ord: first_term.checked_sub(1),
             lower_bound: self.lower,
             upper_bound: self.upper,
+            _lifetime: std::marker::PhantomData,
         })
     }
 
@@ -151,11 +152,30 @@ where
 {
     automaton: A,
     states: Vec<A::State>,
-    delta_reader: crate::DeltaReader<'a, TSSTable::ValueReader>,
+    delta_reader: crate::DeltaReader<TSSTable::ValueReader>,
     key: Vec<u8>,
     term_ord: Option<TermOrdinal>,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
+    // this field is used to please the type-interface of a dictionary in tantivy
+    _lifetime: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a, TSSTable> Streamer<'a, TSSTable, AlwaysMatch>
+where TSSTable: SSTable
+{
+    pub fn empty() -> Self {
+        Streamer {
+            automaton: AlwaysMatch,
+            states: Vec::new(),
+            delta_reader: DeltaReader::empty(),
+            key: Vec::new(),
+            term_ord: None,
+            lower_bound: Bound::Unbounded,
+            upper_bound: Bound::Unbounded,
+            _lifetime: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<'a, TSSTable, A> Streamer<'a, TSSTable, A>

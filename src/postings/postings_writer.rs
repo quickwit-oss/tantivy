@@ -171,7 +171,7 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-        serializer.new_term(term.value_bytes(), term_doc_freq)?;
+        serializer.new_term(term.serialized_value_bytes(), term_doc_freq)?;
         recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
         serializer.close_term()?;
         Ok(())
@@ -180,10 +180,10 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
 
 impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(&mut self, doc: DocId, position: u32, term: &Term, ctx: &mut IndexingContext) {
-        debug_assert!(term.as_slice().len() >= 4);
+        debug_assert!(term.serialized_term().len() >= 4);
         self.total_num_tokens += 1;
         let (term_index, arena) = (&mut ctx.term_index, &mut ctx.arena);
-        term_index.mutate_or_create(term.as_slice(), |opt_recorder: Option<Rec>| {
+        term_index.mutate_or_create(term.serialized_term(), |opt_recorder: Option<Rec>| {
             if let Some(mut recorder) = opt_recorder {
                 let current_doc = recorder.current_doc();
                 if current_doc != doc {

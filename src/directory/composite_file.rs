@@ -172,7 +172,7 @@ impl CompositeFile {
         let mut fields = Vec::new();
         for (&field_addr, byte_range) in &self.offsets_index {
             let mut field_usage = FieldUsage::empty(field_addr.field);
-            field_usage.add_field_idx(field_addr.idx, byte_range.len());
+            field_usage.add_field_idx(field_addr.idx, byte_range.len().into());
             fields.push(field_usage);
         }
         PerFieldSpaceUsage::new(fields)

@@ -51,6 +51,31 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// May panic if `idx` is greater than the column length.
     fn get_val(&self, idx: u32) -> T;
 
+    /// Allows to push down multiple fetch calls, to avoid dynamic dispatch overhead.
+    ///
+    /// idx and output should have the same length
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx` is greater than the column length.
+    fn get_vals(&self, indexes: &[u32], output: &mut [T]) {
+        assert!(indexes.len() == output.len());
+        let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+        for (out_x4, idx_x4) in out_and_idx_chunks {
+            out_x4[0] = self.get_val(idx_x4[0]);
+            out_x4[1] = self.get_val(idx_x4[1]);
+            out_x4[2] = self.get_val(idx_x4[2]);
+            out_x4[3] = self.get_val(idx_x4[3]);
+        }
+
+        let step_size = 4;
+        let cutoff = indexes.len() - indexes.len() % step_size;
+
+        for idx in cutoff..indexes.len() {
+            output[idx] = self.get_val(indexes[idx]);
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
@@ -69,7 +94,6 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Get the row ids of values which are in the provided value range.
     ///
     /// Note that position == docid for single value fast fields
-    #[inline(always)]
     fn get_row_ids_for_value_range(
         &self,
         value_range: RangeInclusive<T>,
@@ -85,20 +109,26 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         }
     }
 
-    /// Returns the minimum value for this fast field.
+    /// Returns a lower bound for this column of values.
     ///
-    /// This min_value may not be exact.
-    /// For instance, the min value does not take in account of possible
-    /// deleted document. All values are however guaranteed to be higher than
-    /// `.min_value()`.
+    /// All values are guaranteed to be higher than `.min_value()`
+    /// but this value is not necessary the best boundary value.
+    ///
+    /// We have
+    /// ∀i < self.num_vals(), self.get_val(i) >= self.min_value()
+    /// But we don't have necessarily
+    /// ∃i < self.num_vals(), self.get_val(i) == self.min_value()
     fn min_value(&self) -> T;
 
-    /// Returns the maximum value for this fast field.
+    /// Returns an upper bound for this column of values.
     ///
-    /// This max_value may not be exact.
-    /// For instance, the max value does not take in account of possible
-    /// deleted document. All values are however guaranteed to be higher than
-    /// `.max_value()`.
+    /// All values are guaranteed to be lower than `.max_value()`
+    /// but this value is not necessary the best boundary value.
+    ///
+    /// We have
+    /// ∀i < self.num_vals(), self.get_val(i) <= self.max_value()
+    /// But we don't have necessarily
+    /// ∃i < self.num_vals(), self.get_val(i) == self.max_value()
     fn max_value(&self) -> T;
 
     /// The number of values in the column.
@@ -107,6 +137,27 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
     /// Returns a iterator over the data
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
+    }
+}
+
+/// Empty column of values.
+pub struct EmptyColumnValues;
+
+impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
+    fn get_val(&self, _idx: u32) -> T {
+        panic!("Internal Error: Called get_val of empty column.")
+    }
+
+    fn min_value(&self) -> T {
+        T::default()
+    }
+
+    fn max_value(&self) -> T {
+        T::default()
+    }
+
+    fn num_vals(&self) -> u32 {
+        0
     }
 }
 
@@ -153,54 +204,5 @@ impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> 
     }
 }
 
-/// Wraps an cloneable iterator into a `Column`.
-pub struct IterColumn<T>(T);
-
-impl<T> From<T> for IterColumn<T>
-where T: Iterator + Clone + ExactSizeIterator
-{
-    fn from(iter: T) -> Self {
-        IterColumn(iter)
-    }
-}
-
-impl<T> ColumnValues<T::Item> for IterColumn<T>
-where
-    T: Iterator + Clone + ExactSizeIterator + Send + Sync,
-    T::Item: PartialOrd + Debug,
-{
-    fn get_val(&self, idx: u32) -> T::Item {
-        self.0.clone().nth(idx as usize).unwrap()
-    }
-
-    fn min_value(&self) -> T::Item {
-        self.0.clone().next().unwrap()
-    }
-
-    fn max_value(&self) -> T::Item {
-        self.0.clone().last().unwrap()
-    }
-
-    fn num_vals(&self) -> u32 {
-        self.0.len() as u32
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = T::Item> + '_> {
-        Box::new(self.0.clone())
-    }
-}
-
 #[cfg(all(test, feature = "unstable"))]
 mod bench;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_range_as_col() {
-        let col = IterColumn::from(10..100);
-        assert_eq!(col.num_vals(), 90);
-        assert_eq!(col.max_value(), 99);
-    }
-}

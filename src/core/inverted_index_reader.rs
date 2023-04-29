@@ -61,7 +61,7 @@ impl InvertedIndexReader {
 
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
-        self.termdict.get(term.value_bytes())
+        self.termdict.get(term.serialized_value_bytes())
     }
 
     /// Return the term dictionary datastructure.
@@ -203,7 +203,7 @@ impl InvertedIndexReader {
 #[cfg(feature = "quickwit")]
 impl InvertedIndexReader {
     pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
-        self.termdict.get_async(term.value_bytes()).await
+        self.termdict.get_async(term.serialized_value_bytes()).await
     }
 
     /// Returns a block postings given a `Term`.
@@ -213,13 +213,16 @@ impl InvertedIndexReader {
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
         let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
-            self.postings_file_slice
-                .read_bytes_slice_async(term_info.postings_range.clone())
-                .await?;
+            let postings = self
+                .postings_file_slice
+                .read_bytes_slice_async(term_info.postings_range.clone());
             if with_positions {
-                self.positions_file_slice
-                    .read_bytes_slice_async(term_info.positions_range.clone())
-                    .await?;
+                let positions = self
+                    .positions_file_slice
+                    .read_bytes_slice_async(term_info.positions_range.clone());
+                futures::future::try_join(postings, positions).await?;
+            } else {
+                postings.await?;
             }
         }
         Ok(())

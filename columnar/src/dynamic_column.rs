@@ -1,14 +1,14 @@
-use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use common::file_slice::FileSlice;
-use common::{DateTime, HasLen, OwnedBytes};
+use common::{ByteCount, DateTime, HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
 use crate::columnar::ColumnType;
-use crate::{Cardinality, NumericalType};
+use crate::{Cardinality, ColumnIndex, NumericalType};
 
 #[derive(Clone)]
 pub enum DynamicColumn {
@@ -22,19 +22,54 @@ pub enum DynamicColumn {
     Str(StrColumn),
 }
 
-impl DynamicColumn {
-    pub fn get_cardinality(&self) -> Cardinality {
+impl fmt::Debug for DynamicColumn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{} {} |", self.get_cardinality(), self.column_type())?;
         match self {
-            DynamicColumn::Bool(c) => c.get_cardinality(),
-            DynamicColumn::I64(c) => c.get_cardinality(),
-            DynamicColumn::U64(c) => c.get_cardinality(),
-            DynamicColumn::F64(c) => c.get_cardinality(),
-            DynamicColumn::IpAddr(c) => c.get_cardinality(),
-            DynamicColumn::DateTime(c) => c.get_cardinality(),
-            DynamicColumn::Bytes(c) => c.ords().get_cardinality(),
-            DynamicColumn::Str(c) => c.ords().get_cardinality(),
+            DynamicColumn::Bool(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::I64(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::U64(col) => write!(f, " {:?}", col)?,
+            DynamicColumn::F64(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::IpAddr(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::DateTime(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::Bytes(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::Str(col) => write!(f, "{:?}", col)?,
+        }
+        write!(f, "]")
+    }
+}
+
+impl DynamicColumn {
+    pub fn column_index(&self) -> &ColumnIndex {
+        match self {
+            DynamicColumn::Bool(c) => &c.index,
+            DynamicColumn::I64(c) => &c.index,
+            DynamicColumn::U64(c) => &c.index,
+            DynamicColumn::F64(c) => &c.index,
+            DynamicColumn::IpAddr(c) => &c.index,
+            DynamicColumn::DateTime(c) => &c.index,
+            DynamicColumn::Bytes(c) => &c.ords().index,
+            DynamicColumn::Str(c) => &c.ords().index,
         }
     }
+
+    pub fn get_cardinality(&self) -> Cardinality {
+        self.column_index().get_cardinality()
+    }
+
+    pub fn num_values(&self) -> u32 {
+        match self {
+            DynamicColumn::Bool(c) => c.values.num_vals(),
+            DynamicColumn::I64(c) => c.values.num_vals(),
+            DynamicColumn::U64(c) => c.values.num_vals(),
+            DynamicColumn::F64(c) => c.values.num_vals(),
+            DynamicColumn::IpAddr(c) => c.values.num_vals(),
+            DynamicColumn::DateTime(c) => c.values.num_vals(),
+            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
+            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+        }
+    }
+
     pub fn column_type(&self) -> ColumnType {
         match self {
             DynamicColumn::Bool(_) => ColumnType::Bool,
@@ -73,11 +108,11 @@ impl DynamicColumn {
     fn coerce_to_f64(self) -> Option<DynamicColumn> {
         match self {
             DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
-                idx: column.idx,
+                index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
             })),
             DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
-                idx: column.idx,
+                index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
             })),
             DynamicColumn::F64(_) => Some(self),
@@ -91,7 +126,7 @@ impl DynamicColumn {
                     return None;
                 }
                 Some(DynamicColumn::I64(Column {
-                    idx: column.idx,
+                    index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
                 }))
             }
@@ -106,7 +141,7 @@ impl DynamicColumn {
                     return None;
                 }
                 Some(DynamicColumn::U64(Column {
-                    idx: column.idx,
+                    index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
                 }))
             }
@@ -248,8 +283,8 @@ impl DynamicColumnHandle {
         Ok(dynamic_column)
     }
 
-    pub fn num_bytes(&self) -> usize {
-        self.file_slice.len()
+    pub fn num_bytes(&self) -> ByteCount {
+        self.file_slice.len().into()
     }
 
     pub fn column_type(&self) -> ColumnType {

@@ -173,6 +173,8 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub use self::docset::{DocSet, TERMINATED};
+#[doc(hidden)]
+pub use crate::core::json_utils;
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
     Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,

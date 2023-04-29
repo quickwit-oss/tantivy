@@ -45,6 +45,7 @@ impl From<BitSet> for BitSetDocSet {
 }
 
 impl DocSet for BitSetDocSet {
+    #[inline]
     fn advance(&mut self) -> DocId {
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
             self.doc = (self.cursor_bucket * 64u32) | lower;

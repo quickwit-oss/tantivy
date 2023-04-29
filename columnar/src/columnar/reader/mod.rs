@@ -1,4 +1,4 @@
-use std::{io, mem};
+use std::{fmt, io, mem};
 
 use common::file_slice::FileSlice;
 use common::BinarySerializable;
@@ -19,6 +19,32 @@ pub struct ColumnarReader {
     column_dictionary: Dictionary<RangeSSTable>,
     column_data: FileSlice,
     num_rows: RowId,
+}
+
+impl fmt::Debug for ColumnarReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let num_rows = self.num_rows();
+        let columns = self.list_columns().unwrap();
+        let num_cols = columns.len();
+        let mut debug_struct = f.debug_struct("Columnar");
+        debug_struct
+            .field("num_rows", &num_rows)
+            .field("num_cols", &num_cols);
+        for (col_name, dynamic_column_handle) in columns.into_iter().take(5) {
+            let col = dynamic_column_handle.open().unwrap();
+            if col.num_values() > 10 {
+                debug_struct.field(&col_name, &"..");
+            } else {
+                debug_struct.field(&col_name, &col);
+            }
+        }
+        if num_cols > 5 {
+            debug_struct.finish_non_exhaustive()?;
+        } else {
+            debug_struct.finish()?;
+        }
+        Ok(())
+    }
 }
 
 /// Functions by both the async/sync code listing columns.

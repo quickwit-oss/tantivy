@@ -1,7 +1,5 @@
-use std::{iter, mem, slice};
-
-use byteorder::{ByteOrder, NativeEndian};
-use murmurhash32::murmurhash2;
+use std::iter::{Cloned, Filter};
+use std::mem;
 
 use super::{Addr, MemoryArena};
 use crate::memory_arena::store;
@@ -10,9 +8,11 @@ use crate::UnorderedId;
 /// Returns the actual memory size in bytes
 /// required to create a table with a given capacity.
 /// required to create a table of size
-pub fn compute_table_size(capacity: usize) -> usize {
+pub fn compute_table_memory_size(capacity: usize) -> usize {
     capacity * mem::size_of::<KeyValue>()
 }
+
+type HashType = u32;
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external memory arena.
@@ -20,7 +20,7 @@ pub fn compute_table_size(capacity: usize) -> usize {
 #[derive(Copy, Clone)]
 struct KeyValue {
     key_value_addr: Addr,
-    hash: u32,
+    hash: HashType,
     unordered_id: UnorderedId,
 }
 
@@ -28,15 +28,20 @@ impl Default for KeyValue {
     fn default() -> Self {
         KeyValue {
             key_value_addr: Addr::null_pointer(),
-            hash: 0u32,
+            hash: 0,
             unordered_id: UnorderedId::default(),
         }
     }
 }
 
 impl KeyValue {
+    #[inline]
     fn is_empty(self) -> bool {
         self.key_value_addr.is_null()
+    }
+    #[inline]
+    fn is_not_empty_ref(&self) -> bool {
+        !self.key_value_addr.is_null()
     }
 }
 
@@ -50,43 +55,47 @@ impl KeyValue {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 pub struct ArenaHashMap {
-    table: Box<[KeyValue]>,
+    table: Vec<KeyValue>,
     memory_arena: MemoryArena,
     mask: usize,
-    occupied: Vec<usize>,
     len: usize,
 }
 
-struct QuadraticProbing {
-    hash: usize,
-    i: usize,
-    mask: usize,
+struct LinearProbing {
+    hash: HashType,
+    i: u32,
+    mask: u32,
 }
 
-impl QuadraticProbing {
+impl LinearProbing {
     #[inline]
-    fn compute(hash: usize, mask: usize) -> QuadraticProbing {
-        QuadraticProbing { hash, i: 0, mask }
+    fn compute(hash: HashType, mask: usize) -> LinearProbing {
+        LinearProbing {
+            hash,
+            i: 0,
+            mask: mask as u32,
+        }
     }
 
     #[inline]
     fn next_probe(&mut self) -> usize {
         self.i += 1;
-        (self.hash + self.i) & self.mask
+        ((self.hash + self.i) & self.mask) as usize
     }
 }
 
+type IterNonEmpty<'a> = Filter<Cloned<std::slice::Iter<'a, KeyValue>>, fn(&KeyValue) -> bool>;
+
 pub struct Iter<'a> {
     hashmap: &'a ArenaHashMap,
-    inner: slice::Iter<'a, usize>,
+    inner: IterNonEmpty<'a>,
 }
 
 impl<'a> Iterator for Iter<'a> {
     type Item = (&'a [u8], Addr, UnorderedId);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().cloned().map(move |bucket: usize| {
-            let kv = self.hashmap.table[bucket];
+        self.inner.next().map(move |kv| {
             let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
             (key, offset, kv.unordered_id)
         })
@@ -107,10 +116,9 @@ impl Default for ArenaHashMap {
     fn default() -> Self {
         let memory_arena = MemoryArena::default();
         ArenaHashMap {
-            table: Box::new([]),
+            table: Vec::new(),
             memory_arena,
             mask: 0,
-            occupied: Vec::new(),
             len: 0,
         }
     }
@@ -120,16 +128,19 @@ impl ArenaHashMap {
     pub fn with_capacity(table_size: usize) -> ArenaHashMap {
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
         let memory_arena = MemoryArena::default();
-        let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
-            .take(table_size_power_of_2)
-            .collect();
+        let table = vec![KeyValue::default(); table_size_power_of_2];
+
         ArenaHashMap {
-            table: table.into_boxed_slice(),
+            table,
             memory_arena,
             mask: table_size_power_of_2 - 1,
-            occupied: Vec::with_capacity(table_size_power_of_2 / 2),
             len: 0,
         }
+    }
+
+    #[inline]
+    fn get_hash(&self, key: &[u8]) -> HashType {
+        murmurhash32::murmurhash2(key)
     }
 
     #[inline]
@@ -138,8 +149,8 @@ impl ArenaHashMap {
     }
 
     #[inline]
-    fn probe(&self, hash: u32) -> QuadraticProbing {
-        QuadraticProbing::compute(hash as usize, self.mask)
+    fn probe(&self, hash: HashType) -> LinearProbing {
+        LinearProbing::compute(hash, self.mask)
     }
 
     #[inline]
@@ -149,15 +160,16 @@ impl ArenaHashMap {
 
     #[inline]
     fn is_saturated(&self) -> bool {
-        self.table.len() <= self.occupied.len() * 3
+        self.table.len() <= self.len * 2
     }
 
     #[inline]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
         let data = self.memory_arena.slice_from(addr);
-        let key_bytes_len = NativeEndian::read_u16(data) as usize;
-        let key_bytes: &[u8] = &data[2..][..key_bytes_len];
-        (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
+        let (key_bytes_len_bytes, data) = data.split_at(2);
+        let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
+        let key_bytes: &[u8] = &data[..key_bytes_len as usize];
+        (key_bytes, addr.offset(2 + key_bytes_len as u32))
     }
 
     #[inline]
@@ -171,10 +183,10 @@ impl ArenaHashMap {
     }
 
     #[inline]
-    fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) -> UnorderedId {
-        self.occupied.push(bucket);
+    fn set_bucket(&mut self, hash: HashType, key_value_addr: Addr, bucket: usize) -> UnorderedId {
         let unordered_id = self.len as UnorderedId;
         self.len += 1;
+
         self.table[bucket] = KeyValue {
             key_value_addr,
             hash,
@@ -196,7 +208,11 @@ impl ArenaHashMap {
     #[inline]
     pub fn iter(&self) -> Iter<'_> {
         Iter {
-            inner: self.occupied.iter(),
+            inner: self
+                .table
+                .iter()
+                .cloned()
+                .filter(KeyValue::is_not_empty_ref),
             hashmap: self,
         }
     }
@@ -205,15 +221,13 @@ impl ArenaHashMap {
         let new_len = (self.table.len() * 2).max(1 << 13);
         let mask = new_len - 1;
         self.mask = mask;
-        let new_table = vec![KeyValue::default(); new_len].into_boxed_slice();
+        let new_table = vec![KeyValue::default(); new_len];
         let old_table = mem::replace(&mut self.table, new_table);
-        for old_pos in self.occupied.iter_mut() {
-            let key_value: KeyValue = old_table[*old_pos];
-            let mut probe = QuadraticProbing::compute(key_value.hash as usize, mask);
+        for key_value in old_table.into_iter().filter(KeyValue::is_not_empty_ref) {
+            let mut probe = LinearProbing::compute(key_value.hash, mask);
             loop {
                 let bucket = probe.next_probe();
                 if self.table[bucket].is_empty() {
-                    *old_pos = bucket;
                     self.table[bucket] = key_value;
                     break;
                 }
@@ -222,9 +236,10 @@ impl ArenaHashMap {
     }
 
     /// Get a value associated to a key.
+    #[inline]
     pub fn get<V>(&self, key: &[u8]) -> Option<V>
     where V: Copy + 'static {
-        let hash = murmurhash2(key);
+        let hash = self.get_hash(key);
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
@@ -261,7 +276,7 @@ impl ArenaHashMap {
         if self.is_saturated() {
             self.resize();
         }
-        let hash = murmurhash2(key);
+        let hash = self.get_hash(key);
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
@@ -273,11 +288,12 @@ impl ArenaHashMap {
                 let key_addr = self.memory_arena.allocate_space(num_bytes);
                 {
                     let data = self.memory_arena.slice_mut(key_addr, num_bytes);
-                    NativeEndian::write_u16(data, key.len() as u16);
+                    data[..2].copy_from_slice(&(key.len() as u16).to_le_bytes());
                     let stop = 2 + key.len();
                     data[2..stop].copy_from_slice(key);
                     store(&mut data[stop..], val);
                 }
+
                 return self.set_bucket(hash, key_addr, bucket);
             } else if kv.hash == hash {
                 if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {

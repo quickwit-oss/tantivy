@@ -7,6 +7,7 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+use itertools::Itertools;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
@@ -28,7 +29,7 @@ use crate::{
 ///
 /// See also [README.md].
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-enum ColumnTypeCategory {
+pub(crate) enum ColumnTypeCategory {
     Bool,
     Str,
     Numerical,
@@ -78,20 +79,25 @@ pub fn merge_columnar(
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
-
-    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
+    let num_rows_per_columnar = columnar_readers
+        .iter()
+        .map(|reader| reader.num_rows())
+        .collect::<Vec<u32>>();
+    let columns_to_merge =
+        group_columns_for_merge(columnar_readers, required_columns, &merge_row_order)?;
     for ((column_name, column_type), columns) in columns_to_merge {
         let mut column_serializer =
-            serializer.serialize_column(column_name.as_bytes(), column_type);
+            serializer.start_serialize_column(column_name.as_bytes(), column_type);
         merge_column(
             column_type,
+            &num_rows_per_columnar,
             columns,
             &merge_row_order,
             &mut column_serializer,
         )?;
+        column_serializer.finalize()?;
     }
     serializer.finalize(merge_row_order.num_rows())?;
-
     Ok(())
 }
 
@@ -108,6 +114,7 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
 
 fn merge_column(
     column_type: ColumnType,
+    num_docs_per_column: &[u32],
     columns: Vec<Option<DynamicColumn>>,
     merge_row_order: &MergeRowOrder,
     wrt: &mut impl io::Write,
@@ -118,17 +125,19 @@ fn merge_column(
         | ColumnType::F64
         | ColumnType::DateTime
         | ColumnType::Bool => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues>>> =
                 Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
-                if let Some(Column { idx, values }) =
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                if let Some(Column { index: idx, values }) =
                     dynamic_column_opt.and_then(dynamic_column_to_u64_monotonic)
                 {
-                    column_indexes.push(Some(idx));
+                    column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
-                    column_indexes.push(None);
+                    column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[i],
+                    });
                     column_values.push(None);
                 }
             }
@@ -142,15 +151,19 @@ fn merge_column(
             serialize_column_mappable_to_u64(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::IpAddr => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues<Ipv6Addr>>>> =
                 Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
-                if let Some(DynamicColumn::IpAddr(Column { idx, values })) = dynamic_column_opt {
-                    column_indexes.push(Some(idx));
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                if let Some(DynamicColumn::IpAddr(Column { index: idx, values })) =
+                    dynamic_column_opt
+                {
+                    column_indexes.push(idx);
                     column_values.push(Some(values));
                 } else {
-                    column_indexes.push(None);
+                    column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[i],
+                    });
                     column_values.push(None);
                 }
             }
@@ -166,20 +179,22 @@ fn merge_column(
             serialize_column_mappable_to_u128(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::Bytes | ColumnType::Str => {
-            let mut column_indexes: Vec<Option<ColumnIndex>> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
             let mut bytes_columns: Vec<Option<BytesColumn>> = Vec::with_capacity(columns.len());
-            for dynamic_column_opt in columns {
+            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
-                        column_indexes.push(Some(str_column.term_ord_column.idx.clone()));
+                        column_indexes.push(str_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(str_column.into()));
                     }
                     Some(DynamicColumn::Bytes(bytes_column)) => {
-                        column_indexes.push(Some(bytes_column.term_ord_column.idx.clone()));
+                        column_indexes.push(bytes_column.term_ord_column.index.clone());
                         bytes_columns.push(Some(bytes_column));
                     }
                     _ => {
-                        column_indexes.push(None);
+                        column_indexes.push(ColumnIndex::Empty {
+                            num_docs: num_docs_per_column[i],
+                        });
                         bytes_columns.push(None);
                     }
                 }
@@ -275,10 +290,69 @@ fn merged_numerical_columns_type<'a>(
     compatible_numerical_types.to_numerical_type()
 }
 
+fn is_empty_after_merge(
+    merge_row_order: &MergeRowOrder,
+    column: &DynamicColumn,
+    columnar_id: usize,
+) -> bool {
+    if column.num_values() == 0u32 {
+        // It was empty before the merge.
+        return true;
+    }
+    match merge_row_order {
+        MergeRowOrder::Stack(_) => {
+            // If we are stacking the columnar, no rows are being deleted.
+            false
+        }
+        MergeRowOrder::Shuffled(shuffled) => {
+            if let Some(alive_bitset) = &shuffled.alive_bitsets[columnar_id] {
+                let column_index = column.column_index();
+                match column_index {
+                    ColumnIndex::Empty { .. } => true,
+                    ColumnIndex::Full => alive_bitset.len() == 0,
+                    ColumnIndex::Optional(optional_index) => {
+                        for doc in optional_index.iter_rows() {
+                            if alive_bitset.contains(doc) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                    ColumnIndex::Multivalued(multivalued_index) => {
+                        for (doc_id, (start_index, end_index)) in multivalued_index
+                            .start_index_column
+                            .iter()
+                            .tuple_windows()
+                            .enumerate()
+                        {
+                            let doc_id = doc_id as u32;
+                            if start_index == end_index {
+                                // There are no values in this document
+                                continue;
+                            }
+                            // The document contains values and is present in the alive bitset.
+                            // The column is therefore not empty.
+                            if alive_bitset.contains(doc_id) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                }
+            } else {
+                // No document is being deleted.
+                // The shuffle is applying a permutation.
+                false
+            }
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn group_columns_for_merge(
     columnar_readers: &[&ColumnarReader],
     required_columns: &[(String, ColumnType)],
+    merge_row_order: &MergeRowOrder,
 ) -> io::Result<BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>>> {
     // Each column name may have multiple types of column associated.
     // For merging we are interested in the same column type category since they can be merged.
@@ -295,9 +369,16 @@ fn group_columns_for_merge(
 
     for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {
         let column_name_and_handle = columnar_reader.list_columns()?;
+        // We skip columns that end up with 0 documents.
+        // That way, we make sure they don't end up influencing the merge type or
+        // creating empty columns.
+
         for (column_name, handle) in column_name_and_handle {
             let column_category: ColumnTypeCategory = handle.column_type().into();
             let column = handle.open()?;
+            if is_empty_after_merge(merge_row_order, &column, columnar_id) {
+                continue;
+            }
             columns_grouped
                 .entry((column_name, column_category))
                 .or_insert_with(|| {
@@ -361,8 +442,8 @@ fn coerce_column(column_type: ColumnType, column: DynamicColumn) -> io::Result<D
 fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, NumericalValue)> {
     match column {
         DynamicColumn::I64(column) => Some((column.min_value().into(), column.max_value().into())),
-        DynamicColumn::U64(column) => Some((column.min_value().into(), column.min_value().into())),
-        DynamicColumn::F64(column) => Some((column.min_value().into(), column.min_value().into())),
+        DynamicColumn::U64(column) => Some((column.min_value().into(), column.max_value().into())),
+        DynamicColumn::F64(column) => Some((column.min_value().into(), column.max_value().into())),
         DynamicColumn::Bool(_)
         | DynamicColumn::IpAddr(_)
         | DynamicColumn::DateTime(_)

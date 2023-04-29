@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
+use super::{Token, TokenStream, Tokenizer};
 use crate::TantivyError;
 
 /// Tokenize the text by using a regex pattern to split.
@@ -60,13 +60,14 @@ impl RegexTokenizer {
 }
 
 impl Tokenizer for RegexTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(RegexTokenStream {
+    type TokenStream<'a> = RegexTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> RegexTokenStream<'a> {
+        RegexTokenStream {
             regex: self.regex.clone(),
             text,
             token: Token::default(),
             cursor: 0,
-        })
+        }
     }
 }
 
@@ -136,11 +137,11 @@ mod tests {
 
     #[test]
     fn test_regexp_tokenizer_error_on_invalid_regex() {
-        let tokenizer = RegexTokenizer::new(r"\@");
+        let tokenizer = RegexTokenizer::new(r"\@(");
         assert_eq!(tokenizer.is_err(), true);
         assert_eq!(
             tokenizer.err().unwrap().to_string(),
-            "An invalid argument was passed: '\\@'"
+            "An invalid argument was passed: '\\@('"
         );
     }
 

@@ -1,5 +1,6 @@
 mod bitpacker;
 mod blocked_bitpacker;
+mod filter_vec;
 
 use std::cmp::Ordering;
 

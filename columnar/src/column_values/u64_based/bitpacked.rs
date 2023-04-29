@@ -1,4 +1,6 @@
 use std::io::{self, Write};
+use std::num::NonZeroU64;
+use std::ops::{Range, RangeInclusive};
 
 use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
@@ -14,6 +16,46 @@ pub struct BitpackedReader {
     data: OwnedBytes,
     bit_unpacker: BitUnpacker,
     stats: ColumnStats,
+}
+
+#[inline(always)]
+const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
+    // copied from unstable rust standard library.
+    let d = n / q.get();
+    let r = n % q.get();
+    if r > 0 {
+        d + 1
+    } else {
+        d
+    }
+}
+
+// The bitpacked codec applies a linear transformation `f` over data that are bitpacked.
+// f is defined by:
+// f: bitpacked -> stats.min_value + stats.gcd * bitpacked
+//
+// In order to run range queries, we invert the transformation.
+// `transform_range_before_linear_transformation` returns the range of values
+// [min_bipacked_value..max_bitpacked_value] such that
+// f(bitpacked) ∈ [min_value, max_value] <=> bitpacked ∈ [min_bitpacked_value, max_bitpacked_value]
+fn transform_range_before_linear_transformation(
+    stats: &ColumnStats,
+    range: RangeInclusive<u64>,
+) -> Option<RangeInclusive<u64>> {
+    if range.is_empty() {
+        return None;
+    }
+    if stats.min_value > *range.end() {
+        return None;
+    }
+    if stats.max_value < *range.start() {
+        return None;
+    }
+    let shifted_range =
+        range.start().saturating_sub(stats.min_value)..=range.end().saturating_sub(stats.min_value);
+    let start_before_gcd_multiplication: u64 = div_ceil(*shifted_range.start(), stats.gcd);
+    let end_before_gcd_multiplication: u64 = *shifted_range.end() / stats.gcd;
+    Some(start_before_gcd_multiplication..=end_before_gcd_multiplication)
 }
 
 impl ColumnValues for BitpackedReader {
@@ -33,6 +75,25 @@ impl ColumnValues for BitpackedReader {
     #[inline]
     fn num_vals(&self) -> RowId {
         self.stats.num_rows
+    }
+
+    fn get_row_ids_for_value_range(
+        &self,
+        range: RangeInclusive<u64>,
+        doc_id_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        let Some(transformed_range) = transform_range_before_linear_transformation(&self.stats, range)
+        else {
+            positions.clear();
+            return;
+        };
+        self.bit_unpacker.get_ids_for_value_range(
+            transformed_range,
+            doc_id_range,
+            &self.data,
+            positions,
+        );
     }
 }
 

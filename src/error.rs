@@ -6,6 +6,7 @@ use std::{fmt, io};
 
 use thiserror::Error;
 
+use crate::aggregation::AggregationError;
 use crate::directory::error::{
     Incompatibility, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
@@ -53,6 +54,9 @@ impl fmt::Debug for DataCorruption {
 /// The library's error enum
 #[derive(Debug, Clone, Error)]
 pub enum TantivyError {
+    /// Error when handling aggregations.
+    #[error(transparent)]
+    AggregationError(#[from] AggregationError),
     /// Failed to open the directory.
     #[error("Failed to open the directory: '{0:?}'")]
     OpenDirectoryError(#[from] OpenDirectoryError),

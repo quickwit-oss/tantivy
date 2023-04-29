@@ -17,6 +17,8 @@ pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
+use common::{BinarySerializable, OwnedBytes};
+
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
 pub use self::merge::VoidMerge;
@@ -26,6 +28,7 @@ use crate::value::{RangeValueReader, RangeValueWriter};
 pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
+const SSTABLE_VERSION: u32 = 2;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
@@ -55,11 +58,11 @@ pub trait SSTable: Sized {
         Writer::new(wrt)
     }
 
-    fn delta_reader<'a, R: io::Read + 'a>(reader: R) -> DeltaReader<'a, Self::ValueReader> {
+    fn delta_reader(reader: OwnedBytes) -> DeltaReader<Self::ValueReader> {
         DeltaReader::new(reader)
     }
 
-    fn reader<'a, R: io::Read + 'a>(reader: R) -> Reader<'a, Self::ValueReader> {
+    fn reader(reader: OwnedBytes) -> Reader<Self::ValueReader> {
         Reader {
             key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             delta_reader: Self::delta_reader(reader),
@@ -67,12 +70,12 @@ pub trait SSTable: Sized {
     }
 
     /// Returns an empty static reader.
-    fn create_empty_reader() -> Reader<'static, Self::ValueReader> {
-        Self::reader(&b""[..])
+    fn create_empty_reader() -> Reader<Self::ValueReader> {
+        Self::reader(OwnedBytes::empty())
     }
 
-    fn merge<R: io::Read, W: io::Write, M: ValueMerger<Self::Value>>(
-        io_readers: Vec<R>,
+    fn merge<W: io::Write, M: ValueMerger<Self::Value>>(
+        io_readers: Vec<OwnedBytes>,
         w: W,
         merger: M,
     ) -> io::Result<()> {
@@ -129,12 +132,12 @@ impl SSTable for RangeSSTable {
 }
 
 /// SSTable reader.
-pub struct Reader<'a, TValueReader> {
+pub struct Reader<TValueReader> {
     key: Vec<u8>,
-    delta_reader: DeltaReader<'a, TValueReader>,
+    delta_reader: DeltaReader<TValueReader>,
 }
 
-impl<'a, TValueReader> Reader<'a, TValueReader>
+impl<TValueReader> Reader<TValueReader>
 where TValueReader: ValueReader
 {
     pub fn advance(&mut self) -> io::Result<bool> {
@@ -160,7 +163,7 @@ where TValueReader: ValueReader
     }
 }
 
-impl<'a, TValueReader> AsRef<[u8]> for Reader<'a, TValueReader> {
+impl<TValueReader> AsRef<[u8]> for Reader<TValueReader> {
     #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         &self.key
@@ -199,6 +202,14 @@ where
             delta_writer: DeltaWriter::new(wrt),
             first_ordinal_of_the_block: 0u64,
         }
+    }
+
+    /// Set the target block length.
+    ///
+    /// The delta part of a block will generally be slightly larger than the requested `block_len`,
+    /// however this does not account for the length of the Value part of the table.
+    pub fn set_block_len(&mut self, block_len: usize) {
+        self.delta_writer.set_block_len(block_len)
     }
 
     /// Returns the last inserted key.
@@ -288,6 +299,7 @@ where
             self.first_ordinal_of_the_block = self.num_terms;
         }
         let mut wrt = self.delta_writer.finish();
+        // add a final empty block as an end marker
         wrt.write_all(&0u32.to_le_bytes())?;
 
         let offset = wrt.written_bytes();
@@ -295,18 +307,11 @@ where
         self.index_builder.serialize(&mut wrt)?;
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
+
+        SSTABLE_VERSION.serialize(&mut wrt)?;
+
         let wrt = wrt.finish();
         Ok(wrt.into_inner()?)
-    }
-}
-
-impl<TValueWriter> Writer<Vec<u8>, TValueWriter>
-where TValueWriter: value::ValueWriter
-{
-    #[inline]
-    pub fn insert_cannot_fail<K: AsRef<[u8]>>(&mut self, key: K, value: &TValueWriter::Value) {
-        self.insert(key, value)
-            .expect("SSTable over a Vec should never fail");
     }
 }
 
@@ -314,6 +319,8 @@ where TValueWriter: value::ValueWriter
 mod test {
     use std::io;
     use std::ops::Bound;
+
+    use common::OwnedBytes;
 
     use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
 
@@ -348,7 +355,8 @@ mod test {
             assert!(sstable_writer.insert(&long_key2[..], &()).is_ok());
             assert!(sstable_writer.finish().is_ok());
         }
-        let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut sstable_reader = VoidSSTable::reader(buffer);
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &long_key[..]);
         assert!(sstable_reader.advance().unwrap());
@@ -371,22 +379,23 @@ mod test {
         assert_eq!(
             &buffer,
             &[
-                // block len
-                7u8, 0u8, 0u8, 0u8, // keep 0 push 1 |  ""
-                16u8, 17u8, // keep 1 push 2 | 18 19
-                33u8, 18u8, 19u8, // keep 1 push 1 | 20
-                17u8, 20u8, 0u8, 0u8, 0u8, 0u8, // no more blocks
+                // block
+                8, 0, 0, 0, // size of block
+                0, // compression
+                16, 17, 33, 18, 19, 17, 20, // data block
+                0, 0, 0, 0, // no more block
                 // index
-                161, 102, 98, 108, 111, 99, 107, 115, 129, 162, 115, 108, 97, 115, 116, 95, 107,
-                101, 121, 95, 111, 114, 95, 103, 114, 101, 97, 116, 101, 114, 130, 17, 20, 106, 98,
-                108, 111, 99, 107, 95, 97, 100, 100, 114, 162, 106, 98, 121, 116, 101, 95, 114, 97,
-                110, 103, 101, 162, 101, 115, 116, 97, 114, 116, 0, 99, 101, 110, 100, 11, 109,
-                102, 105, 114, 115, 116, 95, 111, 114, 100, 105, 110, 97, 108, 0, 15, 0, 0, 0, 0,
-                0, 0, 0, // offset for the index
-                3u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8 // num terms
+                8, 0, 0, 0, // size of index block
+                0, // compression
+                1, 0, 12, 0, 32, 17, 20, // index block
+                0, 0, 0, 0, // no more index block
+                16, 0, 0, 0, 0, 0, 0, 0, // index start offset
+                3, 0, 0, 0, 0, 0, 0, 0, // num term
+                2, 0, 0, 0, // version
             ]
         );
-        let mut sstable_reader = VoidSSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut sstable_reader = VoidSSTable::reader(buffer);
         assert!(sstable_reader.advance().unwrap());
         assert_eq!(sstable_reader.key(), &[17u8]);
         assert!(sstable_reader.advance().unwrap());
@@ -414,8 +423,12 @@ mod test {
             writer.insert(b"abe", &()).unwrap();
             writer.finish().unwrap();
         }
+        let buffer = OwnedBytes::new(buffer);
         let mut output = Vec::new();
-        assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
+        assert!(
+            VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
+                .is_ok()
+        );
         assert_eq!(&output[..], &buffer[..]);
     }
 
@@ -431,8 +444,12 @@ mod test {
             assert_eq!(writer.last_inserted_key(), b"abe");
             writer.finish().unwrap();
         }
+        let buffer = OwnedBytes::new(buffer);
         let mut output = Vec::new();
-        assert!(VoidSSTable::merge(vec![&buffer[..], &buffer[..]], &mut output, VoidMerge).is_ok());
+        assert!(
+            VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
+                .is_ok()
+        );
         assert_eq!(&output[..], &buffer[..]);
     }
 
@@ -444,7 +461,8 @@ mod test {
         writer.insert(b"abe", &4u64)?;
         writer.insert(b"gogo", &4324234234234234u64)?;
         writer.finish()?;
-        let mut reader = MonotonicU64SSTable::reader(&buffer[..]);
+        let buffer = OwnedBytes::new(buffer);
+        let mut reader = MonotonicU64SSTable::reader(buffer);
         assert!(reader.advance()?);
         assert_eq!(reader.key(), b"abcd");
         assert_eq!(reader.value(), &1u64);
@@ -501,8 +519,8 @@ mod test {
         fn test_proptest_sstable_ranges(words in prop::collection::btree_set("[a-c]{0,6}", 1..100),
             (lower_bound, upper_bound) in bounds_strategy(),
         ) {
-            // TODO tweak block size.
             let mut builder = Dictionary::<VoidSSTable>::builder(Vec::new()).unwrap();
+            builder.set_block_len(16);
             for word in &words {
                 builder.insert(word.as_bytes(), &()).unwrap();
             }

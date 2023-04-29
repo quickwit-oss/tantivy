@@ -7,11 +7,9 @@
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use super::agg_req::BucketAggregationInternal;
 use super::bucket::GetDocCount;
-use super::intermediate_agg_result::{IntermediateBucketResult, IntermediateMetricResult};
-use super::metric::{SingleMetricResult, Stats};
-use super::Key;
+use super::metric::{PercentilesMetricResult, SingleMetricResult, Stats};
+use super::{AggregationError, Key};
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -19,6 +17,13 @@ use crate::TantivyError;
 pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        self.0
+            .values()
+            .map(|agg| agg.get_bucket_count())
+            .sum::<u64>()
+    }
+
     pub(crate) fn get_value_from_aggregation(
         &self,
         name: &str,
@@ -47,6 +52,13 @@ pub enum AggregationResult {
 }
 
 impl AggregationResult {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            AggregationResult::BucketResult(bucket) => bucket.get_bucket_count(),
+            AggregationResult::MetricResult(_) => 0,
+        }
+    }
+
     pub(crate) fn get_value_from_aggregation(
         &self,
         _name: &str,
@@ -79,6 +91,8 @@ pub enum MetricResult {
     Stats(Stats),
     /// Sum metric result.
     Sum(SingleMetricResult),
+    /// Sum metric result.
+    Percentiles(PercentilesMetricResult),
 }
 
 impl MetricResult {
@@ -90,30 +104,9 @@ impl MetricResult {
             MetricResult::Min(min) => Ok(min.value),
             MetricResult::Stats(stats) => stats.get_value(agg_property),
             MetricResult::Sum(sum) => Ok(sum.value),
-        }
-    }
-}
-impl From<IntermediateMetricResult> for MetricResult {
-    fn from(metric: IntermediateMetricResult) -> Self {
-        match metric {
-            IntermediateMetricResult::Average(intermediate_avg) => {
-                MetricResult::Average(intermediate_avg.finalize().into())
-            }
-            IntermediateMetricResult::Count(intermediate_count) => {
-                MetricResult::Count(intermediate_count.finalize().into())
-            }
-            IntermediateMetricResult::Max(intermediate_max) => {
-                MetricResult::Max(intermediate_max.finalize().into())
-            }
-            IntermediateMetricResult::Min(intermediate_min) => {
-                MetricResult::Min(intermediate_min.finalize().into())
-            }
-            IntermediateMetricResult::Stats(intermediate_stats) => {
-                MetricResult::Stats(intermediate_stats.finalize())
-            }
-            IntermediateMetricResult::Sum(intermediate_sum) => {
-                MetricResult::Sum(intermediate_sum.finalize().into())
-            }
+            MetricResult::Percentiles(_) => Err(TantivyError::AggregationError(
+                AggregationError::InvalidRequest("percentiles can't be used to order".to_string()),
+            )),
         }
     }
 }
@@ -153,9 +146,20 @@ pub enum BucketResult {
 }
 
 impl BucketResult {
-    pub(crate) fn empty_from_req(req: &BucketAggregationInternal) -> crate::Result<Self> {
-        let empty_bucket = IntermediateBucketResult::empty_from_req(&req.bucket_agg);
-        empty_bucket.into_final_bucket_result(req)
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        match self {
+            BucketResult::Range { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Histogram { buckets } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
+            }
+            BucketResult::Terms {
+                buckets,
+                sum_other_doc_count: _,
+                doc_count_error_upper_bound: _,
+            } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
+        }
     }
 }
 
@@ -168,6 +172,15 @@ pub enum BucketEntries<T> {
     Vec(Vec<T>),
     /// HashMap format bucket entries
     HashMap(FxHashMap<String, T>),
+}
+
+impl<T> BucketEntries<T> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+        match self {
+            BucketEntries::Vec(vec) => Box::new(vec.iter()),
+            BucketEntries::HashMap(map) => Box::new(map.values()),
+        }
+    }
 }
 
 /// This is the default entry for a bucket, which contains a key, count, and optionally
@@ -208,6 +221,11 @@ pub struct BucketEntry {
     #[serde(flatten)]
     /// Sub-aggregations in this bucket.
     pub sub_aggregation: AggregationResults,
+}
+impl BucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
 }
 impl GetDocCount for &BucketEntry {
     fn doc_count(&self) -> u64 {
@@ -271,4 +289,9 @@ pub struct RangeBucketEntry {
     /// The optional string representation for the `to` range.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_as_string: Option<String>,
+}
+impl RangeBucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
 }

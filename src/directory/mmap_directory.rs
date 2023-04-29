@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
 use common::StableDeref;
-use fs2::FileExt;
+use fs4::FileExt;
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -369,7 +369,9 @@ impl Directory for MmapDirectory {
 
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
         let full_path = self.resolve_path(path);
-        Ok(full_path.exists())
+        full_path
+            .try_exists()
+            .map_err(|io_err| OpenReadError::wrap_io_error(io_err, path.to_path_buf()))
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {

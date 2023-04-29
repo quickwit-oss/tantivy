@@ -9,6 +9,8 @@ use crate::DocId;
 /// to compare `[u32; 4]`.
 pub const TERMINATED: DocId = i32::MAX as u32;
 
+pub const BUFFER_LEN: usize = 64;
+
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet: Send {
     /// Goes to the next element.
@@ -59,7 +61,7 @@ pub trait DocSet: Send {
     /// This method is only here for specific high-performance
     /// use case where batching. The normal way to
     /// go through the `DocId`'s is to call `.advance()`.
-    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
+    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
         if self.doc() == TERMINATED {
             return 0;
         }
@@ -147,6 +149,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn seek(&mut self, target: DocId) -> DocId {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.seek(target)
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.fill_buffer(buffer)
     }
 
     fn doc(&self) -> DocId {

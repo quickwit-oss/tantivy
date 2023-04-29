@@ -36,6 +36,16 @@ pub struct DateTime {
 }
 
 impl DateTime {
+    /// Minimum possible `DateTime` value.
+    pub const MIN: DateTime = DateTime {
+        timestamp_micros: i64::MIN,
+    };
+
+    /// Maximum possible `DateTime` value.
+    pub const MAX: DateTime = DateTime {
+        timestamp_micros: i64::MAX,
+    };
+
     /// Create new from UNIX timestamp in seconds
     pub const fn from_timestamp_secs(seconds: i64) -> Self {
         Self {

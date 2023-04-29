@@ -78,8 +78,11 @@ impl PhrasePrefixWeight {
         }
 
         let inv_index = reader.inverted_index(self.prefix.1.field())?;
-        let mut stream = inv_index.terms().range().ge(self.prefix.1.value_bytes());
-        if let Some(end) = prefix_end(self.prefix.1.value_bytes()) {
+        let mut stream = inv_index
+            .terms()
+            .range()
+            .ge(self.prefix.1.serialized_value_bytes());
+        if let Some(end) = prefix_end(self.prefix.1.serialized_value_bytes()) {
             stream = stream.lt(&end);
         }
 

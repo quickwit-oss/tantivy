@@ -2,6 +2,8 @@ mod executor;
 pub mod index;
 mod index_meta;
 mod inverted_index_reader;
+#[doc(hidden)]
+pub mod json_utils;
 pub mod searcher;
 mod segment;
 mod segment_component;

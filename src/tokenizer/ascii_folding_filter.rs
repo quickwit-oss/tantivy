@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
@@ -9,20 +9,33 @@ use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 pub struct AsciiFoldingFilter;
 
 impl TokenFilter for AsciiFoldingFilter {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        From::from(AsciiFoldingFilterTokenStream {
-            tail: token_stream,
-            buffer: String::with_capacity(100),
-        })
+    type Tokenizer<T: Tokenizer> = AsciiFoldingFilterWrapper<T>;
+
+    fn transform<T: Tokenizer>(self, tokenizer: T) -> AsciiFoldingFilterWrapper<T> {
+        AsciiFoldingFilterWrapper(tokenizer)
     }
 }
 
-pub struct AsciiFoldingFilterTokenStream<'a> {
-    buffer: String,
-    tail: BoxTokenStream<'a>,
+#[derive(Clone)]
+pub struct AsciiFoldingFilterWrapper<T>(T);
+
+impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
+    type TokenStream<'a> = AsciiFoldingFilterTokenStream<T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+        AsciiFoldingFilterTokenStream {
+            buffer: String::with_capacity(100),
+            tail: self.0.token_stream(text),
+        }
+    }
 }
 
-impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
+pub struct AsciiFoldingFilterTokenStream<T> {
+    buffer: String,
+    tail: T,
+}
+
+impl<T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -1560,8 +1573,9 @@ mod tests {
 
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        TextAnalyzer::from(SimpleTokenizer)
+        TextAnalyzer::builder(SimpleTokenizer)
             .filter(AsciiFoldingFilter)
+            .build()
             .token_stream(text)
             .process(&mut |token| {
                 tokens.push(token.text.clone());
@@ -1570,8 +1584,9 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = TextAnalyzer::from(RawTokenizer)
+        let mut token_stream = TextAnalyzer::builder(RawTokenizer)
             .filter(AsciiFoldingFilter)
+            .build()
             .token_stream(text);
         token_stream.advance();
         token_stream.token().text.clone()

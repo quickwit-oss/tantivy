@@ -1,4 +1,5 @@
 use std::io;
+use std::net::Ipv6Addr;
 use std::ops::{Bound, Range};
 
 use common::{BinarySerializable, BitSet};
@@ -84,7 +85,7 @@ impl RangeQuery {
         left_bound: &Bound<Term>,
         right_bound: &Bound<Term>,
     ) -> RangeQuery {
-        let verify_and_unwrap_term = |val: &Term| val.value_bytes().to_owned();
+        let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
         RangeQuery {
             field,
             value_type,
@@ -120,7 +121,7 @@ impl RangeQuery {
     ) -> RangeQuery {
         let make_term_val = |val: &i64| {
             Term::from_field_i64(Field::from_field_id(0), *val)
-                .value_bytes()
+                .serialized_value_bytes()
                 .to_owned()
         };
         RangeQuery {
@@ -158,7 +159,7 @@ impl RangeQuery {
     ) -> RangeQuery {
         let make_term_val = |val: &f64| {
             Term::from_field_f64(Field::from_field_id(0), *val)
-                .value_bytes()
+                .serialized_value_bytes()
                 .to_owned()
         };
         RangeQuery {
@@ -184,12 +185,35 @@ impl RangeQuery {
     ) -> RangeQuery {
         let make_term_val = |val: &u64| {
             Term::from_field_u64(Field::from_field_id(0), *val)
-                .value_bytes()
+                .serialized_value_bytes()
                 .to_owned()
         };
         RangeQuery {
             field,
             value_type: Type::U64,
+            left_bound: map_bound(&left_bound, &make_term_val),
+            right_bound: map_bound(&right_bound, &make_term_val),
+            limit: None,
+        }
+    }
+
+    /// Create a new `RangeQuery` over a `ip` field.
+    ///
+    /// If the field is not of the type `ip`, tantivy
+    /// will panic when the `Weight` object is created.
+    pub fn new_ip_bounds(
+        field: String,
+        left_bound: Bound<Ipv6Addr>,
+        right_bound: Bound<Ipv6Addr>,
+    ) -> RangeQuery {
+        let make_term_val = |val: &Ipv6Addr| {
+            Term::from_field_ip_addr(Field::from_field_id(0), *val)
+                .serialized_value_bytes()
+                .to_owned()
+        };
+        RangeQuery {
+            field,
+            value_type: Type::IpAddr,
             left_bound: map_bound(&left_bound, &make_term_val),
             right_bound: map_bound(&right_bound, &make_term_val),
             limit: None,
@@ -222,7 +246,7 @@ impl RangeQuery {
     ) -> RangeQuery {
         let make_term_val = |val: &DateTime| {
             Term::from_field_date(Field::from_field_id(0), *val)
-                .value_bytes()
+                .serialized_value_bytes()
                 .to_owned()
         };
         RangeQuery {

@@ -1,9 +1,8 @@
 use std::io;
 use std::io::Write;
 
-use common::{intersect_bitsets, BitSet, OwnedBytes, ReadOnlyBitSet};
+use common::{intersect_bitsets, BitSet, ByteCount, OwnedBytes, ReadOnlyBitSet};
 
-use crate::space_usage::ByteCount;
 use crate::DocId;
 
 /// Write an alive `BitSet`

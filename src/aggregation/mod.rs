@@ -24,6 +24,10 @@
 //! ## JSON Format
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
+//! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
+//! See compatibility tests here: https://github.com/PSeitz/test_serde_formats
+//! TLDR: use ciborium.
+//!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
 //! let collector = AggregationCollector::from_aggs(agg_req, None);
@@ -49,34 +53,6 @@
 //! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
 //! `(String, agg_req::Aggregation)` iterator.
 //!
-//! ```
-//! use tantivy::aggregation::agg_req::{Aggregations, Aggregation, MetricAggregation};
-//! use tantivy::aggregation::AggregationCollector;
-//! use tantivy::aggregation::metric::AverageAggregation;
-//! use tantivy::query::AllQuery;
-//! use tantivy::aggregation::agg_result::AggregationResults;
-//! use tantivy::IndexReader;
-//!
-//! # #[allow(dead_code)]
-//! fn aggregate_on_index(reader: &IndexReader) {
-//!     let agg_req: Aggregations = vec![
-//!     (
-//!             "average".to_string(),
-//!             Aggregation::Metric(MetricAggregation::Average(
-//!                 AverageAggregation::from_field_name("score".to_string()),
-//!             )),
-//!         ),
-//!     ]
-//!     .into_iter()
-//!     .collect();
-//!
-//!     let collector = AggregationCollector::from_aggs(agg_req, None);
-//!
-//!     let searcher = reader.searcher();
-//!     let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
-//! }
-//! ```
-//! # Example JSON
 //! Requests are compatible with the elasticsearch JSON request format.
 //!
 //! ```
@@ -116,32 +92,24 @@
 //! aggregation and then calculate the average on each bucket.
 //! ```
 //! use tantivy::aggregation::agg_req::*;
-//! use tantivy::aggregation::metric::AverageAggregation;
-//! use tantivy::aggregation::bucket::RangeAggregation;
-//! let sub_agg_req_1: Aggregations = vec![(
-//!    "average_in_range".to_string(),
-//!         Aggregation::Metric(MetricAggregation::Average(
-//!             AverageAggregation::from_field_name("score".to_string()),
-//!         )),
-//! )]
-//! .into_iter()
-//! .collect();
+//! use serde_json::json;
 //!
-//! let agg_req_1: Aggregations = vec![
-//!     (
-//!         "range".to_string(),
-//!         Aggregation::Bucket(BucketAggregation {
-//!             bucket_agg: BucketAggregationType::Range(RangeAggregation{
-//!                 field: "score".to_string(),
-//!                 ranges: vec![(3f64..7f64).into(), (7f64..20f64).into()],
-//!                 keyed: false,
-//!             }),
-//!             sub_aggregation: sub_agg_req_1.clone(),
-//!         }),
-//!     ),
-//! ]
-//! .into_iter()
-//! .collect();
+//! let agg_req_1: Aggregations = serde_json::from_value(json!({
+//!     "rangef64": {
+//!         "range": {
+//!             "field": "score",
+//!             "ranges": [
+//!                 { "from": 3, "to": 7000 },
+//!                 { "from": 7000, "to": 20000 },
+//!                 { "from": 50000, "to": 60000 }
+//!             ]
+//!         },
+//!         "aggs": {
+//!             "average_in_range": { "avg": { "field": "score" } }
+//!         }
+//!     },
+//! }))
+//! .unwrap();
 //! ```
 //!
 //! # Distributed Aggregation
@@ -155,6 +123,7 @@
 //! [`AggregationResults`](agg_result::AggregationResults) via the
 //! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
 
+mod agg_limits;
 pub mod agg_req;
 mod agg_req_with_accessor;
 pub mod agg_result;
@@ -162,8 +131,10 @@ pub mod bucket;
 mod buf_collector;
 mod collector;
 mod date;
+mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
+
 mod segment_agg_result;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -171,12 +142,16 @@ use std::fmt::Display;
 #[cfg(test)]
 mod agg_tests;
 
+mod agg_bench;
+
+pub use agg_limits::AggregationLimits;
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
-    MAX_BUCKET_COUNT,
+    DEFAULT_BUCKET_LIMIT,
 };
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 pub(crate) use date::format_date;
+pub use error::AggregationError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -209,9 +184,9 @@ impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T: Clone> VecWithNames<T> {
-    fn extend(&mut self, entries: VecWithNames<T>) {
-        self.keys.extend(entries.keys);
-        self.values.extend(entries.values);
+    fn push(&mut self, key: String, value: T) {
+        self.keys.push(key);
+        self.values.push(value);
     }
 
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
@@ -239,9 +214,6 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn into_values(self) -> impl Iterator<Item = T> {
         self.values.into_iter()
-    }
-    fn values(&self) -> impl Iterator<Item = &T> + '_ {
-        self.values.iter()
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()
@@ -343,6 +315,7 @@ mod tests {
     use time::OffsetDateTime;
 
     use super::agg_req::Aggregations;
+    use super::segment_agg_result::AggregationLimits;
     use super::*;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
@@ -367,7 +340,16 @@ mod tests {
         index: &Index,
         query: Option<(&str, &str)>,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, None);
+        exec_request_with_query_and_memory_limit(agg_req, index, query, Default::default())
+    }
+
+    pub fn exec_request_with_query_and_memory_limit(
+        agg_req: Aggregations,
+        index: &Index,
+        query: Option<(&str, &str)>,
+        limits: AggregationLimits,
+    ) -> crate::Result<Value> {
+        let collector = AggregationCollector::from_aggs(agg_req, limits);
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -430,7 +412,7 @@ mod tests {
                     .set_index_option(IndexRecordOption::Basic)
                     .set_fieldnorms(false),
             )
-            .set_fast()
+            .set_fast(None)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype.clone());
         let text_field_id = schema_builder.add_text_field("text_id", text_fieldtype);
@@ -446,7 +428,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             // let mut index_writer = index.writer_for_tests()?;
-            let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for values in segment_and_values {
                 for (i, term) in values {
@@ -485,7 +467,7 @@ mod tests {
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
-            .set_fast()
+            .set_fast(None)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", FAST);

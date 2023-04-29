@@ -12,7 +12,7 @@ pub use serialize::{open_column_index, serialize_column_index, SerializableColum
 use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, DocId, RowId};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ColumnIndex {
     Empty {
         num_docs: u32,
@@ -37,11 +37,15 @@ impl From<MultiValueIndex> for ColumnIndex {
 }
 
 impl ColumnIndex {
+    // Returns the cardinality of the column index.
+    //
+    // By convention, if the column contains no docs, we consider that it is
+    // full.
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
+            ColumnIndex::Empty { num_docs: 0 } | ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Empty { .. } => Cardinality::Optional,
-            ColumnIndex::Full => Cardinality::Full,
             ColumnIndex::Optional(_) => Cardinality::Optional,
             ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
         }
@@ -71,6 +75,45 @@ impl ColumnIndex {
                 }
             }
             ColumnIndex::Multivalued(multivalued_index) => multivalued_index.range(doc_id),
+        }
+    }
+
+    /// Translates a block of docis to row_ids.
+    ///
+    /// returns the row_ids and the matching docids on the same index
+    /// e.g.
+    /// DocId In:  [0, 5, 6]
+    /// DocId Out: [0, 0, 6, 6]
+    /// RowId Out: [0, 1, 2, 3]
+    #[inline]
+    pub fn docids_to_rowids(
+        &self,
+        doc_ids: &[DocId],
+        doc_ids_out: &mut Vec<DocId>,
+        row_ids: &mut Vec<RowId>,
+    ) {
+        match self {
+            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Full => {
+                doc_ids_out.extend_from_slice(doc_ids);
+                row_ids.extend_from_slice(doc_ids);
+            }
+            ColumnIndex::Optional(optional_index) => {
+                for doc_id in doc_ids {
+                    if let Some(row_id) = optional_index.rank_if_exists(*doc_id) {
+                        doc_ids_out.push(*doc_id);
+                        row_ids.push(row_id);
+                    }
+                }
+            }
+            ColumnIndex::Multivalued(multivalued_index) => {
+                for doc_id in doc_ids {
+                    for row_id in multivalued_index.range(*doc_id) {
+                        doc_ids_out.push(*doc_id);
+                        row_ids.push(row_id);
+                    }
+                }
+            }
         }
     }
 
@@ -111,5 +154,23 @@ impl ColumnIndex {
                 multivalued_index.select_batch_in_place(doc_id_start, rank_ids)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Cardinality, ColumnIndex};
+
+    #[test]
+    fn test_column_index_get_cardinality() {
+        assert_eq!(
+            ColumnIndex::Empty { num_docs: 0 }.get_cardinality(),
+            Cardinality::Full
+        );
+        assert_eq!(ColumnIndex::Full.get_cardinality(), Cardinality::Full);
+        assert_eq!(
+            ColumnIndex::Empty { num_docs: 1 }.get_cardinality(),
+            Cardinality::Optional
+        );
     }
 }

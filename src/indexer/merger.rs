@@ -306,7 +306,7 @@ impl IndexMerger {
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Arc<dyn ColumnValues>> {
         reader.schema().get_field(&sort_by_field.field)?;
-        let value_accessor = reader
+        let (value_accessor, _column_type) = reader
             .fast_fields()
             .u64_lenient(&sort_by_field.field)?
             .ok_or_else(|| FastFieldNotAvailableError {

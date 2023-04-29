@@ -2,6 +2,7 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
+use super::flags::CoerceFlag;
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 #[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
@@ -17,6 +18,12 @@ pub struct NumericOptions {
     fieldnorms: bool, // This attribute only has an effect if indexed is true.
     fast: bool,
     stored: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    coerce: bool,
+}
+
+fn is_false(val: &bool) -> bool {
+    !val
 }
 
 /// For backward compatibility we add an intermediary to interpret the
@@ -32,6 +39,8 @@ struct NumericOptionsDeser {
     #[serde(default)]
     fast: bool,
     stored: bool,
+    #[serde(default)]
+    coerce: bool,
 }
 
 impl From<NumericOptionsDeser> for NumericOptions {
@@ -41,6 +50,7 @@ impl From<NumericOptionsDeser> for NumericOptions {
             fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
             fast: deser.fast,
             stored: deser.stored,
+            coerce: deser.coerce,
         }
     }
 }
@@ -64,6 +74,18 @@ impl NumericOptions {
     /// Returns true iff the value is a fast field.
     pub fn is_fast(&self) -> bool {
         self.fast
+    }
+
+    /// Returns true if values should be coerced to numbers.
+    pub fn should_coerce(&self) -> bool {
+        self.coerce
+    }
+
+    /// Try to coerce values if they are not a number. Defaults to false.
+    #[must_use]
+    pub fn set_coerce(mut self) -> Self {
+        self.coerce = true;
+        self
     }
 
     /// Set the field as stored.
@@ -117,6 +139,18 @@ impl From<()> for NumericOptions {
     }
 }
 
+impl From<CoerceFlag> for NumericOptions {
+    fn from(_: CoerceFlag) -> NumericOptions {
+        NumericOptions {
+            indexed: false,
+            fieldnorms: false,
+            stored: false,
+            fast: false,
+            coerce: true,
+        }
+    }
+}
+
 impl From<FastFlag> for NumericOptions {
     fn from(_: FastFlag) -> Self {
         NumericOptions {
@@ -124,6 +158,7 @@ impl From<FastFlag> for NumericOptions {
             fieldnorms: false,
             stored: false,
             fast: true,
+            coerce: false,
         }
     }
 }
@@ -135,6 +170,7 @@ impl From<StoredFlag> for NumericOptions {
             fieldnorms: false,
             stored: true,
             fast: false,
+            coerce: false,
         }
     }
 }
@@ -146,6 +182,7 @@ impl From<IndexedFlag> for NumericOptions {
             fieldnorms: true,
             stored: false,
             fast: false,
+            coerce: false,
         }
     }
 }
@@ -160,6 +197,7 @@ impl<T: Into<NumericOptions>> BitOr<T> for NumericOptions {
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
+            coerce: self.coerce | other.coerce,
         }
     }
 }
@@ -192,7 +230,8 @@ mod tests {
                 indexed: true,
                 fieldnorms: true,
                 fast: false,
-                stored: false
+                stored: false,
+                coerce: false,
             }
         );
     }
@@ -210,7 +249,8 @@ mod tests {
                 indexed: false,
                 fieldnorms: false,
                 fast: false,
-                stored: false
+                stored: false,
+                coerce: false,
             }
         );
     }
@@ -229,7 +269,8 @@ mod tests {
                 indexed: true,
                 fieldnorms: false,
                 fast: false,
-                stored: false
+                stored: false,
+                coerce: false,
             }
         );
     }
@@ -249,7 +290,30 @@ mod tests {
                 indexed: false,
                 fieldnorms: true,
                 fast: false,
-                stored: false
+                stored: false,
+                coerce: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_int_options_deser_if_coerce_true() {
+        // this one is kind of useless, at least at the moment
+        let json = r#"{
+            "indexed": false,
+            "fieldnorms": true,
+            "stored": false,
+            "coerce": true
+        }"#;
+        let int_options: NumericOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &int_options,
+            &NumericOptions {
+                indexed: false,
+                fieldnorms: true,
+                fast: false,
+                stored: false,
+                coerce: true,
             }
         );
     }

@@ -17,7 +17,7 @@ mod serializer;
 mod skip;
 mod term_info;
 
-pub(crate) use stacker::compute_table_size;
+pub(crate) use stacker::compute_table_memory_size;
 
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub(crate) use self::indexing_context::IndexingContext;
