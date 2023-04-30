@@ -7,7 +7,6 @@ license = "MIT"
 [dependencies]
 murmurhash32 = "0.3"
 common = { version = "0.5", path = "../common/", package = "tantivy-common" }
-criterion = "0.4.0"
 
 [[bench]]
 harness = false
@@ -21,4 +20,3 @@ path = "example/hashmap.rs"
 [dev-dependencies]
 rand = "0.8.5"
 zipf = "7.0.0"
-
