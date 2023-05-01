@@ -208,6 +208,30 @@ pub mod tests {
     }
 
     #[test]
+    pub fn test_phrase_score_with_slop_bug() -> crate::Result<()> {
+        let index = create_index(&["asdf asdf Captain Subject Wendy", "Captain"])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let test_query = |texts: Vec<&str>| {
+            let terms: Vec<Term> = texts
+                .iter()
+                .map(|text| Term::from_field_text(text_field, text))
+                .collect();
+            let mut phrase_query = PhraseQuery::new(terms);
+            phrase_query.set_slop(1);
+            searcher
+                .search(&phrase_query, &TEST_COLLECTOR_WITH_SCORE)
+                .expect("search should succeed")
+                .scores()
+                .to_vec()
+        };
+        let scores = test_query(vec!["captain", "wendy"]);
+        assert_eq!(scores.len(), 1);
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_score_with_slop_size() -> crate::Result<()> {
         let index = create_index(&["a b e c", "a e e e c", "a e e e e c"])?;
         let schema = index.schema();
@@ -237,7 +261,7 @@ pub mod tests {
         let index = create_index(&[
             "a e b e c",
             "a e e e e e b e e e e c",
-            "a c b",
+            "a c b", // also matches
             "a c e b e",
             "a e c b",
             "a e b c",
@@ -261,7 +285,8 @@ pub mod tests {
         let scores = test_query(vec!["a", "b", "c"]);
         // The first and last matches.
         assert_nearly_equals!(scores[0], 0.23091172);
-        assert_nearly_equals!(scores[1], 0.25024384);
+        assert_nearly_equals!(scores[1], 0.27310878);
+        assert_nearly_equals!(scores[3], 0.25024384);
         Ok(())
     }
 
