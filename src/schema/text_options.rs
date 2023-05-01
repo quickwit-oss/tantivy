@@ -25,8 +25,12 @@ pub struct TextOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+/// Enum to control how the fast field setting of a text field.
 enum FastFieldOptions {
+    /// Flag to enable/disable
     IsEnabled(bool),
+    /// Enable with tokenizer. The tokenizer must be available on the fast field tokenizer manager.
+    /// `Index::tokenizer_fast_field`.
     EnabledWithTokenizer { with_tokenizer: TokenizerName },
 }
 
@@ -111,6 +115,8 @@ impl TextOptions {
     /// The effective cardinality depends on the tokenizer. Without a tokenizer, the text will be
     /// stored as is, which equals to the "raw" tokenizer. The tokenizer can be used to apply
     /// normalization like lower case.
+    /// The passed tokenizer_name must be available on the fast field tokenizer manager.
+    /// `Index::tokenizer_fast_field`.
     ///
     /// The original text can be retrieved via
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
