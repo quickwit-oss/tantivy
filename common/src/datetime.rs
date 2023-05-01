@@ -17,9 +17,11 @@ pub enum DatePrecision {
     Milliseconds,
     /// Micro-seconds precision.
     Microseconds,
+    /// Nano-seconds precision.
+    Nanoseconds,
 }
 
-/// A date/time value with microsecond precision.
+/// A date/time value with nanoseconds precision.
 ///
 /// This timestamp does not carry any explicit time zone information.
 /// Users are responsible for applying the provided conversion
@@ -31,39 +33,46 @@ pub enum DatePrecision {
 /// to prevent unintended usage.
 #[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DateTime {
-    // Timestamp in microseconds.
-    pub(crate) timestamp_micros: i64,
+    // Timestamp in nanoseconds.
+    pub(crate) timestamp_nanos: i64,
 }
 
 impl DateTime {
     /// Minimum possible `DateTime` value.
     pub const MIN: DateTime = DateTime {
-        timestamp_micros: i64::MIN,
+        timestamp_nanos: i64::MIN,
     };
 
     /// Maximum possible `DateTime` value.
     pub const MAX: DateTime = DateTime {
-        timestamp_micros: i64::MAX,
+        timestamp_nanos: i64::MAX,
     };
 
     /// Create new from UNIX timestamp in seconds
     pub const fn from_timestamp_secs(seconds: i64) -> Self {
         Self {
-            timestamp_micros: seconds * 1_000_000,
+            timestamp_nanos: seconds * 1_000_000_000,
         }
     }
 
     /// Create new from UNIX timestamp in milliseconds
     pub const fn from_timestamp_millis(milliseconds: i64) -> Self {
         Self {
-            timestamp_micros: milliseconds * 1_000,
+            timestamp_nanos: milliseconds * 1_000_000,
         }
     }
 
     /// Create new from UNIX timestamp in microseconds.
     pub const fn from_timestamp_micros(microseconds: i64) -> Self {
         Self {
-            timestamp_micros: microseconds,
+            timestamp_nanos: microseconds * 1_000,
+        }
+    }
+
+    /// Create new from UNIX timestamp in nanoseconds.
+    pub const fn from_timestamp_nanos(nanoseconds: i64) -> Self {
+        Self {
+            timestamp_nanos: nanoseconds,
         }
     }
 
@@ -71,9 +80,9 @@ impl DateTime {
     ///
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
-    pub const fn from_utc(dt: OffsetDateTime) -> Self {
-        let timestamp_micros = dt.unix_timestamp() * 1_000_000 + dt.microsecond() as i64;
-        Self { timestamp_micros }
+    pub fn from_utc(dt: OffsetDateTime) -> Self {
+        let timestamp_nanos = dt.unix_timestamp_nanos() as i64;
+        Self { timestamp_nanos }
     }
 
     /// Create new from `PrimitiveDateTime`
@@ -87,23 +96,27 @@ impl DateTime {
 
     /// Convert to UNIX timestamp in seconds.
     pub const fn into_timestamp_secs(self) -> i64 {
-        self.timestamp_micros / 1_000_000
+        self.timestamp_nanos / 1_000_000_000
     }
 
     /// Convert to UNIX timestamp in milliseconds.
     pub const fn into_timestamp_millis(self) -> i64 {
-        self.timestamp_micros / 1_000
+        self.timestamp_nanos / 1_000_000
     }
 
     /// Convert to UNIX timestamp in microseconds.
     pub const fn into_timestamp_micros(self) -> i64 {
-        self.timestamp_micros
+        self.timestamp_nanos / 1_000
+    }
+
+    /// Convert to UNIX timestamp in nanoseconds.
+    pub const fn into_timestamp_nanos(self) -> i64 {
+        self.timestamp_nanos
     }
 
     /// Convert to UTC `OffsetDateTime`
     pub fn into_utc(self) -> OffsetDateTime {
-        let timestamp_nanos = self.timestamp_micros as i128 * 1000;
-        let utc_datetime = OffsetDateTime::from_unix_timestamp_nanos(timestamp_nanos)
+        let utc_datetime = OffsetDateTime::from_unix_timestamp_nanos(self.timestamp_nanos as i128)
             .expect("valid UNIX timestamp");
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
         utc_datetime
@@ -128,12 +141,13 @@ impl DateTime {
     /// Truncates the microseconds value to the corresponding precision.
     pub fn truncate(self, precision: DatePrecision) -> Self {
         let truncated_timestamp_micros = match precision {
-            DatePrecision::Seconds => (self.timestamp_micros / 1_000_000) * 1_000_000,
-            DatePrecision::Milliseconds => (self.timestamp_micros / 1_000) * 1_000,
-            DatePrecision::Microseconds => self.timestamp_micros,
+            DatePrecision::Seconds => (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000,
+            DatePrecision::Milliseconds => (self.timestamp_nanos / 1_000_000) * 1_000_000,
+            DatePrecision::Microseconds => (self.timestamp_nanos / 1_000) * 1_000,
+            DatePrecision::Nanoseconds => self.timestamp_nanos,
         };
         Self {
-            timestamp_micros: truncated_timestamp_micros,
+            timestamp_nanos: truncated_timestamp_micros,
         }
     }
 }

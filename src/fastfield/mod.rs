@@ -685,12 +685,12 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "date",
-            DateOptions::from(FAST).set_precision(DatePrecision::Microseconds),
+            DateOptions::from(FAST).set_precision(DatePrecision::Nanoseconds),
         );
         let multi_date_field = schema_builder.add_date_field(
             "multi_date",
             DateOptions::default()
-                .set_precision(DatePrecision::Microseconds)
+                .set_precision(DatePrecision::Nanoseconds)
                 .set_fast(),
         );
         let schema = schema_builder.build();
@@ -724,25 +724,25 @@ mod tests {
             .column_opt::<DateTime>("multi_date")
             .unwrap()
             .unwrap();
-        let mut dates = vec![];
+        let mut dates = Vec::new();
         {
-            assert_eq!(date_fast_field.get_val(0).into_timestamp_micros(), 1i64);
+            assert_eq!(date_fast_field.get_val(0).into_timestamp_nanos(), 1i64);
             dates_fast_field.fill_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_timestamp_micros(), 2i64);
-            assert_eq!(dates[1].into_timestamp_micros(), 3i64);
+            assert_eq!(dates[0].into_timestamp_nanos(), 2i64);
+            assert_eq!(dates[1].into_timestamp_nanos(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get_val(1).into_timestamp_micros(), 4i64);
+            assert_eq!(date_fast_field.get_val(1).into_timestamp_nanos(), 4i64);
             dates_fast_field.fill_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get_val(2).into_timestamp_micros(), 0i64);
+            assert_eq!(date_fast_field.get_val(2).into_timestamp_nanos(), 0i64);
             dates_fast_field.fill_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_timestamp_micros(), 5i64);
-            assert_eq!(dates[1].into_timestamp_micros(), 6i64);
+            assert_eq!(dates[0].into_timestamp_nanos(), 5i64);
+            assert_eq!(dates[1].into_timestamp_nanos(), 6i64);
         }
         Ok(())
     }

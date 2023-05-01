@@ -109,7 +109,7 @@ impl Coerce for f64 {
 impl Coerce for DateTime {
     fn coerce(value: NumericalValue) -> Self {
         let timestamp_micros = i64::coerce(value);
-        DateTime::from_timestamp_micros(timestamp_micros)
+        DateTime::from_timestamp_nanos(timestamp_micros)
     }
 }
 

@@ -1207,7 +1207,7 @@ mod tests {
             "histogram": {
                 "histogram": {
                     "field": "date",
-                    "interval": 86400000000.0, // one day in microseconds
+                    "interval": 86400000000000.0, // one day in nano seconds
                 },
             }
         }))
@@ -1217,14 +1217,14 @@ mod tests {
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
 
-        assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000000.0);
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000000000.0);
         assert_eq!(
             res["histogram"]["buckets"][0]["key_as_string"],
             "2019-01-01T00:00:00Z"
         );
         assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
 
-        assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000000.0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000000000.0);
         assert_eq!(
             res["histogram"]["buckets"][1]["key_as_string"],
             "2019-01-02T00:00:00Z"
@@ -1232,7 +1232,7 @@ mod tests {
 
         assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 5);
 
-        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000.0);
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000000.0);
         assert_eq!(
             res["histogram"]["buckets"][2]["key_as_string"],
             "2019-01-03T00:00:00Z"

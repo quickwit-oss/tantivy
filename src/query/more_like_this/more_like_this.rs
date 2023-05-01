@@ -245,14 +245,11 @@ impl MoreLikeThis {
             }
             FieldType::Date(_) => {
                 for value in values {
-                    let timestamp_micros = value
-                        .as_date()
-                        .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
-                        .into_timestamp_micros();
-                    if !self.is_noise_word(timestamp_micros.to_string()) {
-                        let term = Term::from_field_i64(field, timestamp_micros);
-                        *term_frequencies.entry(term).or_insert(0) += 1;
-                    }
+                    let timestamp = value.as_date().ok_or_else(|| {
+                        TantivyError::InvalidArgument("invalid value".to_string())
+                    })?;
+                    let term = Term::from_field_date(field, timestamp);
+                    *term_frequencies.entry(term).or_insert(0) += 1;
                 }
             }
             FieldType::I64(_) => {

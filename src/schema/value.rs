@@ -27,7 +27,7 @@ pub enum Value {
     F64(f64),
     /// Bool value
     Bool(bool),
-    /// Date/time with microseconds precision
+    /// Date/time with nanoseconds precision
     Date(DateTime),
     /// Facet
     Facet(Facet),

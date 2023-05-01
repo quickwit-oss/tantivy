@@ -40,7 +40,7 @@ pub struct DateHistogramAggregationReq {
     date_interval: Option<String>,
     /// The field to aggregate on.
     pub field: String,
-    /// The format to format dates.
+    /// The format to format dates. Unsupported currently.
     pub format: Option<String>,
     /// The interval to chunk your data range. Each bucket spans a value range of
     /// [0..fixed_interval). Accepted values
@@ -77,7 +77,7 @@ pub struct DateHistogramAggregationReq {
     /// hard_bounds only limits the buckets, to force a range set both extended_bounds and
     /// hard_bounds to the same range.
     ///
-    /// Needs to be provided as timestamp in microseconds precision.
+    /// Needs to be provided as timestamp in nanosecond precision.
     ///
     /// ## Example
     /// ```json
@@ -88,7 +88,7 @@ pub struct DateHistogramAggregationReq {
     ///            "interval": "1d",
     ///            "hard_bounds": {
     ///                "min": 0,
-    ///                "max": 1420502400000000
+    ///                "max": 1420502400000000000
     ///            }
     ///        }
     ///    }
@@ -114,11 +114,11 @@ impl DateHistogramAggregationReq {
         self.validate()?;
         Ok(HistogramAggregation {
             field: self.field.to_string(),
-            interval: parse_into_microseconds(self.fixed_interval.as_ref().unwrap())? as f64,
+            interval: parse_into_nanoseconds(self.fixed_interval.as_ref().unwrap())? as f64,
             offset: self
                 .offset
                 .as_ref()
-                .map(|offset| parse_offset_into_microseconds(offset))
+                .map(|offset| parse_offset_into_nanosecs(offset))
                 .transpose()?
                 .map(|el| el as f64),
             min_doc_count: self.min_doc_count,
@@ -155,7 +155,7 @@ impl DateHistogramAggregationReq {
             ));
         }
 
-        parse_into_microseconds(self.fixed_interval.as_ref().unwrap())?;
+        parse_into_nanoseconds(self.fixed_interval.as_ref().unwrap())?;
 
         Ok(())
     }
@@ -176,9 +176,12 @@ pub enum DateHistogramParseError {
     /// Offset invalid
     #[error("passed offset is invalid {0:?}")]
     InvalidOffset(String),
+    /// Value out of bounds
+    #[error("passed value is out of bounds: {0:?}")]
+    OutOfBounds(String),
 }
 
-fn parse_offset_into_microseconds(input: &str) -> Result<i64, AggregationError> {
+fn parse_offset_into_nanosecs(input: &str) -> Result<i64, AggregationError> {
     let is_sign = |byte| &[byte] == b"-" || &[byte] == b"+";
     if input.is_empty() {
         return Err(DateHistogramParseError::InvalidOffset(input.to_string()).into());
@@ -187,18 +190,18 @@ fn parse_offset_into_microseconds(input: &str) -> Result<i64, AggregationError> 
     let has_sign = is_sign(input.as_bytes()[0]);
     if has_sign {
         let (sign, input) = input.split_at(1);
-        let val = parse_into_microseconds(input)?;
+        let val = parse_into_nanoseconds(input)?;
         if sign == "-" {
             Ok(-val)
         } else {
             Ok(val)
         }
     } else {
-        parse_into_microseconds(input)
+        parse_into_nanoseconds(input)
     }
 }
 
-fn parse_into_microseconds(input: &str) -> Result<i64, AggregationError> {
+fn parse_into_nanoseconds(input: &str) -> Result<i64, AggregationError> {
     let split_boundary = input
         .as_bytes()
         .iter()
@@ -226,7 +229,11 @@ fn parse_into_microseconds(input: &str) -> Result<i64, AggregationError> {
         _ => return Err(DateHistogramParseError::UnitNotRecognized(unit.to_string()).into()),
     };
 
-    Ok(number * multiplier_from_unit * 1000)
+    let val = (number * multiplier_from_unit)
+        .checked_mul(1_000_000)
+        .ok_or_else(|| DateHistogramParseError::OutOfBounds(input.to_string()))?;
+
+    Ok(val)
 }
 
 #[cfg(test)]
@@ -241,49 +248,49 @@ mod tests {
     use crate::Index;
 
     #[test]
-    fn test_parse_into_microseconds() {
-        assert_eq!(parse_into_microseconds("1m").unwrap(), 60_000_000);
-        assert_eq!(parse_into_microseconds("2m").unwrap(), 120_000_000);
+    fn test_parse_into_nanosecs() {
+        assert_eq!(parse_into_nanoseconds("1m").unwrap(), 60_000_000_000);
+        assert_eq!(parse_into_nanoseconds("2m").unwrap(), 120_000_000_000);
         assert_eq!(
-            parse_into_microseconds("2y").unwrap_err(),
+            parse_into_nanoseconds("2y").unwrap_err(),
             DateHistogramParseError::UnitNotRecognized("y".to_string()).into()
         );
         assert_eq!(
-            parse_into_microseconds("2000").unwrap_err(),
+            parse_into_nanoseconds("2000").unwrap_err(),
             DateHistogramParseError::UnitMissing("2000".to_string()).into()
         );
         assert_eq!(
-            parse_into_microseconds("ms").unwrap_err(),
+            parse_into_nanoseconds("ms").unwrap_err(),
             DateHistogramParseError::NumberMissing("ms".to_string()).into()
         );
     }
 
     #[test]
-    fn test_parse_offset_into_microseconds() {
-        assert_eq!(parse_offset_into_microseconds("1m").unwrap(), 60_000_000);
-        assert_eq!(parse_offset_into_microseconds("+1m").unwrap(), 60_000_000);
-        assert_eq!(parse_offset_into_microseconds("-1m").unwrap(), -60_000_000);
-        assert_eq!(parse_offset_into_microseconds("2m").unwrap(), 120_000_000);
-        assert_eq!(parse_offset_into_microseconds("+2m").unwrap(), 120_000_000);
-        assert_eq!(parse_offset_into_microseconds("-2m").unwrap(), -120_000_000);
-        assert_eq!(parse_offset_into_microseconds("-2ms").unwrap(), -2_000);
+    fn test_parse_offset_into_nanosecs() {
+        assert_eq!(parse_offset_into_nanosecs("1m").unwrap(), 60_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("+1m").unwrap(), 60_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("-1m").unwrap(), -60_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("2m").unwrap(), 120_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("+2m").unwrap(), 120_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("-2m").unwrap(), -120_000_000_000);
+        assert_eq!(parse_offset_into_nanosecs("-2ms").unwrap(), -2_000_000);
         assert_eq!(
-            parse_offset_into_microseconds("2y").unwrap_err(),
+            parse_offset_into_nanosecs("2y").unwrap_err(),
             DateHistogramParseError::UnitNotRecognized("y".to_string()).into()
         );
         assert_eq!(
-            parse_offset_into_microseconds("2000").unwrap_err(),
+            parse_offset_into_nanosecs("2000").unwrap_err(),
             DateHistogramParseError::UnitMissing("2000".to_string()).into()
         );
         assert_eq!(
-            parse_offset_into_microseconds("ms").unwrap_err(),
+            parse_offset_into_nanosecs("ms").unwrap_err(),
             DateHistogramParseError::NumberMissing("ms".to_string()).into()
         );
     }
 
     #[test]
     fn test_parse_into_milliseconds_do_not_accept_non_ascii() {
-        assert!(parse_into_microseconds("１m").is_err());
+        assert!(parse_into_nanoseconds("１m").is_err());
     }
 
     pub fn get_test_index_from_docs(
@@ -361,7 +368,7 @@ mod tests {
           "buckets" : [
             {
               "key_as_string" : "2015-01-01T00:00:00Z",
-              "key" : 1420070400000000.0,
+              "key" : 1420070400000000000.0,
               "doc_count" : 4
             }
           ]
@@ -397,7 +404,7 @@ mod tests {
           "buckets" : [
             {
               "key_as_string" : "2015-01-01T00:00:00Z",
-              "key" : 1420070400000000.0,
+              "key" : 1420070400000000000.0,
               "doc_count" : 4,
               "texts": {
                   "buckets": [
@@ -444,32 +451,32 @@ mod tests {
             "buckets": [
               {
                 "doc_count": 2,
-                "key": 1420070400000000.0,
+                "key": 1420070400000000000.0,
                 "key_as_string": "2015-01-01T00:00:00Z"
               },
               {
                 "doc_count": 1,
-                "key": 1420156800000000.0,
+                "key": 1420156800000000000.0,
                 "key_as_string": "2015-01-02T00:00:00Z"
               },
               {
                 "doc_count": 0,
-                "key": 1420243200000000.0,
+                "key": 1420243200000000000.0,
                 "key_as_string": "2015-01-03T00:00:00Z"
               },
               {
                 "doc_count": 0,
-                "key": 1420329600000000.0,
+                "key": 1420329600000000000.0,
                 "key_as_string": "2015-01-04T00:00:00Z"
               },
               {
                 "doc_count": 0,
-                "key": 1420416000000000.0,
+                "key": 1420416000000000000.0,
                 "key_as_string": "2015-01-05T00:00:00Z"
               },
               {
                 "doc_count": 1,
-                "key": 1420502400000000.0,
+                "key": 1420502400000000000.0,
                 "key_as_string": "2015-01-06T00:00:00Z"
               }
             ]
