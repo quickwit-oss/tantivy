@@ -18,6 +18,7 @@ serde = "1.0.152"
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"
+rand = "0.8"
 
 [features]
 unstable = []
