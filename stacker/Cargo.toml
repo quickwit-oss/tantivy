@@ -20,3 +20,4 @@ path = "example/hashmap.rs"
 [dev-dependencies]
 rand = "0.8.5"
 zipf = "7.0.0"
+criterion = "0.4.0"
