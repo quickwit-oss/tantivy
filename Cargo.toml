@@ -54,7 +54,6 @@ itertools = "0.10.3"
 measure_time = "0.8.2"
 async-trait = "0.1.53"
 arc-swap = "1.5.0"
-futures = "0.3.28"
 
 columnar = { version="0.1", path="./columnar", package ="tantivy-columnar" }
 sstable = { version="0.1", path="./sstable", package ="tantivy-sstable", optional = true }
@@ -64,6 +63,7 @@ tantivy-bitpacker = { version= "0.3", path="./bitpacker" }
 common = { version= "0.5", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version="0.1", path="./tokenizer-api", package="tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.2.1", features = ["use_serde"] }
+futures-util = { version = "0.3.28", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -109,7 +109,7 @@ zstd-compression = ["zstd"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 
-quickwit = ["sstable"]
+quickwit = ["sstable", "futures-util"]
 
 [workspace]
 members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
@@ -133,4 +133,3 @@ harness = false
 [[bench]]
 name = "index-bench"
 harness = false
-

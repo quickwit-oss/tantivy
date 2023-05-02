@@ -220,7 +220,7 @@ impl InvertedIndexReader {
                 let positions = self
                     .positions_file_slice
                     .read_bytes_slice_async(term_info.positions_range.clone());
-                futures::future::try_join(postings, positions).await?;
+                futures_util::future::try_join(postings, positions).await?;
             } else {
                 postings.await?;
             }
