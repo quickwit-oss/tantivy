@@ -212,6 +212,9 @@ impl<T: Clone> VecWithNames<T> {
     fn keys(&self) -> impl Iterator<Item = &str> + '_ {
         self.keys.iter().map(|key| key.as_str())
     }
+    pub(crate) fn values(&self) -> impl Iterator<Item = &T> + '_ {
+        self.values.iter()
+    }
     fn into_values(self) -> impl Iterator<Item = T> {
         self.values.into_iter()
     }

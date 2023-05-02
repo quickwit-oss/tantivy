@@ -696,7 +696,7 @@ mod tests {
         assert_eq!(
             res.to_string(),
             "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             59.82 KB"
+             57.02 KB"
         );
 
         Ok(())

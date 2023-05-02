@@ -27,6 +27,13 @@ impl AggregationsWithAccessor {
     pub fn is_empty(&self) -> bool {
         self.aggs.is_empty()
     }
+
+    /// Returns the memory consumption of the aggregation request.
+    pub fn clear_memory_consumption(&self) {
+        for agg in self.aggs.values() {
+            agg.clear_memory_consumption();
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -106,7 +113,7 @@ impl AggregationWithAccessor {
         Ok(AggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggs_with_accessor_and_validate(
+            sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                 &sub_aggregation,
                 reader,
                 &limits.clone(),
@@ -116,6 +123,12 @@ impl AggregationWithAccessor {
             limits,
             column_block_accessor: Default::default(),
         })
+    }
+
+    /// Returns the memory consumption of the aggregation request.
+    pub fn clear_memory_consumption(&self) {
+        self.limits.clear_local_memory_consumption();
+        self.sub_aggregation.clear_memory_consumption()
     }
 }
 
@@ -128,7 +141,7 @@ fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
-pub(crate) fn get_aggs_with_accessor_and_validate(
+pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
     limits: &AggregationLimits,
