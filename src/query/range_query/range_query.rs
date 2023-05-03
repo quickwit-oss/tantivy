@@ -2,6 +2,7 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::ops::{Bound, Range};
 
+use columnar::MonotonicallyMappableToU128;
 use common::{BinarySerializable, BitSet};
 
 use super::map_bound;
@@ -9,8 +10,8 @@ use super::range_query_u64_fastfield::FastFieldRangeWeight;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
 use crate::query::explanation::does_not_match;
-use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::range_query::range_query_ip_fastfield::IPFastFieldRangeWeight;
+use crate::query::range_query::{is_type_valid_for_fastfield_range_query, map_bound_res};
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
@@ -69,8 +70,8 @@ use crate::{DateTime, DocId, Score};
 pub struct RangeQuery {
     field: String,
     value_type: Type,
-    left_bound: Bound<Vec<u8>>,
-    right_bound: Bound<Vec<u8>>,
+    lower_bound: Bound<Vec<u8>>,
+    upper_bound: Bound<Vec<u8>>,
     limit: Option<u64>,
 }
 
@@ -82,15 +83,15 @@ impl RangeQuery {
     pub fn new_term_bounds(
         field: String,
         value_type: Type,
-        left_bound: &Bound<Term>,
-        right_bound: &Bound<Term>,
+        lower_bound: &Bound<Term>,
+        upper_bound: &Bound<Term>,
     ) -> RangeQuery {
         let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
         RangeQuery {
             field,
             value_type,
-            left_bound: map_bound(left_bound, &verify_and_unwrap_term),
-            right_bound: map_bound(right_bound, &verify_and_unwrap_term),
+            lower_bound: map_bound(lower_bound, verify_and_unwrap_term),
+            upper_bound: map_bound(upper_bound, verify_and_unwrap_term),
             limit: None,
         }
     }
@@ -116,8 +117,8 @@ impl RangeQuery {
     /// will panic when the `Weight` object is created.
     pub fn new_i64_bounds(
         field: String,
-        left_bound: Bound<i64>,
-        right_bound: Bound<i64>,
+        lower_bound: Bound<i64>,
+        upper_bound: Bound<i64>,
     ) -> RangeQuery {
         let make_term_val = |val: &i64| {
             Term::from_field_i64(Field::from_field_id(0), *val)
@@ -127,8 +128,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type: Type::I64,
-            left_bound: map_bound(&left_bound, &make_term_val),
-            right_bound: map_bound(&right_bound, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -154,8 +155,8 @@ impl RangeQuery {
     /// will panic when the `Weight` object is created.
     pub fn new_f64_bounds(
         field: String,
-        left_bound: Bound<f64>,
-        right_bound: Bound<f64>,
+        lower_bound: Bound<f64>,
+        upper_bound: Bound<f64>,
     ) -> RangeQuery {
         let make_term_val = |val: &f64| {
             Term::from_field_f64(Field::from_field_id(0), *val)
@@ -165,8 +166,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type: Type::F64,
-            left_bound: map_bound(&left_bound, &make_term_val),
-            right_bound: map_bound(&right_bound, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -180,8 +181,8 @@ impl RangeQuery {
     /// will panic when the `Weight` object is created.
     pub fn new_u64_bounds(
         field: String,
-        left_bound: Bound<u64>,
-        right_bound: Bound<u64>,
+        lower_bound: Bound<u64>,
+        upper_bound: Bound<u64>,
     ) -> RangeQuery {
         let make_term_val = |val: &u64| {
             Term::from_field_u64(Field::from_field_id(0), *val)
@@ -191,8 +192,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type: Type::U64,
-            left_bound: map_bound(&left_bound, &make_term_val),
-            right_bound: map_bound(&right_bound, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -203,8 +204,8 @@ impl RangeQuery {
     /// will panic when the `Weight` object is created.
     pub fn new_ip_bounds(
         field: String,
-        left_bound: Bound<Ipv6Addr>,
-        right_bound: Bound<Ipv6Addr>,
+        lower_bound: Bound<Ipv6Addr>,
+        upper_bound: Bound<Ipv6Addr>,
     ) -> RangeQuery {
         let make_term_val = |val: &Ipv6Addr| {
             Term::from_field_ip_addr(Field::from_field_id(0), *val)
@@ -214,8 +215,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type: Type::IpAddr,
-            left_bound: map_bound(&left_bound, &make_term_val),
-            right_bound: map_bound(&right_bound, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -241,8 +242,8 @@ impl RangeQuery {
     /// will panic when the `Weight` object is created.
     pub fn new_date_bounds(
         field: String,
-        left_bound: Bound<DateTime>,
-        right_bound: Bound<DateTime>,
+        lower_bound: Bound<DateTime>,
+        upper_bound: Bound<DateTime>,
     ) -> RangeQuery {
         let make_term_val = |val: &DateTime| {
             Term::from_field_date(Field::from_field_id(0), *val)
@@ -252,8 +253,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type: Type::Date,
-            left_bound: map_bound(&left_bound, &make_term_val),
-            right_bound: map_bound(&right_bound, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -277,13 +278,17 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str_bounds(field: String, left: Bound<&str>, right: Bound<&str>) -> RangeQuery {
+    pub fn new_str_bounds(
+        field: String,
+        lower_bound: Bound<&str>,
+        upper_bound: Bound<&str>,
+    ) -> RangeQuery {
         let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,
             value_type: Type::Str,
-            left_bound: map_bound(&left, &make_term_val),
-            right_bound: map_bound(&right, &make_term_val),
+            lower_bound: map_bound(&lower_bound, make_term_val),
+            upper_bound: map_bound(&upper_bound, make_term_val),
             limit: None,
         }
     }
@@ -340,10 +345,21 @@ impl Query for RangeQuery {
 
         if field_type.is_fast() && is_type_valid_for_fastfield_range_query(self.value_type) {
             if field_type.is_ip_addr() {
+                let parse_ip_from_bytes = |data: &Vec<u8>| {
+                    let ip_u128_bytes: [u8; 16] = data.as_slice().try_into().map_err(|_| {
+                        crate::TantivyError::InvalidArgument(
+                            "Expected 8 bytes for ip address".to_string(),
+                        )
+                    })?;
+                    let ip_u128 = u128::from_be_bytes(ip_u128_bytes);
+                    crate::Result::<Ipv6Addr>::Ok(Ipv6Addr::from_u128(ip_u128))
+                };
+                let lower_bound = map_bound_res(&self.lower_bound, parse_ip_from_bytes)?;
+                let upper_bound = map_bound_res(&self.upper_bound, parse_ip_from_bytes)?;
                 Ok(Box::new(IPFastFieldRangeWeight::new(
                     self.field.to_string(),
-                    &self.left_bound,
-                    &self.right_bound,
+                    lower_bound,
+                    upper_bound,
                 )))
             } else {
                 // We run the range query on u64 value space for performance reasons and simpicity
@@ -353,19 +369,19 @@ impl Query for RangeQuery {
                     u64::from_be(BinarySerializable::deserialize(&mut &data[..]).unwrap())
                 };
 
-                let left_bound = map_bound(&self.left_bound, &parse_from_bytes);
-                let right_bound = map_bound(&self.right_bound, &parse_from_bytes);
-                Ok(Box::new(FastFieldRangeWeight::new(
+                let lower_bound = map_bound(&self.lower_bound, parse_from_bytes);
+                let upper_bound = map_bound(&self.upper_bound, parse_from_bytes);
+                Ok(Box::new(FastFieldRangeWeight::new_u64_lenient(
                     self.field.to_string(),
-                    left_bound,
-                    right_bound,
+                    lower_bound,
+                    upper_bound,
                 )))
             }
         } else {
             Ok(Box::new(RangeWeight {
                 field: self.field.to_string(),
-                left_bound: self.left_bound.clone(),
-                right_bound: self.right_bound.clone(),
+                lower_bound: self.lower_bound.clone(),
+                upper_bound: self.upper_bound.clone(),
                 limit: self.limit,
             }))
         }
@@ -374,8 +390,8 @@ impl Query for RangeQuery {
 
 pub struct RangeWeight {
     field: String,
-    left_bound: Bound<Vec<u8>>,
-    right_bound: Bound<Vec<u8>>,
+    lower_bound: Bound<Vec<u8>>,
+    upper_bound: Bound<Vec<u8>>,
     limit: Option<u64>,
 }
 
@@ -383,12 +399,12 @@ impl RangeWeight {
     fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
         use std::ops::Bound::*;
         let mut term_stream_builder = term_dict.range();
-        term_stream_builder = match self.left_bound {
+        term_stream_builder = match self.lower_bound {
             Included(ref term_val) => term_stream_builder.ge(term_val),
             Excluded(ref term_val) => term_stream_builder.gt(term_val),
             Unbounded => term_stream_builder,
         };
-        term_stream_builder = match self.right_bound {
+        term_stream_builder = match self.upper_bound {
             Included(ref term_val) => term_stream_builder.le(term_val),
             Excluded(ref term_val) => term_stream_builder.lt(term_val),
             Unbounded => term_stream_builder,

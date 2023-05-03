@@ -414,8 +414,8 @@ impl FacetCounts {
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where Facet: From<T> {
         let facet = Facet::from(facet_from);
-        let left_bound = Bound::Excluded(facet.clone());
-        let right_bound = if facet.is_root() {
+        let lower_bound = Bound::Excluded(facet.clone());
+        let upper_bound = if facet.is_root() {
             Bound::Unbounded
         } else {
             let mut facet_after_bytes: String = facet.encoded_str().to_owned();
@@ -424,7 +424,7 @@ impl FacetCounts {
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<'_, _, _> =
-            self.facet_counts.range((left_bound, right_bound));
+            self.facet_counts.range((lower_bound, upper_bound));
         FacetChildIterator { underlying }
     }
 

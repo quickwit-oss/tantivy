@@ -7,7 +7,9 @@ mod range_query;
 mod range_query_ip_fastfield;
 mod range_query_u64_fastfield;
 
-pub use self::range_query::RangeQuery;
+pub use self::range_query::{RangeQuery, RangeWeight};
+pub use self::range_query_ip_fastfield::IPFastFieldRangeWeight;
+pub use self::range_query_u64_fastfield::FastFieldRangeWeight;
 
 // TODO is this correct?
 pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
@@ -18,14 +20,23 @@ pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
     }
 }
 
-fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
-    bound: &Bound<TFrom>,
-    transform: &Transform,
-) -> Bound<TTo> {
+fn map_bound<TFrom, TTo>(bound: &Bound<TFrom>, transform: impl Fn(&TFrom) -> TTo) -> Bound<TTo> {
     use self::Bound::*;
     match bound {
         Excluded(ref from_val) => Excluded(transform(from_val)),
         Included(ref from_val) => Included(transform(from_val)),
         Unbounded => Unbounded,
     }
+}
+
+fn map_bound_res<TFrom, TTo, Err>(
+    bound: &Bound<TFrom>,
+    transform: impl Fn(&TFrom) -> Result<TTo, Err>,
+) -> Result<Bound<TTo>, Err> {
+    use self::Bound::*;
+    Ok(match bound {
+        Excluded(ref from_val) => Excluded(transform(from_val)?),
+        Included(ref from_val) => Included(transform(from_val)?),
+        Unbounded => Unbounded,
+    })
 }

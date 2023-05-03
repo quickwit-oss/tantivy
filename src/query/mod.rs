@@ -51,7 +51,7 @@ pub use self::phrase_prefix_query::PhrasePrefixQuery;
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::{EnableScoring, Query, QueryClone};
 pub use self::query_parser::{QueryParser, QueryParserError};
-pub use self::range_query::RangeQuery;
+pub use self::range_query::{FastFieldRangeWeight, IPFastFieldRangeWeight, RangeQuery};
 pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{
