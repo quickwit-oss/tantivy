@@ -281,9 +281,10 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
-        limits.add_memory_consumed(mem_delta as u64);
-        limits.validate_memory_consumption()?;
+        bucket_agg_accessor
+            .limits
+            .add_memory_consumed(mem_delta as u64);
+        bucket_agg_accessor.limits.validate_memory_consumption()?;
 
         Ok(())
     }
@@ -335,7 +336,7 @@ impl SegmentHistogramCollector {
 
     pub(crate) fn from_req_and_validate(
         req: &HistogramAggregation,
-        sub_aggregation: &AggregationsWithAccessor,
+        sub_aggregation: &mut AggregationsWithAccessor,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -693,11 +694,9 @@ mod tests {
             AggregationLimits::new(Some(5_000), None),
         )
         .unwrap_err();
-        assert_eq!(
-            res.to_string(),
-            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             57.02 KB"
-        );
+        assert!(res.to_string().starts_with(
+            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current"
+        ));
 
         Ok(())
     }

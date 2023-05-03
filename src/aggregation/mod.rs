@@ -156,13 +156,22 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct VecWithNames<T: Clone> {
+#[derive(PartialEq, Serialize, Deserialize)]
+pub(crate) struct VecWithNames<T> {
     pub(crate) values: Vec<T>,
     keys: Vec<String>,
 }
 
-impl<T: Clone> Default for VecWithNames<T> {
+impl<T: Clone> Clone for VecWithNames<T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            keys: self.keys.clone(),
+        }
+    }
+}
+
+impl<T> Default for VecWithNames<T> {
     fn default() -> Self {
         Self {
             values: Default::default(),
@@ -171,19 +180,19 @@ impl<T: Clone> Default for VecWithNames<T> {
     }
 }
 
-impl<T: Clone + std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
+impl<T> From<HashMap<String, T>> for VecWithNames<T> {
     fn from(map: HashMap<String, T>) -> Self {
         VecWithNames::from_entries(map.into_iter().collect_vec())
     }
 }
 
-impl<T: Clone> VecWithNames<T> {
+impl<T> VecWithNames<T> {
     fn push(&mut self, key: String, value: T) {
         self.keys.push(key);
         self.values.push(value);
@@ -211,9 +220,6 @@ impl<T: Clone> VecWithNames<T> {
     }
     fn keys(&self) -> impl Iterator<Item = &str> + '_ {
         self.keys.iter().map(|key| key.as_str())
-    }
-    pub(crate) fn values(&self) -> impl Iterator<Item = &T> + '_ {
-        self.values.iter()
     }
     fn into_values(self) -> impl Iterator<Item = T> {
         self.values.into_iter()

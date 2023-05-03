@@ -295,9 +295,10 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
-        limits.add_memory_consumed(mem_delta as u64);
-        limits.validate_memory_consumption()?;
+        bucket_agg_accessor
+            .limits
+            .add_memory_consumed(mem_delta as u64);
+        bucket_agg_accessor.limits.validate_memory_consumption()?;
 
         Ok(())
     }
@@ -320,7 +321,7 @@ impl SegmentTermCollector {
 
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
-        sub_aggregations: &AggregationsWithAccessor,
+        sub_aggregations: &mut AggregationsWithAccessor,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {

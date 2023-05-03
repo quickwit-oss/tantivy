@@ -137,9 +137,10 @@ impl AggregationSegmentCollector {
         reader: &SegmentReader,
         limits: &AggregationLimits,
     ) -> crate::Result<Self> {
-        let aggs_with_accessor = get_aggs_with_segment_accessor_and_validate(agg, reader, limits)?;
+        let mut aggs_with_accessor =
+            get_aggs_with_segment_accessor_and_validate(agg, reader, limits)?;
         let result =
-            BufAggregationCollector::new(build_segment_agg_collector(&aggs_with_accessor)?);
+            BufAggregationCollector::new(build_segment_agg_collector(&mut aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {
             aggs_with_accessor,
             agg_collector: result,
@@ -190,8 +191,6 @@ impl SegmentCollector for AggregationSegmentCollector {
             &self.aggs_with_accessor,
             &mut sub_aggregation_res,
         )?;
-        self.aggs_with_accessor.clear_memory_consumption();
-        // TODO: add memory consumption for intermediate aggregation results
 
         Ok(sub_aggregation_res)
     }
