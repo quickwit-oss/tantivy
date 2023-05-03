@@ -105,7 +105,7 @@ pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
 ///
 /// Returns the length of the intersection
 #[inline]
-fn intersection(left: &mut Vec<u32>, right: &[u32]) -> usize {
+fn intersection(left: &mut Vec<u32>, right: &[u32]) {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -130,7 +130,6 @@ fn intersection(left: &mut Vec<u32>, right: &[u32]) -> usize {
         }
     }
     left.truncate(count);
-    count
 }
 
 /// Intersect twos sorted arrays `left` and `right` and outputs the
@@ -270,8 +269,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     pub(crate) fn get_intersection(&mut self) -> &[u32] {
-        let len = intersection(&mut self.left_positions, &self.right_positions);
-        &self.left_positions[..len]
+        intersection(&mut self.left_positions, &self.right_positions);
+        &self.left_positions
     }
 
     fn phrase_match(&mut self) -> bool {
@@ -329,9 +328,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                     &self.right_positions[..],
                     self.slop,
                     true,
-                )
+                );
             } else {
-                intersection(&mut self.left_positions, &self.right_positions[..])
+                intersection(&mut self.left_positions, &self.right_positions);
             };
             if self.left_positions.is_empty() {
                 return;
