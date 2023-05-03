@@ -6,9 +6,7 @@ use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
 use columnar::{Column, MonotonicallyMappableToU128};
-use common::BinarySerializable;
 
-use super::map_bound;
 use crate::query::range_query::fast_field_range_query::RangeDocSet;
 use crate::query::{ConstScorer, EmptyScorer, Explanation, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
@@ -16,24 +14,17 @@ use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 /// `IPFastFieldRangeWeight` uses the ip address fast field to execute range queries.
 pub struct IPFastFieldRangeWeight {
     field: String,
-    left_bound: Bound<Ipv6Addr>,
-    right_bound: Bound<Ipv6Addr>,
+    lower_bound: Bound<Ipv6Addr>,
+    upper_bound: Bound<Ipv6Addr>,
 }
 
 impl IPFastFieldRangeWeight {
-    // TODO fix code smell... why do we end up working with Vec<u8> here?
-    pub fn new(field: String, left_bound: &Bound<Vec<u8>>, right_bound: &Bound<Vec<u8>>) -> Self {
-        let parse_ip_from_bytes = |data: &Vec<u8>| {
-            let ip_u128: u128 =
-                u128::from_be(BinarySerializable::deserialize(&mut &data[..]).unwrap());
-            Ipv6Addr::from_u128(ip_u128)
-        };
-        let left_bound = map_bound(left_bound, &parse_ip_from_bytes);
-        let right_bound = map_bound(right_bound, &parse_ip_from_bytes);
+    /// Creates a new IPFastFieldRangeWeight.
+    pub fn new(field: String, lower_bound: Bound<Ipv6Addr>, upper_bound: Bound<Ipv6Addr>) -> Self {
         Self {
             field,
-            left_bound,
-            right_bound,
+            lower_bound,
+            upper_bound,
         }
     }
 }
@@ -45,8 +36,8 @@ impl Weight for IPFastFieldRangeWeight {
             return Ok(Box::new(EmptyScorer))
         };
         let value_range = bound_to_value_range(
-            &self.left_bound,
-            &self.right_bound,
+            &self.lower_bound,
+            &self.upper_bound,
             ip_addr_column.min_value(),
             ip_addr_column.max_value(),
         );
@@ -68,18 +59,18 @@ impl Weight for IPFastFieldRangeWeight {
 }
 
 fn bound_to_value_range(
-    left_bound: &Bound<Ipv6Addr>,
-    right_bound: &Bound<Ipv6Addr>,
+    lower_bound: &Bound<Ipv6Addr>,
+    upper_bound: &Bound<Ipv6Addr>,
     min_value: Ipv6Addr,
     max_value: Ipv6Addr,
 ) -> RangeInclusive<Ipv6Addr> {
-    let start_value = match left_bound {
+    let start_value = match lower_bound {
         Bound::Included(ip_addr) => *ip_addr,
         Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() + 1),
         Bound::Unbounded => min_value,
     };
 
-    let end_value = match right_bound {
+    let end_value = match upper_bound {
         Bound::Included(ip_addr) => *ip_addr,
         Bound::Excluded(ip_addr) => Ipv6Addr::from(ip_addr.to_u128() - 1),
         Bound::Unbounded => max_value,
@@ -181,8 +172,8 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         let range_weight = IPFastFieldRangeWeight {
             field: "ips".to_string(),
-            left_bound: Bound::Included(ip_addrs[1]),
-            right_bound: Bound::Included(ip_addrs[2]),
+            lower_bound: Bound::Included(ip_addrs[1]),
+            upper_bound: Bound::Included(ip_addrs[2]),
         };
         let count = range_weight.count(searcher.segment_reader(0)).unwrap();
         assert_eq!(count, 2);
