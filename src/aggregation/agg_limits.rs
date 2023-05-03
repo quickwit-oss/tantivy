@@ -76,36 +76,39 @@ impl AggregationLimits {
             memory_consumption: Arc::clone(&self.memory_consumption),
             /// The memory_limit in bytes
             memory_limit: self.memory_limit,
-
             allocated_with_the_guard: 0,
         }
     }
 
     pub(crate) fn validate_memory_consumption(&self) -> crate::Result<()> {
-        if self.get_memory_consumed() > self.memory_limit {
-            return Err(TantivyError::AggregationError(
-                AggregationError::MemoryExceeded {
-                    limit: self.memory_limit,
-                    current: self.get_memory_consumed(),
-                },
-            ));
-        }
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
         Ok(())
     }
     pub(crate) fn add_memory_consumed(&self, num_bytes: u64) {
         self.memory_consumption
             .fetch_add(num_bytes, Ordering::Relaxed);
     }
-    /// Returns the estimated memory consumed by the aggregations
-    pub fn get_memory_consumed(&self) -> ByteCount {
-        self.memory_consumption
-            .load(std::sync::atomic::Ordering::Relaxed)
-            .into()
-    }
 
     pub(crate) fn get_bucket_limit(&self) -> u32 {
         self.bucket_limit
     }
+}
+
+pub(crate) fn validate_memory_consumption(
+    memory_consumption: &Arc<AtomicU64>,
+    memory_limit: ByteCount,
+) -> crate::Result<()> {
+    // Load the estimated memory consumed by the aggregations
+    let memory_consumed: ByteCount = memory_consumption.load(Ordering::Relaxed).into();
+    if memory_consumed > memory_limit {
+        return Err(TantivyError::AggregationError(
+            AggregationError::MemoryExceeded {
+                limit: memory_limit,
+                current: memory_consumed,
+            },
+        ));
+    }
+    Ok(())
 }
 
 pub struct ResourceLimitGuard {
@@ -119,16 +122,7 @@ pub struct ResourceLimitGuard {
 
 impl ResourceLimitGuard {
     pub(crate) fn validate_memory_consumption(&self) -> crate::Result<()> {
-        // Load the estimated memory consumed by the aggregations
-        let memory_consumed: ByteCount = self.memory_consumption.load(Ordering::Relaxed).into();
-        if memory_consumed > self.memory_limit {
-            return Err(TantivyError::AggregationError(
-                AggregationError::MemoryExceeded {
-                    limit: self.memory_limit,
-                    current: memory_consumed,
-                },
-            ));
-        }
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
         Ok(())
     }
 
