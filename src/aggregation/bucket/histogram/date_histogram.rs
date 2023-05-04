@@ -37,7 +37,7 @@ pub struct DateHistogramAggregationReq {
     interval: Option<String>,
     #[doc(hidden)]
     /// Only for validation
-    date_interval: Option<String>,
+    calendar_interval: Option<String>,
     /// The field to aggregate on.
     pub field: String,
     /// The format to format dates. Unsupported currently.
@@ -122,8 +122,8 @@ impl DateHistogramAggregationReq {
                 .transpose()?
                 .map(|el| el as f64),
             min_doc_count: self.min_doc_count,
-            hard_bounds: None,
-            extended_bounds: None,
+            hard_bounds: self.hard_bounds.clone(),
+            extended_bounds: self.extended_bounds.clone(),
             keyed: self.keyed,
         })
     }
@@ -136,9 +136,9 @@ impl DateHistogramAggregationReq {
                 interval
             )));
         }
-        if let Some(interval) = self.date_interval.as_ref() {
+        if let Some(interval) = self.calendar_interval.as_ref() {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "`date_interval` parameter {:?} in date histogram is unsupported, only \
+                "`calendar_interval` parameter {:?} in date histogram is unsupported, only \
                  `fixed_interval` is supported",
                 interval
             )));
@@ -329,168 +329,280 @@ mod tests {
     }
 
     #[test]
-    fn histogram_test_date_force_merge_segments() -> crate::Result<()> {
+    fn histogram_test_date_force_merge_segments() {
         histogram_test_date_merge_segments(true)
     }
 
     #[test]
-    fn histogram_test_date() -> crate::Result<()> {
+    fn histogram_test_date() {
         histogram_test_date_merge_segments(false)
     }
-    fn histogram_test_date_merge_segments(merge_segments: bool) -> crate::Result<()> {
+
+    fn histogram_test_date_merge_segments(merge_segments: bool) {
         let docs = vec![
             vec![r#"{ "date": "2015-01-01T12:10:30Z", "text": "aaa" }"#],
             vec![r#"{ "date": "2015-01-01T11:11:30Z", "text": "bbb" }"#],
             vec![r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb" }"#],
             vec![r#"{ "date": "2015-01-06T00:00:00Z", "text": "ccc" }"#],
         ];
+        let index = get_test_index_from_docs(merge_segments, &docs).unwrap();
 
-        let index = get_test_index_from_docs(merge_segments, &docs)?;
-        // 30day + offset
-        let elasticsearch_compatible_json = json!(
-            {
-              "sales_over_time": {
-                "date_histogram": {
-                  "field": "date",
-                  "fixed_interval": "30d",
-                  "offset": "-4d"
-                }
-              }
-            }
-        );
-
-        let agg_req: Aggregations =
-            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
-                .unwrap();
-        let res = exec_request(agg_req, &index)?;
-        let expected_res = json!({
-          "sales_over_time" : {
-          "buckets" : [
-            {
-              "key_as_string" : "2015-01-01T00:00:00Z",
-              "key" : 1420070400000000000.0,
-              "doc_count" : 4
-            }
-          ]
-        }
-        });
-        assert_eq!(res, expected_res);
-
-        // 30day + offset + sub_agg
-        let elasticsearch_compatible_json = json!(
-            {
-              "sales_over_time": {
-                "date_histogram": {
-                  "field": "date",
-                  "fixed_interval": "30d",
-                  "offset": "-4d"
-                },
-                "aggs": {
-                    "texts": {
-                        "terms": {"field": "text"}
+        {
+            // 30day + offset
+            let elasticsearch_compatible_json = json!(
+                {
+                "sales_over_time": {
+                    "date_histogram": {
+                    "field": "date",
+                    "fixed_interval": "30d",
+                    "offset": "-4d"
                     }
                 }
-              }
-            }
-        );
-
-        let agg_req: Aggregations =
-            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
-                .unwrap();
-        let res = exec_request(agg_req, &index)?;
-        println!("{}", serde_json::to_string_pretty(&res).unwrap());
-        let expected_res = json!({
-          "sales_over_time" : {
-          "buckets" : [
-            {
-              "key_as_string" : "2015-01-01T00:00:00Z",
-              "key" : 1420070400000000000.0,
-              "doc_count" : 4,
-              "texts": {
-                  "buckets": [
-                    {
-                      "doc_count": 2,
-                      "key": "bbb"
-                    },
-                    {
-                      "doc_count": 1,
-                      "key": "ccc"
-                    },
-                    {
-                      "doc_count": 1,
-                      "key": "aaa"
-                    }
-                  ],
-                  "doc_count_error_upper_bound": 0,
-                  "sum_other_doc_count": 0
                 }
-            }
-          ]
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!({
+                "sales_over_time" : {
+                    "buckets" : [
+                        {
+                            "key_as_string" : "2015-01-01T00:00:00Z",
+                            "key" : 1420070400000000000.0,
+                            "doc_count" : 4
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
         }
-        });
-        assert_eq!(res, expected_res);
 
-        // 1day
-        let elasticsearch_compatible_json = json!(
-            {
-              "sales_over_time": {
-                "date_histogram": {
-                  "field": "date",
-                  "fixed_interval": "1d"
+        {
+            // 30day + offset + sub_agg
+            let elasticsearch_compatible_json = json!(
+                {
+                    "sales_over_time": {
+                        "date_histogram": {
+                        "field": "date",
+                        "fixed_interval": "30d",
+                        "offset": "-4d"
+                        },
+                        "aggs": {
+                            "texts": {
+                                "terms": {"field": "text"}
+                            }
+                        }
+                    }
                 }
-              }
-            }
-        );
+            );
 
-        let agg_req: Aggregations =
-            serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
-                .unwrap();
-        let res = exec_request(agg_req, &index)?;
-        let expected_res = json!( {
-          "sales_over_time": {
-            "buckets": [
-              {
-                "doc_count": 2,
-                "key": 1420070400000000000.0,
-                "key_as_string": "2015-01-01T00:00:00Z"
-              },
-              {
-                "doc_count": 1,
-                "key": 1420156800000000000.0,
-                "key_as_string": "2015-01-02T00:00:00Z"
-              },
-              {
-                "doc_count": 0,
-                "key": 1420243200000000000.0,
-                "key_as_string": "2015-01-03T00:00:00Z"
-              },
-              {
-                "doc_count": 0,
-                "key": 1420329600000000000.0,
-                "key_as_string": "2015-01-04T00:00:00Z"
-              },
-              {
-                "doc_count": 0,
-                "key": 1420416000000000000.0,
-                "key_as_string": "2015-01-05T00:00:00Z"
-              },
-              {
-                "doc_count": 1,
-                "key": 1420502400000000000.0,
-                "key_as_string": "2015-01-06T00:00:00Z"
-              }
-            ]
-          }
-        });
-        assert_eq!(res, expected_res);
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!({
+                "sales_over_time" : {
+                "buckets" : [
+                    {
+                        "key_as_string" : "2015-01-01T00:00:00Z",
+                        "key" : 1420070400000000000.0,
+                        "doc_count" : 4,
+                        "texts": {
+                            "buckets": [
+                                {
+                                "doc_count": 2,
+                                "key": "bbb"
+                                },
+                                {
+                                "doc_count": 1,
+                                "key": "ccc"
+                                },
+                                {
+                                "doc_count": 1,
+                                "key": "aaa"
+                                }
+                            ],
+                            "doc_count_error_upper_bound": 0,
+                            "sum_other_doc_count": 0
+                            }
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
+        }
+        {
+            // 1day
+            let elasticsearch_compatible_json = json!(
+                {
+                    "sales_over_time": {
+                        "date_histogram": {
+                            "field": "date",
+                            "fixed_interval": "1d"
+                        }
+                    }
+                }
+            );
 
-        Ok(())
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!( {
+                "sales_over_time": {
+                    "buckets": [
+                        {
+                            "doc_count": 2,
+                            "key": 1420070400000000000.0,
+                            "key_as_string": "2015-01-01T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 1,
+                            "key": 1420156800000000000.0,
+                            "key_as_string": "2015-01-02T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420243200000000000.0,
+                            "key_as_string": "2015-01-03T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420329600000000000.0,
+                            "key_as_string": "2015-01-04T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420416000000000000.0,
+                            "key_as_string": "2015-01-05T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 1,
+                            "key": 1420502400000000000.0,
+                            "key_as_string": "2015-01-06T00:00:00Z"
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
+        }
+
+        {
+            // 1day + extended_bounds
+            let elasticsearch_compatible_json = json!(
+                {
+                    "sales_over_time": {
+                        "date_histogram": {
+                            "field": "date",
+                            "fixed_interval": "1d",
+                            "extended_bounds": {
+                                "min": 1419984000000000000.0,
+                                "max": 1420588800000000000.0
+                            }
+                        }
+                    }
+                }
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!({
+                "sales_over_time" : {
+                    "buckets": [
+                        {
+                            "doc_count": 0,
+                            "key": 1419984000000000000.0,
+                            "key_as_string": "2014-12-31T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 2,
+                            "key": 1420070400000000000.0,
+                            "key_as_string": "2015-01-01T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 1,
+                            "key": 1420156800000000000.0,
+                            "key_as_string": "2015-01-02T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420243200000000000.0,
+                            "key_as_string": "2015-01-03T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420329600000000000.0,
+                            "key_as_string": "2015-01-04T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1420416000000000000.0,
+                            "key_as_string": "2015-01-05T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 1,
+                            "key": 1420502400000000000.0,
+                            "key_as_string": "2015-01-06T00:00:00Z"
+                        },
+                        {
+                            "doc_count": 0,
+                            "key": 1.4205888e18,
+                            "key_as_string": "2015-01-07T00:00:00Z"
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
+        }
+        {
+            // 1day + hard_bounds + extended_bounds
+            let elasticsearch_compatible_json = json!(
+                {
+                    "sales_over_time": {
+                        "date_histogram": {
+                            "field": "date",
+                            "fixed_interval": "1d",
+                            "hard_bounds": {
+                                "min": 1420156800000000000.0,
+                                "max": 1420243200000000000.0
+                            }
+                        }
+                    }
+                }
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!({
+                "sales_over_time" : {
+                    "buckets": [
+                        {
+                            "doc_count": 1,
+                            "key": 1420156800000000000.0,
+                            "key_as_string": "2015-01-02T00:00:00Z"
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
+        }
     }
     #[test]
-    fn histogram_test_invalid_req() -> crate::Result<()> {
+    fn histogram_test_invalid_req() {
         let docs = vec![];
 
-        let index = get_test_index_from_docs(false, &docs)?;
+        let index = get_test_index_from_docs(false, &docs).unwrap();
         let elasticsearch_compatible_json = json!(
             {
               "sales_over_time": {
@@ -511,7 +623,5 @@ mod tests {
             err.to_string(),
             r#"An invalid argument was passed: '`interval` parameter "30d" in date histogram is unsupported, only `fixed_interval` is supported'"#
         );
-
-        Ok(())
     }
 }
