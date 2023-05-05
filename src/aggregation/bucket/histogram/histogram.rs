@@ -283,8 +283,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let mem_delta = self.get_memory_consumption() - mem_pre;
         bucket_agg_accessor
             .limits
-            .add_memory_consumed(mem_delta as u64);
-        bucket_agg_accessor.limits.validate_memory_consumption()?;
+            .add_memory_consumed(mem_delta as u64)?;
 
         Ok(())
     }
@@ -403,8 +402,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
         .saturating_sub(buckets.len());
     limits.add_memory_consumed(
         added_buckets as u64 * std::mem::size_of::<IntermediateHistogramBucketEntry>() as u64,
-    );
-    limits.validate_memory_consumption()?;
+    )?;
     // create buckets
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 

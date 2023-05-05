@@ -308,8 +308,7 @@ impl SegmentRangeCollector {
 
         limits.add_memory_consumed(
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
-        );
-        limits.validate_memory_consumption()?;
+        )?;
 
         Ok(SegmentRangeCollector {
             buckets,

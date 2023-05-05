@@ -80,13 +80,11 @@ impl AggregationLimits {
         }
     }
 
-    pub(crate) fn validate_memory_consumption(&self) -> crate::Result<()> {
-        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
-        Ok(())
-    }
-    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) {
+    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
         self.memory_consumption
             .fetch_add(num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
+        Ok(())
     }
 
     pub(crate) fn get_bucket_limit(&self) -> u32 {
@@ -121,15 +119,11 @@ pub struct ResourceLimitGuard {
 }
 
 impl ResourceLimitGuard {
-    pub(crate) fn validate_memory_consumption(&self) -> crate::Result<()> {
-        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
-        Ok(())
-    }
-
-    pub(crate) fn add_memory_consumed(&mut self, num_bytes: u64) {
-        self.allocated_with_the_guard += num_bytes;
+    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
         self.memory_consumption
             .fetch_add(num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
+        Ok(())
     }
 }
 
