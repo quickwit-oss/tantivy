@@ -122,8 +122,8 @@ impl DateHistogramAggregationReq {
                 .transpose()?
                 .map(|el| el as f64),
             min_doc_count: self.min_doc_count,
-            hard_bounds: self.hard_bounds.clone(),
-            extended_bounds: self.extended_bounds.clone(),
+            hard_bounds: self.hard_bounds,
+            extended_bounds: self.extended_bounds,
             keyed: self.keyed,
         })
     }
