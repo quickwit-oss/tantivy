@@ -295,7 +295,7 @@ mod tests {
             DateTime::from_primitive(
                 Date::from_calendar_date(1980, Month::January, 1)?.with_hms(0, 0, 0)?,
             ),
-            3_600_000_000 * 24 * 365, // it is just for a unit test... sorry leap years.
+            3_600_000_000_000 * 24 * 365, // it is just for a unit test... sorry leap years.
             10,
         );
         let week_histogram = searcher.search(&all_query, &week_histogram_collector)?;

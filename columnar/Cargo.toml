@@ -6,12 +6,8 @@ license = "MIT"
 
 [dependencies]
 itertools = "0.10.5"
-log = "0.4.17"
 fnv = "1.0.7"
 fastdivide = "0.4.0"
-rand = { version = "0.8.5", optional = true }
-measure_time = { version = "0.8.2", optional = true }
-prettytable-rs = { version = "0.10.0", optional = true }
 
 stacker = { path = "../stacker", package="tantivy-stacker"}
 sstable = { path = "../sstable", package = "tantivy-sstable" }
@@ -22,7 +18,7 @@ serde = "1.0.152"
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"
-rand = "0.8.5"
+rand = "0.8"
 
 [features]
 unstable = []

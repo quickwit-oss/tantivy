@@ -974,8 +974,8 @@ mod test {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "RangeQuery { field: \"title\", value_type: Str, left_bound: Included([97]), \
-             right_bound: Included([98]), limit: None }"
+            "RangeQuery { field: \"title\", value_type: Str, lower_bound: Included([97]), \
+             upper_bound: Included([98]), limit: None }"
         );
     }
 

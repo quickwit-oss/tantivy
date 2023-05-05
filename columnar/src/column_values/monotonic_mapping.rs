@@ -139,12 +139,12 @@ impl MonotonicallyMappableToU64 for i64 {
 impl MonotonicallyMappableToU64 for DateTime {
     #[inline(always)]
     fn to_u64(self) -> u64 {
-        common::i64_to_u64(self.into_timestamp_micros())
+        common::i64_to_u64(self.into_timestamp_nanos())
     }
 
     #[inline(always)]
     fn from_u64(val: u64) -> Self {
-        DateTime::from_timestamp_micros(common::u64_to_i64(val))
+        DateTime::from_timestamp_nanos(common::u64_to_i64(val))
     }
 }
 

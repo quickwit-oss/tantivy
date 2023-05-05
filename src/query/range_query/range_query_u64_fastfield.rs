@@ -4,41 +4,79 @@
 
 use std::ops::{Bound, RangeInclusive};
 
-use columnar::MonotonicallyMappableToU64;
+use columnar::{ColumnType, HasAssociatedColumnType, MonotonicallyMappableToU64};
 
 use super::fast_field_range_query::RangeDocSet;
 use super::map_bound;
-use crate::query::{ConstScorer, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{ConstScorer, EmptyScorer, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
+#[derive(Clone, Debug)]
 pub struct FastFieldRangeWeight {
     field: String,
-    left_bound: Bound<u64>,
-    right_bound: Bound<u64>,
+    lower_bound: Bound<u64>,
+    upper_bound: Bound<u64>,
+    column_type_opt: Option<ColumnType>,
 }
 
 impl FastFieldRangeWeight {
-    pub fn new(field: String, left_bound: Bound<u64>, right_bound: Bound<u64>) -> Self {
-        let left_bound = map_bound(&left_bound, &|val| *val);
-        let right_bound = map_bound(&right_bound, &|val| *val);
+    /// Create a new FastFieldRangeWeight, using the u64 representation of any fast field.
+    pub(crate) fn new_u64_lenient(
+        field: String,
+        lower_bound: Bound<u64>,
+        upper_bound: Bound<u64>,
+    ) -> Self {
+        let lower_bound = map_bound(&lower_bound, |val| *val);
+        let upper_bound = map_bound(&upper_bound, |val| *val);
         Self {
             field,
-            left_bound,
-            right_bound,
+            lower_bound,
+            upper_bound,
+            column_type_opt: None,
         }
+    }
+
+    /// Create a new `FastFieldRangeWeight` for a range of a u64-mappable type .
+    pub fn new<T: HasAssociatedColumnType + MonotonicallyMappableToU64>(
+        field: String,
+        lower_bound: Bound<T>,
+        upper_bound: Bound<T>,
+    ) -> Self {
+        let lower_bound = map_bound(&lower_bound, |val| val.to_u64());
+        let upper_bound = map_bound(&upper_bound, |val| val.to_u64());
+        Self {
+            field,
+            lower_bound,
+            upper_bound,
+            column_type_opt: Some(T::column_type()),
+        }
+    }
+}
+
+impl Query for FastFieldRangeWeight {
+    fn weight(
+        &self,
+        _enable_scoring: crate::query::EnableScoring<'_>,
+    ) -> crate::Result<Box<dyn Weight>> {
+        Ok(Box::new(self.clone()))
     }
 }
 
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let fast_field_reader = reader.fast_fields();
-        let Some((column, _)) = fast_field_reader.u64_lenient(&self.field)? else {
+        let column_type_opt: Option<[ColumnType; 1]> =
+            self.column_type_opt.map(|column_type| [column_type]);
+        let column_type_opt_ref: Option<&[ColumnType]> = column_type_opt
+            .as_ref()
+            .map(|column_types| column_types.as_slice());
+        let Some((column, _)) = fast_field_reader.u64_lenient_for_type(column_type_opt_ref, &self.field)? else {
             return Ok(Box::new(EmptyScorer));
         };
         let value_range = bound_to_value_range(
-            &self.left_bound,
-            &self.right_bound,
+            &self.lower_bound,
+            &self.upper_bound,
             column.min_value(),
             column.max_value(),
         );
@@ -64,12 +102,12 @@ impl Weight for FastFieldRangeWeight {
 }
 
 fn bound_to_value_range<T: MonotonicallyMappableToU64>(
-    left_bound: &Bound<T>,
-    right_bound: &Bound<T>,
+    lower_bound: &Bound<T>,
+    upper_bound: &Bound<T>,
     min_value: T,
     max_value: T,
 ) -> RangeInclusive<T> {
-    let mut start_value = match left_bound {
+    let mut start_value = match lower_bound {
         Bound::Included(val) => *val,
         Bound::Excluded(val) => T::from_u64(val.to_u64() + 1),
         Bound::Unbounded => min_value,
@@ -77,7 +115,7 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
     if start_value.partial_cmp(&min_value) == Some(std::cmp::Ordering::Less) {
         start_value = min_value;
     }
-    let end_value = match right_bound {
+    let end_value = match upper_bound {
         Bound::Included(val) => *val,
         Bound::Excluded(val) => T::from_u64(val.to_u64() - 1),
         Bound::Unbounded => max_value,
@@ -170,7 +208,7 @@ pub mod tests {
         writer.add_document(doc!(field=>52_000u64)).unwrap();
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
-        let range_query = FastFieldRangeWeight::new(
+        let range_query = FastFieldRangeWeight::new_u64_lenient(
             "test_field".to_string(),
             Bound::Included(50_000),
             Bound::Included(50_002),
