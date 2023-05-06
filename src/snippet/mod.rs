@@ -382,12 +382,11 @@ mod tests {
 
     use maplit::btreemap;
 
+    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
     use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
     use crate::{Index, SnippetGenerator};
-
-    use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
@@ -703,7 +702,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(
             snippet.to_html(),
             "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
-            sponsored by\nMozilla which describes it as a &quot;safe"
+             sponsored by\nMozilla which describes it as a &quot;safe"
         );
     }
 }
