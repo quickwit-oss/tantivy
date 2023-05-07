@@ -265,6 +265,7 @@ impl ArenaHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
+    #[inline]
     pub fn mutate_or_create<V>(
         &mut self,
         key: &[u8],
