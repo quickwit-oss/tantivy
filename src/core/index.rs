@@ -417,7 +417,7 @@ impl Index {
     }
 
     /// Accessor for the fast field tokenizer manager.
-    pub fn tokenizer_fast_field(&self) -> &TokenizerManager {
+    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
         &self.fast_field_tokenizers
     }
 
