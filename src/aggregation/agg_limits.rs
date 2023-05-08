@@ -6,7 +6,6 @@ use common::ByteCount;
 
 use super::collector::DEFAULT_MEMORY_LIMIT;
 use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
-use crate::TantivyError;
 
 /// An estimate for memory consumption. Non recursive
 pub trait MemoryConsumption {
@@ -69,7 +68,7 @@ impl AggregationLimits {
         }
     }
 
-    /// Crate a new ResourceLimitGuard, that will release the memory when dropped.
+    /// Create a new ResourceLimitGuard, that will release the memory when dropped.
     pub fn new_guard(&self) -> ResourceLimitGuard {
         ResourceLimitGuard {
             /// The counter which is shared between the aggregations for one request.
@@ -92,19 +91,17 @@ impl AggregationLimits {
     }
 }
 
-pub(crate) fn validate_memory_consumption(
-    memory_consumption: &Arc<AtomicU64>,
+fn validate_memory_consumption(
+    memory_consumption: &AtomicU64,
     memory_limit: ByteCount,
-) -> crate::Result<()> {
+) -> Result<(), AggregationError> {
     // Load the estimated memory consumed by the aggregations
     let memory_consumed: ByteCount = memory_consumption.load(Ordering::Relaxed).into();
     if memory_consumed > memory_limit {
-        return Err(TantivyError::AggregationError(
-            AggregationError::MemoryExceeded {
-                limit: memory_limit,
-                current: memory_consumed,
-            },
-        ));
+        return Err(AggregationError::MemoryExceeded {
+            limit: memory_limit,
+            current: memory_consumed,
+        });
     }
     Ok(())
 }
