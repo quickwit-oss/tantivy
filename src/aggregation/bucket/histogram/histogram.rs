@@ -281,9 +281,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
-        limits.add_memory_consumed(mem_delta as u64);
-        limits.validate_memory_consumption()?;
+        bucket_agg_accessor
+            .limits
+            .add_memory_consumed(mem_delta as u64)?;
 
         Ok(())
     }
@@ -335,7 +335,7 @@ impl SegmentHistogramCollector {
 
     pub(crate) fn from_req_and_validate(
         req: &HistogramAggregation,
-        sub_aggregation: &AggregationsWithAccessor,
+        sub_aggregation: &mut AggregationsWithAccessor,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -402,8 +402,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
         .saturating_sub(buckets.len());
     limits.add_memory_consumed(
         added_buckets as u64 * std::mem::size_of::<IntermediateHistogramBucketEntry>() as u64,
-    );
-    limits.validate_memory_consumption()?;
+    )?;
     // create buckets
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 
@@ -693,11 +692,9 @@ mod tests {
             AggregationLimits::new(Some(5_000), None),
         )
         .unwrap_err();
-        assert_eq!(
-            res.to_string(),
-            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             59.82 KB"
-        );
+        assert!(res.to_string().starts_with(
+            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current"
+        ));
 
         Ok(())
     }

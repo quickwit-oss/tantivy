@@ -5,13 +5,14 @@ use columnar::{ColumnType, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
+use crate::aggregation::agg_limits::ResourceLimitGuard;
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
+    build_segment_agg_collector, SegmentAggregationCollector,
 };
 use crate::aggregation::{
     f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
@@ -260,8 +261,8 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
 impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
-        sub_aggregation: &AggregationsWithAccessor,
-        limits: &AggregationLimits,
+        sub_aggregation: &mut AggregationsWithAccessor,
+        limits: &mut ResourceLimitGuard,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -307,8 +308,7 @@ impl SegmentRangeCollector {
 
         limits.add_memory_consumed(
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
-        );
-        limits.validate_memory_consumption()?;
+        )?;
 
         Ok(SegmentRangeCollector {
             buckets,
@@ -450,6 +450,7 @@ mod tests {
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,
     };
+    use crate::aggregation::AggregationLimits;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
@@ -463,8 +464,8 @@ mod tests {
 
         SegmentRangeCollector::from_req_and_validate(
             &req,
-            &Default::default(),
-            &Default::default(),
+            &mut Default::default(),
+            &mut AggregationLimits::default().new_guard(),
             field_type,
             0,
         )
