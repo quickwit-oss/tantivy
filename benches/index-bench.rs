@@ -5,7 +5,7 @@ use tantivy::Index;
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
 const GH_LOGS: &str = include_str!("gh.json");
-const NUM_REPEATS: usize = 2;
+const WIKI: &str = include_str!("wiki.json");
 
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let schema = {
@@ -29,16 +29,15 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
     };
 
     let mut group = c.benchmark_group("index-hdfs");
+    group.throughput(Throughput::Bytes(HDFS_LOGS.len() as u64));
     group.sample_size(20);
     group.bench_function("index-hdfs-no-commit", |b| {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..NUM_REPEATS {
-                for doc_json in HDFS_LOGS.trim().split('\n') {
-                    let doc = schema.parse_document(doc_json).unwrap();
-                    index_writer.add_document(doc).unwrap();
-                }
+            for doc_json in HDFS_LOGS.trim().split('\n') {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
             }
         })
     });
@@ -46,11 +45,9 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..NUM_REPEATS {
-                for doc_json in HDFS_LOGS.trim().split('\n') {
-                    let doc = schema.parse_document(doc_json).unwrap();
-                    index_writer.add_document(doc).unwrap();
-                }
+            for doc_json in HDFS_LOGS.trim().split('\n') {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
         })
@@ -59,11 +56,9 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..NUM_REPEATS {
-                for doc_json in HDFS_LOGS.trim().split('\n') {
-                    let doc = schema.parse_document(doc_json).unwrap();
-                    index_writer.add_document(doc).unwrap();
-                }
+            for doc_json in HDFS_LOGS.trim().split('\n') {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
             }
         })
     });
@@ -71,11 +66,9 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..NUM_REPEATS {
-                for doc_json in HDFS_LOGS.trim().split('\n') {
-                    let doc = schema.parse_document(doc_json).unwrap();
-                    index_writer.add_document(doc).unwrap();
-                }
+            for doc_json in HDFS_LOGS.trim().split('\n') {
+                let doc = schema.parse_document(doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
         })
@@ -85,13 +78,11 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let index = Index::create_in_ram(dynamic_schema.clone());
             let json_field = dynamic_schema.get_field("json").unwrap();
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for _ in 0..NUM_REPEATS {
-                for doc_json in HDFS_LOGS.trim().split('\n') {
-                    let json_val: serde_json::Map<String, serde_json::Value> =
-                        serde_json::from_str(doc_json).unwrap();
-                    let doc = tantivy::doc!(json_field=>json_val);
-                    index_writer.add_document(doc).unwrap();
-                }
+            for doc_json in HDFS_LOGS.trim().split('\n') {
+                let json_val: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(doc_json).unwrap();
+                let doc = tantivy::doc!(json_field=>json_val);
+                index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
         })
@@ -137,6 +128,45 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
     });
 }
 
+pub fn wiki_index_benchmark(c: &mut Criterion) {
+    let dynamic_schema = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_json_field("json", TEXT | FAST);
+        schema_builder.build()
+    };
+
+    let mut group = c.benchmark_group("index-wiki");
+    group.throughput(Throughput::Bytes(WIKI.len() as u64));
+
+    group.bench_function("index-wiki-no-commit", |b| {
+        b.iter(|| {
+            let json_field = dynamic_schema.get_field("json").unwrap();
+            let index = Index::create_in_ram(dynamic_schema.clone());
+            let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in WIKI.trim().split('\n') {
+                let json_val: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(doc_json).unwrap();
+                let doc = tantivy::doc!(json_field=>json_val);
+                index_writer.add_document(doc).unwrap();
+            }
+        })
+    });
+    group.bench_function("index-wiki-with-commit", |b| {
+        b.iter(|| {
+            let json_field = dynamic_schema.get_field("json").unwrap();
+            let index = Index::create_in_ram(dynamic_schema.clone());
+            let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in WIKI.trim().split('\n') {
+                let json_val: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(doc_json).unwrap();
+                let doc = tantivy::doc!(json_field=>json_val);
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        })
+    });
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default();
@@ -147,4 +177,9 @@ criterion_group! {
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
     targets = gh_index_benchmark
 }
-criterion_main!(benches, gh_benches);
+criterion_group! {
+    name = wiki_benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = wiki_index_benchmark
+}
+criterion_main!(benches, gh_benches, wiki_benches);
