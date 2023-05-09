@@ -184,6 +184,20 @@ pub mod tests {
         Ok(())
     }
 
+    #[test]
+    pub fn test_phrase_score_with_slop_bug_2() -> crate::Result<()> {
+        // fails
+        let index = create_index(&["a x b x c", "a a c"])?;
+        let scores = test_query(2, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+
+        let index = create_index(&["a x b x c", "b c c"])?;
+        let scores = test_query(2, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+
+        Ok(())
+    }
+
     fn test_query(slop: u32, index: &Index, texts: Vec<&str>) -> Vec<f32> {
         let text_field = index.schema().get_field("text").unwrap();
         let searcher = index.reader().unwrap().searcher();
@@ -212,8 +226,30 @@ pub mod tests {
     pub fn test_phrase_score_with_slop_size() -> crate::Result<()> {
         let index = create_index(&["a b e c", "a e e e c", "a e e e e c"])?;
         let scores = test_query(3, &index, vec!["a", "c"]);
+        assert_eq!(scores.len(), 2);
         assert_nearly_equals!(scores[0], 0.29086056);
         assert_nearly_equals!(scores[1], 0.26706287);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_slop() -> crate::Result<()> {
+        let index = create_index(&["a x b c"])?;
+        let scores = test_query(1, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 1);
+
+        let index = create_index(&["a x b x c"])?;
+        let scores = test_query(1, &index, vec!["a", "b", "c"]);
+        assert_eq!(scores.len(), 0);
+
+        let index = create_index(&["a b"])?;
+        let scores = test_query(1, &index, vec!["b", "a"]);
+        assert_eq!(scores.len(), 0);
+
+        let index = create_index(&["a b"])?;
+        let scores = test_query(2, &index, vec!["b", "a"]);
+        assert_eq!(scores.len(), 1);
+
         Ok(())
     }
 
