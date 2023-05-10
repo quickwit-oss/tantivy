@@ -11,8 +11,8 @@ use crate::{Document, Score, Searcher, Term};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
-const DEFAULT_HIGHLIGHTING_PREFIX: &str = "<b>";
-const DEFAULT_HIGHLIGHTING_POSTFIX: &str = "</b>";
+const DEFAULT_SNIPPET_PREFIX: &str = "<b>";
+const DEFAULT_SNIPPET_POSTFIX: &str = "</b>";
 
 #[derive(Debug)]
 pub struct FragmentCandidate {
@@ -58,8 +58,8 @@ impl FragmentCandidate {
 pub struct Snippet {
     fragment: String,
     highlighted: Vec<Range<usize>>,
-    highlighting_prefix: String,
-    highlighting_postfix: String,
+    snippet_prefix: String,
+    snippet_postfix: String,
 }
 
 impl Snippet {
@@ -68,8 +68,8 @@ impl Snippet {
         Self {
             fragment: fragment.to_string(),
             highlighted,
-            highlighting_prefix: DEFAULT_HIGHLIGHTING_PREFIX.to_string(),
-            highlighting_postfix: DEFAULT_HIGHLIGHTING_POSTFIX.to_string(),
+            snippet_prefix: DEFAULT_SNIPPET_PREFIX.to_string(),
+            snippet_postfix: DEFAULT_SNIPPET_POSTFIX.to_string(),
         }
     }
 
@@ -78,8 +78,8 @@ impl Snippet {
         Snippet {
             fragment: String::new(),
             highlighted: Vec::new(),
-            highlighting_prefix: String::new(),
-            highlighting_postfix: String::new(),
+            snippet_prefix: String::new(),
+            snippet_postfix: String::new(),
         }
     }
 
@@ -95,9 +95,9 @@ impl Snippet {
 
         for item in collapse_overlapped_ranges(&self.highlighted) {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
-            html.push_str(&self.highlighting_prefix);
+            html.push_str(&self.snippet_prefix);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
-            html.push_str(&self.highlighting_postfix);
+            html.push_str(&self.snippet_postfix);
             start_from = item.end;
         }
         html.push_str(&encode_minimal(
@@ -117,9 +117,9 @@ impl Snippet {
     }
 
     /// Sets highlighted prefix and postfix.
-    pub fn set_highlighted_elements(&mut self, prefix: &str, postfix: &str) {
-        self.highlighting_prefix = prefix.to_string();
-        self.highlighting_postfix = postfix.to_string()
+    pub fn set_snippet_prefix_postfix(&mut self, prefix: &str, postfix: &str) {
+        self.snippet_prefix = prefix.to_string();
+        self.snippet_postfix = postfix.to_string()
     }
 }
 
@@ -698,7 +698,7 @@ Survey in 2016, 2017, and 2018."#;
             "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
              describes it as a &quot;safe"
         );
-        snippet.set_highlighted_elements("<q class=\"super\">", "</q>");
+        snippet.set_snippet_prefix_postfix("<q class=\"super\">", "</q>");
         assert_eq!(
             snippet.to_html(),
             "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
