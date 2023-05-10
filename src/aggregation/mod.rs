@@ -193,11 +193,6 @@ impl<T> From<HashMap<String, T>> for VecWithNames<T> {
 }
 
 impl<T> VecWithNames<T> {
-    fn push(&mut self, key: String, value: T) {
-        self.keys.push(key);
-        self.values.push(value);
-    }
-
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
         entries.sort_by(|left, right| left.0.cmp(&right.0));
@@ -212,17 +207,11 @@ impl<T> VecWithNames<T> {
             keys: data_names,
         }
     }
-    fn into_iter(self) -> impl Iterator<Item = (String, T)> {
-        self.keys.into_iter().zip(self.values.into_iter())
-    }
     fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())
     }
     fn keys(&self) -> impl Iterator<Item = &str> + '_ {
         self.keys.iter().map(|key| key.as_str())
-    }
-    fn into_values(self) -> impl Iterator<Item = T> {
-        self.values.into_iter()
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()
