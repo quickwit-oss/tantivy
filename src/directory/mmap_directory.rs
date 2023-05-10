@@ -8,6 +8,12 @@ use std::{fmt, result};
 
 use common::StableDeref;
 use fs4::FileExt;
+
+#[cfg(feature = "madvise")]
+use crate::AccessPattern;
+#[cfg(not(feature = "madvise"))]
+type AccessPattern = ();
+
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -32,7 +38,11 @@ pub(crate) fn make_io_err(msg: String) -> io::Error {
 
 /// Returns `None` iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
-fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
+#[allow(unused_variables)]
+fn open_mmap(
+    full_path: &Path,
+    access_pattern_opt: Option<AccessPattern>,
+) -> result::Result<Option<Mmap>, OpenReadError> {
     let file = File::open(full_path).map_err(|io_err| {
         if io_err.kind() == io::ErrorKind::NotFound {
             OpenReadError::FileDoesNotExist(full_path.to_path_buf())
@@ -50,11 +60,20 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
         // instead.
         return Ok(None);
     }
-    unsafe {
+    let mmap_opt: Option<memmap2::Mmap> = unsafe {
         memmap2::Mmap::map(&file)
             .map(Some)
             .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_path_buf()))
+    }?;
+    #[cfg(feature = "madvise")]
+    match (&mmap_opt, access_pattern_opt) {
+        (Some(mmap), Some(access_pattern)) => {
+            use madvise::AdviseMemory;
+            let _ = mmap.advise_memory_access(access_pattern);
+        }
+        _ => {}
     }
+    Ok(mmap_opt)
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -72,13 +91,21 @@ pub struct CacheInfo {
     pub mmapped: Vec<PathBuf>,
 }
 
-#[derive(Default)]
 struct MmapCache {
     counters: CacheCounters,
     cache: HashMap<PathBuf, WeakArcBytes>,
+    access_pattern_opt: Option<AccessPattern>,
 }
 
 impl MmapCache {
+    fn new(access_pattern_opt: Option<AccessPattern>) -> MmapCache {
+        MmapCache {
+            counters: CacheCounters::default(),
+            cache: HashMap::default(),
+            access_pattern_opt,
+        }
+    }
+
     fn get_info(&self) -> CacheInfo {
         let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
         CacheInfo {
@@ -109,7 +136,7 @@ impl MmapCache {
         }
         self.cache.remove(full_path);
         self.counters.miss += 1;
-        let mmap_opt = open_mmap(full_path)?;
+        let mmap_opt = open_mmap(full_path, self.access_pattern_opt)?;
         Ok(mmap_opt.map(|mmap| {
             let mmap_arc: ArcBytes = Arc::new(mmap);
             let mmap_weak = Arc::downgrade(&mmap_arc);
@@ -144,9 +171,13 @@ struct MmapDirectoryInner {
 }
 
 impl MmapDirectoryInner {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        access_pattern_opt: Option<AccessPattern>,
+    ) -> MmapDirectoryInner {
         MmapDirectoryInner {
-            mmap_cache: Default::default(),
+            mmap_cache: RwLock::new(MmapCache::new(access_pattern_opt)),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
             root_path,
@@ -165,8 +196,12 @@ impl fmt::Debug for MmapDirectory {
 }
 
 impl MmapDirectory {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
-        let inner = MmapDirectoryInner::new(root_path, temp_directory);
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        access_pattern_opt: Option<AccessPattern>,
+    ) -> MmapDirectory {
+        let inner = MmapDirectoryInner::new(root_path, temp_directory, access_pattern_opt);
         MmapDirectory {
             inner: Arc::new(inner),
         }
@@ -182,6 +217,7 @@ impl MmapDirectory {
         Ok(MmapDirectory::new(
             tempdir.path().to_path_buf(),
             Some(tempdir),
+            None,
         ))
     }
 
@@ -190,6 +226,22 @@ impl MmapDirectory {
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
+        Self::open_with_access_pattern_impl(directory_path.as_ref(), None)
+    }
+
+    /// Opens a MmapDirectory in a directory, with a given access pattern.
+    #[cfg(feature = "madvise")]
+    pub fn open_with_access_pattern<P: AsRef<Path>>(
+        directory_path: P,
+        access_pattern: AccessPattern,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
+        Self::open_with_access_pattern_impl(directory_path.as_ref(), Some(access_pattern))
+    }
+
+    fn open_with_access_pattern_impl(
+        directory_path: &Path,
+        access_pattern_opt: Option<AccessPattern>,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
@@ -217,7 +269,7 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        Ok(MmapDirectory::new(canonical_path, None))
+        Ok(MmapDirectory::new(canonical_path, None, access_pattern_opt))
     }
 
     /// Joins a relative_path to the directory `root_path`

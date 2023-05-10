@@ -189,6 +189,9 @@ pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
 
+#[cfg(feature = "madvise")]
+pub use madvise::AccessPattern;
+
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Version {
