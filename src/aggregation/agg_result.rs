@@ -34,8 +34,7 @@ impl AggregationResults {
         } else {
             // Validation is be done during request parsing, so we can't reach this state.
             Err(TantivyError::InternalError(format!(
-                "Can't find aggregation {:?} in sub-aggregations",
-                name
+                "Can't find aggregation {name:?} in sub-aggregations"
             )))
         }
     }

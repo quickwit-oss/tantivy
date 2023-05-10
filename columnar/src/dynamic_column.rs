@@ -26,14 +26,14 @@ impl fmt::Debug for DynamicColumn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{} {} |", self.get_cardinality(), self.column_type())?;
         match self {
-            DynamicColumn::Bool(col) => write!(f, " {:?}", col)?,
-            DynamicColumn::I64(col) => write!(f, " {:?}", col)?,
-            DynamicColumn::U64(col) => write!(f, " {:?}", col)?,
-            DynamicColumn::F64(col) => write!(f, "{:?}", col)?,
-            DynamicColumn::IpAddr(col) => write!(f, "{:?}", col)?,
-            DynamicColumn::DateTime(col) => write!(f, "{:?}", col)?,
-            DynamicColumn::Bytes(col) => write!(f, "{:?}", col)?,
-            DynamicColumn::Str(col) => write!(f, "{:?}", col)?,
+            DynamicColumn::Bool(col) => write!(f, " {col:?}")?,
+            DynamicColumn::I64(col) => write!(f, " {col:?}")?,
+            DynamicColumn::U64(col) => write!(f, " {col:?}")?,
+            DynamicColumn::F64(col) => write!(f, "{col:?}")?,
+            DynamicColumn::IpAddr(col) => write!(f, "{col:?}")?,
+            DynamicColumn::DateTime(col) => write!(f, "{col:?}")?,
+            DynamicColumn::Bytes(col) => write!(f, "{col:?}")?,
+            DynamicColumn::Str(col) => write!(f, "{col:?}")?,
         }
         write!(f, "]")
     }

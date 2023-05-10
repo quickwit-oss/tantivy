@@ -160,7 +160,7 @@ impl fmt::Debug for OwnedBytes {
         } else {
             self.as_slice()
         };
-        write!(f, "OwnedBytes({:?}, len={})", bytes_truncated, self.len())
+        write!(f, "OwnedBytes({bytes_truncated:?}, len={})", self.len())
     }
 }
 
@@ -259,12 +259,12 @@ mod tests {
     fn test_owned_bytes_debug() {
         let short_bytes = OwnedBytes::new(b"abcd".as_ref());
         assert_eq!(
-            format!("{:?}", short_bytes),
+            format!("{short_bytes:?}"),
             "OwnedBytes([97, 98, 99, 100], len=4)"
         );
         let long_bytes = OwnedBytes::new(b"abcdefghijklmnopq".as_ref());
         assert_eq!(
-            format!("{:?}", long_bytes),
+            format!("{long_bytes:?}"),
             "OwnedBytes([97, 98, 99, 100, 101, 102, 103, 104, 105, 106], len=17)"
         );
     }

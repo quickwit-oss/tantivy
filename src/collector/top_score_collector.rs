@@ -52,10 +52,8 @@ where
         let requested_type = field_entry.field_type().value_type();
         if schema_type != requested_type {
             return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is of type {:?}!={:?}",
-                field_entry.name(),
-                schema_type,
-                requested_type
+                "Field {:?} is of type {schema_type:?}!={requested_type:?}",
+                field_entry.name()
             )));
         }
         self.collector.for_segment(segment_local_id, segment)

@@ -65,8 +65,7 @@ impl FastFieldsWriter {
                 if let Some(tokenizer_name) = text_options.get_fast_field_tokenizer_name() {
                     let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
                         TantivyError::InvalidArgument(format!(
-                            "Tokenizer {:?} not found",
-                            tokenizer_name
+                            "Tokenizer {tokenizer_name:?} not found"
                         ))
                     })?;
                     per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);

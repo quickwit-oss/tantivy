@@ -49,8 +49,7 @@ impl Weight for IPFastFieldRangeWeight {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
-                "Document #({}) does not match",
-                doc
+                "Document #({doc}) does not match"
             )));
         }
         let explanation = Explanation::new("Const", scorer.score());

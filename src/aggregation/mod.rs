@@ -292,7 +292,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
         ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
         ColumnType::F64 => f64::from_u64(val),
         _ => {
-            panic!("unexpected type {:?}. This should not happen", field_type)
+            panic!("unexpected type {field_type:?}. This should not happen")
         }
     }
 }

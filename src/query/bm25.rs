@@ -50,7 +50,7 @@ impl Bm25StatisticsProvider for Searcher {
 }
 
 pub(crate) fn idf(doc_freq: u64, doc_count: u64) -> Score {
-    assert!(doc_count >= doc_freq, "{} >= {}", doc_count, doc_freq);
+    assert!(doc_count >= doc_freq, "{doc_count} >= {doc_freq}");
     let x = ((doc_count - doc_freq) as Score + 0.5) / (doc_freq as Score + 0.5);
     (1.0 + x).ln()
 }

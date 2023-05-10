@@ -812,7 +812,7 @@ mod bench {
 
         let mut docs = vec![];
         for val in 0..50 {
-            let facet = Facet::from(&format!("/facet_{}", val));
+            let facet = Facet::from(&format!("/facet_{val}"));
             for _ in 0..val * val {
                 docs.push(doc!(facet_field=>facet.clone()));
             }

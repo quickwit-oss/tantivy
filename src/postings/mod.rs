@@ -544,8 +544,7 @@ pub mod tests {
             let skip_result_unopt = postings_unopt.seek(target);
             assert_eq!(
                 skip_result_unopt, skip_result_opt,
-                "Failed while skipping to {}",
-                target
+                "Failed while skipping to {target}"
             );
             assert!(skip_result_opt >= target);
             assert_eq!(skip_result_opt, postings_opt.doc());

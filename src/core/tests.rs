@@ -269,9 +269,8 @@ fn garbage_collect_works_as_intended() -> crate::Result<()> {
     assert_eq!(searcher.num_docs(), 8_000);
     assert!(
         mem_right_after_merge_finished < mem_right_after_commit,
-        "(mem after merge){} is expected < (mem before merge){}",
-        mem_right_after_merge_finished,
-        mem_right_after_commit
+        "(mem after merge){mem_right_after_merge_finished} is expected < (mem before \
+         merge){mem_right_after_commit}"
     );
     Ok(())
 }

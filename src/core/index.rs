@@ -39,10 +39,7 @@ fn load_metas(
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
-                format!(
-                    "Meta file cannot be deserialized. {:?}. Content: {:?}",
-                    e, meta_string
-                ),
+                format!("Meta file cannot be deserialized. {e:?}. Content: {meta_string:?}"),
             )
         })
         .map_err(From::from)
@@ -438,8 +435,7 @@ impl Index {
         };
         let indexing_options = indexing_options_opt.ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
-                "No indexing options set for field {:?}",
-                field_entry
+                "No indexing options set for field {field_entry:?}"
             ))
         })?;
 
@@ -447,8 +443,7 @@ impl Index {
             .get(indexing_options.tokenizer())
             .ok_or_else(|| {
                 TantivyError::InvalidArgument(format!(
-                    "No Tokenizer found for field {:?}",
-                    field_entry
+                    "No Tokenizer found for field {field_entry:?}"
                 ))
             })
     }
