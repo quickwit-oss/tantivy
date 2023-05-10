@@ -331,10 +331,7 @@ impl Directory for MmapDirectory {
         let full_path = self.resolve_path(path);
 
         let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
-            let msg = format!(
-                "Failed to acquired write lock on mmap cache while reading {:?}",
-                path
-            );
+            let msg = format!("Failed to acquired write lock on mmap cache while reading {path:?}");
             let io_err = make_io_err(msg);
             OpenReadError::wrap_io_error(io_err, path.to_path_buf())
         })?;

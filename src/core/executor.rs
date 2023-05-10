@@ -26,7 +26,7 @@ impl Executor {
     pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Executor> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(num_threads)
-            .thread_name(move |num| format!("{}{}", prefix, num))
+            .thread_name(move |num| format!("{prefix}{num}"))
             .build()?;
         Ok(Executor::ThreadPool(pool))
     }

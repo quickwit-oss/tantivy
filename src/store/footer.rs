@@ -27,10 +27,7 @@ impl BinarySerializable for DocStoreFooter {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let doc_store_version = u32::deserialize(reader)?;
         if doc_store_version != DOC_STORE_VERSION {
-            panic!(
-                "actual doc store version: {}, expected: {}",
-                doc_store_version, DOC_STORE_VERSION
-            );
+            panic!("actual doc store version: {doc_store_version}, expected: {DOC_STORE_VERSION}");
         }
         let offset = u64::deserialize(reader)?;
         let compressor_id = u8::deserialize(reader)?;

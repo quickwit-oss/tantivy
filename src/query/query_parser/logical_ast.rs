@@ -55,16 +55,16 @@ impl fmt::Debug for LogicalAst {
                     write!(formatter, "<emptyclause>")?;
                 } else {
                     let (occur, subquery) = &clause[0];
-                    write!(formatter, "({}{:?}", occur_letter(*occur), subquery)?;
+                    write!(formatter, "({}{subquery:?}", occur_letter(*occur))?;
                     for (occur, subquery) in &clause[1..] {
-                        write!(formatter, " {}{:?}", occur_letter(*occur), subquery)?;
+                        write!(formatter, " {}{subquery:?}", occur_letter(*occur))?;
                     }
                     formatter.write_str(")")?;
                 }
                 Ok(())
             }
-            LogicalAst::Boost(ref ast, boost) => write!(formatter, "{:?}^{}", ast, boost),
-            LogicalAst::Leaf(ref literal) => write!(formatter, "{:?}", literal),
+            LogicalAst::Boost(ref ast, boost) => write!(formatter, "{ast:?}^{boost}"),
+            LogicalAst::Leaf(ref literal) => write!(formatter, "{literal:?}"),
         }
     }
 }
@@ -78,11 +78,11 @@ impl From<LogicalLiteral> for LogicalAst {
 impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
+            LogicalLiteral::Term(ref term) => write!(formatter, "{term:?}"),
             LogicalLiteral::Phrase(ref terms, slop) => {
-                write!(formatter, "\"{:?}\"", terms)?;
+                write!(formatter, "\"{terms:?}\"")?;
                 if slop > 0 {
-                    write!(formatter, "~{:?}", slop)
+                    write!(formatter, "~{slop:?}")
                 } else {
                     Ok(())
                 }
@@ -91,24 +91,23 @@ impl fmt::Debug for LogicalLiteral {
                 ref lower,
                 ref upper,
                 ..
-            } => write!(formatter, "({:?} TO {:?})", lower, upper),
+            } => write!(formatter, "({lower:?} TO {upper:?})"),
             LogicalLiteral::Set { ref elements, .. } => {
                 const MAX_DISPLAYED: usize = 10;
 
                 write!(formatter, "IN [")?;
                 for (i, element) in elements.iter().enumerate() {
                     if i == 0 {
-                        write!(formatter, "{:?}", element)?;
+                        write!(formatter, "{element:?}")?;
                     } else if i == MAX_DISPLAYED - 1 {
                         write!(
                             formatter,
-                            ", {:?}, ... ({} more)",
-                            element,
+                            ", {element:?}, ... ({} more)",
                             elements.len() - i - 1
                         )?;
                         break;
                     } else {
-                        write!(formatter, ", {:?}", element)?;
+                        write!(formatter, ", {element:?}")?;
                     }
                 }
                 write!(formatter, "]")

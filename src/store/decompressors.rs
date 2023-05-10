@@ -45,7 +45,7 @@ impl Decompressor {
             2 => Decompressor::Brotli,
             3 => Decompressor::Snappy,
             4 => Decompressor::Zstd,
-            _ => panic!("unknown compressor id {:?}", id),
+            _ => panic!("unknown compressor id {id:?}"),
         }
     }
 

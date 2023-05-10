@@ -34,7 +34,7 @@ impl fmt::Display for ColumnType {
             ColumnType::IpAddr => "ip",
             ColumnType::DateTime => "datetime",
         };
-        write!(f, "{}", short_str)
+        write!(f, "{short_str}")
     }
 }
 

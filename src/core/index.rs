@@ -39,10 +39,7 @@ fn load_metas(
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
-                format!(
-                    "Meta file cannot be deserialized. {:?}. Content: {:?}",
-                    e, meta_string
-                ),
+                format!("Meta file cannot be deserialized. {e:?}. Content: {meta_string:?}"),
             )
         })
         .map_err(From::from)
@@ -282,6 +279,7 @@ pub struct Index {
     settings: IndexSettings,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
+    fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
 }
 
@@ -394,6 +392,7 @@ impl Index {
             directory,
             schema,
             tokenizers: TokenizerManager::default(),
+            fast_field_tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
         }
@@ -407,6 +406,16 @@ impl Index {
     /// Accessor for the tokenizer manager.
     pub fn tokenizers(&self) -> &TokenizerManager {
         &self.tokenizers
+    }
+
+    /// Setter for the fast field tokenizer manager.
+    pub fn set_fast_field_tokenizers(&mut self, tokenizers: TokenizerManager) {
+        self.fast_field_tokenizers = tokenizers;
+    }
+
+    /// Accessor for the fast field tokenizer manager.
+    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
+        &self.fast_field_tokenizers
     }
 
     /// Get the tokenizer associated with a specific field.
@@ -426,8 +435,7 @@ impl Index {
         };
         let indexing_options = indexing_options_opt.ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
-                "No indexing options set for field {:?}",
-                field_entry
+                "No indexing options set for field {field_entry:?}"
             ))
         })?;
 
@@ -435,8 +443,7 @@ impl Index {
             .get(indexing_options.tokenizer())
             .ok_or_else(|| {
                 TantivyError::InvalidArgument(format!(
-                    "No Tokenizer found for field {:?}",
-                    field_entry
+                    "No Tokenizer found for field {field_entry:?}"
                 ))
             })
     }

@@ -174,7 +174,7 @@ mod tests {
             IndexRecordOption::WithFreqs,
         );
         assert_eq!(
-            format!("{:?}", term_query),
+            format!("{term_query:?}"),
             r#"TermQuery(Term(field=1, type=Str, "hello"))"#
         );
     }

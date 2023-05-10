@@ -56,7 +56,7 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
             !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
         })),
     )
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+        .map(|(s1, s2): (char, String)| format!("{s1}{s2}"))
         .and_then(|s: String| match s.as_str() {
             "OR" | "AND " | "NOT" => Err(StringStreamError::UnexpectedParse),
             _ => Ok(s),
@@ -74,7 +74,7 @@ fn relaxed_word<'a>() -> impl Parser<&'a str, Output = String> {
             !c.is_whitespace() && !['{', '}', '"', '[', ']', '(', ')'].contains(&c)
         })),
     )
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+        .map(|(s1, s2): (char, String)| format!("{s1}{s2}"))
 }
 
 /// Parses a date time according to rfc3339
@@ -178,9 +178,9 @@ fn negative_number<'a>() -> impl Parser<&'a str, Output = String> {
     )
         .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
             if let Some(('.', s3)) = s3 {
-                format!("{}{}.{}", s1, s2, s3)
+                format!("{s1}{s2}.{s3}")
             } else {
-                format!("{}{}", s1, s2)
+                format!("{s1}{s2}")
             }
         })
 }
@@ -419,9 +419,7 @@ mod test {
     fn assert_nearly_equals(expected: f64, val: f64) {
         assert!(
             nearly_equals(val, expected),
-            "Got {}, expected {}.",
-            val,
-            expected
+            "Got {val}, expected {expected}."
         );
     }
 
@@ -468,7 +466,7 @@ mod test {
 
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
         let query = parse_to_ast().parse(query).unwrap().0;
-        let query_str = format!("{:?}", query);
+        let query_str = format!("{query:?}");
         assert_eq!(query_str, expected);
     }
 
@@ -554,7 +552,7 @@ mod test {
     fn test_occur_leaf() {
         let ((occur, ast), _) = super::occur_leaf().parse("+abc").unwrap();
         assert_eq!(occur, Some(Occur::Must));
-        assert_eq!(format!("{:?}", ast), "\"abc\"");
+        assert_eq!(format!("{ast:?}"), "\"abc\"");
     }
 
     #[test]
@@ -613,7 +611,7 @@ mod test {
         let escaped_special_chars_re = Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap();
         for special_char in SPECIAL_CHARS.iter() {
             assert_eq!(
-                escaped_special_chars_re.replace_all(&format!("\\{}", special_char), "$1"),
+                escaped_special_chars_re.replace_all(&format!("\\{special_char}"), "$1"),
                 special_char.to_string()
             );
         }

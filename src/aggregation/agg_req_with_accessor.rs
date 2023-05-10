@@ -2,6 +2,7 @@
 
 use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
 
+use super::agg_limits::ResourceLimitGuard;
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
@@ -14,7 +15,7 @@ use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::SegmentReader;
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub(crate) struct AggregationsWithAccessor {
     pub aggs: VecWithNames<AggregationWithAccessor>,
 }
@@ -29,7 +30,6 @@ impl AggregationsWithAccessor {
     }
 }
 
-#[derive(Clone)]
 pub struct AggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. So eventually this needs to be Option or moved.
@@ -37,7 +37,7 @@ pub struct AggregationWithAccessor {
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
-    pub(crate) limits: AggregationLimits,
+    pub(crate) limits: ResourceLimitGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     pub(crate) agg: Aggregation,
 }
@@ -106,14 +106,14 @@ impl AggregationWithAccessor {
         Ok(AggregationWithAccessor {
             accessor,
             field_type,
-            sub_aggregation: get_aggs_with_accessor_and_validate(
+            sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                 &sub_aggregation,
                 reader,
-                &limits.clone(),
+                &limits,
             )?,
             agg: agg.clone(),
             str_dict_column,
-            limits,
+            limits: limits.new_guard(),
             column_block_accessor: Default::default(),
         })
     }
@@ -128,7 +128,7 @@ fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
-pub(crate) fn get_aggs_with_accessor_and_validate(
+pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
     limits: &AggregationLimits,

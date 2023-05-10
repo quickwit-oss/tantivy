@@ -156,13 +156,22 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct VecWithNames<T: Clone> {
+#[derive(PartialEq, Serialize, Deserialize)]
+pub(crate) struct VecWithNames<T> {
     pub(crate) values: Vec<T>,
     keys: Vec<String>,
 }
 
-impl<T: Clone> Default for VecWithNames<T> {
+impl<T: Clone> Clone for VecWithNames<T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            keys: self.keys.clone(),
+        }
+    }
+}
+
+impl<T> Default for VecWithNames<T> {
     fn default() -> Self {
         Self {
             values: Default::default(),
@@ -171,19 +180,19 @@ impl<T: Clone> Default for VecWithNames<T> {
     }
 }
 
-impl<T: Clone + std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
+impl<T> From<HashMap<String, T>> for VecWithNames<T> {
     fn from(map: HashMap<String, T>) -> Self {
         VecWithNames::from_entries(map.into_iter().collect_vec())
     }
 }
 
-impl<T: Clone> VecWithNames<T> {
+impl<T> VecWithNames<T> {
     fn push(&mut self, key: String, value: T) {
         self.keys.push(key);
         self.values.push(value);
@@ -283,7 +292,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
         ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
         ColumnType::F64 => f64::from_u64(val),
         _ => {
-            panic!("unexpected type {:?}. This should not happen", field_type)
+            panic!("unexpected type {field_type:?}. This should not happen")
         }
     }
 }

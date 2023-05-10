@@ -942,7 +942,7 @@ mod test {
         default_conjunction: bool,
     ) {
         let query = parse_query_to_logical_ast(query, default_conjunction).unwrap();
-        let query_str = format!("{:?}", query);
+        let query_str = format!("{query:?}");
         assert_eq!(query_str, expected);
     }
 
@@ -951,7 +951,7 @@ mod test {
         let query_parser = make_query_parser();
         let query = query_parser.parse_query("facet:/root/branch/leaf").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"TermQuery(Term(field=11, type=Facet, Facet(/root/branch/leaf)))"#
         );
     }
@@ -964,7 +964,7 @@ mod test {
         query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"Boost(query=TermQuery(Term(field=1, type=Str, "hello")), boost=2)"#
         );
     }
@@ -973,7 +973,7 @@ mod test {
     pub fn test_parse_query_range_with_boost() {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             "RangeQuery { field: \"title\", value_type: Str, lower_bound: Included([97]), \
              upper_bound: Included([98]), limit: None }"
         );
@@ -987,7 +987,7 @@ mod test {
         query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello^2").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"Boost(query=Boost(query=TermQuery(Term(field=1, type=Str, "hello")), boost=2), boost=2)"#
         );
     }
@@ -1039,7 +1039,7 @@ mod test {
         let query_parser = make_query_parser();
         let query_result = query_parser.parse_query("");
         let query = query_result.unwrap();
-        assert_eq!(format!("{:?}", query), "EmptyQuery");
+        assert_eq!(format!("{query:?}"), "EmptyQuery");
     }
 
     #[test]
@@ -1481,7 +1481,7 @@ mod test {
             Ok(_) => panic!("should never succeed"),
             Err(e) => assert_eq!(
                 "The facet field is malformed: Failed to parse the facet string: 'INVALID'",
-                format!("{}", e)
+                format!("{e}")
             ),
         }
         assert!(query_parser.parse_query("facet:\"/foo/bar\"").is_ok());
@@ -1574,7 +1574,7 @@ mod test {
         let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
         let query = query_parser.parse_query(r#"a\.b:hello"#).unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             "TermQuery(Term(field=0, type=Str, \"hello\"))"
         );
     }
@@ -1668,7 +1668,7 @@ mod test {
             );
             let query = query_parser.parse_query("abc").unwrap();
             assert_eq!(
-                format!("{:?}", query),
+                format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, FuzzyTermQuery { term: Term(field=0, \
                  type=Str, \"abc\"), distance: 1, transposition_cost_one: true, prefix: false }), \
                  (Should, TermQuery(Term(field=1, type=Str, \"abc\")))] }"
@@ -1685,7 +1685,7 @@ mod test {
             );
             let query = query_parser.parse_query("abc").unwrap();
             assert_eq!(
-                format!("{:?}", query),
+                format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, TermQuery(Term(field=0, type=Str, \
                  \"abc\"))), (Should, FuzzyTermQuery { term: Term(field=1, type=Str, \"abc\"), \
                  distance: 2, transposition_cost_one: false, prefix: true })] }"

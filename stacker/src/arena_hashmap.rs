@@ -114,13 +114,7 @@ fn compute_previous_power_of_two(n: usize) -> usize {
 
 impl Default for ArenaHashMap {
     fn default() -> Self {
-        let memory_arena = MemoryArena::default();
-        ArenaHashMap {
-            table: Vec::new(),
-            memory_arena,
-            mask: 0,
-            len: 0,
-        }
+        ArenaHashMap::with_capacity(4)
     }
 }
 
@@ -336,6 +330,11 @@ mod tests {
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);
+    }
+    #[test]
+    fn test_empty_hashmap() {
+        let hash_map: ArenaHashMap = ArenaHashMap::default();
+        assert_eq!(hash_map.get::<u32>(b"abc"), None);
     }
 
     #[test]

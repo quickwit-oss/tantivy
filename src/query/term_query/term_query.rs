@@ -191,7 +191,7 @@ mod tests {
         assert_single_hit(query_from_ip(ip_addr_2));
         assert_single_hit(query_from_text("127.0.0.1".to_string()));
         assert_single_hit(query_from_text("\"127.0.0.1\"".to_string()));
-        assert_single_hit(query_from_text(format!("\"{}\"", ip_addr_1)));
-        assert_single_hit(query_from_text(format!("\"{}\"", ip_addr_2)));
+        assert_single_hit(query_from_text(format!("\"{ip_addr_1}\"")));
+        assert_single_hit(query_from_text(format!("\"{ip_addr_2}\"")));
     }
 }
