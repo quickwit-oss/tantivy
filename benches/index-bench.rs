@@ -7,6 +7,10 @@ const HDFS_LOGS: &str = include_str!("hdfs.json");
 const GH_LOGS: &str = include_str!("gh.json");
 const WIKI: &str = include_str!("wiki.json");
 
+fn get_lines(input: &str) -> Vec<&str> {
+    input.trim().split('\n').collect()
+}
+
 pub fn hdfs_index_benchmark(c: &mut Criterion) {
     let schema = {
         let mut schema_builder = tantivy::schema::SchemaBuilder::new();
@@ -32,20 +36,22 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(HDFS_LOGS.len() as u64));
     group.sample_size(20);
     group.bench_function("index-hdfs-no-commit", |b| {
+        let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let doc = schema.parse_document(doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
         })
     });
     group.bench_function("index-hdfs-with-commit", |b| {
+        let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
             let index = Index::create_in_ram(schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let doc = schema.parse_document(doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
@@ -53,20 +59,22 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         })
     });
     group.bench_function("index-hdfs-no-commit-with-docstore", |b| {
+        let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let doc = schema.parse_document(doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
         })
     });
     group.bench_function("index-hdfs-with-commit-with-docstore", |b| {
+        let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
             let index = Index::create_in_ram(schema_with_store.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let doc = schema.parse_document(doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
@@ -74,11 +82,12 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         })
     });
     group.bench_function("index-hdfs-no-commit-json-without-docstore", |b| {
+        let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
             let index = Index::create_in_ram(dynamic_schema.clone());
             let json_field = dynamic_schema.get_field("json").unwrap();
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in HDFS_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(doc_json).unwrap();
                 let doc = tantivy::doc!(json_field=>json_val);
@@ -100,11 +109,12 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(GH_LOGS.len() as u64));
 
     group.bench_function("index-gh-no-commit", |b| {
+        let lines = get_lines(GH_LOGS);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
             let index = Index::create_in_ram(dynamic_schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in GH_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(doc_json).unwrap();
                 let doc = tantivy::doc!(json_field=>json_val);
@@ -113,11 +123,12 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
         })
     });
     group.bench_function("index-gh-with-commit", |b| {
+        let lines = get_lines(GH_LOGS);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
             let index = Index::create_in_ram(dynamic_schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in GH_LOGS.trim().split('\n') {
+            for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(doc_json).unwrap();
                 let doc = tantivy::doc!(json_field=>json_val);
@@ -139,11 +150,12 @@ pub fn wiki_index_benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(WIKI.len() as u64));
 
     group.bench_function("index-wiki-no-commit", |b| {
+        let lines = get_lines(WIKI);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
             let index = Index::create_in_ram(dynamic_schema.clone());
             let index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in WIKI.trim().split('\n') {
+            for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(doc_json).unwrap();
                 let doc = tantivy::doc!(json_field=>json_val);
@@ -152,11 +164,12 @@ pub fn wiki_index_benchmark(c: &mut Criterion) {
         })
     });
     group.bench_function("index-wiki-with-commit", |b| {
+        let lines = get_lines(WIKI);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
             let index = Index::create_in_ram(dynamic_schema.clone());
             let mut index_writer = index.writer_with_num_threads(1, 100_000_000).unwrap();
-            for doc_json in WIKI.trim().split('\n') {
+            for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(doc_json).unwrap();
                 let doc = tantivy::doc!(json_field=>json_val);
