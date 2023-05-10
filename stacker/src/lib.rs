@@ -1,3 +1,8 @@
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
+
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
+
 mod arena_hashmap;
 mod expull;
 mod memory_arena;

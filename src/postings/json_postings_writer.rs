@@ -23,6 +23,7 @@ impl<Rec: Recorder> From<JsonPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
 }
 
 impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
+    #[inline]
     fn subscribe(
         &mut self,
         doc: crate::DocId,
