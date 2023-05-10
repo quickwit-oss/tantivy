@@ -333,8 +333,8 @@ impl SegmentTermCollector {
 
                 sub_aggregations.aggs.get(agg_name).ok_or_else(|| {
                     TantivyError::InvalidArgument(format!(
-                        "could not find aggregation with name {} in metric sub_aggregations",
-                        agg_name
+                        "could not find aggregation with name {agg_name} in metric \
+                         sub_aggregations"
                     ))
                 })?;
             }
@@ -409,10 +409,7 @@ impl SegmentTermCollector {
                         .sub_aggs
                         .remove(&id)
                         .unwrap_or_else(|| {
-                            panic!(
-                                "Internal Error: could not find subaggregation for id {}",
-                                id
-                            )
+                            panic!("Internal Error: could not find subaggregation for id {id}")
                         })
                         .add_intermediate_aggregation_result(
                             &agg_with_accessor.sub_aggregation,
@@ -442,8 +439,7 @@ impl SegmentTermCollector {
             for (term_id, doc_count) in entries {
                 if !term_dict.ord_to_str(term_id, &mut buffer)? {
                     return Err(TantivyError::InternalError(format!(
-                        "Couldn't find term_id {} in dict",
-                        term_id
+                        "Couldn't find term_id {term_id} in dict"
                     )));
                 }
 

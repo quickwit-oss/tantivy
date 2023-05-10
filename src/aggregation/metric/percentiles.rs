@@ -213,8 +213,7 @@ impl PercentilesCollector {
     pub(crate) fn merge_fruits(&mut self, right: PercentilesCollector) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
-                "Error while merging percentiles {:?}",
-                err
+                "Error while merging percentiles {err:?}"
             )))
         })?;
 

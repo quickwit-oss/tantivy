@@ -131,16 +131,14 @@ impl DateHistogramAggregationReq {
     fn validate(&self) -> crate::Result<()> {
         if let Some(interval) = self.interval.as_ref() {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "`interval` parameter {:?} in date histogram is unsupported, only \
-                 `fixed_interval` is supported",
-                interval
+                "`interval` parameter {interval:?} in date histogram is unsupported, only \
+                 `fixed_interval` is supported"
             )));
         }
         if let Some(interval) = self.calendar_interval.as_ref() {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "`calendar_interval` parameter {:?} in date histogram is unsupported, only \
-                 `fixed_interval` is supported",
-                interval
+                "`calendar_interval` parameter {interval:?} in date histogram is unsupported, \
+                 only `fixed_interval` is supported"
             )));
         }
         if self.format.is_some() {

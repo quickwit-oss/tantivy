@@ -69,7 +69,7 @@ impl ManagedDirectory {
                     .map_err(|e| {
                         DataCorruption::new(
                             MANAGED_FILEPATH.to_path_buf(),
-                            format!("Managed file cannot be deserialized: {:?}. ", e),
+                            format!("Managed file cannot be deserialized: {e:?}. "),
                         )
                     })?;
                 Ok(ManagedDirectory {

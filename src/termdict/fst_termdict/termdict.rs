@@ -128,10 +128,7 @@ impl TermDictionary {
         if version != FST_VERSION {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!(
-                    "Unsuported fst version, expected {}, found {}",
-                    version, FST_VERSION,
-                ),
+                format!("Unsuported fst version, expected {version}, found {FST_VERSION}",),
             ));
         }
 

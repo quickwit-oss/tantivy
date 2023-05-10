@@ -158,7 +158,7 @@ impl StoreReader {
     /// Advanced API. In most cases use [`get`](Self::get).
     fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
         self.skip_index.seek(doc_id).ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
+            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{doc_id}."))
         })
     }
 

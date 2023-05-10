@@ -116,14 +116,14 @@ impl fmt::Debug for Incompatibility {
                 index_compression_format,
             } => {
                 let err = format!(
-                    "Library was compiled with {:?} compression, index was compressed with {:?}",
-                    library_compression_format, index_compression_format
+                    "Library was compiled with {library_compression_format:?} compression, index \
+                     was compressed with {index_compression_format:?}"
                 );
                 let advice = format!(
-                    "Change the feature flag to {:?} and rebuild the library",
-                    index_compression_format
+                    "Change the feature flag to {index_compression_format:?} and rebuild the \
+                     library"
                 );
-                write!(f, "{}. {}", err, advice)?;
+                write!(f, "{err}. {advice}")?;
             }
             Incompatibility::IndexMismatch {
                 library_version,
@@ -140,7 +140,7 @@ impl fmt::Debug for Incompatibility {
                      and rebuild your project.",
                     index_version.index_format_version, index_version.major, index_version.minor
                 );
-                write!(f, "{}. {}", err, advice)?;
+                write!(f, "{err}. {advice}")?;
             }
         }
 

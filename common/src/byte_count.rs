@@ -37,7 +37,7 @@ impl ByteCount {
         for (suffix, threshold) in SUFFIX_AND_THRESHOLD.iter().rev() {
             if self.get_bytes() >= *threshold {
                 let unit_num = self.get_bytes() as f64 / *threshold as f64;
-                return format!("{:.2} {}", unit_num, suffix);
+                return format!("{unit_num:.2} {suffix}");
             }
         }
         format!("{:.2} B", self.get_bytes())

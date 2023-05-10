@@ -296,6 +296,6 @@ impl fmt::Debug for Searcher {
             .iter()
             .map(SegmentReader::segment_id)
             .collect::<Vec<_>>();
-        write!(f, "Searcher({:?})", segment_ids)
+        write!(f, "Searcher({segment_ids:?})")
     }
 }

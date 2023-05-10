@@ -142,9 +142,8 @@ impl HistogramAggregation {
         {
             if extended_bounds.min < hard_bounds.min || extended_bounds.max > hard_bounds.max {
                 return Err(TantivyError::InvalidArgument(format!(
-                    "extended_bounds have to be inside hard_bounds, extended_bounds: {}, \
-                     hard_bounds {}",
-                    extended_bounds, hard_bounds
+                    "extended_bounds have to be inside hard_bounds, extended_bounds: \
+                     {extended_bounds}, hard_bounds {hard_bounds}"
                 )));
             }
         }
