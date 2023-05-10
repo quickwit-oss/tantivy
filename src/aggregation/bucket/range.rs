@@ -204,7 +204,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
             column_type: Some(self.column_type),
         });
 
-        results.push(name, IntermediateAggregationResult::Bucket(bucket));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
         Ok(())
     }

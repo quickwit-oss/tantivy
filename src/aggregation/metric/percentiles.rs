@@ -265,7 +265,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_metric_result),
-        );
+        )?;
 
         Ok(())
     }

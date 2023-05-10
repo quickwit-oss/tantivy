@@ -222,7 +222,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_metric_result),
-        );
+        )?;
 
         Ok(())
     }

@@ -226,7 +226,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        results.push(name, IntermediateAggregationResult::Bucket(bucket));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
         Ok(())
     }
