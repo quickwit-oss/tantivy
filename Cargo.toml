@@ -19,7 +19,6 @@ base64 = "0.21.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
 once_cell = "1.10.0"
-madvise = { version="0.1", optional= true }
 regex = { version = "1.5.5", default-features = false, features = ["std", "unicode"] }
 aho-corasick = "1.0"
 tantivy-fst = "0.4.0"
@@ -101,7 +100,6 @@ overflow-checks = true
 default = ["mmap", "stopwords", "lz4-compression"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
-madvise = ["dep:madvise"]
 
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4_flex"]
