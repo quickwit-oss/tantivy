@@ -106,7 +106,7 @@ fn main() -> tantivy::Result<()> {
 
     for (score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
-        println!("\n==\nDocument score {}:", score);
+        println!("\n==\nDocument score {score}:");
         println!("{}", schema.to_json(&retrieved_doc));
     }
 

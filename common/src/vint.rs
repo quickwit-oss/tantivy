@@ -261,7 +261,7 @@ mod tests {
         let mut buffer2 = [0u8; 8];
         let len_vint = VInt(val as u64).serialize_into(&mut buffer);
         let res2 = serialize_vint_u32(val, &mut buffer2);
-        assert_eq!(&buffer[..len_vint], res2, "array wrong for {}", val);
+        assert_eq!(&buffer[..len_vint], res2, "array wrong for {val}");
     }
 
     #[test]

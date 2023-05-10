@@ -40,8 +40,7 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 fn error_in_index_worker_thread(context: &str) -> TantivyError {
     TantivyError::ErrorInThread(format!(
-        "{}. A worker thread encountered an error (io::Error most likely) or panicked.",
-        context
+        "{context}. A worker thread encountered an error (io::Error most likely) or panicked."
     ))
 }
 
@@ -270,15 +269,14 @@ impl IndexWriter {
     ) -> crate::Result<IndexWriter> {
         if memory_arena_in_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
             let err_msg = format!(
-                "The memory arena in bytes per thread needs to be at least {}.",
-                MEMORY_ARENA_NUM_BYTES_MIN
+                "The memory arena in bytes per thread needs to be at least \
+                 {MEMORY_ARENA_NUM_BYTES_MIN}."
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
         if memory_arena_in_bytes_per_thread >= MEMORY_ARENA_NUM_BYTES_MAX {
             let err_msg = format!(
-                "The memory arena in bytes per thread cannot exceed {}",
-                MEMORY_ARENA_NUM_BYTES_MAX
+                "The memory arena in bytes per thread cannot exceed {MEMORY_ARENA_NUM_BYTES_MAX}"
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
@@ -621,7 +619,7 @@ impl IndexWriter {
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
-                .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
+                .map_err(|e| TantivyError::ErrorInThread(format!("{e:?}")))?;
             indexing_worker_result?;
             self.add_indexing_worker()?;
         }
@@ -2077,14 +2075,14 @@ mod tests {
             let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
             let ip_addr = Ipv6Addr::from_u128(existing_id as u128);
             // Test incoming ip as ipv6
-            assert_eq!(do_search_ip_field(&format!("\"{}\"", ip_addr)), count);
+            assert_eq!(do_search_ip_field(&format!("\"{ip_addr}\"")), count);
 
             let term = Term::from_field_ip_addr(ip_field, ip_addr);
             assert_eq!(do_search2(term).len() as u64, count);
 
             // Test incoming ip as ipv4
             if let Some(ip_addr) = ip_addr.to_ipv4_mapped() {
-                assert_eq!(do_search_ip_field(&format!("\"{}\"", ip_addr)), count);
+                assert_eq!(do_search_ip_field(&format!("\"{ip_addr}\"")), count);
             }
         }
 

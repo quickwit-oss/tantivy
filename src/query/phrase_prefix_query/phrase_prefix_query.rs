@@ -108,8 +108,8 @@ impl PhrasePrefixQuery {
         if !has_positions {
             let field_name = field_entry.name();
             return Err(crate::TantivyError::SchemaError(format!(
-                "Applied phrase query on field {:?}, which does not have positions indexed",
-                field_name
+                "Applied phrase query on field {field_name:?}, which does not have positions \
+                 indexed"
             )));
         }
         let terms = self.phrase_terms();

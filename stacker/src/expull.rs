@@ -235,14 +235,13 @@ mod tests {
         for i in 0..10_000_000 {
             match len_to_capacity(i) {
                 CapacityResult::NeedAlloc(cap) => {
-                    assert_eq!(available, 0, "Failed len={}: Expected 0 got {}", i, cap);
+                    assert_eq!(available, 0, "Failed len={i}: Expected 0 got {cap}");
                     available = cap;
                 }
                 CapacityResult::Available(cap) => {
                     assert_eq!(
                         available, cap,
-                        "Failed len={}: Expected {} Got {}",
-                        i, available, cap
+                        "Failed len={i}: Expected {available} Got {cap}"
                     );
                 }
             }

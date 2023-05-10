@@ -66,8 +66,7 @@ impl Stats {
             "max" => Ok(self.max),
             "avg" => Ok(self.avg),
             _ => Err(TantivyError::InvalidArgument(format!(
-                "Unknown property {} on stats metric aggregation",
-                agg_property
+                "Unknown property {agg_property} on stats metric aggregation"
             ))),
         }
     }

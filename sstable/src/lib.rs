@@ -256,8 +256,8 @@ where
             || self.previous_key[keep_len] < key[keep_len];
         assert!(
             increasing_keys,
-            "Keys should be increasing. ({:?} > {:?})",
-            self.previous_key, key
+            "Keys should be increasing. ({:?} > {key:?})",
+            self.previous_key
         );
         self.previous_key.resize(key.len(), 0u8);
         self.previous_key[keep_len..].copy_from_slice(&key[keep_len..]);

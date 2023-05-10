@@ -90,10 +90,11 @@ mod tests {
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        Document, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder, FAST,
-        INDEXED, STORED, STRING, TEXT,
+        Document, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder,
+        TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
+    use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
     use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
@@ -1171,6 +1172,35 @@ mod tests {
             .unwrap();
         let vals: Vec<i64> = column.values_for_doc(0u32).collect();
         assert_eq!(&vals, &[33]);
+    }
+
+    #[test]
+    fn test_fast_field_tokenizer() {
+        let mut schema_builder = Schema::builder();
+        let opt = TextOptions::default().set_fast(Some("custom_lowercase"));
+        let text_field = schema_builder.add_text_field("text", opt);
+        let schema = schema_builder.build();
+        let ff_tokenizer_manager = TokenizerManager::default();
+        ff_tokenizer_manager.register(
+            "custom_lowercase",
+            TextAnalyzer::builder(RawTokenizer)
+                .filter(LowerCaser)
+                .build(),
+        );
+
+        let mut index = Index::create_in_ram(schema);
+        index.set_fast_field_tokenizers(ff_tokenizer_manager);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(text_field => "Test1 test2"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
+        let column = fast_field_reader.str("text").unwrap().unwrap();
+        let mut out = String::new();
+        column.ord_to_str(0u64, &mut out).unwrap();
+        assert_eq!(&out, "test1 test2");
     }
 
     #[test]

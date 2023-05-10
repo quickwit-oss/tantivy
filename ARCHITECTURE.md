@@ -254,7 +254,7 @@ The token positions of all of the terms are then stored in a separate file with 
 The [TermInfo](src/postings/term_info.rs) gives an offset (expressed in position this time) in this file. As we iterate through the docset,
 we advance the position reader by the number of term frequencies of the current document.
 
-## [fieldnorms/](src/fieldnorms): Here is my doc, how many tokens in this field?
+## [fieldnorm/](src/fieldnorm): Here is my doc, how many tokens in this field?
 
 The [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) formula also requires to know the number of tokens stored in a specific field for a given document. We store this information on one byte per document in the fieldnorm.
 The fieldnorm is therefore compressed. Values up to 40 are encoded unchanged.

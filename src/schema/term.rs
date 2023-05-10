@@ -519,7 +519,7 @@ where B: AsRef<[u8]>
 
 fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> fmt::Result {
     if let Some(val) = val_opt {
-        write!(f, "{:?}", val)?;
+        write!(f, "{val:?}")?;
     }
     Ok(())
 }

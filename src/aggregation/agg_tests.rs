@@ -533,7 +533,7 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
 
     let agg_res = avg_on_field("dummy_text").unwrap_err();
     assert_eq!(
-        format!("{:?}", agg_res),
+        format!("{agg_res:?}"),
         r#"InvalidArgument("Field \"dummy_text\" is not configured as fast field")"#
     );
 

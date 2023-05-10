@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use common::ByteCount;
 
 use super::collector::DEFAULT_MEMORY_LIMIT;
 use super::{AggregationError, DEFAULT_BUCKET_LIMIT};
-use crate::TantivyError;
 
 /// An estimate for memory consumption. Non recursive
 pub trait MemoryConsumption {
@@ -68,28 +67,68 @@ impl AggregationLimits {
             bucket_limit: bucket_limit.unwrap_or(DEFAULT_BUCKET_LIMIT),
         }
     }
-    pub(crate) fn validate_memory_consumption(&self) -> crate::Result<()> {
-        if self.get_memory_consumed() > self.memory_limit {
-            return Err(TantivyError::AggregationError(
-                AggregationError::MemoryExceeded {
-                    limit: self.memory_limit,
-                    current: self.get_memory_consumed(),
-                },
-            ));
+
+    /// Create a new ResourceLimitGuard, that will release the memory when dropped.
+    pub fn new_guard(&self) -> ResourceLimitGuard {
+        ResourceLimitGuard {
+            /// The counter which is shared between the aggregations for one request.
+            memory_consumption: Arc::clone(&self.memory_consumption),
+            /// The memory_limit in bytes
+            memory_limit: self.memory_limit,
+            allocated_with_the_guard: 0,
         }
+    }
+
+    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
+        self.memory_consumption
+            .fetch_add(num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
         Ok(())
     }
-    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) {
-        self.memory_consumption
-            .fetch_add(num_bytes, std::sync::atomic::Ordering::Relaxed);
-    }
-    /// Returns the estimated memory consumed by the aggregations
-    pub fn get_memory_consumed(&self) -> ByteCount {
-        self.memory_consumption
-            .load(std::sync::atomic::Ordering::Relaxed)
-            .into()
-    }
+
     pub(crate) fn get_bucket_limit(&self) -> u32 {
         self.bucket_limit
+    }
+}
+
+fn validate_memory_consumption(
+    memory_consumption: &AtomicU64,
+    memory_limit: ByteCount,
+) -> Result<(), AggregationError> {
+    // Load the estimated memory consumed by the aggregations
+    let memory_consumed: ByteCount = memory_consumption.load(Ordering::Relaxed).into();
+    if memory_consumed > memory_limit {
+        return Err(AggregationError::MemoryExceeded {
+            limit: memory_limit,
+            current: memory_consumed,
+        });
+    }
+    Ok(())
+}
+
+pub struct ResourceLimitGuard {
+    /// The counter which is shared between the aggregations for one request.
+    memory_consumption: Arc<AtomicU64>,
+    /// The memory_limit in bytes
+    memory_limit: ByteCount,
+    /// Allocated memory with this guard.
+    allocated_with_the_guard: u64,
+}
+
+impl ResourceLimitGuard {
+    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
+        self.memory_consumption
+            .fetch_add(num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
+        Ok(())
+    }
+}
+
+impl Drop for ResourceLimitGuard {
+    /// Removes the memory consumed tracked by this _instance_ of AggregationLimits.
+    /// This is used to clear the segment specific memory consumption all at once.
+    fn drop(&mut self) {
+        self.memory_consumption
+            .fetch_sub(self.allocated_with_the_guard, Ordering::Relaxed);
     }
 }
