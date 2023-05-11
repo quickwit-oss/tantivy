@@ -3,7 +3,8 @@ extern crate criterion;
 
 use criterion::*;
 use rand::SeedableRng;
-use tantivy_stacker::ArenaHashMap;
+use rustc_hash::FxHashMap;
+use tantivy_stacker::{ArenaHashMap, ExpUnrolledLinkedList, MemoryArena};
 
 const ALICE: &str = include_str!("../../benches/alice.txt");
 
@@ -13,15 +14,37 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("CreateHashMap");
     group.plot_config(plot_config);
 
-    let input_name = "alice";
     let input_bytes = ALICE.len() as u64;
+    let alice_terms_as_bytes: Vec<&[u8]> = ALICE
+        .split_ascii_whitespace()
+        .map(|el| el.as_bytes())
+        .collect();
+
     group.throughput(Throughput::Bytes(input_bytes));
 
     group.bench_with_input(
-        BenchmarkId::new(input_name.to_string(), input_bytes),
-        &ALICE,
-        |b, i| b.iter(|| create_hash_map(i.split_whitespace().map(|el| el.as_bytes()))),
+        BenchmarkId::new("alice".to_string(), input_bytes),
+        &alice_terms_as_bytes,
+        |b, i| b.iter(|| create_hash_map(i.iter())),
     );
+    group.bench_with_input(
+        BenchmarkId::new("alice_expull".to_string(), input_bytes),
+        &alice_terms_as_bytes,
+        |b, i| b.iter(|| create_hash_map_with_expull(i.iter())),
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("alice_fx_hashmap_ref_expull".to_string(), input_bytes),
+        &alice_terms_as_bytes,
+        |b, i| b.iter(|| create_fx_hash_ref_map_with_expull(i.iter().cloned())),
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("alice_fx_hashmap_owned_expull".to_string(), input_bytes),
+        &alice_terms_as_bytes,
+        |b, i| b.iter(|| create_fx_hash_owned_map_with_expull(i.iter().cloned())),
+    );
+
     // numbers
     let input_bytes = 1_000_000 * 8 as u64;
     group.throughput(Throughput::Bytes(input_bytes));
@@ -50,8 +73,21 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     group.finish();
 }
 
+const HASHMAP_SIZE: usize = 1 << 15;
+
+/// Only records the doc ids
+#[derive(Clone, Default, Copy)]
+pub struct DocIdRecorder {
+    stack: ExpUnrolledLinkedList,
+}
+impl DocIdRecorder {
+    fn new_doc(&mut self, doc: u32, arena: &mut MemoryArena) {
+        self.stack.writer(arena).write_u32_vint(doc);
+    }
+}
+
 fn create_hash_map<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
-    let mut map = ArenaHashMap::with_capacity(4);
+    let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
     for term in terms {
         map.mutate_or_create(term.as_ref(), |val| {
             if let Some(mut val) = val {
@@ -63,6 +99,50 @@ fn create_hash_map<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaH
         });
     }
 
+    map
+}
+
+fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
+    let terms = terms.enumerate();
+    let mut memory_arena = MemoryArena::default();
+    let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
+    for (i, term) in terms {
+        map.mutate_or_create(term.as_ref(), |val: Option<DocIdRecorder>| {
+            if let Some(mut rec) = val {
+                rec.new_doc(i as u32, &mut memory_arena);
+                rec
+            } else {
+                DocIdRecorder::default()
+            }
+        });
+    }
+
+    map
+}
+
+fn create_fx_hash_ref_map_with_expull<'a>(
+    terms: impl Iterator<Item = &'static [u8]>,
+) -> FxHashMap<&'static [u8], Vec<u32>> {
+    let terms = terms.enumerate();
+    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_SIZE, Default::default());
+    for (i, term) in terms {
+        map.entry(term.as_ref())
+            .or_insert_with(Vec::new)
+            .push(i as u32);
+    }
+    map
+}
+
+fn create_fx_hash_owned_map_with_expull<'a>(
+    terms: impl Iterator<Item = &'static [u8]>,
+) -> FxHashMap<Vec<u8>, Vec<u32>> {
+    let terms = terms.enumerate();
+    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_SIZE, Default::default());
+    for (i, term) in terms {
+        map.entry(term.as_ref().to_vec())
+            .or_insert_with(Vec::new)
+            .push(i as u32);
+    }
     map
 }
 

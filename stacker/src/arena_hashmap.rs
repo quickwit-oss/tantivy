@@ -167,6 +167,7 @@ impl ArenaHashMap {
     }
 
     #[inline]
+    #[cfg(not(feature = "compare_hash_only"))]
     fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
         let (stored_key, value_addr) = self.get_key_value(addr);
         if stored_key == target_key {
@@ -174,6 +175,16 @@ impl ArenaHashMap {
         } else {
             None
         }
+    }
+    #[inline]
+    #[cfg(feature = "compare_hash_only")]
+    fn get_value_addr_if_key_match(&self, _target_key: &[u8], addr: Addr) -> Option<Addr> {
+        let data = self.memory_arena.slice_from(addr);
+        let key_bytes_len_bytes = &data[..2];
+        let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
+        let value_addr = addr.offset(2 + key_bytes_len as u32);
+
+        Some(value_addr)
     }
 
     #[inline]
