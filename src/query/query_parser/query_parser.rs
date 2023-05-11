@@ -314,6 +314,19 @@ impl QueryParser {
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
+    /// Build a query from an already parsed user input AST
+    ///
+    /// This can be useful if the user input AST parsed using [`query_grammar`]
+    /// needs to be inspected before the query is re-interpreted w.r.t.
+    /// index specifics like field names and tokenizers.
+    pub fn build_query_from_user_input_ast(
+        &self,
+        user_input_ast: UserInputAst,
+    ) -> Result<Box<dyn Query>, QueryParserError> {
+        let logical_ast = self.compute_logical_ast(user_input_ast)?;
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
+    }
+
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
         let user_input_ast = query_grammar::parse_query(query)
