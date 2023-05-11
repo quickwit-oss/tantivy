@@ -59,11 +59,8 @@ fn open_mmap(
             .map(Some)
             .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_path_buf()))
     }?;
-    match (&mmap_opt, madvice_opt) {
-        (Some(mmap), Some(madvice)) => {
-            let _ = mmap.advise(madvice);
-        }
-        _ => {}
+    if let (Some(mmap), Some(madvice)) = (&mmap_opt, madvice_opt) {
+        let _ = mmap.advise(madvice);
     }
     Ok(mmap_opt)
 }
@@ -233,7 +230,6 @@ impl MmapDirectory {
         directory_path: &Path,
         madvice_opt: Option<Advice>,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
-        let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
