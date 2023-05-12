@@ -401,6 +401,28 @@ pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     spaces()
         .with(optional(ast()).skip(eof()))
         .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAst::empty_query))
+        .map(rewrite_ast)
+}
+
+/// Removes unnecessary children clauses in AST
+///
+/// Motivated by [issue #1433](https://github.com/quickwit-oss/tantivy/issues/1433)
+fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
+    if let UserInputAst::Clause(terms) = &mut input {
+        for term in terms {
+            rewrite_ast_clause(term);
+        }
+    }
+    input
+}
+
+fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
+    match input {
+        (None, UserInputAst::Clause(ref mut clauses)) if clauses.len() == 1 => {
+            *input = clauses.pop().unwrap(); // safe because clauses.len() == 1
+        }
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -809,5 +831,11 @@ mod test {
         test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
         test_parse_query_to_ast_helper("foo:\"a b\"~300", "\"foo\":\"a b\"~300");
         test_parse_query_to_ast_helper("\"a b\"~300^2", "(\"a b\"~300)^2");
+    }
+
+    #[test]
+    fn test_not_queries_are_consistent() {
+        test_parse_query_to_ast_helper("tata -toto", "(*\"tata\" -\"toto\")");
+        test_parse_query_to_ast_helper("tata NOT toto", "(*\"tata\" -\"toto\")");
     }
 }
