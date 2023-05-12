@@ -278,6 +278,34 @@ impl FastFieldReaders {
         Ok(None)
     }
 
+    /// Returns the all `u64` column used to represent any `u64`-mapped typed (String/Bytes term
+    /// ids, i64, u64, f64, DateTime).
+    ///
+    /// In case of JSON, there may be two columns. One for term and one for numerical types. (This
+    /// may change later to 3 types if JSON handles DateTime)
+    #[doc(hidden)]
+    pub fn u64_lenient_for_type_all(
+        &self,
+        type_white_list_opt: Option<&[ColumnType]>,
+        field_name: &str,
+    ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
+        let mut columns_and_types = Vec::new();
+        let Some(resolved_field_name) = self.resolve_field(field_name)? else {
+            return Ok(columns_and_types);
+        };
+        for col in self.columnar.read_columns(&resolved_field_name)? {
+            if let Some(type_white_list) = type_white_list_opt {
+                if !type_white_list.contains(&col.column_type()) {
+                    continue;
+                }
+            }
+            if let Some(col_u64) = col.open_u64_lenient()? {
+                columns_and_types.push((col_u64, col.column_type()));
+            }
+        }
+        Ok(columns_and_types)
+    }
+
     /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).
     ///
     /// Returns Ok(None) for empty columns

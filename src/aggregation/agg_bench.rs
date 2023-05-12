@@ -40,6 +40,7 @@ mod bench {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let json_field = schema_builder.add_json_field("json", FAST);
         let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
         let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
         let score_fieldtype = crate::schema::NumericOptions::default().set_fast();
@@ -56,7 +57,7 @@ mod bench {
             .collect::<Vec<_>>();
         {
             let mut rng = StdRng::from_seed([1u8; 32]);
-            let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
+            let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
             // To make the different test cases comparable we just change one doc to force the
             // cardinality
             if cardinality == Cardinality::Optional {
@@ -64,6 +65,8 @@ mod bench {
             }
             if cardinality == Cardinality::Multivalued {
                 index_writer.add_document(doc!(
+                    json_field => json!({"mixed_type": 10.0}),
+                    json_field => json!({"mixed_type": 10.0}),
                     text_field => "cool",
                     text_field => "cool",
                     text_field_many_terms => "cool",
@@ -82,10 +85,18 @@ mod bench {
             if cardinality == Cardinality::Sparse {
                 doc_with_value /= 20;
             }
+            let val_max = 1_000_000.0;
             for _ in 0..doc_with_value {
                 let val: f64 = rng.gen_range(0.0..1_000_000.0);
+                let json = if rng.gen_bool(0.1) {
+                    // 10% are numeric values
+                    json!({ "mixed_type": val })
+                } else {
+                    json!({"mixed_type": many_terms_data.choose(&mut rng).unwrap().to_string()})
+                };
                 index_writer.add_document(doc!(
                     text_field => "cool",
+                    json_field => json,
                     text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                     text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
                     score_field => val as u64,
@@ -289,6 +300,33 @@ mod bench {
             let agg_req: Aggregations = serde_json::from_value(json!({
                 "my_texts": {
                     "terms": { "field": "text_many_terms" },
+                    "aggs": {
+                        "average_f64": { "avg": { "field": "score_f64" } }
+                    }
+                },
+            }))
+            .unwrap();
+
+            let collector = get_collector(agg_req);
+
+            let searcher = reader.searcher();
+            searcher.search(&AllQuery, &collector).unwrap()
+        });
+    }
+
+    bench_all_cardinalities!(bench_aggregation_terms_many_json_mixed_type_with_sub_agg);
+
+    fn bench_aggregation_terms_many_json_mixed_type_with_sub_agg_card(
+        b: &mut Bencher,
+        cardinality: Cardinality,
+    ) {
+        let index = get_test_index_bench(cardinality).unwrap();
+        let reader = index.reader().unwrap();
+
+        b.iter(|| {
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": {
+                    "terms": { "field": "json.mixed_type" },
                     "aggs": {
                         "average_f64": { "avg": { "field": "score_f64" } }
                     }
