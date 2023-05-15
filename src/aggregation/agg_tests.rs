@@ -826,10 +826,9 @@ fn test_aggregation_on_json_object_mixed_types() {
             "buckets": [
               { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
               { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
-              // TODO red is missing since there is no multi aggregation within one
-              // segment for multiple types
               // TODO bool is also not yet handled in aggregation
-              { "doc_count": 1, "key": "blue", "min_price": { "value": null } }
+              { "doc_count": 1, "key": "blue", "min_price": { "value": null } },
+              { "doc_count": 1, "key": "red", "min_price": { "value": null } },
             ],
             "sum_other_doc_count": 0
           }
