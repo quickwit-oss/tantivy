@@ -162,14 +162,22 @@ fn term_val<'a>() -> impl Parser<&'a str, Output = (Delimiter, String)> {
 }
 
 fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
-    (field_name(), term_val(), slop_val()).map(|(field_name, (delimiter, phrase), slop)| {
-        UserInputLiteral {
+    (field_name(), term_val(), slop_or_prefix_val()).map(
+        |(field_name, (delimiter, phrase), (slop, prefix))| UserInputLiteral {
             field_name: Some(field_name),
             phrase,
             delimiter,
             slop,
-        }
-    })
+            prefix,
+        },
+    )
+}
+
+fn slop_or_prefix_val<'a>() -> impl Parser<&'a str, Output = (u32, bool)> {
+    let prefix_val = char('*').map(|_ast| (0, true));
+    let slop_val = slop_val().map(|slop| (slop, false));
+
+    prefix_val.or(slop_val)
 }
 
 fn slop_val<'a>() -> impl Parser<&'a str, Output = u32> {
@@ -186,11 +194,14 @@ fn slop_val<'a>() -> impl Parser<&'a str, Output = u32> {
 
 fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let term_default_field =
-        (term_val(), slop_val()).map(|((delimiter, phrase), slop)| UserInputLiteral {
-            field_name: None,
-            phrase,
-            delimiter,
-            slop,
+        (term_val(), slop_or_prefix_val()).map(|((delimiter, phrase), (slop, prefix))| {
+            UserInputLiteral {
+                field_name: None,
+                phrase,
+                delimiter,
+                slop,
+                prefix,
+            }
         });
 
     attempt(term_query())
@@ -870,6 +881,16 @@ mod test {
         test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
         test_parse_query_to_ast_helper("foo:\"a b\"~300", "\"foo\":\"a b\"~300");
         test_parse_query_to_ast_helper("\"a b\"~300^2", "(\"a b\"~300)^2");
+    }
+
+    #[test]
+    fn test_phrase_prefix() {
+        test_parse_query_to_ast_helper("\"a b\"*", "\"a b\"*");
+        test_parse_query_to_ast_helper("\"a\"*", "\"a\"*");
+        test_parse_query_to_ast_helper("\"\"*", "\"\"*");
+        test_parse_query_to_ast_helper("foo:\"a b\"*", "\"foo\":\"a b\"*");
+        test_parse_query_to_ast_helper("foo:\"a\"*", "\"foo\":\"a\"*");
+        test_parse_query_to_ast_helper("foo:\"\"*", "\"foo\":\"\"*");
     }
 
     #[test]
