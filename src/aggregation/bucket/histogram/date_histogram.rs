@@ -219,15 +219,16 @@ fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
         .map_err(|_err| DateHistogramParseError::NumberMissing(input.to_string()))?;
 
     let unit_in_ms = match unit {
-        "ms" => 1,
-        "s" => 1000,
-        "m" => 60 * 1000,
-        "h" => 60 * 60 * 1000,
-        "d" => 24 * 60 * 60 * 1000,
+        "ms" | "milliseconds" => 1,
+        "s" | "seconds" => 1000,
+        "m" | "minutes" => 60 * 1000,
+        "h" | "hours" => 60 * 60 * 1000,
+        "d" | "days" => 24 * 60 * 60 * 1000,
         _ => return Err(DateHistogramParseError::UnitNotRecognized(unit.to_string()).into()),
     };
 
     let val = number * unit_in_ms;
+    // The field type is in nanoseconds precision, so validate the value to fit the range
     val.checked_mul(1_000_000)
         .ok_or_else(|| DateHistogramParseError::OutOfBounds(input.to_string()))?;
 
@@ -249,6 +250,7 @@ mod tests {
     fn test_parse_into_millisecs() {
         assert_eq!(parse_into_milliseconds("1m").unwrap(), 60_000);
         assert_eq!(parse_into_milliseconds("2m").unwrap(), 120_000);
+        assert_eq!(parse_into_milliseconds("2minutes").unwrap(), 120_000);
         assert_eq!(
             parse_into_milliseconds("2y").unwrap_err(),
             DateHistogramParseError::UnitNotRecognized("y".to_string()).into()
