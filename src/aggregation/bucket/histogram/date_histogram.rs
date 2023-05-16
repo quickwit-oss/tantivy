@@ -77,7 +77,7 @@ pub struct DateHistogramAggregationReq {
     /// hard_bounds only limits the buckets, to force a range set both extended_bounds and
     /// hard_bounds to the same range.
     ///
-    /// Needs to be provided as timestamp in milliseconds precision.
+    /// Needs to be provided as timestamp in millisecond precision.
     ///
     /// ## Example
     /// ```json

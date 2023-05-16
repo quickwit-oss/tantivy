@@ -13,8 +13,6 @@ use crate::aggregation::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor,
 };
 use crate::aggregation::agg_result::BucketEntry;
-use crate::aggregation::date::format_date_ms;
-use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateHistogramBucketEntry,
@@ -22,6 +20,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
+use crate::aggregation::{f64_from_fastfield_u64, format_date};
 use crate::TantivyError;
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -412,7 +411,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     // memory check upfront
     let (_, first_bucket_num, last_bucket_num) =
         generate_bucket_pos_with_opt_minmax(histogram_req, min_max);
-    // It's based user input, so we need to account for overflows
+    // It's based on user input, so we need to account for overflows
     let added_buckets = ((last_bucket_num.saturating_sub(first_bucket_num)).max(0) as u64)
         .saturating_sub(buckets.len() as u64);
     limits.add_memory_consumed(
@@ -495,8 +494,8 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     if column_type == Some(ColumnType::DateTime) {
         for bucket in buckets.iter_mut() {
             if let crate::aggregation::Key::F64(ref mut val) = bucket.key {
+                let key_as_string = format_date(*val as i64)?;
                 *val /= 1_000_000.0;
-                let key_as_string = format_date_ms(*val as i64)?;
                 bucket.key_as_string = Some(key_as_string);
             }
         }
