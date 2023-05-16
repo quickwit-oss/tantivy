@@ -16,7 +16,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: RUST_TEST_THREADS=1 cargo +nightly llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
+        run: cargo +nightly llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         continue-on-error: true
