@@ -39,7 +39,7 @@ use super::metric::{
 };
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
-/// defined names. It is also used in [buckets](BucketAggregation) to define sub-aggregations.
+/// defined names. It is also used in buckets aggregations to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;

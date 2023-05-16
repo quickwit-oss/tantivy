@@ -1,7 +1,6 @@
 //! Module for all bucket aggregations.
 //!
-//! BucketAggregations create buckets of documents
-//! [`BucketAggregation`](super::agg_req::BucketAggregation).
+//! BucketAggregations create buckets of documents.
 //! Each bucket is associated with a rule which
 //! determines whether or not a document in the falls into it. In other words, the buckets
 //! effectively define document sets. Buckets are not necessarily disjunct, therefore a document can

@@ -34,7 +34,7 @@ use crate::{DocId, TantivyError};
 /// following example demonstrates a request for the percentiles of the "load_time"
 /// field:
 ///
-/// ```json
+/// ```JSON
 /// {
 ///     "percentiles": {
 ///         "field": "load_time"
@@ -46,7 +46,7 @@ use crate::{DocId, TantivyError};
 /// 25, 50 (median), 75, 95, and 99). You can also customize the percentiles you want to
 /// calculate by providing an array of values in the "percents" parameter:
 ///
-/// ```json
+/// ```JSON
 /// {
 ///     "percentiles": {
 ///         "field": "load_time",
@@ -90,7 +90,7 @@ fn default_as_true() -> bool {
 }
 
 impl PercentilesAggregationReq {
-    /// Creates a new [`PercentilesAggregation`] instance from a field name.
+    /// Creates a new [`PercentilesAggregationReq`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
         PercentilesAggregationReq {
             field: field_name,
