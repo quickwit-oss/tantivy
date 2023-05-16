@@ -68,7 +68,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
 
     - name: Run tests
-      run: cargo +stable nextest run --features ${{ matrix.features.flags }} --verbose --workspace
+      run: RUST_TEST_THREADS=1 cargo +stable nextest run --features ${{ matrix.features.flags }} --verbose --workspace
 
     - name: Run doctests
       run: cargo +stable test --doc --features ${{ matrix.features.flags }} --verbose --workspace
