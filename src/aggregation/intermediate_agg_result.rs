@@ -15,8 +15,7 @@ use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
-    GetDocCount, Order, OrderTarget, RangeAggregation, SegmentHistogramBucketEntry,
-    TermsAggregation,
+    GetDocCount, Order, OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
@@ -643,16 +642,6 @@ impl IntermediateHistogramBucketEntry {
                 .sub_aggregation
                 .into_final_result_internal(req, limits)?,
         })
-    }
-}
-
-impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
-    fn from(entry: SegmentHistogramBucketEntry) -> Self {
-        IntermediateHistogramBucketEntry {
-            key: entry.key,
-            doc_count: entry.doc_count,
-            sub_aggregation: Default::default(),
-        }
     }
 }
 

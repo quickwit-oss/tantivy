@@ -54,6 +54,9 @@ impl ColumnType {
     pub fn to_code(self) -> u8 {
         self as u8
     }
+    pub fn is_date_time(&self) -> bool {
+        self == &ColumnType::DateTime
+    }
 
     pub(crate) fn try_from_code(code: u8) -> Result<ColumnType, InvalidData> {
         COLUMN_TYPES.get(code as usize).copied().ok_or(InvalidData)
