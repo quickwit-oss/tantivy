@@ -21,17 +21,16 @@ use crate::{DocId, TantivyError};
 /// data falls. For instance, the 95th percentile indicates the value below which
 /// 95% of the data points can be found.
 ///
-/// This aggregation can be particularly interesting for analyzing website load
-/// times. By computing the percentiles of load times, you can get insights into
-/// how quickly your website loads for different users and identify areas where
-/// improvements can be made.
+/// This aggregation can be particularly interesting for analyzing website or service response
+/// times. For example, if the 95th percentile website load time is significantly higher than the
+/// median, this indicates that a small percentage of users are experiencing much slower load times
+/// than the majority.
 ///
 /// To use the percentiles aggregation, you'll need to provide a field to
 /// aggregate on. In the case of website load times, this would typically be a
 /// field containing the duration of time it takes for the site to load.
 ///
-/// The JSON format for a percentiles aggregation request is straightforward. The
-/// following example demonstrates a request for the percentiles of the "load_time"
+/// The following example demonstrates a request for the percentiles of the "load_time"
 /// field:
 ///
 /// ```JSON

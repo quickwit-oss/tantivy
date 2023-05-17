@@ -67,6 +67,13 @@ pub struct DateHistogramAggregationReq {
     pub fixed_interval: Option<String>,
     /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
+    ///
+    /// Offset makes it possible to shift this grid into
+    /// `[offset + interval * k, offset + interval * (k + 1))`. Offset has to be in the range [0,
+    /// interval).
+    ///
+    /// The `offset` parameter is has the same syntax as the `fixed_interval` parameter, but
+    /// also allows for negative values.
     pub offset: Option<String>,
     /// The minimum number of documents in a bucket to be returned. Defaults to 0.
     pub min_doc_count: Option<u64>,
