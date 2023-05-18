@@ -107,6 +107,7 @@ pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
+    fast_field_tokenizer_manager: TokenizerManager,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -120,6 +121,7 @@ impl IndexBuilder {
             schema: None,
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
+            fast_field_tokenizer_manager: TokenizerManager::default(),
         }
     }
 
@@ -137,9 +139,15 @@ impl IndexBuilder {
         self
     }
 
-    /// Set the tokenizers .
+    /// Set the tokenizers.
     pub fn tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
         self.tokenizer_manager = tokenizers;
+        self
+    }
+
+    /// Set the fast field tokenizers.
+    pub fn fast_field_tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
+        self.fast_field_tokenizer_manager = tokenizers;
         self
     }
 
@@ -267,6 +275,7 @@ impl IndexBuilder {
         metas.index_settings = self.index_settings;
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
+        index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
         Ok(index)
     }
 }
