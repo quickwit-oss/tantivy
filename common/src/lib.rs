@@ -14,7 +14,9 @@ mod vint;
 mod writer;
 pub use bitset::*;
 pub use byte_count::ByteCount;
-pub use datetime::{DatePrecision, DateTime};
+#[allow(deprecated)]
+pub use datetime::DatePrecision;
+pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
 pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};

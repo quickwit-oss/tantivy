@@ -129,7 +129,9 @@ mod value;
 use columnar::ColumnType;
 
 pub use self::bytes_options::BytesOptions;
-pub use self::date_time_options::{DateOptions, DatePrecision, DATE_TIME_PRECISION_INDEXED};
+#[allow(deprecated)]
+pub use self::date_time_options::DatePrecision;
+pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
 pub use self::document::Document;
 pub(crate) use self::facet::FACET_SEP_BYTE;
 pub use self::facet::{Facet, FacetParseError};

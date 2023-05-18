@@ -8,7 +8,7 @@ use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{DatePrecision, DocId, TantivyError};
+use crate::{DateTimePrecision, DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
 /// This is mostly to guard us from a stack overflow triggered by malicious input.
@@ -19,7 +19,7 @@ pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
     fast_field_names: Vec<Option<String>>, //< TODO see if we can hash the field name hash too.
     per_field_tokenizer: Vec<Option<TextAnalyzer>>,
-    date_precisions: Vec<DatePrecision>,
+    date_precisions: Vec<DateTimePrecision>,
     expand_dots: Vec<bool>,
     num_docs: DocId,
     // Buffer that we recycle to avoid allocation.
@@ -41,8 +41,8 @@ impl FastFieldsWriter {
         let mut columnar_writer = ColumnarWriter::default();
 
         let mut fast_field_names: Vec<Option<String>> = vec![None; schema.num_fields()];
-        let mut date_precisions: Vec<DatePrecision> =
-            std::iter::repeat_with(DatePrecision::default)
+        let mut date_precisions: Vec<DateTimePrecision> =
+            std::iter::repeat_with(DateTimePrecision::default)
                 .take(schema.num_fields())
                 .collect();
         let mut expand_dots = vec![false; schema.num_fields()];

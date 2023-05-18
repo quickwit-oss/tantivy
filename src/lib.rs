@@ -184,7 +184,9 @@ pub use crate::directory::Directory;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
-pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
+#[allow(deprecated)]
+pub use crate::schema::DatePrecision;
+pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;

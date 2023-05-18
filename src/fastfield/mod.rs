@@ -95,7 +95,7 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
-    use crate::{DateOptions, DatePrecision, Index, SegmentId, SegmentReader};
+    use crate::{DateOptions, DateTimePrecision, Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -686,12 +686,12 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "date",
-            DateOptions::from(FAST).set_precision(DatePrecision::Nanoseconds),
+            DateOptions::from(FAST).set_precision(DateTimePrecision::Nanosecond),
         );
         let multi_date_field = schema_builder.add_date_field(
             "multi_date",
             DateOptions::default()
-                .set_precision(DatePrecision::Nanoseconds)
+                .set_precision(DateTimePrecision::Nanosecond)
                 .set_fast(),
         );
         let schema = schema_builder.build();
@@ -862,9 +862,9 @@ mod tests {
 
     #[test]
     pub fn test_gcd_date() {
-        let size_prec_sec = test_gcd_date_with_codec(DatePrecision::Seconds);
+        let size_prec_sec = test_gcd_date_with_codec(DateTimePrecision::Second);
         assert!((1000 * 13 / 8..100 + 1000 * 13 / 8).contains(&size_prec_sec.get_bytes())); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
-        let size_prec_micros = test_gcd_date_with_codec(DatePrecision::Microseconds);
+        let size_prec_micros = test_gcd_date_with_codec(DateTimePrecision::Microsecond);
         assert!((1000 * 33 / 8..100 + 1000 * 33 / 8).contains(&size_prec_micros.get_bytes()));
         // 33 bits per
         // val = ceil(log_2(number
@@ -872,7 +872,7 @@ mod tests {
         // in 2hours);
     }
 
-    fn test_gcd_date_with_codec(precision: DatePrecision) -> ByteCount {
+    fn test_gcd_date_with_codec(precision: DateTimePrecision) -> ByteCount {
         let mut rng = StdRng::seed_from_u64(2u64);
         const T0: i64 = 1_662_345_825_012_529i64;
         const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
