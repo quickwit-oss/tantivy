@@ -32,12 +32,13 @@ impl AggregationsWithAccessor {
 
 pub struct AggregationWithAccessor {
     /// In general there can be buckets without fast field access, e.g. buckets that are created
-    /// based on search terms. So eventually this needs to be Option or moved.
+    /// based on search terms. That is not that case currently, but eventually this needs to be
+    /// Option or moved.
     pub(crate) accessor: Column<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     /// In case there are multiple types of fast fields, e.g. string and numeric.
-    /// Only used for term aggregations
+    /// Only used for term aggregations currently.
     pub(crate) accessor2: Option<(Column<u64>, ColumnType)>,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: ResourceLimitGuard,
@@ -105,6 +106,7 @@ impl AggregationWithAccessor {
                 (accessor, field_type)
             }
         };
+
         let sub_aggregation = sub_aggregation.clone();
         Ok(AggregationWithAccessor {
             accessor,

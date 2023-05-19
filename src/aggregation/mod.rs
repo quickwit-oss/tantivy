@@ -25,8 +25,7 @@
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
 //! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
-//! See compatibility tests here: https://github.com/PSeitz/test_serde_formats
-//! TLDR: use ciborium.
+//! Postcard is a good choice.
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
@@ -39,6 +38,7 @@
 //! ## Supported Aggregations
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
+//!     - [DateHistogram](bucket::DateHistogramAggregationReq)
 //!     - [Range](bucket::RangeAggregation)
 //!     - [Terms](bucket::TermsAggregation)
 //! - [Metric](metric)
@@ -48,6 +48,7 @@
 //!     - [Max](metric::MaxAggregation)
 //!     - [Sum](metric::SumAggregation)
 //!     - [Count](metric::CountAggregation)
+//!     - [Percentiles](metric::PercentilesAggregationReq)
 //!
 //! # Example
 //! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
@@ -121,7 +122,7 @@
 //! [`merge_fruits`](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method
 //! to merge multiple results. The merged result can then be converted into
 //! [`AggregationResults`](agg_result::AggregationResults) via the
-//! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
+//! [`into_final_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_result) method.
 
 mod agg_limits;
 pub mod agg_req;

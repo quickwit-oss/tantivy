@@ -109,13 +109,13 @@ pub(crate) fn build_single_agg_segment_collector(
             accessor_idx,
         )?)),
         Histogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            histogram,
+            histogram.clone(),
             &mut req.sub_aggregation,
             req.field_type,
             accessor_idx,
         )?)),
         DateHistogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            &histogram.to_histogram_req()?,
+            histogram.to_histogram_req()?,
             &mut req.sub_aggregation,
             req.field_type,
             accessor_idx,
