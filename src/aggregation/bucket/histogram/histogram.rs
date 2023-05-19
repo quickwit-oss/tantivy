@@ -330,7 +330,7 @@ impl SegmentHistogramCollector {
     ) -> crate::Result<IntermediateBucketResult> {
         let mut buckets = Vec::with_capacity(self.buckets.len());
 
-        for (bucket_pos, bucket) in self.buckets.into_iter() {
+        for (bucket_pos, bucket) in self.buckets {
             let bucket_res = bucket.into_intermediate_bucket_entry(
                 self.sub_aggregations.get(&bucket_pos).cloned(),
                 &agg_with_accessor.sub_aggregation,
