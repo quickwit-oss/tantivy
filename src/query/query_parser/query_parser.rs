@@ -129,24 +129,22 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// The language covered by the current parser is extremely simple.
 ///
-/// * simple terms: "e.g.: `Barack Obama` are simply tokenized using tantivy's
-///   [`SimpleTokenizer`](crate::tokenizer::SimpleTokenizer), hence becoming `["barack", "obama"]`.
-///   The terms are then searched within the default terms of the query parser.
+/// * simple terms: "e.g.: `Barack Obama` will be seen as a sequence of two tokens Barack and Obama.
+///   By default, the query parser will interpret this as a disjunction (see
+///   `.set_conjunction_by_default()`) and will match all documents that contains either "Barack" or
+///   "Obama" or both. Since we did not target a specific field, the query parser will look into the
+///   so-called default fields (as set up in the constructor).
 ///
-///   e.g. If `body` and `title` are default fields, our example terms are
-///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
+///   Assuming that the default fields are `body` and `title`, and the query parser is set with
+/// conjunction   as a default, our query will be interpreted as.
+///   `(body:Barack OR title:Barack) AND (title:Obama OR body:Obama)`.
 ///   By default, all tokenized and indexed fields are default fields.
 ///
-///   Multiple terms are handled as an `OR` : any document containing at least
-///   one of the term will go through the scoring.
-///
-///   This behavior is slower, but is not a bad idea if the user is sorting
-///   by relevance : The user typically just scans through the first few
-///   documents in order of decreasing relevance and will stop when the documents
-///   are not relevant anymore.
-///
-///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
-///
+///   It is possible to explicitly target a field by prefixing the text by the `fieldname:`.
+///   Note this only applies to the term directly following.
+///   For instance, assuming the query parser is configured to use conjunction by default,
+///   `body:Barack Obama` is not interpreted as `body:Barack AND body:Obama` but as
+///   `body:Barack OR (body:Barack OR text:Obama)` .
 ///
 /// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is
 ///   interpreted
@@ -165,7 +163,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed. e.g.,
 ///   `title:"Barack Obama"` will only find documents that have "barack" immediately followed by
-///   "obama".
+///   "obama". Single quotes can also be used. If the text to be searched contains quotation mark,
+///   it is possible to escape them with a \.
 ///
 /// * range terms: Range searches can be done by specifying the start and end bound. These can be
 ///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains a

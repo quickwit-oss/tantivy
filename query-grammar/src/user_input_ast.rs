@@ -19,7 +19,7 @@ pub enum UserInputLeaf {
 }
 
 impl Debug for UserInputLeaf {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
         match self {
             UserInputLeaf::Literal(literal) => literal.fmt(formatter),
             UserInputLeaf::Range {
@@ -40,11 +40,11 @@ impl Debug for UserInputLeaf {
                     write!(formatter, "\"{field}\": ")?;
                 }
                 write!(formatter, "IN [")?;
-                for (i, element) in elements.iter().enumerate() {
+                for (i, text) in elements.iter().enumerate() {
                     if i != 0 {
                         write!(formatter, " ")?;
                     }
-                    write!(formatter, "\"{element}\"")?;
+                    write!(formatter, "\"{text}\"")?;
                 }
                 write!(formatter, "]")
             }
@@ -53,19 +53,37 @@ impl Debug for UserInputLeaf {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Delimiter {
+    SingleQuotes,
+    DoubleQuotes,
+    None,
+}
+
 #[derive(PartialEq)]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
+    pub delimiter: Delimiter,
     pub slop: u32,
 }
 
 impl fmt::Debug for UserInputLiteral {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         if let Some(ref field) = self.field_name {
             write!(formatter, "\"{field}\":")?;
         }
-        write!(formatter, "\"{}\"", self.phrase)?;
+        match self.delimiter {
+            Delimiter::SingleQuotes => {
+                write!(formatter, "'{}'", self.phrase)?;
+            }
+            Delimiter::DoubleQuotes => {
+                write!(formatter, "\"{}\"", self.phrase)?;
+            }
+            Delimiter::None => {
+                write!(formatter, "{}", self.phrase)?;
+            }
+        }
         if self.slop > 0 {
             write!(formatter, "~{}", self.slop)?;
         }
