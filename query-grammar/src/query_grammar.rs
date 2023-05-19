@@ -151,12 +151,8 @@ fn escaped_string<'a>(delimiter: char) -> impl Parser<&'a str, Output = String> 
 }
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = (Delimiter, String)> {
-    // TODO handle escaping of quotation marks.
     let double_quotes = escaped_string('"').map(|phrase| (Delimiter::DoubleQuotes, phrase));
     let single_quotes = escaped_string('\'').map(|phrase| (Delimiter::SingleQuotes, phrase));
-    // let single_quotes =
-    //     char('\'').with(many1(satisfy(|c| c != '\''))).skip(char('\'')).map(|text|
-    // (Delimiter::SingleQuotes, text));
     let text_no_delimiter = word().map(|text| (Delimiter::None, text));
     negative_number()
         .map(|negative_number_str| (Delimiter::None, negative_number_str))

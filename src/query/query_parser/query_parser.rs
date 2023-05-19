@@ -129,8 +129,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// The language covered by the current parser is extremely simple.
 ///
-/// * simple terms: "e.g.: `Barack Obama` will be seen as a sequence of two tokens Baracka and
-///   Obama. By default, the query parser will interpret this as a disjunction (see
+/// * simple terms: "e.g.: `Barack Obama` will be seen as a sequence of two tokens Barack and Obama.
+///   By default, the query parser will interpret this as a disjunction (see
 ///   `.set_conjunction_by_default()`) and will match all documents that contains either "Barack" or
 ///   "Obama" or both. Since we did not target a specific field, the query parser will look into the
 ///   so-called default fields (as set up in the constructor).
