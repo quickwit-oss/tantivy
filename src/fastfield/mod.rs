@@ -1082,7 +1082,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_expand_dots_disabled() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast();
+        let json_option = JsonObjectOptions::default().set_fast(None);
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1106,10 +1106,35 @@ mod tests {
     }
 
     #[test]
+    fn test_fast_field_in_json_field_with_tokenizer() {
+        let mut schema_builder = Schema::builder();
+        let json_option = JsonObjectOptions::default().set_fast(Some("default"));
+        let json = schema_builder.add_json_field("json", json_option);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"age": 32})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"age": "NEW"})))
+            .unwrap();
+
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let fast_fields = searcher.segment_reader(0u32).fast_fields();
+
+        let ff_str = fast_fields.str("json.age").unwrap().unwrap();
+        let mut output = String::new();
+        ff_str.ord_to_str(0, &mut output).unwrap();
+        assert_eq!(output, "new");
+    }
+
+    #[test]
     fn test_fast_field_in_json_field_expand_dots_enabled() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast()
+            .set_fast(None)
             .set_expand_dots_enabled();
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
@@ -1246,7 +1271,7 @@ mod tests {
     fn test_shadowing_fast_field_with_expand_dots() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast()
+            .set_fast(None)
             .set_expand_dots_enabled();
         let json_field = schema_builder.add_json_field("jsonfield", json_option.clone());
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);

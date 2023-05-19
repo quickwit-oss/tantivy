@@ -16,7 +16,7 @@ pub struct TextOptions {
     #[serde(default)]
     stored: bool,
     #[serde(default)]
-    fast: FastFieldOptions,
+    pub(crate) fast: FastFieldTextOptions,
     #[serde(default)]
     #[serde(skip_serializing_if = "is_false")]
     /// coerce values into string if they are not of type string
@@ -26,7 +26,7 @@ pub struct TextOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// Enum to control how the fast field setting of a text field.
-enum FastFieldOptions {
+pub(crate) enum FastFieldTextOptions {
     /// Flag to enable/disable
     IsEnabled(bool),
     /// Enable with tokenizer. The tokenizer must be available on the fast field tokenizer manager.
@@ -34,35 +34,34 @@ enum FastFieldOptions {
     EnabledWithTokenizer { with_tokenizer: TokenizerName },
 }
 
-impl Default for FastFieldOptions {
+impl Default for FastFieldTextOptions {
     fn default() -> Self {
-        FastFieldOptions::IsEnabled(false)
+        FastFieldTextOptions::IsEnabled(false)
     }
 }
 
-impl BitOr<FastFieldOptions> for FastFieldOptions {
-    type Output = FastFieldOptions;
+impl BitOr<FastFieldTextOptions> for FastFieldTextOptions {
+    type Output = FastFieldTextOptions;
 
-    fn bitor(self, other: FastFieldOptions) -> FastFieldOptions {
+    fn bitor(self, other: FastFieldTextOptions) -> FastFieldTextOptions {
         match (self, other) {
             (
-                FastFieldOptions::EnabledWithTokenizer {
+                FastFieldTextOptions::EnabledWithTokenizer {
                     with_tokenizer: tokenizer,
                 },
                 _,
             )
             | (
                 _,
-                FastFieldOptions::EnabledWithTokenizer {
+                FastFieldTextOptions::EnabledWithTokenizer {
                     with_tokenizer: tokenizer,
                 },
-            ) => FastFieldOptions::EnabledWithTokenizer {
+            ) => FastFieldTextOptions::EnabledWithTokenizer {
                 with_tokenizer: tokenizer,
             },
-            (FastFieldOptions::IsEnabled(true), _) | (_, FastFieldOptions::IsEnabled(true)) => {
-                FastFieldOptions::IsEnabled(true)
-            }
-            (_, FastFieldOptions::IsEnabled(false)) => FastFieldOptions::IsEnabled(false),
+            (FastFieldTextOptions::IsEnabled(true), _)
+            | (_, FastFieldTextOptions::IsEnabled(true)) => FastFieldTextOptions::IsEnabled(true),
+            (_, FastFieldTextOptions::IsEnabled(false)) => FastFieldTextOptions::IsEnabled(false),
         }
     }
 }
@@ -84,18 +83,18 @@ impl TextOptions {
 
     /// Returns true if and only if the value is a fast field.
     pub fn is_fast(&self) -> bool {
-        matches!(self.fast, FastFieldOptions::IsEnabled(true))
+        matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
             || matches!(
                 &self.fast,
-                FastFieldOptions::EnabledWithTokenizer { with_tokenizer: _ }
+                FastFieldTextOptions::EnabledWithTokenizer { with_tokenizer: _ }
             )
     }
 
     /// Returns true if and only if the value is a fast field.
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
         match &self.fast {
-            FastFieldOptions::IsEnabled(true) | FastFieldOptions::IsEnabled(false) => None,
-            FastFieldOptions::EnabledWithTokenizer {
+            FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
+            FastFieldTextOptions::EnabledWithTokenizer {
                 with_tokenizer: tokenizer,
             } => Some(tokenizer.name()),
         }
@@ -125,11 +124,11 @@ impl TextOptions {
     pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> TextOptions {
         if let Some(tokenizer) = tokenizer_name {
             let tokenizer = TokenizerName::from_name(tokenizer);
-            self.fast = FastFieldOptions::EnabledWithTokenizer {
+            self.fast = FastFieldTextOptions::EnabledWithTokenizer {
                 with_tokenizer: tokenizer,
             }
         } else {
-            self.fast = FastFieldOptions::IsEnabled(true);
+            self.fast = FastFieldTextOptions::IsEnabled(true);
         }
         self
     }
@@ -173,10 +172,10 @@ impl TokenizerName {
     pub const fn from_static(name: &'static str) -> Self {
         TokenizerName(Cow::Borrowed(name))
     }
-    fn from_name(name: &str) -> Self {
+    pub(crate) fn from_name(name: &str) -> Self {
         TokenizerName(Cow::Owned(name.to_string()))
     }
-    fn name(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.0
     }
 }
@@ -264,7 +263,7 @@ pub const STRING: TextOptions = TextOptions {
         record: IndexRecordOption::Basic,
     }),
     stored: false,
-    fast: FastFieldOptions::IsEnabled(false),
+    fast: FastFieldTextOptions::IsEnabled(false),
     coerce: false,
 };
 
@@ -277,7 +276,7 @@ pub const TEXT: TextOptions = TextOptions {
     }),
     stored: false,
     coerce: false,
-    fast: FastFieldOptions::IsEnabled(false),
+    fast: FastFieldTextOptions::IsEnabled(false),
 };
 
 impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
@@ -305,7 +304,7 @@ impl From<StoredFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: true,
-            fast: FastFieldOptions::IsEnabled(false),
+            fast: FastFieldTextOptions::default(),
             coerce: false,
         }
     }
@@ -316,7 +315,7 @@ impl From<CoerceFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldOptions::IsEnabled(false),
+            fast: FastFieldTextOptions::default(),
             coerce: true,
         }
     }
@@ -327,7 +326,7 @@ impl From<FastFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
-            fast: FastFieldOptions::IsEnabled(true),
+            fast: FastFieldTextOptions::IsEnabled(true),
             coerce: false,
         }
     }
@@ -346,7 +345,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::text_options::{FastFieldOptions, TokenizerName};
+    use crate::schema::text_options::{FastFieldTextOptions, TokenizerName};
     use crate::schema::*;
 
     #[test]
@@ -398,7 +397,7 @@ mod tests {
         let options: TextOptions = serde_json::from_str(json).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldOptions::EnabledWithTokenizer {
+            FastFieldTextOptions::EnabledWithTokenizer {
                 with_tokenizer: TokenizerName::from_static("default")
             }
         );
@@ -406,7 +405,7 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
         assert_eq!(
             options.fast,
-            FastFieldOptions::EnabledWithTokenizer {
+            FastFieldTextOptions::EnabledWithTokenizer {
                 with_tokenizer: TokenizerName::from_static("default")
             }
         );
@@ -415,18 +414,18 @@ mod tests {
             "fast": true
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::IsEnabled(true));
+        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(true));
         let options: TextOptions =
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::IsEnabled(true));
+        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(true));
 
         let json = r#" {
             "fast": false
         } "#;
         let options: TextOptions = serde_json::from_str(json).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::IsEnabled(false));
+        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(false));
         let options: TextOptions =
             serde_json::from_str(&serde_json::to_string(&options).unwrap()).unwrap();
-        assert_eq!(options.fast, FastFieldOptions::IsEnabled(false));
+        assert_eq!(options.fast, FastFieldTextOptions::IsEnabled(false));
     }
 }

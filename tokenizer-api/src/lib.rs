@@ -56,6 +56,11 @@ pub trait BoxableTokenizer: 'static + Send + Sync {
     /// Clone this tokenizer.
     fn box_clone(&self) -> Box<dyn BoxableTokenizer>;
 }
+impl Clone for Box<dyn BoxableTokenizer> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
 
 impl<T: Tokenizer> BoxableTokenizer for T {
     fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {

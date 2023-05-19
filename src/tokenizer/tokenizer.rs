@@ -5,8 +5,9 @@ use tokenizer_api::{BoxTokenStream, BoxableTokenizer, TokenFilter, Tokenizer};
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
+#[derive(Clone)]
 pub struct TextAnalyzer {
-    tokenizer: Box<dyn BoxableTokenizer>,
+    pub(crate) tokenizer: Box<dyn BoxableTokenizer>,
 }
 
 impl Default for TextAnalyzer {
@@ -30,14 +31,6 @@ impl TextAnalyzer {
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
         self.tokenizer.box_token_stream(text)
-    }
-}
-
-impl Clone for TextAnalyzer {
-    fn clone(&self) -> Self {
-        TextAnalyzer {
-            tokenizer: self.tokenizer.box_clone(),
-        }
     }
 }
 
