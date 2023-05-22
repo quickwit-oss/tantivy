@@ -87,8 +87,7 @@ impl FastFieldReaders {
     ) -> crate::Result<Option<String>> {
         let Some((field, path)): Option<(Field, &str)> = self
             .schema
-            .find_field(field_name)
-            .or_else(|| default_field_opt.map(|default_field| (default_field, field_name)))
+            .find_field_with_default(field_name, default_field_opt)
         else{
             return Ok(None);
         };
@@ -98,22 +97,17 @@ impl FastFieldReaders {
                 "Field {field_name:?} is not configured as fast field"
             )));
         }
-        let field_name = self.schema.get_field_name(field);
-        if path.is_empty() {
-            return Ok(Some(field_name.to_string()));
-        }
-        let field_type = field_entry.field_type();
-        match (field_type, path) {
+        Ok(match (field_entry.field_type(), path) {
             (FieldType::JsonObject(json_options), path) if !path.is_empty() => {
-                Ok(Some(encode_column_name(
+                Some(encode_column_name(
                     field_entry.name(),
                     path,
                     json_options.is_expand_dots_enabled(),
-                )))
+                ))
             }
-            (_, "") => Ok(Some(field_entry.name().to_string())),
-            _ => Ok(None),
-        }
+            (_, "") => Some(field_entry.name().to_string()),
+            _ => None,
+        })
     }
 
     /// Returns a typed column associated to a given field name.
