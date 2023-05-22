@@ -83,7 +83,7 @@ pub struct ZstdCompressor {
 impl ZstdCompressor {
     fn deser_from_str(val: &str) -> Result<ZstdCompressor, String> {
         if !val.starts_with("zstd") {
-            return Err(format!("needs to start with zstd, but got {}", val));
+            return Err(format!("needs to start with zstd, but got {val}"));
         }
         if val == "zstd" {
             return Ok(ZstdCompressor::default());
@@ -94,15 +94,12 @@ impl ZstdCompressor {
         for option in options.split(',') {
             let (opt_name, value) = options
                 .split_once('=')
-                .ok_or_else(|| format!("no '=' found in option {:?}", option))?;
+                .ok_or_else(|| format!("no '=' found in option {option:?}"))?;
 
             match opt_name {
                 "compression_level" => {
                     let value = value.parse::<i32>().map_err(|err| {
-                        format!(
-                            "Could not parse value {} of option {}, e: {}",
-                            value, opt_name, err
-                        )
+                        format!("Could not parse value {value} of option {opt_name}, e: {err}")
                     })?;
                     if value >= 15 {
                         warn!(
@@ -114,7 +111,7 @@ impl ZstdCompressor {
                     compressor.compression_level = Some(value);
                 }
                 _ => {
-                    return Err(format!("unknown zstd option {:?}", opt_name));
+                    return Err(format!("unknown zstd option {opt_name:?}"));
                 }
             }
         }
@@ -122,7 +119,7 @@ impl ZstdCompressor {
     }
     fn ser_to_string(&self) -> String {
         if let Some(compression_level) = self.compression_level {
-            format!("zstd(compression_level={})", compression_level)
+            format!("zstd(compression_level={compression_level})")
         } else {
             "zstd".to_string()
         }

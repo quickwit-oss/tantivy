@@ -337,8 +337,9 @@ impl Query for RangeQuery {
         let value_type = field_type.value_type();
         if value_type != self.value_type {
             let err_msg = format!(
-                "Create a range query of the type {:?}, when the field given was of type {:?}",
-                self.value_type, value_type
+                "Create a range query of the type {:?}, when the field given was of type \
+                 {value_type:?}",
+                self.value_type
             );
             return Err(TantivyError::SchemaError(err_msg));
         }

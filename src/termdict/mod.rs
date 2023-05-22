@@ -76,8 +76,8 @@ impl TermDictionary {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "Unsuported dictionary type, expected {}, found {}",
-                    CURRENT_TYPE as u32, dict_type,
+                    "Unsuported dictionary type, expected {}, found {dict_type}",
+                    CURRENT_TYPE as u32,
                 ),
             ));
         }

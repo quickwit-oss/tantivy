@@ -96,7 +96,7 @@ fn main() -> tantivy::Result<()> {
             let mut index_writer_wlock = index_writer.write().unwrap();
             index_writer_wlock.commit()?
         };
-        println!("committed with opstamp {}", opstamp);
+        println!("committed with opstamp {opstamp}");
         thread::sleep(Duration::from_millis(500));
     }
 

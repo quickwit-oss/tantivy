@@ -125,6 +125,22 @@ pub struct HistogramAggregation {
 }
 
 impl HistogramAggregation {
+    pub(crate) fn normalize(&mut self, column_type: ColumnType) {
+        if column_type.is_date_time() {
+            // values are provided in ms, but the fastfield is in nano seconds
+            self.interval *= 1_000_000.0;
+            self.offset = self.offset.map(|off| off * 1_000_000.0);
+            self.hard_bounds = self.hard_bounds.map(|bounds| HistogramBounds {
+                min: bounds.min * 1_000_000.0,
+                max: bounds.max * 1_000_000.0,
+            });
+            self.extended_bounds = self.extended_bounds.map(|bounds| HistogramBounds {
+                min: bounds.min * 1_000_000.0,
+                max: bounds.max * 1_000_000.0,
+            });
+        }
+    }
+
     fn validate(&self) -> crate::Result<()> {
         if self.interval <= 0.0f64 {
             return Err(TantivyError::InvalidArgument(
@@ -142,9 +158,8 @@ impl HistogramAggregation {
         {
             if extended_bounds.min < hard_bounds.min || extended_bounds.max > hard_bounds.max {
                 return Err(TantivyError::InvalidArgument(format!(
-                    "extended_bounds have to be inside hard_bounds, extended_bounds: {}, \
-                     hard_bounds {}",
-                    extended_bounds, hard_bounds
+                    "extended_bounds have to be inside hard_bounds, extended_bounds: \
+                     {extended_bounds}, hard_bounds {hard_bounds}"
                 )));
             }
         }
@@ -188,12 +203,14 @@ pub(crate) struct SegmentHistogramBucketEntry {
 impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: Box<dyn SegmentAggregationCollector>,
+        sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
         agg_with_accessor: &AggregationsWithAccessor,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
-        sub_aggregation
-            .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?;
+        if let Some(sub_aggregation) = sub_aggregation {
+            sub_aggregation
+                .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?;
+        }
         Ok(IntermediateHistogramBucketEntry {
             key: self.key,
             doc_count: self.doc_count,
@@ -227,7 +244,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        results.push(name, IntermediateAggregationResult::Bucket(bucket));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
         Ok(())
     }
@@ -281,9 +298,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
-        limits.add_memory_consumed(mem_delta as u64);
-        limits.validate_memory_consumption()?;
+        bucket_agg_accessor
+            .limits
+            .add_memory_consumed(mem_delta as u64)?;
 
         Ok(())
     }
@@ -313,19 +330,15 @@ impl SegmentHistogramCollector {
     ) -> crate::Result<IntermediateBucketResult> {
         let mut buckets = Vec::with_capacity(self.buckets.len());
 
-        if self.sub_aggregation_blueprint.is_some() {
-            for (bucket_pos, bucket) in self.buckets.into_iter() {
-                let bucket_res = bucket.into_intermediate_bucket_entry(
-                    self.sub_aggregations.get(&bucket_pos).unwrap().clone(),
-                    &agg_with_accessor.sub_aggregation,
-                );
+        for (bucket_pos, bucket) in self.buckets {
+            let bucket_res = bucket.into_intermediate_bucket_entry(
+                self.sub_aggregations.get(&bucket_pos).cloned(),
+                &agg_with_accessor.sub_aggregation,
+            );
 
-                buckets.push(bucket_res?);
-            }
-        } else {
-            buckets.extend(self.buckets.into_values().map(|bucket| bucket.into()));
-        };
-        buckets.sort_unstable_by(|b1, b2| b1.key.partial_cmp(&b2.key).unwrap_or(Ordering::Equal));
+            buckets.push(bucket_res?);
+        }
+        buckets.sort_unstable_by(|b1, b2| b1.key.total_cmp(&b2.key));
 
         Ok(IntermediateBucketResult::Histogram {
             buckets,
@@ -334,12 +347,13 @@ impl SegmentHistogramCollector {
     }
 
     pub(crate) fn from_req_and_validate(
-        req: &HistogramAggregation,
-        sub_aggregation: &AggregationsWithAccessor,
+        mut req: HistogramAggregation,
+        sub_aggregation: &mut AggregationsWithAccessor,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         req.validate()?;
+        req.normalize(field_type);
 
         let sub_aggregation_blueprint = if sub_aggregation.is_empty() {
             None
@@ -397,13 +411,12 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     // memory check upfront
     let (_, first_bucket_num, last_bucket_num) =
         generate_bucket_pos_with_opt_minmax(histogram_req, min_max);
-    let added_buckets = (first_bucket_num..=last_bucket_num)
-        .count()
-        .saturating_sub(buckets.len());
+    // It's based on user input, so we need to account for overflows
+    let added_buckets = ((last_bucket_num.saturating_sub(first_bucket_num)).max(0) as u64)
+        .saturating_sub(buckets.len() as u64);
     limits.add_memory_consumed(
-        added_buckets as u64 * std::mem::size_of::<IntermediateHistogramBucketEntry>() as u64,
-    );
-    limits.validate_memory_consumption()?;
+        added_buckets * std::mem::size_of::<IntermediateHistogramBucketEntry>() as u64,
+    )?;
     // create buckets
     let fill_gaps_buckets = generate_buckets_with_opt_minmax(histogram_req, min_max);
 
@@ -411,7 +424,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
 
     // Use merge_join_by to fill in gaps, since buckets are sorted
 
-    buckets
+    let final_buckets: Vec<BucketEntry> = buckets
         .into_iter()
         .merge_join_by(
             fill_gaps_buckets.into_iter(),
@@ -436,7 +449,9 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
         .map(|intermediate_bucket| {
             intermediate_bucket.into_final_bucket_entry(sub_aggregation, limits)
         })
-        .collect::<crate::Result<Vec<_>>>()
+        .collect::<crate::Result<Vec<_>>>()?;
+
+    Ok(final_buckets)
 }
 
 // Convert to BucketEntry
@@ -447,14 +462,20 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
+    // Normalization is column type dependent.
+    // The request used in the the call to final is not yet be normalized.
+    // Normalization is changing the precision from milliseconds to nanoseconds.
+    let mut histogram_req = histogram_req.clone();
+    if let Some(column_type) = column_type {
+        histogram_req.normalize(column_type);
+    }
     let mut buckets = if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
         // gaps, since intermediate result does not contain empty buckets (filtered to
         // reduce serialization size).
-
         intermediate_buckets_to_final_buckets_fill_gaps(
             buckets,
-            histogram_req,
+            &histogram_req,
             sub_aggregation,
             limits,
         )?
@@ -469,10 +490,12 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     };
 
     // If we have a date type on the histogram buckets, we add the `key_as_string` field as rfc339
+    // and normalize from nanoseconds to milliseconds
     if column_type == Some(ColumnType::DateTime) {
         for bucket in buckets.iter_mut() {
-            if let crate::aggregation::Key::F64(val) = bucket.key {
-                let key_as_string = format_date(val as i64)?;
+            if let crate::aggregation::Key::F64(ref mut val) = bucket.key {
+                let key_as_string = format_date(*val as i64)?;
+                *val /= 1_000_000.0;
                 bucket.key_as_string = Some(key_as_string);
             }
         }
@@ -693,11 +716,9 @@ mod tests {
             AggregationLimits::new(Some(5_000), None),
         )
         .unwrap_err();
-        assert_eq!(
-            res.to_string(),
-            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current: \
-             59.82 KB"
-        );
+        assert!(res.to_string().starts_with(
+            "Aborting aggregation because memory limit was exceeded. Limit: 5.00 KB, Current"
+        ));
 
         Ok(())
     }
@@ -1207,7 +1228,7 @@ mod tests {
             "histogram": {
                 "histogram": {
                     "field": "date",
-                    "interval": 86400000000000.0, // one day in nano seconds
+                    "interval": 86400000.0, // one day in milliseconds seconds
                 },
             }
         }))
@@ -1217,14 +1238,14 @@ mod tests {
 
         let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
 
-        assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000000000.0);
+        assert_eq!(res["histogram"]["buckets"][0]["key"], 1546300800000.0);
         assert_eq!(
             res["histogram"]["buckets"][0]["key_as_string"],
             "2019-01-01T00:00:00Z"
         );
         assert_eq!(res["histogram"]["buckets"][0]["doc_count"], 1);
 
-        assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000000000.0);
+        assert_eq!(res["histogram"]["buckets"][1]["key"], 1546387200000.0);
         assert_eq!(
             res["histogram"]["buckets"][1]["key_as_string"],
             "2019-01-02T00:00:00Z"
@@ -1232,7 +1253,7 @@ mod tests {
 
         assert_eq!(res["histogram"]["buckets"][1]["doc_count"], 5);
 
-        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000000000.0);
+        assert_eq!(res["histogram"]["buckets"][2]["key"], 1546473600000.0);
         assert_eq!(
             res["histogram"]["buckets"][2]["key_as_string"],
             "2019-01-03T00:00:00Z"

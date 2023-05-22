@@ -128,7 +128,7 @@ pub mod tests {
                     .unwrap()
                     .as_text()
                     .unwrap(),
-                format!("Doc {}", i)
+                format!("Doc {i}")
             );
         }
 
@@ -136,7 +136,7 @@ pub mod tests {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().as_text().unwrap();
             if !title_content.starts_with("Doc ") {
-                panic!("unexpected title_content {}", title_content);
+                panic!("unexpected title_content {title_content}");
             }
 
             let id = title_content
@@ -145,7 +145,7 @@ pub mod tests {
                 .parse::<u32>()
                 .unwrap();
             if alive_bitset.is_deleted(id) {
-                panic!("unexpected deleted document {}", id);
+                panic!("unexpected deleted document {id}");
             }
         }
 
@@ -173,13 +173,13 @@ pub mod tests {
                     .unwrap()
                     .as_text()
                     .unwrap(),
-                format!("Doc {}", i)
+                format!("Doc {i}")
             );
         }
         for (i, doc) in store.iter(None).enumerate() {
             assert_eq!(
                 *doc?.get_first(field_title).unwrap().as_text().unwrap(),
-                format!("Doc {}", i)
+                format!("Doc {i}")
             );
         }
         Ok(())

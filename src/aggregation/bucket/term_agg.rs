@@ -224,6 +224,110 @@ impl TermBuckets {
     }
 }
 
+/// The composite collector is used, when we have different types under one field, to support a term
+/// aggregation on both.
+#[derive(Clone, Debug)]
+pub struct SegmentTermCollectorComposite {
+    term_agg1: SegmentTermCollector, // field type 1, e.g. strings
+    term_agg2: SegmentTermCollector, // field type 2, e.g. u64
+    accessor_idx: usize,
+}
+impl SegmentAggregationCollector for SegmentTermCollectorComposite {
+    fn add_intermediate_aggregation_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
+
+        let bucket = self
+            .term_agg1
+            .into_intermediate_bucket_result(agg_with_accessor)?;
+        results.push(
+            name.to_string(),
+            IntermediateAggregationResult::Bucket(bucket),
+        )?;
+        let bucket = self
+            .term_agg2
+            .into_intermediate_bucket_result(agg_with_accessor)?;
+        results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        self.term_agg1.collect_block(&[doc], agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        self.term_agg2.collect_block(&[doc], agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        Ok(())
+    }
+
+    #[inline]
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        self.term_agg1.collect_block(docs, agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        self.term_agg2.collect_block(docs, agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+        self.term_agg1.flush(agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        self.term_agg2.flush(agg_with_accessor)?;
+        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+
+        Ok(())
+    }
+}
+
+impl SegmentTermCollectorComposite {
+    /// Swaps the accessor and field type with the second accessor and field type.
+    /// This way we can use the same code for both aggregations.
+    fn swap_accessor(&self, aggregations: &mut AggregationWithAccessor) {
+        if let Some(accessor) = aggregations.accessor2.as_mut() {
+            std::mem::swap(&mut accessor.0, &mut aggregations.accessor);
+            std::mem::swap(&mut accessor.1, &mut aggregations.field_type);
+        }
+    }
+
+    pub(crate) fn from_req_and_validate(
+        req: &TermsAggregation,
+        sub_aggregations: &mut AggregationsWithAccessor,
+        field_type: ColumnType,
+        field_type2: ColumnType,
+        accessor_idx: usize,
+    ) -> crate::Result<Self> {
+        Ok(Self {
+            term_agg1: SegmentTermCollector::from_req_and_validate(
+                req,
+                sub_aggregations,
+                field_type,
+                accessor_idx,
+            )?,
+            term_agg2: SegmentTermCollector::from_req_and_validate(
+                req,
+                sub_aggregations,
+                field_type2,
+                accessor_idx,
+            )?,
+            accessor_idx,
+        })
+    }
+}
+
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Clone, Debug)]
@@ -251,7 +355,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
         let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
-        results.push(name, IntermediateAggregationResult::Bucket(bucket));
+        results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
         Ok(())
     }
@@ -295,9 +399,9 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
-        let limits = &agg_with_accessor.aggs.values[self.accessor_idx].limits;
-        limits.add_memory_consumed(mem_delta as u64);
-        limits.validate_memory_consumption()?;
+        bucket_agg_accessor
+            .limits
+            .add_memory_consumed(mem_delta as u64)?;
 
         Ok(())
     }
@@ -320,7 +424,7 @@ impl SegmentTermCollector {
 
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
-        sub_aggregations: &AggregationsWithAccessor,
+        sub_aggregations: &mut AggregationsWithAccessor,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -333,8 +437,8 @@ impl SegmentTermCollector {
 
                 sub_aggregations.aggs.get(agg_name).ok_or_else(|| {
                     TantivyError::InvalidArgument(format!(
-                        "could not find aggregation with name {} in metric sub_aggregations",
-                        agg_name
+                        "could not find aggregation with name {agg_name} in metric \
+                         sub_aggregations"
                     ))
                 })?;
             }
@@ -409,10 +513,7 @@ impl SegmentTermCollector {
                         .sub_aggs
                         .remove(&id)
                         .unwrap_or_else(|| {
-                            panic!(
-                                "Internal Error: could not find subaggregation for id {}",
-                                id
-                            )
+                            panic!("Internal Error: could not find subaggregation for id {id}")
                         })
                         .add_intermediate_aggregation_result(
                             &agg_with_accessor.sub_aggregation,
@@ -442,8 +543,7 @@ impl SegmentTermCollector {
             for (term_id, doc_count) in entries {
                 if !term_dict.ord_to_str(term_id, &mut buffer)? {
                     return Err(TantivyError::InternalError(format!(
-                        "Couldn't find term_id {} in dict",
-                        term_id
+                        "Couldn't find term_id {term_id} in dict"
                     )));
                 }
 

@@ -73,9 +73,9 @@ impl Footer {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "Footer seems invalid as it suggests a footer len of {}. File is corrupted, \
-                     or the index was created with a different & old version of tantivy.",
-                    footer_len
+                    "Footer seems invalid as it suggests a footer len of {footer_len}. File is \
+                     corrupted, or the index was created with a different & old version of \
+                     tantivy."
                 ),
             ));
         }
@@ -84,8 +84,8 @@ impl Footer {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
-                    "File corrupted. The file is smaller than it's footer bytes (len={}).",
-                    total_footer_size
+                    "File corrupted. The file is smaller than it's footer bytes \
+                     (len={total_footer_size})."
                 ),
             ));
         }

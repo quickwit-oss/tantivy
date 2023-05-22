@@ -66,6 +66,16 @@ impl PhraseQuery {
     /// Slop allowed for the phrase.
     ///
     /// The query will match if its terms are separated by `slop` terms at most.
+    /// The slop can be considered a budget between all terms.
+    /// E.g. "A B C" with slop 1 allows "A X B C", "A B X C", but not "A X B X C".
+    ///
+    /// Transposition costs 2, e.g. "A B" with slop 1 will not match "B A" but it would with slop 2
+    /// Transposition is not a special case, in the example above A is moved 1 position and B is
+    /// moved 1 position, so the slop is 2.
+    ///
+    /// As a result slop works in both directions, so the order of the terms may changed as long as
+    /// they respect the slop.
+    ///
     /// By default the slop is 0 meaning query terms need to be adjacent.
     pub fn set_slop(&mut self, value: u32) {
         self.slop = value;
@@ -102,8 +112,8 @@ impl PhraseQuery {
         if !has_positions {
             let field_name = field_entry.name();
             return Err(crate::TantivyError::SchemaError(format!(
-                "Applied phrase query on field {:?}, which does not have positions indexed",
-                field_name
+                "Applied phrase query on field {field_name:?}, which does not have positions \
+                 indexed"
             )));
         }
         let terms = self.phrase_terms();

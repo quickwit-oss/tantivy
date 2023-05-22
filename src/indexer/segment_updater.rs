@@ -238,8 +238,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         segments
             .iter()
             .fold(String::new(), |sum, current| format!(
-                "{}{} ",
-                sum,
+                "{sum}{} ",
                 current.meta().id().uuid_string()
             ))
             .trim_end()
@@ -533,7 +532,7 @@ impl SegmentUpdater {
                         merge_error
                     );
                     if cfg!(test) {
-                        panic!("{:?}", merge_error);
+                        panic!("{merge_error:?}");
                     }
                     let _send_result = merging_future_send.send(Err(merge_error));
                 }

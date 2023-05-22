@@ -6,8 +6,7 @@ use crate::TantivyError;
 pub(crate) fn format_date(val: i64) -> crate::Result<String> {
     let datetime = OffsetDateTime::from_unix_timestamp_nanos(val as i128).map_err(|err| {
         TantivyError::InvalidArgument(format!(
-            "Could not convert {:?} to OffsetDateTime, err {:?}",
-            val, err
+            "Could not convert {val:?} to OffsetDateTime, err {err:?}"
         ))
     })?;
     let key_as_string = datetime

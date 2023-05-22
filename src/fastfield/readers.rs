@@ -87,8 +87,7 @@ impl FastFieldReaders {
     ) -> crate::Result<Option<String>> {
         let Some((field, path)): Option<(Field, &str)> = self
             .schema
-            .find_field(field_name)
-            .or_else(|| default_field_opt.map(|default_field| (default_field, field_name)))
+            .find_field_with_default(field_name, default_field_opt)
         else{
             return Ok(None);
         };
@@ -98,22 +97,17 @@ impl FastFieldReaders {
                 "Field {field_name:?} is not configured as fast field"
             )));
         }
-        let field_name = self.schema.get_field_name(field);
-        if path.is_empty() {
-            return Ok(Some(field_name.to_string()));
-        }
-        let field_type = field_entry.field_type();
-        match (field_type, path) {
+        Ok(match (field_entry.field_type(), path) {
             (FieldType::JsonObject(json_options), path) if !path.is_empty() => {
-                Ok(Some(encode_column_name(
+                Some(encode_column_name(
                     field_entry.name(),
                     path,
                     json_options.is_expand_dots_enabled(),
-                )))
+                ))
             }
-            (_, "") => Ok(Some(field_entry.name().to_string())),
-            _ => Ok(None),
-        }
+            (_, "") => Some(field_entry.name().to_string()),
+            _ => None,
+        })
     }
 
     /// Returns a typed column associated to a given field name.
@@ -276,6 +270,34 @@ impl FastFieldReaders {
             }
         }
         Ok(None)
+    }
+
+    /// Returns the all `u64` column used to represent any `u64`-mapped typed (String/Bytes term
+    /// ids, i64, u64, f64, DateTime).
+    ///
+    /// In case of JSON, there may be two columns. One for term and one for numerical types. (This
+    /// may change later to 3 types if JSON handles DateTime)
+    #[doc(hidden)]
+    pub fn u64_lenient_for_type_all(
+        &self,
+        type_white_list_opt: Option<&[ColumnType]>,
+        field_name: &str,
+    ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
+        let mut columns_and_types = Vec::new();
+        let Some(resolved_field_name) = self.resolve_field(field_name)? else {
+            return Ok(columns_and_types);
+        };
+        for col in self.columnar.read_columns(&resolved_field_name)? {
+            if let Some(type_white_list) = type_white_list_opt {
+                if !type_white_list.contains(&col.column_type()) {
+                    continue;
+                }
+            }
+            if let Some(col_u64) = col.open_u64_lenient()? {
+                columns_and_types.push((col_u64, col.column_type()));
+            }
+        }
+        Ok(columns_and_types)
     }
 
     /// Returns the `u64` column used to represent any `u64`-mapped typed (i64, u64, f64, DateTime).

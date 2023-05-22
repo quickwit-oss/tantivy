@@ -129,24 +129,22 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// The language covered by the current parser is extremely simple.
 ///
-/// * simple terms: "e.g.: `Barack Obama` are simply tokenized using tantivy's
-///   [`SimpleTokenizer`](crate::tokenizer::SimpleTokenizer), hence becoming `["barack", "obama"]`.
-///   The terms are then searched within the default terms of the query parser.
+/// * simple terms: "e.g.: `Barack Obama` will be seen as a sequence of two tokens Barack and Obama.
+///   By default, the query parser will interpret this as a disjunction (see
+///   `.set_conjunction_by_default()`) and will match all documents that contains either "Barack" or
+///   "Obama" or both. Since we did not target a specific field, the query parser will look into the
+///   so-called default fields (as set up in the constructor).
 ///
-///   e.g. If `body` and `title` are default fields, our example terms are
-///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
+///   Assuming that the default fields are `body` and `title`, and the query parser is set with
+/// conjunction   as a default, our query will be interpreted as.
+///   `(body:Barack OR title:Barack) AND (title:Obama OR body:Obama)`.
 ///   By default, all tokenized and indexed fields are default fields.
 ///
-///   Multiple terms are handled as an `OR` : any document containing at least
-///   one of the term will go through the scoring.
-///
-///   This behavior is slower, but is not a bad idea if the user is sorting
-///   by relevance : The user typically just scans through the first few
-///   documents in order of decreasing relevance and will stop when the documents
-///   are not relevant anymore.
-///
-///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
-///
+///   It is possible to explicitly target a field by prefixing the text by the `fieldname:`.
+///   Note this only applies to the term directly following.
+///   For instance, assuming the query parser is configured to use conjunction by default,
+///   `body:Barack Obama` is not interpreted as `body:Barack AND body:Obama` but as
+///   `body:Barack OR (body:Barack OR text:Obama)` .
 ///
 /// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is
 ///   interpreted
@@ -165,7 +163,8 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed. e.g.,
 ///   `title:"Barack Obama"` will only find documents that have "barack" immediately followed by
-///   "obama".
+///   "obama". Single quotes can also be used. If the text to be searched contains quotation mark,
+///   it is possible to escape them with a \.
 ///
 /// * range terms: Range searches can be done by specifying the start and end bound. These can be
 ///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains a
@@ -311,6 +310,19 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
+        Ok(convert_to_query(&self.fuzzy, logical_ast))
+    }
+
+    /// Build a query from an already parsed user input AST
+    ///
+    /// This can be useful if the user input AST parsed using [`query_grammar`]
+    /// needs to be inspected before the query is re-interpreted w.r.t.
+    /// index specifics like field names and tokenizers.
+    pub fn build_query_from_user_input_ast(
+        &self,
+        user_input_ast: UserInputAst,
+    ) -> Result<Box<dyn Query>, QueryParserError> {
+        let logical_ast = self.compute_logical_ast(user_input_ast)?;
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
@@ -942,7 +954,7 @@ mod test {
         default_conjunction: bool,
     ) {
         let query = parse_query_to_logical_ast(query, default_conjunction).unwrap();
-        let query_str = format!("{:?}", query);
+        let query_str = format!("{query:?}");
         assert_eq!(query_str, expected);
     }
 
@@ -951,7 +963,7 @@ mod test {
         let query_parser = make_query_parser();
         let query = query_parser.parse_query("facet:/root/branch/leaf").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"TermQuery(Term(field=11, type=Facet, Facet(/root/branch/leaf)))"#
         );
     }
@@ -964,7 +976,7 @@ mod test {
         query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"Boost(query=TermQuery(Term(field=1, type=Str, "hello")), boost=2)"#
         );
     }
@@ -973,7 +985,7 @@ mod test {
     pub fn test_parse_query_range_with_boost() {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             "RangeQuery { field: \"title\", value_type: Str, lower_bound: Included([97]), \
              upper_bound: Included([98]), limit: None }"
         );
@@ -987,7 +999,7 @@ mod test {
         query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello^2").unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             r#"Boost(query=Boost(query=TermQuery(Term(field=1, type=Str, "hello")), boost=2), boost=2)"#
         );
     }
@@ -1039,7 +1051,7 @@ mod test {
         let query_parser = make_query_parser();
         let query_result = query_parser.parse_query("");
         let query = query_result.unwrap();
-        assert_eq!(format!("{:?}", query), "EmptyQuery");
+        assert_eq!(format!("{query:?}"), "EmptyQuery");
     }
 
     #[test]
@@ -1481,7 +1493,7 @@ mod test {
             Ok(_) => panic!("should never succeed"),
             Err(e) => assert_eq!(
                 "The facet field is malformed: Failed to parse the facet string: 'INVALID'",
-                format!("{}", e)
+                format!("{e}")
             ),
         }
         assert!(query_parser.parse_query("facet:\"/foo/bar\"").is_ok());
@@ -1574,7 +1586,7 @@ mod test {
         let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
         let query = query_parser.parse_query(r#"a\.b:hello"#).unwrap();
         assert_eq!(
-            format!("{:?}", query),
+            format!("{query:?}"),
             "TermQuery(Term(field=0, type=Str, \"hello\"))"
         );
     }
@@ -1668,7 +1680,7 @@ mod test {
             );
             let query = query_parser.parse_query("abc").unwrap();
             assert_eq!(
-                format!("{:?}", query),
+                format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, FuzzyTermQuery { term: Term(field=0, \
                  type=Str, \"abc\"), distance: 1, transposition_cost_one: true, prefix: false }), \
                  (Should, TermQuery(Term(field=1, type=Str, \"abc\")))] }"
@@ -1685,7 +1697,7 @@ mod test {
             );
             let query = query_parser.parse_query("abc").unwrap();
             assert_eq!(
-                format!("{:?}", query),
+                format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, TermQuery(Term(field=0, type=Str, \
                  \"abc\"))), (Should, FuzzyTermQuery { term: Term(field=1, type=Str, \"abc\"), \
                  distance: 2, transposition_cost_one: false, prefix: true })] }"

@@ -410,6 +410,30 @@ impl Schema {
         }
         None
     }
+
+    /// Transforms a user-supplied fast field name into a column name.
+    ///
+    /// This is similar to `.find_field` except it includes some fallback logic to
+    /// a default json field. This functionality is used in Quickwit.
+    ///
+    /// If the remaining path is empty and seems to target JSON field, we return None.
+    /// If the remaining path is non-empty and seems to target a non-JSON field, we return None.
+    #[doc(hidden)]
+    pub fn find_field_with_default<'a>(
+        &self,
+        full_path: &'a str,
+        default_field_opt: Option<Field>,
+    ) -> Option<(Field, &'a str)> {
+        let (field, json_path) = self
+            .find_field(full_path)
+            .or(default_field_opt.map(|field| (field, full_path)))?;
+        let field_entry = self.get_field_entry(field);
+        let is_json = field_entry.field_type().value_type() == Type::Json;
+        if is_json == json_path.is_empty() {
+            return None;
+        }
+        Some((field, json_path))
+    }
 }
 
 impl Serialize for Schema {

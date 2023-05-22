@@ -114,13 +114,7 @@ fn compute_previous_power_of_two(n: usize) -> usize {
 
 impl Default for ArenaHashMap {
     fn default() -> Self {
-        let memory_arena = MemoryArena::default();
-        ArenaHashMap {
-            table: Vec::new(),
-            memory_arena,
-            mask: 0,
-            len: 0,
-        }
+        ArenaHashMap::with_capacity(4)
     }
 }
 
@@ -173,6 +167,7 @@ impl ArenaHashMap {
     }
 
     #[inline]
+    #[cfg(not(feature = "compare_hash_only"))]
     fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
         let (stored_key, value_addr) = self.get_key_value(addr);
         if stored_key == target_key {
@@ -180,6 +175,16 @@ impl ArenaHashMap {
         } else {
             None
         }
+    }
+    #[inline]
+    #[cfg(feature = "compare_hash_only")]
+    fn get_value_addr_if_key_match(&self, _target_key: &[u8], addr: Addr) -> Option<Addr> {
+        let data = self.memory_arena.slice_from(addr);
+        let key_bytes_len_bytes = &data[..2];
+        let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
+        let value_addr = addr.offset(2 + key_bytes_len as u32);
+
+        Some(value_addr)
     }
 
     #[inline]
@@ -265,6 +270,7 @@ impl ArenaHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
+    #[inline]
     pub fn mutate_or_create<V>(
         &mut self,
         key: &[u8],
@@ -336,6 +342,11 @@ mod tests {
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);
+    }
+    #[test]
+    fn test_empty_hashmap() {
+        let hash_map: ArenaHashMap = ArenaHashMap::default();
+        assert_eq!(hash_map.get::<u32>(b"abc"), None);
     }
 
     #[test]

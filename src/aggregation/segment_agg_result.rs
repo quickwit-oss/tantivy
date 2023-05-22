@@ -15,6 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
+use crate::aggregation::bucket::SegmentTermCollectorComposite;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -61,11 +62,11 @@ impl Clone for Box<dyn SegmentAggregationCollector> {
 }
 
 pub(crate) fn build_segment_agg_collector(
-    req: &AggregationsWithAccessor,
+    req: &mut AggregationsWithAccessor,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Single collector special case
     if req.aggs.len() == 1 {
-        let req = &req.aggs.values[0];
+        let req = &mut req.aggs.values[0];
         let accessor_idx = 0;
         return build_single_agg_segment_collector(req, accessor_idx);
     }
@@ -75,33 +76,47 @@ pub(crate) fn build_segment_agg_collector(
 }
 
 pub(crate) fn build_single_agg_segment_collector(
-    req: &AggregationWithAccessor,
+    req: &mut AggregationWithAccessor,
     accessor_idx: usize,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     use AggregationVariants::*;
     match &req.agg.agg {
-        Terms(terms_req) => Ok(Box::new(SegmentTermCollector::from_req_and_validate(
-            terms_req,
-            &req.sub_aggregation,
-            req.field_type,
-            accessor_idx,
-        )?)),
+        Terms(terms_req) => {
+            if let Some(acc2) = req.accessor2.as_ref() {
+                Ok(Box::new(
+                    SegmentTermCollectorComposite::from_req_and_validate(
+                        terms_req,
+                        &mut req.sub_aggregation,
+                        req.field_type,
+                        acc2.1,
+                        accessor_idx,
+                    )?,
+                ))
+            } else {
+                Ok(Box::new(SegmentTermCollector::from_req_and_validate(
+                    terms_req,
+                    &mut req.sub_aggregation,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            }
+        }
         Range(range_req) => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             range_req,
-            &req.sub_aggregation,
-            &req.limits,
+            &mut req.sub_aggregation,
+            &mut req.limits,
             req.field_type,
             accessor_idx,
         )?)),
         Histogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            histogram,
-            &req.sub_aggregation,
+            histogram.clone(),
+            &mut req.sub_aggregation,
             req.field_type,
             accessor_idx,
         )?)),
         DateHistogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
-            &histogram.to_histogram_req()?,
-            &req.sub_aggregation,
+            histogram.to_histogram_req()?,
+            &mut req.sub_aggregation,
             req.field_type,
             accessor_idx,
         )?)),
@@ -205,14 +220,12 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
 }
 
 impl GenericSegmentAggregationResultsCollector {
-    pub(crate) fn from_req_and_validate(req: &AggregationsWithAccessor) -> crate::Result<Self> {
+    pub(crate) fn from_req_and_validate(req: &mut AggregationsWithAccessor) -> crate::Result<Self> {
         let aggs = req
             .aggs
-            .iter()
+            .values_mut()
             .enumerate()
-            .map(|(accessor_idx, (_key, req))| {
-                build_single_agg_segment_collector(req, accessor_idx)
-            })
+            .map(|(accessor_idx, req)| build_single_agg_segment_collector(req, accessor_idx))
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
 
         Ok(GenericSegmentAggregationResultsCollector { aggs })

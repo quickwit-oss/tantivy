@@ -84,6 +84,7 @@ impl SegmentWriter {
     ) -> crate::Result<SegmentWriter> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
+        let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
@@ -113,7 +114,7 @@ impl SegmentWriter {
             segment_serializer,
             fast_field_writers: FastFieldsWriter::from_schema_and_tokenizer_manager(
                 &schema,
-                tokenizer_manager,
+                tokenizer_manager_fast_field,
             )?,
             doc_opstamps: Vec::with_capacity(1_000),
             per_field_text_analyzers,

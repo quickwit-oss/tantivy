@@ -25,8 +25,7 @@
 //! Aggregations request and result structures de/serialize into elasticsearch compatible JSON.
 //!
 //! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
-//! See compatibility tests here: https://github.com/PSeitz/test_serde_formats
-//! TLDR: use ciborium.
+//! Postcard is a good choice.
 //!
 //! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
@@ -39,6 +38,7 @@
 //! ## Supported Aggregations
 //! - [Bucket](bucket)
 //!     - [Histogram](bucket::HistogramAggregation)
+//!     - [DateHistogram](bucket::DateHistogramAggregationReq)
 //!     - [Range](bucket::RangeAggregation)
 //!     - [Terms](bucket::TermsAggregation)
 //! - [Metric](metric)
@@ -48,6 +48,7 @@
 //!     - [Max](metric::MaxAggregation)
 //!     - [Sum](metric::SumAggregation)
 //!     - [Count](metric::CountAggregation)
+//!     - [Percentiles](metric::PercentilesAggregationReq)
 //!
 //! # Example
 //! Compute the average metric, by building [`agg_req::Aggregations`], which is built from an
@@ -121,7 +122,7 @@
 //! [`merge_fruits`](intermediate_agg_result::IntermediateAggregationResults::merge_fruits) method
 //! to merge multiple results. The merged result can then be converted into
 //! [`AggregationResults`](agg_result::AggregationResults) via the
-//! [`into_final_bucket_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_bucket_result) method.
+//! [`into_final_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_result) method.
 
 mod agg_limits;
 pub mod agg_req;
@@ -156,13 +157,22 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct VecWithNames<T: Clone> {
+#[derive(PartialEq, Serialize, Deserialize)]
+pub(crate) struct VecWithNames<T> {
     pub(crate) values: Vec<T>,
     keys: Vec<String>,
 }
 
-impl<T: Clone> Default for VecWithNames<T> {
+impl<T: Clone> Clone for VecWithNames<T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            keys: self.keys.clone(),
+        }
+    }
+}
+
+impl<T> Default for VecWithNames<T> {
     fn default() -> Self {
         Self {
             values: Default::default(),
@@ -171,24 +181,19 @@ impl<T: Clone> Default for VecWithNames<T> {
     }
 }
 
-impl<T: Clone + std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<T: Clone> From<HashMap<String, T>> for VecWithNames<T> {
+impl<T> From<HashMap<String, T>> for VecWithNames<T> {
     fn from(map: HashMap<String, T>) -> Self {
         VecWithNames::from_entries(map.into_iter().collect_vec())
     }
 }
 
-impl<T: Clone> VecWithNames<T> {
-    fn push(&mut self, key: String, value: T) {
-        self.keys.push(key);
-        self.values.push(value);
-    }
-
+impl<T> VecWithNames<T> {
     fn from_entries(mut entries: Vec<(String, T)>) -> Self {
         // Sort to ensure order of elements match across multiple instances
         entries.sort_by(|left, right| left.0.cmp(&right.0));
@@ -203,17 +208,11 @@ impl<T: Clone> VecWithNames<T> {
             keys: data_names,
         }
     }
-    fn into_iter(self) -> impl Iterator<Item = (String, T)> {
-        self.keys.into_iter().zip(self.values.into_iter())
-    }
     fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())
     }
     fn keys(&self) -> impl Iterator<Item = &str> + '_ {
         self.keys.iter().map(|key| key.as_str())
-    }
-    fn into_values(self) -> impl Iterator<Item = T> {
-        self.values.into_iter()
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
         self.values.iter_mut()
@@ -283,7 +282,7 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
         ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
         ColumnType::F64 => f64::from_u64(val),
         _ => {
-            panic!("unexpected type {:?}. This should not happen", field_type)
+            panic!("unexpected type {field_type:?}. This should not happen")
         }
     }
 }

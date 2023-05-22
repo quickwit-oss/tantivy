@@ -39,10 +39,7 @@ fn load_metas(
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
-                format!(
-                    "Meta file cannot be deserialized. {:?}. Content: {:?}",
-                    e, meta_string
-                ),
+                format!("Meta file cannot be deserialized. {e:?}. Content: {meta_string:?}"),
             )
         })
         .map_err(From::from)
@@ -110,6 +107,7 @@ pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
+    fast_field_tokenizer_manager: TokenizerManager,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -123,6 +121,7 @@ impl IndexBuilder {
             schema: None,
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
+            fast_field_tokenizer_manager: TokenizerManager::default(),
         }
     }
 
@@ -140,9 +139,15 @@ impl IndexBuilder {
         self
     }
 
-    /// Set the tokenizers .
+    /// Set the tokenizers.
     pub fn tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
         self.tokenizer_manager = tokenizers;
+        self
+    }
+
+    /// Set the fast field tokenizers.
+    pub fn fast_field_tokenizers(mut self, tokenizers: TokenizerManager) -> Self {
+        self.fast_field_tokenizer_manager = tokenizers;
         self
     }
 
@@ -270,6 +275,7 @@ impl IndexBuilder {
         metas.index_settings = self.index_settings;
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
+        index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
         Ok(index)
     }
 }
@@ -282,6 +288,7 @@ pub struct Index {
     settings: IndexSettings,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
+    fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
 }
 
@@ -394,6 +401,7 @@ impl Index {
             directory,
             schema,
             tokenizers: TokenizerManager::default(),
+            fast_field_tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
         }
@@ -407,6 +415,16 @@ impl Index {
     /// Accessor for the tokenizer manager.
     pub fn tokenizers(&self) -> &TokenizerManager {
         &self.tokenizers
+    }
+
+    /// Setter for the fast field tokenizer manager.
+    pub fn set_fast_field_tokenizers(&mut self, tokenizers: TokenizerManager) {
+        self.fast_field_tokenizers = tokenizers;
+    }
+
+    /// Accessor for the fast field tokenizer manager.
+    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
+        &self.fast_field_tokenizers
     }
 
     /// Get the tokenizer associated with a specific field.
@@ -426,8 +444,7 @@ impl Index {
         };
         let indexing_options = indexing_options_opt.ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
-                "No indexing options set for field {:?}",
-                field_entry
+                "No indexing options set for field {field_entry:?}"
             ))
         })?;
 
@@ -435,8 +452,7 @@ impl Index {
             .get(indexing_options.tokenizer())
             .ok_or_else(|| {
                 TantivyError::InvalidArgument(format!(
-                    "No Tokenizer found for field {:?}",
-                    field_entry
+                    "No Tokenizer found for field {field_entry:?}"
                 ))
             })
     }

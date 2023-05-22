@@ -3,6 +3,7 @@
 //! indices.
 
 use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
 use std::hash::Hash;
 
 use columnar::ColumnType;
@@ -14,15 +15,14 @@ use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::agg_result::{AggregationResult, BucketResult, MetricResult, RangeBucketEntry};
 use super::bucket::{
     cut_off_buckets, get_agg_name_and_property, intermediate_histogram_buckets_to_final_buckets,
-    GetDocCount, Order, OrderTarget, RangeAggregation, SegmentHistogramBucketEntry,
-    TermsAggregation,
+    GetDocCount, Order, OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
     IntermediateSum, PercentilesCollector,
 };
 use super::segment_agg_result::AggregationLimits;
-use super::{format_date, AggregationError, Key, SerializedKey, VecWithNames};
+use super::{format_date, AggregationError, Key, SerializedKey};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::TantivyError;
@@ -33,7 +33,7 @@ use crate::TantivyError;
 /// Notice: This struct should not be de/serialized via JSON format.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateAggregationResults {
-    pub(crate) aggs_res: VecWithNames<IntermediateAggregationResult>,
+    pub(crate) aggs_res: FxHashMap<String, IntermediateAggregationResult>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
@@ -77,8 +77,18 @@ impl std::hash::Hash for IntermediateKey {
 
 impl IntermediateAggregationResults {
     /// Add a result
-    pub fn push(&mut self, key: String, value: IntermediateAggregationResult) {
-        self.aggs_res.push(key, value);
+    pub fn push(&mut self, key: String, value: IntermediateAggregationResult) -> crate::Result<()> {
+        let entry = self.aggs_res.entry(key);
+        match entry {
+            Entry::Occupied(mut e) => {
+                // In case of term aggregation over different types, we need to merge the results.
+                e.get_mut().merge_fruits(value)?;
+            }
+            Entry::Vacant(e) => {
+                e.insert(value);
+            }
+        }
+        Ok(())
     }
 
     /// Convert intermediate result and its aggregation request to the final result.
@@ -128,10 +138,10 @@ impl IntermediateAggregationResults {
     }
 
     pub(crate) fn empty_from_req(req: &Aggregations) -> Self {
-        let mut aggs_res: VecWithNames<IntermediateAggregationResult> = VecWithNames::default();
+        let mut aggs_res: FxHashMap<String, IntermediateAggregationResult> = FxHashMap::default();
         for (key, req) in req.iter() {
             let empty_res = empty_from_req(req);
-            aggs_res.push(key.to_string(), empty_res);
+            aggs_res.insert(key.to_string(), empty_res);
         }
 
         Self { aggs_res }
@@ -635,16 +645,6 @@ impl IntermediateHistogramBucketEntry {
     }
 }
 
-impl From<SegmentHistogramBucketEntry> for IntermediateHistogramBucketEntry {
-    fn from(entry: SegmentHistogramBucketEntry) -> Self {
-        IntermediateHistogramBucketEntry {
-            key: entry.key,
-            doc_count: entry.doc_count,
-            sub_aggregation: Default::default(),
-        }
-    }
-}
-
 /// This is the range entry for a bucket, which contains a key, count, and optionally
 /// sub_aggregations.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -765,7 +765,7 @@ mod tests {
             )),
         );
         IntermediateAggregationResults {
-            aggs_res: VecWithNames::from_entries(map.into_iter().collect()),
+            aggs_res: map.into_iter().collect(),
         }
     }
 
@@ -799,7 +799,7 @@ mod tests {
             )),
         );
         IntermediateAggregationResults {
-            aggs_res: VecWithNames::from_entries(map.into_iter().collect()),
+            aggs_res: map.into_iter().collect(),
         }
     }
 

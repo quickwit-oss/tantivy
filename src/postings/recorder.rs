@@ -98,17 +98,21 @@ impl Default for DocIdRecorder {
 }
 
 impl Recorder for DocIdRecorder {
+    #[inline]
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
 
+    #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
         self.stack.writer(arena).write_u32_vint(doc);
     }
 
+    #[inline]
     fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {}
 
+    #[inline]
     fn close_doc(&mut self, _arena: &mut MemoryArena) {}
 
     fn serialize(
@@ -153,20 +157,24 @@ pub struct TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
+    #[inline]
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
 
+    #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.term_doc_freq += 1;
         self.current_doc = doc;
         self.stack.writer(arena).write_u32_vint(doc);
     }
 
+    #[inline]
     fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {
         self.current_tf += 1;
     }
 
+    #[inline]
     fn close_doc(&mut self, arena: &mut MemoryArena) {
         debug_assert!(self.current_tf > 0);
         self.stack.writer(arena).write_u32_vint(self.current_tf);
@@ -226,22 +234,26 @@ impl Default for TfAndPositionRecorder {
 }
 
 impl Recorder for TfAndPositionRecorder {
+    #[inline]
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
 
+    #[inline]
     fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
         self.term_doc_freq += 1u32;
         self.stack.writer(arena).write_u32_vint(doc);
     }
 
+    #[inline]
     fn record_position(&mut self, position: u32, arena: &mut MemoryArena) {
         self.stack
             .writer(arena)
             .write_u32_vint(position.wrapping_add(1u32));
     }
 
+    #[inline]
     fn close_doc(&mut self, arena: &mut MemoryArena) {
         self.stack.writer(arena).write_u32_vint(POSITION_END);
     }

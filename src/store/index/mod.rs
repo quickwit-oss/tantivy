@@ -221,7 +221,7 @@ mod tests {
         if let Some(last_checkpoint) = checkpoints.last() {
             for doc in 0u32..last_checkpoint.doc_range.end {
                 let expected = seek_manual(skip_index.checkpoints(), doc);
-                assert_eq!(expected, skip_index.seek(doc), "Doc {}", doc);
+                assert_eq!(expected, skip_index.seek(doc), "Doc {doc}");
             }
             assert!(skip_index.seek(last_checkpoint.doc_range.end).is_none());
         }

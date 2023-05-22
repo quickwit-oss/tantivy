@@ -628,7 +628,7 @@ mod tests {
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
         // Time zone is converted to UTC
-        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{:?}", date));
+        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
     }
 
     #[test]

@@ -179,6 +179,7 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
 }
 
 impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
+    #[inline]
     fn subscribe(&mut self, doc: DocId, position: u32, term: &Term, ctx: &mut IndexingContext) {
         debug_assert!(term.serialized_term().len() >= 4);
         self.total_num_tokens += 1;

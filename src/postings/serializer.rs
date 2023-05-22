@@ -206,7 +206,7 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
-            Err(io::Error::new(io::ErrorKind::Other, format!("{:?}", msg)))
+            Err(io::Error::new(io::ErrorKind::Other, format!("{msg:?}")))
         });
         if self.term_open {
             self.postings_serializer

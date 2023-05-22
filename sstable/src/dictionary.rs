@@ -188,8 +188,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "Unsuported sstable version, expected {}, found {}",
-                    version,
+                    "Unsuported sstable version, expected {version}, found {}",
                     crate::SSTABLE_VERSION,
                 ),
             ));
@@ -499,7 +498,7 @@ mod tests {
         let new_range = dic.sstable_index.get_block_with_ord(ordinal).byte_range;
         slice.restrict(new_range);
         assert!(dic.ord_to_term(ordinal, &mut res).unwrap());
-        assert_eq!(res, format!("{:05X}", ordinal).into_bytes());
+        assert_eq!(res, format!("{ordinal:05X}").into_bytes());
         assert_eq!(dic.term_info_from_ord(ordinal).unwrap().unwrap(), ordinal);
         assert_eq!(dic.get(&res).unwrap().unwrap(), ordinal);
         assert_eq!(dic.term_ord(&res).unwrap().unwrap(), ordinal);

@@ -34,7 +34,7 @@ impl fmt::Display for ColumnType {
             ColumnType::IpAddr => "ip",
             ColumnType::DateTime => "datetime",
         };
-        write!(f, "{}", short_str)
+        write!(f, "{short_str}")
     }
 }
 
@@ -53,6 +53,9 @@ const COLUMN_TYPES: [ColumnType; 8] = [
 impl ColumnType {
     pub fn to_code(self) -> u8 {
         self as u8
+    }
+    pub fn is_date_time(&self) -> bool {
+        self == &ColumnType::DateTime
     }
 
     pub(crate) fn try_from_code(code: u8) -> Result<ColumnType, InvalidData> {
