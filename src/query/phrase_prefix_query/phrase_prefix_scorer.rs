@@ -141,10 +141,8 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
             suffix_offset: (max_offset - suffix_pos) as u32,
             phrase_count: 0,
         };
-        if phrase_prefix_scorer.doc() != TERMINATED {
-            if !phrase_prefix_scorer.matches_prefix() {
-                phrase_prefix_scorer.advance();
-            }
+        if phrase_prefix_scorer.doc() != TERMINATED && !phrase_prefix_scorer.matches_prefix() {
+            phrase_prefix_scorer.advance();
         }
         phrase_prefix_scorer
     }
