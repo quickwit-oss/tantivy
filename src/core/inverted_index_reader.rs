@@ -235,15 +235,8 @@ impl InvertedIndexReader {
 
         // limit on stream is only an optimization to load less data, the stream may still return
         // more than limit elements.
-        let mut limit = limit;
-        let iter = iter.take_while(move |_e| match limit {
-            Some(ref mut limit @ 1..) => {
-                *limit -= 1;
-                true
-            }
-            Some(0) => false,
-            None => true,
-        });
+        let limit = limit.map(|limit| limit as usize).unwrap_or(usize::MAX);
+        let iter = iter.take(limit);
 
         Ok(iter)
     }
