@@ -11,6 +11,9 @@ use crate::{Document, Score, Searcher, Term};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
+const DEFAULT_SNIPPET_PREFIX: &str = "<b>";
+const DEFAULT_SNIPPET_POSTFIX: &str = "</b>";
+
 #[derive(Debug)]
 pub struct FragmentCandidate {
     score: Score,
@@ -55,17 +58,28 @@ impl FragmentCandidate {
 pub struct Snippet {
     fragment: String,
     highlighted: Vec<Range<usize>>,
+    snippet_prefix: String,
+    snippet_postfix: String,
 }
 
-const HIGHLIGHTEN_PREFIX: &str = "<b>";
-const HIGHLIGHTEN_POSTFIX: &str = "</b>";
-
 impl Snippet {
-    /// Create a new, empty, `Snippet`
+    /// Create a new `Snippet`.
+    fn new(fragment: &str, highlighted: Vec<Range<usize>>) -> Self {
+        Self {
+            fragment: fragment.to_string(),
+            highlighted,
+            snippet_prefix: DEFAULT_SNIPPET_PREFIX.to_string(),
+            snippet_postfix: DEFAULT_SNIPPET_POSTFIX.to_string(),
+        }
+    }
+
+    /// Create a new, empty, `Snippet`.
     pub fn empty() -> Snippet {
         Snippet {
             fragment: String::new(),
             highlighted: Vec::new(),
+            snippet_prefix: String::new(),
+            snippet_postfix: String::new(),
         }
     }
 
@@ -81,9 +95,9 @@ impl Snippet {
 
         for item in collapse_overlapped_ranges(&self.highlighted) {
             html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
-            html.push_str(HIGHLIGHTEN_PREFIX);
+            html.push_str(&self.snippet_prefix);
             html.push_str(&encode_minimal(&self.fragment[item.clone()]));
-            html.push_str(HIGHLIGHTEN_POSTFIX);
+            html.push_str(&self.snippet_postfix);
             start_from = item.end;
         }
         html.push_str(&encode_minimal(
@@ -100,6 +114,12 @@ impl Snippet {
     /// Returns a list of highlighted positions from the `Snippet`.
     pub fn highlighted(&self) -> &[Range<usize>] {
         &self.highlighted
+    }
+
+    /// Sets highlighted prefix and postfix.
+    pub fn set_snippet_prefix_postfix(&mut self, prefix: &str, postfix: &str) {
+        self.snippet_prefix = prefix.to_string();
+        self.snippet_postfix = postfix.to_string()
     }
 }
 
@@ -172,17 +192,11 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
             .iter()
             .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
-        Snippet {
-            fragment: fragment_text.to_string(),
-            highlighted,
-        }
+        Snippet::new(fragment_text, highlighted)
     } else {
-        // when there no fragments to chose from,
-        // for now create a empty snippet
-        Snippet {
-            fragment: String::new(),
-            highlighted: vec![],
-        }
+        // When there are no fragments to chose from,
+        // for now create an empty snippet.
+        Snippet::empty()
     }
 }
 
@@ -672,5 +686,23 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragment, "abc");
         assert_eq!(snippet.to_html(), "<b>abc</b>");
+    }
+
+    #[test]
+    fn test_snippet_generator_custom_highlighted_elements() {
+        let terms = btreemap! { String::from("rust") => 1.0, String::from("language") => 0.9 };
+        let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 100);
+        let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        assert_eq!(
+            snippet.to_html(),
+            "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
+             describes it as a &quot;safe"
+        );
+        snippet.set_snippet_prefix_postfix("<q class=\"super\">", "</q>");
+        assert_eq!(
+            snippet.to_html(),
+            "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
+             sponsored by\nMozilla which describes it as a &quot;safe"
+        );
     }
 }
