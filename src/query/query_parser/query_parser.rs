@@ -20,7 +20,7 @@ use crate::query::{
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
-    Schema, Term, Type,
+    Schema, Term, TextFieldIndexing, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -70,6 +70,17 @@ pub enum QueryParserError {
     /// have any positions indexed.
     #[error("The field '{0}' does not have positions indexed")]
     FieldDoesNotHavePositionsIndexed(String),
+    /// A phrase-prefix query requires at least two terms
+    #[error(
+        "The phrase '{phrase:?}' does not produce at least two terms using the tokenizer \
+         '{tokenizer:?}'"
+    )]
+    PhrasePrefixRequiresAtLeastTwoTerms {
+        /// The phrase which triggered the issue
+        phrase: String,
+        /// The tokenizer configured for the field
+        tokenizer: String,
+    },
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     #[error("The tokenizer '{tokenizer:?}' for the field '{field:?}' is unknown")]
@@ -482,26 +493,25 @@ impl QueryParser {
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
-                let option = str_options.get_indexing_options().ok_or_else(|| {
+                let indexing_options = str_options.get_indexing_options().ok_or_else(|| {
                     // This should have been seen earlier really.
                     QueryParserError::FieldNotIndexed(field_name.to_string())
                 })?;
-                let text_analyzer =
-                    self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
-                            field: field_name.to_string(),
-                            tokenizer: option.tokenizer().to_string(),
-                        })?;
-                let index_record_option = option.index_option();
+                let text_analyzer = self
+                    .tokenizer_manager
+                    .get(indexing_options.tokenizer())
+                    .ok_or_else(|| QueryParserError::UnknownTokenizer {
+                        field: field_name.to_string(),
+                        tokenizer: indexing_options.tokenizer().to_string(),
+                    })?;
                 Ok(generate_literals_for_str(
                     field_name,
                     field,
                     phrase,
                     slop,
                     prefix,
+                    indexing_options,
                     &text_analyzer,
-                    index_record_option,
                 )?
                 .into_iter()
                 .collect())
@@ -784,8 +794,8 @@ fn generate_literals_for_str(
     phrase: &str,
     slop: u32,
     prefix: bool,
+    indexing_options: &TextFieldIndexing,
     text_analyzer: &TextAnalyzer,
-    index_record_option: IndexRecordOption,
 ) -> Result<Option<LogicalLiteral>, QueryParserError> {
     let mut terms: Vec<(usize, Term)> = Vec::new();
     let mut token_stream = text_analyzer.token_stream(phrase);
@@ -794,13 +804,19 @@ fn generate_literals_for_str(
         terms.push((token.position, term));
     });
     if terms.len() <= 1 {
+        if prefix {
+            return Err(QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: phrase.to_owned(),
+                tokenizer: indexing_options.tokenizer().to_owned(),
+            });
+        }
         let term_literal_opt = terms
             .into_iter()
             .next()
             .map(|(_, term)| LogicalLiteral::Term(term));
         return Ok(term_literal_opt);
     }
-    if !index_record_option.has_positions() {
+    if !indexing_options.index_option().has_positions() {
         return Err(QueryParserError::FieldDoesNotHavePositionsIndexed(
             field_name.to_string(),
         ));
@@ -1679,6 +1695,27 @@ mod test {
              (Should, PhrasePrefixQuery { field: Field(1), phrase_terms: [(0, Term(field=1, \
              type=Str, \"big\")), (1, Term(field=1, type=Str, \"bad\"))], prefix: (2, \
              Term(field=1, type=Str, \"wo\")), max_expansions: 50 })] }"
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix_too_short() {
+        let err = parse_query_to_logical_ast("\"wo\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "wo".to_owned(),
+                tokenizer: "default".to_owned()
+            }
+        );
+
+        let err = parse_query_to_logical_ast("\"\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "".to_owned(),
+                tokenizer: "default".to_owned()
+            }
         );
     }
 
