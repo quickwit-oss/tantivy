@@ -12,7 +12,7 @@ zstd = { version = "0.12", features = ["experimental"] }
 
 [dev-dependencies]
 proptest = "1"
-criterion = "0.4"
+criterion = "0.5"
 names = "0.14"
 rand = "0.8"
 
