@@ -7,7 +7,7 @@ use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
 #[derive(Clone)]
 pub struct TextAnalyzer {
-    pub(crate) tokenizer: Box<dyn BoxableTokenizer>,
+    tokenizer: Box<dyn BoxableTokenizer>,
 }
 
 impl Default for TextAnalyzer {

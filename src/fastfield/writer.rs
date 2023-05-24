@@ -2,12 +2,12 @@ use std::io;
 
 use columnar::{ColumnarWriter, NumericalValue};
 use common::replace_in_place;
-use tokenizer_api::{BoxableTokenizer, Token};
+use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
-use crate::tokenizer::TokenizerManager;
+use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DatePrecision, DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
@@ -18,7 +18,7 @@ const JSON_DEPTH_LIMIT: usize = 20;
 pub struct FastFieldsWriter {
     columnar_writer: ColumnarWriter,
     fast_field_names: Vec<Option<String>>, //< TODO see if we can hash the field name hash too.
-    per_field_tokenizer: Vec<Option<Box<dyn BoxableTokenizer>>>,
+    per_field_tokenizer: Vec<Option<TextAnalyzer>>,
     date_precisions: Vec<DatePrecision>,
     expand_dots: Vec<bool>,
     num_docs: DocId,
@@ -46,7 +46,7 @@ impl FastFieldsWriter {
                 .take(schema.num_fields())
                 .collect();
         let mut expand_dots = vec![false; schema.num_fields()];
-        let mut per_field_tokenizer = vec![None; schema.num_fields()];
+        let mut per_field_tokenizer: Vec<Option<TextAnalyzer>> = vec![None; schema.num_fields()];
         // TODO see other types
         for (field_id, field_entry) in schema.fields() {
             if !field_entry.field_type().is_fast() {
@@ -64,8 +64,7 @@ impl FastFieldsWriter {
                             "Tokenizer {tokenizer_name:?} not found"
                         ))
                     })?;
-                    per_field_tokenizer[field_id.field_id() as usize] =
-                        Some(text_analyzer.tokenizer);
+                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
                 }
 
                 expand_dots[field_id.field_id() as usize] =
@@ -78,8 +77,7 @@ impl FastFieldsWriter {
                             "Tokenizer {tokenizer_name:?} not found"
                         ))
                     })?;
-                    per_field_tokenizer[field_id.field_id() as usize] =
-                        Some(text_analyzer.tokenizer);
+                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
                 }
             }
 
@@ -151,7 +149,7 @@ impl FastFieldsWriter {
                         if let Some(tokenizer) =
                             &self.per_field_tokenizer[field_value.field().field_id() as usize]
                         {
-                            let mut token_stream = tokenizer.box_token_stream(text_val);
+                            let mut token_stream = tokenizer.token_stream(text_val);
                             token_stream.process(&mut |token: &Token| {
                                 self.columnar_writer.record_str(
                                     doc_id,
@@ -265,7 +263,7 @@ fn record_json_obj_to_columnar_writer(
     remaining_depth_limit: usize,
     json_path_buffer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
-    tokenizer: &Option<Box<dyn BoxableTokenizer>>,
+    tokenizer: &Option<TextAnalyzer>,
 ) {
     for (key, child) in json_obj {
         let len_path = json_path_buffer.len();
@@ -304,7 +302,7 @@ fn record_json_value_to_columnar_writer(
     mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
-    tokenizer: &Option<Box<dyn BoxableTokenizer>>,
+    tokenizer: &Option<TextAnalyzer>,
 ) {
     if remaining_depth_limit == 0 {
         return;
@@ -323,8 +321,8 @@ fn record_json_value_to_columnar_writer(
             }
         }
         serde_json::Value::String(text) => {
-            if let Some(tokenizer) = tokenizer {
-                let mut token_stream = tokenizer.box_token_stream(text);
+            if let Some(text_analyzer) = tokenizer {
+                let mut token_stream = text_analyzer.token_stream(text);
                 token_stream.process(&mut |token| {
                     columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
                 })
