@@ -1,13 +1,37 @@
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
-use tokenizer_api::{BoxTokenStream, BoxableTokenizer, TokenFilter, Tokenizer};
+use tokenizer_api::{BoxTokenStream, TokenFilter, Tokenizer};
 
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
-#[derive(Clone)]
 pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
+}
+
+/// A boxable `Tokenizer`, with its `TokenStream` type erased.
+trait BoxableTokenizer: 'static + Send + Sync {
+    /// Creates a boxed token stream for a given `str`.
+    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a>;
+    /// Clone this tokenizer.
+    fn box_clone(&self) -> Box<dyn BoxableTokenizer>;
+}
+
+impl<T: Tokenizer> BoxableTokenizer for T {
+    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+        self.token_stream(text).into()
+    }
+    fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for TextAnalyzer {
+    fn clone(&self) -> Self {
+        TextAnalyzer {
+            tokenizer: self.tokenizer.box_clone(),
+        }
+    }
 }
 
 impl Default for TextAnalyzer {
