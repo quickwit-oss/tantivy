@@ -2,19 +2,20 @@ use std::ops::BitOr;
 
 use serde::{Deserialize, Serialize};
 
+use super::text_options::{FastFieldTextOptions, TokenizerName};
 use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
 use crate::schema::{TextFieldIndexing, TextOptions};
 
 /// The `JsonObjectOptions` make it possible to
 /// configure how a json object field should be indexed and stored.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct JsonObjectOptions {
     stored: bool,
     // If set to some, int, date, f64 and text will be indexed.
     // Text will use the TextFieldIndexing setting for indexing.
     indexing: Option<TextFieldIndexing>,
-    // Store all field as fast fields.
-    fast: bool,
+    // Store all field as fast fields with an optional tokenizer for text.
+    fast: FastFieldTextOptions,
     /// tantivy will generate pathes to the different nodes of the json object
     /// both in:
     /// - the inverted index (for the terms)
@@ -57,7 +58,21 @@ impl JsonObjectOptions {
     /// Returns true if and only if the json object fields are
     /// to be treated as fast fields.
     pub fn is_fast(&self) -> bool {
-        self.fast
+        matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
+            || matches!(
+                &self.fast,
+                FastFieldTextOptions::EnabledWithTokenizer { with_tokenizer: _ }
+            )
+    }
+
+    /// Returns true if and only if the value is a fast field.
+    pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
+        match &self.fast {
+            FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
+            FastFieldTextOptions::EnabledWithTokenizer {
+                with_tokenizer: tokenizer,
+            } => Some(tokenizer.name()),
+        }
     }
 
     /// Returns `true` iff dots in json keys should be expanded.
@@ -99,10 +114,31 @@ impl JsonObjectOptions {
         self
     }
 
-    /// Sets the field as a fast field
+    /// Set the field as a fast field.
+    ///
+    /// Fast fields are designed for random access.
+    /// Access time are similar to a random lookup in an array.
+    /// Text fast fields will have the term ids stored in the fast field.
+    ///
+    /// The effective cardinality depends on the tokenizer. Without a tokenizer, the text will be
+    /// stored as is, which equals to the "raw" tokenizer. The tokenizer can be used to apply
+    /// normalization like lower case.
+    /// The passed tokenizer_name must be available on the fast field tokenizer manager.
+    /// `Index::fast_field_tokenizer`.
+    ///
+    /// The original text can be retrieved via
+    /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
+    /// from the dictionary.
     #[must_use]
-    pub fn set_fast(mut self) -> Self {
-        self.fast = true;
+    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> Self {
+        if let Some(tokenizer) = tokenizer_name {
+            let tokenizer = TokenizerName::from_name(tokenizer);
+            self.fast = FastFieldTextOptions::EnabledWithTokenizer {
+                with_tokenizer: tokenizer,
+            }
+        } else {
+            self.fast = FastFieldTextOptions::IsEnabled(true);
+        }
         self
     }
 
@@ -119,7 +155,7 @@ impl From<StoredFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: true,
             indexing: None,
-            fast: false,
+            fast: FastFieldTextOptions::default(),
             expand_dots_enabled: false,
         }
     }
@@ -130,7 +166,7 @@ impl From<FastFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: false,
             indexing: None,
-            fast: true,
+            fast: FastFieldTextOptions::IsEnabled(true),
             expand_dots_enabled: false,
         }
     }
@@ -172,7 +208,7 @@ impl From<TextOptions> for JsonObjectOptions {
         JsonObjectOptions {
             stored: text_options.is_stored(),
             indexing: text_options.get_indexing_options().cloned(),
-            fast: text_options.is_fast(),
+            fast: text_options.fast,
             expand_dots_enabled: false,
         }
     }

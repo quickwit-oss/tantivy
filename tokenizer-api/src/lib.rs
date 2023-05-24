@@ -49,23 +49,6 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
     fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a>;
 }
 
-/// A boxable `Tokenizer`, with its `TokenStream` type erased.
-pub trait BoxableTokenizer: 'static + Send + Sync {
-    /// Creates a boxed token stream for a given `str`.
-    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a>;
-    /// Clone this tokenizer.
-    fn box_clone(&self) -> Box<dyn BoxableTokenizer>;
-}
-
-impl<T: Tokenizer> BoxableTokenizer for T {
-    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        self.token_stream(text).into()
-    }
-    fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
-        Box::new(self.clone())
-    }
-}
-
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 

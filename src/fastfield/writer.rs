@@ -46,7 +46,7 @@ impl FastFieldsWriter {
                 .take(schema.num_fields())
                 .collect();
         let mut expand_dots = vec![false; schema.num_fields()];
-        let mut per_field_tokenizer = vec![None; schema.num_fields()];
+        let mut per_field_tokenizer: Vec<Option<TextAnalyzer>> = vec![None; schema.num_fields()];
         // TODO see other types
         for (field_id, field_entry) in schema.fields() {
             if !field_entry.field_type().is_fast() {
@@ -58,6 +58,15 @@ impl FastFieldsWriter {
                 date_precisions[field_id.field_id() as usize] = date_options.get_precision();
             }
             if let FieldType::JsonObject(json_object_options) = field_entry.field_type() {
+                if let Some(tokenizer_name) = json_object_options.get_fast_field_tokenizer_name() {
+                    let text_analyzer = tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                        TantivyError::InvalidArgument(format!(
+                            "Tokenizer {tokenizer_name:?} not found"
+                        ))
+                    })?;
+                    per_field_tokenizer[field_id.field_id() as usize] = Some(text_analyzer);
+                }
+
                 expand_dots[field_id.field_id() as usize] =
                     json_object_options.is_expand_dots_enabled();
             }
@@ -137,10 +146,10 @@ impl FastFieldsWriter {
                         );
                     }
                     Value::Str(text_val) => {
-                        if let Some(text_analyzer) =
+                        if let Some(tokenizer) =
                             &self.per_field_tokenizer[field_value.field().field_id() as usize]
                         {
-                            let mut token_stream = text_analyzer.token_stream(text_val);
+                            let mut token_stream = tokenizer.token_stream(text_val);
                             token_stream.process(&mut |token: &Token| {
                                 self.columnar_writer.record_str(
                                     doc_id,
@@ -191,6 +200,10 @@ impl FastFieldsWriter {
                         let expand_dots = self.expand_dots[field_value.field().field_id() as usize];
                         self.json_path_buffer.clear();
                         self.json_path_buffer.push_str(field_name);
+
+                        let text_analyzer =
+                            &self.per_field_tokenizer[field_value.field().field_id() as usize];
+
                         record_json_obj_to_columnar_writer(
                             doc_id,
                             json_obj,
@@ -198,6 +211,7 @@ impl FastFieldsWriter {
                             JSON_DEPTH_LIMIT,
                             &mut self.json_path_buffer,
                             &mut self.columnar_writer,
+                            text_analyzer,
                         );
                     }
                     Value::IpAddr(ip_addr) => {
@@ -249,6 +263,7 @@ fn record_json_obj_to_columnar_writer(
     remaining_depth_limit: usize,
     json_path_buffer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
+    tokenizer: &Option<TextAnalyzer>,
 ) {
     for (key, child) in json_obj {
         let len_path = json_path_buffer.len();
@@ -273,6 +288,7 @@ fn record_json_obj_to_columnar_writer(
             remaining_depth_limit,
             json_path_buffer,
             columnar_writer,
+            tokenizer,
         );
         // popping our sub path.
         json_path_buffer.truncate(len_path);
@@ -286,6 +302,7 @@ fn record_json_value_to_columnar_writer(
     mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
+    tokenizer: &Option<TextAnalyzer>,
 ) {
     if remaining_depth_limit == 0 {
         return;
@@ -304,7 +321,14 @@ fn record_json_value_to_columnar_writer(
             }
         }
         serde_json::Value::String(text) => {
-            columnar_writer.record_str(doc, json_path_writer.as_str(), text);
+            if let Some(text_analyzer) = tokenizer {
+                let mut token_stream = text_analyzer.token_stream(text);
+                token_stream.process(&mut |token| {
+                    columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
+                })
+            } else {
+                columnar_writer.record_str(doc, json_path_writer.as_str(), text);
+            }
         }
         serde_json::Value::Array(arr) => {
             for el in arr {
@@ -315,6 +339,7 @@ fn record_json_value_to_columnar_writer(
                     remaining_depth_limit,
                     json_path_writer,
                     columnar_writer,
+                    tokenizer,
                 );
             }
         }
@@ -326,6 +351,7 @@ fn record_json_value_to_columnar_writer(
                 remaining_depth_limit,
                 json_path_writer,
                 columnar_writer,
+                tokenizer,
             );
         }
     }
@@ -353,6 +379,7 @@ mod tests {
                 JSON_DEPTH_LIMIT,
                 &mut json_path,
                 &mut columnar_writer,
+                &None,
             );
         }
         let mut buffer = Vec::new();
