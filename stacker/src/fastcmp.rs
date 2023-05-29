@@ -50,7 +50,7 @@ fn fast_nbyte_slice_compare<const SIZE: usize>(mut left: &[u8], mut right: &[u8]
         if left.len() < SIZE || right.len() < SIZE {
             break;
         }
-        if &left[..SIZE] != &right[..SIZE] {
+        if left[..SIZE] != right[..SIZE] {
             return false;
         }
 
@@ -76,12 +76,12 @@ fn short_compare(left: &[u8], right: &[u8]) -> bool {
 }
 #[inline]
 fn check_end<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
-    &left[left.len() - SIZE..] == &right[right.len() - SIZE..]
+    left[left.len() - SIZE..] == right[right.len() - SIZE..]
 }
 
 #[inline]
 fn double_check_trick<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
-    &left[0..SIZE] == &right[0..SIZE] && &left[left.len() - SIZE..] == &right[right.len() - SIZE..]
+    left[0..SIZE] == right[0..SIZE] && left[left.len() - SIZE..] == right[right.len() - SIZE..]
 }
 
 #[cfg(test)]
