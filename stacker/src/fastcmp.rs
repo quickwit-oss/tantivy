@@ -39,7 +39,7 @@ pub fn fast_short_slice_compare(left: &[u8], right: &[u8]) -> bool {
     double_check_trick::<8>(left, right)
 }
 
-#[inline]
+#[inline(always)]
 // Note: The straigthforward left.chunks_exact(SIZE).zip(right.chunks_exact(SIZE)) produces slower
 // assembly
 fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
@@ -64,7 +64,7 @@ fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> boo
     check_end::<SIZE>(left, right)
 }
 
-#[inline]
+#[inline(always)]
 fn short_compare(left: &[u8], right: &[u8]) -> bool {
     for (l, r) in left.iter().zip(right) {
         if l != r {
@@ -73,12 +73,12 @@ fn short_compare(left: &[u8], right: &[u8]) -> bool {
     }
     true
 }
-#[inline]
+#[inline(always)]
 fn check_end<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
     left[left.len() - SIZE..] == right[right.len() - SIZE..]
 }
 
-#[inline]
+#[inline(always)]
 fn double_check_trick<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
     left[0..SIZE] == right[0..SIZE] && left[left.len() - SIZE..] == right[right.len() - SIZE..]
 }

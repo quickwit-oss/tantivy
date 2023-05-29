@@ -62,7 +62,7 @@ pub fn fast_short_slice_copy(src: &[u8], dst: &mut [u8]) {
     dst.copy_from_slice(src);
 }
 
-#[inline]
+#[inline(always)]
 fn short_copy(src: &[u8], dst: &mut [u8]) {
     let len = src.len();
 
@@ -73,7 +73,7 @@ fn short_copy(src: &[u8], dst: &mut [u8]) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn double_copy_trick<const SIZE: usize>(src: &[u8], dst: &mut [u8]) {
     debug_assert!(src.len() >= SIZE);
     debug_assert!(dst.len() >= SIZE);
