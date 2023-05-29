@@ -21,7 +21,7 @@ path = "example/hashmap.rs"
 [dev-dependencies]
 rand = "0.8.5"
 zipf = "7.0.0"
-criterion = { git = "https://github.com/PSeitz/criterion.rs/", rev = "cf60ffc"} # This fork includes stack randomization to reduce caching effects
+criterion = { git = "https://github.com/PSeitz/criterion.rs/", rev = "e6f98ee"} # This fork includes stack randomization to reduce caching effects
 rustc-hash = "1.1.0"
 proptest = "1.2.0"
 

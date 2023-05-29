@@ -21,11 +21,11 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
         .map(|el| el.as_bytes())
         .collect();
 
-    let alice_terms_as_bytes_with_pos: Vec<(u32, &[u8])> = ALICE
+    let alice_terms_as_bytes_with_docid: Vec<(u32, &[u8])> = ALICE
         .split_ascii_whitespace()
         .map(|el| el.as_bytes())
         .enumerate()
-        .map(|(pos, el)| (pos as u32 % 8, el))
+        .map(|(docid, el)| (docid as u32, el))
         .collect();
 
     group.throughput(Throughput::Bytes(input_bytes));
@@ -37,7 +37,7 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     );
     group.bench_with_input(
         BenchmarkId::new("alice_expull".to_string(), input_bytes),
-        &alice_terms_as_bytes_with_pos,
+        &alice_terms_as_bytes_with_docid,
         |b, i| b.iter(|| create_hash_map_with_expull(i.iter().cloned())),
     );
 
@@ -62,6 +62,18 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
         BenchmarkId::new("numbers".to_string(), input_bytes),
         &numbers,
         |b, i| b.iter(|| create_hash_map(i.iter().cloned())),
+    );
+
+    let numbers_with_doc: Vec<_> = numbers
+        .iter()
+        .enumerate()
+        .map(|(docid, el)| (docid as u32, el))
+        .collect();
+
+    group.bench_with_input(
+        BenchmarkId::new("ids_expull".to_string(), input_bytes),
+        &numbers_with_doc,
+        |b, i| b.iter(|| create_hash_map_with_expull(i.iter().cloned())),
     );
 
     // numbers zipf
@@ -122,7 +134,7 @@ fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(
     for (i, term) in terms {
         map.mutate_or_create(term.as_ref(), |val: Option<DocIdRecorder>| {
             if let Some(mut rec) = val {
-                rec.new_doc(i as u32 % 4, &mut memory_arena);
+                rec.new_doc(i, &mut memory_arena);
                 rec
             } else {
                 DocIdRecorder::default()

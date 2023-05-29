@@ -187,7 +187,7 @@ impl Page {
         Page {
             page_id,
             len: 0,
-            data: Box::new([0u8; PAGE_SIZE]),
+            data: vec![0u8; PAGE_SIZE].into_boxed_slice().try_into().unwrap(),
         }
     }
 

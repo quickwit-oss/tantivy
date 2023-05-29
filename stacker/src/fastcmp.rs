@@ -42,27 +42,26 @@ pub fn fast_short_slice_compare(left: &[u8], right: &[u8]) -> bool {
 #[inline]
 // Note: The straigthforward left.chunks_exact(SIZE).zip(right.chunks_exact(SIZE)) produces slower
 // assembly
-fn fast_nbyte_slice_compare<const SIZE: usize>(mut left: &[u8], mut right: &[u8]) -> bool {
-    let left_orig = left;
-    let right_orig = right;
-
+fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
+    let mut left_curr = left;
+    let mut right_curr = right;
     loop {
-        if left.len() < SIZE || right.len() < SIZE {
+        if left_curr.len() < SIZE || right_curr.len() < SIZE {
             break;
         }
-        if left[..SIZE] != right[..SIZE] {
+        if left_curr[..SIZE] != right_curr[..SIZE] {
             return false;
         }
 
-        left = &left[SIZE..];
-        right = &right[SIZE..];
+        left_curr = &left_curr[SIZE..];
+        right_curr = &right_curr[SIZE..];
     }
 
     // The last SIZE bytes can be compared with a little trick in one go, by comparing the last
     // SIZE bytes. (sounds obvious if documented like that)
     // The bounds check are elided since we already checked the length above to be at least SIZE
 
-    check_end::<SIZE>(left_orig, right_orig)
+    check_end::<SIZE>(left, right)
 }
 
 #[inline]
