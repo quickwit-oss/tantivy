@@ -1,6 +1,7 @@
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, Value};
+use crate::tokenizer::StopWordFilter;
 use crate::DocAddress;
 
 /// A query that matches all of the documents similar to a document
@@ -140,8 +141,9 @@ impl MoreLikeThisQueryBuilder {
     ///
     /// The resulting query will ignore these set of words.
     #[must_use]
-    pub fn with_stop_words(mut self, value: Vec<String>) -> Self {
-        self.mlt.stop_words = value;
+    pub fn with_stop_words<W>(mut self, value: W) -> Self
+    where W: IntoIterator<Item = String> {
+        self.mlt.stop_words = Some(StopWordFilter::remove(value));
         self
     }
 
@@ -210,7 +212,7 @@ mod tests {
         assert_eq!(query.mlt.min_word_length, None);
         assert_eq!(query.mlt.max_word_length, None);
         assert_eq!(query.mlt.boost_factor, Some(1.0));
-        assert_eq!(query.mlt.stop_words, Vec::<String>::new());
+        assert!(query.mlt.stop_words.is_none());
         assert_eq!(query.target, TargetDocument::DocumentFields(vec![]));
 
         // custom settings
@@ -230,10 +232,8 @@ mod tests {
         assert_eq!(query.mlt.min_word_length, Some(2));
         assert_eq!(query.mlt.max_word_length, Some(4));
         assert_eq!(query.mlt.boost_factor, Some(0.5));
-        assert_eq!(
-            query.mlt.stop_words,
-            vec!["all".to_string(), "for".to_string()]
-        );
+        assert!(query.mlt.stop_words.as_ref().unwrap().contains("all"));
+        assert!(query.mlt.stop_words.as_ref().unwrap().contains("for"));
         assert_eq!(
             query.target,
             TargetDocument::DocumentAdress(DocAddress::new(1, 2))

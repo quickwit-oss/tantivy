@@ -24,7 +24,7 @@ use super::Language;
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// `TokenFilter` that removes stop words from a token stream
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct StopWordFilter {
     words: Arc<FxHashSet<String>>,
 }
@@ -67,6 +67,10 @@ impl StopWordFilter {
         StopWordFilter {
             words: Arc::new(words.into_iter().collect()),
         }
+    }
+
+    pub(crate) fn contains(&self, word: &str) -> bool {
+        self.words.contains(word)
     }
 }
 
