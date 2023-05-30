@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//! let mut tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
 //!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]))
 //!   .build();
 //!
@@ -88,9 +88,9 @@ pub struct StopWordFilterWrapper<T> {
 }
 
 impl<T: Tokenizer> Tokenizer for StopWordFilterWrapper<T> {
-    type TokenStream<'a> = StopWordFilterStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = StopWordFilterStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         StopWordFilterStream {
             words: self.words.clone(),
             tail: self.inner.token_stream(text),
@@ -151,7 +151,7 @@ mod tests {
             "am".to_string(),
             "i".to_string(),
         ];
-        let a = TextAnalyzer::builder(SimpleTokenizer)
+        let mut a = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(StopWordFilter::remove(stops))
             .build();
         let mut token_stream = a.token_stream(text);

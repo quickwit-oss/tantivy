@@ -1,32 +1,34 @@
 use super::{Token, TokenStream, Tokenizer};
 
 /// For each value of the field, emit a single unprocessed token.
-#[derive(Clone)]
-pub struct RawTokenizer;
-
-pub struct RawTokenStream {
+#[derive(Clone, Default)]
+pub struct RawTokenizer {
     token: Token,
+}
+
+pub struct RawTokenStream<'a> {
+    token: &'a mut Token,
     has_token: bool,
 }
 
 impl Tokenizer for RawTokenizer {
-    type TokenStream<'a> = RawTokenStream;
-    fn token_stream(&self, text: &str) -> RawTokenStream {
-        let token = Token {
-            offset_from: 0,
-            offset_to: text.len(),
-            position: 0,
-            text: text.to_string(),
-            position_length: 1,
-        };
+    type TokenStream<'b, 'a> = RawTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &str) -> RawTokenStream<'a> {
+        self.token.reset();
+        self.token.position = 0;
+        self.token.position_length = 1;
+        self.token.offset_from = 0;
+        self.token.offset_to = text.len();
+        self.token.text.clear();
+        self.token.text.push_str(text);
         RawTokenStream {
-            token,
+            token: &mut self.token,
             has_token: true,
         }
     }
 }
 
-impl TokenStream for RawTokenStream {
+impl<'a> TokenStream for RawTokenStream<'a> {
     fn advance(&mut self) -> bool {
         let result = self.has_token;
         self.has_token = false;
@@ -34,11 +36,11 @@ impl TokenStream for RawTokenStream {
     }
 
     fn token(&self) -> &Token {
-        &self.token
+        self.token
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+        self.token
     }
 }
 
@@ -55,7 +57,7 @@ mod tests {
     }
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
-        let a = TextAnalyzer::from(RawTokenizer);
+        let mut a = TextAnalyzer::from(RawTokenizer::default());
         let mut token_stream = a.token_stream(text);
         let mut tokens: Vec<Token> = vec![];
         let mut add_token = |token: &Token| {

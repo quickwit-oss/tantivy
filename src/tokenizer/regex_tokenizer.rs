@@ -22,7 +22,7 @@ use crate::TantivyError;
 /// ```rust
 /// use tantivy::tokenizer::*;
 ///
-/// let tokenizer = RegexTokenizer::new(r"'(?:\w*)'").unwrap();
+/// let mut tokenizer = RegexTokenizer::new(r"'(?:\w*)'").unwrap();
 /// let mut stream = tokenizer.token_stream("'aaa' bbb 'ccc' 'ddd'");
 /// {
 ///     let token = stream.next().unwrap();
@@ -48,6 +48,7 @@ use crate::TantivyError;
 #[derive(Clone)]
 pub struct RegexTokenizer {
     regex: Regex,
+    token: Token,
 }
 
 impl RegexTokenizer {
@@ -55,30 +56,34 @@ impl RegexTokenizer {
     pub fn new(regex_pattern: &str) -> crate::Result<RegexTokenizer> {
         Regex::new(regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_owned()))
-            .map(|regex| Self { regex })
+            .map(|regex| Self {
+                regex,
+                token: Token::default(),
+            })
     }
 }
 
 impl Tokenizer for RegexTokenizer {
-    type TokenStream<'a> = RegexTokenStream<'a>;
-    fn token_stream<'a>(&self, text: &'a str) -> RegexTokenStream<'a> {
+    type TokenStream<'a, 'b> = RegexTokenStream<'a, 'b>;
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> RegexTokenStream<'a, 'b> {
+        self.token.reset();
         RegexTokenStream {
             regex: self.regex.clone(),
             text,
-            token: Token::default(),
+            token: &mut self.token,
             cursor: 0,
         }
     }
 }
 
-pub struct RegexTokenStream<'a> {
+pub struct RegexTokenStream<'a, 'b> {
     regex: Regex,
     text: &'a str,
-    token: Token,
+    token: &'b mut Token,
     cursor: usize,
 }
 
-impl<'a> TokenStream for RegexTokenStream<'a> {
+impl<'a, 'b> TokenStream for RegexTokenStream<'a, 'b> {
     fn advance(&mut self) -> bool {
         let Some(regex_match) = self.regex.find(self.text) else {
             return false;
@@ -147,7 +152,7 @@ mod tests {
 
     fn token_stream_helper(text: &str, pattern: &str) -> Vec<Token> {
         let r = RegexTokenizer::new(pattern).unwrap();
-        let a = TextAnalyzer::from(r);
+        let mut a = TextAnalyzer::from(r);
         let mut token_stream = a.token_stream(text);
         let mut tokens: Vec<Token> = vec![];
         let mut add_token = |token: &Token| {

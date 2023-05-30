@@ -20,9 +20,9 @@ impl TokenFilter for AsciiFoldingFilter {
 pub struct AsciiFoldingFilterWrapper<T>(T);
 
 impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
-    type TokenStream<'a> = AsciiFoldingFilterTokenStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = AsciiFoldingFilterTokenStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         AsciiFoldingFilterTokenStream {
             buffer: String::with_capacity(100),
             tail: self.0.token_stream(text),
@@ -1573,7 +1573,7 @@ mod tests {
 
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        TextAnalyzer::builder(SimpleTokenizer)
+        TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(AsciiFoldingFilter)
             .build()
             .token_stream(text)
@@ -1584,10 +1584,10 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = TextAnalyzer::builder(RawTokenizer)
+        let mut tokenizer = TextAnalyzer::builder(RawTokenizer::default())
             .filter(AsciiFoldingFilter)
-            .build()
-            .token_stream(text);
+            .build();
+        let mut token_stream = tokenizer.token_stream(text);
         token_stream.advance();
         token_stream.token().text.clone()
     }

@@ -18,12 +18,12 @@ impl TokenFilter for LowerCaser {
 pub struct LowerCaserFilter<T>(T);
 
 impl<T: Tokenizer> Tokenizer for LowerCaserFilter<T> {
-    type TokenStream<'a> = LowerCaserTokenStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = LowerCaserTokenStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         LowerCaserTokenStream {
             tail: self.0.token_stream(text),
-            buffer: String::new(),
+            buffer: String::new(), // TODO move to global buffer
         }
     }
 }
@@ -86,10 +86,11 @@ mod tests {
     }
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
-        let mut token_stream = TextAnalyzer::builder(SimpleTokenizer)
+        let mut token_stream = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(LowerCaser)
-            .build()
-            .token_stream(text);
+            .build();
+
+        let mut token_stream = token_stream.token_stream(text);
         let mut tokens = vec![];
         let mut add_token = |token: &Token| {
             tokens.push(token.clone());

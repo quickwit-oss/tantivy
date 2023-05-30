@@ -20,8 +20,8 @@ use super::{Token, TokenFilter, TokenStream, Tokenizer};
 /// ```rust
 /// use tantivy::tokenizer::{SimpleTokenizer, SplitCompoundWords, TextAnalyzer};
 ///
-/// let tokenizer =
-///        TextAnalyzer::builder(SimpleTokenizer)
+/// let mut tokenizer =
+///        TextAnalyzer::builder(SimpleTokenizer::default())
 ///        .filter(
 ///            SplitCompoundWords::from_dictionary([
 ///                 "dampf", "schiff", "fahrt", "brot", "backen", "automat",
@@ -29,13 +29,13 @@ use super::{Token, TokenFilter, TokenStream, Tokenizer};
 ///            .unwrap()
 ///        )
 ///        .build();
-///
-/// let mut stream = tokenizer.token_stream("dampfschifffahrt");
-/// assert_eq!(stream.next().unwrap().text, "dampf");
-/// assert_eq!(stream.next().unwrap().text, "schiff");
-/// assert_eq!(stream.next().unwrap().text, "fahrt");
-/// assert_eq!(stream.next(), None);
-///
+/// {
+///     let mut stream = tokenizer.token_stream("dampfschifffahrt");
+///     assert_eq!(stream.next().unwrap().text, "dampf");
+///     assert_eq!(stream.next().unwrap().text, "schiff");
+///     assert_eq!(stream.next().unwrap().text, "fahrt");
+///     assert_eq!(stream.next(), None);
+/// }
 /// let mut stream = tokenizer.token_stream("brotbackautomat");
 /// assert_eq!(stream.next().unwrap().text, "brotbackautomat");
 /// assert_eq!(stream.next(), None);
@@ -97,9 +97,9 @@ pub struct SplitCompoundWordsFilter<T> {
 }
 
 impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
-    type TokenStream<'a> = SplitCompoundWordsTokenStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = SplitCompoundWordsTokenStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         SplitCompoundWordsTokenStream {
             dict: self.dict.clone(),
             tail: self.inner.token_stream(text),
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn splitting_compound_words_works() {
-        let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+        let mut tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(SplitCompoundWords::from_dictionary(["foo", "bar"]).unwrap())
             .build();
 

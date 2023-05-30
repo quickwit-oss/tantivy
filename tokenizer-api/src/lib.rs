@@ -40,13 +40,24 @@ impl Default for Token {
     }
 }
 
+impl Token {
+    /// reset to default
+    pub fn reset(&mut self) {
+        self.offset_from = 0;
+        self.offset_to = 0;
+        self.position = usize::MAX;
+        self.text.clear();
+        self.position_length = 1;
+    }
+}
+
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
 pub trait Tokenizer: 'static + Clone + Send + Sync {
     /// The token stream returned by this Tokenizer.
-    type TokenStream<'a>: TokenStream;
+    type TokenStream<'a, 'b>: TokenStream;
     /// Creates a token stream for a given `str`.
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a>;
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b>;
 }
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.

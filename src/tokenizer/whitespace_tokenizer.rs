@@ -3,27 +3,30 @@ use std::str::CharIndices;
 use super::{Token, TokenStream, Tokenizer};
 
 /// Tokenize the text by splitting on whitespaces.
-#[derive(Clone)]
-pub struct WhitespaceTokenizer;
-
-pub struct WhitespaceTokenStream<'a> {
-    text: &'a str,
-    chars: CharIndices<'a>,
+#[derive(Clone, Default)]
+pub struct WhitespaceTokenizer {
     token: Token,
 }
 
+pub struct WhitespaceTokenStream<'a, 'b> {
+    text: &'a str,
+    chars: CharIndices<'a>,
+    token: &'b mut Token,
+}
+
 impl Tokenizer for WhitespaceTokenizer {
-    type TokenStream<'a> = WhitespaceTokenStream<'a>;
-    fn token_stream<'a>(&self, text: &'a str) -> WhitespaceTokenStream<'a> {
+    type TokenStream<'a, 'b> = WhitespaceTokenStream<'a, 'b>;
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> WhitespaceTokenStream<'a, 'b> {
+        self.token.reset();
         WhitespaceTokenStream {
             text,
             chars: text.char_indices(),
-            token: Token::default(),
+            token: &mut self.token,
         }
     }
 }
 
-impl<'a> WhitespaceTokenStream<'a> {
+impl<'a, 'b> WhitespaceTokenStream<'a, 'b> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
@@ -34,7 +37,7 @@ impl<'a> WhitespaceTokenStream<'a> {
     }
 }
 
-impl<'a> TokenStream for WhitespaceTokenStream<'a> {
+impl<'a, 'b> TokenStream for WhitespaceTokenStream<'a, 'b> {
     fn advance(&mut self) -> bool {
         self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);
@@ -51,11 +54,11 @@ impl<'a> TokenStream for WhitespaceTokenStream<'a> {
     }
 
     fn token(&self) -> &Token {
-        &self.token
+        self.token
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+        self.token
     }
 }
 
@@ -75,7 +78,7 @@ mod tests {
     }
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
-        let a = TextAnalyzer::from(WhitespaceTokenizer);
+        let mut a = TextAnalyzer::from(WhitespaceTokenizer::default());
         let mut token_stream = a.token_stream(text);
         let mut tokens: Vec<Token> = vec![];
         let mut add_token = |token: &Token| {

@@ -9,8 +9,10 @@ use crate::schema::FACET_SEP_BYTE;
 ///     - `/america/north_america/canada`
 ///     - `/america/north_america`
 ///     - `/america`
-#[derive(Clone)]
-pub struct FacetTokenizer;
+#[derive(Clone, Default)]
+pub struct FacetTokenizer {
+    token: Token,
+}
 
 #[derive(Debug)]
 enum State {
@@ -19,28 +21,26 @@ enum State {
     Terminated,
 }
 
-pub struct FacetTokenStream<'a> {
+pub struct FacetTokenStream<'a, 'b> {
     text: &'a str,
     state: State,
-    token: Token,
+    token: &'b mut Token,
 }
 
 impl Tokenizer for FacetTokenizer {
-    type TokenStream<'a> = FacetTokenStream<'a>;
-    fn token_stream<'a>(&self, text: &'a str) -> FacetTokenStream<'a> {
-        let token = Token {
-            position: 0,
-            ..Default::default()
-        };
+    type TokenStream<'a, 'b> = FacetTokenStream<'a, 'b>;
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> FacetTokenStream<'a, 'b> {
+        self.token.reset();
+        self.token.position = 0;
         FacetTokenStream {
             text,
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
-            token,
+            token: &mut self.token,
         }
     }
 }
 
-impl<'a> TokenStream for FacetTokenStream<'a> {
+impl<'a, 'b> TokenStream for FacetTokenStream<'a, 'b> {
     fn advance(&mut self) -> bool {
         match self.state {
             State::RootFacetNotEmitted => {
@@ -74,11 +74,11 @@ impl<'a> TokenStream for FacetTokenStream<'a> {
     }
 
     fn token(&self) -> &Token {
-        &self.token
+        self.token
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+        self.token
     }
 }
 
@@ -98,7 +98,7 @@ mod tests {
                 let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap();
                 tokens.push(format!("{}", facet));
             };
-            FacetTokenizer
+            FacetTokenizer::default()
                 .token_stream(facet.encoded_str())
                 .process(&mut add_token);
         }
@@ -118,7 +118,7 @@ mod tests {
                 let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap(); // ok test
                 tokens.push(format!("{}", facet));
             };
-            FacetTokenizer
+            FacetTokenizer::default()
                 .token_stream(facet.encoded_str()) // ok test
                 .process(&mut add_token);
         }

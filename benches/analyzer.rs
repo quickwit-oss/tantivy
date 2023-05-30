@@ -5,7 +5,7 @@ const ALICE_TXT: &str = include_str!("alice.txt");
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let tokenizer_manager = TokenizerManager::default();
-    let tokenizer = tokenizer_manager.get("default").unwrap();
+    let mut tokenizer = tokenizer_manager.get("default").unwrap();
     c.bench_function("default-tokenize-alice", |b| {
         b.iter(|| {
             let mut word_count = 0;

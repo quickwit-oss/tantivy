@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//! let mut tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
 //!   .filter(RemoveLongFilter::limit(5))
 //!   .build();
 //!
@@ -55,9 +55,9 @@ pub struct RemoveLongFilterWrapper<T: Tokenizer> {
 }
 
 impl<T: Tokenizer> Tokenizer for RemoveLongFilterWrapper<T> {
-    type TokenStream<'a> = RemoveLongFilterStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = RemoveLongFilterStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         RemoveLongFilterStream {
             token_length_limit: self.length_limit,
             tail: self.inner.token_stream(text),
@@ -103,7 +103,7 @@ mod tests {
     }
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
-        let a = TextAnalyzer::builder(SimpleTokenizer)
+        let mut a = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(RemoveLongFilter::limit(6))
             .build();
         let mut token_stream = a.token_stream(text);

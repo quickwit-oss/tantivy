@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::builder(RawTokenizer)
+//! let mut tokenizer = TextAnalyzer::builder(RawTokenizer::default())
 //!   .filter(AlphaNumOnlyFilter)
 //!   .build();
 //!
@@ -11,7 +11,7 @@
 //! // contains a space
 //! assert!(stream.next().is_none());
 //!
-//! let tokenizer = TextAnalyzer::builder(SimpleTokenizer)
+//! let mut tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
 //!   .filter(AlphaNumOnlyFilter)
 //!   .build();
 //!
@@ -50,9 +50,9 @@ impl TokenFilter for AlphaNumOnlyFilter {
 pub struct AlphaNumOnlyFilterWrapper<T>(T);
 
 impl<T: Tokenizer> Tokenizer for AlphaNumOnlyFilterWrapper<T> {
-    type TokenStream<'a> = AlphaNumOnlyFilterStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = AlphaNumOnlyFilterStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         AlphaNumOnlyFilterStream {
             tail: self.0.token_stream(text),
         }
@@ -96,7 +96,7 @@ mod tests {
     }
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
-        let a = TextAnalyzer::builder(SimpleTokenizer)
+        let mut a = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(AlphaNumOnlyFilter)
             .build();
         let mut token_stream = a.token_stream(text);

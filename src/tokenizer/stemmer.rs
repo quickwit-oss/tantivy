@@ -98,9 +98,9 @@ pub struct StemmerFilter<T> {
 }
 
 impl<T: Tokenizer> Tokenizer for StemmerFilter<T> {
-    type TokenStream<'a> = StemmerTokenStream<T::TokenStream<'a>>;
+    type TokenStream<'a, 'b> = StemmerTokenStream<T::TokenStream<'a, 'b>>;
 
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a> {
+    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
         let stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
         StemmerTokenStream {
             tail: self.inner.token_stream(text),

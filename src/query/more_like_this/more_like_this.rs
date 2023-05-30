@@ -192,44 +192,48 @@ impl MoreLikeThis {
                     })
                     .collect::<Result<Vec<_>>>()?;
                 for fake_str in facets {
-                    FacetTokenizer.token_stream(fake_str).process(&mut |token| {
-                        if self.is_noise_word(token.text.clone()) {
-                            let term = Term::from_field_text(field, &token.text);
-                            *term_frequencies.entry(term).or_insert(0) += 1;
-                        }
-                    });
+                    FacetTokenizer::default()
+                        .token_stream(fake_str)
+                        .process(&mut |token| {
+                            if self.is_noise_word(token.text.clone()) {
+                                let term = Term::from_field_text(field, &token.text);
+                                *term_frequencies.entry(term).or_insert(0) += 1;
+                            }
+                        });
                 }
             }
             FieldType::Str(text_options) => {
-                let mut token_streams: Vec<BoxTokenStream> = vec![];
-
                 for value in values {
                     match value {
                         Value::PreTokStr(tok_str) => {
-                            token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
+                            let mut token_stream: BoxTokenStream =
+                                PreTokenizedStream::from(tok_str.clone()).into();
+                            token_stream.process(&mut |token| {
+                                if !self.is_noise_word(token.text.clone()) {
+                                    let term = Term::from_field_text(field, &token.text);
+                                    *term_frequencies.entry(term).or_insert(0) += 1;
+                                }
+                            });
                         }
                         Value::Str(ref text) => {
-                            if let Some(tokenizer) = text_options
+                            if let Some(mut tokenizer) = text_options
                                 .get_indexing_options()
                                 .map(|text_indexing_options| {
                                     text_indexing_options.tokenizer().to_string()
                                 })
                                 .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
                             {
-                                token_streams.push(tokenizer.token_stream(text));
+                                let mut token_stream = tokenizer.token_stream(text);
+                                token_stream.process(&mut |token| {
+                                    if !self.is_noise_word(token.text.clone()) {
+                                        let term = Term::from_field_text(field, &token.text);
+                                        *term_frequencies.entry(term).or_insert(0) += 1;
+                                    }
+                                });
                             }
                         }
                         _ => (),
                     }
-                }
-
-                for mut token_stream in token_streams {
-                    token_stream.process(&mut |token| {
-                        if !self.is_noise_word(token.text.clone()) {
-                            let term = Term::from_field_text(field, &token.text);
-                            *term_frequencies.entry(term).or_insert(0) += 1;
-                        }
-                    });
                 }
             }
             FieldType::U64(_) => {
