@@ -14,23 +14,18 @@ use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 #[serde(rename_all = "lowercase")]
 pub enum DateTimePrecision {
     /// Second precision.
+    #[serde(alias = "seconds")]
     #[default]
     Second,
+    #[serde(alias = "milliseconds")]
     /// Millisecond precision.
     Millisecond,
+    #[serde(alias = "microseconds")]
     /// Microsecond precision.
     Microsecond,
+    #[serde(alias = "nanoseconds")]
     /// Nanosecond precision.
     Nanosecond,
-    // TODO: Remove deprecated variants after 2 releases.
-    #[deprecated(since = "0.20.0", note = "Use `Second` instead")]
-    Seconds,
-    #[deprecated(since = "0.20.0", note = "Use `Millisecond` instead")]
-    Milliseconds,
-    #[deprecated(since = "0.20.0", note = "Use `Microsecond` instead")]
-    Microseconds,
-    #[deprecated(since = "0.20.0", note = "Use `Nanosecond` instead")]
-    Nanoseconds,
 }
 
 #[deprecated(since = "0.20.0", note = "Use `DateTimePrecision` instead")]
@@ -156,16 +151,10 @@ impl DateTime {
     /// Truncates the microseconds value to the corresponding precision.
     pub fn truncate(self, precision: DateTimePrecision) -> Self {
         let truncated_timestamp_micros = match precision {
-            DateTimePrecision::Second | DateTimePrecision::Seconds => {
-                (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000
-            }
-            DateTimePrecision::Millisecond | DateTimePrecision::Milliseconds => {
-                (self.timestamp_nanos / 1_000_000) * 1_000_000
-            }
-            DateTimePrecision::Microsecond | DateTimePrecision::Microseconds => {
-                (self.timestamp_nanos / 1_000) * 1_000
-            }
-            DateTimePrecision::Nanosecond | DateTimePrecision::Nanoseconds => self.timestamp_nanos,
+            DateTimePrecision::Second => (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000,
+            DateTimePrecision::Millisecond => (self.timestamp_nanos / 1_000_000) * 1_000_000,
+            DateTimePrecision::Microsecond => (self.timestamp_nanos / 1_000) * 1_000,
+            DateTimePrecision::Nanosecond => self.timestamp_nanos,
         };
         Self {
             timestamp_nanos: truncated_timestamp_micros,
