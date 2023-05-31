@@ -64,6 +64,8 @@ pub fn fast_short_slice_copy(src: &[u8], dst: &mut [u8]) {
 
 #[inline(always)]
 fn short_copy(src: &[u8], dst: &mut [u8]) {
+    debug_assert_ne!(src.len(), 0);
+    debug_assert_eq!(src.len(), dst.len());
     let len = src.len();
 
     // length 1-3

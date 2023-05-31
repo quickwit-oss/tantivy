@@ -84,8 +84,6 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
 
     #[inline]
     pub fn extend_from_slice(&mut self, mut buf: &[u8]) {
-        debug_assert!(buf.len() <= 32); // Check memcpy assumptions.
-        debug_assert!(!buf.is_empty()); // Check memcpy assumptions.
         while !buf.is_empty() {
             let add_len: usize;
             {

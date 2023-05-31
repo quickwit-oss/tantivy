@@ -39,29 +39,22 @@ pub fn fast_short_slice_compare(left: &[u8], right: &[u8]) -> bool {
     double_check_trick::<8>(left, right)
 }
 
-#[inline(always)]
 // Note: The straigthforward left.chunks_exact(SIZE).zip(right.chunks_exact(SIZE)) produces slower
 // assembly
-fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
-    let mut left_curr = left;
-    let mut right_curr = right;
+#[inline]
+pub fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
+    let last = left.len() - left.len() % SIZE;
+    let mut i = 0;
     loop {
-        if left_curr.len() < SIZE || right_curr.len() < SIZE {
-            break;
-        }
-        if left_curr[..SIZE] != right_curr[..SIZE] {
+        if unsafe { left.get_unchecked(i..i + SIZE) != right.get_unchecked(i..i + SIZE) } {
             return false;
         }
-
-        left_curr = &left_curr[SIZE..];
-        right_curr = &right_curr[SIZE..];
+        i += SIZE;
+        if i >= last {
+            break;
+        }
     }
-
-    // The last SIZE bytes can be compared with a little trick in one go, by comparing the last
-    // SIZE bytes. (sounds obvious if documented like that)
-    // The bounds check are elided since we already checked the length above to be at least SIZE
-
-    check_end::<SIZE>(left, right)
+    unsafe { left.get_unchecked(left.len() - SIZE..) == right.get_unchecked(right.len() - SIZE..) }
 }
 
 #[inline(always)]
@@ -72,10 +65,6 @@ fn short_compare(left: &[u8], right: &[u8]) -> bool {
         }
     }
     true
-}
-#[inline(always)]
-fn check_end<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {
-    left[left.len() - SIZE..] == right[right.len() - SIZE..]
 }
 
 #[inline(always)]

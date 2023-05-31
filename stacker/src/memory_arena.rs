@@ -155,13 +155,14 @@ impl MemoryArena {
             .slice_mut(addr.page_local_addr(), len)
     }
 
-    #[inline]
-    fn add_page(&mut self, len: usize) -> usize {
+    /// Add a page and allocate len on it.
+    /// Return the address
+    fn add_page(&mut self, len: usize) -> Addr {
         let new_page_id = self.pages.len();
         let mut page = Page::new(new_page_id);
         page.len = len;
         self.pages.push(page);
-        new_page_id
+        Addr::new(new_page_id, 0)
     }
 
     /// Allocates `len` bytes and returns the allocated address.
@@ -171,8 +172,7 @@ impl MemoryArena {
         if let Some(addr) = self.get_page_mut(page_id).allocate_space(len) {
             return addr;
         }
-        let new_page_id = self.add_page(len);
-        Addr::new(new_page_id, 0)
+        self.add_page(len)
     }
 }
 
