@@ -62,25 +62,24 @@ pub struct ArenaHashMap {
 }
 
 struct LinearProbing {
-    hash: HashType,
-    i: u32,
-    mask: u32,
+    pos: usize,
+    mask: usize,
 }
 
 impl LinearProbing {
     #[inline]
     fn compute(hash: HashType, mask: usize) -> LinearProbing {
         LinearProbing {
-            hash,
-            i: 0,
-            mask: mask as u32,
+            pos: hash as usize,
+            mask,
         }
     }
 
     #[inline]
     fn next_probe(&mut self) -> usize {
-        self.i += 1;
-        ((self.hash + self.i) & self.mask) as usize
+        // Not saving the masked version removes a dependency.
+        self.pos = self.pos.wrapping_add(1);
+        self.pos & self.mask
     }
 }
 
