@@ -88,9 +88,6 @@ impl PhrasePrefixQuery {
     /// a specialized type [`PhraseQueryWeight`] instead of a Boxed trait.
     /// If the query was only one term long, this returns `None` wherease [`Query::weight`]
     /// returns a boxed [`RangeWeight`]
-    ///
-    /// Returns `None`, if phrase_terms is empty, which happens if the phrase prefix query was
-    /// built with a single term.
     pub(crate) fn phrase_prefix_query_weight(
         &self,
         enable_scoring: EnableScoring<'_>,

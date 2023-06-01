@@ -15,21 +15,12 @@ use crate::core::json_utils::{
 use crate::core::Index;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery,
-    BooleanQuery,
-    BoostQuery,
-    EmptyQuery,
-    FuzzyTermQuery,
-    Occur,
-    PhraseQuery,
-    Query,
-    // RangeQuery,
-    TermQuery,
-    TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
+    PhraseQuery, Query, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
-    Schema, Term, Type,
+    Schema, Term, TextFieldIndexing, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -79,6 +70,17 @@ pub enum QueryParserError {
     /// have any positions indexed.
     #[error("The field '{0}' does not have positions indexed")]
     FieldDoesNotHavePositionsIndexed(String),
+    /// A phrase-prefix query requires at least two terms
+    #[error(
+        "The phrase '{phrase:?}' does not produce at least two terms using the tokenizer \
+         '{tokenizer:?}'"
+    )]
+    PhrasePrefixRequiresAtLeastTwoTerms {
+        /// The phrase which triggered the issue
+        phrase: String,
+        /// The tokenizer configured for the field
+        tokenizer: String,
+    },
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     #[error("The tokenizer '{tokenizer:?}' for the field '{field:?}' is unknown")]
@@ -194,6 +196,10 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// Phrase terms support the `~` slop operator which allows to set the phrase's matching
 /// distance in words. `"big wolf"~1` will return documents containing the phrase `"big bad wolf"`.
+///
+/// Phrase terms also support the `*` prefix operator which switches the phrase's matching
+/// to consider all documents which contain the last term as a prefix, e.g. `"big bad wo"*` will
+/// match `"big bad wolf"`.
 #[derive(Clone)]
 pub struct QueryParser {
     schema: Schema,
@@ -446,6 +452,7 @@ impl QueryParser {
         json_path: &str,
         phrase: &str,
         slop: u32,
+        prefix: bool,
     ) -> Result<Vec<LogicalLiteral>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -486,25 +493,25 @@ impl QueryParser {
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
-                let option = str_options.get_indexing_options().ok_or_else(|| {
+                let indexing_options = str_options.get_indexing_options().ok_or_else(|| {
                     // This should have been seen earlier really.
                     QueryParserError::FieldNotIndexed(field_name.to_string())
                 })?;
-                let text_analyzer =
-                    self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| QueryParserError::UnknownTokenizer {
-                            field: field_name.to_string(),
-                            tokenizer: option.tokenizer().to_string(),
-                        })?;
-                let index_record_option = option.index_option();
+                let text_analyzer = self
+                    .tokenizer_manager
+                    .get(indexing_options.tokenizer())
+                    .ok_or_else(|| QueryParserError::UnknownTokenizer {
+                        field: field_name.to_string(),
+                        tokenizer: indexing_options.tokenizer().to_string(),
+                    })?;
                 Ok(generate_literals_for_str(
                     field_name,
                     field,
                     phrase,
                     slop,
+                    prefix,
+                    indexing_options,
                     &text_analyzer,
-                    index_record_option,
                 )?
                 .into_iter()
                 .collect())
@@ -661,9 +668,13 @@ impl QueryParser {
                     self.compute_path_triplets_for_literal(&literal)?;
                 let mut asts: Vec<LogicalAst> = Vec::new();
                 for (field, json_path, phrase) in term_phrases {
-                    for ast in
-                        self.compute_logical_ast_for_leaf(field, json_path, phrase, literal.slop)?
-                    {
+                    for ast in self.compute_logical_ast_for_leaf(
+                        field,
+                        json_path,
+                        phrase,
+                        literal.slop,
+                        literal.prefix,
+                    )? {
                         // Apply some field specific boost defined at the query parser level.
                         let boost = self.field_boost(field);
                         asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
@@ -753,9 +764,17 @@ fn convert_literal_to_query(
                 Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))
             }
         }
-        LogicalLiteral::Phrase(term_with_offsets, slop) => Box::new(
-            PhraseQuery::new_with_offset_and_slop(term_with_offsets, slop),
-        ),
+        LogicalLiteral::Phrase {
+            terms,
+            slop,
+            prefix,
+        } => {
+            if prefix {
+                Box::new(PhrasePrefixQuery::new_with_offset(terms))
+            } else {
+                Box::new(PhraseQuery::new_with_offset_and_slop(terms, slop))
+            }
+        }
         LogicalLiteral::Range {
             field,
             value_type,
@@ -774,8 +793,9 @@ fn generate_literals_for_str(
     field: Field,
     phrase: &str,
     slop: u32,
+    prefix: bool,
+    indexing_options: &TextFieldIndexing,
     text_analyzer: &TextAnalyzer,
-    index_record_option: IndexRecordOption,
 ) -> Result<Option<LogicalLiteral>, QueryParserError> {
     let mut terms: Vec<(usize, Term)> = Vec::new();
     let mut token_stream = text_analyzer.token_stream(phrase);
@@ -784,18 +804,28 @@ fn generate_literals_for_str(
         terms.push((token.position, term));
     });
     if terms.len() <= 1 {
+        if prefix {
+            return Err(QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: phrase.to_owned(),
+                tokenizer: indexing_options.tokenizer().to_owned(),
+            });
+        }
         let term_literal_opt = terms
             .into_iter()
             .next()
             .map(|(_, term)| LogicalLiteral::Term(term));
         return Ok(term_literal_opt);
     }
-    if !index_record_option.has_positions() {
+    if !indexing_options.index_option().has_positions() {
         return Err(QueryParserError::FieldDoesNotHavePositionsIndexed(
             field_name.to_string(),
         ));
     }
-    Ok(Some(LogicalLiteral::Phrase(terms, slop)))
+    Ok(Some(LogicalLiteral::Phrase {
+        terms,
+        slop,
+        prefix,
+    }))
 }
 
 fn generate_literals_for_json_object(
@@ -841,7 +871,11 @@ fn generate_literals_for_json_object(
             field_name.to_string(),
         ));
     }
-    logical_literals.push(LogicalLiteral::Phrase(terms, 0));
+    logical_literals.push(LogicalLiteral::Phrase {
+        terms,
+        slop: 0,
+        prefix: false,
+    });
     Ok(logical_literals)
 }
 
@@ -1640,6 +1674,48 @@ mod test {
             "title:\"a b~4\"~2",
             r#""[(0, Term(field=0, type=Str, "a")), (1, Term(field=0, type=Str, "b")), (2, Term(field=0, type=Str, "4"))]"~2"#,
             false,
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix() {
+        test_parse_query_to_logical_ast_helper(
+            "\"big bad wo\"*",
+            r#"("[(0, Term(field=0, type=Str, "big")), (1, Term(field=0, type=Str, "bad")), (2, Term(field=0, type=Str, "wo"))]"* "[(0, Term(field=1, type=Str, "big")), (1, Term(field=1, type=Str, "bad")), (2, Term(field=1, type=Str, "wo"))]"*)"#,
+            false,
+        );
+
+        let query_parser = make_query_parser();
+        let query = query_parser.parse_query("\"big bad wo\"*").unwrap();
+        assert_eq!(
+            format!("{query:?}"),
+            "BooleanQuery { subqueries: [(Should, PhrasePrefixQuery { field: Field(0), \
+             phrase_terms: [(0, Term(field=0, type=Str, \"big\")), (1, Term(field=0, type=Str, \
+             \"bad\"))], prefix: (2, Term(field=0, type=Str, \"wo\")), max_expansions: 50 }), \
+             (Should, PhrasePrefixQuery { field: Field(1), phrase_terms: [(0, Term(field=1, \
+             type=Str, \"big\")), (1, Term(field=1, type=Str, \"bad\"))], prefix: (2, \
+             Term(field=1, type=Str, \"wo\")), max_expansions: 50 })] }"
+        );
+    }
+
+    #[test]
+    pub fn test_phrase_prefix_too_short() {
+        let err = parse_query_to_logical_ast("\"wo\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "wo".to_owned(),
+                tokenizer: "default".to_owned()
+            }
+        );
+
+        let err = parse_query_to_logical_ast("\"\"*", true).unwrap_err();
+        assert_eq!(
+            err,
+            QueryParserError::PhrasePrefixRequiresAtLeastTwoTerms {
+                phrase: "".to_owned(),
+                tokenizer: "default".to_owned()
+            }
         );
     }
 

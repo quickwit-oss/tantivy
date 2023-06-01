@@ -66,6 +66,7 @@ pub struct UserInputLiteral {
     pub phrase: String,
     pub delimiter: Delimiter,
     pub slop: u32,
+    pub prefix: bool,
 }
 
 impl fmt::Debug for UserInputLiteral {
@@ -86,6 +87,8 @@ impl fmt::Debug for UserInputLiteral {
         }
         if self.slop > 0 {
             write!(formatter, "~{}", self.slop)?;
+        } else if self.prefix {
+            write!(formatter, "*")?;
         }
         Ok(())
     }
