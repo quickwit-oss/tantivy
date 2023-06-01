@@ -686,12 +686,12 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field(
             "date",
-            DateOptions::from(FAST).set_precision(DateTimePrecision::Nanosecond),
+            DateOptions::from(FAST).set_precision(DateTimePrecision::Nanoseconds),
         );
         let multi_date_field = schema_builder.add_date_field(
             "multi_date",
             DateOptions::default()
-                .set_precision(DateTimePrecision::Nanosecond)
+                .set_precision(DateTimePrecision::Nanoseconds)
                 .set_fast(),
         );
         let schema = schema_builder.build();
@@ -862,9 +862,9 @@ mod tests {
 
     #[test]
     pub fn test_gcd_date() {
-        let size_prec_sec = test_gcd_date_with_codec(DateTimePrecision::Second);
+        let size_prec_sec = test_gcd_date_with_codec(DateTimePrecision::Seconds);
         assert!((1000 * 13 / 8..100 + 1000 * 13 / 8).contains(&size_prec_sec.get_bytes())); // 13 bits per val = ceil(log_2(number of seconds in 2hours);
-        let size_prec_micros = test_gcd_date_with_codec(DateTimePrecision::Microsecond);
+        let size_prec_micros = test_gcd_date_with_codec(DateTimePrecision::Microseconds);
         assert!((1000 * 33 / 8..100 + 1000 * 33 / 8).contains(&size_prec_micros.get_bytes()));
         // 33 bits per
         // val = ceil(log_2(number
