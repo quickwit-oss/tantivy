@@ -13,7 +13,7 @@ fn main() -> tantivy::Result<()> {
     let opts = DateOptions::from(INDEXED)
         .set_stored()
         .set_fast()
-        .set_precision(tantivy::DateTimePrecision::Second);
+        .set_precision(tantivy::DateTimePrecision::Seconds);
     // Add `occurred_at` date field type
     let occurred_at = schema_builder.add_date_field("occurred_at", opts);
     let event_type = schema_builder.add_text_field("event", STRING | STORED);

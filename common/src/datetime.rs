@@ -15,21 +15,12 @@ use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 pub enum DateTimePrecision {
     /// Second precision.
     #[default]
-    Second,
-    /// Millisecond precision.
-    Millisecond,
-    /// Microsecond precision.
-    Microsecond,
-    /// Nanosecond precision.
-    Nanosecond,
-    // TODO: Remove deprecated variants after 2 releases.
-    #[deprecated(since = "0.20.0", note = "Use `Second` instead")]
     Seconds,
-    #[deprecated(since = "0.20.0", note = "Use `Millisecond` instead")]
+    /// Millisecond precision.
     Milliseconds,
-    #[deprecated(since = "0.20.0", note = "Use `Microsecond` instead")]
+    /// Microsecond precision.
     Microseconds,
-    #[deprecated(since = "0.20.0", note = "Use `Nanosecond` instead")]
+    /// Nanosecond precision.
     Nanoseconds,
 }
 
@@ -156,16 +147,10 @@ impl DateTime {
     /// Truncates the microseconds value to the corresponding precision.
     pub fn truncate(self, precision: DateTimePrecision) -> Self {
         let truncated_timestamp_micros = match precision {
-            DateTimePrecision::Second | DateTimePrecision::Seconds => {
-                (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000
-            }
-            DateTimePrecision::Millisecond | DateTimePrecision::Milliseconds => {
-                (self.timestamp_nanos / 1_000_000) * 1_000_000
-            }
-            DateTimePrecision::Microsecond | DateTimePrecision::Microseconds => {
-                (self.timestamp_nanos / 1_000) * 1_000
-            }
-            DateTimePrecision::Nanosecond | DateTimePrecision::Nanoseconds => self.timestamp_nanos,
+            DateTimePrecision::Seconds => (self.timestamp_nanos / 1_000_000_000) * 1_000_000_000,
+            DateTimePrecision::Milliseconds => (self.timestamp_nanos / 1_000_000) * 1_000_000,
+            DateTimePrecision::Microseconds => (self.timestamp_nanos / 1_000) * 1_000,
+            DateTimePrecision::Nanoseconds => self.timestamp_nanos,
         };
         Self {
             timestamp_nanos: truncated_timestamp_micros,
@@ -174,7 +159,7 @@ impl DateTime {
 }
 
 impl fmt::Debug for DateTime {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let utc_rfc3339 = self.into_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
         f.write_str(&utc_rfc3339)
     }

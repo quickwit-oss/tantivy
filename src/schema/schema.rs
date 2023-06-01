@@ -973,7 +973,7 @@ mod tests {
       "fieldnorms": true,
       "fast": true,
       "stored": true,
-      "precision": "second"
+      "precision": "seconds"
     }
   },
   {
