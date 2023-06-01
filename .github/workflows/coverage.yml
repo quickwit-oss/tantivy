@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Ensures that we cancel running jobs for the same PR / same workflow.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   coverage:
     runs-on: ubuntu-latest
