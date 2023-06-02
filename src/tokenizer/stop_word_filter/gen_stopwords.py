@@ -6,6 +6,7 @@ LANGUAGES = [
     "finnish",
     "french",
     "german",
+    "hungarian",
     "italian",
     "norwegian",
     "portuguese",
