@@ -97,9 +97,9 @@ pub struct SplitCompoundWordsFilter<T> {
 }
 
 impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
-    type TokenStream<'a, 'b> = SplitCompoundWordsTokenStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = SplitCompoundWordsTokenStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         SplitCompoundWordsTokenStream {
             dict: self.dict.clone(),
             tail: self.inner.token_stream(text),

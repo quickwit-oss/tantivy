@@ -4,7 +4,7 @@ use crate::tokenizer::{Token, TokenStream, Tokenizer};
 pub(crate) struct EmptyTokenizer;
 
 impl Tokenizer for EmptyTokenizer {
-    type TokenStream<'a, 'b> = EmptyTokenStream;
+    type TokenStream<'a> = EmptyTokenStream;
     fn token_stream(&mut self, _text: &str) -> EmptyTokenStream {
         EmptyTokenStream::default()
     }

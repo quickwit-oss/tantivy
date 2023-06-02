@@ -50,9 +50,9 @@ impl TokenFilter for AlphaNumOnlyFilter {
 pub struct AlphaNumOnlyFilterWrapper<T>(T);
 
 impl<T: Tokenizer> Tokenizer for AlphaNumOnlyFilterWrapper<T> {
-    type TokenStream<'a, 'b> = AlphaNumOnlyFilterStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = AlphaNumOnlyFilterStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         AlphaNumOnlyFilterStream {
             tail: self.0.token_stream(text),
         }

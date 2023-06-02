@@ -20,9 +20,9 @@ impl TokenFilter for AsciiFoldingFilter {
 pub struct AsciiFoldingFilterWrapper<T>(T);
 
 impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
-    type TokenStream<'a, 'b> = AsciiFoldingFilterTokenStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = AsciiFoldingFilterTokenStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         AsciiFoldingFilterTokenStream {
             buffer: String::with_capacity(100),
             tail: self.0.token_stream(text),

@@ -64,8 +64,8 @@ impl RegexTokenizer {
 }
 
 impl Tokenizer for RegexTokenizer {
-    type TokenStream<'a, 'b> = RegexTokenStream<'a, 'b>;
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> RegexTokenStream<'a, 'b> {
+    type TokenStream<'a> = RegexTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> RegexTokenStream<'a> {
         self.token.reset();
         RegexTokenStream {
             regex: self.regex.clone(),
@@ -76,14 +76,14 @@ impl Tokenizer for RegexTokenizer {
     }
 }
 
-pub struct RegexTokenStream<'a, 'b> {
+pub struct RegexTokenStream<'a> {
     regex: Regex,
     text: &'a str,
-    token: &'b mut Token,
+    token: &'a mut Token,
     cursor: usize,
 }
 
-impl<'a, 'b> TokenStream for RegexTokenStream<'a, 'b> {
+impl<'a> TokenStream for RegexTokenStream<'a> {
     fn advance(&mut self) -> bool {
         let Some(regex_match) = self.regex.find(self.text) else {
             return false;
@@ -105,11 +105,11 @@ impl<'a, 'b> TokenStream for RegexTokenStream<'a, 'b> {
     }
 
     fn token(&self) -> &Token {
-        &self.token
+        self.token
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+        self.token
     }
 }
 

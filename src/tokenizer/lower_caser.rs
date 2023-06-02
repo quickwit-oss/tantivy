@@ -18,9 +18,9 @@ impl TokenFilter for LowerCaser {
 pub struct LowerCaserFilter<T>(T);
 
 impl<T: Tokenizer> Tokenizer for LowerCaserFilter<T> {
-    type TokenStream<'a, 'b> = LowerCaserTokenStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = LowerCaserTokenStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         LowerCaserTokenStream {
             tail: self.0.token_stream(text),
             buffer: String::new(), // TODO move to global buffer

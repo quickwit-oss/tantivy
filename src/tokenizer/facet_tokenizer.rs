@@ -21,15 +21,15 @@ enum State {
     Terminated,
 }
 
-pub struct FacetTokenStream<'a, 'b> {
+pub struct FacetTokenStream<'a> {
     text: &'a str,
     state: State,
-    token: &'b mut Token,
+    token: &'a mut Token,
 }
 
 impl Tokenizer for FacetTokenizer {
-    type TokenStream<'a, 'b> = FacetTokenStream<'a, 'b>;
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> FacetTokenStream<'a, 'b> {
+    type TokenStream<'a> = FacetTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> FacetTokenStream<'a> {
         self.token.reset();
         self.token.position = 0;
         FacetTokenStream {
@@ -40,7 +40,7 @@ impl Tokenizer for FacetTokenizer {
     }
 }
 
-impl<'a, 'b> TokenStream for FacetTokenStream<'a, 'b> {
+impl<'a> TokenStream for FacetTokenStream<'a> {
     fn advance(&mut self) -> bool {
         match self.state {
             State::RootFacetNotEmitted => {

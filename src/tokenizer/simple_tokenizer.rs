@@ -9,15 +9,15 @@ pub struct SimpleTokenizer {
 }
 
 /// TokenStream produced by the `SimpleTokenizer`.
-pub struct SimpleTokenStream<'a, 'b> {
+pub struct SimpleTokenStream<'a> {
     text: &'a str,
     chars: CharIndices<'a>,
-    token: &'b mut Token,
+    token: &'a mut Token,
 }
 
 impl Tokenizer for SimpleTokenizer {
-    type TokenStream<'a, 'b> = SimpleTokenStream<'a, 'b>;
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> SimpleTokenStream<'a, 'b> {
+    type TokenStream<'a> = SimpleTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> SimpleTokenStream<'a> {
         self.token.reset();
         SimpleTokenStream {
             text,
@@ -27,7 +27,7 @@ impl Tokenizer for SimpleTokenizer {
     }
 }
 
-impl<'a, 'b> SimpleTokenStream<'a, 'b> {
+impl<'a> SimpleTokenStream<'a> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
@@ -38,7 +38,7 @@ impl<'a, 'b> SimpleTokenStream<'a, 'b> {
     }
 }
 
-impl<'a, 'b> TokenStream for SimpleTokenStream<'a, 'b> {
+impl<'a> TokenStream for SimpleTokenStream<'a> {
     fn advance(&mut self) -> bool {
         self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);

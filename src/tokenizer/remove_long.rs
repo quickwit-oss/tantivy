@@ -55,9 +55,9 @@ pub struct RemoveLongFilterWrapper<T: Tokenizer> {
 }
 
 impl<T: Tokenizer> Tokenizer for RemoveLongFilterWrapper<T> {
-    type TokenStream<'a, 'b> = RemoveLongFilterStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = RemoveLongFilterStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         RemoveLongFilterStream {
             token_length_limit: self.length_limit,
             tail: self.inner.token_stream(text),

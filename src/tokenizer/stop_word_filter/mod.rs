@@ -88,9 +88,9 @@ pub struct StopWordFilterWrapper<T> {
 }
 
 impl<T: Tokenizer> Tokenizer for StopWordFilterWrapper<T> {
-    type TokenStream<'a, 'b> = StopWordFilterStream<T::TokenStream<'a, 'b>>;
+    type TokenStream<'a> = StopWordFilterStream<T::TokenStream<'a>>;
 
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         StopWordFilterStream {
             words: self.words.clone(),
             tail: self.inner.token_stream(text),

@@ -55,9 +55,9 @@ impl Token {
 /// before indexing.
 pub trait Tokenizer: 'static + Clone + Send + Sync {
     /// The token stream returned by this Tokenizer.
-    type TokenStream<'a, 'b>: TokenStream;
+    type TokenStream<'a>: TokenStream;
     /// Creates a token stream for a given `str`.
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> Self::TokenStream<'a, 'b>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a>;
 }
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.

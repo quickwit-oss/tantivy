@@ -12,7 +12,7 @@ pub struct RawTokenStream<'a> {
 }
 
 impl Tokenizer for RawTokenizer {
-    type TokenStream<'b, 'a> = RawTokenStream<'a>;
+    type TokenStream<'a> = RawTokenStream<'a>;
     fn token_stream<'a>(&'a mut self, text: &str) -> RawTokenStream<'a> {
         self.token.reset();
         self.token.position = 0;

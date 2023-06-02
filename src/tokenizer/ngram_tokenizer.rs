@@ -121,7 +121,7 @@ impl NgramTokenizer {
 }
 
 /// TokenStream associate to the `NgramTokenizer`
-pub struct NgramTokenStream<'a, 'b> {
+pub struct NgramTokenStream<'a> {
     /// parameters
     ngram_charidx_iterator: StutteringIterator<CodepointFrontiers<'a>>,
     /// true if the NgramTokenStream is in prefix mode.
@@ -129,12 +129,12 @@ pub struct NgramTokenStream<'a, 'b> {
     /// input
     text: &'a str,
     /// output
-    token: &'b mut Token,
+    token: &'a mut Token,
 }
 
 impl Tokenizer for NgramTokenizer {
-    type TokenStream<'a, 'b> = NgramTokenStream<'a, 'b>;
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> NgramTokenStream<'a, 'b> {
+    type TokenStream<'a> = NgramTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> NgramTokenStream<'a> {
         self.token.reset();
         NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
@@ -149,7 +149,7 @@ impl Tokenizer for NgramTokenizer {
     }
 }
 
-impl<'a, 'b> TokenStream for NgramTokenStream<'a, 'b> {
+impl<'a> TokenStream for NgramTokenStream<'a> {
     fn advance(&mut self) -> bool {
         if let Some((offset_from, offset_to)) = self.ngram_charidx_iterator.next() {
             if self.prefix_only && offset_from > 0 {

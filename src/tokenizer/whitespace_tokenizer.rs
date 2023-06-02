@@ -8,15 +8,15 @@ pub struct WhitespaceTokenizer {
     token: Token,
 }
 
-pub struct WhitespaceTokenStream<'a, 'b> {
+pub struct WhitespaceTokenStream<'a> {
     text: &'a str,
     chars: CharIndices<'a>,
-    token: &'b mut Token,
+    token: &'a mut Token,
 }
 
 impl Tokenizer for WhitespaceTokenizer {
-    type TokenStream<'a, 'b> = WhitespaceTokenStream<'a, 'b>;
-    fn token_stream<'a, 'b>(&'b mut self, text: &'a str) -> WhitespaceTokenStream<'a, 'b> {
+    type TokenStream<'a> = WhitespaceTokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> WhitespaceTokenStream<'a> {
         self.token.reset();
         WhitespaceTokenStream {
             text,
@@ -26,7 +26,7 @@ impl Tokenizer for WhitespaceTokenizer {
     }
 }
 
-impl<'a, 'b> WhitespaceTokenStream<'a, 'b> {
+impl<'a> WhitespaceTokenStream<'a> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
@@ -37,7 +37,7 @@ impl<'a, 'b> WhitespaceTokenStream<'a, 'b> {
     }
 }
 
-impl<'a, 'b> TokenStream for WhitespaceTokenStream<'a, 'b> {
+impl<'a> TokenStream for WhitespaceTokenStream<'a> {
     fn advance(&mut self) -> bool {
         self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);
