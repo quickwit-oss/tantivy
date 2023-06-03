@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
+use aho_corasick::Anchored::No;
 use common::StableDeref;
 use fs4::FileExt;
 use memmap2::Mmap;
@@ -105,6 +106,8 @@ impl MmapCache {
         MmapCache {
             counters: CacheCounters::default(),
             cache: HashMap::default(),
+            #[cfg(unix)]
+            madvice_opt: None,
         }
     }
 
@@ -192,7 +195,7 @@ impl MmapDirectoryInner {
 
     #[cfg(unix)]
     fn with_advice(&mut self, madvice_opt: Option<Advice>) {
-        self.mmap_cache.write().with_advice(madvice_opt)
+        self.mmap_cache.write().unwrap().with_advice(madvice_opt)
     }
 
     fn watch(&self, callback: WatchCallback) -> WatchHandle {
