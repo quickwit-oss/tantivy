@@ -101,16 +101,16 @@ struct MmapCache {
 }
 
 impl MmapCache {
-    #[cfg(unix)]
-    fn with_advice(&mut self, madvice_opt: Option<Advice>) {
-        self.madvice_opt = madvice_opt
-    }
-
     fn new() -> MmapCache {
         MmapCache {
             counters: CacheCounters::default(),
             cache: HashMap::default(),
         }
+    }
+
+    #[cfg(unix)]
+    fn with_advice(&mut self, madvice_opt: Option<Advice>) {
+        self.madvice_opt = madvice_opt
     }
 
     fn get_info(&self) -> CacheInfo {
