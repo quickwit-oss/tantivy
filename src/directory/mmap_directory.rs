@@ -218,7 +218,7 @@ impl MmapDirectory {
     /// Pass specific madvice flags when opening a new mmap file.
     ///
     /// This is only supported on unix platforms.
-    fn with_advice(&mut self, madvice_opt: Option<Advice>) {
+    pub fn with_advice(&mut self, madvice_opt: Option<Advice>) {
         self.inner.with_advice(madvice_opt)
     }
 
