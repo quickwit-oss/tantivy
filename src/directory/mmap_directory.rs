@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
-use aho_corasick::Anchored::No;
 use common::StableDeref;
 use fs4::FileExt;
 use memmap2::Mmap;
@@ -218,11 +217,16 @@ impl MmapDirectory {
     }
 
     #[cfg(unix)]
-    /// Pass specific madvice flags when opening a new mmap file.
-    ///
-    /// This is only supported on unix platforms.
-    pub fn with_advice(&mut self, madvice_opt: Option<Advice>) {
-        self.inner.with_advice(madvice_opt)
+    fn with_advice(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        madvice_opt: Option<Advice>,
+    ) {
+        let mut inner = MmapDirectoryInner::new(root_path, temp_directory);
+        inner.with_advice(madvice_opt);
+        MmapDirectory {
+            inner: Arc::new(inner),
+        }
     }
 
     /// Creates a new MmapDirectory in a temporary directory.
@@ -243,7 +247,8 @@ impl MmapDirectory {
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
-        Self::open_with_access_pattern_impl(directory_path.as_ref())
+        let canonical_path = Self::resolve_directory_path(directory_path.as_ref())?;
+        Ok(MmapDirectory::new(canonical_path, None))
     }
 
     #[cfg(unix)]
@@ -254,14 +259,15 @@ impl MmapDirectory {
         directory_path: P,
         madvice: Advice,
     ) -> Result<MmapDirectory, OpenDirectoryError> {
-        let dir = Self::open_with_access_pattern_impl(directory_path.as_ref())?;
-        dir.with_advice(Some(madvice));
-        Ok(dir)
+        let canonical_path = Self::resolve_directory_path(directory_path.as_ref())?;
+        Ok(MmapDirectory::with_advice(
+            canonical_path,
+            None,
+            madvice_opt,
+        ))
     }
 
-    fn open_with_access_pattern_impl(
-        directory_path: &Path,
-    ) -> Result<MmapDirectory, OpenDirectoryError> {
+    fn resolve_directory_path(directory_path: &Path) -> Result<PathBuf, OpenDirectoryError> {
         if !directory_path.exists() {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
@@ -288,7 +294,7 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        Ok(MmapDirectory::new(canonical_path, None))
+        Ok(canonical_path)
     }
 
     /// Joins a relative_path to the directory `root_path`
