@@ -194,7 +194,7 @@ impl MmapDirectoryInner {
     }
 
     #[cfg(unix)]
-    fn with_advice(&mut self, madvice_opt: Option<Advice>) {
+    fn with_advice(&self, madvice_opt: Option<Advice>) {
         self.mmap_cache.write().unwrap().with_advice(madvice_opt)
     }
 
@@ -221,7 +221,7 @@ impl MmapDirectory {
     /// Pass specific madvice flags when opening a new mmap file.
     ///
     /// This is only supported on unix platforms.
-    pub fn with_advice(&mut self, madvice_opt: Option<Advice>) {
+    pub fn with_advice(&self, madvice_opt: Option<Advice>) {
         self.inner.with_advice(madvice_opt)
     }
 
