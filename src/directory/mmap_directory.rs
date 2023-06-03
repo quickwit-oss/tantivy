@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 use std::{fmt, result};
 
-use aho_corasick::Anchored::No;
 use common::StableDeref;
 use fs4::FileExt;
 use memmap2::Mmap;
