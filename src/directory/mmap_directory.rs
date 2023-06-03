@@ -32,9 +32,23 @@ pub(crate) fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
+#[cfg(unix)]
+/// Returns `None` iff the file exists, can be read, but is empty (and hence
+/// cannot be mmapped), this method also allows for optional [Advice] to be
+/// specified for the given workload.
+fn open_mmap_with_advice(full_path: &Path) -> Result<Option<Mmap>, OpenReadError> {
+    let mmap_opt = open_mmap(full_path)?;
+
+    if let (Some(mmap), Some(madvice)) = (&mmap_opt, madvice_opt) {
+        let _ = mmap.advise(madvice);
+    }
+
+    Ok(mmap_opt)
+}
+
 /// Returns `None` iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
-fn open_mmap(full_path: &Path) -> Result<Option<Mmap>, OpenReadError> {
+fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
     let file = File::open(full_path).map_err(|io_err| {
         if io_err.kind() == io::ErrorKind::NotFound {
             OpenReadError::FileDoesNotExist(full_path.to_path_buf())
@@ -182,6 +196,11 @@ impl MmapDirectoryInner {
         }
     }
 
+    #[cfg(unix)]
+    fn with_advice(&self, madvice_opt: Option<Advice>) {
+        self.mmap_cache.write().unwrap().with_advice(madvice_opt)
+    }
+
     fn watch(&self, callback: WatchCallback) -> WatchHandle {
         self.watcher.watch(callback)
     }
@@ -199,6 +218,14 @@ impl MmapDirectory {
         MmapDirectory {
             inner: Arc::new(inner),
         }
+    }
+
+    #[cfg(unix)]
+    /// Pass specific madvice flags when opening a new mmap file.
+    ///
+    /// This is only supported on unix platforms.
+    pub fn with_advice(&self, madvice_opt: Option<Advice>) {
+        self.inner.with_advice(madvice_opt)
     }
 
     /// Creates a new MmapDirectory in a temporary directory.
