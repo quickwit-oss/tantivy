@@ -357,9 +357,7 @@ mod binary_serialize {
     const TOK_STR_CODE: u8 = 0;
 
     pub fn serialize<'a, W>(value: impl DocValue<'a>, writer: &mut W) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
+    where W: Write + ?Sized {
         if let Some(val) = value.as_str() {
             let val = Cow::Borrowed(val);
             TEXT_CODE.serialize(writer)?;

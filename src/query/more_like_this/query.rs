@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{DocumentAccess, Field};
@@ -37,7 +38,7 @@ impl<D: DocumentAccess> Debug for MoreLikeThisQuery<D> {
     }
 }
 
-impl<D: DocumentAccess> Clone for MoreLikeThisQuery< D> {
+impl<D: DocumentAccess> Clone for MoreLikeThisQuery<D> {
     fn clone(&self) -> Self {
         Self {
             mlt: self.mlt.clone(),
@@ -203,7 +204,10 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields<D: DocumentAccess>(self, doc_fields: Vec<(Field, Vec<D::Value<'static>>)>) -> MoreLikeThisQuery<D> {
+    pub fn with_document_fields<D: DocumentAccess>(
+        self,
+        doc_fields: Vec<(Field, Vec<D::Value<'static>>)>,
+    ) -> MoreLikeThisQuery<D> {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),

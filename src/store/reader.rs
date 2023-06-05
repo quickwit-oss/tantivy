@@ -200,8 +200,7 @@ impl StoreReader {
     /// for instance.
     pub fn get<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
-        doc_binary_wrappers::deserialize(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)
+        doc_binary_wrappers::deserialize(&mut doc_bytes).map_err(crate::TantivyError::from)
     }
 
     /// Returns raw bytes of a given document.
@@ -239,8 +238,7 @@ impl StoreReader {
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
-            doc_binary_wrappers::deserialize(&mut doc_bytes)
-                .map_err(crate::TantivyError::from)
+            doc_binary_wrappers::deserialize(&mut doc_bytes).map_err(crate::TantivyError::from)
         })
     }
 
@@ -368,8 +366,7 @@ impl StoreReader {
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
     pub async fn get_async<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
-        doc_binary_wrappers::deserialize(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)
+        doc_binary_wrappers::deserialize(&mut doc_bytes).map_err(crate::TantivyError::from)
     }
 }
 

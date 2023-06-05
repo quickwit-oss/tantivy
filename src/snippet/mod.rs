@@ -5,7 +5,7 @@ use std::ops::Range;
 use htmlescape::encode_minimal;
 
 use crate::query::Query;
-use crate::schema::{DocumentAccess, Field, DocValue};
+use crate::schema::{DocValue, DocumentAccess, Field};
 use crate::tokenizer::{TextAnalyzer, Token};
 use crate::{Score, Searcher, Term};
 
@@ -364,7 +364,7 @@ impl SnippetGenerator {
         for (field, value) in doc.iter_fields_and_values() {
             let value = value as D::Value<'_>;
             if field != self.field {
-                continue
+                continue;
             }
 
             if let Some(val) = value.as_str() {
