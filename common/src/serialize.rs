@@ -276,14 +276,14 @@ impl<'a> BinarySerializable for Cow<'a, [u8]> {
         Ok(())
     }
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Cow<'a, [u8]>> {
         let num_items = VInt::deserialize(reader)?.val();
         let mut items: Vec<u8> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
             let item = u8::deserialize(reader)?;
             items.push(item);
         }
-        Ok(items)
+        Ok(Cow::Owned(items))
     }
 }
 
