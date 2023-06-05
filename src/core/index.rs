@@ -184,11 +184,11 @@ impl IndexBuilder {
     ///
     /// It expects an originally empty directory, and will not run any GC operation.
     #[doc(hidden)]
-    pub fn single_segment_index_writer(
+    pub fn single_segment_index_writer<D: DocumentAccess>(
         self,
         dir: impl Into<Box<dyn Directory>>,
         mem_budget: usize,
-    ) -> crate::Result<SingleSegmentIndexWriter> {
+    ) -> crate::Result<SingleSegmentIndexWriter<D>> {
         let index = self.create(dir)?;
         let index_simple_writer = SingleSegmentIndexWriter::new(index, mem_budget)?;
         Ok(index_simple_writer)
