@@ -51,9 +51,9 @@ impl<'a> DocValue<'a> for &'a Value {
         }
     }
 
-    fn as_i64(&self) -> Option<i64> {
+    fn as_facet(&self) -> Option<&Facet> {
         match self {
-            Value::I64(v) => Some(*v),
+            Value::Facet(facet) => Some(facet),
             _ => None,
         }
     }
@@ -61,6 +61,13 @@ impl<'a> DocValue<'a> for &'a Value {
     fn as_u64(&self) -> Option<u64> {
         match self {
             Value::U64(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_i64(&self) -> Option<i64> {
+        match self {
+            Value::I64(v) => Some(*v),
             _ => None,
         }
     }
@@ -110,13 +117,6 @@ impl<'a> DocValue<'a> for &'a Value {
     fn as_json(&self) -> Option<Self::JsonVisitor> {
         match self {
             Value::JsonObject(object) => Some(object.iter()),
-            _ => None,
-        }
-    }
-
-    fn as_facet(&self) -> Option<&Facet> {
-        match self {
-            Value::Facet(facet) => Some(facet),
             _ => None,
         }
     }
