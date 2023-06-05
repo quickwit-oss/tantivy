@@ -19,7 +19,7 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{DocumentAccess, Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
 
@@ -531,11 +531,11 @@ impl Index {
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer_with_num_threads(
+    pub fn writer_with_num_threads<D: DocumentAccess>(
         &self,
         num_threads: usize,
         overall_memory_arena_in_bytes: usize,
-    ) -> crate::Result<IndexWriter> {
+    ) -> crate::Result<IndexWriter<D>> {
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -564,7 +564,7 @@ impl Index {
     /// That index writer only simply has a single thread and a memory arena of 10 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
-    pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
+    pub fn writer_for_tests<D: DocumentAccess>(&self) -> crate::Result<IndexWriter<D>> {
         self.writer_with_num_threads(1, 10_000_000)
     }
 
@@ -579,7 +579,10 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer(&self, memory_arena_num_bytes: usize) -> crate::Result<IndexWriter> {
+    pub fn writer<D: DocumentAccess>(
+        &self,
+        memory_arena_num_bytes: usize,
+    ) -> crate::Result<IndexWriter<D>> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let memory_arena_num_bytes_per_thread = memory_arena_num_bytes / num_threads;
         if memory_arena_num_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
