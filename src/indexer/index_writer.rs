@@ -20,7 +20,7 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
-use crate::schema::{Document, IndexRecordOption, Term};
+use crate::schema::{Document, DocumentAccess, IndexRecordOption, Term};
 use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
@@ -50,7 +50,7 @@ fn error_in_index_worker_thread(context: &str) -> TantivyError {
 /// indexing queue.
 /// Each indexing thread builds its own independent [`Segment`], via
 /// a `SegmentWriter` object.
-pub struct IndexWriter {
+pub struct IndexWriter<D: DocumentAccess = Document> {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: Option<DirectoryLock>,
@@ -61,8 +61,8 @@ pub struct IndexWriter {
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
-    index_writer_status: IndexWriterStatus,
-    operation_sender: AddBatchSender,
+    index_writer_status: IndexWriterStatus<D>,
+    operation_sender: AddBatchSender<D>,
 
     segment_updater: SegmentUpdater,
 
@@ -163,10 +163,10 @@ pub(crate) fn advance_deletes(
     Ok(())
 }
 
-fn index_documents(
+fn index_documents<D: DocumentAccess>(
     memory_budget: usize,
     segment: Segment,
-    grouped_document_iterator: &mut dyn Iterator<Item = AddBatch>,
+    grouped_document_iterator: &mut dyn Iterator<Item = AddBatch<D>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
@@ -246,7 +246,7 @@ fn apply_deletes(
     })
 }
 
-impl IndexWriter {
+impl<D: DocumentAccess> IndexWriter<D> {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
     /// The lockfile should be deleted on drop, but it is possible
@@ -266,7 +266,7 @@ impl IndexWriter {
         num_threads: usize,
         memory_arena_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
-    ) -> crate::Result<IndexWriter> {
+    ) -> crate::Result<Self> {
         if memory_arena_in_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
             let err_msg = format!(
                 "The memory arena in bytes per thread needs to be at least \
@@ -280,7 +280,7 @@ impl IndexWriter {
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
-        let (document_sender, document_receiver): (AddBatchSender, AddBatchReceiver) =
+        let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
         let delete_queue = DeleteQueue::new();
@@ -292,7 +292,7 @@ impl IndexWriter {
         let segment_updater =
             SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
 
-        let mut index_writer = IndexWriter {
+        let mut index_writer = Self {
             _directory_lock: Some(directory_lock),
 
             memory_arena_in_bytes_per_thread,
@@ -374,7 +374,7 @@ impl IndexWriter {
         self.index.new_segment()
     }
 
-    fn operation_receiver(&self) -> crate::Result<AddBatchReceiver> {
+    fn operation_receiver(&self) -> crate::Result<AddBatchReceiver<D>> {
         self.index_writer_status
             .operation_receiver()
             .ok_or_else(|| {
@@ -524,7 +524,7 @@ impl IndexWriter {
     ///
     /// Returns the former segment_ready channel.
     fn recreate_document_channel(&mut self) {
-        let (document_sender, document_receiver): (AddBatchSender, AddBatchReceiver) =
+        let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
         self.operation_sender = document_sender;
         self.index_writer_status = IndexWriterStatus::from(document_receiver);
@@ -551,7 +551,7 @@ impl IndexWriter {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer: IndexWriter = IndexWriter::new(
+        let new_index_writer = IndexWriter::new(
             &self.index,
             self.num_threads,
             self.memory_arena_in_bytes_per_thread,
@@ -597,7 +597,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<D>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -706,7 +706,7 @@ impl IndexWriter {
     /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
-    pub fn add_document(&self, document: Document) -> crate::Result<Opstamp> {
+    pub fn add_document(&self, document: D) -> crate::Result<Opstamp> {
         let opstamp = self.stamper.stamp();
         self.send_add_documents_batch(smallvec![AddOperation { opstamp, document }])?;
         Ok(opstamp)
@@ -743,7 +743,7 @@ impl IndexWriter {
     /// visible to readers only after calling `commit()`.
     pub fn run<I>(&self, user_operations: I) -> crate::Result<Opstamp>
     where
-        I: IntoIterator<Item = UserOperation>,
+        I: IntoIterator<Item = UserOperation<D>>,
         I::IntoIter: ExactSizeIterator,
     {
         let user_operations_it = user_operations.into_iter();
@@ -777,7 +777,7 @@ impl IndexWriter {
         Ok(batch_opstamp)
     }
 
-    fn send_add_documents_batch(&self, add_ops: AddBatch) -> crate::Result<()> {
+    fn send_add_documents_batch(&self, add_ops: AddBatch<D>) -> crate::Result<()> {
         if self.index_writer_status.is_alive() && self.operation_sender.send(add_ops).is_ok() {
             Ok(())
         } else {
@@ -786,7 +786,7 @@ impl IndexWriter {
     }
 }
 
-impl Drop for IndexWriter {
+impl<D: DocumentAccess> Drop for IndexWriter<D> {
     fn drop(&mut self) {
         self.segment_updater.kill();
         self.drop_sender();

@@ -2,13 +2,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use super::AddBatchReceiver;
+use crate::schema::DocumentAccess;
 
 #[derive(Clone)]
-pub(crate) struct IndexWriterStatus {
-    inner: Arc<Inner>,
+pub(crate) struct IndexWriterStatus<D: DocumentAccess> {
+    inner: Arc<Inner<D>>,
 }
 
-impl IndexWriterStatus {
+impl<D: DocumentAccess> IndexWriterStatus<D> {
     /// Returns true iff the index writer is alive.
     pub fn is_alive(&self) -> bool {
         self.inner.as_ref().is_alive()
@@ -16,7 +17,7 @@ impl IndexWriterStatus {
 
     /// Returns a copy of the operation receiver.
     /// If the index writer was killed, returns `None`.
-    pub fn operation_receiver(&self) -> Option<AddBatchReceiver> {
+    pub fn operation_receiver(&self) -> Option<AddBatchReceiver<D>> {
         let rlock = self
             .inner
             .receive_channel
@@ -27,19 +28,19 @@ impl IndexWriterStatus {
 
     /// Create an index writer bomb.
     /// If dropped, the index writer status will be killed.
-    pub(crate) fn create_bomb(&self) -> IndexWriterBomb {
+    pub(crate) fn create_bomb(&self) -> IndexWriterBomb<D> {
         IndexWriterBomb {
             inner: Some(self.inner.clone()),
         }
     }
 }
 
-struct Inner {
+struct Inner<D: DocumentAccess> {
     is_alive: AtomicBool,
-    receive_channel: RwLock<Option<AddBatchReceiver>>,
+    receive_channel: RwLock<Option<AddBatchReceiver<D>>>,
 }
 
-impl Inner {
+impl<D: DocumentAccess> Inner<D> {
     fn is_alive(&self) -> bool {
         self.is_alive.load(Ordering::Relaxed)
     }
@@ -53,8 +54,8 @@ impl Inner {
     }
 }
 
-impl From<AddBatchReceiver> for IndexWriterStatus {
-    fn from(receiver: AddBatchReceiver) -> Self {
+impl<D: DocumentAccess> From<AddBatchReceiver<D>> for IndexWriterStatus<D> {
+    fn from(receiver: AddBatchReceiver<D>) -> Self {
         IndexWriterStatus {
             inner: Arc::new(Inner {
                 is_alive: AtomicBool::new(true),
@@ -66,11 +67,11 @@ impl From<AddBatchReceiver> for IndexWriterStatus {
 
 /// If dropped, the index writer will be killed.
 /// To prevent this, clients can call `.defuse()`.
-pub(crate) struct IndexWriterBomb {
-    inner: Option<Arc<Inner>>,
+pub(crate) struct IndexWriterBomb<D: DocumentAccess> {
+    inner: Option<Arc<Inner<D>>>,
 }
 
-impl IndexWriterBomb {
+impl<D: DocumentAccess> IndexWriterBomb<D> {
     /// Defuses the bomb.
     ///
     /// This is the only way to drop the bomb without killing
@@ -80,7 +81,7 @@ impl IndexWriterBomb {
     }
 }
 
-impl Drop for IndexWriterBomb {
+impl<D: DocumentAccess> Drop for IndexWriterBomb<D> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.kill();

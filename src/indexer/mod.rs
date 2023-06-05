@@ -44,9 +44,9 @@ pub type DefaultMergePolicy = LogMergePolicy;
 // - all docs in the operation will happen on the same segment and continuous doc_ids.
 // - all operations in the group are committed at the same time, making the group
 // atomic.
-type AddBatch = SmallVec<[AddOperation; 4]>;
-type AddBatchSender = channel::Sender<AddBatch>;
-type AddBatchReceiver = channel::Receiver<AddBatch>;
+type AddBatch<D> = SmallVec<[AddOperation<D>; 4]>;
+type AddBatchSender<D> = channel::Sender<AddBatch<D>>;
+type AddBatchReceiver<D> = channel::Receiver<AddBatch<D>>;
 
 #[cfg(feature = "mmap")]
 #[cfg(test)]

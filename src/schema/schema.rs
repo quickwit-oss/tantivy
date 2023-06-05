@@ -509,7 +509,7 @@ mod tests {
 
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::InvalidJson;
-    use crate::schema::*;
+    use crate::schema::{DocValue, *};
 
     #[test]
     fn test_locate_splitting_dots() {
