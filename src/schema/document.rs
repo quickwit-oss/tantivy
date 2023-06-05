@@ -50,7 +50,8 @@ pub trait DocumentAccess: Send + Sync + 'static {
     /// The result of this method is not cached and is
     /// computed on the fly when this method is called.
     fn get_sorted_field_values(&self) -> Vec<(Field, Vec<Self::Value<'_>>)> {
-        let mut field_values: Vec<(Field, Self::Value<'_>)> = self.iter_fields_and_values().collect();
+        let mut field_values: Vec<(Field, Self::Value<'_>)> =
+            self.iter_fields_and_values().collect();
         field_values.sort_by_key(|(field, _)| *field);
 
         let mut field_values_it = field_values.into_iter();
@@ -69,10 +70,8 @@ pub trait DocumentAccess: Send + Sync + 'static {
             if field == current_field {
                 current_group.push(value);
             } else {
-                grouped_field_values.push((
-                    current_field,
-                    mem::replace(&mut current_group, vec![value]),
-                ));
+                grouped_field_values
+                    .push((current_field, mem::replace(&mut current_group, vec![value])));
                 current_field = field;
             }
         }

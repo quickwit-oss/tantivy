@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::{fmt, io};
-use std::borrow::Cow;
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 

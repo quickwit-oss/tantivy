@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED, JsonVisitor, JsonValueVisitor};
+use crate::schema::{Field, JsonValueVisitor, JsonVisitor, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;

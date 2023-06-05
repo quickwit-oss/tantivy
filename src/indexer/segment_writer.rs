@@ -1,6 +1,5 @@
-
-use itertools::Itertools;
 use columnar::MonotonicallyMappableToU64;
+use itertools::Itertools;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
@@ -13,7 +12,9 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED, DocumentAccess, DocValue};
+use crate::schema::{
+    DocValue, DocumentAccess, FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED,
+};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, SegmentComponent};
@@ -79,10 +80,7 @@ impl SegmentWriter {
     /// the flushing behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(
-        memory_budget_in_bytes: usize,
-        segment: Segment,
-    ) -> crate::Result<Self> {
+    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
@@ -210,7 +208,7 @@ impl SegmentWriter {
                         } else if let Some(tok_str) = value.as_tokenized_text() {
                             PreTokenizedStream::from(tok_str.clone()).into()
                         } else {
-                            continue
+                            continue;
                         };
 
                         assert!(term_buffer.is_empty());
@@ -334,7 +332,10 @@ impl SegmentWriter {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document<D: DocumentAccess>(&mut self, add_operation: AddOperation<D>) -> crate::Result<()> {
+    pub fn add_document<D: DocumentAccess>(
+        &mut self,
+        add_operation: AddOperation<D>,
+    ) -> crate::Result<()> {
         let AddOperation { document, opstamp } = add_operation;
         self.doc_opstamps.push(opstamp);
         self.fast_field_writers.add_document(&document)?;

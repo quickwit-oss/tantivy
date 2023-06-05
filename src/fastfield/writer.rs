@@ -6,7 +6,10 @@ use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{value_type_to_column_type, DocValue, FieldType, Schema, Type, DocumentAccess, JsonVisitor, JsonValueVisitor};
+use crate::schema::{
+    value_type_to_column_type, DocValue, DocumentAccess, FieldType, JsonValueVisitor, JsonVisitor,
+    Schema, Type,
+};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTimePrecision, DocId, TantivyError};
 
@@ -145,16 +148,11 @@ impl FastFieldsWriter {
                     NumericalValue::from(val),
                 );
             } else if let Some(val) = value.as_str() {
-                if let Some(tokenizer) =
-                    &self.per_field_tokenizer[field.field_id() as usize]
-                {
+                if let Some(tokenizer) = &self.per_field_tokenizer[field.field_id() as usize] {
                     let mut token_stream = tokenizer.token_stream(val);
                     token_stream.process(&mut |token: &Token| {
-                        self.columnar_writer.record_str(
-                            doc_id,
-                            field_name.as_str(),
-                            &token.text,
-                        );
+                        self.columnar_writer
+                            .record_str(doc_id, field_name.as_str(), &token.text);
                     })
                 } else {
                     self.columnar_writer
@@ -165,18 +163,14 @@ impl FastFieldsWriter {
                     .record_bytes(doc_id, field_name.as_str(), val);
             } else if let Some(val) = value.as_tokenized_text() {
                 for token in &val.tokens {
-                    self.columnar_writer.record_str(
-                        doc_id,
-                        field_name.as_str(),
-                        &token.text,
-                    );
+                    self.columnar_writer
+                        .record_str(doc_id, field_name.as_str(), &token.text);
                 }
             } else if let Some(val) = value.as_bool() {
                 self.columnar_writer
                     .record_bool(doc_id, field_name.as_str(), val);
             } else if let Some(val) = value.as_date() {
-                let date_precision =
-                    self.date_precisions[field.field_id() as usize];
+                let date_precision = self.date_precisions[field.field_id() as usize];
                 let truncated_datetime = val.truncate(date_precision);
                 self.columnar_writer.record_datetime(
                     doc_id,
@@ -184,18 +178,14 @@ impl FastFieldsWriter {
                     truncated_datetime,
                 );
             } else if let Some(val) = value.as_facet() {
-                self.columnar_writer.record_str(
-                    doc_id,
-                    field_name.as_str(),
-                    val.encoded_str(),
-                );
+                self.columnar_writer
+                    .record_str(doc_id, field_name.as_str(), val.encoded_str());
             } else if let Some(val) = value.as_json() {
                 let expand_dots = self.expand_dots[field.field_id() as usize];
                 self.json_path_buffer.clear();
                 self.json_path_buffer.push_str(field_name);
 
-                let text_analyzer =
-                    &self.per_field_tokenizer[field.field_id() as usize];
+                let text_analyzer = &self.per_field_tokenizer[field.field_id() as usize];
 
                 record_json_obj_to_columnar_writer(
                     doc_id,

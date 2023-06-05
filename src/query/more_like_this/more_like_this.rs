@@ -3,7 +3,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
-use crate::schema::{DocumentAccess, DocValue, Field, FieldType, IndexRecordOption, Term};
+use crate::schema::{DocValue, DocumentAccess, Field, FieldType, IndexRecordOption, Term};
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
 };
@@ -59,7 +59,6 @@ pub struct MoreLikeThis {
     pub boost_factor: Option<f32>,
     /// Current set of stop words.
     pub stop_words: Vec<String>,
-
 }
 
 impl Default for MoreLikeThis {
@@ -129,8 +128,6 @@ impl MoreLikeThis {
     ) -> Result<Vec<ScoreTerm>> {
         let doc = searcher.doc::<D>(doc_address)?;
 
-
-
         let field_to_values = doc.get_sorted_field_values();
         self.retrieve_terms_from_doc_fields(searcher, &field_to_values)
     }
@@ -180,12 +177,9 @@ impl MoreLikeThis {
                 let facets: Vec<&str> = values
                     .iter()
                     .map(|value| {
-                        value
-                            .as_facet()
-                            .map(|f| f.encoded_str())
-                            .ok_or_else(|| TantivyError::InvalidArgument(
-                                "invalid field value".to_string(),
-                            ))
+                        value.as_facet().map(|f| f.encoded_str()).ok_or_else(|| {
+                            TantivyError::InvalidArgument("invalid field value".to_string())
+                        })
                     })
                     .collect::<Result<Vec<_>>>()?;
                 for fake_str in facets {
