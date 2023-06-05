@@ -14,7 +14,7 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::Document;
+use crate::schema::{doc_binary_wrappers, DocumentAccess};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -198,9 +198,10 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
+    pub fn get<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
-        Ok(Document::deserialize(&mut doc_bytes)?)
+        doc_binary_wrappers::deserialize(&mut doc_bytes)
+            .map_err(crate::TantivyError::from)
     }
 
     /// Returns raw bytes of a given document.
@@ -232,13 +233,14 @@ impl StoreReader {
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
-    pub fn iter<'a: 'b, 'b>(
+    pub fn iter<'a: 'b, 'b, D: DocumentAccess>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
-    ) -> impl Iterator<Item = crate::Result<Document>> + 'b {
+    ) -> impl Iterator<Item = crate::Result<D>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
-            Ok(Document::deserialize(&mut doc_bytes)?)
+            doc_binary_wrappers::deserialize(&mut doc_bytes)
+                .map_err(crate::TantivyError::from)
         })
     }
 
@@ -364,9 +366,10 @@ impl StoreReader {
     }
 
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
-    pub async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
+    pub async fn get_async<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
-        Ok(Document::deserialize(&mut doc_bytes)?)
+        doc_binary_wrappers::deserialize(&mut doc_bytes)
+            .map_err(crate::TantivyError::from)
     }
 }
 

@@ -1,7 +1,8 @@
+use std::fmt::{Debug, Formatter};
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
-use crate::schema::{Field, Value};
-use crate::DocAddress;
+use crate::schema::{DocumentAccess, Field};
+use crate::{DocAddress, Document};
 
 /// A query that matches all of the documents similar to a document
 /// or a set of field values provided.
@@ -22,26 +23,61 @@ use crate::DocAddress;
 ///     .with_stop_words(vec!["for".to_string()])
 ///     .with_document(DocAddress::new(2, 1));
 /// ```
-#[derive(Debug, Clone)]
-pub struct MoreLikeThisQuery {
+pub struct MoreLikeThisQuery<D: DocumentAccess = Document> {
     mlt: MoreLikeThis,
-    target: TargetDocument,
+    target: TargetDocument<D>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-enum TargetDocument {
-    DocumentAdress(DocAddress),
-    DocumentFields(Vec<(Field, Vec<Value>)>),
+impl<D: DocumentAccess> Debug for MoreLikeThisQuery<D> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MoreLikeThisQuery")
+            .field("mlt", &self.mlt)
+            .field("target", &self.target)
+            .finish()
+    }
 }
 
-impl MoreLikeThisQuery {
+impl<D: DocumentAccess> Clone for MoreLikeThisQuery< D> {
+    fn clone(&self) -> Self {
+        Self {
+            mlt: self.mlt.clone(),
+            target: self.target.clone(),
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum TargetDocument<D: DocumentAccess = Document> {
+    DocumentAddress(DocAddress),
+    DocumentFields(Vec<(Field, Vec<D::Value<'static>>)>),
+}
+
+impl<D: DocumentAccess> Debug for TargetDocument<D> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DocumentAddress(inner) => write!(f, "DocumentAddress({inner:?})"),
+            Self::DocumentFields(inner) => write!(f, "DocumentFields({inner:?})"),
+        }
+    }
+}
+
+impl<D: DocumentAccess> Clone for TargetDocument<D> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::DocumentAddress(value) => Self::DocumentAddress(value.clone()),
+            Self::DocumentFields(value) => Self::DocumentFields(value.clone()),
+        }
+    }
+}
+
+impl<D: DocumentAccess> MoreLikeThisQuery<D> {
     /// Creates a new builder.
     pub fn builder() -> MoreLikeThisQueryBuilder {
         MoreLikeThisQueryBuilder::default()
     }
 }
 
-impl Query for MoreLikeThisQuery {
+impl<D: DocumentAccess> Query for MoreLikeThisQuery<D> {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let searcher = match enable_scoring {
             EnableScoring::Enabled { searcher, .. } => searcher,
@@ -51,9 +87,9 @@ impl Query for MoreLikeThisQuery {
             }
         };
         match &self.target {
-            TargetDocument::DocumentAdress(doc_address) => self
+            TargetDocument::DocumentAddress(doc_address) => self
                 .mlt
-                .query_with_document(searcher, *doc_address)?
+                .query_with_document::<D>(searcher, *doc_address)?
                 .weight(enable_scoring),
             TargetDocument::DocumentFields(doc_fields) => self
                 .mlt
@@ -156,7 +192,7 @@ impl MoreLikeThisQueryBuilder {
     pub fn with_document(self, doc_address: DocAddress) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
-            target: TargetDocument::DocumentAdress(doc_address),
+            target: TargetDocument::DocumentAddress(doc_address),
         }
     }
 
@@ -167,7 +203,7 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields(self, doc_fields: Vec<(Field, Vec<Value>)>) -> MoreLikeThisQuery {
+    pub fn with_document_fields<D: DocumentAccess>(self, doc_fields: Vec<(Field, Vec<D::Value<'static>>)>) -> MoreLikeThisQuery<D> {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),
@@ -236,7 +272,7 @@ mod tests {
         );
         assert_eq!(
             query.target,
-            TargetDocument::DocumentAdress(DocAddress::new(1, 2))
+            TargetDocument::DocumentAddress(DocAddress::new(1, 2))
         );
     }
 

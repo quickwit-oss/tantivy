@@ -356,9 +356,8 @@ mod binary_serialize {
 
     const TOK_STR_CODE: u8 = 0;
 
-    pub fn serialize<'a, T, W>(value: &'a T, writer: &mut W) -> io::Result<()>
+    pub fn serialize<'a, W>(value: impl DocValue<'a>, writer: &mut W) -> io::Result<()>
     where
-        T: DocValue<'a>,
         W: Write + ?Sized,
     {
         if let Some(val) = value.as_str() {
