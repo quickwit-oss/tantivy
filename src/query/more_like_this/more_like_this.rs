@@ -3,7 +3,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
-use crate::schema::{Field, FieldType, IndexRecordOption, Term, Value};
+use crate::schema::{DocumentAccess, DocValue, Field, FieldType, IndexRecordOption, Term};
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
 };
@@ -59,6 +59,7 @@ pub struct MoreLikeThis {
     pub boost_factor: Option<f32>,
     /// Current set of stop words.
     pub stop_words: Vec<String>,
+
 }
 
 impl Default for MoreLikeThis {
@@ -79,21 +80,21 @@ impl Default for MoreLikeThis {
 impl MoreLikeThis {
     /// Creates a [`BooleanQuery`] using a document address to collect
     /// the top stored field values.
-    pub fn query_with_document(
+    pub fn query_with_document<D: DocumentAccess>(
         &self,
         searcher: &Searcher,
         doc_address: DocAddress,
     ) -> Result<BooleanQuery> {
-        let score_terms = self.retrieve_terms_from_doc_address(searcher, doc_address)?;
+        let score_terms = self.retrieve_terms_from_doc_address::<D>(searcher, doc_address)?;
         let query = self.create_query(score_terms);
         Ok(query)
     }
 
     /// Creates a [`BooleanQuery`] using a set of field values.
-    pub fn query_with_document_fields(
+    pub fn query_with_document_fields<'a, V: DocValue<'a>>(
         &self,
         searcher: &Searcher,
-        doc_fields: &[(Field, Vec<Value>)],
+        doc_fields: &[(Field, Vec<V>)],
     ) -> Result<BooleanQuery> {
         let score_terms = self.retrieve_terms_from_doc_fields(searcher, doc_fields)?;
         let query = self.create_query(score_terms);
@@ -121,31 +122,25 @@ impl MoreLikeThis {
 
     /// Finds terms for a more-like-this query.
     /// doc_address is the address of document from which to find terms.
-    fn retrieve_terms_from_doc_address(
+    fn retrieve_terms_from_doc_address<D: DocumentAccess>(
         &self,
         searcher: &Searcher,
         doc_address: DocAddress,
     ) -> Result<Vec<ScoreTerm>> {
-        let doc = searcher.doc(doc_address)?;
-        let field_to_values = doc
-            .get_sorted_field_values()
-            .iter()
-            .map(|(field, values)| {
-                (
-                    *field,
-                    values.iter().map(|v| (**v).clone()).collect::<Vec<Value>>(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let doc = searcher.doc::<D>(doc_address)?;
+
+
+
+        let field_to_values = doc.get_sorted_field_values();
         self.retrieve_terms_from_doc_fields(searcher, &field_to_values)
     }
 
     /// Finds terms for a more-like-this query.
     /// field_to_field_values is a mapping from field to possible values of that field.
-    fn retrieve_terms_from_doc_fields(
+    fn retrieve_terms_from_doc_fields<'a, V: DocValue<'a>>(
         &self,
         searcher: &Searcher,
-        field_to_values: &[(Field, Vec<Value>)],
+        field_to_values: &[(Field, Vec<V>)],
     ) -> Result<Vec<ScoreTerm>> {
         if field_to_values.is_empty() {
             return Err(TantivyError::InvalidArgument(
@@ -164,11 +159,11 @@ impl MoreLikeThis {
     /// Computes the frequency of values for a field while updating the term frequencies
     /// Note: A FieldValue can be made up of multiple terms.
     /// We are interested in extracting terms within FieldValue
-    fn add_term_frequencies(
+    fn add_term_frequencies<'a, V: DocValue<'a>>(
         &self,
         searcher: &Searcher,
         field: Field,
-        values: &[Value],
+        values: &[V],
         term_frequencies: &mut HashMap<Term, usize>,
     ) -> Result<()> {
         let schema = searcher.schema();
@@ -184,11 +179,13 @@ impl MoreLikeThis {
             FieldType::Facet(_) => {
                 let facets: Vec<&str> = values
                     .iter()
-                    .map(|value| match value {
-                        Value::Facet(ref facet) => Ok(facet.encoded_str()),
-                        _ => Err(TantivyError::InvalidArgument(
-                            "invalid field value".to_string(),
-                        )),
+                    .map(|value| {
+                        value
+                            .as_facet()
+                            .map(|f| f.encoded_str())
+                            .ok_or_else(|| TantivyError::InvalidArgument(
+                                "invalid field value".to_string(),
+                            ))
                     })
                     .collect::<Result<Vec<_>>>()?;
                 for fake_str in facets {
@@ -204,22 +201,18 @@ impl MoreLikeThis {
                 let mut token_streams: Vec<BoxTokenStream> = vec![];
 
                 for value in values {
-                    match value {
-                        Value::PreTokStr(tok_str) => {
-                            token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
+                    if let Some(text) = value.as_str() {
+                        if let Some(tokenizer) = text_options
+                            .get_indexing_options()
+                            .map(|text_indexing_options| {
+                                text_indexing_options.tokenizer().to_string()
+                            })
+                            .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
+                        {
+                            token_streams.push(tokenizer.token_stream(text));
                         }
-                        Value::Str(ref text) => {
-                            if let Some(tokenizer) = text_options
-                                .get_indexing_options()
-                                .map(|text_indexing_options| {
-                                    text_indexing_options.tokenizer().to_string()
-                                })
-                                .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
-                            {
-                                token_streams.push(tokenizer.token_stream(text));
-                            }
-                        }
-                        _ => (),
+                    } else if let Some(tok_str) = value.as_tokenized_text() {
+                        token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
                     }
                 }
 

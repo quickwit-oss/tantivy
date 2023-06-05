@@ -1,5 +1,6 @@
-use columnar::MonotonicallyMappableToU64;
+
 use itertools::Itertools;
+use columnar::MonotonicallyMappableToU64;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
@@ -12,10 +13,10 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::{FieldEntry, FieldType, Schema, Term, Value, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED, DocumentAccess, DocValue};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DocId, Document, Opstamp, SegmentComponent};
+use crate::{DocId, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
 ///
@@ -81,7 +82,7 @@ impl SegmentWriter {
     pub fn for_segment(
         memory_budget_in_bytes: usize,
         segment: Segment,
-    ) -> crate::Result<SegmentWriter> {
+    ) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
@@ -106,7 +107,7 @@ impl SegmentWriter {
                     .unwrap_or_default()
             })
             .collect();
-        Ok(SegmentWriter {
+        Ok(Self {
             max_doc: 0,
             ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
@@ -157,15 +158,15 @@ impl SegmentWriter {
             + self.segment_serializer.mem_usage()
     }
 
-    fn index_document(&mut self, doc: &Document) -> crate::Result<()> {
+    fn index_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
         let vals_grouped_by_field = doc
-            .field_values()
-            .iter()
-            .sorted_by_key(|el| el.field())
-            .group_by(|el| el.field());
+            .iter_fields_and_values()
+            .sorted_by_key(|(field, _)| *field)
+            .group_by(|(field, _)| *field);
         for (field, field_values) in &vals_grouped_by_field {
-            let values = field_values.map(|field_value| field_value.value());
+            let values = field_values.map(|el| el.1);
+
             let field_entry = self.schema.get_field_entry(field);
             let make_schema_error = || {
                 crate::TantivyError::SchemaError(format!(
@@ -202,18 +203,14 @@ impl SegmentWriter {
                 FieldType::Str(_) => {
                     let mut indexing_position = IndexingPosition::default();
                     for value in values {
-                        let mut token_stream = match value {
-                            Value::PreTokStr(tok_str) => {
-                                PreTokenizedStream::from(tok_str.clone()).into()
-                            }
-                            Value::Str(ref text) => {
-                                let text_analyzer =
-                                    &self.per_field_text_analyzers[field.field_id() as usize];
-                                text_analyzer.token_stream(text)
-                            }
-                            _ => {
-                                continue;
-                            }
+                        let mut token_stream = if let Some(text) = value.as_str() {
+                            let text_analyzer =
+                                &self.per_field_text_analyzers[field.field_id() as usize];
+                            text_analyzer.token_stream(text)
+                        } else if let Some(tok_str) = value.as_tokenized_text() {
+                            PreTokenizedStream::from(tok_str.clone()).into()
+                        } else {
+                            continue
                         };
 
                         assert!(term_buffer.is_empty());
@@ -337,7 +334,7 @@ impl SegmentWriter {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(&mut self, add_operation: AddOperation) -> crate::Result<()> {
+    pub fn add_document<D: DocumentAccess>(&mut self, add_operation: AddOperation<D>) -> crate::Result<()> {
         let AddOperation { document, opstamp } = add_operation;
         self.doc_opstamps.push(opstamp);
         self.fast_field_writers.add_document(&document)?;

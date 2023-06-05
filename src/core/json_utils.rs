@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED, JsonVisitor, JsonValueVisitor};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -64,9 +64,9 @@ impl IndexingPositionsPerPath {
     }
 }
 
-pub(crate) fn index_json_values<'a>(
+pub(crate) fn index_json_values<'a, V: JsonVisitor<'a>>(
     doc: DocId,
-    json_values: impl Iterator<Item = crate::Result<&'a serde_json::Map<String, serde_json::Value>>>,
+    json_visitors: impl Iterator<Item = crate::Result<V>>,
     text_analyzer: &TextAnalyzer,
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
@@ -75,11 +75,11 @@ pub(crate) fn index_json_values<'a>(
 ) -> crate::Result<()> {
     let mut json_term_writer = JsonTermWriter::wrap(term_buffer, expand_dots_enabled);
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
-    for json_value_res in json_values {
-        let json_value = json_value_res?;
+    for json_visitor_res in json_visitors {
+        let json_visitor = json_visitor_res?;
         index_json_object(
             doc,
-            json_value,
+            json_visitor,
             text_analyzer,
             &mut json_term_writer,
             postings_writer,
@@ -90,20 +90,20 @@ pub(crate) fn index_json_values<'a>(
     Ok(())
 }
 
-fn index_json_object(
+fn index_json_object<'a, V: JsonVisitor<'a>>(
     doc: DocId,
-    json_value: &serde_json::Map<String, serde_json::Value>,
+    mut json_visitor: V,
     text_analyzer: &TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    for (json_path_segment, json_value) in json_value {
+    while let Some((json_path_segment, json_value_visitor)) = json_visitor.next_key_value() {
         json_term_writer.push_path_segment(json_path_segment);
         index_json_value(
             doc,
-            json_value,
+            json_value_visitor,
             text_analyzer,
             json_term_writer,
             postings_writer,
@@ -114,32 +114,17 @@ fn index_json_object(
     }
 }
 
-fn index_json_value(
+fn index_json_value<'a, V: JsonValueVisitor<'a>>(
     doc: DocId,
-    json_value: &serde_json::Value,
+    json_value_visitor: V,
     text_analyzer: &TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    match json_value {
-        serde_json::Value::Null => {}
-        serde_json::Value::Bool(val_bool) => {
-            json_term_writer.set_fast_value(*val_bool);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        serde_json::Value::Number(number) => {
-            if let Some(number_i64) = number.as_i64() {
-                json_term_writer.set_fast_value(number_i64);
-            } else if let Some(number_u64) = number.as_u64() {
-                json_term_writer.set_fast_value(number_u64);
-            } else if let Some(number_f64) = number.as_f64() {
-                json_term_writer.set_fast_value(number_f64);
-            }
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        serde_json::Value::String(text) => match infer_type_from_str(text) {
+    if let Some(val) = json_value_visitor.as_str() {
+        match infer_type_from_str(val) {
             TextOrDateTime::Text(text) => {
                 let mut token_stream = text_analyzer.token_stream(text);
                 // TODO make sure the chain position works out.
@@ -157,24 +142,24 @@ fn index_json_value(
                 json_term_writer.set_fast_value(DateTime::from_utc(dt));
                 postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
             }
-        },
-        serde_json::Value::Array(arr) => {
-            for val in arr {
-                index_json_value(
-                    doc,
-                    val,
-                    text_analyzer,
-                    json_term_writer,
-                    postings_writer,
-                    ctx,
-                    positions_per_path,
-                );
-            }
         }
-        serde_json::Value::Object(map) => {
-            index_json_object(
+    } else if let Some(val) = json_value_visitor.as_u64() {
+        json_term_writer.set_fast_value(val);
+        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+    } else if let Some(val) = json_value_visitor.as_i64() {
+        json_term_writer.set_fast_value(val);
+        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+    } else if let Some(val) = json_value_visitor.as_f64() {
+        json_term_writer.set_fast_value(val);
+        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+    } else if let Some(val) = json_value_visitor.as_bool() {
+        json_term_writer.set_fast_value(val);
+        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+    } else if let Some(elements) = json_value_visitor.as_array() {
+        for val in elements {
+            index_json_value(
                 doc,
-                map,
+                val,
                 text_analyzer,
                 json_term_writer,
                 postings_writer,
@@ -182,6 +167,16 @@ fn index_json_value(
                 positions_per_path,
             );
         }
+    } else if let Some(object) = json_value_visitor.as_object() {
+        index_json_object(
+            doc,
+            object,
+            text_analyzer,
+            json_term_writer,
+            postings_writer,
+            ctx,
+            positions_per_path,
+        );
     }
 }
 

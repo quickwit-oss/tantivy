@@ -18,7 +18,7 @@ use crate::DateTime;
 /// The core trait representing a document within the index.
 pub trait DocumentAccess: Send + Sync + 'static {
     /// The value of the field.
-    type Value<'a>: DocValue<'a>
+    type Value<'a>: DocValue<'a> + Clone
     where Self: 'a;
     /// The owned version of a value type.
     ///
@@ -44,9 +44,45 @@ pub trait DocumentAccess: Send + Sync + 'static {
 
     /// Create a new document from a given stream of fields.
     fn from_fields(fields: Vec<(Field, Self::OwnedValue)>) -> Self;
+
+    /// Sort and groups the field_values by field.
+    ///
+    /// The result of this method is not cached and is
+    /// computed on the fly when this method is called.
+    fn get_sorted_field_values(&self) -> Vec<(Field, Vec<Self::Value<'_>>)> {
+        let mut field_values: Vec<(Field, Self::Value<'_>)> = self.iter_fields_and_values().collect();
+        field_values.sort_by_key(|(field, _)| *field);
+
+        let mut field_values_it = field_values.into_iter();
+
+        let first_field_value = if let Some(first_field_value) = field_values_it.next() {
+            first_field_value
+        } else {
+            return Vec::new();
+        };
+
+        let mut grouped_field_values = vec![];
+        let mut current_field = first_field_value.0;
+        let mut current_group = vec![first_field_value.1];
+
+        for (field, value) in field_values_it {
+            if field == current_field {
+                current_group.push(value);
+            } else {
+                grouped_field_values.push((
+                    current_field,
+                    mem::replace(&mut current_group, vec![value]),
+                ));
+                current_field = field;
+            }
+        }
+
+        grouped_field_values.push((current_field, current_group));
+        grouped_field_values
+    }
 }
 
-pub trait DocValue<'a>: Debug {
+pub trait DocValue<'a>: Send + Sync + Debug {
     /// The visitor used to walk through the key-value pairs
     /// of the provided JSON object.
     type JsonVisitor: JsonVisitor<'a>;
@@ -223,7 +259,7 @@ pub mod doc_binary_wrappers {
             let value = value as <T as DocumentAccess>::Value<'_>;
 
             field.serialize(writer)?;
-            value::serialize(&value, writer)?;
+            value::serialize(value, writer)?;
         }
 
         Ok(())
@@ -238,7 +274,7 @@ pub mod doc_binary_wrappers {
 
         for (field, value) in value.iter_fields_and_values() {
             field.serialize(writer)?;
-            value::serialize(&value, writer)?;
+            value::serialize(value, writer)?;
         }
 
         Ok(())
@@ -411,42 +447,6 @@ impl Document {
     /// field_values accessor
     pub fn field_values(&self) -> &[FieldValue] {
         &self.field_values
-    }
-
-    /// Sort and groups the field_values by field.
-    ///
-    /// The result of this method is not cached and is
-    /// computed on the fly when this method is called.
-    pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&Value>)> {
-        let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
-        field_values.sort_by_key(|field_value| field_value.field());
-
-        let mut field_values_it = field_values.into_iter();
-
-        let first_field_value = if let Some(first_field_value) = field_values_it.next() {
-            first_field_value
-        } else {
-            return Vec::new();
-        };
-
-        let mut grouped_field_values = vec![];
-        let mut current_field = first_field_value.field();
-        let mut current_group = vec![first_field_value.value()];
-
-        for field_value in field_values_it {
-            if field_value.field() == current_field {
-                current_group.push(field_value.value());
-            } else {
-                grouped_field_values.push((
-                    current_field,
-                    mem::replace(&mut current_group, vec![field_value.value()]),
-                ));
-                current_field = field_value.field();
-            }
-        }
-
-        grouped_field_values.push((current_field, current_group));
-        grouped_field_values
     }
 
     /// Returns all of the `FieldValue`s associated the given field

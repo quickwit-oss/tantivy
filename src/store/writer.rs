@@ -5,7 +5,7 @@ use common::BinarySerializable;
 use super::compressors::Compressor;
 use super::StoreReader;
 use crate::directory::WritePtr;
-use crate::schema::{Document, Schema};
+use crate::schema::{doc_binary_wrappers, DocumentAccess, Schema};
 use crate::store::store_compressor::BlockCompressor;
 use crate::DocId;
 
@@ -95,9 +95,9 @@ impl StoreWriter {
     ///
     /// The document id is implicitly the current number
     /// of documents.
-    pub fn store(&mut self, document: &Document, schema: &Schema) -> io::Result<()> {
+    pub fn store<D: DocumentAccess>(&mut self, document: &D, schema: &Schema) -> io::Result<()> {
         self.doc_pos.push(self.current_block.len() as u32);
-        document.serialize_stored(schema, &mut self.current_block)?;
+        doc_binary_wrappers::serialize_stored(document, schema, &mut self.current_block)?;
         self.num_docs_in_current_block += 1;
         self.check_flush_block()?;
         Ok(())
