@@ -112,7 +112,7 @@ mod docset_collector;
 pub use self::docset_collector::DocSetCollector;
 
 mod filter_collector_wrapper;
-pub use self::filter_collector_wrapper::FilterCollector;
+pub use self::filter_collector_wrapper::{BytesFilterCollector, FilterCollector};
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
