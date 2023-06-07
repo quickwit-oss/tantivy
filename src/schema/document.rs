@@ -89,47 +89,69 @@ pub trait DocValue<'a>: Send + Sync + Debug {
     /// Get the string contents of the value if applicable.
     ///
     /// If the value is not a string, `None` should be returned.
-    fn as_str(&self) -> Option<&str>;
+    fn as_str(&self) -> Option<&str> {
+        None
+    }
     /// Get the facet contents of the value if applicable.
     ///
     /// If the value is not a string, `None` should be returned.
-    fn as_facet(&self) -> Option<&Facet>;
+    fn as_facet(&self) -> Option<&Facet> {
+        None
+    }
     /// Get the u64 contents of the value if applicable.
     ///
     /// If the value is not a u64, `None` should be returned.
-    fn as_u64(&self) -> Option<u64>;
+    fn as_u64(&self) -> Option<u64> {
+        None
+    }
     /// Get the i64 contents of the value if applicable.
     ///
     /// If the value is not a i64, `None` should be returned.
-    fn as_i64(&self) -> Option<i64>;
+    fn as_i64(&self) -> Option<i64> {
+        None
+    }
     /// Get the f64 contents of the value if applicable.
     ///
     /// If the value is not a f64, `None` should be returned.
-    fn as_f64(&self) -> Option<f64>;
+    fn as_f64(&self) -> Option<f64> {
+        None
+    }
     /// Get the date contents of the value if applicable.
     ///
     /// If the value is not a date, `None` should be returned.
-    fn as_date(&self) -> Option<DateTime>;
+    fn as_date(&self) -> Option<DateTime> {
+        None
+    }
     /// Get the bool contents of the value if applicable.
     ///
     /// If the value is not a boolean, `None` should be returned.
-    fn as_bool(&self) -> Option<bool>;
+    fn as_bool(&self) -> Option<bool> {
+        None
+    }
     /// Get the IP addr contents of the value if applicable.
     ///
     /// If the value is not an IP addr, `None` should be returned.
-    fn as_ip_addr(&self) -> Option<Ipv6Addr>;
+    fn as_ip_addr(&self) -> Option<Ipv6Addr> {
+        None
+    }
     /// Get the bytes contents of the value if applicable.
     ///
     /// If the value is not bytes, `None` should be returned.
-    fn as_bytes(&self) -> Option<&[u8]>;
+    fn as_bytes(&self) -> Option<&[u8]> {
+        None
+    }
     /// Get the pre-tokenized string contents of the value if applicable.
     ///
     /// If the value is not pre-tokenized string, `None` should be returned.
-    fn as_tokenized_text(&self) -> Option<&PreTokenizedString>;
+    fn as_tokenized_text(&self) -> Option<&PreTokenizedString> {
+        None
+    }
     /// Get the JSON contents of the value if applicable.
     ///
     /// If the value is not pre-tokenized string, `None` should be returned.
-    fn as_json(&self) -> Option<Self::JsonVisitor>;
+    fn as_json(&self) -> Option<Self::JsonVisitor> {
+        None
+    }
 }
 
 /// The deserializer trait for deserialization of a value from the
@@ -186,35 +208,51 @@ pub trait JsonValueVisitor<'a> {
     type ObjectVisitor: JsonVisitor<'a>;
 
     /// Checks if the value is `null` or not.
-    fn is_null(&self) -> bool;
+    fn is_null(&self) -> bool {
+        true
+    }
     /// Get the string contents of the value if applicable.
     ///
     /// If the value is not a string, `None` should be returned.
-    fn as_str(&self) -> Option<&str>;
+    fn as_str(&self) -> Option<&str> {
+        None
+    }
     /// Get the i64 contents of the value if applicable.
     ///
     /// If the value is not a i64, `None` should be returned.
-    fn as_i64(&self) -> Option<i64>;
+    fn as_i64(&self) -> Option<i64> {
+        None
+    }
     /// Get the u64 contents of the value if applicable.
     ///
     /// If the value is not a u64, `None` should be returned.
-    fn as_u64(&self) -> Option<u64>;
+    fn as_u64(&self) -> Option<u64> {
+        None
+    }
     /// Get the f64 contents of the value if applicable.
     ///
     /// If the value is not a f64, `None` should be returned.
-    fn as_f64(&self) -> Option<f64>;
+    fn as_f64(&self) -> Option<f64> {
+        None
+    }
     /// Get the bool contents of the value if applicable.
     ///
     /// If the value is not a boolean, `None` should be returned.
-    fn as_bool(&self) -> Option<bool>;
+    fn as_bool(&self) -> Option<bool> {
+        None
+    }
     /// Get the array contents of the value if applicable.
     ///
     /// If the value is not an array, `None` should be returned.
-    fn as_array(&self) -> Option<Self::ArrayIter>;
+    fn as_array(&self) -> Option<Self::ArrayIter> {
+        None
+    }
     /// Get the object contents of the value if applicable.
     ///
     /// If the value is not an object, `None` should be returned.
-    fn as_object(&self) -> Option<Self::ObjectVisitor>;
+    fn as_object(&self) -> Option<Self::ObjectVisitor> {
+        None
+    }
 }
 
 /// A trait representing a JSON key-value object.
