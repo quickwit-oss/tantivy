@@ -428,6 +428,12 @@ impl SegmentTermCollector {
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
+        if field_type == ColumnType::Bytes || field_type == ColumnType::Bool {
+            return Err(TantivyError::InvalidArgument(format!(
+                "terms aggregation is not supported for column type {:?}",
+                field_type
+            )));
+        }
         let term_buckets = TermBuckets::default();
 
         if let Some(custom_order) = req.order.as_ref() {
@@ -1497,6 +1503,43 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&elasticsearch_compatible_json).unwrap())
                 .unwrap();
         assert_eq!(agg_req, agg_req_deser);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_bytes() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let bytes_field = schema_builder.add_bytes_field("bytes", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                bytes_field => vec![1,2,3],
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "bytes"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // TODO: Returning an error would be better instead of an empty result, since this is not a
+        // JSON field
+        assert_eq!(
+            res["my_texts"]["buckets"][0]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
 
         Ok(())
     }
