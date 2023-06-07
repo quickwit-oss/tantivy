@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
@@ -11,6 +11,7 @@ use serde::Serializer;
 use serde_json::Map;
 
 use super::*;
+use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
@@ -302,21 +303,6 @@ pub mod doc_binary_wrappers {
         Ok(())
     }
 
-    pub fn serialize<T, W>(value: &T, writer: &mut W) -> io::Result<()>
-    where
-        T: DocumentAccess,
-        W: Write + ?Sized,
-    {
-        VInt(value.len() as u64).serialize(writer)?;
-
-        for (field, value) in value.iter_fields_and_values() {
-            field.serialize(writer)?;
-            value::serialize(value, writer)?;
-        }
-
-        Ok(())
-    }
-
     pub fn deserialize<T, R>(reader: &mut R) -> io::Result<T>
     where
         T: DocumentAccess,
@@ -497,6 +483,99 @@ impl Document {
     /// Returns the first `FieldValue` associated the given field
     pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.get_all(field).next()
+    }
+
+    /// Create document from a named doc.
+    pub fn convert_named_doc(
+        named_doc: NamedFieldDocument,
+        schema: &Schema,
+    ) -> Result<Document, DocParsingError> {
+        let mut document = Document::new();
+        for (field_name, values) in named_doc.0 {
+            if let Ok(field) = schema.get_field(&field_name) {
+                for value in values {
+                    document.add_field_value(field, value);
+                }
+            }
+        }
+        Ok(document)
+    }
+
+    /// Create a named document from the doc.
+    pub fn to_named_doc(&self, schema: &Schema) -> NamedFieldDocument {
+        let mut field_map = BTreeMap::new();
+        for (field, field_values) in self.get_sorted_field_values() {
+            let field_name = schema.get_field_name(field);
+            let values: Vec<Value> = field_values.into_iter().cloned().collect();
+            field_map.insert(field_name.to_string(), values);
+        }
+        NamedFieldDocument(field_map)
+    }
+
+    /// Encode the schema in JSON.
+    ///
+    /// Encoding a document cannot fail.
+    pub fn to_json(&self, schema: &Schema) -> String {
+        serde_json::to_string(&self.to_named_doc(schema))
+            .expect("doc encoding failed. This is a bug")
+    }
+
+    /// Build a document object from a json-object.
+    pub fn parse_document(doc_json: &str, schema: &Schema) -> Result<Document, DocParsingError> {
+        let json_obj: Map<String, serde_json::Value> =
+            serde_json::from_str(doc_json).map_err(|_| DocParsingError::invalid_json(doc_json))?;
+        Self::from_json_object(json_obj, schema)
+    }
+
+    /// Build a document object from a json-object.
+    pub fn from_json_object(
+        json_obj: Map<String, serde_json::Value>,
+        schema: &Schema,
+    ) -> Result<Document, DocParsingError> {
+        let mut doc = Document::default();
+        for (field_name, json_value) in json_obj {
+            if let Ok(field) = schema.get_field(&field_name) {
+                let field_entry = schema.get_field_entry(field);
+                let field_type = field_entry.field_type();
+                match json_value {
+                    serde_json::Value::Array(json_items) => {
+                        for json_item in json_items {
+                            let value = field_type
+                                .value_from_json(json_item)
+                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                            doc.add_field_value(field, value);
+                        }
+                    }
+                    _ => {
+                        let value = field_type
+                            .value_from_json(json_value)
+                            .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                        doc.add_field_value(field, value);
+                    }
+                }
+            }
+        }
+        Ok(doc)
+    }
+}
+
+/// Error that may happen when deserializing
+/// a document from JSON.
+#[derive(Debug, Error, PartialEq)]
+pub enum DocParsingError {
+    /// The payload given is not valid JSON.
+    #[error("The provided string is not valid JSON")]
+    InvalidJson(String),
+    /// One of the value node could not be parsed.
+    #[error("The field '{0:?}' could not be parsed: {1:?}")]
+    ValueError(String, ValueParsingError),
+}
+
+impl DocParsingError {
+    /// Builds a NotJson DocParsingError
+    fn invalid_json(invalid_json: &str) -> Self {
+        let sample = invalid_json.chars().take(20).collect();
+        DocParsingError::InvalidJson(sample)
     }
 }
 

@@ -1,16 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{self, Value as JsonValue};
 
 use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::schema::bytes_options::BytesOptions;
-use crate::schema::field_type::ValueParsingError;
 use crate::TantivyError;
 
 /// Tantivy has a very strict schema.
@@ -317,78 +315,6 @@ impl Schema {
             .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))
     }
 
-    /// Create document from a named doc.
-    pub fn convert_named_doc(
-        &self,
-        named_doc: NamedFieldDocument,
-    ) -> Result<Document, DocParsingError> {
-        let mut document = Document::new();
-        for (field_name, values) in named_doc.0 {
-            if let Ok(field) = self.get_field(&field_name) {
-                for value in values {
-                    document.add_field_value(field, value);
-                }
-            }
-        }
-        Ok(document)
-    }
-
-    /// Create a named document from the doc.
-    pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
-        let mut field_map = BTreeMap::new();
-        for (field, field_values) in doc.get_sorted_field_values() {
-            let field_name = self.get_field_name(field);
-            let values: Vec<Value> = field_values.into_iter().cloned().collect();
-            field_map.insert(field_name.to_string(), values);
-        }
-        NamedFieldDocument(field_map)
-    }
-
-    /// Encode the schema in JSON.
-    ///
-    /// Encoding a document cannot fail.
-    pub fn to_json(&self, doc: &Document) -> String {
-        serde_json::to_string(&self.to_named_doc(doc)).expect("doc encoding failed. This is a bug")
-    }
-
-    /// Build a document object from a json-object.
-    pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: serde_json::Map<String, JsonValue> =
-            serde_json::from_str(doc_json).map_err(|_| DocParsingError::invalid_json(doc_json))?;
-        self.json_object_to_doc(json_obj)
-    }
-
-    /// Build a document object from a json-object.
-    pub fn json_object_to_doc(
-        &self,
-        json_obj: serde_json::Map<String, JsonValue>,
-    ) -> Result<Document, DocParsingError> {
-        let mut doc = Document::default();
-        for (field_name, json_value) in json_obj {
-            if let Ok(field) = self.get_field(&field_name) {
-                let field_entry = self.get_field_entry(field);
-                let field_type = field_entry.field_type();
-                match json_value {
-                    JsonValue::Array(json_items) => {
-                        for json_item in json_items {
-                            let value = field_type
-                                .value_from_json(json_item)
-                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add_field_value(field, value);
-                        }
-                    }
-                    _ => {
-                        let value = field_type
-                            .value_from_json(json_value)
-                            .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                        doc.add_field_value(field, value);
-                    }
-                }
-            }
-        }
-        Ok(doc)
-    }
-
     /// Searches for a full_path in the schema, returning the field name and a JSON path.
     ///
     /// This function works by checking if the field exists for the exact given full_path.
@@ -475,26 +401,6 @@ impl<'de> Deserialize<'de> for Schema {
         }
 
         deserializer.deserialize_seq(SchemaVisitor)
-    }
-}
-
-/// Error that may happen when deserializing
-/// a document from JSON.
-#[derive(Debug, Error, PartialEq)]
-pub enum DocParsingError {
-    /// The payload given is not valid JSON.
-    #[error("The provided string is not valid JSON")]
-    InvalidJson(String),
-    /// One of the value node could not be parsed.
-    #[error("The field '{0:?}' could not be parsed: {1:?}")]
-    ValueError(String, ValueParsingError),
-}
-
-impl DocParsingError {
-    /// Builds a NotJson DocParsingError
-    fn invalid_json(invalid_json: &str) -> Self {
-        let sample = invalid_json.chars().take(20).collect();
-        DocParsingError::InvalidJson(sample)
     }
 }
 
