@@ -604,6 +604,42 @@ mod tests {
             });
             assert_eq!(res, expected_res);
         }
+
+        {
+            // 1day + hard_bounds as Rfc3339
+            let elasticsearch_compatible_json = json!(
+                {
+                    "sales_over_time": {
+                        "date_histogram": {
+                            "field": "date",
+                            "fixed_interval": "1d",
+                            "hard_bounds": {
+                                "min": "2015-01-02T00:00:00Z",
+                                "max": "2015-01-02T12:00:00Z"
+                            }
+                        }
+                    }
+                }
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request(agg_req, &index).unwrap();
+            let expected_res = json!({
+                "sales_over_time" : {
+                    "buckets": [
+                        {
+                            "doc_count": 1,
+                            "key": 1420156800000.0,
+                            "key_as_string": "2015-01-02T00:00:00Z"
+                        }
+                    ]
+                }
+            });
+            assert_eq!(res, expected_res);
+        }
     }
     #[test]
     fn histogram_test_invalid_req() {
