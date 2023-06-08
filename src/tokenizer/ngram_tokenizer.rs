@@ -33,7 +33,7 @@ use super::{Token, TokenStream, Tokenizer};
 /// ```rust
 /// use tantivy::tokenizer::*;
 ///
-/// let tokenizer = NgramTokenizer::new(2, 3, false);
+/// let mut tokenizer = NgramTokenizer::new(2, 3, false);
 /// let mut stream = tokenizer.token_stream("hello");
 /// {
 ///     let token = stream.next().unwrap();
@@ -87,6 +87,7 @@ pub struct NgramTokenizer {
     max_gram: usize,
     /// if true, will only parse the leading edge of the input
     prefix_only: bool,
+    token: Token,
 }
 
 impl NgramTokenizer {
@@ -101,6 +102,7 @@ impl NgramTokenizer {
             min_gram,
             max_gram,
             prefix_only,
+            token: Token::default(),
         }
     }
 
@@ -127,12 +129,13 @@ pub struct NgramTokenStream<'a> {
     /// input
     text: &'a str,
     /// output
-    token: Token,
+    token: &'a mut Token,
 }
 
 impl Tokenizer for NgramTokenizer {
     type TokenStream<'a> = NgramTokenStream<'a>;
-    fn token_stream<'a>(&self, text: &'a str) -> NgramTokenStream<'a> {
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> NgramTokenStream<'a> {
+        self.token.reset();
         NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
@@ -141,7 +144,7 @@ impl Tokenizer for NgramTokenizer {
             ),
             prefix_only: self.prefix_only,
             text,
-            token: Token::default(),
+            token: &mut self.token,
         }
     }
 }
@@ -164,10 +167,10 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
     }
 
     fn token(&self) -> &Token {
-        &self.token
+        self.token
     }
     fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+        self.token
     }
 }
 

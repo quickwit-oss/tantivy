@@ -162,7 +162,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         index
             .tokenizers()
-            .register("simple_no_truncation", SimpleTokenizer);
+            .register("simple_no_truncation", SimpleTokenizer::default());
         let reader = index.reader()?;
         let mut index_writer = index.writer_for_tests()?;
 
@@ -194,7 +194,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         index
             .tokenizers()
-            .register("simple_no_truncation", SimpleTokenizer);
+            .register("simple_no_truncation", SimpleTokenizer::default());
         let reader = index.reader()?;
         let mut index_writer = index.writer_for_tests()?;
 

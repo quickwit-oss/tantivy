@@ -67,7 +67,7 @@ impl IndexingPositionsPerPath {
 pub(crate) fn index_json_values<'a>(
     doc: DocId,
     json_values: impl Iterator<Item = crate::Result<&'a serde_json::Map<String, serde_json::Value>>>,
-    text_analyzer: &TextAnalyzer,
+    text_analyzer: &mut TextAnalyzer,
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
     postings_writer: &mut dyn PostingsWriter,
@@ -93,7 +93,7 @@ pub(crate) fn index_json_values<'a>(
 fn index_json_object(
     doc: DocId,
     json_value: &serde_json::Map<String, serde_json::Value>,
-    text_analyzer: &TextAnalyzer,
+    text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -117,7 +117,7 @@ fn index_json_object(
 fn index_json_value(
     doc: DocId,
     json_value: &serde_json::Value,
-    text_analyzer: &TextAnalyzer,
+    text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -239,7 +239,7 @@ pub(crate) fn set_fastvalue_and_get_term<T: FastValue>(
 pub(crate) fn set_string_and_get_terms(
     json_term_writer: &mut JsonTermWriter,
     value: &str,
-    text_analyzer: &TextAnalyzer,
+    text_analyzer: &mut TextAnalyzer,
 ) -> Vec<(usize, Term)> {
     let mut positions_and_terms = Vec::<(usize, Term)>::new();
     json_term_writer.close_path_and_set_type(Type::Str);

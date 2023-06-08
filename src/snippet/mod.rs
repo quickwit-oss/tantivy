@@ -145,7 +145,7 @@ impl Snippet {
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
 fn search_fragments(
-    tokenizer: &TextAnalyzer,
+    tokenizer: &mut TextAnalyzer,
     text: &str,
     terms: &BTreeMap<String, Score>,
     max_num_chars: usize,
@@ -370,8 +370,12 @@ impl SnippetGenerator {
 
     /// Generates a snippet for the given text.
     pub fn snippet(&self, text: &str) -> Snippet {
-        let fragment_candidates =
-            search_fragments(&self.tokenizer, text, &self.terms_text, self.max_num_chars);
+        let fragment_candidates = search_fragments(
+            &mut self.tokenizer.clone(),
+            text,
+            &self.terms_text,
+            self.max_num_chars,
+        );
         select_best_fragment_combination(&fragment_candidates[..], text)
     }
 }
@@ -408,7 +412,12 @@ Survey in 2016, 2017, and 2018."#;
             String::from("rust") => 1.0,
             String::from("language") => 0.9
         };
-        let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 100);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            TEST_TEXT,
+            &terms,
+            100,
+        );
         assert_eq!(fragments.len(), 7);
         {
             let first = &fragments[0];
@@ -435,7 +444,12 @@ Survey in 2016, 2017, and 2018."#;
                 String::from("rust") =>1.0,
                 String::from("language") => 0.9
             };
-            let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 20);
+            let fragments = search_fragments(
+                &mut From::from(SimpleTokenizer::default()),
+                TEST_TEXT,
+                &terms,
+                20,
+            );
             {
                 let first = &fragments[0];
                 assert_eq!(first.score, 1.0);
@@ -449,7 +463,12 @@ Survey in 2016, 2017, and 2018."#;
                 String::from("rust") =>0.9,
                 String::from("language") => 1.0
             };
-            let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 20);
+            let fragments = search_fragments(
+                &mut From::from(SimpleTokenizer::default()),
+                TEST_TEXT,
+                &terms,
+                20,
+            );
             // assert_eq!(fragments.len(), 7);
             {
                 let first = &fragments[0];
@@ -468,7 +487,8 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("c"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
 
         assert_eq!(fragments.len(), 1);
         {
@@ -490,7 +510,8 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("f"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -513,7 +534,8 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("f"), 1.0);
         terms.insert(String::from("a"), 0.9);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 7);
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 7);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -535,7 +557,8 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("z"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
 
         assert_eq!(fragments.len(), 0);
 
@@ -550,7 +573,8 @@ Survey in 2016, 2017, and 2018."#;
         let text = "a b c d";
 
         let terms = BTreeMap::new();
-        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
+        let fragments =
+            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
@@ -669,7 +693,7 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("bc"), 1.0);
 
         let fragments = search_fragments(
-            &From::from(NgramTokenizer::all_ngrams(2, 2)),
+            &mut From::from(NgramTokenizer::all_ngrams(2, 2)),
             text,
             &terms,
             3,
@@ -691,7 +715,12 @@ Survey in 2016, 2017, and 2018."#;
     #[test]
     fn test_snippet_generator_custom_highlighted_elements() {
         let terms = btreemap! { String::from("rust") => 1.0, String::from("language") => 0.9 };
-        let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 100);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            TEST_TEXT,
+            &terms,
+            100,
+        );
         let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
             snippet.to_html(),
