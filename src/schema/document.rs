@@ -739,21 +739,24 @@ mod tests {
         assert_eq!(doc.field_values().len(), 1);
     }
 
-    #[test]
-    fn test_doc_serialization_issue() {
-        let mut doc = Document::default();
-        doc.add_json_object(
-            Field::from_field_id(0),
-            serde_json::json!({"key": 2u64})
-                .as_object()
-                .unwrap()
-                .clone(),
-        );
-        doc.add_text(Field::from_field_id(1), "hello");
-        assert_eq!(doc.field_values().len(), 2);
-        let mut payload: Vec<u8> = Vec::new();
-        doc_binary_wrappers::serialize(&doc, &mut payload).unwrap();
-        assert_eq!(payload.len(), 26);
-        doc_binary_wrappers::deserialize::<Document, _>(&mut &payload[..]).unwrap();
-    }
+    // TODO: Should this be re-added with the serialize method
+    //       technically this is no longer useful since the doc types
+    //       do not implement BinarySerializable due to orphan rules.
+    // #[test]
+    // fn test_doc_serialization_issue() {
+    //     let mut doc = Document::default();
+    //     doc.add_json_object(
+    //         Field::from_field_id(0),
+    //         serde_json::json!({"key": 2u64})
+    //             .as_object()
+    //             .unwrap()
+    //             .clone(),
+    //     );
+    //     doc.add_text(Field::from_field_id(1), "hello");
+    //     assert_eq!(doc.field_values().len(), 2);
+    //     let mut payload: Vec<u8> = Vec::new();
+    //     doc_binary_wrappers::serialize(&doc, &mut payload).unwrap();
+    //     assert_eq!(payload.len(), 26);
+    //     doc_binary_wrappers::deserialize::<Document, _>(&mut &payload[..]).unwrap();
+    // }
 }
