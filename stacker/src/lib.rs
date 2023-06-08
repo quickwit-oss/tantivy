@@ -5,6 +5,9 @@ extern crate test;
 
 mod arena_hashmap;
 mod expull;
+#[allow(dead_code)]
+mod fastcmp;
+mod fastcpy;
 mod memory_arena;
 
 pub use self::arena_hashmap::{compute_table_memory_size, ArenaHashMap};
