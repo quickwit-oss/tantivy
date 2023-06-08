@@ -177,9 +177,36 @@ impl HistogramAggregation {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HistogramBounds {
     /// The lower bounds.
+    #[serde(deserialize_with = "deserialize_date_or_num")]
     pub min: f64,
     /// The upper bounds.
+    #[serde(deserialize_with = "deserialize_date_or_num")]
     pub max: f64,
+}
+
+fn deserialize_date_or_num<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where D: serde::Deserializer<'de> {
+    let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
+
+    // Check if the value is a string representing an Rfc3339 formatted date
+    if let serde_json::Value::String(date_str) = value {
+        // Parse the Rfc3339 formatted date string into a DateTime<Utc>
+        let date =
+            time::OffsetDateTime::parse(&date_str, &time::format_description::well_known::Rfc3339)
+                .map_err(|_| serde::de::Error::custom("Invalid Rfc3339 formatted date"))?;
+
+        let milliseconds: i64 = (date.unix_timestamp_nanos() / 1_000_000)
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("{date_str} out of allowed range"))?;
+
+        // Return the milliseconds as f64
+        Ok(milliseconds as f64)
+    } else {
+        // The value is not a string, so assume it's a regular f64 number
+        value
+            .as_f64()
+            .ok_or_else(|| serde::de::Error::custom("Invalid number format"))
+    }
 }
 
 impl Display for HistogramBounds {
