@@ -7,7 +7,7 @@ use crate::schema::{DocValue, DocumentAccess, Field, FieldType, IndexRecordOptio
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
 };
-use crate::{DocAddress, Result, Searcher, TantivyError};
+use crate::{DocAddress, Document, Result, Searcher, TantivyError};
 
 #[derive(Debug, PartialEq)]
 struct ScoreTerm {
@@ -79,12 +79,12 @@ impl Default for MoreLikeThis {
 impl MoreLikeThis {
     /// Creates a [`BooleanQuery`] using a document address to collect
     /// the top stored field values.
-    pub fn query_with_document<D: DocumentAccess>(
+    pub fn query_with_document(
         &self,
         searcher: &Searcher,
         doc_address: DocAddress,
     ) -> Result<BooleanQuery> {
-        let score_terms = self.retrieve_terms_from_doc_address::<D>(searcher, doc_address)?;
+        let score_terms = self.retrieve_terms_from_doc_address(searcher, doc_address)?;
         let query = self.create_query(score_terms);
         Ok(query)
     }
@@ -121,12 +121,12 @@ impl MoreLikeThis {
 
     /// Finds terms for a more-like-this query.
     /// doc_address is the address of document from which to find terms.
-    fn retrieve_terms_from_doc_address<D: DocumentAccess>(
+    fn retrieve_terms_from_doc_address(
         &self,
         searcher: &Searcher,
         doc_address: DocAddress,
     ) -> Result<Vec<ScoreTerm>> {
-        let doc = searcher.doc::<D>(doc_address)?;
+        let doc = searcher.doc::<Document>(doc_address)?;
 
         let field_to_values = doc.get_sorted_field_values();
         self.retrieve_terms_from_doc_fields(searcher, &field_to_values)

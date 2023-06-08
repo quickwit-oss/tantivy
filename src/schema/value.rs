@@ -41,6 +41,89 @@ pub enum Value {
     IpAddr(Ipv6Addr),
 }
 
+impl<'a> DocValue<'a> for Value
+where Self: 'a
+{
+    type JsonVisitor = serde_json::map::Iter<'a>;
+
+    fn as_str(&self) -> Option<&str> {
+        match self {
+            Value::Str(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    fn as_facet(&self) -> Option<&Facet> {
+        match self {
+            Value::Facet(facet) => Some(facet),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> Option<u64> {
+        match self {
+            Value::U64(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_i64(&self) -> Option<i64> {
+        match self {
+            Value::I64(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_f64(&self) -> Option<f64> {
+        match self {
+            Value::F64(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_date(&self) -> Option<DateTime> {
+        match self {
+            Value::Date(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Bool(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    fn as_ip_addr(&self) -> Option<Ipv6Addr> {
+        match self {
+            Value::IpAddr(addr) => Some(*addr),
+            _ => None,
+        }
+    }
+
+    fn as_bytes(&self) -> Option<&[u8]> {
+        match self {
+            Value::Bytes(bytes) => Some(bytes.as_ref()),
+            _ => None,
+        }
+    }
+
+    fn as_tokenized_text(&self) -> Option<&PreTokenizedString> {
+        match self {
+            Value::PreTokStr(pre_tok_str) => Some(pre_tok_str),
+            _ => None,
+        }
+    }
+
+    fn as_json(&self) -> Option<Self::JsonVisitor> {
+        match self {
+            Value::JsonObject(object) => Some(object.iter()),
+            _ => None,
+        }
+    }
+}
+
 impl<'a> DocValue<'a> for &'a Value {
     type JsonVisitor = serde_json::map::Iter<'a>;
 

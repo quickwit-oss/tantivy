@@ -1,9 +1,9 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
-use crate::schema::{DocumentAccess, Field};
-use crate::{DocAddress, Document};
+use crate::schema::{Field, Value};
+use crate::DocAddress;
 
 /// A query that matches all of the documents similar to a document
 /// or a set of field values provided.
@@ -24,61 +24,26 @@ use crate::{DocAddress, Document};
 ///     .with_stop_words(vec!["for".to_string()])
 ///     .with_document(DocAddress::new(2, 1));
 /// ```
-pub struct MoreLikeThisQuery<D: DocumentAccess = Document> {
+#[derive(Debug, Clone)]
+pub struct MoreLikeThisQuery {
     mlt: MoreLikeThis,
-    target: TargetDocument<D>,
+    target: TargetDocument,
 }
 
-impl<D: DocumentAccess> Debug for MoreLikeThisQuery<D> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MoreLikeThisQuery")
-            .field("mlt", &self.mlt)
-            .field("target", &self.target)
-            .finish()
-    }
-}
-
-impl<D: DocumentAccess> Clone for MoreLikeThisQuery<D> {
-    fn clone(&self) -> Self {
-        Self {
-            mlt: self.mlt.clone(),
-            target: self.target.clone(),
-        }
-    }
-}
-
-#[derive(PartialEq)]
-enum TargetDocument<D: DocumentAccess = Document> {
+#[derive(Debug, Clone, PartialEq)]
+enum TargetDocument {
     DocumentAddress(DocAddress),
-    DocumentFields(Vec<(Field, Vec<D::Value<'static>>)>),
+    DocumentFields(Vec<(Field, Vec<Value>)>),
 }
 
-impl<D: DocumentAccess> Debug for TargetDocument<D> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::DocumentAddress(inner) => write!(f, "DocumentAddress({inner:?})"),
-            Self::DocumentFields(inner) => write!(f, "DocumentFields({inner:?})"),
-        }
-    }
-}
-
-impl<D: DocumentAccess> Clone for TargetDocument<D> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::DocumentAddress(value) => Self::DocumentAddress(value.clone()),
-            Self::DocumentFields(value) => Self::DocumentFields(value.clone()),
-        }
-    }
-}
-
-impl<D: DocumentAccess> MoreLikeThisQuery<D> {
+impl MoreLikeThisQuery {
     /// Creates a new builder.
     pub fn builder() -> MoreLikeThisQueryBuilder {
         MoreLikeThisQueryBuilder::default()
     }
 }
 
-impl<D: DocumentAccess> Query for MoreLikeThisQuery<D> {
+impl Query for MoreLikeThisQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let searcher = match enable_scoring {
             EnableScoring::Enabled { searcher, .. } => searcher,
@@ -90,7 +55,7 @@ impl<D: DocumentAccess> Query for MoreLikeThisQuery<D> {
         match &self.target {
             TargetDocument::DocumentAddress(doc_address) => self
                 .mlt
-                .query_with_document::<D>(searcher, *doc_address)?
+                .query_with_document(searcher, *doc_address)?
                 .weight(enable_scoring),
             TargetDocument::DocumentFields(doc_fields) => self
                 .mlt
@@ -204,10 +169,7 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields<D: DocumentAccess>(
-        self,
-        doc_fields: Vec<(Field, Vec<D::Value<'static>>)>,
-    ) -> MoreLikeThisQuery<D> {
+    pub fn with_document_fields(self, doc_fields: Vec<(Field, Vec<Value>)>) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),
