@@ -12,38 +12,45 @@ impl TokenFilter for AsciiFoldingFilter {
     type Tokenizer<T: Tokenizer> = AsciiFoldingFilterWrapper<T>;
 
     fn transform<T: Tokenizer>(self, tokenizer: T) -> AsciiFoldingFilterWrapper<T> {
-        AsciiFoldingFilterWrapper(tokenizer)
-    }
-}
-
-#[derive(Clone)]
-pub struct AsciiFoldingFilterWrapper<T>(T);
-
-impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
-    type TokenStream<'a> = AsciiFoldingFilterTokenStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        AsciiFoldingFilterTokenStream {
-            buffer: String::with_capacity(100),
-            tail: self.0.token_stream(text),
+        AsciiFoldingFilterWrapper {
+            tokenizer,
+            buffer: String::new(),
         }
     }
 }
 
-pub struct AsciiFoldingFilterTokenStream<T> {
+#[derive(Clone)]
+pub struct AsciiFoldingFilterWrapper<T> {
+    tokenizer: T,
     buffer: String,
+}
+
+impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
+    type TokenStream<'a> = AsciiFoldingFilterTokenStream<'a, T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        self.buffer.clear();
+        AsciiFoldingFilterTokenStream {
+            buffer: &mut self.buffer,
+            tail: self.tokenizer.token_stream(text),
+        }
+    }
+}
+
+pub struct AsciiFoldingFilterTokenStream<'a, T> {
+    buffer: &'a mut String,
     tail: T,
 }
 
-impl<T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<T> {
+impl<'a, T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'a, T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
         }
         if !self.token_mut().text.is_ascii() {
             // ignore its already ascii
-            to_ascii(&self.tail.token().text, &mut self.buffer);
-            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
+            to_ascii(&self.tail.token().text, self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, self.buffer);
         }
         true
     }

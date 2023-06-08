@@ -10,26 +10,33 @@ impl TokenFilter for LowerCaser {
     type Tokenizer<T: Tokenizer> = LowerCaserFilter<T>;
 
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T> {
-        LowerCaserFilter(tokenizer)
-    }
-}
-
-#[derive(Clone)]
-pub struct LowerCaserFilter<T>(T);
-
-impl<T: Tokenizer> Tokenizer for LowerCaserFilter<T> {
-    type TokenStream<'a> = LowerCaserTokenStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        LowerCaserTokenStream {
-            tail: self.0.token_stream(text),
-            buffer: String::new(), // TODO move to global buffer
+        LowerCaserFilter {
+            tokenizer,
+            buffer: String::new(),
         }
     }
 }
 
-pub struct LowerCaserTokenStream<T> {
+#[derive(Clone)]
+pub struct LowerCaserFilter<T> {
+    tokenizer: T,
     buffer: String,
+}
+
+impl<T: Tokenizer> Tokenizer for LowerCaserFilter<T> {
+    type TokenStream<'a> = LowerCaserTokenStream<'a, T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        self.buffer.clear();
+        LowerCaserTokenStream {
+            tail: self.tokenizer.token_stream(text),
+            buffer: &mut self.buffer,
+        }
+    }
+}
+
+pub struct LowerCaserTokenStream<'a, T> {
+    buffer: &'a mut String,
     tail: T,
 }
 
@@ -44,7 +51,7 @@ fn to_lowercase_unicode(text: &str, output: &mut String) {
     }
 }
 
-impl<T: TokenStream> TokenStream for LowerCaserTokenStream<T> {
+impl<'a, T: TokenStream> TokenStream for LowerCaserTokenStream<'a, T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -53,8 +60,8 @@ impl<T: TokenStream> TokenStream for LowerCaserTokenStream<T> {
             // fast track for ascii.
             self.token_mut().text.make_ascii_lowercase();
         } else {
-            to_lowercase_unicode(&self.tail.token().text, &mut self.buffer);
-            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
+            to_lowercase_unicode(&self.tail.token().text, self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, self.buffer);
         }
         true
     }
