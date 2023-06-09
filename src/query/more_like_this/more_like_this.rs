@@ -194,54 +194,20 @@ impl MoreLikeThis {
                 }
             }
             FieldType::Str(text_options) => {
-             //for value in values {
-             //    match value {
-             //       Value::PreTokStr(tok_str) => {
-             //           let mut token_stream: BoxTokenStream =
-              //               PreTokenizedStream::from(tok_str.clone()).into();
-              //          token_stream.process(&mut |token| {
-              //              if !self.is_noise_word(token.text.clone()) {
-              //                  let term = Term::from_field_text(field, &token.text);
-              //                  *term_frequencies.entry(term).or_insert(0) += 1;
-              //               }
-              //          });
-              //     }
-               //      Value::Str(ref text) => {
-               //         if let Some(mut tokenizer) = text_options
-               //             .get_indexing_options()
-              //              .map(|text_indexing_options| {
-              //                  text_indexing_options.tokenizer().to_string()
-              //              })
-               //             .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
-               //         {
-               //             let mut token_stream = tokenizer.token_stream(text);
-                //            token_stream.process(&mut |token| {
-                //                   if !self.is_noise_word(token.text.clone()) {
-                //                        let term = Term::from_field_text(field, &token.text);
-                //                        *term_frequencies.entry(term).or_insert(0) += 1;
-                //                    }
-                //                });
-                //            }
-                //        }
-                //        _ => (),
-                //    }
-                // }
-
-                for value in values {
-                    if let Some(text) = value.as_str() {
-                        if let Some(tokenizer) = text_options
-                            .get_indexing_options()
-                            .map(|text_indexing_options| {
-                                text_indexing_options.tokenizer().to_string()
-                            })
-                            .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
-                        {
-                            token_streams.push(tokenizer.token_stream(text));
+                let token_streams = values.iter()
+                    .filter_map(|value| {
+                        if let Some(text) = value.as_str() {
+                            let tokenizer_name = text_options
+                                .get_indexing_options()?
+                                .tokenizer();
+                            let mut tokenizer = tokenizer_manager.get(tokenizer_name)?;
+                            Some(tokenizer.token_stream(text))
+                        } else if let Some(tok_str) = value.as_tokenized_text() {
+                           Some(BoxTokenStream::from(PreTokenizedStream::from(tok_str.clone())))
+                        } else {
+                            None
                         }
-                    } else if let Some(tok_str) = value.as_tokenized_text() {
-                        token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
-                    }
-                }
+                    });
 
                 for mut token_stream in token_streams {
                     token_stream.process(&mut |token| {
