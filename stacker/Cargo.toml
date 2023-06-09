@@ -3,6 +3,9 @@ name = "tantivy-stacker"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+homepage = "https://github.com/quickwit-oss/tantivy"
+repository = "https://github.com/quickwit-oss/tantivy"
+description = "term hashmap used for indexing"
 
 [dependencies]
 murmurhash32 = "0.3"
