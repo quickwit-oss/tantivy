@@ -1,13 +1,12 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
+
 use tokenizer_api::Token;
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
 use crate::schema::{DocValue, DocumentAccess, Field, FieldType, IndexRecordOption, Term};
-use crate::tokenizer::{
-    FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
-};
+use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer};
 use crate::{DocAddress, Document, Result, Searcher, TantivyError};
 
 #[derive(Debug, PartialEq)]
@@ -201,11 +200,11 @@ impl MoreLikeThis {
                     .and_then(|tokenizer_name| tokenizer_manager.get(tokenizer_name));
 
                 let sink = &mut |token: &Token| {
-                     if !self.is_noise_word(token.text.clone()) {
-                         let term = Term::from_field_text(field, &token.text);
-                         *term_frequencies.entry(term).or_insert(0) += 1;
-                     }
-                 };
+                    if !self.is_noise_word(token.text.clone()) {
+                        let term = Term::from_field_text(field, &token.text);
+                        *term_frequencies.entry(term).or_insert(0) += 1;
+                    }
+                };
 
                 for value in values {
                     if let Some(text) = value.as_str() {
@@ -217,7 +216,7 @@ impl MoreLikeThis {
                         let mut token_stream = tokenizer.token_stream(text);
                         token_stream.process(sink);
                     } else if let Some(tok_str) = value.as_tokenized_text() {
-                        let mut token_stream =  PreTokenizedStream::from(tok_str.clone());
+                        let mut token_stream = PreTokenizedStream::from(tok_str.clone());
                         token_stream.process(sink);
                     }
                 }
