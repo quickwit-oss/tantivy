@@ -312,7 +312,7 @@ pub mod tests {
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader(10).unwrap();
 
-        for doc in store.iter(reader.alive_bitset()).take(50) {
+        for doc in store.iter::<Document>(reader.alive_bitset()).take(50) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().as_text().unwrap(),
                 LOREM.to_string()
@@ -372,6 +372,7 @@ mod bench {
 
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::{Directory, RamDirectory};
+    use crate::Document;
     use crate::store::{Compressor, StoreReader};
 
     #[bench]
@@ -404,6 +405,6 @@ mod bench {
         );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file, 10).unwrap();
-        b.iter(|| store.iter(None).collect::<Vec<_>>());
+        b.iter(|| store.iter::<Document>(None).collect::<Vec<_>>());
     }
 }
