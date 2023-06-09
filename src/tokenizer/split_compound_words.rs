@@ -104,6 +104,8 @@ impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
     type TokenStream<'a> = SplitCompoundWordsTokenStream<'a, T::TokenStream<'a>>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        self.cuts.clear();
+        self.parts.clear();
         SplitCompoundWordsTokenStream {
             dict: self.dict.clone(),
             tail: self.inner.token_stream(text),
