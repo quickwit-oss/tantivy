@@ -158,10 +158,12 @@ impl SegmentWriter {
 
     fn index_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
+        // TODO: This should be removed...
         let vals_grouped_by_field = doc
             .iter_fields_and_values()
             .sorted_by_key(|(field, _)| *field)
             .group_by(|(field, _)| *field);
+
         for (field, field_values) in &vals_grouped_by_field {
             let values = field_values.map(|el| el.1);
 
