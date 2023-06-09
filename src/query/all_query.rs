@@ -99,14 +99,14 @@ mod tests {
     use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
     use crate::query::{AllScorer, EnableScoring, Query};
     use crate::schema::{Schema, TEXT};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(field=>"aaa"))?;
         index_writer.add_document(doc!(field=>"bbb"))?;
         index_writer.commit()?;

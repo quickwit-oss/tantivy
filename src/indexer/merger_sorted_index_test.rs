@@ -5,10 +5,13 @@ mod tests {
     use crate::fastfield::AliveBitSet;
     use crate::query::QueryParser;
     use crate::schema::{
-        self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
+        self, BytesOptions, DocValue, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions,
     };
-    use crate::{DocAddress, DocSet, IndexSettings, IndexSortByField, Order, Postings, Term};
+    use crate::{
+        DocAddress, DocSet, Document, IndexSettings, IndexSortByField, IndexWriter, Order,
+        Postings, Term,
+    };
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
@@ -45,7 +48,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             assert!(index_writer.merge(&segment_ids).wait().is_ok());
             assert!(index_writer.wait_merging_threads().is_ok());
         }
@@ -133,7 +136,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -272,12 +275,14 @@ mod tests {
             } else {
                 2
             };
-            let doc = searcher.doc(DocAddress::new(0, blubber_pos)).unwrap();
+            let doc = searcher
+                .doc::<Document>(DocAddress::new(0, blubber_pos))
+                .unwrap();
             assert_eq!(
-                doc.get_first(my_text_field).unwrap().as_text(),
+                doc.get_first(my_text_field).unwrap().as_str(),
                 Some("blubber")
             );
-            let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
+            let doc = searcher.doc::<Document>(DocAddress::new(0, 0)).unwrap();
             assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1000));
         }
     }

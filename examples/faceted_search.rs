@@ -30,7 +30,7 @@ fn main() -> tantivy::Result<()> {
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
 
-    let mut index_writer = index.writer(30_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(30_000_000)?;
 
     // For convenience, tantivy also comes with a macro to
     // reduce the boilerplate above.

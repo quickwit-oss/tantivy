@@ -22,16 +22,18 @@ fn main() -> tantivy::Result<()> {
     // # Indexing documents
     let index = Index::create_in_ram(schema.clone());
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     // The dates are passed as string in the RFC3339 format
-    let doc = schema.parse_document(
+    let doc = Document::parse_json(
+        &schema,
         r#"{
         "occurred_at": "2022-06-22T12:53:50.53Z",
         "event": "pull-request"
     }"#,
     )?;
     index_writer.add_document(doc)?;
-    let doc = schema.parse_document(
+    let doc = Document::parse_json(
+        &schema,
         r#"{
         "occurred_at": "2022-06-22T13:00:00.22Z",
         "event": "comment"

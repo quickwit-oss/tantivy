@@ -376,7 +376,7 @@ mod tests {
 
     use super::*;
     use crate::directory::RamDirectory;
-    use crate::schema::{Document, Field};
+    use crate::schema::{DocValue, Document, Field};
     use crate::store::tests::write_lorem_ipsum_store;
     use crate::store::Compressor;
     use crate::Directory;
@@ -384,7 +384,7 @@ mod tests {
     const BLOCK_SIZE: usize = 16_384;
 
     fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
-        doc.get_first(*field).and_then(|f| f.as_text())
+        doc.get_first(*field).and_then(|f| f.as_str())
     }
 
     #[test]

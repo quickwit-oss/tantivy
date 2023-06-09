@@ -754,8 +754,8 @@ mod tests {
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
-        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
-        INDEXED, TEXT,
+        DocValue, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
+        TextFieldIndexing, INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
@@ -817,7 +817,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -866,30 +866,24 @@ mod tests {
                 );
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 0))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<Document>(DocAddress::new(0, 0))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 1))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("a b c"));
+                let doc = searcher.doc::<Document>(DocAddress::new(0, 1))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 2))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c d")
-                );
+                let doc = searcher.doc::<Document>(DocAddress::new(0, 2))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 3))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<Document>(DocAddress::new(0, 3))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 4))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c g")
-                );
+                let doc = searcher.doc::<Document>(DocAddress::new(0, 4))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c g"));
             }
 
             {
@@ -1384,7 +1378,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer
                 .merge(&segment_ids)
                 .wait()
@@ -1406,7 +1400,7 @@ mod tests {
 
         // Deleting one term
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let facet = Facet::from_path(vec!["top", "a", "firstdoc"]);
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
@@ -1566,7 +1560,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }

@@ -293,7 +293,7 @@ mod test {
     use crate::core::Index;
     use crate::schema::{Field, Schema, FAST, INDEXED, STORED, TEXT};
     use crate::space_usage::PerFieldSpaceUsage;
-    use crate::Term;
+    use crate::{IndexWriter, Term};
 
     #[test]
     fn test_empty() {
@@ -447,7 +447,7 @@ mod test {
         let index = Index::create_in_ram(schema);
 
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(name => 1u64))?;
             index_writer.add_document(doc!(name => 2u64))?;
             index_writer.add_document(doc!(name => 3u64))?;
@@ -456,7 +456,7 @@ mod test {
         }
 
         {
-            let mut index_writer2 = index.writer(50_000_000)?;
+            let mut index_writer2: IndexWriter = index.writer(50_000_000)?;
             index_writer2.delete_term(Term::from_field_u64(name, 2u64));
             index_writer2.delete_term(Term::from_field_u64(name, 3u64));
             // ok, now we should have a deleted doc

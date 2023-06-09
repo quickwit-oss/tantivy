@@ -319,7 +319,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
-    use crate::{Index, Term};
+    use crate::{Index, IndexWriter, Term};
 
     pub fn get_test_index_with_num_docs(
         merge_segments: bool,
@@ -451,7 +451,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             if segment_ids.len() > 1 {
-                let mut index_writer = index.writer_for_tests()?;
+                let mut index_writer: IndexWriter = index.writer_for_tests()?;
                 index_writer.merge(&segment_ids).wait()?;
                 index_writer.wait_merging_threads()?;
             }
@@ -565,7 +565,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }

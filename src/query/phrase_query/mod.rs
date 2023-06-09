@@ -17,7 +17,7 @@ pub mod tests {
     use crate::core::Index;
     use crate::query::{EnableScoring, QueryParser, Weight};
     use crate::schema::{Schema, Term, TEXT};
-    use crate::{assert_nearly_equals, DocAddress, DocId, TERMINATED};
+    use crate::{assert_nearly_equals, DocAddress, DocId, IndexWriter, TERMINATED};
 
     pub fn create_index(texts: &[&'static str]) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -25,7 +25,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             for &text in texts {
                 let doc = doc!(text_field=>text);
                 index_writer.add_document(doc)?;
@@ -135,7 +135,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"a b c"))?;
             index_writer.commit()?;
         }
@@ -278,7 +278,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"b"))?;
             index_writer.add_document(doc!(text_field=>"a b"))?;
             index_writer.add_document(doc!(text_field=>"b a"))?;
@@ -310,7 +310,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"a b c d e f g h"))?;
             index_writer.commit()?;
         }
@@ -348,7 +348,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(json_field=>json!({
                 "text": "elliot smith the happy who"
             })))?;

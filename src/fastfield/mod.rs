@@ -95,7 +95,7 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
-    use crate::{DateOptions, DateTimePrecision, Index, SegmentId, SegmentReader};
+    use crate::{DateOptions, DateTimePrecision, Index, IndexWriter, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -537,7 +537,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids().unwrap();
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer.merge(&segment_ids).wait().unwrap();
             index_writer.wait_merging_threads().unwrap();
         }
@@ -662,7 +662,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }

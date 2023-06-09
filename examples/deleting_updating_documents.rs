@@ -69,7 +69,7 @@ fn main() -> tantivy::Result<()> {
 
     let index = Index::create_in_ram(schema.clone());
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // Let's add a couple of documents, for the sake of the example.
     let mut old_man_doc = Document::default();

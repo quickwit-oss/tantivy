@@ -27,7 +27,7 @@ use crate::Term;
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 /// {
-///     let mut index_writer = index.writer(3_000_000)?;
+///     let mut index_writer: IndexWriter = index.writer(3_000_000)?;
 ///     index_writer.add_document(doc!(
 ///         title => "The Name of the Wind",
 ///     ))?;
@@ -139,7 +139,7 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::query::{Query, QueryParser, TermQuery};
     use crate::schema::{IndexRecordOption, IntoIpv6Addr, Schema, INDEXED, STORED};
-    use crate::{doc, Index, Term};
+    use crate::{doc, Index, IndexWriter, Term};
 
     #[test]
     fn search_ip_test() {
@@ -151,7 +151,7 @@ mod tests {
         let ip_addr_2 = Ipv6Addr::from_u128(10);
 
         {
-            let mut index_writer = index.writer(3_000_000).unwrap();
+            let mut index_writer: IndexWriter = index.writer(3_000_000).unwrap();
             index_writer
                 .add_document(doc!(
                     ip_field => ip_addr_1

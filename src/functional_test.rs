@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use rand::{thread_rng, Rng};
 
 use crate::schema::*;
-use crate::{doc, schema, Index, IndexSettings, IndexSortByField, Order, Searcher};
+use crate::{doc, schema, Index, IndexSettings, IndexSortByField, IndexWriter, Order, Searcher};
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
@@ -11,7 +11,7 @@ fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     for segment_reader in searcher.segment_readers() {
         let store_reader = segment_reader.get_store_reader(1)?;
         for doc_id in 0..segment_reader.max_doc() {
-            let _doc = store_reader.get(doc_id)?;
+            let _doc: Document = store_reader.get(doc_id)?;
         }
     }
     Ok(())
@@ -30,7 +30,7 @@ fn test_functional_store() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 12_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 12_000_000)?;
 
     let mut doc_set: Vec<u64> = Vec::new();
 
@@ -90,7 +90,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
@@ -165,7 +165,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();

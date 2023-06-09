@@ -581,9 +581,9 @@ mod tests {
                 "ip": "127.0.0.1",
                 "is_read": true
         }"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = Document::parse_json(&schema, doc_json).unwrap();
 
-        let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
+        let doc_serdeser = Document::parse_json(&schema, &doc.to_json(&schema)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }
 
@@ -597,26 +597,26 @@ mod tests {
         let doc_json = r#"{
                 "ip": "127.0.0.1"
         }"#;
-        let doc = schema.parse_document(doc_json).unwrap();
-        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        let doc = Document::parse_json(&schema, doc_json).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "127.0.0.1");
 
         // Special case IpV6 loopback. We don't want to map that to IPv4
         let doc_json = r#"{
                 "ip": "::1"
         }"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = Document::parse_json(&schema, doc_json).unwrap();
 
-        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "::1");
 
         // testing ip address of every router in the world
         let doc_json = r#"{
                 "ip": "192.168.0.1"
         }"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = Document::parse_json(&schema, doc_json).unwrap();
 
-        let value: serde_json::Value = serde_json::from_str(&schema.to_json(&doc)).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "192.168.0.1");
     }
 
@@ -635,9 +635,7 @@ mod tests {
             "val".to_string(),
             vec![Value::from(14u64), Value::from(-1i64)],
         );
-        let doc = schema
-            .convert_named_doc(NamedFieldDocument(named_doc_map))
-            .unwrap();
+        let doc = Document::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
         assert_eq!(
             doc.get_all(title).collect::<Vec<_>>(),
             vec![
@@ -659,9 +657,7 @@ mod tests {
             "title".to_string(),
             vec![Value::from("title1"), Value::from("title2")],
         );
-        schema
-            .convert_named_doc(NamedFieldDocument(named_doc_map))
-            .unwrap();
+        Document::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
     }
 
     #[test]
@@ -677,27 +673,27 @@ mod tests {
         let score_field = schema_builder.add_f64_field("score", score_options);
         let schema = schema_builder.build();
         {
-            let doc = schema.parse_document("{}").unwrap();
+            let doc = Document::parse_json(&schema, "{}").unwrap();
             assert!(doc.field_values().is_empty());
         }
         {
-            let doc = schema
-                .parse_document(
-                    r#"{
+            let doc = Document::parse_json(
+                &schema,
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10,
                 "score": 80.5
             }"#,
-                )
-                .unwrap();
+            )
+            .unwrap();
             assert_eq!(
-                doc.get_first(title_field).unwrap().as_text(),
+                doc.get_first(title_field).unwrap().as_str(),
                 Some("my title")
             );
             assert_eq!(
-                doc.get_first(author_field).unwrap().as_text(),
+                doc.get_first(author_field).unwrap().as_str(),
                 Some("fulmicoton")
             );
             assert_eq!(doc.get_first(count_field).unwrap().as_u64(), Some(4));
@@ -705,7 +701,8 @@ mod tests {
             assert_eq!(doc.get_first(score_field).unwrap().as_f64(), Some(80.5f64));
         }
         {
-            let res = schema.parse_document(
+            let res = Document::parse_json(
+                &schema,
                 r#"{
                 "thisfieldisnotdefinedintheschema": "my title",
                 "title": "my title",
@@ -719,7 +716,8 @@ mod tests {
             assert!(res.is_ok());
         }
         {
-            let json_err = schema.parse_document(
+            let json_err = Document::parse_json(
+                &schema,
                 r#"{
                 "title": "my title",
                 "author": "fulmicoton",
@@ -738,7 +736,8 @@ mod tests {
             );
         }
         {
-            let json_err = schema.parse_document(
+            let json_err = Document::parse_json(
+                &schema,
                 r#"{
                 "title": "my title",
                 "author": "fulmicoton",
@@ -756,7 +755,8 @@ mod tests {
             );
         }
         {
-            let json_err = schema.parse_document(
+            let json_err = Document::parse_json(
+                &schema,
                 r#"{
                 "title": "my title",
                 "author": "fulmicoton",
@@ -774,7 +774,8 @@ mod tests {
             ));
         }
         {
-            let json_err = schema.parse_document(
+            let json_err = Document::parse_json(
+                &schema,
                 r#"{
                 "title": "my title",
                 "author": "fulmicoton",
@@ -793,11 +794,12 @@ mod tests {
         }
         {
             // Short JSON, under the 20 char take.
-            let json_err = schema.parse_document(r#"{"count": 50,}"#);
+            let json_err = Document::parse_json(&schema, r#"{"count": 50,}"#);
             assert_matches!(json_err, Err(InvalidJson(_)));
         }
         {
-            let json_err = schema.parse_document(
+            let json_err = Document::parse_json(
+                &schema,
                 r#"{
                 "title": "my title",
                 "author": "fulmicoton",

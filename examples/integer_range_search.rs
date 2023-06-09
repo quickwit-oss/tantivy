@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     let index = Index::create_in_ram(schema);
     let reader = index.reader()?;
     {
-        let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
+        let mut index_writer: IndexWriter = index.writer_with_num_threads(1, 6_000_000)?;
         for year in 1950u64..2019u64 {
             index_writer.add_document(doc!(year_field => year))?;
         }

@@ -46,7 +46,7 @@ impl Automaton for DfaWrapper {
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
 ///     {
-///         let mut index_writer = index.writer(3_000_000)?;
+///         let mut index_writer: IndexWriter = index.writer(3_000_000)?;
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",
 ///         ))?;
@@ -158,7 +158,7 @@ mod test {
     use super::FuzzyTermQuery;
     use crate::collector::{Count, TopDocs};
     use crate::schema::{Schema, TEXT};
-    use crate::{assert_nearly_equals, Index, Term};
+    use crate::{assert_nearly_equals, Index, IndexWriter, Term};
 
     #[test]
     pub fn test_fuzzy_term() -> crate::Result<()> {
@@ -167,7 +167,7 @@ mod test {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(
                 country_field => "japan",
             ))?;
@@ -216,7 +216,7 @@ mod test {
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(country_field => "japan"))?;
         index_writer.commit()?;
         let reader = index.reader()?;

@@ -3,9 +3,10 @@ use std::sync::{Arc, RwLock};
 
 use super::AddBatchReceiver;
 use crate::schema::DocumentAccess;
+use crate::Document;
 
 #[derive(Clone)]
-pub(crate) struct IndexWriterStatus<D: DocumentAccess> {
+pub(crate) struct IndexWriterStatus<D: DocumentAccess = Document> {
     inner: Arc<Inner<D>>,
 }
 
