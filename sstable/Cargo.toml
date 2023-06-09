@@ -1,11 +1,16 @@
 [package]
 name = "tantivy-sstable"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 license = "MIT"
+homepage = "https://github.com/quickwit-oss/tantivy"
+repository = "https://github.com/quickwit-oss/tantivy"
+keywords = ["search", "information", "retrieval", "sstable"]
+categories = ["database-implementations", "data-structures", "compression"]
+desciption = "sstables for tantivy"
 
 [dependencies]
-common = {path="../common", package="tantivy-common"}
+common = {version= "0.4", path="../common", package="tantivy-common"}
 tantivy-fst = "0.4"
 # experimental gives us access to Decompressor::upper_bound
 zstd = { version = "0.12", features = ["experimental"] }
