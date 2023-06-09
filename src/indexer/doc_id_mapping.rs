@@ -305,16 +305,16 @@ mod tests_indexsorting {
         {
             assert_eq!(
                 searcher
-                    .doc(DocAddress::new(0, 0))?
+                    .doc::<Document>(DocAddress::new(0, 0))?
                     .get_first(my_string_field),
                 None
             );
             assert_eq!(
                 searcher
-                    .doc(DocAddress::new(0, 3))?
+                    .doc::<Document>(DocAddress::new(0, 3))?
                     .get_first(my_string_field)
                     .unwrap()
-                    .as_text(),
+                    .as_str(),
                 Some("blublub")
             );
         }
@@ -334,13 +334,13 @@ mod tests_indexsorting {
         {
             assert_eq!(
                 searcher
-                    .doc(DocAddress::new(0, 0))?
+                    .doc::<Document>(DocAddress::new(0, 0))?
                     .get_first(my_string_field)
                     .unwrap()
-                    .as_text(),
+                    .as_str(),
                 Some("blublub")
             );
-            let doc = searcher.doc(DocAddress::new(0, 4))?;
+            let doc = searcher.doc::<Document>(DocAddress::new(0, 4))?;
             assert_eq!(doc.get_first(my_string_field), None);
         }
         // sort by field desc
@@ -357,9 +357,9 @@ mod tests_indexsorting {
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
-            let doc = searcher.doc(DocAddress::new(0, 4))?;
+            let doc = searcher.doc::<Document>(DocAddress::new(0, 4))?;
             assert_eq!(
-                doc.get_first(my_string_field).unwrap().as_text(),
+                doc.get_first(my_string_field).unwrap().as_str(),
                 Some("blublub")
             );
         }

@@ -141,13 +141,13 @@ mod tests {
     use super::BoostQuery;
     use crate::query::{AllQuery, Query};
     use crate::schema::Schema;
-    use crate::{DocAddress, Document, Index};
+    use crate::{DocAddress, Document, Index, IndexWriter};
 
     #[test]
     fn test_boost_query_explain() -> crate::Result<()> {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(Document::new())?;
         index_writer.commit()?;
         let reader = index.reader()?;

@@ -813,12 +813,13 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
-        self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions, Schema,
-        TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        self, DocValue, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions,
+        Schema, TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{
-        DateTime, DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term,
+        DateTime, DocAddress, Document, Index, IndexSettings, IndexSortByField, IndexWriter, Order,
+        ReloadPolicy, Term,
     };
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -941,7 +942,7 @@ mod tests {
     fn test_empty_operations_group() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(3_000_000).unwrap();
+        let index_writer: IndexWriter = index.writer(3_000_000).unwrap();
         let operations1 = vec![];
         let batch_opstamp1 = index_writer.run(operations1).unwrap();
         assert_eq!(batch_opstamp1, 0u64);
@@ -954,8 +955,8 @@ mod tests {
     fn test_lockfile_stops_duplicates() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer(3_000_000).unwrap();
-        match index.writer(3_000_000) {
+        let _index_writer: IndexWriter = index.writer(3_000_000).unwrap();
+        match index.writer::<Document>(3_000_000) {
             Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
             _ => panic!("Expected a `LockFailure` error"),
         }
@@ -965,8 +966,8 @@ mod tests {
     fn test_lockfile_already_exists_error_msg() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer_for_tests().unwrap();
-        match index.writer_for_tests() {
+        let _index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        match index.writer_for_tests::<Document>() {
             Err(err) => {
                 let err_msg = err.to_string();
                 assert!(err_msg.contains("already an `IndexWriter`"));
@@ -979,7 +980,7 @@ mod tests {
     fn test_set_merge_policy() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(3_000_000).unwrap();
+        let index_writer: IndexWriter = index.writer(3_000_000).unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
             "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
@@ -998,11 +999,11 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let _index_writer = index.writer(3_000_000).unwrap();
+            let _index_writer: IndexWriter = index.writer(3_000_000).unwrap();
             // the lock should be released when the
             // index_writer leaves the scope.
         }
-        let _index_writer_two = index.writer(3_000_000).unwrap();
+        let _index_writer_two: IndexWriter = index.writer(3_000_000).unwrap();
     }
 
     #[test]
@@ -1371,7 +1372,7 @@ mod tests {
     fn test_delete_all_documents_empty_index() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer: IndexWriter = index.writer_with_num_threads(4, 12_000_000).unwrap();
         let clear = index_writer.delete_all_documents();
         let commit = index_writer.commit();
         assert!(clear.is_ok());
@@ -1382,7 +1383,7 @@ mod tests {
     fn test_delete_all_documents_index_twice() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer: IndexWriter = index.writer_with_num_threads(4, 12_000_000).unwrap();
         let clear = index_writer.delete_all_documents();
         let commit = index_writer.commit();
         assert!(clear.is_ok());
@@ -1762,7 +1763,7 @@ mod tests {
         let num_segments_before_merge = searcher.segment_readers().len();
         if force_end_merge {
             index_writer.wait_merging_threads()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
@@ -1958,14 +1959,14 @@ mod tests {
                 .get_store_reader(DOCSTORE_CACHE_CAPACITY)
                 .unwrap();
             // test store iterator
-            for doc in store_reader.iter(segment_reader.alive_bitset()) {
+            for doc in store_reader.iter::<Document>(segment_reader.alive_bitset()) {
                 let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
             }
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
-                    .get(doc_id)
+                    .get::<Document>(doc_id)
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
@@ -1974,7 +1975,7 @@ mod tests {
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 if id_exists(id) {
                     let id2 = store_reader
-                        .get(doc_id)
+                        .get::<Document>(doc_id)
                         .unwrap()
                         .get_first(multi_numbers)
                         .unwrap()
@@ -1982,13 +1983,13 @@ mod tests {
                         .unwrap();
                     assert_eq!(id, id2);
                     let bool = store_reader
-                        .get(doc_id)
+                        .get::<Document>(doc_id)
                         .unwrap()
                         .get_first(bool_field)
                         .unwrap()
                         .as_bool()
                         .unwrap();
-                    let doc = store_reader.get(doc_id).unwrap();
+                    let doc = store_reader.get::<Document>(doc_id).unwrap();
                     let mut bool2 = doc.get_all(multi_bools);
                     assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
                     assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());
@@ -2521,7 +2522,7 @@ mod tests {
         // Merge
         {
             assert!(index_writer.wait_merging_threads().is_ok());
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
@@ -2563,7 +2564,7 @@ mod tests {
         // Merge
         {
             assert!(index_writer.wait_merging_threads().is_ok());
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");

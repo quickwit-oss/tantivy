@@ -142,7 +142,7 @@ fn main() -> tantivy::Result<()> {
     // this example.
     let index = Index::create_in_ram(schema);
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     index_writer.add_document(doc!(
         product_name => "Super Broom 2000",
         product_description => "While it is ok for short distance travel, this broom \

@@ -22,20 +22,22 @@ fn main() -> tantivy::Result<()> {
     // # Indexing documents
     let index = Index::create_in_ram(schema.clone());
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // ### IPv4
     // Adding documents that contain an IPv4 address. Notice that the IP addresses are passed as
     // `String`. Since the field is of type ip, we parse the IP address from the string and store it
     // internally as IPv6.
-    let doc = schema.parse_document(
+    let doc = Document::parse_json(
+        &schema,
         r#"{
             "ip": "192.168.0.33",
             "event_type": "login"
         }"#,
     )?;
     index_writer.add_document(doc)?;
-    let doc = schema.parse_document(
+    let doc = Document::parse_json(
+        &schema,
         r#"{
             "ip": "192.168.0.80",
             "event_type": "checkout"
@@ -44,7 +46,8 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc)?;
     // ### IPv6
     // Adding a document that contains an IPv6 address.
-    let doc = schema.parse_document(
+    let doc = Document::parse_json(
+        &schema,
         r#"{
             "ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
             "event_type": "checkout"

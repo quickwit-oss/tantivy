@@ -108,7 +108,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::query::{QueryParser, TermSetQuery};
     use crate::schema::{Schema, TEXT};
-    use crate::{assert_nearly_equals, Index, Term};
+    use crate::{assert_nearly_equals, Index, IndexWriter, Term};
 
     #[test]
     pub fn test_term_set_query() -> crate::Result<()> {
@@ -118,7 +118,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(
                 field1 => "doc1",
                 field2 => "val1",
@@ -225,7 +225,7 @@ mod tests {
         schema_builder.add_text_field("field", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         let field = schema.get_field("field").unwrap();
         index_writer.add_document(doc!(
           field => "val1",

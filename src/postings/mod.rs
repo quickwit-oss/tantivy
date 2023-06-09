@@ -52,7 +52,7 @@ pub mod tests {
         Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, INDEXED, TEXT,
     };
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
-    use crate::{DocId, HasLen, Score};
+    use crate::{DocId, HasLen, IndexWriter, Score};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -432,7 +432,7 @@ pub mod tests {
 
         // delete some of the documents
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
@@ -483,7 +483,7 @@ pub mod tests {
 
         // delete everything else
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }

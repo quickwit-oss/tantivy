@@ -87,7 +87,7 @@ pub mod tests {
     use crate::collector::Count;
     use crate::query::QueryParser;
     use crate::schema::{Schema, FAST, INDEXED, STORED, STRING};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[derive(Clone, Debug)]
     pub struct Doc {
@@ -157,7 +157,7 @@ pub mod tests {
         let ips_field = schema_builder.add_ip_addr_field("ips", FAST | INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_for_tests().unwrap();
+        let mut writer: IndexWriter = index.writer_for_tests().unwrap();
         let ip_addrs: Vec<Ipv6Addr> = [1000, 2000, 3000]
             .into_iter()
             .map(Ipv6Addr::from_u128)

@@ -357,7 +357,7 @@ impl fmt::Debug for SegmentReader {
 mod test {
     use crate::core::Index;
     use crate::schema::{Schema, Term, STORED, TEXT};
-    use crate::DocId;
+    use crate::{DocId, IndexWriter};
 
     #[test]
     fn test_num_alive() -> crate::Result<()> {
@@ -368,7 +368,7 @@ mod test {
         let name = schema.get_field("name").unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(name => "tantivy"))?;
             index_writer.add_document(doc!(name => "horse"))?;
             index_writer.add_document(doc!(name => "jockey"))?;
@@ -394,7 +394,7 @@ mod test {
         let name = schema.get_field("name").unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(name => "tantivy"))?;
             index_writer.add_document(doc!(name => "horse"))?;
             index_writer.add_document(doc!(name => "jockey"))?;
@@ -404,7 +404,7 @@ mod test {
         }
 
         {
-            let mut index_writer2 = index.writer(50_000_000)?;
+            let mut index_writer2: IndexWriter = index.writer(50_000_000)?;
             index_writer2.delete_term(Term::from_field_text(name, "horse"));
             index_writer2.delete_term(Term::from_field_text(name, "cap"));
 

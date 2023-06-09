@@ -24,7 +24,7 @@ fn main() -> tantivy::Result<()> {
 
     let index = Index::create_in_ram(schema);
 
-    let mut index_writer = index.writer_with_num_threads(1, 50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
     index_writer.add_document(doc!(title => "The Old Man and the Sea"))?;
     index_writer.add_document(doc!(title => "Of Mice and Men"))?;
     index_writer.add_document(doc!(title => "The modern Promotheus"))?;

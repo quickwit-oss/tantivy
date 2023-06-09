@@ -66,7 +66,7 @@ fn main() -> tantivy::Result<()> {
     // Here we give tantivy a budget of `50MB`.
     // Using a bigger memory_arena for the indexer may increase
     // throughput, but 50 MB is already plenty.
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // Let's index our documents!
     // We first need a handle on the title and the body field.

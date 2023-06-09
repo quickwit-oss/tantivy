@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     let index = Index::create_in_dir(&index_path, schema)?;
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     index_writer.add_document(doc!(
     title => "The Old Man and the Sea",

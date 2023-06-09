@@ -442,7 +442,7 @@ mod tests {
     use crate::directory::RamDirectory;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
-    use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::schema::{DocValue, IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
@@ -489,11 +489,11 @@ mod tests {
         store_writer.close().unwrap();
 
         let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
-        let doc = reader.get(0).unwrap();
+        let doc = reader.get::<Document>(0).unwrap();
 
         assert_eq!(doc.field_values().len(), 2);
-        assert_eq!(doc.field_values()[0].value().as_text(), Some("A"));
-        assert_eq!(doc.field_values()[1].value().as_text(), Some("title"));
+        assert_eq!(doc.field_values()[0].value().as_str(), Some("A"));
+        assert_eq!(doc.field_values()[1].value().as_str(), Some("title"));
     }
 
     #[test]
@@ -524,13 +524,13 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let doc = searcher
-            .doc(DocAddress {
+            .doc::<Document>(DocAddress {
                 segment_ord: 0u32,
                 doc_id: 0u32,
             })
             .unwrap();
         let serdeser_json_val = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-            &schema.to_json(&doc),
+            &doc.to_json(&schema),
         )
         .unwrap()
         .get("json")
@@ -787,9 +787,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let doc = schema
-            .parse_document(r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#)
-            .unwrap();
+        let doc = Document::parse_json(&schema, r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#).unwrap();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc).unwrap();

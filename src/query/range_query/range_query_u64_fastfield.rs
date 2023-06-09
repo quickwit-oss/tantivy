@@ -135,7 +135,7 @@ pub mod tests {
     use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
     use crate::query::{QueryParser, Weight};
     use crate::schema::{NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING};
-    use crate::{Index, TERMINATED};
+    use crate::{Index, IndexWriter, TERMINATED};
 
     #[derive(Clone, Debug)]
     pub struct Doc {
@@ -203,7 +203,7 @@ pub mod tests {
         let field = schema_builder.add_u64_field("test_field", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_for_tests().unwrap();
+        let mut writer: IndexWriter = index.writer_for_tests().unwrap();
         writer.add_document(doc!(field=>52_000u64)).unwrap();
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();

@@ -37,7 +37,7 @@ fn main() -> tantivy::Result<()> {
 
     let index = Index::create_in_dir(&index_path, schema.clone())?;
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // We can create a document manually, by setting the fields
     // one by one in a Document object.
@@ -82,7 +82,7 @@ fn main() -> tantivy::Result<()> {
         }]
     }"#;
 
-    let short_man_doc = schema.parse_document(short_man_json)?;
+    let short_man_doc = Document::parse_json(&schema, short_man_json)?;
 
     index_writer.add_document(short_man_doc)?;
 

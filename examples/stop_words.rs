@@ -60,7 +60,7 @@ fn main() -> tantivy::Result<()> {
 
     index.tokenizers().register("stoppy", tokenizer);
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();

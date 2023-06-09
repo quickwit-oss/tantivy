@@ -62,7 +62,7 @@ fn main() -> tantivy::Result<()> {
     //
     // Here we use a buffer of 50MB per thread. Using a bigger
     // memory arena for the indexer can increase its throughput.
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     index_writer.add_document(doc!(
     title => "The Old Man and the Sea",
     body => "He was an old man who fished alone in a skiff in the Gulf Stream and \

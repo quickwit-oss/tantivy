@@ -82,6 +82,14 @@ pub trait DocumentAccess: Send + Sync + 'static {
     }
 }
 
+/// A single field value.
+///
+/// This trait provides access to the document's data in the form of a visitor,
+/// Tantivy will individually call each method to work out the type of the value
+/// and handle it accordingly.
+///
+/// Implementors of this trait should not try to convert values, instead it should
+/// just return `Some(T)` if the value is the type requested.
 pub trait DocValue<'a>: Send + Sync + Debug {
     /// The visitor used to walk through the key-value pairs
     /// of the provided JSON object.
@@ -90,13 +98,13 @@ pub trait DocValue<'a>: Send + Sync + Debug {
     /// Get the string contents of the value if applicable.
     ///
     /// If the value is not a string, `None` should be returned.
-    fn as_str(&self) -> Option<&str> {
+    fn as_str(&self) -> Option<&'a str> {
         None
     }
     /// Get the facet contents of the value if applicable.
     ///
     /// If the value is not a string, `None` should be returned.
-    fn as_facet(&self) -> Option<&Facet> {
+    fn as_facet(&self) -> Option<&'a Facet> {
         None
     }
     /// Get the u64 contents of the value if applicable.
@@ -138,13 +146,13 @@ pub trait DocValue<'a>: Send + Sync + Debug {
     /// Get the bytes contents of the value if applicable.
     ///
     /// If the value is not bytes, `None` should be returned.
-    fn as_bytes(&self) -> Option<&[u8]> {
+    fn as_bytes(&self) -> Option<&'a [u8]> {
         None
     }
     /// Get the pre-tokenized string contents of the value if applicable.
     ///
     /// If the value is not pre-tokenized string, `None` should be returned.
-    fn as_tokenized_text(&self) -> Option<&PreTokenizedString> {
+    fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
         None
     }
     /// Get the JSON contents of the value if applicable.
@@ -487,8 +495,8 @@ impl Document {
 
     /// Create document from a named doc.
     pub fn convert_named_doc(
-        named_doc: NamedFieldDocument,
         schema: &Schema,
+        named_doc: NamedFieldDocument,
     ) -> Result<Document, DocParsingError> {
         let mut document = Document::new();
         for (field_name, values) in named_doc.0 {
@@ -521,16 +529,16 @@ impl Document {
     }
 
     /// Build a document object from a json-object.
-    pub fn parse_document(doc_json: &str, schema: &Schema) -> Result<Document, DocParsingError> {
+    pub fn parse_json(schema: &Schema, doc_json: &str) -> Result<Document, DocParsingError> {
         let json_obj: Map<String, serde_json::Value> =
             serde_json::from_str(doc_json).map_err(|_| DocParsingError::invalid_json(doc_json))?;
-        Self::from_json_object(json_obj, schema)
+        Self::from_json_object(schema, json_obj)
     }
 
     /// Build a document object from a json-object.
     pub fn from_json_object(
-        json_obj: Map<String, serde_json::Value>,
         schema: &Schema,
+        json_obj: Map<String, serde_json::Value>,
     ) -> Result<Document, DocParsingError> {
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj {
@@ -727,7 +735,6 @@ impl<'a, T: JsonValueVisitor<'a>> serde::Serialize for SerializeJsonWrapper<'a, 
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::doc_binary_wrappers;
     use crate::schema::*;
 
     #[test]

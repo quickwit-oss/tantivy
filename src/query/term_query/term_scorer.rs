@@ -133,7 +133,8 @@ mod tests {
     use crate::query::{Bm25Weight, EnableScoring, Scorer, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
     use crate::{
-        assert_nearly_equals, DocId, DocSet, Index, Score, Searcher, SegmentId, Term, TERMINATED,
+        assert_nearly_equals, DocId, DocSet, Index, IndexWriter, Score, Searcher, SegmentId, Term,
+        TERMINATED,
     };
 
     #[test]
@@ -295,7 +296,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_with_num_threads(3, 30_000_000)?;
+        let mut writer: IndexWriter = index.writer_with_num_threads(3, 30_000_000)?;
         use rand::Rng;
         let mut rng = rand::thread_rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));
