@@ -147,7 +147,7 @@ impl FastFieldsWriter {
                     }
                     Value::Str(text_val) => {
                         if let Some(tokenizer) =
-                            &self.per_field_tokenizer[field_value.field().field_id() as usize]
+                            &mut self.per_field_tokenizer[field_value.field().field_id() as usize]
                         {
                             let mut token_stream = tokenizer.token_stream(text_val);
                             token_stream.process(&mut |token: &Token| {
@@ -202,7 +202,7 @@ impl FastFieldsWriter {
                         self.json_path_buffer.push_str(field_name);
 
                         let text_analyzer =
-                            &self.per_field_tokenizer[field_value.field().field_id() as usize];
+                            &mut self.per_field_tokenizer[field_value.field().field_id() as usize];
 
                         record_json_obj_to_columnar_writer(
                             doc_id,
@@ -263,7 +263,7 @@ fn record_json_obj_to_columnar_writer(
     remaining_depth_limit: usize,
     json_path_buffer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
-    tokenizer: &Option<TextAnalyzer>,
+    tokenizer: &mut Option<TextAnalyzer>,
 ) {
     for (key, child) in json_obj {
         let len_path = json_path_buffer.len();
@@ -302,7 +302,7 @@ fn record_json_value_to_columnar_writer(
     mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
-    tokenizer: &Option<TextAnalyzer>,
+    tokenizer: &mut Option<TextAnalyzer>,
 ) {
     if remaining_depth_limit == 0 {
         return;
@@ -321,7 +321,7 @@ fn record_json_value_to_columnar_writer(
             }
         }
         serde_json::Value::String(text) => {
-            if let Some(text_analyzer) = tokenizer {
+            if let Some(text_analyzer) = tokenizer.as_mut() {
                 let mut token_stream = text_analyzer.token_stream(text);
                 token_stream.process(&mut |token| {
                     columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
@@ -379,7 +379,7 @@ mod tests {
                 JSON_DEPTH_LIMIT,
                 &mut json_path,
                 &mut columnar_writer,
-                &None,
+                &mut None,
             );
         }
         let mut buffer = Vec::new();

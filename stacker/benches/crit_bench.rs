@@ -15,9 +15,17 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     group.plot_config(plot_config);
 
     let input_bytes = ALICE.len() as u64;
+
     let alice_terms_as_bytes: Vec<&[u8]> = ALICE
         .split_ascii_whitespace()
         .map(|el| el.as_bytes())
+        .collect();
+
+    let alice_terms_as_bytes_with_docid: Vec<(u32, &[u8])> = ALICE
+        .split_ascii_whitespace()
+        .map(|el| el.as_bytes())
+        .enumerate()
+        .map(|(docid, el)| (docid as u32, el))
         .collect();
 
     group.throughput(Throughput::Bytes(input_bytes));
@@ -29,8 +37,8 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     );
     group.bench_with_input(
         BenchmarkId::new("alice_expull".to_string(), input_bytes),
-        &alice_terms_as_bytes,
-        |b, i| b.iter(|| create_hash_map_with_expull(i.iter())),
+        &alice_terms_as_bytes_with_docid,
+        |b, i| b.iter(|| create_hash_map_with_expull(i.iter().cloned())),
     );
 
     group.bench_with_input(
@@ -48,11 +56,24 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     // numbers
     let input_bytes = 1_000_000 * 8 as u64;
     group.throughput(Throughput::Bytes(input_bytes));
+    let numbers: Vec<[u8; 8]> = (0..1_000_000u64).map(|el| el.to_le_bytes()).collect();
 
     group.bench_with_input(
         BenchmarkId::new("numbers".to_string(), input_bytes),
-        &(0..1_000_000u64),
-        |b, i| b.iter(|| create_hash_map(i.clone().map(|el| el.to_le_bytes()))),
+        &numbers,
+        |b, i| b.iter(|| create_hash_map(i.iter().cloned())),
+    );
+
+    let numbers_with_doc: Vec<_> = numbers
+        .iter()
+        .enumerate()
+        .map(|(docid, el)| (docid as u32, el))
+        .collect();
+
+    group.bench_with_input(
+        BenchmarkId::new("ids_expull".to_string(), input_bytes),
+        &numbers_with_doc,
+        |b, i| b.iter(|| create_hash_map_with_expull(i.iter().cloned())),
     );
 
     // numbers zipf
@@ -63,11 +84,14 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
 
     let input_bytes = 1_000_000 * 8 as u64;
     group.throughput(Throughput::Bytes(input_bytes));
+    let zipf_numbers: Vec<[u8; 8]> = (0..1_000_000u64)
+        .map(|_| zipf.sample(&mut rng).to_le_bytes())
+        .collect();
 
     group.bench_with_input(
         BenchmarkId::new("numbers_zipf".to_string(), input_bytes),
-        &(0..1_000_000u64),
-        |b, i| b.iter(|| create_hash_map(i.clone().map(|_el| zipf.sample(&mut rng).to_le_bytes()))),
+        &zipf_numbers,
+        |b, i| b.iter(|| create_hash_map(i.iter().cloned())),
     );
 
     group.finish();
@@ -102,14 +126,15 @@ fn create_hash_map<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaH
     map
 }
 
-fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
-    let terms = terms.enumerate();
+fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(
+    terms: impl Iterator<Item = (u32, T)>,
+) -> ArenaHashMap {
     let mut memory_arena = MemoryArena::default();
     let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
     for (i, term) in terms {
         map.mutate_or_create(term.as_ref(), |val: Option<DocIdRecorder>| {
             if let Some(mut rec) = val {
-                rec.new_doc(i as u32, &mut memory_arena);
+                rec.new_doc(i, &mut memory_arena);
                 rec
             } else {
                 DocIdRecorder::default()

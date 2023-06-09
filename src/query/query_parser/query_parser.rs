@@ -403,7 +403,7 @@ impl QueryParser {
                     // This should have been seen earlier really.
                     QueryParserError::FieldNotIndexed(field_entry.name().to_string())
                 })?;
-                let text_analyzer =
+                let mut text_analyzer =
                     self.tokenizer_manager
                         .get(option.tokenizer())
                         .ok_or_else(|| QueryParserError::UnknownTokenizer {
@@ -497,7 +497,7 @@ impl QueryParser {
                     // This should have been seen earlier really.
                     QueryParserError::FieldNotIndexed(field_name.to_string())
                 })?;
-                let text_analyzer = self
+                let mut text_analyzer = self
                     .tokenizer_manager
                     .get(indexing_options.tokenizer())
                     .ok_or_else(|| QueryParserError::UnknownTokenizer {
@@ -511,7 +511,7 @@ impl QueryParser {
                     slop,
                     prefix,
                     indexing_options,
-                    &text_analyzer,
+                    &mut text_analyzer,
                 )?
                 .into_iter()
                 .collect())
@@ -795,7 +795,7 @@ fn generate_literals_for_str(
     slop: u32,
     prefix: bool,
     indexing_options: &TextFieldIndexing,
-    text_analyzer: &TextAnalyzer,
+    text_analyzer: &mut TextAnalyzer,
 ) -> Result<Option<LogicalLiteral>, QueryParserError> {
     let mut terms: Vec<(usize, Term)> = Vec::new();
     let mut token_stream = text_analyzer.token_stream(phrase);
@@ -840,7 +840,7 @@ fn generate_literals_for_json_object(
         // This should have been seen earlier really.
         QueryParserError::FieldNotIndexed(field_name.to_string())
     })?;
-    let text_analyzer = tokenizer_manager
+    let mut text_analyzer = tokenizer_manager
         .get(text_options.tokenizer())
         .ok_or_else(|| QueryParserError::UnknownTokenizer {
             field: field_name.to_string(),
@@ -858,7 +858,7 @@ fn generate_literals_for_json_object(
     if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
         logical_literals.push(LogicalLiteral::Term(term));
     }
-    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, &text_analyzer);
+    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, &mut text_analyzer);
     drop(json_term_writer);
     if terms.len() <= 1 {
         for (_, term) in terms {
@@ -959,7 +959,7 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "en_with_stop_words",
-            TextAnalyzer::builder(SimpleTokenizer)
+            TextAnalyzer::builder(SimpleTokenizer::default())
                 .filter(LowerCaser)
                 .filter(StopWordFilter::remove(vec!["the".to_string()]))
                 .build(),
@@ -1463,7 +1463,7 @@ mod test {
         let index = Index::create_in_ram(schema);
         index
             .tokenizers()
-            .register("customtokenizer", SimpleTokenizer);
+            .register("customtokenizer", SimpleTokenizer::default());
         let query_parser = QueryParser::for_index(&index, vec![title]);
         assert_eq!(
             query_parser.parse_query("title:\"happy tax\"").unwrap_err(),

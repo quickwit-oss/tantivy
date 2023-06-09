@@ -2,6 +2,7 @@ use std::iter::{Cloned, Filter};
 use std::mem;
 
 use super::{Addr, MemoryArena};
+use crate::fastcpy::fast_short_slice_copy;
 use crate::memory_arena::store;
 use crate::UnorderedId;
 
@@ -12,7 +13,11 @@ pub fn compute_table_memory_size(capacity: usize) -> usize {
     capacity * mem::size_of::<KeyValue>()
 }
 
+#[cfg(not(feature = "compare_hash_only"))]
 type HashType = u32;
+
+#[cfg(feature = "compare_hash_only")]
+type HashType = u64;
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external memory arena.
@@ -132,8 +137,19 @@ impl ArenaHashMap {
     }
 
     #[inline]
+    #[cfg(not(feature = "compare_hash_only"))]
     fn get_hash(&self, key: &[u8]) -> HashType {
         murmurhash32::murmurhash2(key)
+    }
+
+    #[inline]
+    #[cfg(feature = "compare_hash_only")]
+    fn get_hash(&self, key: &[u8]) -> HashType {
+        /// Since we compare only the hash we need a high quality hash.
+        use std::hash::Hasher;
+        let mut hasher = ahash::AHasher::default();
+        hasher.write(key);
+        hasher.finish() as HashType
     }
 
     #[inline]
@@ -159,17 +175,19 @@ impl ArenaHashMap {
     #[inline]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
         let data = self.memory_arena.slice_from(addr);
-        let (key_bytes_len_bytes, data) = data.split_at(2);
+        let key_bytes_len_bytes = unsafe { data.get_unchecked(..2) };
         let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
-        let key_bytes: &[u8] = &data[..key_bytes_len as usize];
+        let key_bytes: &[u8] = unsafe { data.get_unchecked(2..2 + key_bytes_len as usize) };
         (key_bytes, addr.offset(2 + key_bytes_len as u32))
     }
 
     #[inline]
     #[cfg(not(feature = "compare_hash_only"))]
     fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
+        use crate::fastcmp::fast_short_slice_compare;
+
         let (stored_key, value_addr) = self.get_key_value(addr);
-        if stored_key == target_key {
+        if fast_short_slice_compare(stored_key, target_key) {
             Some(value_addr)
         } else {
             None
@@ -178,6 +196,8 @@ impl ArenaHashMap {
     #[inline]
     #[cfg(feature = "compare_hash_only")]
     fn get_value_addr_if_key_match(&self, _target_key: &[u8], addr: Addr) -> Option<Addr> {
+        // For the compare_hash_only feature, it would make sense to store the keys at a different
+        // memory location. Here they will just pollute the cache.
         let data = self.memory_arena.slice_from(addr);
         let key_bytes_len_bytes = &data[..2];
         let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
@@ -283,9 +303,9 @@ impl ArenaHashMap {
         }
         let hash = self.get_hash(key);
         let mut probe = self.probe(hash);
+        let mut bucket = probe.next_probe();
+        let mut kv: KeyValue = self.table[bucket];
         loop {
-            let bucket = probe.next_probe();
-            let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 // The key does not exist yet.
                 let val = updater(None);
@@ -293,14 +313,16 @@ impl ArenaHashMap {
                 let key_addr = self.memory_arena.allocate_space(num_bytes);
                 {
                     let data = self.memory_arena.slice_mut(key_addr, num_bytes);
-                    data[..2].copy_from_slice(&(key.len() as u16).to_le_bytes());
+                    let key_len_bytes: [u8; 2] = (key.len() as u16).to_le_bytes();
+                    data[..2].copy_from_slice(&key_len_bytes);
                     let stop = 2 + key.len();
-                    data[2..stop].copy_from_slice(key);
+                    fast_short_slice_copy(key, &mut data[2..stop]);
                     store(&mut data[stop..], val);
                 }
 
                 return self.set_bucket(hash, key_addr, bucket);
-            } else if kv.hash == hash {
+            }
+            if kv.hash == hash {
                 if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
                     let v = self.memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
@@ -308,6 +330,9 @@ impl ArenaHashMap {
                     return kv.unordered_id;
                 }
             }
+            // This allows fetching the next bucket before the loop jmp
+            bucket = probe.next_probe();
+            kv = self.table[bucket];
         }
     }
 }
@@ -354,5 +379,24 @@ mod tests {
         assert_eq!(compute_previous_power_of_two(9), 8);
         assert_eq!(compute_previous_power_of_two(7), 4);
         assert_eq!(compute_previous_power_of_two(u64::MAX as usize), 1 << 63);
+    }
+
+    #[test]
+    fn test_many_terms() {
+        let mut terms: Vec<String> = (0..20_000).map(|val| val.to_string()).collect();
+        let mut hash_map: ArenaHashMap = ArenaHashMap::default();
+        for term in terms.iter() {
+            hash_map.mutate_or_create(term.as_bytes(), |_opt_val: Option<u32>| 5u32);
+        }
+        let mut terms_back: Vec<String> = hash_map
+            .iter()
+            .map(|(bytes, _, _)| String::from_utf8(bytes.to_vec()).unwrap())
+            .collect();
+        terms_back.sort();
+        terms.sort();
+
+        for pos in 0..terms.len() {
+            assert_eq!(terms[pos], terms_back[pos]);
+        }
     }
 }

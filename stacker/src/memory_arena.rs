@@ -74,7 +74,7 @@ impl Addr {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
     debug_assert_eq!(dest.len(), std::mem::size_of::<Item>());
     unsafe {
@@ -104,12 +104,6 @@ impl Default for MemoryArena {
 }
 
 impl MemoryArena {
-    fn add_page(&mut self) -> &mut Page {
-        let new_page_id = self.pages.len();
-        self.pages.push(Page::new(new_page_id));
-        &mut self.pages[new_page_id]
-    }
-
     /// Returns an estimate in number of bytes
     /// of resident memory consumed by the `MemoryArena`.
     ///
@@ -134,36 +128,58 @@ impl MemoryArena {
     pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
         load(self.slice(addr, mem::size_of::<Item>()))
     }
+    #[inline]
+    fn get_page(&self, page_id: usize) -> &Page {
+        unsafe { self.pages.get_unchecked(page_id) }
+    }
+    #[inline]
+    fn get_page_mut(&mut self, page_id: usize) -> &mut Page {
+        unsafe { self.pages.get_unchecked_mut(page_id) }
+    }
 
     #[inline]
     pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
-        self.pages[addr.page_id()].slice(addr.page_local_addr(), len)
+        self.get_page(addr.page_id())
+            .slice(addr.page_local_addr(), len)
     }
 
     #[inline]
     pub fn slice_from(&self, addr: Addr) -> &[u8] {
-        self.pages[addr.page_id()].slice_from(addr.page_local_addr())
+        self.get_page(addr.page_id())
+            .slice_from(addr.page_local_addr())
     }
 
     #[inline]
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
-        self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), len)
+        self.get_page_mut(addr.page_id())
+            .slice_mut(addr.page_local_addr(), len)
+    }
+
+    /// Add a page and allocate len on it.
+    /// Return the address
+    fn add_page(&mut self, len: usize) -> Addr {
+        let new_page_id = self.pages.len();
+        let mut page = Page::new(new_page_id);
+        page.len = len;
+        self.pages.push(page);
+        Addr::new(new_page_id, 0)
     }
 
     /// Allocates `len` bytes and returns the allocated address.
+    #[inline]
     pub fn allocate_space(&mut self, len: usize) -> Addr {
         let page_id = self.pages.len() - 1;
-        if let Some(addr) = self.pages[page_id].allocate_space(len) {
+        if let Some(addr) = self.get_page_mut(page_id).allocate_space(len) {
             return addr;
         }
-        self.add_page().allocate_space(len).unwrap()
+        self.add_page(len)
     }
 }
 
 struct Page {
     page_id: usize,
     len: usize,
-    data: Box<[u8]>,
+    data: Box<[u8; PAGE_SIZE]>,
 }
 
 impl Page {
@@ -171,7 +187,7 @@ impl Page {
         Page {
             page_id,
             len: 0,
-            data: vec![0u8; PAGE_SIZE].into_boxed_slice(),
+            data: vec![0u8; PAGE_SIZE].into_boxed_slice().try_into().unwrap(),
         }
     }
 
@@ -182,7 +198,8 @@ impl Page {
 
     #[inline]
     fn slice(&self, local_addr: usize, len: usize) -> &[u8] {
-        &self.slice_from(local_addr)[..len]
+        let data = &self.slice_from(local_addr);
+        unsafe { data.get_unchecked(..len) }
     }
 
     #[inline]
@@ -192,9 +209,11 @@ impl Page {
 
     #[inline]
     fn slice_mut(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
-        &mut self.data[local_addr..][..len]
+        let data = &mut self.data[local_addr..];
+        unsafe { data.get_unchecked_mut(..len) }
     }
 
+    #[inline]
     fn allocate_space(&mut self, len: usize) -> Option<Addr> {
         if self.is_available(len) {
             let addr = Addr::new(self.page_id, self.len);

@@ -5,7 +5,7 @@ pub(crate) struct EmptyTokenizer;
 
 impl Tokenizer for EmptyTokenizer {
     type TokenStream<'a> = EmptyTokenStream;
-    fn token_stream(&self, _text: &str) -> EmptyTokenStream {
+    fn token_stream(&mut self, _text: &str) -> EmptyTokenStream {
         EmptyTokenStream::default()
     }
 }
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_empty_tokenizer() {
-        let tokenizer = super::EmptyTokenizer;
+        let mut tokenizer = super::EmptyTokenizer;
         let mut empty = tokenizer.token_stream("whatever string");
         assert!(!empty.advance());
     }

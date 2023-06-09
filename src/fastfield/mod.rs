@@ -1208,7 +1208,7 @@ mod tests {
         let ff_tokenizer_manager = TokenizerManager::default();
         ff_tokenizer_manager.register(
             "custom_lowercase",
-            TextAnalyzer::builder(RawTokenizer)
+            TextAnalyzer::builder(RawTokenizer::default())
                 .filter(LowerCaser)
                 .build(),
         );

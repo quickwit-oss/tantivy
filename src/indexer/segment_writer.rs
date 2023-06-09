@@ -185,10 +185,11 @@ impl SegmentWriter {
 
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
+                    let mut facet_tokenizer = FacetTokenizer::default(); // this can be global
                     for value in values {
                         let facet = value.as_facet().ok_or_else(make_schema_error)?;
                         let facet_str = facet.encoded_str();
-                        let mut facet_tokenizer = FacetTokenizer.token_stream(facet_str);
+                        let mut facet_tokenizer = facet_tokenizer.token_stream(facet_str);
                         let mut indexing_position = IndexingPosition::default();
                         postings_writer.index_text(
                             doc_id,
@@ -208,7 +209,7 @@ impl SegmentWriter {
                             }
                             Value::Str(ref text) => {
                                 let text_analyzer =
-                                    &self.per_field_text_analyzers[field.field_id() as usize];
+                                    &mut self.per_field_text_analyzers[field.field_id() as usize];
                                 text_analyzer.token_stream(text)
                             }
                             _ => {
@@ -304,7 +305,8 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::JsonObject(json_options) => {
-                    let text_analyzer = &self.per_field_text_analyzers[field.field_id() as usize];
+                    let text_analyzer =
+                        &mut self.per_field_text_analyzers[field.field_id() as usize];
                     let json_values_it =
                         values.map(|value| value.as_json().ok_or_else(make_schema_error));
                     index_json_values(
@@ -457,7 +459,7 @@ mod tests {
     fn test_hashmap_size() {
         assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
         assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
-        assert_eq!(compute_initial_table_size(10_000_000).unwrap(), 1 << 18);
+        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 18);
         assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
     }

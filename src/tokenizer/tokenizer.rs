@@ -12,13 +12,13 @@ pub struct TextAnalyzer {
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
 trait BoxableTokenizer: 'static + Send + Sync {
     /// Creates a boxed token stream for a given `str`.
-    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a>;
+    fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a>;
     /// Clone this tokenizer.
     fn box_clone(&self) -> Box<dyn BoxableTokenizer>;
 }
 
 impl<T: Tokenizer> BoxableTokenizer for T {
-    fn box_token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+    fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
         self.token_stream(text).into()
     }
     fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
@@ -53,7 +53,7 @@ impl TextAnalyzer {
     }
 
     /// Creates a token stream for a given `str`.
-    pub fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+    pub fn token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
         self.tokenizer.box_token_stream(text)
     }
 }
@@ -71,7 +71,7 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     /// ```rust
     /// use tantivy::tokenizer::*;
     ///
-    /// let en_stem = TextAnalyzer::builder(SimpleTokenizer)
+    /// let en_stem = TextAnalyzer::builder(SimpleTokenizer::default())
     ///     .filter(RemoveLongFilter::limit(40))
     ///     .filter(LowerCaser)
     ///     .filter(Stemmer::default())

@@ -2,40 +2,10 @@ use std::mem;
 
 use common::serialize_vint_u32;
 
-use crate::memory_arena::{load, store};
+use crate::fastcpy::fast_short_slice_copy;
 use crate::{Addr, MemoryArena};
 
-const MAX_BLOCK_LEN: u32 = 1u32 << 15;
-const FIRST_BLOCK: usize = 16;
-const INLINED_BLOCK_LEN: usize = FIRST_BLOCK + mem::size_of::<Addr>();
-
-enum CapacityResult {
-    Available(u32),
-    NeedAlloc(u32),
-}
-
-fn len_to_capacity(len: u32) -> CapacityResult {
-    match len {
-        0..=15 => CapacityResult::Available(FIRST_BLOCK as u32 - len),
-        16..=MAX_BLOCK_LEN => {
-            let cap = 1 << (32u32 - (len - 1u32).leading_zeros());
-            let available = cap - len;
-            if available == 0 {
-                CapacityResult::NeedAlloc(len)
-            } else {
-                CapacityResult::Available(available)
-            }
-        }
-        n => {
-            let available = n % MAX_BLOCK_LEN;
-            if available == 0 {
-                CapacityResult::NeedAlloc(MAX_BLOCK_LEN)
-            } else {
-                CapacityResult::Available(MAX_BLOCK_LEN - available)
-            }
-        }
-    }
-}
+const FIRST_BLOCK_NUM: u16 = 2;
 
 /// An exponential unrolled link.
 ///
@@ -52,17 +22,33 @@ fn len_to_capacity(len: u32) -> CapacityResult {
 /// problem of selecting an adequate block size using a strategy similar to
 /// that of the `Vec` amortized resize strategy.
 ///
-/// Data is stored in a linked list of blocks. The first block has a size of `4`
+/// Data is stored in a linked list of blocks. The first block has a size of `8`
 /// and each block has a length of twice that of the previous block up to
-/// `MAX_BLOCK_LEN = 32768`.
+/// `MAX_BLOCK_LEN = 1<<15`.
 ///
 /// This strategy is a good trade off to handle numerous very rare terms
 /// and avoid wasting half of the memory for very frequent terms.
 #[derive(Debug, Clone, Copy)]
 pub struct ExpUnrolledLinkedList {
-    len: u32,
+    // u16, since the max size of each block is (1<<next_cap_pow_2)
+    // Limited to 15, so we don't overflow remaining_cap.
+    remaining_cap: u16,
+    // To get the current number of blocks: block_num - FIRST_BLOCK_NUM
+    block_num: u16,
+    head: Addr,
     tail: Addr,
-    inlined_data: [u8; INLINED_BLOCK_LEN],
+}
+
+impl Default for ExpUnrolledLinkedList {
+    fn default() -> Self {
+        Self {
+            // 0 to trigger an initial allocation. Init with MemoryArena would be better.
+            remaining_cap: 0,
+            block_num: FIRST_BLOCK_NUM,
+            head: Addr::null_pointer(),
+            tail: Addr::null_pointer(),
+        }
+    }
 }
 
 pub struct ExpUnrolledLinkedListWriter<'a> {
@@ -70,32 +56,22 @@ pub struct ExpUnrolledLinkedListWriter<'a> {
     arena: &'a mut MemoryArena,
 }
 
+#[inline]
 fn ensure_capacity<'a>(
     eull: &'a mut ExpUnrolledLinkedList,
     arena: &'a mut MemoryArena,
-) -> &'a mut [u8] {
-    if eull.len <= FIRST_BLOCK as u32 {
-        // We are still hitting the inline block.
-        if eull.len < FIRST_BLOCK as u32 {
-            return &mut eull.inlined_data[eull.len as usize..FIRST_BLOCK];
-        }
-        // We need to allocate a new block!
-        let new_block_addr: Addr = arena.allocate_space(FIRST_BLOCK + mem::size_of::<Addr>());
-        store(&mut eull.inlined_data[FIRST_BLOCK..], new_block_addr);
-        eull.tail = new_block_addr;
-        return arena.slice_mut(eull.tail, FIRST_BLOCK);
+    allocate: u32,
+) {
+    let new_block_addr: Addr = arena.allocate_space(allocate as usize + mem::size_of::<Addr>());
+    // Check first write
+    if eull.head.is_null() {
+        eull.head = new_block_addr;
+    } else {
+        arena.write_at(eull.tail, new_block_addr);
     }
-    let len = match len_to_capacity(eull.len) {
-        CapacityResult::NeedAlloc(new_block_len) => {
-            let new_block_addr: Addr =
-                arena.allocate_space(new_block_len as usize + mem::size_of::<Addr>());
-            arena.write_at(eull.tail, new_block_addr);
-            eull.tail = new_block_addr;
-            new_block_len
-        }
-        CapacityResult::Available(available) => available,
-    };
-    arena.slice_mut(eull.tail, len as usize)
+
+    eull.tail = new_block_addr;
+    eull.remaining_cap = allocate as u16;
 }
 
 impl<'a> ExpUnrolledLinkedListWriter<'a> {
@@ -111,56 +87,63 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
         while !buf.is_empty() {
             let add_len: usize;
             {
-                let output_buf = ensure_capacity(self.eull, self.arena);
+                if self.eull.remaining_cap == 0 {
+                    // Double the next cap
+                    self.eull.increment_num_blocks();
+                    let block_size = get_block_size(self.eull.block_num);
+                    ensure_capacity(self.eull, self.arena, block_size as u32);
+                }
+
+                let output_buf = self
+                    .arena
+                    .slice_mut(self.eull.tail, self.eull.remaining_cap as usize);
                 add_len = buf.len().min(output_buf.len());
-                output_buf[..add_len].copy_from_slice(&buf[..add_len]);
+                let output_buf = &mut output_buf[..add_len];
+                let buf = &buf[..add_len];
+
+                fast_short_slice_copy(buf, output_buf);
             }
-            self.eull.len += add_len as u32;
+            self.eull.remaining_cap -= add_len as u16;
             self.eull.tail = self.eull.tail.offset(add_len as u32);
             buf = &buf[add_len..];
         }
     }
 }
 
-impl Default for ExpUnrolledLinkedList {
-    fn default() -> ExpUnrolledLinkedList {
-        ExpUnrolledLinkedList {
-            len: 0u32,
-            tail: Addr::null_pointer(),
-            inlined_data: [0u8; INLINED_BLOCK_LEN],
-        }
-    }
+// The block size is 2^block_num + 2, but max 2^15= 32k
+// Inital size is 8, for the first block => block_num == 1
+#[inline]
+fn get_block_size(block_num: u16) -> u16 {
+    1 << block_num.min(15)
 }
 
 impl ExpUnrolledLinkedList {
+    pub fn increment_num_blocks(&mut self) {
+        self.block_num += 1;
+    }
+
     #[inline]
     pub fn writer<'a>(&'a mut self, arena: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
         ExpUnrolledLinkedListWriter { eull: self, arena }
     }
 
     pub fn read_to_end(&self, arena: &MemoryArena, output: &mut Vec<u8>) {
-        let len = self.len as usize;
-        if len <= FIRST_BLOCK {
-            output.extend_from_slice(&self.inlined_data[..len]);
+        let mut addr = self.head;
+        if addr.is_null() {
             return;
         }
-        output.extend_from_slice(&self.inlined_data[..FIRST_BLOCK]);
-        let mut cur = FIRST_BLOCK;
-        let mut addr = load(&self.inlined_data[FIRST_BLOCK..]);
-        loop {
-            let cap = match len_to_capacity(cur as u32) {
-                CapacityResult::Available(capacity) => capacity,
-                CapacityResult::NeedAlloc(capacity) => capacity,
-            } as usize;
+        let last_block_len = get_block_size(self.block_num) as usize - self.remaining_cap as usize;
+
+        // Full Blocks
+        for block_num in FIRST_BLOCK_NUM + 1..self.block_num {
+            let cap = get_block_size(block_num) as usize;
             let data = arena.slice(addr, cap);
-            if cur + cap >= len {
-                output.extend_from_slice(&data[..(len - cur)]);
-                return;
-            }
             output.extend_from_slice(data);
-            cur += cap;
             addr = arena.read(addr.offset(cap as u32));
         }
+        // Last Block
+        let data = arena.slice(addr, last_block_len);
+        output.extend_from_slice(data);
     }
 }
 
@@ -169,10 +152,21 @@ mod tests {
     use common::{read_u32_vint, write_u32_vint};
 
     use super::super::MemoryArena;
-    use super::{len_to_capacity, *};
+    use super::*;
 
     #[test]
-    fn test_eull() {
+    fn test_eull_empty() {
+        let arena = MemoryArena::default();
+        let stack = ExpUnrolledLinkedList::default();
+        {
+            let mut buffer = Vec::new();
+            stack.read_to_end(&arena, &mut buffer);
+            assert_eq!(&buffer[..], &[]);
+        }
+    }
+
+    #[test]
+    fn test_eull1() {
         let mut arena = MemoryArena::default();
         let mut stack = ExpUnrolledLinkedList::default();
         stack.writer(&mut arena).extend_from_slice(&[1u8]);
@@ -183,6 +177,35 @@ mod tests {
             let mut buffer = Vec::new();
             stack.read_to_end(&arena, &mut buffer);
             assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
+        }
+    }
+
+    #[test]
+    fn test_eull_vint1() {
+        let mut arena = MemoryArena::default();
+        let mut stack = ExpUnrolledLinkedList::default();
+        stack.writer(&mut arena).extend_from_slice(&[1u8]);
+        stack.writer(&mut arena).extend_from_slice(&[2u8]);
+        stack.writer(&mut arena).extend_from_slice(&[3u8, 4u8]);
+        stack.writer(&mut arena).extend_from_slice(&[5u8]);
+        {
+            let mut buffer = Vec::new();
+            stack.read_to_end(&arena, &mut buffer);
+            assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
+        }
+    }
+
+    #[test]
+    fn test_eull_first_write_extends_cap() {
+        let mut arena = MemoryArena::default();
+        let mut stack = ExpUnrolledLinkedList::default();
+        stack
+            .writer(&mut arena)
+            .extend_from_slice(&[1u8, 2, 3, 4, 5, 6, 7, 8, 9]);
+        {
+            let mut buffer = Vec::new();
+            stack.read_to_end(&arena, &mut buffer);
+            assert_eq!(&buffer[..], &[1u8, 2, 3, 4, 5, 6, 7, 8, 9]);
         }
     }
 
@@ -205,8 +228,17 @@ mod tests {
     }
 
     #[test]
+    fn test_eull_limit() {
+        let mut eull = ExpUnrolledLinkedList::default();
+        for _ in 0..100 {
+            eull.increment_num_blocks();
+        }
+        assert_eq!(get_block_size(eull.block_num), 1 << 15);
+    }
+
+    #[test]
     fn test_eull_interlaced() {
-        let mut eull = MemoryArena::default();
+        let mut arena = MemoryArena::default();
         let mut stack = ExpUnrolledLinkedList::default();
         let mut stack2 = ExpUnrolledLinkedList::default();
 
@@ -214,67 +246,19 @@ mod tests {
         let mut vec2: Vec<u8> = vec![];
 
         for i in 0..9 {
-            stack.writer(&mut eull).write_u32_vint(i);
+            stack.writer(&mut arena).write_u32_vint(i);
             assert!(write_u32_vint(i, &mut vec1).is_ok());
             if i % 2 == 0 {
-                stack2.writer(&mut eull).write_u32_vint(i);
+                stack2.writer(&mut arena).write_u32_vint(i);
                 assert!(write_u32_vint(i, &mut vec2).is_ok());
             }
         }
         let mut res1 = vec![];
         let mut res2 = vec![];
-        stack.read_to_end(&eull, &mut res1);
-        stack2.read_to_end(&eull, &mut res2);
+        stack.read_to_end(&arena, &mut res1);
+        stack2.read_to_end(&arena, &mut res2);
         assert_eq!(&vec1[..], &res1[..]);
         assert_eq!(&vec2[..], &res2[..]);
-    }
-
-    #[test]
-    fn test_jump_if_needed() {
-        let mut available = 16u32;
-        for i in 0..10_000_000 {
-            match len_to_capacity(i) {
-                CapacityResult::NeedAlloc(cap) => {
-                    assert_eq!(available, 0, "Failed len={i}: Expected 0 got {cap}");
-                    available = cap;
-                }
-                CapacityResult::Available(cap) => {
-                    assert_eq!(
-                        available, cap,
-                        "Failed len={i}: Expected {available} Got {cap}"
-                    );
-                }
-            }
-            available -= 1;
-        }
-    }
-
-    #[test]
-    fn test_jump_if_needed_progression() {
-        let mut v = vec![];
-        for i in 0.. {
-            if v.len() >= 10 {
-                break;
-            }
-            if let CapacityResult::NeedAlloc(cap) = len_to_capacity(i) {
-                v.push((i, cap));
-            }
-        }
-        assert_eq!(
-            &v[..],
-            &[
-                (16, 16),
-                (32, 32),
-                (64, 64),
-                (128, 128),
-                (256, 256),
-                (512, 512),
-                (1024, 1024),
-                (2048, 2048),
-                (4096, 4096),
-                (8192, 8192)
-            ]
-        );
     }
 }
 

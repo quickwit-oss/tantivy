@@ -34,9 +34,20 @@ impl Default for Token {
             offset_from: 0,
             offset_to: 0,
             position: usize::MAX,
-            text: String::with_capacity(200),
+            text: String::new(),
             position_length: 1,
         }
+    }
+}
+
+impl Token {
+    /// reset to default
+    pub fn reset(&mut self) {
+        self.offset_from = 0;
+        self.offset_to = 0;
+        self.position = usize::MAX;
+        self.text.clear();
+        self.position_length = 1;
     }
 }
 
@@ -46,7 +57,7 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
     /// The token stream returned by this Tokenizer.
     type TokenStream<'a>: TokenStream;
     /// Creates a token stream for a given `str`.
-    fn token_stream<'a>(&self, text: &'a str) -> Self::TokenStream<'a>;
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a>;
 }
 
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
