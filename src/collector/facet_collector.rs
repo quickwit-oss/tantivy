@@ -161,6 +161,21 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///         ]);
 ///     }
 ///
+///     {
+///         let mut facet_collector = FacetCollector::for_field("facet");
+///         facet_collector.add_facet("/");
+///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
+///
+///         // This lists all of the facet counts
+///         let facets: Vec<(&Facet, u64)> = facet_counts
+///             .get("/")
+///             .collect();
+///         assert_eq!(facets, vec![
+///             (&Facet::from("/category"), 4),
+///             (&Facet::from("/lang"), 4)
+///         ]);
+///     }
+///
 ///     Ok(())
 /// }
 /// # assert!(example().is_ok());
@@ -284,6 +299,9 @@ impl Collector for FacetCollector {
 fn is_child_facet(parent_facet: &[u8], possible_child_facet: &[u8]) -> bool {
     if !possible_child_facet.starts_with(parent_facet) {
         return false;
+    }
+    if parent_facet.is_empty() {
+        return true;
     }
     possible_child_facet.get(parent_facet.len()).copied() == Some(0u8)
 }
@@ -788,6 +806,15 @@ mod tests {
             vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
         );
         Ok(())
+    }
+
+    #[test]
+    fn is_child_facet() {
+        assert!(super::is_child_facet(&b"foo"[..], &b"foo\0bar"[..]));
+        assert!(super::is_child_facet(&b""[..], &b"foo\0bar"[..]));
+        assert!(super::is_child_facet(&b""[..], &b"foo"[..]));
+        assert!(!super::is_child_facet(&b"foo\0bar"[..], &b"foo"[..]));
+        assert!(!super::is_child_facet(&b"foo"[..], &b"foobar\0baz"[..]));
     }
 }
 
