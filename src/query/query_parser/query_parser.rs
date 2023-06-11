@@ -1203,12 +1203,17 @@ mod test {
     fn test_json_field_possibly_a_number() {
         test_parse_query_to_logical_ast_helper(
             "json.titi:5",
-            r#"(Term(field=14, type=Json, path=titi, type=U64, 5) Term(field=14, type=Json, path=titi, type=Str, "5"))"#,
+            r#"(Term(field=14, type=Json, path=titi, type=I64, 5) Term(field=14, type=Json, path=titi, type=Str, "5"))"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "json.titi:-5",
             r#"(Term(field=14, type=Json, path=titi, type=I64, -5) Term(field=14, type=Json, path=titi, type=Str, "5"))"#, //< Yes this is a bit weird after going through the tokenizer we lose the "-".
+            true,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "json.titi:10000000000000000000",
+            r#"(Term(field=14, type=Json, path=titi, type=U64, 10000000000000000000) Term(field=14, type=Json, path=titi, type=Str, "10000000000000000000"))"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
@@ -1260,7 +1265,7 @@ mod test {
     fn test_json_default() {
         test_query_to_logical_ast_with_default_json(
             "titi:4",
-            "(Term(field=14, type=Json, path=titi, type=U64, 4) Term(field=14, type=Json, \
+            "(Term(field=14, type=Json, path=titi, type=I64, 4) Term(field=14, type=Json, \
              path=titi, type=Str, \"4\"))",
             false,
         );
@@ -1282,7 +1287,7 @@ mod test {
         for conjunction in [false, true] {
             test_query_to_logical_ast_with_default_json(
                 "json:4",
-                r#"(Term(field=14, type=Json, path=, type=U64, 4) Term(field=14, type=Json, path=, type=Str, "4"))"#,
+                r#"(Term(field=14, type=Json, path=, type=I64, 4) Term(field=14, type=Json, path=, type=Str, "4"))"#,
                 conjunction,
             );
         }
