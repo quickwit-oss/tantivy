@@ -212,11 +212,11 @@ pub fn convert_to_fast_value_and_get_term(
             DateTime::from_utc(dt_utc),
         ));
     }
-    if let Ok(u64_val) = str::parse::<u64>(phrase) {
-        return Some(set_fastvalue_and_get_term(json_term_writer, u64_val));
-    }
     if let Ok(i64_val) = str::parse::<i64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, i64_val));
+    }
+    if let Ok(u64_val) = str::parse::<u64>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, u64_val));
     }
     if let Ok(f64_val) = str::parse::<f64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, f64_val));
