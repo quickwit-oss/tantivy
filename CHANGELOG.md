@@ -27,6 +27,7 @@ Tantivy 0.20 [Unreleased]
   - [**breaking**] Drop JSON support on intermediate agg result (we use postcard as format in `quickwit` to send intermediate results) [#1992](https://github.com/quickwit-oss/tantivy/issues/1992) (@PSeitz)
   - Set memory limit in bytes for aggregations after which they abort (Previously there was only the bucket limit) [#1942](https://github.com/quickwit-oss/tantivy/issues/1942)[#1957](https://github.com/quickwit-oss/tantivy/issues/1957)(@PSeitz)
   - Add support for u64,i64,f64 fields in term aggregation [#1883](https://github.com/quickwit-oss/tantivy/issues/1883) (@PSeitz)
+  - Allow histogram bounds to be passed as Rfc3339 [#2076](https://github.com/quickwit-oss/tantivy/issues/2076) (@PSeitz)
   - Add count, min, max, and sum aggregations [#1794](https://github.com/quickwit-oss/tantivy/issues/1794) (@guilload)
   - Switch to Aggregation without serde_untagged => better deserialization errors. [#2003](https://github.com/quickwit-oss/tantivy/issues/2003) (@PSeitz)
   - Switch to ms in histogram for date type (ES compatibility) [#2045](https://github.com/quickwit-oss/tantivy/issues/2045) (@PSeitz)
@@ -39,10 +40,10 @@ Tantivy 0.20 [Unreleased]
   - Perf: Fetch blocks of vals in aggregation for all cardinality [#1950](https://github.com/quickwit-oss/tantivy/issues/1950) (@PSeitz)
 - `Searcher` with disabled scoring via `EnableScoring::Disabled` [#1780](https://github.com/quickwit-oss/tantivy/issues/1780) (@shikhar)
 - Enable tokenizer on json fields [#2053](https://github.com/quickwit-oss/tantivy/issues/2053) (@PSeitz)
-- Enforcing "NOT" and "-" queries consistency in UserInputAst [#1609](https://github.com/quickwit-oss/tantivy/issues/1609) (@Denis Bazhenov)
+- Enforcing "NOT" and "-" queries consistency in UserInputAst [#1609](https://github.com/quickwit-oss/tantivy/issues/1609) (@bazhenov)
 - Faster indexing
   - Refactor tokenization pipeline to use GATs [#1924](https://github.com/quickwit-oss/tantivy/issues/1924) (@trinity-1686a)
-  - Faster term hash map [#1940](https://github.com/quickwit-oss/tantivy/issues/1940) (@PSeitz)
+  - Faster term hash map [#2058](https://github.com/quickwit-oss/tantivy/issues/2058)[#1940](https://github.com/quickwit-oss/tantivy/issues/1940) (@PSeitz)
   - Refactor vint [#2010](https://github.com/quickwit-oss/tantivy/issues/2010) (@PSeitz)
 - Faster search
   - Work in batches of docs on the SegmentCollector (Only for cases without score for now) [#1937](https://github.com/quickwit-oss/tantivy/issues/1937) (@PSeitz)
@@ -51,7 +52,8 @@ Tantivy 0.20 [Unreleased]
 - Make BM25 scoring more flexible [#1855](https://github.com/quickwit-oss/tantivy/issues/1855) (@alexcole)
 - Switch fs2 to fs4 as it is now unmaintained and does not support illumos [#1944](https://github.com/quickwit-oss/tantivy/issues/1944) (@Toasterson)
 - Made BooleanWeight and BoostWeight public [#1991](https://github.com/quickwit-oss/tantivy/issues/1991) (@fulmicoton)
-- Make index compatible with virtual drives on Windows [#1843](https://github.com/quickwit-oss/tantivy/issues/1843) (@Yukun Guo)
+- Make index compatible with virtual drives on Windows [#1843](https://github.com/quickwit-oss/tantivy/issues/1843) (@gyk)
+- Add stop words for Hungarian language [#2069](https://github.com/quickwit-oss/tantivy/issues/2069) (@tnxbutno)
 - Auto downgrade index record option, instead of vint error [#1857](https://github.com/quickwit-oss/tantivy/issues/1857) (@PSeitz)
 - Enable range query on fast field for u64 compatible types [#1762](https://github.com/quickwit-oss/tantivy/issues/1762) (@PSeitz) [#1876]
 - sstable
