@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
-desciption = "column oriented storage for tantivy"
+description = "column oriented storage for tantivy"
 categories = ["database-implementations", "data-structures", "compression"]
 
 [dependencies]

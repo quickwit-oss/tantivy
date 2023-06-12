@@ -44,7 +44,7 @@ pub fn fast_short_slice_copy(src: &[u8], dst: &mut [u8]) {
         return;
     }
 
-    /// The code will use the vmovdqu instruction to copy 32 bytes at a time.
+    // The code will use the vmovdqu instruction to copy 32 bytes at a time.
     #[cfg(target_feature = "avx")]
     {
         if len <= 64 {

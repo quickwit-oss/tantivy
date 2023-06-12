@@ -876,8 +876,8 @@ pub mod tests {
         }"#,
         )
         .unwrap();
-        let doc = doc!(json_field=>json_val.clone());
-        let index = Index::create_in_ram(schema.clone());
+        let doc = doc!(json_field=>json_val);
+        let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
         writer.add_document(doc).unwrap();
         writer.commit().unwrap();

@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-#[cfg(any(target_arch = "x86_64"))]
+#[cfg(target_arch = "x86_64")]
 mod avx2;
 
 mod scalar;

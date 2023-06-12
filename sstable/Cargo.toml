@@ -7,7 +7,7 @@ homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
 keywords = ["search", "information", "retrieval", "sstable"]
 categories = ["database-implementations", "data-structures", "compression"]
-desciption = "sstables for tantivy"
+description = "sstables for tantivy"
 
 [dependencies]
 common = {version= "0.5", path="../common", package="tantivy-common"}

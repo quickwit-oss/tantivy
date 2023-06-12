@@ -101,6 +101,7 @@ mod test {
 
     use super::Stamper;
 
+    #[allow(clippy::redundant_clone)]
     #[test]
     fn test_stamper() {
         let stamper = Stamper::new(7u64);
@@ -116,6 +117,7 @@ mod test {
         assert_eq!(stamper.stamp(), 15u64);
     }
 
+    #[allow(clippy::redundant_clone)]
     #[test]
     fn test_stamper_revert() {
         let stamper = Stamper::new(7u64);
