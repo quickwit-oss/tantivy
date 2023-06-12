@@ -6,21 +6,24 @@
 //
 // Of course, you can have a look at the tantivy's built-in collectors
 // such as the `CountCollector` for more examples.
-
-// ---
-// Importing tantivy...
+use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
-use columnar::{BytesColumn, ColumnValues, DynamicColumn, HasAssociatedColumnType};
+use columnar::{BytesColumn, Column, DynamicColumn, HasAssociatedColumnType};
 
 use crate::collector::{Collector, SegmentCollector};
 use crate::schema::Field;
-use crate::{Score, SegmentReader, TantivyError};
+use crate::{DocId, Score, SegmentReader, TantivyError};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
-/// Only the documents for which the predicate returned "true" will be passed on to the next
-/// collector.
+///
+/// Only the documents containing at least one value for which the predicate returns `true`
+/// will be passed on to the next collector.
+///
+/// In other words,
+/// - documents with no values are filtered out.
+/// - documents with several values are accepted if at least one value matches the predicate.
+///
 ///
 /// ```rust
 /// use tantivy::collector::{TopDocs, FilterCollector};
@@ -116,16 +119,16 @@ where
             )));
         }
 
-        let column_values = segment_reader
+        let column_opt = segment_reader
             .fast_fields()
-            .column_first_or_default(schema.get_field_name(self.field))?;
+            .column_opt(field_entry.name())?;
 
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
 
         Ok(FilterSegmentCollector {
-            column_values,
+            column_opt,
             segment_collector,
             predicate: self.predicate.clone(),
             t_predicate_value: PhantomData,
@@ -144,15 +147,30 @@ where
     }
 }
 
-pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
-where
-    TPredicate: 'static,
-    DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>>,
-{
-    column_values: Arc<dyn ColumnValues<TPredicateValue>>,
+pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue> {
+    column_opt: Option<Column<TPredicateValue>>,
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
+}
+
+impl<TSegmentCollector, TPredicate, TPredicateValue>
+    FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
+where
+    TPredicateValue: PartialOrd + Copy + Debug + Send + Sync + 'static,
+    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
+{
+    #[inline]
+    fn accept_document(&self, doc_id: DocId) -> bool {
+        if let Some(column) = &self.column_opt {
+            for val in column.values_for_doc(doc_id) {
+                if (self.predicate)(val) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
 impl<TSegmentCollector, TPredicate, TPredicateValue> SegmentCollector
@@ -160,15 +178,13 @@ impl<TSegmentCollector, TPredicate, TPredicateValue> SegmentCollector
 where
     TSegmentCollector: SegmentCollector,
     TPredicateValue: HasAssociatedColumnType,
-    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
-    DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>>,
+    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync, /* DynamicColumn: Into<Option<columnar::Column<TPredicateValue>>> */
 {
     type Fruit = TSegmentCollector::Fruit;
 
     fn collect(&mut self, doc: u32, score: Score) {
-        let value = self.column_values.get_val(doc);
-        if (self.predicate)(value) {
-            self.segment_collector.collect(doc, score)
+        if self.accept_document(doc) {
+            self.segment_collector.collect(doc, score);
         }
     }
 
@@ -180,6 +196,12 @@ where
 /// A variant of the [`FilterCollector`] specialized for bytes fast fields, i.e.
 /// it transparently wraps an inner [`Collector`] but filters documents
 /// based on the result of applying the predicate to the bytes fast field.
+///
+/// A document is accepted if and only if the predicate returns `true` for at least one value.
+///
+/// In other words,
+/// - documents with no values are filtered out.
+/// - documents with several values are accepted if at least one value matches the predicate.
 ///
 /// ```rust
 /// use tantivy::collector::{TopDocs, BytesFilterCollector};
@@ -255,21 +277,14 @@ where
         let schema = segment_reader.schema();
         let field_name = schema.get_field_name(self.field);
 
-        let column = segment_reader
-            .fast_fields()
-            .bytes(field_name)?
-            .ok_or_else(|| {
-                crate::TantivyError::SchemaError(format!(
-                    "Field `{field_name}` is missing or is not configured as a fast field."
-                ))
-            })?;
+        let column_opt = segment_reader.fast_fields().bytes(field_name)?;
 
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
 
         Ok(BytesFilterSegmentCollector {
-            column,
+            column_opt,
             segment_collector,
             predicate: self.predicate.clone(),
             buffer: Vec::new(),
@@ -291,10 +306,32 @@ where
 pub struct BytesFilterSegmentCollector<TSegmentCollector, TPredicate>
 where TPredicate: 'static
 {
-    column: BytesColumn,
+    column_opt: Option<BytesColumn>,
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     buffer: Vec<u8>,
+}
+
+impl<TSegmentCollector, TPredicate> BytesFilterSegmentCollector<TSegmentCollector, TPredicate>
+where
+    TSegmentCollector: SegmentCollector,
+    TPredicate: 'static + Fn(&[u8]) -> bool + Send + Sync,
+{
+    #[inline]
+    fn accept_document(&mut self, doc_id: DocId) -> bool {
+        if let Some(column) = &self.column_opt {
+            for ord in column.term_ords(doc_id) {
+                self.buffer.clear();
+
+                let found = column.ord_to_bytes(ord, &mut self.buffer).unwrap_or(false);
+
+                if found && (self.predicate)(&self.buffer) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
 impl<TSegmentCollector, TPredicate> SegmentCollector
@@ -306,21 +343,8 @@ where
     type Fruit = TSegmentCollector::Fruit;
 
     fn collect(&mut self, doc: u32, score: Score) {
-        let mut found = false;
-
-        if let Some(ord) = self.column.term_ords(doc).next() {
-            found = self
-                .column
-                .ord_to_bytes(ord, &mut self.buffer)
-                .unwrap_or(false);
-        }
-
-        if !found {
-            self.buffer.clear();
-        }
-
-        if (self.predicate)(&self.buffer) {
-            self.segment_collector.collect(doc, score)
+        if self.accept_document(doc) {
+            self.segment_collector.collect(doc, score);
         }
     }
 
