@@ -74,14 +74,14 @@ impl AggregationWithAccessor {
                     ColumnType::I64,
                     ColumnType::U64,
                     ColumnType::F64,
-                    ColumnType::Bytes,
                     ColumnType::Str,
+                    // ColumnType::Bytes Unsupported
                     // ColumnType::Bool Unsupported
                     // ColumnType::IpAddr Unsupported
                     // ColumnType::DateTime Unsupported
                 ];
                 let mut columns =
-                    get_all_ff_reader(reader, field_name, Some(&allowed_column_types))?;
+                    get_all_ff_reader_or_empty(reader, field_name, Some(&allowed_column_types))?;
                 let first = columns.pop().unwrap();
                 accessor2 = columns.pop();
                 first
@@ -177,7 +177,7 @@ fn get_ff_reader(
 /// Get all fast field reader or empty as default.
 ///
 /// Is guaranteed to return at least one column.
-fn get_all_ff_reader(
+fn get_all_ff_reader_or_empty(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
