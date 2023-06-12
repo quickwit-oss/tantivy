@@ -5,7 +5,7 @@ use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
 use crate::schema::{Field, FieldType, IndexRecordOption, Term, Value};
 use crate::tokenizer::{
-    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
+    BoxTokenStream, FacetTokenizer, PreTokenizedStream, StopWordFilter, TokenStream, Tokenizer,
 };
 use crate::{DocAddress, Result, Searcher, TantivyError};
 
@@ -57,8 +57,8 @@ pub struct MoreLikeThis {
     pub max_word_length: Option<usize>,
     /// Boost factor to use when boosting the terms
     pub boost_factor: Option<f32>,
-    /// Current set of stop words.
-    pub stop_words: Vec<String>,
+    /// Filter for stop words.
+    pub stop_words: Option<StopWordFilter>,
 }
 
 impl Default for MoreLikeThis {
@@ -71,7 +71,7 @@ impl Default for MoreLikeThis {
             min_word_length: None,
             max_word_length: None,
             boost_factor: Some(1.0),
-            stop_words: vec![],
+            stop_words: None,
         }
     }
 }
@@ -303,7 +303,9 @@ impl MoreLikeThis {
         {
             return true;
         }
-        self.stop_words.contains(&word)
+        self.stop_words
+            .as_ref()
+            .map_or(false, |stop_words| stop_words.contains(&word))
     }
 
     /// Couputes the score for each term while ignoring not useful terms
