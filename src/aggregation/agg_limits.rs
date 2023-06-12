@@ -60,6 +60,8 @@ impl AggregationLimits {
     /// *bucket_limit*
     /// Limits the maximum number of buckets returned from an aggregation request.
     /// bucket_limit will default to `DEFAULT_BUCKET_LIMIT` (65000)
+    ///
+    /// Note: The returned instance contains a Arc shared counter to track memory consumption.
     pub fn new(memory_limit: Option<u64>, bucket_limit: Option<u32>) -> Self {
         Self {
             memory_consumption: Default::default(),
