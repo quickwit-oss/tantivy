@@ -54,7 +54,7 @@ Tantivy 0.20
 - Faster indexing
   - Refactor tokenization pipeline to use GATs [#1924](https://github.com/quickwit-oss/tantivy/issues/1924) (@trinity-1686a)
   - Faster term hash map [#2058](https://github.com/quickwit-oss/tantivy/issues/2058)[#1940](https://github.com/quickwit-oss/tantivy/issues/1940) (@PSeitz)
-  - tokenizer-api: reduce Tokenizer overhead [#2062](https://github.com/quickwit-oss/tantivy/issues/2062) (@PSeitz)
+  - tokenizer-api: reduce Tokenizer allocation overhead [#2062](https://github.com/quickwit-oss/tantivy/issues/2062) (@PSeitz)
   - Refactor vint [#2010](https://github.com/quickwit-oss/tantivy/issues/2010) (@PSeitz)
 - Faster search
   - Work in batches of docs on the SegmentCollector (Only for cases without score for now) [#1937](https://github.com/quickwit-oss/tantivy/issues/1937) (@PSeitz)
