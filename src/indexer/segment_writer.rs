@@ -912,7 +912,7 @@ mod tests {
         assert_eq!(positions, &[4]); //< as opposed to 3 if we had a position length of 1.
     }
 
-    //ISSUE-#2078 - writing and searching shall throw error when the field tokenizer is missing
+    // ISSUE-#2078 - writing and searching shall throw error when the field tokenizer is missing
     #[test]
     fn test_show_error_when_tokenizer_not_registered() {
         let text_field_indexing = TextFieldIndexing::default()
@@ -940,9 +940,7 @@ mod tests {
         let title = schema.get_field("title").unwrap();
         let mut document = Document::default();
         document.add_text(title, "The Old Man and the Sea");
-
         index_writer.add_document(document).unwrap();
-
         match index_writer.commit() {
             Ok(_) => panic!("Commit should have failed"),
             Err(e) => assert_eq!(
