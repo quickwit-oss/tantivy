@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
-use fail::fail_point;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
@@ -43,7 +42,7 @@ pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate:
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
-    fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
+    crate::fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
         std::io::Error::new(
             std::io::ErrorKind::Other,
             msg.unwrap_or_else(|| "Undefined".to_string())
