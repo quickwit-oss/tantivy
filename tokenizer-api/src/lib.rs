@@ -63,6 +63,12 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
+impl<'a> From<BoxTokenStream<'a>> for Box<dyn TokenStream + 'a> {
+    fn from(token_stream: BoxTokenStream<'a>) -> Self {
+        token_stream.0
+    }
+}
+
 impl<'a, T> From<T> for BoxTokenStream<'a>
 where T: TokenStream + 'a
 {
@@ -78,6 +84,7 @@ impl<'a> Deref for BoxTokenStream<'a> {
         &*self.0
     }
 }
+
 impl<'a> DerefMut for BoxTokenStream<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut *self.0
@@ -137,11 +144,11 @@ pub trait TokenStream {
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
-pub trait TokenFilter: 'static + Send + Sync {
+pub trait TokenFilter: 'static + Send + Sync + Clone {
     /// The Tokenizer type returned by this filter, typically parametrized by the underlying
     /// Tokenizer.
     type Tokenizer<T: Tokenizer>: Tokenizer;
-    /// Wraps a Tokenizer and returns a new one.
+    /// Wraps a Tokenizer and returns a new onex .
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
 }
 
