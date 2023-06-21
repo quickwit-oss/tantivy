@@ -154,7 +154,7 @@ pub use self::split_compound_words::SplitCompoundWords;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
-pub use self::tokenizer::{TextAnalyzer, TextAnalyzerBuilder};
+pub use self::tokenizer::{BoxTokenFilter, TextAnalyzer, TextAnalyzerBuilder};
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 

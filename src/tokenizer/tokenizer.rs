@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 use tokenizer_api::{BoxTokenStream, TokenFilter, TokenStream, Tokenizer};
@@ -12,7 +10,7 @@ pub struct TextAnalyzer {
 }
 
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
-pub trait BoxableTokenizer: 'static + Send + Sync {
+trait BoxableTokenizer: 'static + Send + Sync {
     /// Creates a boxed token stream for a given `str`.
     fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a>;
     /// Clone this tokenizer.
@@ -28,15 +26,16 @@ impl<T: Tokenizer> BoxableTokenizer for T {
     }
 }
 
-pub struct BoxedTokenizer(Box<dyn BoxableTokenizer>);
+/// A boxed `BoxableTokenizer` which is a `Tokenizer` with its `TokenStream` type erased.
+struct BoxTokenizer(Box<dyn BoxableTokenizer>);
 
-impl Clone for BoxedTokenizer {
-    fn clone(&self) -> BoxedTokenizer {
+impl Clone for BoxTokenizer {
+    fn clone(&self) -> BoxTokenizer {
         Self(self.0.box_clone())
     }
 }
 
-impl Tokenizer for BoxedTokenizer {
+impl Tokenizer for BoxTokenizer {
     type TokenStream<'a> = Box<dyn TokenStream + 'a>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
@@ -44,28 +43,21 @@ impl Tokenizer for BoxedTokenizer {
     }
 }
 
-/// Trait for the pluggable components of `Tokenizer`s.
-pub trait BoxableTokenFilter: 'static + Send + Sync {
-    /// Wraps a Tokenizer and returns a new one.
-    fn box_transform(&self, tokenizer: BoxedTokenizer) -> Box<dyn BoxableTokenizer>;
+/// A boxable `TokenFilter`, with its `Tokenizer` type erased.
+trait BoxableTokenFilter: 'static + Send + Sync {
+    /// Wraps a `BoxedTokenizer` and returns a new one.
+    fn box_transform(&self, tokenizer: BoxTokenizer) -> BoxTokenizer;
 }
 
 impl<T: TokenFilter> BoxableTokenFilter for T {
-    fn box_transform(&self, tokenizer: BoxedTokenizer) -> Box<dyn BoxableTokenizer> {
+    fn box_transform(&self, tokenizer: BoxTokenizer) -> BoxTokenizer {
         let tokenizer = self.clone().transform(tokenizer);
-        tokenizer.box_clone()
+        BoxTokenizer(Box::new(tokenizer))
     }
 }
 
+/// A boxed `BoxableTokenFilter` which is a `TokenFilter` with its `Tokenizer` type erased.
 pub struct BoxTokenFilter(Box<dyn BoxableTokenFilter>);
-
-impl Deref for BoxTokenFilter {
-    type Target = dyn BoxableTokenFilter;
-
-    fn deref(&self) -> &dyn BoxableTokenFilter {
-        &*self.0
-    }
-}
 
 impl<T: TokenFilter> From<T> for BoxTokenFilter {
     fn from(tokenizer: T) -> BoxTokenFilter {
@@ -76,18 +68,31 @@ impl<T: TokenFilter> From<T> for BoxTokenFilter {
 impl TextAnalyzer {
     /// Builds a new `TextAnalyzer` given a tokenizer and a vector of `BoxTokenFilter`.
     ///
-    /// When creating a `TextAnalyzer` from a `Tokenizer` alone, prefer using
-    /// `TextAnalyzer::from(tokenizer)`.
     /// When creating a `TextAnalyzer` from a `Tokenizer` and a static set of `TokenFilter`,
-    /// prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()`.
+    /// prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` as it
+    /// will be more performant and only create one `Box<dyn BoxableTokenizer>` instead of
+    /// one per `TokenFilter`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tantivy::tokenizer::*;
+    ///
+    /// let en_stem = TextAnalyzer::build(
+    ///     SimpleTokenizer::default(),
+    ///     vec![
+    ///        BoxTokenFilter::from(RemoveLongFilter::limit(40)),
+    ///        BoxTokenFilter::from(LowerCaser),
+    ///        BoxTokenFilter::from(Stemmer::default()),
+    ///     ]);
+    /// ```
     pub fn build<T: Tokenizer>(
         tokenizer: T,
         boxed_token_filters: Vec<BoxTokenFilter>,
     ) -> TextAnalyzer {
-        let mut boxed_tokenizer = BoxedTokenizer(Box::new(tokenizer));
+        let mut boxed_tokenizer = BoxTokenizer(Box::new(tokenizer));
         for filter in boxed_token_filters.into_iter() {
-            let filtered_boxed_tokenizer = filter.box_transform(boxed_tokenizer);
-            boxed_tokenizer = BoxedTokenizer(filtered_boxed_tokenizer);
+            boxed_tokenizer = filter.0.box_transform(boxed_tokenizer);
         }
         TextAnalyzer {
             tokenizer: boxed_tokenizer.0,

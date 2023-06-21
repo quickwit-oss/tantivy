@@ -148,7 +148,7 @@ pub trait TokenFilter: 'static + Send + Sync + Clone {
     /// The Tokenizer type returned by this filter, typically parametrized by the underlying
     /// Tokenizer.
     type Tokenizer<T: Tokenizer>: Tokenizer;
-    /// Wraps a Tokenizer and returns a new onex .
+    /// Wraps a Tokenizer and returns a new one.
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
 }
 
