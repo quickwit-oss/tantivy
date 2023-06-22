@@ -1,3 +1,4 @@
+use dyn_clone::DynClone;
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 use tokenizer_api::{BoxTokenStream, TokenFilter, TokenStream, Tokenizer};
@@ -5,35 +6,28 @@ use tokenizer_api::{BoxTokenStream, TokenFilter, TokenStream, Tokenizer};
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
+#[derive(Clone)]
 pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
 }
 
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
-trait BoxableTokenizer: 'static + Send + Sync {
+trait BoxableTokenizer: 'static + Send + Sync + DynClone {
     /// Creates a boxed token stream for a given `str`.
     fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a>;
-    /// Clone this tokenizer.
-    fn box_clone(&self) -> Box<dyn BoxableTokenizer>;
 }
 
 impl<T: Tokenizer> BoxableTokenizer for T {
     fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
         self.token_stream(text).into()
     }
-    fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
-        Box::new(self.clone())
-    }
 }
+
+dyn_clone::clone_trait_object!(BoxableTokenizer);
 
 /// A boxed `BoxableTokenizer` which is a `Tokenizer` with its `TokenStream` type erased.
+#[derive(Clone)]
 struct BoxTokenizer(Box<dyn BoxableTokenizer>);
-
-impl Clone for BoxTokenizer {
-    fn clone(&self) -> BoxTokenizer {
-        Self(self.0.box_clone())
-    }
-}
 
 impl Tokenizer for BoxTokenizer {
     type TokenStream<'a> = Box<dyn TokenStream + 'a>;
@@ -107,14 +101,6 @@ impl TextAnalyzer {
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
         self.tokenizer.box_token_stream(text)
-    }
-}
-
-impl Clone for TextAnalyzer {
-    fn clone(&self) -> Self {
-        TextAnalyzer {
-            tokenizer: self.tokenizer.box_clone(),
-        }
     }
 }
 

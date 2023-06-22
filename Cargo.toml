@@ -19,6 +19,7 @@ oneshot = "0.1.5"
 base64 = "0.21.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
+dyn-clone = "1.0.11"
 once_cell = "1.10.0"
 regex = { version = "1.5.5", default-features = false, features = ["std", "unicode"] }
 aho-corasick = "1.0"
