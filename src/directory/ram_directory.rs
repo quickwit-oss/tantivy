@@ -5,7 +5,6 @@ use std::sync::{Arc, RwLock};
 use std::{fmt, result};
 
 use common::HasLen;
-use fail::fail_point;
 
 use super::FileHandle;
 use crate::core::META_FILEPATH;
@@ -184,7 +183,7 @@ impl Directory for RamDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        fail_point!("RamDirectory::delete", |_| {
+        crate::fail_point!("RamDirectory::delete", |_| {
             Err(DeleteError::IoError {
                 io_error: Arc::new(io::Error::from(io::ErrorKind::Other)),
                 filepath: path.to_path_buf(),

@@ -299,6 +299,35 @@ pub struct DocAddress {
     pub doc_id: DocId,
 }
 
+#[macro_export]
+/// Enable fail_point if feature is enabled.
+macro_rules! fail_point {
+    ($name:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            fail::eval($name, |_| {
+                panic!("Return is not supported for the fail point \"{}\"", $name);
+            });
+        }
+    }};
+    ($name:expr, $e:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            if let Some(res) = fail::eval($name, $e) {
+                return res;
+            }
+        }
+    }};
+    ($name:expr, $cond:expr, $e:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            if $cond {
+                fail::fail_point!($name, $e);
+            }
+        }
+    }};
+}
+
 #[cfg(test)]
 pub mod tests {
     use common::{BinarySerializable, FixedSize};

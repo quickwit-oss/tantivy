@@ -44,7 +44,7 @@ census = "0.4.0"
 rustc-hash = "1.1.0"
 thiserror = "1.0.30"
 htmlescape = "0.3.1"
-fail = "0.5.0"
+fail = { version = "0.5.0", optional = true }
 murmurhash32 = "0.3.0"
 time = { version = "0.3.10", features = ["serde-well-known"] }
 smallvec = "1.8.0"
@@ -112,7 +112,7 @@ lz4-compression = ["lz4_flex"]
 snappy-compression = ["snap"]
 zstd-compression = ["zstd"]
 
-failpoints = ["fail/failpoints"]
+failpoints = ["fail", "fail/failpoints"]
 unstable = [] # useful for benches.
 
 quickwit = ["sstable", "futures-util"]

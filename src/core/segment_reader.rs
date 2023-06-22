@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
-use fail::fail_point;
-
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
@@ -151,7 +149,7 @@ impl SegmentReader {
 
         let store_file = segment.open_read(SegmentComponent::Store)?;
 
-        fail_point!("SegmentReader::open#middle");
+        crate::fail_point!("SegmentReader::open#middle");
 
         let postings_file = segment.open_read(SegmentComponent::Postings)?;
         let postings_composite = CompositeFile::open(&postings_file)?;
