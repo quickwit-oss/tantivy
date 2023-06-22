@@ -99,7 +99,7 @@ impl SegmentWriter {
                     _ => None,
                 };
                 let tokenizer_name = text_options
-                    .and_then(|text_index_option| Some(text_index_option.tokenizer()))
+                    .map(|text_index_option| text_index_option.tokenizer())
                     .unwrap_or("default");
 
                 tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
