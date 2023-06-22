@@ -64,9 +64,9 @@ use crate::{DocId, Score, SegmentReader, TantivyError};
 /// # }
 /// ```
 ///
-/// Note that this is limited to fast fields which implement the [`FastValue`] trait,
-/// e.g. `u64` but not `&[u8]`. To filter based on a bytes fast field,
-/// use a [`BytesFilterCollector`] instead.
+/// Note that this is limited to fast fields which implement the
+/// [`FastValue`][crate::fastfield::FastValue] trait, e.g. `u64` but not `&[u8]`.
+/// To filter based on a bytes fast field, use a [`BytesFilterCollector`] instead.
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue>
 where TPredicate: 'static + Clone
 {
