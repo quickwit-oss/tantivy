@@ -64,8 +64,7 @@ impl TextAnalyzer {
     ///
     /// When creating a `TextAnalyzer` from a `Tokenizer` and a static set of `TokenFilter`,
     /// prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` as it
-    /// will be more performant and only create one `Box<dyn BoxableTokenizer>` instead of
-    /// one per `TokenFilter`.
+    /// will be more performant and create less boxes.
     ///
     /// # Example
     ///
