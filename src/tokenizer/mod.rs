@@ -139,7 +139,7 @@ mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
-pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer};
+pub use tokenizer_api::{Token, TokenFilter, TokenStream, Tokenizer};
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;

@@ -209,7 +209,7 @@ impl SegmentWriter {
                     for value in values {
                         let mut token_stream = match value {
                             Value::PreTokStr(tok_str) => {
-                                PreTokenizedStream::from(tok_str.clone()).into()
+                                Box::new(PreTokenizedStream::from(tok_str.clone()))
                             }
                             Value::Str(ref text) => {
                                 let text_analyzer =

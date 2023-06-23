@@ -6,7 +6,6 @@
 //! Checkout the [tantivy repo](https://github.com/quickwit-oss/tantivy/tree/main/src/tokenizer) for some examples.
 
 use std::borrow::{Borrow, BorrowMut};
-use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
@@ -58,37 +57,6 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
     type TokenStream<'a>: TokenStream;
     /// Creates a token stream for a given `str`.
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a>;
-}
-
-/// Simple wrapper of `Box<dyn TokenStream + 'a>`.
-pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
-
-impl<'a> From<BoxTokenStream<'a>> for Box<dyn TokenStream + 'a> {
-    fn from(token_stream: BoxTokenStream<'a>) -> Self {
-        token_stream.0
-    }
-}
-
-impl<'a, T> From<T> for BoxTokenStream<'a>
-where T: TokenStream + 'a
-{
-    fn from(token_stream: T) -> BoxTokenStream<'a> {
-        BoxTokenStream(Box::new(token_stream))
-    }
-}
-
-impl<'a> Deref for BoxTokenStream<'a> {
-    type Target = dyn TokenStream + 'a;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.0
-    }
-}
-
-impl<'a> DerefMut for BoxTokenStream<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.0
-    }
 }
 
 impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
