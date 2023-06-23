@@ -63,8 +63,15 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
+impl<'a> From<BoxTokenStream<'a>> for Box<dyn TokenStream + 'a> {
+    fn from(token_stream: BoxTokenStream<'a>) -> Self {
+        token_stream.0
+    }
+}
+
 impl<'a, T> From<T> for BoxTokenStream<'a>
-where T: TokenStream + 'a
+where
+    T: TokenStream + 'a,
 {
     fn from(token_stream: T) -> BoxTokenStream<'a> {
         BoxTokenStream(Box::new(token_stream))
