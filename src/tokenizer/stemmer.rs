@@ -4,7 +4,7 @@ use std::mem;
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
 
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// Available stemmer languages.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
@@ -81,29 +81,12 @@ impl Default for Stemmer {
 }
 
 impl TokenFilter for Stemmer {
-    type Tokenizer<T: Tokenizer> = StemmerFilter<T>;
+    type OutputTokenStream<T: TokenStream> = StemmerTokenStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> StemmerFilter<T> {
-        StemmerFilter {
-            stemmer_algorithm: self.stemmer_algorithm,
-            inner: tokenizer,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct StemmerFilter<T> {
-    stemmer_algorithm: Algorithm,
-    inner: T,
-}
-
-impl<T: Tokenizer> Tokenizer for StemmerFilter<T> {
-    type TokenStream<'a> = StemmerTokenStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
         let stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
         StemmerTokenStream {
-            tail: self.inner.token_stream(text),
+            tail: token_stream,
             stemmer,
             buffer: String::new(),
         }

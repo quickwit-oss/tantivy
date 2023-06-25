@@ -1,14 +1,14 @@
 use dyn_clone::DynClone;
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
-use tokenizer_api::{TokenFilter, TokenStream, Tokenizer};
+use tokenizer_api::{FilteredTokenizer, TokenFilter, TokenStream, Tokenizer};
 
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
-#[derive(Clone)]
 pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
+    token_filters: Vec<BoxTokenFilter>,
 }
 
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
@@ -25,37 +25,48 @@ impl<T: Tokenizer> BoxableTokenizer for T {
 
 dyn_clone::clone_trait_object!(BoxableTokenizer);
 
-/// A boxed `BoxableTokenizer` which is a `Tokenizer` with its `TokenStream` type erased.
-#[derive(Clone)]
-struct BoxTokenizer(Box<dyn BoxableTokenizer>);
-
-impl Tokenizer for BoxTokenizer {
-    type TokenStream<'a> = Box<dyn TokenStream + 'a>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        self.0.box_token_stream(text).into()
-    }
-}
-
 /// A boxable `TokenFilter`, with its `Tokenizer` type erased.
-trait BoxableTokenFilter: 'static + Send + Sync {
-    /// Wraps a `BoxedTokenizer` and returns a new one.
-    fn box_transform(&self, tokenizer: BoxTokenizer) -> BoxTokenizer;
+trait BoxableTokenFilter: 'static + Send + Sync + DynClone {
+    /// Transforms a boxed token stream into a new one.
+    fn box_transform<'a>(
+        &self,
+        token_stream: Box<dyn TokenStream + 'a>,
+    ) -> Box<dyn TokenStream + 'a>;
 }
 
 impl<T: TokenFilter> BoxableTokenFilter for T {
-    fn box_transform(&self, tokenizer: BoxTokenizer) -> BoxTokenizer {
-        let tokenizer = self.clone().transform(tokenizer);
-        BoxTokenizer(Box::new(tokenizer))
+    fn box_transform<'a>(
+        &self,
+        token_stream: Box<dyn TokenStream + 'a>,
+    ) -> Box<dyn TokenStream + 'a> {
+        Box::new(self.clone().filter(token_stream))
     }
 }
 
-/// A boxed `BoxableTokenFilter` which is a `TokenFilter` with its `Tokenizer` type erased.
+dyn_clone::clone_trait_object!(BoxableTokenFilter);
+
+/// Simple wrapper of `Box<dyn TokenFilter + 'a>`.
+///
+/// See [`TokenFilter`] for more information.
+#[derive(Clone)]
 pub struct BoxTokenFilter(Box<dyn BoxableTokenFilter>);
 
 impl<T: TokenFilter> From<T> for BoxTokenFilter {
     fn from(tokenizer: T) -> BoxTokenFilter {
         BoxTokenFilter(Box::new(tokenizer))
+    }
+}
+
+impl Clone for TextAnalyzer {
+    fn clone(&self) -> Self {
+        TextAnalyzer {
+            tokenizer: self.tokenizer.clone(),
+            token_filters: self
+                .token_filters
+                .iter()
+                .map(|token_filter| token_filter.clone())
+                .collect(),
+        }
     }
 }
 
@@ -71,7 +82,7 @@ impl TextAnalyzer {
     /// ```rust
     /// use tantivy::tokenizer::*;
     ///
-    /// let en_stem = TextAnalyzer::build(
+    /// let en_stem = TextAnalyzer::new(
     ///     SimpleTokenizer::default(),
     ///     vec![
     ///        BoxTokenFilter::from(RemoveLongFilter::limit(40)),
@@ -79,27 +90,25 @@ impl TextAnalyzer {
     ///        BoxTokenFilter::from(Stemmer::default()),
     ///     ]);
     /// ```
-    pub fn build<T: Tokenizer>(
-        tokenizer: T,
-        boxed_token_filters: Vec<BoxTokenFilter>,
-    ) -> TextAnalyzer {
-        let mut boxed_tokenizer = BoxTokenizer(Box::new(tokenizer));
-        for filter in boxed_token_filters.into_iter() {
-            boxed_tokenizer = filter.0.box_transform(boxed_tokenizer);
-        }
+    pub fn new<T: Tokenizer>(tokenizer: T, token_filters: Vec<BoxTokenFilter>) -> TextAnalyzer {
         TextAnalyzer {
-            tokenizer: boxed_tokenizer.0,
+            tokenizer: Box::new(tokenizer),
+            token_filters,
         }
     }
 
-    /// Create a new TextAnalyzerBuilder
+    /// Create a new TextAnalyzerBuilder.
     pub fn builder<T: Tokenizer>(tokenizer: T) -> TextAnalyzerBuilder<T> {
         TextAnalyzerBuilder { tokenizer }
     }
 
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> Box<dyn TokenStream + 'a> {
-        self.tokenizer.box_token_stream(text)
+        let mut token_stream = self.tokenizer.box_token_stream(text);
+        for token_filter in &self.token_filters {
+            token_stream = token_filter.0.box_transform(token_stream);
+        }
+        token_stream
     }
 }
 
@@ -134,7 +143,10 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     ///     .filter(Stemmer::default())
     ///     .build();
     /// ```
-    pub fn filter<F: TokenFilter>(self, token_filter: F) -> TextAnalyzerBuilder<F::Tokenizer<T>> {
+    pub fn filter<F: TokenFilter>(
+        self,
+        token_filter: F,
+    ) -> TextAnalyzerBuilder<FilteredTokenizer<T, F>> {
         TextAnalyzerBuilder {
             tokenizer: token_filter.transform(self.tokenizer),
         }
@@ -144,6 +156,7 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     pub fn build(self) -> TextAnalyzer {
         TextAnalyzer {
             tokenizer: Box::new(self.tokenizer),
+            token_filters: Vec::new(),
         }
     }
 }
@@ -168,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_text_analyzer_with_filters_boxed() {
-        let mut analyzer = TextAnalyzer::build(
+        let mut analyzer = TextAnalyzer::new(
             WhitespaceTokenizer::default(),
             vec![
                 BoxTokenFilter::from(AlphaNumOnlyFilter),

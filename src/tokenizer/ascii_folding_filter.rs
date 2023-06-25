@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
@@ -9,48 +9,30 @@ use super::{Token, TokenFilter, TokenStream, Tokenizer};
 pub struct AsciiFoldingFilter;
 
 impl TokenFilter for AsciiFoldingFilter {
-    type Tokenizer<T: Tokenizer> = AsciiFoldingFilterWrapper<T>;
+    type OutputTokenStream<T: TokenStream> = AsciiFoldingFilterTokenStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> AsciiFoldingFilterWrapper<T> {
-        AsciiFoldingFilterWrapper {
-            tokenizer,
-            buffer: String::new(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AsciiFoldingFilterWrapper<T> {
-    tokenizer: T,
-    buffer: String,
-}
-
-impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
-    type TokenStream<'a> = AsciiFoldingFilterTokenStream<'a, T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        self.buffer.clear();
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
         AsciiFoldingFilterTokenStream {
-            buffer: &mut self.buffer,
-            tail: self.tokenizer.token_stream(text),
+            buffer: String::new(),
+            tail: token_stream,
         }
     }
 }
 
-pub struct AsciiFoldingFilterTokenStream<'a, T> {
-    buffer: &'a mut String,
+pub struct AsciiFoldingFilterTokenStream<T> {
+    buffer: String,
     tail: T,
 }
 
-impl<'a, T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'a, T> {
+impl<'a, T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
         }
         if !self.token_mut().text.is_ascii() {
             // ignore its already ascii
-            to_ascii(&self.tail.token().text, self.buffer);
-            mem::swap(&mut self.tail.token_mut().text, self.buffer);
+            to_ascii(&self.tail.token().text, &mut self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
         }
         true
     }

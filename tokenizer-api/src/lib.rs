@@ -115,9 +115,31 @@ pub trait TokenStream {
 pub trait TokenFilter: 'static + Send + Sync + Clone {
     /// The Tokenizer type returned by this filter, typically parametrized by the underlying
     /// Tokenizer.
-    type Tokenizer<T: Tokenizer>: Tokenizer;
+    type OutputTokenStream<T: TokenStream>: TokenStream;
+    /// Filter a token stream and returns a new one.
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T>;
     /// Wraps a Tokenizer and returns a new one.
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
+    fn transform<T: Tokenizer>(self, tokenizer: T) -> FilteredTokenizer<T, Self> {
+        FilteredTokenizer {
+            tokenizer,
+            token_filter: self,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FilteredTokenizer<T: Tokenizer, F: TokenFilter> {
+    tokenizer: T,
+    token_filter: F,
+}
+
+impl<T: Tokenizer, F: TokenFilter> Tokenizer for FilteredTokenizer<T, F> {
+    type TokenStream<'a> = F::OutputTokenStream<T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        let token_stream = self.tokenizer.token_stream(text);
+        self.token_filter.filter(token_stream)
+    }
 }
 
 #[cfg(test)]

@@ -21,7 +21,7 @@
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes all tokens that contain non
 /// ascii alphanumeric characters.
@@ -39,23 +39,10 @@ impl<T> AlphaNumOnlyFilterStream<T> {
 }
 
 impl TokenFilter for AlphaNumOnlyFilter {
-    type Tokenizer<T: Tokenizer> = AlphaNumOnlyFilterWrapper<T>;
+    type OutputTokenStream<T: TokenStream> = AlphaNumOnlyFilterStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> AlphaNumOnlyFilterWrapper<T> {
-        AlphaNumOnlyFilterWrapper(tokenizer)
-    }
-}
-
-#[derive(Clone)]
-pub struct AlphaNumOnlyFilterWrapper<T>(T);
-
-impl<T: Tokenizer> Tokenizer for AlphaNumOnlyFilterWrapper<T> {
-    type TokenStream<'a> = AlphaNumOnlyFilterStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        AlphaNumOnlyFilterStream {
-            tail: self.0.token_stream(text),
-        }
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+        AlphaNumOnlyFilterStream { tail: token_stream }
     }
 }
 

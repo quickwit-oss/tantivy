@@ -12,7 +12,7 @@
 //! assert_eq!(stream.next().unwrap().text, "nice");
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// `RemoveLongFilter` removes tokens that are longer
 /// than a given number of bytes (in UTF-8 representation).
@@ -38,29 +38,12 @@ impl<T> RemoveLongFilterStream<T> {
 }
 
 impl TokenFilter for RemoveLongFilter {
-    type Tokenizer<T: Tokenizer> = RemoveLongFilterWrapper<T>;
+    type OutputTokenStream<T: TokenStream> = RemoveLongFilterStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> RemoveLongFilterWrapper<T> {
-        RemoveLongFilterWrapper {
-            length_limit: self.length_limit,
-            inner: tokenizer,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct RemoveLongFilterWrapper<T: Tokenizer> {
-    length_limit: usize,
-    inner: T,
-}
-
-impl<T: Tokenizer> Tokenizer for RemoveLongFilterWrapper<T> {
-    type TokenStream<'a> = RemoveLongFilterStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
         RemoveLongFilterStream {
             token_length_limit: self.length_limit,
-            tail: self.inner.token_stream(text),
+            tail: token_stream,
         }
     }
 }

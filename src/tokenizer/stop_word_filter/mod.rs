@@ -21,7 +21,7 @@ use rustc_hash::FxHashSet;
 
 #[cfg(feature = "stopwords")]
 use super::Language;
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
@@ -72,29 +72,12 @@ impl StopWordFilter {
 }
 
 impl TokenFilter for StopWordFilter {
-    type Tokenizer<T: Tokenizer> = StopWordFilterWrapper<T>;
+    type OutputTokenStream<T: TokenStream> = StopWordFilterStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> StopWordFilterWrapper<T> {
-        StopWordFilterWrapper {
-            words: self.words,
-            inner: tokenizer,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct StopWordFilterWrapper<T> {
-    words: Arc<FxHashSet<String>>,
-    inner: T,
-}
-
-impl<T: Tokenizer> Tokenizer for StopWordFilterWrapper<T> {
-    type TokenStream<'a> = StopWordFilterStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
         StopWordFilterStream {
             words: self.words.clone(),
-            tail: self.inner.token_stream(text),
+            tail: token_stream,
         }
     }
 }

@@ -1,42 +1,24 @@
 use std::mem;
 
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// Token filter that lowercase terms.
 #[derive(Clone)]
 pub struct LowerCaser;
 
 impl TokenFilter for LowerCaser {
-    type Tokenizer<T: Tokenizer> = LowerCaserFilter<T>;
+    type OutputTokenStream<T: TokenStream> = LowerCaserTokenStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T> {
-        LowerCaserFilter {
-            tokenizer,
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+        LowerCaserTokenStream {
+            tail: token_stream,
             buffer: String::new(),
         }
     }
 }
 
-#[derive(Clone)]
-pub struct LowerCaserFilter<T> {
-    tokenizer: T,
+pub struct LowerCaserTokenStream<T> {
     buffer: String,
-}
-
-impl<T: Tokenizer> Tokenizer for LowerCaserFilter<T> {
-    type TokenStream<'a> = LowerCaserTokenStream<'a, T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        self.buffer.clear();
-        LowerCaserTokenStream {
-            tail: self.tokenizer.token_stream(text),
-            buffer: &mut self.buffer,
-        }
-    }
-}
-
-pub struct LowerCaserTokenStream<'a, T> {
-    buffer: &'a mut String,
     tail: T,
 }
 
@@ -51,7 +33,7 @@ fn to_lowercase_unicode(text: &str, output: &mut String) {
     }
 }
 
-impl<'a, T: TokenStream> TokenStream for LowerCaserTokenStream<'a, T> {
+impl<T: TokenStream> TokenStream for LowerCaserTokenStream<T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -60,8 +42,8 @@ impl<'a, T: TokenStream> TokenStream for LowerCaserTokenStream<'a, T> {
             // fast track for ascii.
             self.token_mut().text.make_ascii_lowercase();
         } else {
-            to_lowercase_unicode(&self.tail.token().text, self.buffer);
-            mem::swap(&mut self.tail.token_mut().text, self.buffer);
+            to_lowercase_unicode(&self.tail.token().text, &mut self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
         }
         true
     }

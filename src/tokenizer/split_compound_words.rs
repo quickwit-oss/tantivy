@@ -1,6 +1,6 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 
-use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use super::{Token, TokenFilter, TokenStream};
 
 /// A [`TokenFilter`] which splits compound words into their parts
 /// based on a given dictionary.
@@ -80,29 +80,12 @@ impl SplitCompoundWords {
 }
 
 impl TokenFilter for SplitCompoundWords {
-    type Tokenizer<T: Tokenizer> = SplitCompoundWordsFilter<T>;
+    type OutputTokenStream<T: TokenStream> = SplitCompoundWordsTokenStream<T>;
 
-    fn transform<T: Tokenizer>(self, tokenizer: T) -> SplitCompoundWordsFilter<T> {
-        SplitCompoundWordsFilter {
-            dict: self.dict,
-            inner: tokenizer,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct SplitCompoundWordsFilter<T> {
-    dict: AhoCorasick,
-    inner: T,
-}
-
-impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
-    type TokenStream<'a> = SplitCompoundWordsTokenStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
         SplitCompoundWordsTokenStream {
             dict: self.dict.clone(),
-            tail: self.inner.token_stream(text),
+            tail: token_stream,
             cuts: Vec::new(),
             parts: Vec::new(),
         }
