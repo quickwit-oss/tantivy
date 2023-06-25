@@ -6,6 +6,7 @@ use tokenizer_api::{FilteredTokenizer, TokenFilter, TokenStream, Tokenizer};
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
+#[derive(Clone)]
 pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
     token_filters: Vec<BoxTokenFilter>,
@@ -28,18 +29,12 @@ dyn_clone::clone_trait_object!(BoxableTokenizer);
 /// A boxable `TokenFilter`, with its `Tokenizer` type erased.
 trait BoxableTokenFilter: 'static + Send + Sync + DynClone {
     /// Transforms a boxed token stream into a new one.
-    fn box_transform<'a>(
-        &self,
-        token_stream: Box<dyn TokenStream + 'a>,
-    ) -> Box<dyn TokenStream + 'a>;
+    fn box_filter<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a>;
 }
 
 impl<T: TokenFilter> BoxableTokenFilter for T {
-    fn box_transform<'a>(
-        &self,
-        token_stream: Box<dyn TokenStream + 'a>,
-    ) -> Box<dyn TokenStream + 'a> {
-        Box::new(self.clone().filter(token_stream))
+    fn box_filter<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(self.filter(token_stream))
     }
 }
 
@@ -54,19 +49,6 @@ pub struct BoxTokenFilter(Box<dyn BoxableTokenFilter>);
 impl<T: TokenFilter> From<T> for BoxTokenFilter {
     fn from(tokenizer: T) -> BoxTokenFilter {
         BoxTokenFilter(Box::new(tokenizer))
-    }
-}
-
-impl Clone for TextAnalyzer {
-    fn clone(&self) -> Self {
-        TextAnalyzer {
-            tokenizer: self.tokenizer.clone(),
-            token_filters: self
-                .token_filters
-                .iter()
-                .map(|token_filter| token_filter.clone())
-                .collect(),
-        }
     }
 }
 
@@ -106,7 +88,7 @@ impl TextAnalyzer {
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> Box<dyn TokenStream + 'a> {
         let mut token_stream = self.tokenizer.box_token_stream(text);
         for token_filter in &self.token_filters {
-            token_stream = token_filter.0.box_transform(token_stream);
+            token_stream = token_filter.0.box_filter(token_stream);
         }
         token_stream
     }
