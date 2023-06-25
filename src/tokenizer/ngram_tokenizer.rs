@@ -1,4 +1,5 @@
 use super::{Token, TokenStream, Tokenizer};
+use crate::TantivyError;
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
@@ -33,7 +34,7 @@ use super::{Token, TokenStream, Tokenizer};
 /// ```rust
 /// use tantivy::tokenizer::*;
 ///
-/// let mut tokenizer = NgramTokenizer::new(2, 3, false);
+/// let mut tokenizer = NgramTokenizer::new(2, 3, false).unwrap();
 /// let mut stream = tokenizer.token_stream("hello");
 /// {
 ///     let token = stream.next().unwrap();
@@ -79,7 +80,7 @@ use super::{Token, TokenStream, Tokenizer};
 /// }
 /// assert!(stream.next().is_none());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NgramTokenizer {
     /// min size of the n-gram
     min_gram: usize,
@@ -92,30 +93,39 @@ pub struct NgramTokenizer {
 
 impl NgramTokenizer {
     /// Configures a new Ngram tokenizer
-    pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> NgramTokenizer {
-        assert!(min_gram > 0, "min_gram must be greater than 0");
-        assert!(
-            min_gram <= max_gram,
-            "min_gram must not be greater than max_gram"
-        );
-        NgramTokenizer {
+    pub fn new(
+        min_gram: usize,
+        max_gram: usize,
+        prefix_only: bool,
+    ) -> crate::Result<NgramTokenizer> {
+        if min_gram == 0 {
+            return Err(TantivyError::InvalidArgument(
+                "min_gram must be greater than 0".to_string(),
+            ));
+        }
+        if min_gram > max_gram {
+            return Err(TantivyError::InvalidArgument(
+                "min_gram must not be greater than max_gram".to_string(),
+            ));
+        }
+        Ok(NgramTokenizer {
             min_gram,
             max_gram,
             prefix_only,
             token: Token::default(),
-        }
+        })
     }
 
     /// Create a `NGramTokenizer` which generates tokens for all inner ngrams.
     ///
     /// This is as opposed to only prefix ngrams    .
-    pub fn all_ngrams(min_gram: usize, max_gram: usize) -> NgramTokenizer {
+    pub fn all_ngrams(min_gram: usize, max_gram: usize) -> crate::Result<NgramTokenizer> {
         Self::new(min_gram, max_gram, false)
     }
 
     /// Create a `NGramTokenizer` which only generates tokens for the
     /// prefix ngrams.
-    pub fn prefix_only(min_gram: usize, max_gram: usize) -> NgramTokenizer {
+    pub fn prefix_only(min_gram: usize, max_gram: usize) -> crate::Result<NgramTokenizer> {
         Self::new(min_gram, max_gram, true)
     }
 }
@@ -349,7 +359,11 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_1_2_false() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 2).token_stream("hello"));
+        let tokens = test_helper(
+            NgramTokenizer::all_ngrams(1, 2)
+                .unwrap()
+                .token_stream("hello"),
+        );
         assert_eq!(tokens.len(), 9);
         assert_token(&tokens[0], 0, "h", 0, 1);
         assert_token(&tokens[1], 0, "he", 0, 2);
@@ -364,7 +378,11 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_min_max_equal() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(3, 3).token_stream("hello"));
+        let tokens = test_helper(
+            NgramTokenizer::all_ngrams(3, 3)
+                .unwrap()
+                .token_stream("hello"),
+        );
         assert_eq!(tokens.len(), 3);
         assert_token(&tokens[0], 0, "hel", 0, 3);
         assert_token(&tokens[1], 0, "ell", 1, 4);
@@ -373,7 +391,11 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_2_5_prefix() {
-        let tokens = test_helper(NgramTokenizer::prefix_only(2, 5).token_stream("frankenstein"));
+        let tokens = test_helper(
+            NgramTokenizer::prefix_only(2, 5)
+                .unwrap()
+                .token_stream("frankenstein"),
+        );
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "fr", 0, 2);
         assert_token(&tokens[1], 0, "fra", 0, 3);
@@ -383,7 +405,11 @@ mod tests {
 
     #[test]
     fn test_ngram_non_ascii_1_2() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 2).token_stream("hεllo"));
+        let tokens = test_helper(
+            NgramTokenizer::all_ngrams(1, 2)
+                .unwrap()
+                .token_stream("hεllo"),
+        );
         assert_eq!(tokens.len(), 9);
         assert_token(&tokens[0], 0, "h", 0, 1);
         assert_token(&tokens[1], 0, "hε", 0, 3);
@@ -398,7 +424,11 @@ mod tests {
 
     #[test]
     fn test_ngram_non_ascii_2_5_prefix() {
-        let tokens = test_helper(NgramTokenizer::prefix_only(2, 5).token_stream("hεllo"));
+        let tokens = test_helper(
+            NgramTokenizer::prefix_only(2, 5)
+                .unwrap()
+                .token_stream("hεllo"),
+        );
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "hε", 0, 3);
         assert_token(&tokens[1], 0, "hεl", 0, 4);
@@ -408,22 +438,26 @@ mod tests {
 
     #[test]
     fn test_ngram_empty() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 5).token_stream(""));
+        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 5).unwrap().token_stream(""));
         assert!(tokens.is_empty());
-        let tokens = test_helper(NgramTokenizer::all_ngrams(2, 5).token_stream(""));
+        let tokens = test_helper(NgramTokenizer::all_ngrams(2, 5).unwrap().token_stream(""));
         assert!(tokens.is_empty());
     }
 
     #[test]
     #[should_panic(expected = "min_gram must be greater than 0")]
     fn test_ngram_min_max_interval_empty() {
-        test_helper(NgramTokenizer::all_ngrams(0, 2).token_stream("hellossss"));
+        test_helper(
+            NgramTokenizer::all_ngrams(0, 2)
+                .unwrap()
+                .token_stream("hellossss"),
+        );
     }
 
     #[test]
     #[should_panic(expected = "min_gram must not be greater than max_gram")]
     fn test_invalid_interval_should_panic_if_smaller() {
-        NgramTokenizer::all_ngrams(2, 1);
+        NgramTokenizer::all_ngrams(2, 1).unwrap();
     }
 
     #[test]
