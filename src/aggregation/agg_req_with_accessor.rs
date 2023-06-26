@@ -13,6 +13,7 @@ use super::metric::{
 };
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
+use crate::aggregation::{f64_to_fastfield_u64, Key};
 use crate::SegmentReader;
 
 #[derive(Default)]
@@ -75,7 +76,9 @@ impl AggregationWithAccessor {
                 Some(get_numeric_or_date_column_types()),
             )?],
             Terms(TermsAggregation {
-                field: field_name, ..
+                field: field_name,
+                missing,
+                ..
             }) => {
                 str_dict_column = reader.fast_fields().str(field_name)?;
                 let allowed_column_types = [
@@ -189,15 +192,13 @@ fn get_all_ff_reader_or_empty(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
+    fallback_type: ColumnType,
 ) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
     let ff_fields = reader.fast_fields();
     let mut ff_field_with_type =
         ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
     if ff_field_with_type.is_empty() {
-        ff_field_with_type.push((
-            Column::build_empty_column(reader.num_docs()),
-            ColumnType::U64,
-        ));
+        ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
     Ok(ff_field_with_type)
 }

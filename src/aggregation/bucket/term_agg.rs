@@ -9,7 +9,6 @@ use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
     AggregationWithAccessor, AggregationsWithAccessor,
 };
-use crate::aggregation::f64_from_fastfield_u64;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
@@ -17,6 +16,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
+use crate::aggregation::{f64_from_fastfield_u64, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -146,6 +146,13 @@ pub struct TermsAggregation {
     /// { "average_price": "asc" }
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub order: Option<CustomOrder>,
+
+    /// The missing parameter defines how documents that are missing a value should be treated.
+    /// By default they will be ignored but it is also possible to treat them as if they had a
+    /// value. Examples in JSON format:
+    /// { "missing": "NO_DATA" }
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub missing: Option<Key>,
 }
 
 /// Same as TermsAggregation, but with populated defaults.
@@ -176,6 +183,7 @@ pub(crate) struct TermsAggregationInternal {
     pub min_doc_count: u64,
 
     pub order: CustomOrder,
+    pub missing: Option<Key>,
 }
 
 impl TermsAggregationInternal {
@@ -195,6 +203,7 @@ impl TermsAggregationInternal {
                 .unwrap_or_else(|| order == CustomOrder::default()),
             min_doc_count: req.min_doc_count.unwrap_or(1),
             order,
+            missing: req.missing.clone(),
         }
     }
 }
@@ -443,15 +452,36 @@ impl SegmentTermCollector {
 
             let mut buffer = String::new();
             for (term_id, doc_count) in entries {
-                if !term_dict.ord_to_str(term_id, &mut buffer)? {
-                    return Err(TantivyError::InternalError(format!(
-                        "Couldn't find term_id {term_id} in dict"
-                    )));
-                }
-
                 let intermediate_entry = into_intermediate_bucket_entry(term_id, doc_count)?;
-
-                dict.insert(IntermediateKey::Str(buffer.to_string()), intermediate_entry);
+                // Special case for missing key
+                if term_id == u64::MAX {
+                    let missing_key = self
+                        .req
+                        .missing
+                        .as_ref()
+                        .expect("Found placeholder term_id but `missing` is None");
+                    match missing_key {
+                        Key::Str(missing) => {
+                            buffer.clear();
+                            buffer.push_str(missing);
+                            dict.insert(
+                                IntermediateKey::Str(buffer.to_string()),
+                                intermediate_entry,
+                            );
+                        }
+                        Key::F64(val) => {
+                            buffer.push_str(&val.to_string());
+                            dict.insert(IntermediateKey::F64(*val), intermediate_entry);
+                        }
+                    }
+                } else {
+                    if !term_dict.ord_to_str(term_id, &mut buffer)? {
+                        return Err(TantivyError::InternalError(format!(
+                            "Couldn't find term_id {term_id} in dict"
+                        )));
+                    }
+                    dict.insert(IntermediateKey::Str(buffer.to_string()), intermediate_entry);
+                }
             }
             if self.req.min_doc_count == 0 {
                 // TODO: Handle rev streaming for descending sorting by keys
@@ -1436,6 +1466,220 @@ mod tests {
         );
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_missing1() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let id_field = schema_builder.add_text_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+                id_field => 1u64,
+            ))?;
+            // Missing
+            index_writer.add_document(doc!())?;
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+            ))?;
+            index_writer.commit()?;
+            // Empty segment special case
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+            // Full segment special case
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+                id_field => 1u64,
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "text",
+                    "missing": "Empty"
+                },
+            },
+            "my_texts2": {
+                "terms": {
+                    "field": "text",
+                    "missing": 1337
+                },
+            },
+            "my_ids": {
+                "terms": {
+                    "field": "id",
+                    "missing": 1337
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // text field
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hello Hello");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "Empty");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(
+            res["my_texts"]["buckets"][2]["key"],
+            serde_json::Value::Null
+        );
+        // text field with numner as missing fallback
+        assert_eq!(res["my_texts2"]["buckets"][0]["key"], "Hello Hello");
+        assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 4);
+        assert_eq!(res["my_texts2"]["buckets"][1]["key"], 1337.0);
+        assert_eq!(res["my_texts2"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(
+            res["my_texts2"]["buckets"][2]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+
+        // id field
+        assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 4);
+        assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
+        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+    #[test]
+    fn terms_aggregation_missing_empty() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("text", FAST);
+        schema_builder.add_text_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            // Empty segment special case
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "text",
+                    "missing": "Empty"
+                },
+            },
+            "my_texts2": {
+                "terms": {
+                    "field": "text",
+                    "missing": 1337
+                },
+            },
+            "my_ids": {
+                "terms": {
+                    "field": "id",
+                    "missing": 1337
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // text field
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "Empty");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(
+            res["my_texts"]["buckets"][1]["key"],
+            serde_json::Value::Null
+        );
+        // text field with number as missing fallback
+        assert_eq!(res["my_texts2"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(
+            res["my_texts2"]["buckets"][1]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+
+        // id field
+        assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(res["my_ids"]["buckets"][1]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    // TODO: This is not yet working correctly
+    fn terms_aggregation_missing_mixed_type() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        // => Segment with all values numeric
+        index_writer
+            .add_document(doc!(json => json!({"mixed_type": 10.0})))
+            .unwrap();
+        index_writer.add_document(doc!())?;
+        index_writer.commit().unwrap();
+        //// => Segment with all values text
+        index_writer
+            .add_document(doc!(json => json!({"mixed_type": "blue"})))
+            .unwrap();
+        index_writer.add_document(doc!())?;
+        index_writer.commit().unwrap();
+
+        // => Segment with mixed values
+        index_writer
+            .add_document(doc!(json => json!({"mixed_type": "red"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"mixed_type": -20.5})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(json => json!({"mixed_type": true})))
+            .unwrap();
+        index_writer.add_document(doc!())?;
+
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "replace_null": {
+                "terms": {
+                    "field": "json.mixed_type",
+                    "missing": "NULL"
+                },
+            },
+            "replace_num": {
+                "terms": {
+                    "field": "json.mixed_type",
+                    "missing": 1337
+                },
+            },
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // text field
+        assert_eq!(res["replace_null"]["buckets"][0]["key"], "NULL");
+        assert_eq!(res["replace_null"]["buckets"][0]["doc_count"], 4); // WRONG should be 3
+        assert_eq!(res["replace_num"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["replace_num"]["buckets"][0]["doc_count"], 5); // WRONG should be 3
+        assert_eq!(res["replace_null"]["sum_other_doc_count"], 0);
+        assert_eq!(res["replace_null"]["doc_count_error_upper_bound"], 0);
 
         Ok(())
     }
