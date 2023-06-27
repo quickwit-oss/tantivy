@@ -693,7 +693,7 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("bc"), 1.0);
 
         let fragments = search_fragments(
-            &mut From::from(NgramTokenizer::all_ngrams(2, 2)),
+            &mut From::from(NgramTokenizer::all_ngrams(2, 2).unwrap()),
             text,
             &terms,
             3,
