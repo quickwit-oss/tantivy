@@ -259,7 +259,7 @@ pub(crate) fn set_string_and_get_terms(
 
 /// Writes a value of a JSON field to a `Term`.
 /// The Term format is as follows:
-/// [JSON_TYPE][JSON_PATH][JSON_END_OF_PATH][VALUE_BYTES]
+/// `[JSON_TYPE][JSON_PATH][JSON_END_OF_PATH][VALUE_BYTES]`
 pub struct JsonTermWriter<'a> {
     term_buffer: &'a mut Term,
     path_stack: Vec<usize>,

@@ -6,6 +6,15 @@
 //! Some aggregations output a single numeric metric (e.g. Average) and are called
 //! single-value numeric metrics aggregation, others generate multiple metrics (e.g. Stats) and are
 //! called multi-value numeric metrics aggregation.
+//!
+//! ## Supported Metric Aggregations
+//! - [Average](AverageAggregation)
+//! - [Stats](StatsAggregation)
+//! - [Min](MinAggregation)
+//! - [Max](MaxAggregation)
+//! - [Sum](SumAggregation)
+//! - [Count](CountAggregation)
+//! - [Percentiles](PercentilesAggregationReq)
 
 mod average;
 mod count;

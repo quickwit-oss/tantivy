@@ -15,6 +15,12 @@
 //! Results of final buckets are [`BucketResult`](super::agg_result::BucketResult).
 //! Results of intermediate buckets are
 //! [`IntermediateBucketResult`](super::intermediate_agg_result::IntermediateBucketResult)
+//!
+//! ## Supported Bucket Aggregations
+//! - [Histogram](HistogramAggregation)
+//! - [DateHistogram](DateHistogramAggregationReq)
+//! - [Range](RangeAggregation)
+//! - [Terms](TermsAggregation)
 
 mod histogram;
 mod range;
