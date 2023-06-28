@@ -472,6 +472,7 @@ mod tests {
 
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
+    use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Document, Field, IntoIpv6Addr, Schema, FAST, INDEXED, STORED, TEXT};
     use crate::{doc, Index};
@@ -547,7 +548,8 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(2, 60_000_000)?;
+            let mut index_writer = index.writer_with_num_threads(1, 60_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
             for i in 1..100 {
                 let mut doc = Document::new();
@@ -557,6 +559,9 @@ mod tests {
                     }
                 }
                 index_writer.add_document(doc)?;
+                if i == 10 {
+                    index_writer.commit()?;
+                }
             }
 
             index_writer.commit()?;
