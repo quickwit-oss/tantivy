@@ -9,11 +9,15 @@ pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
 }
 
-impl Tokenizer for Box<dyn BoxableTokenizer> {
+/// Wrapper to avoid recursive acalls of `box_token_stream`.
+#[derive(Clone)]
+struct BoxedTokenizer(Box<dyn BoxableTokenizer>);
+
+impl Tokenizer for BoxedTokenizer {
     type TokenStream<'a> = BoxTokenStream<'a>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        self.box_token_stream(text)
+        self.0.box_token_stream(text)
     }
 }
 
@@ -23,9 +27,9 @@ impl Clone for Box<dyn BoxableTokenizer> {
     }
 }
 
-fn add_filter<F: TokenFilter>(tokenizer: Box<dyn BoxableTokenizer>, filter: F) -> Box<dyn BoxableTokenizer> {
+fn add_filter<F: TokenFilter>(tokenizer: BoxedTokenizer, filter: F) -> BoxedTokenizer {
     let filtered_tokenizer = filter.transform(tokenizer);
-    Box::new(filtered_tokenizer)
+    BoxedTokenizer(Box::new(filtered_tokenizer))
 }
 
 
@@ -72,6 +76,11 @@ impl TextAnalyzer {
         TextAnalyzerBuilder { tokenizer }
     }
 
+    /// TODO
+    pub fn dynamic_filter_builder<T: Tokenizer>(tokenizer: T) -> DynamicTextAnalyzerBuilder {
+        DynamicTextAnalyzerBuilder::new(tokenizer)
+    }
+
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
         self.tokenizer.box_token_stream(text)
@@ -108,5 +117,59 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
         TextAnalyzer {
             tokenizer: Box::new(self.tokenizer),
         }
+    }
+}
+
+/// Builder helper for [`TextAnalyzer`] with dynamic filters.
+pub struct DynamicTextAnalyzerBuilder {
+    tokenizer: BoxedTokenizer,
+}
+
+impl DynamicTextAnalyzerBuilder {
+    pub fn new<T: Tokenizer>(tokenizer: T) -> DynamicTextAnalyzerBuilder {
+        DynamicTextAnalyzerBuilder { tokenizer: BoxedTokenizer(Box::new(tokenizer)) }
+    }
+
+    pub fn filter<F: TokenFilter>(self, filter: F) -> DynamicTextAnalyzerBuilder {
+        DynamicTextAnalyzerBuilder {
+            tokenizer: add_filter(self.tokenizer, filter),
+        }
+    }
+
+    pub fn build(self) -> TextAnalyzer {
+        TextAnalyzer {
+            tokenizer: self.tokenizer.0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::tokenizer::{AlphaNumOnlyFilter, LowerCaser, RemoveLongFilter, WhitespaceTokenizer};
+
+    #[test]
+    fn test_text_analyzer_builder() {
+        let mut analyzer = TextAnalyzer::builder(WhitespaceTokenizer::default())
+            .filter(AlphaNumOnlyFilter)
+            .filter(RemoveLongFilter::limit(6))
+            .filter(LowerCaser)
+            .build();
+        let mut stream = analyzer.token_stream("- first bullet point");
+        assert_eq!(stream.next().unwrap().text, "first");
+        assert_eq!(stream.next().unwrap().text, "point");
+    }
+
+    #[test]
+    fn test_text_analyzer_with_filters_boxed() {
+        let mut analyzer = TextAnalyzer::dynamic_filter_builder(WhitespaceTokenizer::default())
+            .filter(AlphaNumOnlyFilter)
+            .filter(RemoveLongFilter::limit(6))
+            .filter(LowerCaser)
+            .build();
+        let mut stream = analyzer.token_stream("- first bullet point");
+        assert_eq!(stream.next().unwrap().text, "first");
+        assert_eq!(stream.next().unwrap().text, "point");
     }
 }
