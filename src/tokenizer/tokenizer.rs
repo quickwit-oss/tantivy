@@ -9,6 +9,26 @@ pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
 }
 
+impl Tokenizer for Box<dyn BoxableTokenizer> {
+    type TokenStream<'a> = BoxTokenStream<'a>;
+
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        self.box_token_stream(text)
+    }
+}
+
+impl Clone for Box<dyn BoxableTokenizer> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+fn add_filter<F: TokenFilter>(tokenizer: Box<dyn BoxableTokenizer>, filter: F) -> Box<dyn BoxableTokenizer> {
+    let filtered_tokenizer = filter.transform(tokenizer);
+    Box::new(filtered_tokenizer)
+}
+
+
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
 trait BoxableTokenizer: 'static + Send + Sync {
     /// Creates a boxed token stream for a given `str`.
@@ -19,7 +39,7 @@ trait BoxableTokenizer: 'static + Send + Sync {
 
 impl<T: Tokenizer> BoxableTokenizer for T {
     fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
-        self.token_stream(text).into()
+        BoxTokenStream::new(self.token_stream(text))
     }
     fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
         Box::new(self.clone())

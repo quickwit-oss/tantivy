@@ -5,7 +5,7 @@ use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
 use crate::schema::{Field, FieldType, IndexRecordOption, Term, Value};
 use crate::tokenizer::{
-    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
+    FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer,
 };
 use crate::{DocAddress, Result, Searcher, TantivyError};
 
@@ -206,8 +206,8 @@ impl MoreLikeThis {
                 for value in values {
                     match value {
                         Value::PreTokStr(tok_str) => {
-                            let mut token_stream: BoxTokenStream =
-                                PreTokenizedStream::from(tok_str.clone()).into();
+                            let mut token_stream =
+                                PreTokenizedStream::from(tok_str.clone());
                             token_stream.process(&mut |token| {
                                 if !self.is_noise_word(token.text.clone()) {
                                     let term = Term::from_field_text(field, &token.text);

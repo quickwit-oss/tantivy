@@ -63,10 +63,22 @@ pub trait Tokenizer: 'static + Clone + Send + Sync {
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
-impl<'a, T> From<T> for BoxTokenStream<'a>
-where T: TokenStream + 'a
-{
-    fn from(token_stream: T) -> BoxTokenStream<'a> {
+impl<'a> TokenStream for BoxTokenStream<'a> {
+    fn advance(&mut self) -> bool {
+        self.0.advance()
+    }
+
+    fn token(&self) -> &Token {
+        self.0.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.0.token_mut()
+    }
+}
+
+impl<'a> BoxTokenStream<'a> {
+    pub fn new<T: TokenStream + 'a>(token_stream: T) -> BoxTokenStream<'a> {
         BoxTokenStream(Box::new(token_stream))
     }
 }
@@ -144,6 +156,7 @@ pub trait TokenFilter: 'static + Send + Sync {
     /// Wraps a Tokenizer and returns a new one.
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
 }
+
 
 #[cfg(test)]
 mod test {
