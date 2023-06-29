@@ -12,6 +12,4 @@ keywords = ["search", "information", "retrieval"]
 edition = "2021"
 
 [dependencies]
-combine = {version="4", default-features=false, features=[] }
-once_cell = "1.7.2"
-regex ={ version = "1.5.4", default-features = false, features = ["std", "unicode"] }
+nom = "7"
