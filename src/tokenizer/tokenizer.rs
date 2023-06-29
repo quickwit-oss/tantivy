@@ -29,11 +29,17 @@ dyn_clone::clone_trait_object!(BoxableTokenizer);
 /// A boxable `TokenFilter`, with its `Tokenizer` type erased.
 trait BoxableTokenFilter: 'static + Send + Sync + DynClone {
     /// Transforms a boxed token stream into a new one.
-    fn box_filter<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a>;
+    fn box_filter<'a>(
+        &'a mut self,
+        token_stream: Box<dyn TokenStream + 'a>,
+    ) -> Box<dyn TokenStream + 'a>;
 }
 
 impl<T: TokenFilter> BoxableTokenFilter for T {
-    fn box_filter<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+    fn box_filter<'a>(
+        &'a mut self,
+        token_stream: Box<dyn TokenStream + 'a>,
+    ) -> Box<dyn TokenStream + 'a> {
         Box::new(self.filter(token_stream))
     }
 }
@@ -87,7 +93,7 @@ impl TextAnalyzer {
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> Box<dyn TokenStream + 'a> {
         let mut token_stream = self.tokenizer.box_token_stream(text);
-        for token_filter in &self.token_filters {
+        for token_filter in self.token_filters.iter_mut() {
             token_stream = token_filter.0.box_filter(token_stream);
         }
         token_stream
@@ -154,7 +160,7 @@ mod tests {
         let mut analyzer = TextAnalyzer::builder(WhitespaceTokenizer::default())
             .filter(AlphaNumOnlyFilter)
             .filter(RemoveLongFilter::limit(6))
-            .filter(LowerCaser)
+            .filter(LowerCaser::default())
             .build();
         let mut stream = analyzer.token_stream("- first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");
@@ -167,7 +173,7 @@ mod tests {
             WhitespaceTokenizer::default(),
             vec![
                 BoxTokenFilter::from(AlphaNumOnlyFilter),
-                BoxTokenFilter::from(LowerCaser),
+                BoxTokenFilter::from(LowerCaser::default()),
                 BoxTokenFilter::from(RemoveLongFilter::limit(6)),
             ],
         );

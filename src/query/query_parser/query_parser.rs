@@ -960,7 +960,8 @@ mod test {
         tokenizer_manager.register(
             "en_with_stop_words",
             TextAnalyzer::builder(SimpleTokenizer::default())
-                .filter(LowerCaser)
+                .filter(LowerCaser::default())
+                .filter(LowerCaser::default())
                 .filter(StopWordFilter::remove(vec!["the".to_string()]))
                 .build(),
         );

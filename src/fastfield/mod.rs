@@ -1209,7 +1209,7 @@ mod tests {
         ff_tokenizer_manager.register(
             "custom_lowercase",
             TextAnalyzer::builder(RawTokenizer::default())
-                .filter(LowerCaser)
+                .filter(LowerCaser::default())
                 .build(),
         );
 

@@ -63,14 +63,14 @@ impl Default for TokenizerManager {
             "default",
             TextAnalyzer::builder(SimpleTokenizer::default())
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
+                .filter(LowerCaser::default())
                 .build(),
         );
         manager.register(
             "en_stem",
             TextAnalyzer::builder(SimpleTokenizer::default())
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
+                .filter(LowerCaser::default())
                 .filter(Stemmer::new(Language::English))
                 .build(),
         );

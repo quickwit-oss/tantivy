@@ -72,9 +72,9 @@ impl StopWordFilter {
 }
 
 impl TokenFilter for StopWordFilter {
-    type OutputTokenStream<T: TokenStream> = StopWordFilterStream<T>;
+    type OutputTokenStream<'a, T: TokenStream> = StopWordFilterStream<T>;
 
-    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+    fn filter<'a, T: TokenStream>(&'a mut self, token_stream: T) -> Self::OutputTokenStream<'a, T> {
         StopWordFilterStream {
             words: self.words.clone(),
             tail: token_stream,

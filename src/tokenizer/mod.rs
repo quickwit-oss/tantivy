@@ -68,7 +68,7 @@
 //!
 //! let en_stem = TextAnalyzer::builder(SimpleTokenizer::default())
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser)
+//!     .filter(LowerCaser::default())
 //!     .filter(Stemmer::new(Language::English))
 //!     .build();
 //! ```
@@ -115,7 +115,7 @@
 //! // We need to register our tokenizer :
 //! let custom_en_tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser)
+//!     .filter(LowerCaser::default())
 //!     .build();
 //! index
 //!     .tokenizers()
@@ -233,7 +233,7 @@ pub mod tests {
             "el_stem",
             TextAnalyzer::builder(SimpleTokenizer::default())
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
+                .filter(LowerCaser::default())
                 .filter(Stemmer::new(Language::Greek))
                 .build(),
         );

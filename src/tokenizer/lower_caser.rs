@@ -3,22 +3,23 @@ use std::mem;
 use super::{Token, TokenFilter, TokenStream};
 
 /// Token filter that lowercase terms.
-#[derive(Clone)]
-pub struct LowerCaser;
+#[derive(Clone, Default)]
+pub struct LowerCaser(String);
 
 impl TokenFilter for LowerCaser {
-    type OutputTokenStream<T: TokenStream> = LowerCaserTokenStream<T>;
+    type OutputTokenStream<'a, T: TokenStream> = LowerCaserTokenStream<'a, T>;
 
-    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+    fn filter<'a, T: TokenStream>(&'a mut self, token_stream: T) -> Self::OutputTokenStream<'a, T> {
+        self.0.clear();
         LowerCaserTokenStream {
             tail: token_stream,
-            buffer: String::new(),
+            buffer: &mut self.0,
         }
     }
 }
 
-pub struct LowerCaserTokenStream<T> {
-    buffer: String,
+pub struct LowerCaserTokenStream<'a, T> {
+    buffer: &'a mut String,
     tail: T,
 }
 
@@ -33,7 +34,7 @@ fn to_lowercase_unicode(text: &str, output: &mut String) {
     }
 }
 
-impl<T: TokenStream> TokenStream for LowerCaserTokenStream<T> {
+impl<'a, T: TokenStream> TokenStream for LowerCaserTokenStream<'a, T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -42,8 +43,8 @@ impl<T: TokenStream> TokenStream for LowerCaserTokenStream<T> {
             // fast track for ascii.
             self.token_mut().text.make_ascii_lowercase();
         } else {
-            to_lowercase_unicode(&self.tail.token().text, &mut self.buffer);
-            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
+            to_lowercase_unicode(&self.tail.token().text, self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, self.buffer);
         }
         true
     }
@@ -76,7 +77,7 @@ mod tests {
 
     fn token_stream_helper(text: &str) -> Vec<Token> {
         let mut token_stream = TextAnalyzer::builder(SimpleTokenizer::default())
-            .filter(LowerCaser)
+            .filter(LowerCaser::default())
             .build();
 
         let mut token_stream = token_stream.token_stream(text);

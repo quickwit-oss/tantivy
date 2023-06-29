@@ -38,9 +38,9 @@ impl<T> RemoveLongFilterStream<T> {
 }
 
 impl TokenFilter for RemoveLongFilter {
-    type OutputTokenStream<T: TokenStream> = RemoveLongFilterStream<T>;
+    type OutputTokenStream<'a, T: TokenStream> = RemoveLongFilterStream<T>;
 
-    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+    fn filter<'a, T: TokenStream>(&'a mut self, token_stream: T) -> Self::OutputTokenStream<'a, T> {
         RemoveLongFilterStream {
             token_length_limit: self.length_limit,
             tail: token_stream,

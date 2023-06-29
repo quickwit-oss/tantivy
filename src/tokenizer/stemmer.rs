@@ -81,9 +81,9 @@ impl Default for Stemmer {
 }
 
 impl TokenFilter for Stemmer {
-    type OutputTokenStream<T: TokenStream> = StemmerTokenStream<T>;
+    type OutputTokenStream<'a, T: TokenStream> = StemmerTokenStream<T>;
 
-    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+    fn filter<'a, T: TokenStream>(&'a mut self, token_stream: T) -> Self::OutputTokenStream<'a, T> {
         let stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
         StemmerTokenStream {
             tail: token_stream,

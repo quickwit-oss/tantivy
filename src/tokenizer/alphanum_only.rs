@@ -39,9 +39,9 @@ impl<T> AlphaNumOnlyFilterStream<T> {
 }
 
 impl TokenFilter for AlphaNumOnlyFilter {
-    type OutputTokenStream<T: TokenStream> = AlphaNumOnlyFilterStream<T>;
+    type OutputTokenStream<'a, T: TokenStream> = AlphaNumOnlyFilterStream<T>;
 
-    fn filter<T: TokenStream>(&self, token_stream: T) -> Self::OutputTokenStream<T> {
+    fn filter<'a, T: TokenStream>(&'a mut self, token_stream: T) -> Self::OutputTokenStream<'a, T> {
         AlphaNumOnlyFilterStream { tail: token_stream }
     }
 }
