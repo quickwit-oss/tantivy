@@ -157,7 +157,6 @@ pub trait TokenFilter: 'static + Send + Sync {
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
