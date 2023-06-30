@@ -158,6 +158,7 @@ impl UserInputBound {
     }
 }
 
+#[derive(PartialEq)]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),

@@ -116,8 +116,8 @@ fn simple_term(i: &str) -> IResult<&str, (Delimiter, String)> {
     ))(i)
 }
 
-fn literal(i: &str) -> IResult<&str, UserInputLeaf> {
-    let term_or_phrase = map(
+fn term_or_phrase(i: &str) -> IResult<&str, UserInputLeaf> {
+    map(
         tuple((simple_term, slop_or_prefix_val)),
         |((delimiter, phrase), (slop, prefix))| {
             UserInputLiteral {
@@ -129,22 +129,44 @@ fn literal(i: &str) -> IResult<&str, UserInputLeaf> {
             }
             .into()
         },
-    );
+    )(i)
+}
 
+fn term_group(i: &str) -> IResult<&str, UserInputAst> {
+    let occur_symbol = alt((
+        value(Occur::MustNot, char('-')),
+        value(Occur::Must, char('+')),
+    ));
+
+    map(
+        tuple((
+            terminated(field_name, space0),
+            delimited(
+                tuple((char('('), space0)),
+                separated_list0(space1, tuple((opt(occur_symbol), term_or_phrase))),
+                char(')'),
+            ),
+        )),
+        |(field_name, terms)| {
+            UserInputAst::Clause(
+                terms
+                    .into_iter()
+                    .map(|(occur, leaf)| (occur, leaf.set_field(Some(field_name.clone())).into()))
+                    .collect(),
+            )
+        },
+    )(i)
+}
+// TODO term grouping should go here (ie `my_field:(+a +"bc d")`)
+
+fn literal(i: &str) -> IResult<&str, UserInputAst> {
     alt((
-        map(char('*'), |_| UserInputLeaf::All),
+        map(char('*'), |_| UserInputLeaf::All.into()),
         map(
-            tuple((
-                opt(field_name),
-                alt((
-                    range,
-                    set,
-                    term_or_phrase,
-                    // TODO term grouping should go here (ie `my_field:(+a +"bc d")`)
-                )),
-            )),
-            |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name),
+            tuple((opt(field_name), alt((range, set, term_or_phrase)))),
+            |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
+        term_group,
     ))(i)
 }
 
@@ -251,7 +273,7 @@ fn leaf(i: &str) -> IResult<&str, UserInputAst> {
         delimited(char('('), ast, char(')')),
         map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
         map(preceded(tuple((tag("NOT"), space1)), leaf), negate),
-        map(literal, UserInputAst::from),
+        literal,
     ))(i)
 }
 
@@ -586,7 +608,8 @@ mod test {
             field: Some("title".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Exclusive("hello".to_string()),
-        };
+        }
+        .into();
         let res2 = literal("title:{* TO hello}")
             .expect("Cannot parse ununbounded to word")
             .1;
@@ -597,7 +620,8 @@ mod test {
             field: Some("weight".to_string()),
             lower: UserInputBound::Inclusive("71.2".to_string()),
             upper: UserInputBound::Unbounded,
-        };
+        }
+        .into();
         let res3 = literal("weight: >=71.2")
             .expect("Cannot parse flexible bound float")
             .1;
@@ -611,7 +635,8 @@ mod test {
             field: Some("date_field".to_string()),
             lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
             upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
-        };
+        }
+        .into();
         let res5 = literal("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
             .expect("Cannot parse date range")
             .1;
@@ -621,7 +646,8 @@ mod test {
             field: Some("date_field".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
-        };
+        }
+        .into();
 
         let res6 = literal("date_field: <=2021-08-02T18:54:42.12345+02:30")
             .expect("Cannot parse date range")
@@ -632,7 +658,8 @@ mod test {
             field: Some("ip".to_string()),
             lower: UserInputBound::Inclusive("::1".to_string()),
             upper: UserInputBound::Unbounded,
-        };
+        }
+        .into();
         let res1 = literal("ip: >=::1").expect("Cannot parse ip v6 format").1;
         let res2 = literal("ip:[::1 TO *}")
             .expect("Cannot parse ip v6 format")
@@ -645,7 +672,8 @@ mod test {
             field: Some("ip".to_string()),
             lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
             upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
-        };
+        }
+        .into();
         let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52}")
             .expect("Cannot parse ip v6 format")
             .1;
@@ -662,6 +690,12 @@ mod test {
         test_parse_query_to_ast_helper("a OR abc ", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR abc )", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR  abc) ", "(?a ?abc)");
+    }
+
+    #[test]
+    fn test_parse_query_term_group() {
+        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#"(*"field":abc)"#);
+        test_parse_query_to_ast_helper(r#"field:(+a -"b c")"#, r#"(+"field":a -"field":"b c")"#);
     }
 
     #[test]
