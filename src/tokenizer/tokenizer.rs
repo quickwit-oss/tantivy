@@ -9,20 +9,11 @@ pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
 }
 
-
-mod public_but_unreachable {
-    /// Wrapper to avoid recursive acalls of `box_token_stream`.
-    #[derive(Clone)]
-    pub struct BoxedTokenizer(pub(super) Box<dyn super::BoxableTokenizer>);
-}
-
-use public_but_unreachable::BoxedTokenizer;
-
-impl Tokenizer for BoxedTokenizer {
+impl Tokenizer for Box<dyn BoxableTokenizer> {
     type TokenStream<'a> = BoxTokenStream<'a>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        self.0.box_token_stream(text)
+        (**self).box_token_stream(text)
     }
 }
 
@@ -33,7 +24,7 @@ impl Clone for Box<dyn BoxableTokenizer> {
 }
 
 /// A boxable `Tokenizer`, with its `TokenStream` type erased.
-trait BoxableTokenizer: 'static + Send + Sync {
+pub trait BoxableTokenizer: 'static + Send + Sync {
     /// Creates a boxed token stream for a given `str`.
     fn box_token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a>;
     /// Clone this tokenizer.
@@ -82,7 +73,7 @@ impl TextAnalyzer {
 }
 
 /// Builder helper for [`TextAnalyzer`]
-pub struct TextAnalyzerBuilder<T=BoxedTokenizer> {
+pub struct TextAnalyzerBuilder<T=Box<dyn BoxableTokenizer>> {
     tokenizer: T,
 }
 
@@ -108,7 +99,7 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
 
     // Boxes the internal tokenizer. This is useful to write generic code.
     pub fn dynamic(self) -> TextAnalyzerBuilder {
-        let boxed_tokenizer = BoxedTokenizer(Box::new(self.tokenizer));
+        let boxed_tokenizer = Box::new(self.tokenizer);
         TextAnalyzerBuilder {
             tokenizer:  boxed_tokenizer,
         }
