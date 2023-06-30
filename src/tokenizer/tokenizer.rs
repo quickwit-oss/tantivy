@@ -13,12 +13,17 @@ pub struct TextAnalyzer {
 impl Tokenizer for Box<dyn BoxableTokenizer> {
     type TokenStream<'a> = BoxTokenStream<'a>;
 
+    // Note: we want to call `box_token_stream` on the concrete `Tokenizer`
+    // implementation, not the `BoxableTokenizer` one as it will cause
+    // a recursive call (and a stack overflow).
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         (**self).box_token_stream(text)
     }
 }
 
 impl Clone for Box<dyn BoxableTokenizer> {
+    // Note: we want to call `box_clone` on the concrete `Tokenizer`
+    // implementation in order to clone the concrete `Tokenizer`.
     fn clone(&self) -> Self {
         (**self).box_clone()
     }
@@ -61,12 +66,12 @@ impl TextAnalyzer {
 
     /// Creates a token stream for a given `str`.
     pub fn token_stream<'a>(&'a mut self, text: &'a str) -> BoxTokenStream<'a> {
-        self.tokenizer.box_token_stream(text)
+        self.tokenizer.token_stream(text)
     }
 }
 
 /// Builder helper for [`TextAnalyzer`]
-pub struct TextAnalyzerBuilder<T=Box<dyn BoxableTokenizer>> {
+pub struct TextAnalyzerBuilder<T = Box<dyn BoxableTokenizer>> {
     tokenizer: T,
 }
 
@@ -90,18 +95,20 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
         }
     }
 
-    /// Boxes the internal tokenizer. This is useful to write generic code.
-    /// When creating a `TextAnalyzer` from a `Tokenizer` and a static set of `TokenFilter`,
-    /// prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` as it
-    /// will be more performant and create less boxes.
+    /// Boxes the internal tokenizer. This is useful for adding dynamic filters.
+    /// Note: this will be less performant than the non boxed version.
     pub fn dynamic(self) -> TextAnalyzerBuilder {
         let boxed_tokenizer = Box::new(self.tokenizer);
         TextAnalyzerBuilder {
-            tokenizer:  boxed_tokenizer,
+            tokenizer: boxed_tokenizer,
         }
     }
 
-    /// Apply a filter and returns a boxed version of the TextAnalyzerBuilder.
+    /// Appends a token filter to the current builder and returns a boxed version of the
+    /// tokenizer. This is useful when you want to build a `TextAnalyzer` dynamically.
+    /// Prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` if
+    /// possible as it will be more performant and create less boxes.
+    /// ```
     pub fn filter_dynamic<F: TokenFilter>(self, token_filter: F) -> TextAnalyzerBuilder {
         self.filter(token_filter).dynamic()
     }
@@ -114,12 +121,11 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::tokenizer::{AlphaNumOnlyFilter, LowerCaser, RemoveLongFilter, WhitespaceTokenizer, SimpleTokenizer};
+    use crate::tokenizer::{LowerCaser, RemoveLongFilter, SimpleTokenizer};
 
     #[test]
     fn test_text_analyzer_builder() {
@@ -132,8 +138,6 @@ mod tests {
         assert_eq!(stream.next().unwrap().text, "first");
         assert_eq!(stream.next().unwrap().text, "bullet");
     }
-
-
 
     #[test]
     fn test_text_analyzer_with_filters_boxed() {
@@ -151,19 +155,20 @@ mod tests {
             SerializableTokenFilterEnum::LowerCaser(LowerCaser),
             SerializableTokenFilterEnum::RemoveLongFilter(RemoveLongFilter::limit(12)),
         ];
-        let mut analyzer_builder: TextAnalyzerBuilder = TextAnalyzer::builder(SimpleTokenizer::default())
-            .filter_dynamic(RemoveLongFilter::limit(40))
-            .filter_dynamic(LowerCaser);
-        // for filter in filters {
-        //     analyzer_builder =
-        //         match filter {
-        //             SerializableTokenFilterEnum::LowerCaser(lower_caser) =>
-        //                 analyzer_builder.filter_dynamic(lower_caser),
-        //             SerializableTokenFilterEnum::RemoveLongFilter(remove_long_filter) => {
-        //                 analyzer_builder.filter_dynamic(remove_long_filter)
-        //         },
-        //     }
-        // }
+        let mut analyzer_builder: TextAnalyzerBuilder =
+            TextAnalyzer::builder(SimpleTokenizer::default())
+                .filter_dynamic(RemoveLongFilter::limit(40))
+                .filter_dynamic(LowerCaser);
+        for filter in filters {
+            analyzer_builder = match filter {
+                SerializableTokenFilterEnum::LowerCaser(lower_caser) => {
+                    analyzer_builder.filter_dynamic(lower_caser)
+                }
+                SerializableTokenFilterEnum::RemoveLongFilter(remove_long_filter) => {
+                    analyzer_builder.filter_dynamic(remove_long_filter)
+                }
+            }
+        }
         let mut analyzer = analyzer_builder.build().clone();
         let mut stream = analyzer.token_stream("first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");

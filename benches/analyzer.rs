@@ -1,5 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use tantivy::tokenizer::{TokenizerManager, TextAnalyzer, RemoveLongFilter, LowerCaser, SimpleTokenizer};
+use tantivy::tokenizer::{
+    LowerCaser, RemoveLongFilter, SimpleTokenizer, TextAnalyzer, TokenizerManager,
+};
 
 const ALICE_TXT: &str = include_str!("alice.txt");
 
@@ -10,20 +12,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut word_count = 0;
             let mut token_stream = tokenizer.token_stream(ALICE_TXT);
-            while token_stream.advance() {
-                word_count += 1;
-            }
-            assert_eq!(word_count, 30_731);
-        })
-    });
-    let mut static_analyzer = TextAnalyzer::builder(SimpleTokenizer::default())
-        .filter(RemoveLongFilter::limit(40))
-        .filter(LowerCaser)
-        .build();
-    c.bench_function("static-tokenize-alice", |b| {
-    b.iter(|| {
-            let mut word_count = 0;
-            let mut token_stream = static_analyzer.token_stream(ALICE_TXT);
             while token_stream.advance() {
                 word_count += 1;
             }
