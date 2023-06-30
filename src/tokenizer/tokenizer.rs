@@ -5,6 +5,7 @@ use tokenizer_api::{BoxTokenStream, TokenFilter, Tokenizer};
 use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
 
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
+#[derive(Clone)]
 pub struct TextAnalyzer {
     tokenizer: Box<dyn BoxableTokenizer>,
 }
@@ -19,7 +20,7 @@ impl Tokenizer for Box<dyn BoxableTokenizer> {
 
 impl Clone for Box<dyn BoxableTokenizer> {
     fn clone(&self) -> Self {
-        self.box_clone()
+        (**self).box_clone()
     }
 }
 
@@ -37,14 +38,6 @@ impl<T: Tokenizer> BoxableTokenizer for T {
     }
     fn box_clone(&self) -> Box<dyn BoxableTokenizer> {
         Box::new(self.clone())
-    }
-}
-
-impl Clone for TextAnalyzer {
-    fn clone(&self) -> Self {
-        TextAnalyzer {
-            tokenizer: self.tokenizer.box_clone(),
-        }
     }
 }
 
@@ -97,7 +90,10 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
         }
     }
 
-    // Boxes the internal tokenizer. This is useful to write generic code.
+    /// Boxes the internal tokenizer. This is useful to write generic code.
+    /// When creating a `TextAnalyzer` from a `Tokenizer` and a static set of `TokenFilter`,
+    /// prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` as it
+    /// will be more performant and create less boxes.
     pub fn dynamic(self) -> TextAnalyzerBuilder {
         let boxed_tokenizer = Box::new(self.tokenizer);
         TextAnalyzerBuilder {
@@ -106,7 +102,6 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     }
 
     /// Apply a filter and returns a boxed version of the TextAnalyzerBuilder.
-    /// (If we prefer we can remove this method)
     pub fn filter_dynamic<F: TokenFilter>(self, token_filter: F) -> TextAnalyzerBuilder {
         self.filter(token_filter).dynamic()
     }
@@ -124,18 +119,18 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
 mod tests {
 
     use super::*;
-    use crate::tokenizer::{AlphaNumOnlyFilter, LowerCaser, RemoveLongFilter, WhitespaceTokenizer};
+    use crate::tokenizer::{AlphaNumOnlyFilter, LowerCaser, RemoveLongFilter, WhitespaceTokenizer, SimpleTokenizer};
 
     #[test]
     fn test_text_analyzer_builder() {
-        let mut analyzer = TextAnalyzer::builder(WhitespaceTokenizer::default())
-            .filter(AlphaNumOnlyFilter)
-            .filter(RemoveLongFilter::limit(6))
+        let mut analyzer = TextAnalyzer::builder(SimpleTokenizer::default())
+            .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
-            .build();
+            .build()
+            .clone();
         let mut stream = analyzer.token_stream("- first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");
-        assert_eq!(stream.next().unwrap().text, "point");
+        assert_eq!(stream.next().unwrap().text, "bullet");
     }
 
 
@@ -156,19 +151,20 @@ mod tests {
             SerializableTokenFilterEnum::LowerCaser(LowerCaser),
             SerializableTokenFilterEnum::RemoveLongFilter(RemoveLongFilter::limit(12)),
         ];
-        let mut analyzer_builder: TextAnalyzerBuilder = TextAnalyzer::builder(WhitespaceTokenizer::default())
-            .dynamic();
-        for filter in filters {
-            analyzer_builder =
-                match filter {
-                    SerializableTokenFilterEnum::LowerCaser(lower_caser) =>
-                        analyzer_builder.filter_dynamic(lower_caser),
-                    SerializableTokenFilterEnum::RemoveLongFilter(remove_long_filter) => {
-                        analyzer_builder.filter_dynamic(remove_long_filter)
-                },
-            }
-        }
-        let mut analyzer = analyzer_builder.build();
+        let mut analyzer_builder: TextAnalyzerBuilder = TextAnalyzer::builder(SimpleTokenizer::default())
+            .filter_dynamic(RemoveLongFilter::limit(40))
+            .filter_dynamic(LowerCaser);
+        // for filter in filters {
+        //     analyzer_builder =
+        //         match filter {
+        //             SerializableTokenFilterEnum::LowerCaser(lower_caser) =>
+        //                 analyzer_builder.filter_dynamic(lower_caser),
+        //             SerializableTokenFilterEnum::RemoveLongFilter(remove_long_filter) => {
+        //                 analyzer_builder.filter_dynamic(remove_long_filter)
+        //         },
+        //     }
+        // }
+        let mut analyzer = analyzer_builder.build().clone();
         let mut stream = analyzer.token_stream("first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");
         assert_eq!(stream.next().unwrap().text, "bullet");
