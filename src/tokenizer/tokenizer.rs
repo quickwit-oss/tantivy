@@ -132,8 +132,7 @@ mod tests {
         let mut analyzer = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
-            .build()
-            .clone();
+            .build();
         let mut stream = analyzer.token_stream("- first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");
         assert_eq!(stream.next().unwrap().text, "bullet");
@@ -169,7 +168,7 @@ mod tests {
                 }
             }
         }
-        let mut analyzer = analyzer_builder.build().clone();
+        let mut analyzer = analyzer_builder.build();
         let mut stream = analyzer.token_stream("first bullet point");
         assert_eq!(stream.next().unwrap().text, "first");
         assert_eq!(stream.next().unwrap().text, "bullet");
