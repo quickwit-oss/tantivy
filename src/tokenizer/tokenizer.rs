@@ -108,7 +108,6 @@ impl<T: Tokenizer> TextAnalyzerBuilder<T> {
     /// tokenizer. This is useful when you want to build a `TextAnalyzer` dynamically.
     /// Prefer using `TextAnalyzer::builder(tokenizer).filter(token_filter).build()` if
     /// possible as it will be more performant and create less boxes.
-    /// ```
     pub fn filter_dynamic<F: TokenFilter>(self, token_filter: F) -> TextAnalyzerBuilder {
         self.filter(token_filter).dynamic()
     }
