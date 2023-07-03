@@ -88,7 +88,7 @@ impl FastFieldReaders {
         let Some((field, path)): Option<(Field, &str)> = self
             .schema
             .find_field_with_default(field_name, default_field_opt)
-        else{
+        else {
             return Ok(None);
         };
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
@@ -120,7 +120,8 @@ impl FastFieldReaders {
         T: HasAssociatedColumnType,
         DynamicColumn: Into<Option<Column<T>>>,
     {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, T::column_type())?
+        let Some(dynamic_column_handle) =
+            self.dynamic_column_handle(field_name, T::column_type())?
         else {
             return Ok(None);
         };
@@ -196,7 +197,8 @@ impl FastFieldReaders {
 
     /// Returns a `str` column.
     pub fn str(&self, field_name: &str) -> crate::Result<Option<StrColumn>> {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, ColumnType::Str)?
+        let Some(dynamic_column_handle) =
+            self.dynamic_column_handle(field_name, ColumnType::Str)?
         else {
             return Ok(None);
         };
@@ -206,7 +208,8 @@ impl FastFieldReaders {
 
     /// Returns a `bytes` column.
     pub fn bytes(&self, field_name: &str) -> crate::Result<Option<BytesColumn>> {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, ColumnType::Bytes)?
+        let Some(dynamic_column_handle) =
+            self.dynamic_column_handle(field_name, ColumnType::Bytes)?
         else {
             return Ok(None);
         };

@@ -168,8 +168,9 @@ mod tests {
         )
         .into();
         let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
-        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index
-        else { panic!("Excpected a multivalued index") };
+        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
+            panic!("Excpected a multivalued index")
+        };
         let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();
         assert_eq!(&start_indexes, &[0, 3, 5]);
     }
@@ -200,8 +201,9 @@ mod tests {
         )
         .into();
         let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
-        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index
-        else { panic!("Excpected a multivalued index") };
+        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
+            panic!("Excpected a multivalued index")
+        };
         let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();
         assert_eq!(&start_indexes, &[0, 3, 5, 6]);
     }

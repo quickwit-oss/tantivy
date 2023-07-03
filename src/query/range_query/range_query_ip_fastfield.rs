@@ -31,9 +31,10 @@ impl IPFastFieldRangeWeight {
 
 impl Weight for IPFastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let Some(ip_addr_column): Option<Column<Ipv6Addr>> = reader.fast_fields()
-            .column_opt(&self.field)? else {
-            return Ok(Box::new(EmptyScorer))
+        let Some(ip_addr_column): Option<Column<Ipv6Addr>> =
+            reader.fast_fields().column_opt(&self.field)?
+        else {
+            return Ok(Box::new(EmptyScorer));
         };
         let value_range = bound_to_value_range(
             &self.lower_bound,

@@ -71,7 +71,9 @@ impl Weight for FastFieldRangeWeight {
         let column_type_opt_ref: Option<&[ColumnType]> = column_type_opt
             .as_ref()
             .map(|column_types| column_types.as_slice());
-        let Some((column, _)) = fast_field_reader.u64_lenient_for_type(column_type_opt_ref, &self.field)? else {
+        let Some((column, _)) =
+            fast_field_reader.u64_lenient_for_type(column_type_opt_ref, &self.field)?
+        else {
             return Ok(Box::new(EmptyScorer));
         };
         let value_range = bound_to_value_range(
