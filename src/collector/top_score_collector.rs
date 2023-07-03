@@ -14,7 +14,7 @@ use crate::collector::{
 };
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::query::Weight;
-use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
+use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 struct FastFieldConvertCollector<
     TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
@@ -131,16 +131,23 @@ impl fmt::Debug for TopDocs {
 
 struct ScorerByFastFieldReader {
     sort_column: Arc<dyn ColumnValues<u64>>,
+    order: Order,
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
     fn score(&mut self, doc: DocId) -> u64 {
-        self.sort_column.get_val(doc)
+        let value = self.sort_column.get_val(doc);
+        if self.order.is_desc() {
+            value
+        } else {
+            u64::MAX - value
+        }
     }
 }
 
 struct ScorerByField {
     field: String,
+    order: Order,
 }
 
 impl CustomScorer<u64> for ScorerByField {
@@ -159,6 +166,7 @@ impl CustomScorer<u64> for ScorerByField {
             })?;
         Ok(ScorerByFastFieldReader {
             sort_column: sort_column.first_or_default_col(0u64),
+            order: self.order.clone(),
         })
     }
 }
@@ -291,10 +299,12 @@ impl TopDocs {
     pub fn order_by_u64_field(
         self,
         field: impl ToString,
+        order: Order,
     ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
         CustomScoreTopCollector::new(
             ScorerByField {
                 field: field.to_string(),
+                order,
             },
             self.0.into_tscore(),
         )
@@ -372,11 +382,12 @@ impl TopDocs {
     pub fn order_by_fast_field<TFastValue>(
         self,
         fast_field: impl ToString,
+        order: Order,
     ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
     where
         TFastValue: FastValue,
     {
-        let u64_collector = self.order_by_u64_field(fast_field.to_string());
+        let u64_collector = self.order_by_u64_field(fast_field.to_string(), order);
         FastFieldConvertCollector {
             collector: u64_collector,
             field: fast_field.to_string(),
@@ -721,7 +732,7 @@ mod tests {
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::{DateTime, DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
+    use crate::{DateTime, DocAddress, DocId, Index, IndexWriter, Order, Score, SegmentReader};
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -882,7 +893,7 @@ mod tests {
         });
         let searcher = index.reader()?.searcher();
 
-        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE);
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE, Order::Desc);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
         assert_eq!(
             &top_docs[..],
@@ -921,7 +932,7 @@ mod tests {
         ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let top_collector = TopDocs::with_limit(3).order_by_fast_field("birthday");
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field("birthday", Order::Desc);
         let top_docs: Vec<(DateTime, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
@@ -951,7 +962,7 @@ mod tests {
         ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude");
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude", Order::Desc);
         let top_docs: Vec<(i64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
@@ -981,7 +992,7 @@ mod tests {
         ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude");
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude", Order::Desc);
         let top_docs: Vec<(f64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
@@ -1009,7 +1020,7 @@ mod tests {
                 .unwrap();
         });
         let searcher = index.reader().unwrap().searcher();
-        let top_collector = TopDocs::with_limit(4).order_by_u64_field("missing_field");
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field("missing_field", Order::Desc);
         let segment_reader = searcher.segment_reader(0u32);
         top_collector
             .for_segment(0, segment_reader)
@@ -1027,7 +1038,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let segment = searcher.segment_reader(0);
-        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE);
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE, Order::Desc);
         let err = top_collector.for_segment(0, segment).err().unwrap();
         assert!(matches!(err, crate::TantivyError::InvalidArgument(_)));
         Ok(())
@@ -1044,7 +1055,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let segment = searcher.segment_reader(0);
-        let top_collector = TopDocs::with_limit(4).order_by_fast_field::<i64>(SIZE);
+        let top_collector = TopDocs::with_limit(4).order_by_fast_field::<i64>(SIZE, Order::Desc);
         let err = top_collector.for_segment(0, segment).err().unwrap();
         assert!(
             matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field \"size\" is not a fast field.")
@@ -1105,5 +1116,45 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![query_field]);
         let query = query_parser.parse_query(query).unwrap();
         (index, query)
+    }
+    #[test]
+    fn test_fast_field_ascending_order() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field(TITLE, TEXT);
+        let size = schema_builder.add_u64_field(SIZE, FAST);
+        let schema = schema_builder.build();
+        let (index, query) = index("beer", title, schema, |index_writer| {
+            index_writer
+                .add_document(doc!(
+                    title => "bottle of beer",
+                    size => 12u64,
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    title => "growler of beer",
+                    size => 64u64,
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    title => "pint of beer",
+                    size => 16u64,
+                ))
+                .unwrap();
+        });
+        let searcher = index.reader()?.searcher();
+
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE, Order::Asc);
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[
+                (18446744073709551603, DocAddress::new(0, 0)),
+                (18446744073709551599, DocAddress::new(0, 2)),
+                (18446744073709551551, DocAddress::new(0, 1))
+            ]
+        );
+        Ok(())
     }
 }
