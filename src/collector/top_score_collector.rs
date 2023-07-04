@@ -287,7 +287,7 @@ impl TopDocs {
     ///     // Note the `rating_field` needs to be a FAST field here.
     ///     let top_books_by_rating = TopDocs
     ///                 ::with_limit(10)
-    ///                  .order_by_u64_field("rating");
+    ///                  .order_by_u64_field("rating", Order::Desc);
     ///
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `u64` in the pair is the value of our fast field for
@@ -375,7 +375,7 @@ impl TopDocs {
     ///     // type `sort_by_field`. revenue_field here is a FAST i64 field.
     ///     let top_company_by_revenue = TopDocs
     ///                 ::with_limit(2)
-    ///                  .order_by_fast_field("revenue");
+    ///                  .order_by_fast_field("revenue", Order::Desc);
     ///
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `i64` in the pair is the value of our fast field for
@@ -1154,6 +1154,7 @@ mod tests {
                     size => 16u64,
                 ))
                 .unwrap();
+            index_writer.add_document(doc!()).unwrap();
         });
         let searcher = index.reader()?.searcher();
 
