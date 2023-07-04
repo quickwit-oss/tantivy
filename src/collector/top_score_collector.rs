@@ -1155,10 +1155,10 @@ mod tests {
                 ))
                 .unwrap();
             index_writer
-            .add_document(doc!(
-                title => "empty beer",
-            ))
-            .unwrap();
+                .add_document(doc!(
+                    title => "empty beer",
+                ))
+                .unwrap();
         });
         let searcher = index.reader()?.searcher();
 
