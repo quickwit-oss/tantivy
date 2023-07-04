@@ -76,7 +76,8 @@ where
                     (TFastValue::from_u64(score), doc_address)
                 } else {
                     (TFastValue::from_u64(u64::MAX - score), doc_address)
-                }})
+                }
+            })
             .collect::<Vec<_>>();
         Ok(transformed_result)
     }
