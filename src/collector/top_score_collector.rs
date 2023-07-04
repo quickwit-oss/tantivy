@@ -171,8 +171,12 @@ impl CustomScorer<u64> for ScorerByField {
             sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
                 field_name: self.field.clone(),
             })?;
+        let mut value = 0u64;
+        if self.order.is_asc() {
+            value = u64::MAX;
+        }
         Ok(ScorerByFastFieldReader {
-            sort_column: sort_column.first_or_default_col(0u64),
+            sort_column: sort_column.first_or_default_col(value),
             order: self.order.clone(),
         })
     }
