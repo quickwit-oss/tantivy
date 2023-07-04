@@ -249,7 +249,7 @@ impl TopDocs {
     ///
     /// ```rust
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{doc, Index, DocAddress};
+    /// # use tantivy::{doc, Index, DocAddress, Order};
     /// # use tantivy::query::{Query, QueryParser};
     /// use tantivy::Searcher;
     /// use tantivy::collector::TopDocs;
@@ -287,7 +287,7 @@ impl TopDocs {
     ///     // Note the `rating_field` needs to be a FAST field here.
     ///     let top_books_by_rating = TopDocs
     ///                 ::with_limit(10)
-    ///                  .order_by_u64_field("rating", Order::Desc);
+    ///                  .order_by_fast_field("rating", Order::Desc);
     ///
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `u64` in the pair is the value of our fast field for
@@ -337,7 +337,7 @@ impl TopDocs {
     ///
     /// ```rust
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{doc, Index, DocAddress};
+    /// # use tantivy::{doc, Index, DocAddress,Order};
     /// # use tantivy::query::{Query, AllQuery};
     /// use tantivy::Searcher;
     /// use tantivy::collector::TopDocs;
