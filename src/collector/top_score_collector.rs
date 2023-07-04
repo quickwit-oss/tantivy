@@ -23,6 +23,7 @@ struct FastFieldConvertCollector<
     pub collector: TCollector,
     pub field: String,
     pub fast_value: std::marker::PhantomData<TFastValue>,
+    order: Order,
 }
 
 impl<TCollector, TFastValue> Collector for FastFieldConvertCollector<TCollector, TFastValue>
@@ -70,7 +71,12 @@ where
         let raw_result = self.collector.merge_fruits(segment_fruits)?;
         let transformed_result = raw_result
             .into_iter()
-            .map(|(score, doc_address)| (TFastValue::from_u64(score), doc_address))
+            .map(|(score, doc_address)| {
+                if self.order.is_desc() {
+                    (TFastValue::from_u64(score), doc_address)
+                } else {
+                    (TFastValue::from_u64(u64::MAX - score), doc_address)
+                }})
             .collect::<Vec<_>>();
         Ok(transformed_result)
     }
@@ -296,7 +302,7 @@ impl TopDocs {
     ///
     /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
     /// the [.order_by_fast_field(...)](TopDocs::order_by_fast_field) method.
-    pub fn order_by_u64_field(
+    fn order_by_u64_field(
         self,
         field: impl ToString,
         order: Order,
@@ -387,11 +393,12 @@ impl TopDocs {
     where
         TFastValue: FastValue,
     {
-        let u64_collector = self.order_by_u64_field(fast_field.to_string(), order);
+        let u64_collector = self.order_by_u64_field(fast_field.to_string(), order.clone());
         FastFieldConvertCollector {
             collector: u64_collector,
             field: fast_field.to_string(),
             fast_value: PhantomData,
+            order,
         }
     }
 
@@ -1145,14 +1152,14 @@ mod tests {
         });
         let searcher = index.reader()?.searcher();
 
-        let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE, Order::Asc);
+        let top_collector = TopDocs::with_limit(4).order_by_fast_field(SIZE, Order::Asc);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (18446744073709551603, DocAddress::new(0, 0)),
-                (18446744073709551599, DocAddress::new(0, 2)),
-                (18446744073709551551, DocAddress::new(0, 1))
+                (12, DocAddress::new(0, 0)),
+                (16, DocAddress::new(0, 2)),
+                (64, DocAddress::new(0, 1))
             ]
         );
         Ok(())
