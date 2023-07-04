@@ -1154,7 +1154,11 @@ mod tests {
                     size => 16u64,
                 ))
                 .unwrap();
-            index_writer.add_document(doc!()).unwrap();
+            index_writer
+            .add_document(doc!(
+                title => "empty beer",
+            ))
+            .unwrap();
         });
         let searcher = index.reader()?.searcher();
 
@@ -1165,7 +1169,8 @@ mod tests {
             &[
                 (12, DocAddress::new(0, 0)),
                 (16, DocAddress::new(0, 2)),
-                (64, DocAddress::new(0, 1))
+                (64, DocAddress::new(0, 1)),
+                (18446744073709551615, DocAddress::new(0, 3)),
             ]
         );
         Ok(())
