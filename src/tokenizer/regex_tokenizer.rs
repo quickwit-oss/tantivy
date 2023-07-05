@@ -49,6 +49,7 @@ use crate::TantivyError;
 pub struct RegexTokenizer {
     regex: Regex,
     token: Token,
+    group: usize,
 }
 
 impl RegexTokenizer {
@@ -59,6 +60,7 @@ impl RegexTokenizer {
             .map(|regex| Self {
                 regex,
                 token: Token::default(),
+                group: 0,
             })
     }
 }
