@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Field, JsonValueVisitor, JsonVisitor, Type, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{Field, DocValue, ReferenceValue, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -64,9 +64,9 @@ impl IndexingPositionsPerPath {
     }
 }
 
-pub(crate) fn index_json_values<'a, V: JsonVisitor<'a>>(
+pub(crate) fn index_json_values<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_visitors: impl Iterator<Item = crate::Result<V>>,
+    json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
     text_analyzer: &mut TextAnalyzer,
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
@@ -90,16 +90,16 @@ pub(crate) fn index_json_values<'a, V: JsonVisitor<'a>>(
     Ok(())
 }
 
-fn index_json_object<'a, V: JsonVisitor<'a>>(
+fn index_json_object<'a, V: DocValue<'a>>(
     doc: DocId,
-    mut json_visitor: V,
+    json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    while let Some((json_path_segment, json_value_visitor)) = json_visitor.next_key_value() {
+   for (json_path_segment, json_value_visitor) in json_visitor {
         json_term_writer.push_path_segment(json_path_segment);
         index_json_value(
             doc,
@@ -114,69 +114,84 @@ fn index_json_object<'a, V: JsonVisitor<'a>>(
     }
 }
 
-fn index_json_value<'a, V: JsonValueVisitor<'a>>(
+fn index_json_value<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_value_visitor: V,
+    json_value: ReferenceValue<'a, V>,
     text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    if let Some(val) = json_value_visitor.as_str() {
-        match infer_type_from_str(val) {
-            TextOrDateTime::Text(text) => {
-                let mut token_stream = text_analyzer.token_stream(text);
-                // TODO make sure the chain position works out.
-                json_term_writer.close_path_and_set_type(Type::Str);
-                let indexing_position = positions_per_path.get_position(json_term_writer.term());
-                postings_writer.index_text(
+    match json_value {
+        ReferenceValue::Null => {},
+        ReferenceValue::Str(val) => {
+            // TODO: Maybe this should be removed now we can explicitly state the type can be a datetime.
+            match infer_type_from_str(val) {
+                TextOrDateTime::Text(text) => {
+                    let mut token_stream = text_analyzer.token_stream(text);
+                    // TODO make sure the chain position works out.
+                    json_term_writer.close_path_and_set_type(Type::Str);
+                    let indexing_position = positions_per_path.get_position(json_term_writer.term());
+                    postings_writer.index_text(
+                        doc,
+                        &mut *token_stream,
+                        json_term_writer.term_buffer,
+                        ctx,
+                        indexing_position,
+                    );
+                }
+                TextOrDateTime::DateTime(dt) => {
+                    json_term_writer.set_fast_value(DateTime::from_utc(dt));
+                    postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                }
+            }
+        },
+        ReferenceValue::U64(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        },
+        ReferenceValue::I64(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        },
+        ReferenceValue::F64(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        },
+        ReferenceValue::Bool(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        },
+        ReferenceValue::Facet(_) => unimplemented!("Facet support in dynamic fields is not yet implemented"),
+        ReferenceValue::IpAddr(_) => unimplemented!("IP address support in dynamic fields is not yet implemented"),
+        ReferenceValue::Date(_) => unimplemented!("Datetime support in dynamic fields is not yet implemented"),
+        ReferenceValue::PreTokStr(_) => unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented"),
+        ReferenceValue::Bytes(_) => unimplemented!("Bytes support in dynamic fields is not yet implemented"),
+        ReferenceValue::Array(elements) => {
+            for val in elements {
+                index_json_value::<V>(
                     doc,
-                    &mut *token_stream,
-                    json_term_writer.term_buffer,
+                    val,
+                    text_analyzer,
+                    json_term_writer,
+                    postings_writer,
                     ctx,
-                    indexing_position,
+                    positions_per_path,
                 );
             }
-            TextOrDateTime::DateTime(dt) => {
-                json_term_writer.set_fast_value(DateTime::from_utc(dt));
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-            }
-        }
-    } else if let Some(val) = json_value_visitor.as_u64() {
-        json_term_writer.set_fast_value(val);
-        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-    } else if let Some(val) = json_value_visitor.as_i64() {
-        json_term_writer.set_fast_value(val);
-        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-    } else if let Some(val) = json_value_visitor.as_f64() {
-        json_term_writer.set_fast_value(val);
-        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-    } else if let Some(val) = json_value_visitor.as_bool() {
-        json_term_writer.set_fast_value(val);
-        postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-    } else if let Some(elements) = json_value_visitor.as_array() {
-        for val in elements {
-            index_json_value(
+        },
+        ReferenceValue::Object(object) => {
+            index_json_object::<V>(
                 doc,
-                val,
+                object,
                 text_analyzer,
                 json_term_writer,
                 postings_writer,
                 ctx,
                 positions_per_path,
             );
-        }
-    } else if let Some(object) = json_value_visitor.as_object() {
-        index_json_object(
-            doc,
-            object,
-            text_analyzer,
-            json_term_writer,
-            postings_writer,
-            ctx,
-            positions_per_path,
-        );
+        },
     }
 }
 

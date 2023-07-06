@@ -7,7 +7,7 @@ use tokenizer_api::Token;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{
-    value_type_to_column_type, DocValue, DocumentAccess, FieldType, JsonValueVisitor, JsonVisitor,
+    value_type_to_column_type, DocValue, DocumentAccess, FieldType, ReferenceValue,
     Schema, Type,
 };
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
@@ -221,16 +221,16 @@ impl FastFieldsWriter {
     }
 }
 
-fn record_json_obj_to_columnar_writer<'a, V: JsonVisitor<'a>>(
+fn record_json_obj_to_columnar_writer<'a, V: DocValue<'a>>(
     doc: DocId,
-    mut json_visitor: V,
+    mut json_visitor: V::ObjectIter,
     expand_dots: bool,
     remaining_depth_limit: usize,
     json_path_buffer: &mut String,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
-    while let Some((key, child)) = json_visitor.next_key_value() {
+   for (key, child) in json_visitor {
         let len_path = json_path_buffer.len();
         if !json_path_buffer.is_empty() {
             json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
@@ -260,9 +260,9 @@ fn record_json_obj_to_columnar_writer<'a, V: JsonVisitor<'a>>(
     }
 }
 
-fn record_json_value_to_columnar_writer<'a, V: JsonValueVisitor<'a>>(
+fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_val_visitor: V,
+    json_val: ReferenceValue<'a, V>,
     expand_dots: bool,
     mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
@@ -274,47 +274,59 @@ fn record_json_value_to_columnar_writer<'a, V: JsonValueVisitor<'a>>(
     }
     remaining_depth_limit -= 1;
 
-    if json_val_visitor.is_null() {
-        // TODO handle null
-    } else if let Some(val) = json_val_visitor.as_u64() {
-        columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-    } else if let Some(val) = json_val_visitor.as_i64() {
-        columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-    } else if let Some(val) = json_val_visitor.as_f64() {
-        columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-    } else if let Some(val) = json_val_visitor.as_bool() {
-        columnar_writer.record_bool(doc, json_path_writer, val);
-    } else if let Some(val) = json_val_visitor.as_str() {
-        if let Some(text_analyzer) = tokenizer.as_mut() {
-            let mut token_stream = text_analyzer.token_stream(val);
-            token_stream.process(&mut |token| {
-                columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
-            })
-        } else {
-            columnar_writer.record_str(doc, json_path_writer.as_str(), val);
-        }
-    } else if let Some(elements) = json_val_visitor.as_array() {
-        for el in elements {
-            record_json_value_to_columnar_writer(
+    match json_val {
+        ReferenceValue::Null => {}, // TODO: Handle null
+        ReferenceValue::Str(val) => {
+            if let Some(text_analyzer) = tokenizer.as_mut() {
+                let mut token_stream = text_analyzer.token_stream(val);
+                token_stream.process(&mut |token| {
+                    columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
+                })
+            } else {
+                columnar_writer.record_str(doc, json_path_writer.as_str(), val);
+            }
+        },
+        ReferenceValue::U64(val) => {
+            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
+        },
+        ReferenceValue::I64(val) => {
+            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
+        },
+        ReferenceValue::F64(val) => {
+            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
+        },
+        ReferenceValue::Bool(val) => {
+            columnar_writer.record_bool(doc, json_path_writer, val);
+        },
+        ReferenceValue::Date(_) => unimplemented!("Datetime support in dynamic fields is not yet implemented"),
+        ReferenceValue::Facet(_) => unimplemented!("Facet support in dynamic fields is not yet implemented"),
+        ReferenceValue::Bytes(_) => unimplemented!("Bytes support in dynamic fields is not yet implemented"),
+        ReferenceValue::IpAddr(_) => unimplemented!("IP address support in dynamic fields is not yet implemented"),
+        ReferenceValue::PreTokStr(_) => unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented"),
+        ReferenceValue::Array(elements) => {
+            for el in elements {
+                record_json_value_to_columnar_writer(
+                    doc,
+                    el,
+                    expand_dots,
+                    remaining_depth_limit,
+                    json_path_writer,
+                    columnar_writer,
+                    tokenizer,
+                );
+            }
+        },
+        ReferenceValue::Object(object) => {
+            record_json_obj_to_columnar_writer(
                 doc,
-                el,
+                object,
                 expand_dots,
                 remaining_depth_limit,
                 json_path_writer,
                 columnar_writer,
                 tokenizer,
             );
-        }
-    } else if let Some(object) = json_val_visitor.as_object() {
-        record_json_obj_to_columnar_writer(
-            doc,
-            object,
-            expand_dots,
-            remaining_depth_limit,
-            json_path_writer,
-            columnar_writer,
-            tokenizer,
-        );
+        },
     }
 }
 

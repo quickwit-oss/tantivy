@@ -1,13 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::{self, Read, Write};
-use std::marker::PhantomData;
 use std::mem;
 use std::net::Ipv6Addr;
 
 use common::{BinarySerializable, VInt};
-use serde::ser::Error;
-use serde::Serializer;
 use serde_json::Map;
 
 use super::*;
@@ -16,11 +13,53 @@ use crate::schema::field_value::FieldValueIter;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
+pub enum ReferenceValue<'a, V: DocValue<'a>> {
+    /// A null value.
+    Null,
+    /// The str type is used for any text information.
+    Str(&'a str),
+    /// Unsigned 64-bits Integer `u64`
+    U64(u64),
+    /// Signed 64-bits Integer `i64`
+    I64(i64),
+    /// 64-bits Float `f64`
+    F64(f64),
+    /// Date/time with nanoseconds precision
+    Date(DateTime),
+    /// Facet
+    Facet(&'a Facet),
+    /// Arbitrarily sized byte array
+    Bytes(&'a [u8]),
+    /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
+    IpAddr(Ipv6Addr),
+    /// Bool value
+    Bool(bool),
+    /// Pre-tokenized str type,
+    PreTokStr(&'a PreTokenizedString),
+    /// A an array containing multiple values.
+    Array(V::ArrayIter),
+    /// A nested / dynamic object.
+    Object(V::ObjectIter),
+}
+
+/// A single field value.
+pub trait DocValue<'a>: Send + Sync + Debug {
+    /// The iterator for walking through the element within the array.
+    type ArrayIter: Iterator<Item = ReferenceValue<'a, Self>>;
+    /// The visitor for walking through the key-value pairs within
+    /// the object.
+    type ObjectIter: Iterator<Item = (&'a str, ReferenceValue<'a, Self>)>;
+
+    /// Returns the field value represented by a enum which borrows it's data.
+    fn as_value(&self) -> ReferenceValue<'a, Self>;
+}
+
 /// The core trait representing a document within the index.
 pub trait DocumentAccess: Send + Sync + 'static {
     /// The value of the field.
     type Value<'a>: DocValue<'a> + Clone
     where Self: 'a;
+
     /// The owned version of a value type.
     ///
     /// It's possible that this is the same type as the borrowed
@@ -82,87 +121,6 @@ pub trait DocumentAccess: Send + Sync + 'static {
     }
 }
 
-/// A single field value.
-///
-/// This trait provides access to the document's data in the form of a visitor,
-/// Tantivy will individually call each method to work out the type of the value
-/// and handle it accordingly.
-///
-/// Implementors of this trait should not try to convert values, instead it should
-/// just return `Some(T)` if the value is the type requested.
-pub trait DocValue<'a>: Send + Sync + Debug {
-    /// The visitor used to walk through the key-value pairs
-    /// of the provided JSON object.
-    type JsonVisitor: JsonVisitor<'a>;
-
-    /// Get the string contents of the value if applicable.
-    ///
-    /// If the value is not a string, `None` should be returned.
-    fn as_str(&self) -> Option<&'a str> {
-        None
-    }
-    /// Get the facet contents of the value if applicable.
-    ///
-    /// If the value is not a string, `None` should be returned.
-    fn as_facet(&self) -> Option<&'a Facet> {
-        None
-    }
-    /// Get the u64 contents of the value if applicable.
-    ///
-    /// If the value is not a u64, `None` should be returned.
-    fn as_u64(&self) -> Option<u64> {
-        None
-    }
-    /// Get the i64 contents of the value if applicable.
-    ///
-    /// If the value is not a i64, `None` should be returned.
-    fn as_i64(&self) -> Option<i64> {
-        None
-    }
-    /// Get the f64 contents of the value if applicable.
-    ///
-    /// If the value is not a f64, `None` should be returned.
-    fn as_f64(&self) -> Option<f64> {
-        None
-    }
-    /// Get the date contents of the value if applicable.
-    ///
-    /// If the value is not a date, `None` should be returned.
-    fn as_date(&self) -> Option<DateTime> {
-        None
-    }
-    /// Get the bool contents of the value if applicable.
-    ///
-    /// If the value is not a boolean, `None` should be returned.
-    fn as_bool(&self) -> Option<bool> {
-        None
-    }
-    /// Get the IP addr contents of the value if applicable.
-    ///
-    /// If the value is not an IP addr, `None` should be returned.
-    fn as_ip_addr(&self) -> Option<Ipv6Addr> {
-        None
-    }
-    /// Get the bytes contents of the value if applicable.
-    ///
-    /// If the value is not bytes, `None` should be returned.
-    fn as_bytes(&self) -> Option<&'a [u8]> {
-        None
-    }
-    /// Get the pre-tokenized string contents of the value if applicable.
-    ///
-    /// If the value is not pre-tokenized string, `None` should be returned.
-    fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
-        None
-    }
-    /// Get the JSON contents of the value if applicable.
-    ///
-    /// If the value is not pre-tokenized string, `None` should be returned.
-    fn as_json(&self) -> Option<Self::JsonVisitor> {
-        None
-    }
-}
-
 /// The deserializer trait for deserialization of a value from the
 /// doc store.
 pub trait ValueDeserialize {
@@ -194,7 +152,7 @@ pub trait ValueDeserialize {
     //       Requires a re-work of the binary serialization trait first though in order
     //       for error handling to be nicer.
     /// Create a new value from a given JSON map.
-    fn from_json(map: Map<String, serde_json::Value>) -> Self;
+    fn from_json(map: Map<String, Value>) -> Self;
 
     /// Create a new value from a given IP addresses.
     fn from_ip_addr(v: Ipv6Addr) -> Self;
@@ -203,85 +161,6 @@ pub trait ValueDeserialize {
     fn from_bytes(bytes: Vec<u8>) -> Self;
 }
 
-/// A trait representing a JSON value.
-///
-/// This allows for access to the JSON value without having it as a
-/// concrete type.
-///
-/// This is largely a sub-set of the `Value<'a>` trait.
-pub trait JsonValueVisitor<'a> {
-    /// The iterator for walking through the element within the array.
-    type ArrayIter: Iterator<Item = Self>;
-    /// The visitor for walking through the key-value pairs within
-    /// the object.
-    type ObjectVisitor: JsonVisitor<'a>;
-
-    /// Checks if the value is `null` or not.
-    fn is_null(&self) -> bool {
-        true
-    }
-    /// Get the string contents of the value if applicable.
-    ///
-    /// If the value is not a string, `None` should be returned.
-    fn as_str(&self) -> Option<&str> {
-        None
-    }
-    /// Get the i64 contents of the value if applicable.
-    ///
-    /// If the value is not a i64, `None` should be returned.
-    fn as_i64(&self) -> Option<i64> {
-        None
-    }
-    /// Get the u64 contents of the value if applicable.
-    ///
-    /// If the value is not a u64, `None` should be returned.
-    fn as_u64(&self) -> Option<u64> {
-        None
-    }
-    /// Get the f64 contents of the value if applicable.
-    ///
-    /// If the value is not a f64, `None` should be returned.
-    fn as_f64(&self) -> Option<f64> {
-        None
-    }
-    /// Get the bool contents of the value if applicable.
-    ///
-    /// If the value is not a boolean, `None` should be returned.
-    fn as_bool(&self) -> Option<bool> {
-        None
-    }
-    /// Get the array contents of the value if applicable.
-    ///
-    /// If the value is not an array, `None` should be returned.
-    fn as_array(&self) -> Option<Self::ArrayIter> {
-        None
-    }
-    /// Get the object contents of the value if applicable.
-    ///
-    /// If the value is not an object, `None` should be returned.
-    fn as_object(&self) -> Option<Self::ObjectVisitor> {
-        None
-    }
-}
-
-/// A trait representing a JSON key-value object.
-///
-/// This allows for access to the JSON object without having it as a
-/// concrete type.
-pub trait JsonVisitor<'a> {
-    /// The visitor for each value within the object.
-    type ValueVisitor: JsonValueVisitor<'a>;
-
-    #[inline]
-    /// The size hint of the iterator length.
-    fn size_hint(&self) -> usize {
-        0
-    }
-
-    /// Get the next key-value pair in the object or return `None`
-    /// if the element is empty.
-    fn next_key_value(&mut self) -> Option<(&'a str, Self::ValueVisitor)>;
-}
 
 pub mod doc_binary_wrappers {
     use super::*;
@@ -587,66 +466,88 @@ impl DocParsingError {
     }
 }
 
-// Visitor implementations for compatibility with
-// the owned document approach.
-impl<'a> JsonVisitor<'a> for serde_json::map::Iter<'a> {
-    type ValueVisitor = &'a serde_json::Value;
 
-    #[inline]
-    fn size_hint(&self) -> usize {
-        self.len()
-    }
+impl<'a> DocValue<'a> for &'a serde_json::Value {
+    type ArrayIter = ();
+    type ObjectIter = ();
 
-    #[inline]
-    fn next_key_value(&mut self) -> Option<(&'a str, Self::ValueVisitor)> {
-        self.next().map(|v| (v.0.as_str(), v.1))
-    }
-}
-
-impl<'a> JsonValueVisitor<'a> for &'a serde_json::Value {
-    type ArrayIter = std::slice::Iter<'a, serde_json::Value>;
-    type ObjectVisitor = serde_json::map::Iter<'a>;
-
-    #[inline]
-    fn is_null(&self) -> bool {
-        <serde_json::Value>::is_null(self)
-    }
-
-    #[inline]
-    fn as_str(&self) -> Option<&str> {
-        <serde_json::Value>::as_str(self)
-    }
-
-    #[inline]
-    fn as_i64(&self) -> Option<i64> {
-        <serde_json::Value>::as_i64(self)
-    }
-
-    #[inline]
-    fn as_u64(&self) -> Option<u64> {
-        <serde_json::Value>::as_u64(self)
-    }
-
-    #[inline]
-    fn as_f64(&self) -> Option<f64> {
-        <serde_json::Value>::as_f64(self)
-    }
-
-    #[inline]
-    fn as_bool(&self) -> Option<bool> {
-        <serde_json::Value>::as_bool(self)
-    }
-
-    #[inline]
-    fn as_array(&self) -> Option<Self::ArrayIter> {
-        Some(<serde_json::Value>::as_array(self)?.iter())
-    }
-
-    #[inline]
-    fn as_object(&self) -> Option<Self::ObjectVisitor> {
-        Some(<serde_json::Value>::as_object(self)?.iter())
+    fn as_value(&self) -> ReferenceValue<'a, Self> {
+        match self {
+            Value::Str(val) => ReferenceValue::Str(val),
+            Value::PreTokStr(val) => ReferenceValue::PreTokStr(val),
+            Value::U64(val) => ReferenceValue::U64(*val),
+            Value::I64(val) => ReferenceValue::I64(*val),
+            Value::F64(val) => ReferenceValue::F64(*val),
+            Value::Bool(val) => ReferenceValue::Bool(*val),
+            Value::Date(val) => ReferenceValue::Date(*val),
+            Value::Facet(val) => ReferenceValue::Facet(val),
+            Value::Bytes(val) => ReferenceValue::Bytes(val),
+            Value::IpAddr(val) => ReferenceValue::IpAddr(*val),
+            Value::JsonObject(val) => ReferenceValue::Object(val.into_iter()),
+        }
     }
 }
+
+// // Visitor implementations for compatibility with
+// // the owned document approach.
+// impl<'a> JsonVisitor<'a> for serde_json::map::Iter<'a> {
+//     type ValueVisitor = &'a serde_json::Value;
+//
+//     #[inline]
+//     fn size_hint(&self) -> usize {
+//         self.len()
+//     }
+//
+//     #[inline]
+//     fn next_key_value(&mut self) -> Option<(&'a str, Self::ValueVisitor)> {
+//         self.next().map(|v| (v.0.as_str(), v.1))
+//     }
+// }
+//
+// impl<'a> JsonValueVisitor<'a> for &'a serde_json::Value {
+//     type ArrayIter = std::slice::Iter<'a, serde_json::Value>;
+//     type ObjectVisitor = serde_json::map::Iter<'a>;
+//
+//     #[inline]
+//     fn is_null(&self) -> bool {
+//         <serde_json::Value>::is_null(self)
+//     }
+//
+//     #[inline]
+//     fn as_str(&self) -> Option<&str> {
+//         <serde_json::Value>::as_str(self)
+//     }
+//
+//     #[inline]
+//     fn as_i64(&self) -> Option<i64> {
+//         <serde_json::Value>::as_i64(self)
+//     }
+//
+//     #[inline]
+//     fn as_u64(&self) -> Option<u64> {
+//         <serde_json::Value>::as_u64(self)
+//     }
+//
+//     #[inline]
+//     fn as_f64(&self) -> Option<f64> {
+//         <serde_json::Value>::as_f64(self)
+//     }
+//
+//     #[inline]
+//     fn as_bool(&self) -> Option<bool> {
+//         <serde_json::Value>::as_bool(self)
+//     }
+//
+//     #[inline]
+//     fn as_array(&self) -> Option<Self::ArrayIter> {
+//         Some(<serde_json::Value>::as_array(self)?.iter())
+//     }
+//
+//     #[inline]
+//     fn as_object(&self) -> Option<Self::ObjectVisitor> {
+//         Some(<serde_json::Value>::as_object(self)?.iter())
+//     }
+// }
 
 // Utility wrappers
 //
@@ -663,75 +564,75 @@ macro_rules! tri {
     };
 }
 
-/// A wrapper type that supports serializing any value which implements
-/// the JSON visitor trait.
-pub struct SerializeJsonWrapper<'a, T: JsonValueVisitor<'a>> {
-    visitor: T,
-    phantom: PhantomData<&'a ()>,
-}
-
-impl<'a, T: JsonValueVisitor<'a>> From<T> for SerializeJsonWrapper<'a, T> {
-    fn from(visitor: T) -> Self {
-        Self {
-            visitor,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<'a, T: JsonValueVisitor<'a>> serde::Serialize for SerializeJsonWrapper<'a, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
-        use serde::ser::{SerializeMap, SerializeSeq};
-
-        if self.visitor.is_null() {
-            return serializer.serialize_none();
-        }
-
-        if let Some(v) = self.visitor.as_str() {
-            return <str as serde::Serialize>::serialize(&v, serializer);
-        }
-
-        if let Some(v) = self.visitor.as_u64() {
-            return <u64 as serde::Serialize>::serialize(&v, serializer);
-        }
-
-        if let Some(v) = self.visitor.as_i64() {
-            return <i64 as serde::Serialize>::serialize(&v, serializer);
-        }
-
-        if let Some(v) = self.visitor.as_f64() {
-            return <f64 as serde::Serialize>::serialize(&v, serializer);
-        }
-
-        if let Some(v) = self.visitor.as_bool() {
-            return <bool as serde::Serialize>::serialize(&v, serializer);
-        }
-
-        if let Some(elements) = self.visitor.as_array() {
-            let mut seq = tri!(serializer.serialize_seq(elements.size_hint().1));
-
-            for value in elements {
-                let wrapper = SerializeJsonWrapper::from(value);
-                tri!(seq.serialize_element(&wrapper));
-            }
-
-            return seq.end();
-        }
-
-        if let Some(mut object) = self.visitor.as_object() {
-            let mut map = tri!(serializer.serialize_map(Some(object.size_hint())));
-            while let Some((key, value)) = object.next_key_value() {
-                let wrapped = SerializeJsonWrapper::from(value);
-                tri!(map.serialize_entry(key, &wrapped))
-            }
-
-            return map.end();
-        }
-
-        Err(Error::custom("Visitor provided no serializable value"))
-    }
-}
+// /// A wrapper type that supports serializing any value which implements
+// /// the JSON visitor trait.
+// pub struct SerializeJsonWrapper<'a, T: JsonValueVisitor<'a>> {
+//     visitor: T,
+//     phantom: PhantomData<&'a ()>,
+// }
+//
+// impl<'a, T: DocumentAccess<'a>> From<T> for SerializeJsonWrapper<'a, T> {
+//     fn from(visitor: T) -> Self {
+//         Self {
+//             visitor,
+//             phantom: PhantomData,
+//         }
+//     }
+// }
+//
+// impl<'a, T: DocumentAccess<'a>> serde::Serialize for SerializeJsonWrapper<'a, T> {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where S: Serializer {
+//         use serde::ser::{SerializeMap, SerializeSeq};
+//
+//         if self.visitor.is_null() {
+//             return serializer.serialize_none();
+//         }
+//
+//         if let Some(v) = self.visitor.as_str() {
+//             return <str as serde::Serialize>::serialize(&v, serializer);
+//         }
+//
+//         if let Some(v) = self.visitor.as_u64() {
+//             return <u64 as serde::Serialize>::serialize(&v, serializer);
+//         }
+//
+//         if let Some(v) = self.visitor.as_i64() {
+//             return <i64 as serde::Serialize>::serialize(&v, serializer);
+//         }
+//
+//         if let Some(v) = self.visitor.as_f64() {
+//             return <f64 as serde::Serialize>::serialize(&v, serializer);
+//         }
+//
+//         if let Some(v) = self.visitor.as_bool() {
+//             return <bool as serde::Serialize>::serialize(&v, serializer);
+//         }
+//
+//         if let Some(elements) = self.visitor.as_array() {
+//             let mut seq = tri!(serializer.serialize_seq(elements.size_hint().1));
+//
+//             for value in elements {
+//                 let wrapper = SerializeJsonWrapper::from(value);
+//                 tri!(seq.serialize_element(&wrapper));
+//             }
+//
+//             return seq.end();
+//         }
+//
+//         if let Some(mut object) = self.visitor.as_object() {
+//             let mut map = tri!(serializer.serialize_map(Some(object.size_hint())));
+//             while let Some((key, value)) = object.next_key_value() {
+//                 let wrapped = SerializeJsonWrapper::from(value);
+//                 tri!(map.serialize_entry(key, &wrapped))
+//             }
+//
+//             return map.end();
+//         }
+//
+//         Err(Error::custom("Visitor provided no serializable value"))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

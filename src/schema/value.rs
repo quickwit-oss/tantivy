@@ -1,3 +1,4 @@
+use std::cell::Ref;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -9,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Map;
 
 use crate::schema::document::{DocValue, ValueDeserialize};
-use crate::schema::Facet;
+use crate::schema::{Facet, ReferenceValue};
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
@@ -42,82 +43,22 @@ pub enum Value {
 }
 
 impl<'a> DocValue<'a> for &'a Value {
-    type JsonVisitor = serde_json::map::Iter<'a>;
+    type ArrayIter = ();
+    type ObjectIter = ();
 
-    fn as_str(&self) -> Option<&'a str> {
+    fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
-            Value::Str(s) => Some(s.as_str()),
-            _ => None,
-        }
-    }
-
-    fn as_facet(&self) -> Option<&'a Facet> {
-        match self {
-            Value::Facet(facet) => Some(facet),
-            _ => None,
-        }
-    }
-
-    fn as_u64(&self) -> Option<u64> {
-        match self {
-            Value::U64(v) => Some(*v),
-            _ => None,
-        }
-    }
-
-    fn as_i64(&self) -> Option<i64> {
-        match self {
-            Value::I64(v) => Some(*v),
-            _ => None,
-        }
-    }
-
-    fn as_f64(&self) -> Option<f64> {
-        match self {
-            Value::F64(v) => Some(*v),
-            _ => None,
-        }
-    }
-
-    fn as_date(&self) -> Option<DateTime> {
-        match self {
-            Value::Date(v) => Some(*v),
-            _ => None,
-        }
-    }
-
-    fn as_bool(&self) -> Option<bool> {
-        match self {
-            Value::Bool(v) => Some(*v),
-            _ => None,
-        }
-    }
-
-    fn as_ip_addr(&self) -> Option<Ipv6Addr> {
-        match self {
-            Value::IpAddr(addr) => Some(*addr),
-            _ => None,
-        }
-    }
-
-    fn as_bytes(&self) -> Option<&'a [u8]> {
-        match self {
-            Value::Bytes(bytes) => Some(bytes.as_ref()),
-            _ => None,
-        }
-    }
-
-    fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
-        match self {
-            Value::PreTokStr(pre_tok_str) => Some(pre_tok_str),
-            _ => None,
-        }
-    }
-
-    fn as_json(&self) -> Option<Self::JsonVisitor> {
-        match self {
-            Value::JsonObject(object) => Some(object.iter()),
-            _ => None,
+            Value::Str(val) => ReferenceValue::Str(val),
+            Value::PreTokStr(val) => ReferenceValue::PreTokStr(val),
+            Value::U64(val) => ReferenceValue::U64(*val),
+            Value::I64(val) => ReferenceValue::I64(*val),
+            Value::F64(val) => ReferenceValue::F64(*val),
+            Value::Bool(val) => ReferenceValue::Bool(*val),
+            Value::Date(val) => ReferenceValue::Date(*val),
+            Value::Facet(val) => ReferenceValue::Facet(val),
+            Value::Bytes(val) => ReferenceValue::Bytes(val),
+            Value::IpAddr(val) => ReferenceValue::IpAddr(*val),
+            Value::JsonObject(val) => ReferenceValue::Object(val.into_iter()),
         }
     }
 }
