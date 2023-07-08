@@ -13,7 +13,10 @@ use crate::schema::field_value::FieldValueIter;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
-pub enum ReferenceValue<'a, V: DocValue<'a>> {
+pub enum ReferenceValue<'a, V>
+where
+    V: DocValue<'a> + ?Sized
+{
     /// A null value.
     Null,
     /// The str type is used for any text information.
@@ -40,6 +43,130 @@ pub enum ReferenceValue<'a, V: DocValue<'a>> {
     Array(V::ArrayIter),
     /// A nested / dynamic object.
     Object(V::ObjectIter),
+}
+
+impl<'a, V> ReferenceValue<'a, V>
+where
+    V: DocValue<'a> + ?Sized
+{
+    #[inline]
+    /// Returns if the value is `null` or not.
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
+    #[inline]
+    /// If the Value is a String, returns the associated str. Returns None otherwise.
+    pub fn as_str(&self) -> Option<&'a str> {
+        if let Self::Str(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a u64, returns the associated u64. Returns None otherwise.
+    pub fn as_u64(&self) -> Option<u64> {
+        if let Self::U64(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a i64, returns the associated i64. Returns None otherwise.
+    pub fn as_i64(&self) -> Option<i64> {
+        if let Self::I64(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a f64, returns the associated f64. Returns None otherwise.
+    pub fn as_f64(&self) -> Option<f64> {
+        if let Self::F64(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a datetime, returns the associated datetime. Returns None otherwise.
+    pub fn as_datetime(&self) -> Option<DateTime> {
+        if let Self::Date(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
+    pub fn as_ip(&self) -> Option<Ipv6Addr> {
+        if let Self::IpAddr(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a bool, returns the associated bool. Returns None otherwise.
+    pub fn as_bool(&self) -> Option<bool> {
+        if let Self::Bool(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a pre-tokenized string, returns the associated string. Returns None otherwise.
+    pub fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
+        if let Self::PreTokStr(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a bytes value, returns the associated set of bytes. Returns None otherwise.
+    pub fn as_bytes(&self) -> Option<&'a [u8]> {
+        if let Self::Bytes(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+
+    }
+
+    #[inline]
+    /// If the Value is a facet, returns the associated facet. Returns None otherwise.
+    pub fn as_facet(&self) -> Option<&'a Facet> {
+        if let Self::Facet(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Returns true if the Value is an array.
+    pub fn is_array(&self) -> bool {
+        matches!(self, Self::Object(_))
+    }
+
+    #[inline]
+    /// Returns true if the Value is an object.
+    pub fn is_object(&self) -> bool {
+        matches!(self, Self::Object(_))
+    }
 }
 
 /// A single field value.
@@ -152,7 +279,7 @@ pub trait ValueDeserialize {
     //       Requires a re-work of the binary serialization trait first though in order
     //       for error handling to be nicer.
     /// Create a new value from a given JSON map.
-    fn from_json(map: Map<String, Value>) -> Self;
+    fn from_object(map: BTreeMap<String, Value>) -> Self;
 
     /// Create a new value from a given IP addresses.
     fn from_ip_addr(v: Ipv6Addr) -> Self;
@@ -343,7 +470,7 @@ impl Document {
     }
 
     /// Add a JSON field
-    pub fn add_json_object(&mut self, field: Field, json_object: Map<String, serde_json::Value>) {
+    pub fn add_json_object(&mut self, field: Field, json_object: BTreeMap<String, serde_json::Value>) {
         self.add_field_value(field, json_object);
     }
 
@@ -467,87 +594,6 @@ impl DocParsingError {
 }
 
 
-impl<'a> DocValue<'a> for &'a serde_json::Value {
-    type ArrayIter = ();
-    type ObjectIter = ();
-
-    fn as_value(&self) -> ReferenceValue<'a, Self> {
-        match self {
-            Value::Str(val) => ReferenceValue::Str(val),
-            Value::PreTokStr(val) => ReferenceValue::PreTokStr(val),
-            Value::U64(val) => ReferenceValue::U64(*val),
-            Value::I64(val) => ReferenceValue::I64(*val),
-            Value::F64(val) => ReferenceValue::F64(*val),
-            Value::Bool(val) => ReferenceValue::Bool(*val),
-            Value::Date(val) => ReferenceValue::Date(*val),
-            Value::Facet(val) => ReferenceValue::Facet(val),
-            Value::Bytes(val) => ReferenceValue::Bytes(val),
-            Value::IpAddr(val) => ReferenceValue::IpAddr(*val),
-            Value::JsonObject(val) => ReferenceValue::Object(val.into_iter()),
-        }
-    }
-}
-
-// // Visitor implementations for compatibility with
-// // the owned document approach.
-// impl<'a> JsonVisitor<'a> for serde_json::map::Iter<'a> {
-//     type ValueVisitor = &'a serde_json::Value;
-//
-//     #[inline]
-//     fn size_hint(&self) -> usize {
-//         self.len()
-//     }
-//
-//     #[inline]
-//     fn next_key_value(&mut self) -> Option<(&'a str, Self::ValueVisitor)> {
-//         self.next().map(|v| (v.0.as_str(), v.1))
-//     }
-// }
-//
-// impl<'a> JsonValueVisitor<'a> for &'a serde_json::Value {
-//     type ArrayIter = std::slice::Iter<'a, serde_json::Value>;
-//     type ObjectVisitor = serde_json::map::Iter<'a>;
-//
-//     #[inline]
-//     fn is_null(&self) -> bool {
-//         <serde_json::Value>::is_null(self)
-//     }
-//
-//     #[inline]
-//     fn as_str(&self) -> Option<&str> {
-//         <serde_json::Value>::as_str(self)
-//     }
-//
-//     #[inline]
-//     fn as_i64(&self) -> Option<i64> {
-//         <serde_json::Value>::as_i64(self)
-//     }
-//
-//     #[inline]
-//     fn as_u64(&self) -> Option<u64> {
-//         <serde_json::Value>::as_u64(self)
-//     }
-//
-//     #[inline]
-//     fn as_f64(&self) -> Option<f64> {
-//         <serde_json::Value>::as_f64(self)
-//     }
-//
-//     #[inline]
-//     fn as_bool(&self) -> Option<bool> {
-//         <serde_json::Value>::as_bool(self)
-//     }
-//
-//     #[inline]
-//     fn as_array(&self) -> Option<Self::ArrayIter> {
-//         Some(<serde_json::Value>::as_array(self)?.iter())
-//     }
-//
-//     #[inline]
-//     fn as_object(&self) -> Option<Self::ObjectVisitor> {
-//         Some(<serde_json::Value>::as_object(self)?.iter())
-//     }
-// }
 
 // Utility wrappers
 //

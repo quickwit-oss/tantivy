@@ -1,5 +1,6 @@
-use std::cell::Ref;
+use std::collections::{btree_map, BTreeMap};
 use std::fmt;
+use std::marker::PhantomData;
 use std::net::Ipv6Addr;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -36,15 +37,17 @@ pub enum Value {
     Facet(Facet),
     /// Arbitrarily sized byte array
     Bytes(Vec<u8>),
-    /// Json object value.
-    JsonObject(Map<String, serde_json::Value>),
+    /// A set of values.
+    Array(Vec<Self>),
+    /// Dynamic object value.
+    Object(BTreeMap<String, Self>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
 }
 
 impl<'a> DocValue<'a> for &'a Value {
-    type ArrayIter = ();
-    type ObjectIter = ();
+    type ArrayIter = ArrayIter<'a>;
+    type ObjectIter = ObjectMapIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
@@ -58,7 +61,8 @@ impl<'a> DocValue<'a> for &'a Value {
             Value::Facet(val) => ReferenceValue::Facet(val),
             Value::Bytes(val) => ReferenceValue::Bytes(val),
             Value::IpAddr(val) => ReferenceValue::IpAddr(*val),
-            Value::JsonObject(val) => ReferenceValue::Object(val.into_iter()),
+            Value::Array(array) => ReferenceValue::Array(ArrayIter(array.iter())),
+            Value::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
         }
     }
 }
@@ -78,15 +82,16 @@ impl Serialize for Value {
             Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
-            Value::JsonObject(ref obj) => obj.serialize(serializer),
-            Value::IpAddr(ref obj) => {
+            Value::Object(ref obj) => obj.serialize(serializer),
+            Value::IpAddr(ref ip_v6) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
-                if let Some(ip_v4) = obj.to_ipv4_mapped() {
+                if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
                     ip_v4.serialize(serializer)
                 } else {
-                    obj.serialize(serializer)
+                    ip_v6.serialize(serializer)
                 }
             }
+            Value::Array(ref array) => array.serialize(serializer),
         }
     }
 }
@@ -204,20 +209,9 @@ impl From<PreTokenizedString> for Value {
     }
 }
 
-impl From<Map<String, serde_json::Value>> for Value {
-    fn from(json_object: Map<String, serde_json::Value>) -> Value {
-        Value::JsonObject(json_object)
-    }
-}
-
-impl From<serde_json::Value> for Value {
-    fn from(json_value: serde_json::Value) -> Value {
-        match json_value {
-            serde_json::Value::Object(json_object) => Value::JsonObject(json_object),
-            _ => {
-                panic!("Expected a json object.");
-            }
-        }
+impl From<BTreeMap<String, Value>> for Value {
+    fn from(object: BTreeMap<String, Value>) -> Value {
+        Value::Object(object)
     }
 }
 
@@ -254,8 +248,8 @@ impl ValueDeserialize for Value {
         Value::PreTokStr(v)
     }
 
-    fn from_json(map: Map<String, serde_json::Value>) -> Self {
-        Value::JsonObject(map)
+    fn from_object(map: BTreeMap<String, Value>) -> Self {
+        Value::Object(map)
     }
 
     fn from_ip_addr(v: Ipv6Addr) -> Self {
@@ -264,6 +258,31 @@ impl ValueDeserialize for Value {
 
     fn from_bytes(bytes: Vec<u8>) -> Self {
         Value::Bytes(bytes)
+    }
+}
+
+/// A wrapper type for iterating over a serde_json array producing reference values.
+struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
+
+impl<'a> Iterator for ArrayIter<'a> {
+    type Item = ReferenceValue<'a, &'a Value>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.0.next()?;
+        Some(value.as_value())
+    }
+}
+
+
+/// A wrapper type for iterating over a serde_json object producing reference values.
+struct ObjectMapIter<'a>(btree_map::Iter<'a, String, Value>);
+
+impl<'a> Iterator for ObjectMapIter<'a> {
+    type Item = (&'a str, ReferenceValue<'a, &'a Value>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (key, value) = self.0.next()?;
+        Some((key.as_str(), value.as_value()))
     }
 }
 
@@ -437,7 +456,7 @@ mod binary_serialize {
                 // For this reason we need to create our own `Deserializer`.
                 let mut de = serde_json::Deserializer::from_reader(reader);
                 let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de)?;
-                Ok(T::from_json(json_map))
+                Ok(T::from_object(json_map))
             }
             IP_CODE => {
                 let value = u128::deserialize(reader)?;
