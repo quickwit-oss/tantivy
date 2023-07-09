@@ -122,12 +122,8 @@ impl FastFieldsWriter {
         let doc_id = self.num_docs;
         for (field, value) in doc.iter_fields_and_values() {
             let value_access = value as D::Value<'_>;
-            let field_name = match &self.fast_field_names[field.field_id() as usize] {
-                None => continue,
-                Some(name) => name,
-            };
 
-            self.add_doc_value(doc_id, field, field_name, value_access.as_value())?;
+            self.add_doc_value(doc_id, field,value_access.as_value())?;
         }
         self.num_docs += 1;
         Ok(())
@@ -137,9 +133,13 @@ impl FastFieldsWriter {
         &mut self,
         doc_id: DocId,
         field: Field,
-        field_name: &str,
         value: ReferenceValue<'a, V>,
     ) -> crate::Result<()> {
+        let field_name = match &self.fast_field_names[field.field_id() as usize] {
+            None => return Ok(()),
+            Some(name) => name,
+        };
+
         match value {
             ReferenceValue::Null => {}
             ReferenceValue::Str(val) => {
@@ -200,9 +200,9 @@ impl FastFieldsWriter {
                 }
             }
             ReferenceValue::Array(val) => {
-                // TODO: Check this is the correct behavour we want.
+                // TODO: Check this is the correct behaviour we want.
                 for value in val {
-                    self.add_doc_value(doc_id, field, field_name, value)?;
+                    self.add_doc_value(doc_id, field, value)?;
                 }
             }
             ReferenceValue::Object(val) => {
@@ -245,7 +245,7 @@ impl FastFieldsWriter {
 
 fn record_json_obj_to_columnar_writer<'a, V: DocValue<'a>>(
     doc: DocId,
-    mut json_visitor: V::ObjectIter,
+    json_visitor: V::ObjectIter,
     expand_dots: bool,
     remaining_depth_limit: usize,
     json_path_buffer: &mut String,

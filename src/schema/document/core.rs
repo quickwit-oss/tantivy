@@ -148,7 +148,7 @@ impl Document {
         self.add_field_value(field, value.into());
     }
 
-    /// Add a JSON field
+    /// Add a dynamic object field
     pub fn add_object(&mut self, field: Field, object: BTreeMap<String, Value>) {
         self.add_field_value(field, object);
     }

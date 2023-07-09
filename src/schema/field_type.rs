@@ -481,7 +481,7 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::JsonObject(_) => Ok(Value::Object(json_map)),
+                FieldType::JsonObject(_) => Ok(Value::from(json_map)),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),

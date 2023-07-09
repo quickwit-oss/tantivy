@@ -219,7 +219,7 @@ where W: Write
     }
 
     /// Finishes writing the array to the writer and validates it.
-    pub(crate) fn end(mut self) -> io::Result<()> {
+    pub(crate) fn end(self) -> io::Result<()> {
         if self.expected_length != self.actual_length {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -231,10 +231,6 @@ where W: Write
             ));
         }
         Ok(())
-    }
-
-    fn write_type_code(&mut self, code: u8) -> io::Result<()> {
-        code.serialize(self.writer)
     }
 }
 
@@ -284,7 +280,7 @@ where W: Write
     }
 
     /// Finishes writing the array to the writer and validates it.
-    pub(crate) fn end(mut self) -> io::Result<()> {
+    pub(crate) fn end(self) -> io::Result<()> {
         if self.expected_length != self.actual_length {
             return Err(io::Error::new(
                 io::ErrorKind::Other,

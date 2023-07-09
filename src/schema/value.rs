@@ -4,6 +4,7 @@ use std::net::Ipv6Addr;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use serde::de::{MapAccess, SeqAccess};
 
 use crate::schema::document::{
     ArrayAccess, DeserializeError, DocValue, ObjectAccess, ReferenceValue, ValueDeserialize,
@@ -220,6 +221,30 @@ impl<'de> serde::Deserialize<'de> for Value {
             where E: serde::de::Error {
                 Ok(Value::Null)
             }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: SeqAccess<'de>
+            {
+                let mut elements = Vec::with_capacity(seq.size_hint().unwrap_or_default());
+
+                while let Some(value) = seq.next_element()? {
+                    elements.push(value);
+                }
+
+                Ok(Value::Array(elements))
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where A: MapAccess<'de>
+            {
+                let mut object = BTreeMap::new();
+
+                while let Some((key, value)) = map.next_entry()? {
+                    object.insert(key, value);
+                }
+
+                Ok(Value::Object(object))
+            }
         }
 
         deserializer.deserialize_any(ValueVisitor)
@@ -304,8 +329,50 @@ impl From<BTreeMap<String, Value>> for Value {
     }
 }
 
+impl From<serde_json::Value> for Value {
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Bool(val) => Self::Bool(val),
+            serde_json::Value::Number(number) => {
+                if let Some(val) = number.as_u64() {
+                    Self::U64(val)
+                } else if let Some(val) = number.as_i64() {
+                    Self::I64(val)
+                } else if let Some(val) = number.as_f64() {
+                    Self::F64(val)
+                } else {
+                    panic!("Unsupported serde_json number {number}");
+                }
+            },
+            serde_json::Value::String(val) => Self::Str(val),
+            serde_json::Value::Array(elements) => {
+                let converted_elements = elements
+                    .into_iter()
+                    .map(Self::from)
+                    .collect();
+                Self::Array(converted_elements)
+            },
+            serde_json::Value::Object(object) => Self::from(object),
+        }
+    }
+}
+
+impl From<serde_json::Map<String, serde_json::Value>> for Value {
+    fn from(map: serde_json::Map<String, serde_json::Value>) -> Self {
+        let mut object = BTreeMap::new();
+
+        for (key, value) in map {
+            object.insert(key, Value::from(value));
+        }
+
+        Value::Object(object)
+    }
+}
+
+
 /// A wrapper type for iterating over a serde_json array producing reference values.
-struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
+pub struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
 
 impl<'a> Iterator for ArrayIter<'a> {
     type Item = ReferenceValue<'a, &'a Value>;
@@ -317,7 +384,7 @@ impl<'a> Iterator for ArrayIter<'a> {
 }
 
 /// A wrapper type for iterating over a serde_json object producing reference values.
-struct ObjectMapIter<'a>(btree_map::Iter<'a, String, Value>);
+pub struct ObjectMapIter<'a>(btree_map::Iter<'a, String, Value>);
 
 impl<'a> Iterator for ObjectMapIter<'a> {
     type Item = (&'a str, ReferenceValue<'a, &'a Value>);
