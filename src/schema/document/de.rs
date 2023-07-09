@@ -68,7 +68,7 @@ pub trait ValueDeserialize {
 }
 
 /// A value deserializer.
-trait ValueDeserializer<'de> {
+pub trait ValueDeserializer<'de> {
     /// Attempts to deserialize a null value from the deserializer.
     fn deserialize_null(self) -> Result<(), DeserializeError>;
 
@@ -230,7 +230,7 @@ pub trait ValueVisitor {
 }
 
 /// Access to a sequence of values which can be deserialized.
-trait ArrayAccess<'de> {
+pub trait ArrayAccess<'de> {
     /// A indicator as to how many values are in the object.
     ///
     /// This can be used to pre-allocate entries but should not
@@ -259,13 +259,11 @@ pub struct GenericDocumentDeserializer<'de, R> {
 }
 
 impl<'de, R> GenericDocumentDeserializer<'de, R>
-where
-    R: Read
+where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
     fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let length = VInt::deserialize(reader)
-            .map_err(DeserializeError::CorruptedValue)?;
+        let length = VInt::deserialize(reader).map_err(DeserializeError::CorruptedValue)?;
 
         Ok(Self {
             length: length.val() as usize,
@@ -282,8 +280,7 @@ where
 }
 
 impl<'de, R> DocumentDeserializer<'de> for GenericDocumentDeserializer<'de, R>
-where
-    R: Read
+where R: Read
 {
     #[inline]
     fn size_hint(&self) -> usize {
@@ -292,7 +289,7 @@ where
 
     fn next_field<V: ValueDeserialize>(&mut self) -> Result<Option<(Field, V)>, DeserializeError> {
         if self.is_complete() {
-            return Ok(None)
+            return Ok(None);
         }
 
         let field = Field::deserialize(self.reader)?;
@@ -313,8 +310,7 @@ pub struct GenericValueDeserializer<'de, R> {
 }
 
 impl<'de, R> GenericValueDeserializer<'de, R>
-where
-    R: Read
+where R: Read
 {
     /// Attempts to create a new value deserializer from a given reader.
     fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
@@ -374,8 +370,7 @@ where
 }
 
 impl<'de, R> ValueDeserializer<'de> for GenericValueDeserializer<'de, R>
-where
-    R: Read
+where R: Read
 {
     fn deserialize_null(self) -> Result<(), DeserializeError> {
         self.validate_type(ValueType::Null)?;

@@ -4,11 +4,11 @@ use std::net::Ipv6Addr;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-pub(crate) use binary_serialize::{deserialize, serialize};
-use serde::de::Visitor;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::schema::document::{DocValue, ValueDeserialize};
+use crate::schema::document::{
+    ArrayAccess, DeserializeError, DocValue, ObjectAccess, ValueDeserialize, ValueDeserializer,
+    ValueVisitor,
+};
 use crate::schema::{Facet, ReferenceValue};
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
@@ -17,6 +17,8 @@ use crate::DateTime;
 /// It is an enum over all over all of the possible field type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    /// A null value.
+    Null,
     /// The str type is used for any text information.
     Str(String),
     /// Pre-tokenized str type,
@@ -49,6 +51,7 @@ impl<'a> DocValue<'a> for &'a Value {
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
+            Value::Null => ReferenceValue::Null,
             Value::Str(val) => ReferenceValue::Str(val),
             Value::PreTokStr(val) => ReferenceValue::PreTokStr(val),
             Value::U64(val) => ReferenceValue::U64(*val),
@@ -65,12 +68,95 @@ impl<'a> DocValue<'a> for &'a Value {
     }
 }
 
+impl ValueDeserialize for Value {
+    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+    where D: ValueDeserializer<'de> {
+        struct Visitor;
+
+        impl ValueVisitor for Visitor {
+            type Value = Value;
+
+            fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Null)
+            }
+
+            fn visit_string(&self, val: String) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Str(val))
+            }
+
+            fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::U64(val))
+            }
+
+            fn visit_i64(&self, val: i64) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::I64(val))
+            }
+
+            fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::F64(val))
+            }
+
+            fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Bool(val))
+            }
+
+            fn visit_datetime(&self, val: DateTime) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Date(val))
+            }
+
+            fn visit_ip_address(&self, val: Ipv6Addr) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::IpAddr(val))
+            }
+
+            fn visit_facet(&self, val: Facet) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Facet(val))
+            }
+
+            fn visit_bytes(&self, val: Vec<u8>) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::Bytes(val))
+            }
+
+            fn visit_pre_tokenized_string(
+                &self,
+                val: PreTokenizedString,
+            ) -> Result<Self::Value, DeserializeError> {
+                Ok(Value::PreTokStr(val))
+            }
+
+            fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
+            where A: ArrayAccess<'de> {
+                let mut elements = Vec::with_capacity(access.size_hint());
+
+                while let Some(value) = access.next_element()? {
+                    elements.push(value);
+                }
+
+                Ok(Value::Array(elements))
+            }
+
+            fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
+            where A: ObjectAccess<'de> {
+                let mut elements = BTreeMap::new();
+
+                while let Some((key, value)) = access.next_entry()? {
+                    elements.insert(key, value);
+                }
+
+                Ok(Value::Object(elements))
+            }
+        }
+
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
 impl Eq for Value {}
 
-impl Serialize for Value {
+impl serde::Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where S: serde::Serializer {
         match *self {
+            Value::Null => serializer.serialize_unit(),
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::PreTokStr(ref v) => v.serialize(serializer),
             Value::U64(u) => serializer.serialize_u64(u),
@@ -94,16 +180,20 @@ impl Serialize for Value {
     }
 }
 
-impl<'de> Deserialize<'de> for Value {
+impl<'de> serde::Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where D: serde::Deserializer<'de> {
         struct ValueVisitor;
 
-        impl<'de> Visitor<'de> for ValueVisitor {
+        impl<'de> serde::de::Visitor<'de> for ValueVisitor {
             type Value = Value;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a string or u32")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(Value::Bool(v))
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
@@ -118,16 +208,17 @@ impl<'de> Deserialize<'de> for Value {
                 Ok(Value::F64(v))
             }
 
-            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
-                Ok(Value::Bool(v))
-            }
-
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
                 Ok(Value::Str(v.to_owned()))
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
                 Ok(Value::Str(v))
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where E: serde::de::Error {
+                Ok(Value::Null)
             }
         }
 
@@ -213,52 +304,6 @@ impl From<BTreeMap<String, Value>> for Value {
     }
 }
 
-impl ValueDeserialize for Value {
-    fn from_str(s: String) -> Self {
-        Value::Str(s)
-    }
-
-    fn from_u64(v: u64) -> Self {
-        Value::U64(v)
-    }
-
-    fn from_i64(v: i64) -> Self {
-        Value::I64(v)
-    }
-
-    fn from_f64(v: f64) -> Self {
-        Value::F64(v)
-    }
-
-    fn from_bool(v: bool) -> Self {
-        Value::Bool(v)
-    }
-
-    fn from_date(dt: DateTime) -> Self {
-        Value::Date(dt)
-    }
-
-    fn from_facet(facet: Facet) -> Self {
-        Value::Facet(facet)
-    }
-
-    fn from_pre_tok_str(v: PreTokenizedString) -> Self {
-        Value::PreTokStr(v)
-    }
-
-    fn from_object(map: BTreeMap<String, Value>) -> Self {
-        Value::Object(map)
-    }
-
-    fn from_ip_addr(v: Ipv6Addr) -> Self {
-        Value::IpAddr(v)
-    }
-
-    fn from_bytes(bytes: Vec<u8>) -> Self {
-        Value::Bytes(bytes)
-    }
-}
-
 /// A wrapper type for iterating over a serde_json array producing reference values.
 struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
 
@@ -280,190 +325,6 @@ impl<'a> Iterator for ObjectMapIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.0.next()?;
         Some((key.as_str(), value.as_value()))
-    }
-}
-
-mod binary_serialize {
-    use std::borrow::Cow;
-    use std::fmt::Debug;
-    use std::io::{self, ErrorKind, Read, Write};
-    use std::net::Ipv6Addr;
-
-    use columnar::MonotonicallyMappableToU128;
-    use common::{u64_to_f64, BinarySerializable};
-
-    use crate::schema::document::{DocValue, ValueDeserialize};
-    use crate::schema::Facet;
-    use crate::tokenizer::PreTokenizedString;
-    use crate::DateTime;
-
-    const TEXT_CODE: u8 = 0;
-    const U64_CODE: u8 = 1;
-    const I64_CODE: u8 = 2;
-    const HIERARCHICAL_FACET_CODE: u8 = 3;
-    const BYTES_CODE: u8 = 4;
-    const DATE_CODE: u8 = 5;
-    const F64_CODE: u8 = 6;
-    const EXT_CODE: u8 = 7;
-    const JSON_OBJ_CODE: u8 = 8;
-    const BOOL_CODE: u8 = 9;
-    const IP_CODE: u8 = 10;
-
-    // extended types
-
-    const TOK_STR_CODE: u8 = 0;
-
-    pub fn serialize<'a, W>(value: impl DocValue<'a>, writer: &mut W) -> io::Result<()>
-    where W: Write + ?Sized {
-        if let Some(val) = value.as_str() {
-            let val = Cow::Borrowed(val);
-            TEXT_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_facet() {
-            HIERARCHICAL_FACET_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_u64() {
-            U64_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_i64() {
-            I64_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_f64() {
-            F64_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_datetime() {
-            DATE_CODE.serialize(writer)?;
-            let timestamp_micros = val.into_timestamp_micros();
-            return timestamp_micros.serialize(writer);
-        }
-
-        if let Some(val) = value.as_bool() {
-            BOOL_CODE.serialize(writer)?;
-            return val.serialize(writer);
-        }
-
-        if let Some(val) = value.as_ip_addr() {
-            IP_CODE.serialize(writer)?;
-            return val.to_u128().serialize(writer);
-        }
-
-        if let Some(val) = value.as_bytes() {
-            let bytes = Cow::Borrowed(val);
-            BYTES_CODE.serialize(writer)?;
-            return bytes.serialize(writer);
-        }
-
-        if let Some(val) = value.as_tokenized_text() {
-            EXT_CODE.serialize(writer)?;
-            TOK_STR_CODE.serialize(writer)?;
-            return if let Ok(text) = serde_json::to_string(val) {
-                text.serialize(writer)
-            } else {
-                Err(io::Error::new(
-                    ErrorKind::Other,
-                    "Failed to dump Value::PreTokStr(_) to json.",
-                ))
-            };
-        }
-
-        // null and arrays of items are not serializable directly.
-        Err(io::Error::new(
-            ErrorKind::InvalidData,
-            "The visitor produced no data which could be serialized as a single value.",
-        ))
-    }
-
-    pub fn deserialize<T, R>(reader: &mut R) -> io::Result<T>
-    where
-        T: ValueDeserialize + Debug,
-        R: Read,
-    {
-        let type_code = u8::deserialize(reader)?;
-        match type_code {
-            TEXT_CODE => {
-                let text = String::deserialize(reader)?;
-                Ok(T::from_str(text))
-            }
-            U64_CODE => {
-                let value = u64::deserialize(reader)?;
-                Ok(T::from_u64(value))
-            }
-            I64_CODE => {
-                let value = i64::deserialize(reader)?;
-                Ok(T::from_i64(value))
-            }
-            F64_CODE => {
-                let value = u64_to_f64(u64::deserialize(reader)?);
-                Ok(T::from_f64(value))
-            }
-            BOOL_CODE => {
-                let value = bool::deserialize(reader)?;
-                Ok(T::from_bool(value))
-            }
-            DATE_CODE => {
-                let timestamp_micros = i64::deserialize(reader)?;
-                let datetime = DateTime::from_timestamp_micros(timestamp_micros);
-                Ok(T::from_date(datetime))
-            }
-            HIERARCHICAL_FACET_CODE => {
-                let facet = Facet::deserialize(reader)?;
-                Ok(T::from_facet(facet))
-            }
-            BYTES_CODE => {
-                let bytes = Vec::<u8>::deserialize(reader)?;
-                Ok(T::from_bytes(bytes))
-            }
-            EXT_CODE => {
-                let ext_type_code = u8::deserialize(reader)?;
-                match ext_type_code {
-                    TOK_STR_CODE => {
-                        let str_val = String::deserialize(reader)?;
-                        if let Ok(value) = serde_json::from_str::<PreTokenizedString>(&str_val) {
-                            Ok(T::from_pre_tok_str(value))
-                        } else {
-                            Err(io::Error::new(
-                                ErrorKind::Other,
-                                "Failed to parse string data as Value::PreTokStr(_).",
-                            ))
-                        }
-                    }
-                    _ => Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!("No extended field type is associated with code {ext_type_code:?}"),
-                    )),
-                }
-            }
-            JSON_OBJ_CODE => {
-                // As explained in
-                // https://docs.serde.rs/serde_json/fn.from_reader.html
-                //
-                // `T::from_reader(..)` expects EOF after reading the object,
-                // which is not what we want here.
-                //
-                // For this reason we need to create our own `Deserializer`.
-                let mut de = serde_json::Deserializer::from_reader(reader);
-                let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de)?;
-                Ok(T::from_object(json_map))
-            }
-            IP_CODE => {
-                let value = u128::deserialize(reader)?;
-                Ok(T::from_ip_addr(Ipv6Addr::from_u128(value)))
-            }
-            _ => Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!("No field type is associated with code {type_code:?}"),
-            )),
-        }
     }
 }
 

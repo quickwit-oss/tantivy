@@ -4,6 +4,7 @@ use std::net::Ipv6Addr;
 use common::DateTime;
 use serde_json::Map;
 
+use crate::schema::document::de::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
 use crate::schema::{DocumentAccess, Facet, Field, FieldValue, NamedFieldDocument, Schema, Value};
@@ -21,7 +22,6 @@ pub struct Document {
 
 impl DocumentAccess for Document {
     type Value<'a> = &'a Value;
-    type OwnedValue = Value;
     type FieldsValuesIter<'a> = FieldValueIter<'a>;
 
     fn len(&self) -> usize {
@@ -31,14 +31,18 @@ impl DocumentAccess for Document {
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldValueIter(self.field_values.iter())
     }
+}
 
-    fn from_fields(fields: Vec<(Field, Self::OwnedValue)>) -> Self {
-        Self {
-            field_values: fields
-                .into_iter()
-                .map(|(field, value)| FieldValue::new(field, value))
-                .collect(),
+impl DocumentDeserialize for Document {
+    fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
+    where D: DocumentDeserializer<'de> {
+        let mut field_values = Vec::with_capacity(deserializer.size_hint());
+
+        while let Some((field, value)) = deserializer.next_field()? {
+            field_values.push(FieldValue::new(field, value));
         }
+
+        Ok(Self { field_values })
     }
 }
 

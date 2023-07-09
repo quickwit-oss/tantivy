@@ -8,7 +8,7 @@ use common::{f64_to_u64, BinarySerializable, VInt};
 use crate::schema::document::type_codes;
 use crate::schema::{DocValue, DocumentAccess, ReferenceValue};
 
-/// A serializer for a given document.
+/// A serializer writing documents which implement [`DocumentAccess`] to a provided writer.
 pub struct DocumentSerializer<'se, W> {
     writer: &'se mut W,
 }

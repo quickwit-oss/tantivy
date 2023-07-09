@@ -4,28 +4,25 @@ mod se;
 mod serde_compat;
 
 use std::fmt::Debug;
-use std::io::{Read, Write};
 use std::mem;
 use std::net::Ipv6Addr;
 
+pub use self::core::{DocParsingError, Document};
+pub use self::de::{
+    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
+    ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
+};
+pub use self::se::{DocumentSerializer, ValueSerializer};
 use super::*;
-use crate::schema::document::de::ValueType;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
 /// The core trait representing a document within the index.
-pub trait DocumentAccess: Send + Sync + 'static {
+pub trait DocumentAccess: DocumentDeserialize + Send + Sync + 'static {
     /// The value of the field.
     type Value<'a>: DocValue<'a> + Clone
     where Self: 'a;
 
-    /// The owned version of a value type.
-    ///
-    /// It's possible that this is the same type as the borrowed
-    /// variant simply by using things like a `Cow`, but it may
-    /// be beneficial to implement them as separate types for
-    /// some use cases.
-    type OwnedValue: ValueDeserialize + Debug;
     /// The iterator over all of the fields and values within the doc.
     type FieldsValuesIter<'a>: Iterator<Item = (Field, Self::Value<'a>)>
     where Self: 'a;
@@ -40,9 +37,6 @@ pub trait DocumentAccess: Send + Sync + 'static {
 
     /// Get an iterator iterating over all fields and values in a document.
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_>;
-
-    /// Create a new document from a given stream of fields.
-    fn from_fields(fields: Vec<(Field, Self::OwnedValue)>) -> Self;
 
     /// Sort and groups the field_values by field.
     ///
