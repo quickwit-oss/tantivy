@@ -91,7 +91,7 @@ impl ValueDeserialize for serde_json::Value {
                     elements.push(value);
                 }
 
-                OK(serde_json::Value::Array(elements))
+                Ok(serde_json::Value::Array(elements))
             }
 
             fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
