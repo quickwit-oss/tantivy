@@ -7,8 +7,8 @@ use tokenizer_api::Token;
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{
-    value_type_to_column_type, DocValue, DocumentAccess, FieldType, ReferenceValue,
-    Schema, Type,
+    value_type_to_column_type, DocValue, DocumentAccess, Field, FieldType, ReferenceValue, Schema,
+    Type,
 };
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTimePrecision, DocId, TantivyError};
@@ -123,71 +123,98 @@ impl FastFieldsWriter {
     pub fn add_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.num_docs;
         for (field, value) in doc.iter_fields_and_values() {
-            let value = value as D::Value<'_>;
+            let value_access = value as D::Value<'_>;
             let field_name = match &self.fast_field_names[field.field_id() as usize] {
                 None => continue,
                 Some(name) => name,
             };
 
-            if let Some(val) = value.as_u64() {
-                self.columnar_writer.record_numerical(
-                    doc_id,
-                    field_name.as_str(),
-                    NumericalValue::from(val),
-                );
-            } else if let Some(val) = value.as_i64() {
-                self.columnar_writer.record_numerical(
-                    doc_id,
-                    field_name.as_str(),
-                    NumericalValue::from(val),
-                );
-            } else if let Some(val) = value.as_f64() {
-                self.columnar_writer.record_numerical(
-                    doc_id,
-                    field_name.as_str(),
-                    NumericalValue::from(val),
-                );
-            } else if let Some(val) = value.as_str() {
+            self.add_doc_value(doc_id, field, field_name, value_access.as_value())?;
+        }
+        self.num_docs += 1;
+        Ok(())
+    }
+
+    fn add_doc_value<'a, V: DocValue<'a>>(
+        &mut self,
+        doc_id: DocId,
+        field: Field,
+        field_name: &str,
+        value: ReferenceValue<'a, V>,
+    ) -> crate::Result<()> {
+        match value {
+            ReferenceValue::Null => {}
+            ReferenceValue::Str(val) => {
                 if let Some(tokenizer) = &mut self.per_field_tokenizer[field.field_id() as usize] {
                     let mut token_stream = tokenizer.token_stream(val);
                     token_stream.process(&mut |token: &Token| {
                         self.columnar_writer
-                            .record_str(doc_id, field_name.as_str(), &token.text);
+                            .record_str(doc_id, field_name, &token.text);
                     })
                 } else {
-                    self.columnar_writer
-                        .record_str(doc_id, field_name.as_str(), val);
+                    self.columnar_writer.record_str(doc_id, field_name, val);
                 }
-            } else if let Some(val) = value.as_bytes() {
-                self.columnar_writer
-                    .record_bytes(doc_id, field_name.as_str(), val);
-            } else if let Some(val) = value.as_tokenized_text() {
-                for token in &val.tokens {
-                    self.columnar_writer
-                        .record_str(doc_id, field_name.as_str(), &token.text);
-                }
-            } else if let Some(val) = value.as_bool() {
-                self.columnar_writer
-                    .record_bool(doc_id, field_name.as_str(), val);
-            } else if let Some(val) = value.as_date() {
+            }
+            ReferenceValue::U64(val) => {
+                self.columnar_writer.record_numerical(
+                    doc_id,
+                    field_name,
+                    NumericalValue::from(val),
+                );
+            }
+            ReferenceValue::I64(val) => {
+                self.columnar_writer.record_numerical(
+                    doc_id,
+                    field_name,
+                    NumericalValue::from(val),
+                );
+            }
+            ReferenceValue::F64(val) => {
+                self.columnar_writer.record_numerical(
+                    doc_id,
+                    field_name,
+                    NumericalValue::from(val),
+                );
+            }
+            ReferenceValue::Date(val) => {
                 let date_precision = self.date_precisions[field.field_id() as usize];
                 let truncated_datetime = val.truncate(date_precision);
-                self.columnar_writer.record_datetime(
-                    doc_id,
-                    field_name.as_str(),
-                    truncated_datetime,
-                );
-            } else if let Some(val) = value.as_facet() {
                 self.columnar_writer
-                    .record_str(doc_id, field_name.as_str(), val.encoded_str());
-            } else if let Some(val) = value.as_json() {
+                    .record_datetime(doc_id, field_name, truncated_datetime);
+            }
+            ReferenceValue::Facet(val) => {
+                self.columnar_writer
+                    .record_str(doc_id, field_name, val.encoded_str());
+            }
+            ReferenceValue::Bytes(val) => {
+                self.columnar_writer.record_bytes(doc_id, field_name, val);
+            }
+            ReferenceValue::IpAddr(val) => {
+                self.columnar_writer.record_ip_addr(doc_id, field_name, val);
+            }
+            ReferenceValue::Bool(val) => {
+                self.columnar_writer.record_bool(doc_id, field_name, val);
+            }
+            ReferenceValue::PreTokStr(val) => {
+                for token in &val.tokens {
+                    self.columnar_writer
+                        .record_str(doc_id, field_name, &token.text);
+                }
+            }
+            ReferenceValue::Array(val) => {
+                // TODO: Check this is the correct behavour we want.
+                for value in val {
+                    self.add_doc_value(doc_id, field, field_name, value)?;
+                }
+            }
+            ReferenceValue::Object(val) => {
                 let expand_dots = self.expand_dots[field.field_id() as usize];
                 self.json_path_buffer.clear();
                 self.json_path_buffer.push_str(field_name);
 
                 let text_analyzer = &mut self.per_field_tokenizer[field.field_id() as usize];
 
-                record_json_obj_to_columnar_writer(
+                record_json_obj_to_columnar_writer::<V>(
                     doc_id,
                     val,
                     expand_dots,
@@ -196,12 +223,9 @@ impl FastFieldsWriter {
                     &mut self.columnar_writer,
                     text_analyzer,
                 );
-            } else if let Some(val) = value.as_ip_addr() {
-                self.columnar_writer
-                    .record_ip_addr(doc_id, field_name.as_str(), val);
             }
         }
-        self.num_docs += 1;
+
         Ok(())
     }
 
@@ -230,7 +254,7 @@ fn record_json_obj_to_columnar_writer<'a, V: DocValue<'a>>(
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
-   for (key, child) in json_visitor {
+    for (key, child) in json_visitor {
         let len_path = json_path_buffer.len();
         if !json_path_buffer.is_empty() {
             json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
@@ -275,7 +299,7 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
     remaining_depth_limit -= 1;
 
     match json_val {
-        ReferenceValue::Null => {}, // TODO: Handle null
+        ReferenceValue::Null => {} // TODO: Handle null
         ReferenceValue::Str(val) => {
             if let Some(text_analyzer) = tokenizer.as_mut() {
                 let mut token_stream = text_analyzer.token_stream(val);
@@ -285,27 +309,49 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
             } else {
                 columnar_writer.record_str(doc, json_path_writer.as_str(), val);
             }
-        },
+        }
         ReferenceValue::U64(val) => {
-            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-        },
+            columnar_writer.record_numerical(
+                doc,
+                json_path_writer.as_str(),
+                NumericalValue::from(val),
+            );
+        }
         ReferenceValue::I64(val) => {
-            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-        },
+            columnar_writer.record_numerical(
+                doc,
+                json_path_writer.as_str(),
+                NumericalValue::from(val),
+            );
+        }
         ReferenceValue::F64(val) => {
-            columnar_writer.record_numerical(doc, json_path_writer.as_str(), NumericalValue::from(val));
-        },
+            columnar_writer.record_numerical(
+                doc,
+                json_path_writer.as_str(),
+                NumericalValue::from(val),
+            );
+        }
         ReferenceValue::Bool(val) => {
             columnar_writer.record_bool(doc, json_path_writer, val);
-        },
-        ReferenceValue::Date(_) => unimplemented!("Datetime support in dynamic fields is not yet implemented"),
-        ReferenceValue::Facet(_) => unimplemented!("Facet support in dynamic fields is not yet implemented"),
-        ReferenceValue::Bytes(_) => unimplemented!("Bytes support in dynamic fields is not yet implemented"),
-        ReferenceValue::IpAddr(_) => unimplemented!("IP address support in dynamic fields is not yet implemented"),
-        ReferenceValue::PreTokStr(_) => unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented"),
+        }
+        ReferenceValue::Date(_) => {
+            unimplemented!("Datetime support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Facet(_) => {
+            unimplemented!("Facet support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Bytes(_) => {
+            unimplemented!("Bytes support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::IpAddr(_) => {
+            unimplemented!("IP address support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::PreTokStr(_) => {
+            unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented")
+        }
         ReferenceValue::Array(elements) => {
             for el in elements {
-                record_json_value_to_columnar_writer(
+                record_json_value_to_columnar_writer::<V>(
                     doc,
                     el,
                     expand_dots,
@@ -315,9 +361,9 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
                     tokenizer,
                 );
             }
-        },
+        }
         ReferenceValue::Object(object) => {
-            record_json_obj_to_columnar_writer(
+            record_json_obj_to_columnar_writer::<V>(
                 doc,
                 object,
                 expand_dots,
@@ -326,7 +372,7 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
                 columnar_writer,
                 tokenizer,
             );
-        },
+        }
     }
 }
 
@@ -347,7 +393,7 @@ mod tests {
         for (doc, json_doc) in json_docs.iter().enumerate() {
             record_json_value_to_columnar_writer(
                 doc as u32,
-                json_doc,
+                json_doc.as_value(),
                 expand_dots,
                 JSON_DEPTH_LIMIT,
                 &mut json_path,

@@ -134,7 +134,11 @@ pub use self::date_time_options::DatePrecision;
 pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
 pub(crate) use self::document::doc_binary_wrappers;
 pub use self::document::{
-    DocParsingError, DocValue, Document, DocumentAccess, ReferenceValue,
+    DocParsingError,
+    DocValue,
+    Document,
+    DocumentAccess,
+    ReferenceValue,
     // SerializeJsonWrapper,
     ValueDeserialize,
 };

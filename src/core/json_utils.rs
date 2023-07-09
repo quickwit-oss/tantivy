@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{Field, DocValue, ReferenceValue, Type, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{DocValue, Field, ReferenceValue, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -77,7 +77,7 @@ pub(crate) fn index_json_values<'a, V: DocValue<'a>>(
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
     for json_visitor_res in json_visitors {
         let json_visitor = json_visitor_res?;
-        index_json_object(
+        index_json_object::<V>(
             doc,
             json_visitor,
             text_analyzer,
@@ -99,7 +99,7 @@ fn index_json_object<'a, V: DocValue<'a>>(
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-   for (json_path_segment, json_value_visitor) in json_visitor {
+    for (json_path_segment, json_value_visitor) in json_visitor {
         json_term_writer.push_path_segment(json_path_segment);
         index_json_value(
             doc,
@@ -124,15 +124,17 @@ fn index_json_value<'a, V: DocValue<'a>>(
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
     match json_value {
-        ReferenceValue::Null => {},
+        ReferenceValue::Null => {}
         ReferenceValue::Str(val) => {
-            // TODO: Maybe this should be removed now we can explicitly state the type can be a datetime.
+            // TODO: Maybe this should be removed now we can explicitly state the type can be a
+            // datetime.
             match infer_type_from_str(val) {
                 TextOrDateTime::Text(text) => {
                     let mut token_stream = text_analyzer.token_stream(text);
                     // TODO make sure the chain position works out.
                     json_term_writer.close_path_and_set_type(Type::Str);
-                    let indexing_position = positions_per_path.get_position(json_term_writer.term());
+                    let indexing_position =
+                        positions_per_path.get_position(json_term_writer.term());
                     postings_writer.index_text(
                         doc,
                         &mut *token_stream,
@@ -146,28 +148,38 @@ fn index_json_value<'a, V: DocValue<'a>>(
                     postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
                 }
             }
-        },
+        }
         ReferenceValue::U64(val) => {
             json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        },
+        }
         ReferenceValue::I64(val) => {
             json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        },
+        }
         ReferenceValue::F64(val) => {
             json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        },
+        }
         ReferenceValue::Bool(val) => {
             json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        },
-        ReferenceValue::Facet(_) => unimplemented!("Facet support in dynamic fields is not yet implemented"),
-        ReferenceValue::IpAddr(_) => unimplemented!("IP address support in dynamic fields is not yet implemented"),
-        ReferenceValue::Date(_) => unimplemented!("Datetime support in dynamic fields is not yet implemented"),
-        ReferenceValue::PreTokStr(_) => unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented"),
-        ReferenceValue::Bytes(_) => unimplemented!("Bytes support in dynamic fields is not yet implemented"),
+        }
+        ReferenceValue::Facet(_) => {
+            unimplemented!("Facet support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::IpAddr(_) => {
+            unimplemented!("IP address support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Date(_) => {
+            unimplemented!("Datetime support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::PreTokStr(_) => {
+            unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Bytes(_) => {
+            unimplemented!("Bytes support in dynamic fields is not yet implemented")
+        }
         ReferenceValue::Array(elements) => {
             for val in elements {
                 index_json_value::<V>(
@@ -180,7 +192,7 @@ fn index_json_value<'a, V: DocValue<'a>>(
                     positions_per_path,
                 );
             }
-        },
+        }
         ReferenceValue::Object(object) => {
             index_json_object::<V>(
                 doc,
@@ -191,7 +203,7 @@ fn index_json_value<'a, V: DocValue<'a>>(
                 ctx,
                 positions_per_path,
             );
-        },
+        }
     }
 }
 

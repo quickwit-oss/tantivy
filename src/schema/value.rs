@@ -1,6 +1,5 @@
 use std::collections::{btree_map, BTreeMap};
 use std::fmt;
-use std::marker::PhantomData;
 use std::net::Ipv6Addr;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -8,7 +7,6 @@ use base64::Engine;
 pub(crate) use binary_serialize::{deserialize, serialize};
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::Map;
 
 use crate::schema::document::{DocValue, ValueDeserialize};
 use crate::schema::{Facet, ReferenceValue};
@@ -273,7 +271,6 @@ impl<'a> Iterator for ArrayIter<'a> {
     }
 }
 
-
 /// A wrapper type for iterating over a serde_json object producing reference values.
 struct ObjectMapIter<'a>(btree_map::Iter<'a, String, Value>);
 
@@ -344,7 +341,7 @@ mod binary_serialize {
             return val.serialize(writer);
         }
 
-        if let Some(val) = value.as_date() {
+        if let Some(val) = value.as_datetime() {
             DATE_CODE.serialize(writer)?;
             let timestamp_micros = val.into_timestamp_micros();
             return timestamp_micros.serialize(writer);

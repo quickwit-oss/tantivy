@@ -234,7 +234,7 @@ impl MoreLikeThis {
             }
             FieldType::Date(_) => {
                 for value in values {
-                    let timestamp = value.as_date().ok_or_else(|| {
+                    let timestamp = value.as_datetime().ok_or_else(|| {
                         TantivyError::InvalidArgument("invalid value".to_string())
                     })?;
                     let term = Term::from_field_date(field, timestamp);

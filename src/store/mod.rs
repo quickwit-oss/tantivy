@@ -372,8 +372,8 @@ mod bench {
 
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::{Directory, RamDirectory};
-    use crate::Document;
     use crate::store::{Compressor, StoreReader};
+    use crate::Document;
 
     #[bench]
     #[cfg(feature = "mmap")]
