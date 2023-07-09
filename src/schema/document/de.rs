@@ -774,3 +774,250 @@ impl<T: ValueDeserialize> ValueDeserialize for Vec<(String, T)> {
         deserializer.deserialize_any(KeyValuesVecVisitor(PhantomData))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use serde_json::Number;
+    use tokenizer_api::Token;
+
+    use super::*;
+    use crate::schema::document::helpers::{JsonArrayIter, JsonObjectIter};
+    use crate::schema::document::se::ValueSerializer;
+    use crate::schema::document::ReferenceValue;
+
+    fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
+        let mut writer = Vec::new();
+
+        let mut serializer = ValueSerializer::new(&mut writer);
+        serializer.serialize_value(value).expect("Serialize value");
+
+        writer
+    }
+
+    fn deserialize_value(buffer: Vec<u8>) -> crate::schema::Value {
+        let mut cursor = Cursor::new(buffer);
+        let deserializer = GenericValueDeserializer::from_reader(&mut cursor).unwrap();
+        crate::schema::Value::deserialize(deserializer).expect("Deserialize value")
+    }
+
+    #[test]
+    fn test_simple_value_serialize() {
+        let result = serialize_value(ReferenceValue::Null);
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::Null);
+
+        let result = serialize_value(ReferenceValue::Str("hello, world"));
+        let value = deserialize_value(result);
+        assert_eq!(
+            value,
+            crate::schema::Value::Str(String::from("hello, world"))
+        );
+
+        let result = serialize_value(ReferenceValue::U64(123));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::U64(123));
+
+        let result = serialize_value(ReferenceValue::I64(-123));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::I64(-123));
+
+        let result = serialize_value(ReferenceValue::F64(123.3845));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::F64(123.3845));
+
+        let result = serialize_value(ReferenceValue::Bool(false));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::Bool(false));
+
+        let result = serialize_value(ReferenceValue::Date(DateTime::from_timestamp_micros(100)));
+        let value = deserialize_value(result);
+        assert_eq!(
+            value,
+            crate::schema::Value::Date(DateTime::from_timestamp_micros(100))
+        );
+
+        let facet = Facet::from_text("/hello/world").unwrap();
+        let result = serialize_value(ReferenceValue::Facet(&facet));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::Facet(facet));
+
+        let pre_tok_str = PreTokenizedString {
+            text: "hello, world".to_string(),
+            tokens: vec![Token::default(), Token::default()],
+        };
+        let result = serialize_value(ReferenceValue::PreTokStr(&pre_tok_str));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::PreTokStr(pre_tok_str));
+    }
+
+    #[test]
+    fn test_array_serialize() {
+        let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
+        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let value = deserialize_value(result);
+        assert_eq!(
+            value,
+            crate::schema::Value::Array(vec![
+                crate::schema::Value::Null,
+                crate::schema::Value::Null,
+            ]),
+        );
+
+        let elements = vec![
+            serde_json::Value::String("Hello, world".into()),
+            serde_json::Value::String("Some demo".into()),
+        ];
+        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let value = deserialize_value(result);
+        assert_eq!(
+            value,
+            crate::schema::Value::Array(vec![
+                crate::schema::Value::Str(String::from("Hello, world")),
+                crate::schema::Value::Str(String::from("Some demo")),
+            ]),
+        );
+
+        let elements = vec![];
+        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let value = deserialize_value(result);
+        assert_eq!(value, crate::schema::Value::Array(vec![]));
+
+        let elements = vec![
+            serde_json::Value::Null,
+            serde_json::Value::String("Hello, world".into()),
+            serde_json::Value::Number(12345.into()),
+        ];
+        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let value = deserialize_value(result);
+        assert_eq!(
+            value,
+            crate::schema::Value::Array(vec![
+                crate::schema::Value::Null,
+                crate::schema::Value::Str(String::from("Hello, world")),
+                crate::schema::Value::U64(12345),
+            ]),
+        );
+    }
+
+    #[test]
+    fn test_object_serialize() {
+        let mut object = serde_json::Map::new();
+        object.insert(
+            "my-first-key".into(),
+            serde_json::Value::String("Hello".into()),
+        );
+        object.insert("my-second-key".into(), serde_json::Value::Null);
+        object.insert(
+            "my-third-key".into(),
+            serde_json::Value::Number(Number::from_f64(123.0).unwrap()),
+        );
+        let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
+        let value = deserialize_value(result);
+
+        let mut expected_object = BTreeMap::new();
+        expected_object.insert(
+            "my-first-key".to_string(),
+            crate::schema::Value::Str(String::from("Hello")),
+        );
+        expected_object.insert("my-second-key".to_string(), crate::schema::Value::Null);
+        expected_object.insert("my-third-key".to_string(), crate::schema::Value::F64(123.0));
+        assert_eq!(value, crate::schema::Value::Object(expected_object));
+
+        let object = serde_json::Map::new();
+        let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
+        let value = deserialize_value(result);
+        let expected_object = BTreeMap::new();
+        assert_eq!(value, crate::schema::Value::Object(expected_object));
+
+        let mut object = serde_json::Map::new();
+        object.insert("my-first-key".into(), serde_json::Value::Null);
+        object.insert("my-second-key".into(), serde_json::Value::Null);
+        object.insert("my-third-key".into(), serde_json::Value::Null);
+        let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
+        let value = deserialize_value(result);
+        let mut expected_object = BTreeMap::new();
+        expected_object.insert("my-first-key".to_string(), crate::schema::Value::Null);
+        expected_object.insert("my-second-key".to_string(), crate::schema::Value::Null);
+        expected_object.insert("my-third-key".to_string(), crate::schema::Value::Null);
+        assert_eq!(value, crate::schema::Value::Object(expected_object));
+    }
+
+    #[test]
+    fn test_nested_serialize() {
+        let mut object = serde_json::Map::new();
+        object.insert(
+            "my-array".into(),
+            serde_json::Value::Array(vec![
+                serde_json::Value::Null,
+                serde_json::Value::String(String::from("bobby of the sea")),
+            ]),
+        );
+        object.insert(
+            "my-object".into(),
+            serde_json::Value::Object(
+                vec![
+                    (
+                        "inner-1".to_string(),
+                        serde_json::Value::Number((-123i64).into()),
+                    ),
+                    (
+                        "inner-2".to_string(),
+                        serde_json::Value::String(String::from("bobby of the sea 2")),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+        );
+        let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
+        let value = deserialize_value(result);
+
+        let mut expected_object = BTreeMap::new();
+        expected_object.insert(
+            "my-array".to_string(),
+            crate::schema::Value::Array(vec![
+                crate::schema::Value::Null,
+                crate::schema::Value::Str(String::from("bobby of the sea")),
+            ]),
+        );
+        expected_object.insert(
+            "my-object".to_string(),
+            crate::schema::Value::Object(
+                vec![
+                    ("inner-1".to_string(), crate::schema::Value::I64(-123i64)),
+                    (
+                        "inner-2".to_string(),
+                        crate::schema::Value::Str(String::from("bobby of the sea 2")),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+        );
+        assert_eq!(value, crate::schema::Value::Object(expected_object));
+
+        // Some more extreme nesting that might behave weirdly
+        let mut object = serde_json::Map::new();
+        object.insert(
+            "my-array".into(),
+            serde_json::Value::Array(vec![serde_json::Value::Array(vec![
+                serde_json::Value::Array(vec![]),
+                serde_json::Value::Array(vec![serde_json::Value::Null]),
+            ])]),
+        );
+        let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
+        let value = deserialize_value(result);
+
+        let mut expected_object = BTreeMap::new();
+        expected_object.insert(
+            "my-array".to_string(),
+            crate::schema::Value::Array(vec![crate::schema::Value::Array(vec![
+                crate::schema::Value::Array(vec![]),
+                crate::schema::Value::Array(vec![crate::schema::Value::Null]),
+            ])]),
+        );
+        assert_eq!(value, crate::schema::Value::Object(expected_object));
+    }
+}
