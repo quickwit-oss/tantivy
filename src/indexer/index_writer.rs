@@ -20,7 +20,8 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
-use crate::schema::{Document, DocumentAccess, IndexRecordOption, Term};
+use crate::schema::document::DocumentAccess;
+use crate::schema::{Document, IndexRecordOption, Term};
 use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
@@ -812,9 +813,10 @@ mod tests {
     use crate::error::*;
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
+    use crate::schema::document::DocValue;
     use crate::schema::{
-        self, DocValue, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions,
-        Schema, TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions, Schema,
+        TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{

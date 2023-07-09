@@ -5,47 +5,51 @@ use std::io::Write;
 use columnar::MonotonicallyMappableToU128;
 use common::{f64_to_u64, BinarySerializable, VInt};
 
-use crate::schema::document::type_codes;
-use crate::schema::{DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::document::{type_codes, DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::Schema;
 
 /// A serializer writing documents which implement [`DocumentAccess`] to a provided writer.
 pub struct DocumentSerializer<'se, W> {
     writer: &'se mut W,
+    schema: &'se Schema,
 }
 
 impl<'se, W> DocumentSerializer<'se, W>
-where W: Write + ?Sized
+where W: Write
 {
     /// Creates a new serializer with a provided writer.
-    pub(crate) fn new(writer: &'se mut W) -> Self {
-        Self { writer }
+    pub(crate) fn new(writer: &'se mut W, schema: &'se Schema) -> Self {
+        Self { writer, schema }
     }
 
     /// Attempts to serialize a given document and write the output
     /// to the writer.
-    pub(crate) fn serialize_doc<D>(&mut self, doc: D) -> io::Result<()>
+    pub(crate) fn serialize_doc<D>(&mut self, doc: &D) -> io::Result<()>
     where D: DocumentAccess {
-        let expected_length = doc.len();
+        let stored_field_values = || {
+            doc.iter_fields_and_values()
+                .filter(|(field, _)| self.schema.get_field_entry(*field).is_stored())
+        };
+        let num_field_values = stored_field_values().count();
         let mut actual_length = 0;
-        let entries_iter = doc.iter_fields_and_values();
 
-        VInt(expected_length as u64).serialize(self.writer)?;
-        for (field, value) in entries_iter {
+        VInt(num_field_values as u64).serialize(self.writer)?;
+        for (field, value_access) in stored_field_values() {
             field.serialize(self.writer)?;
 
             let mut serializer = ValueSerializer::new(self.writer);
-            serializer.serialize_value(value)?;
+            serializer.serialize_value(value_access.as_value())?;
 
             actual_length += 1;
         }
 
-        if expected_length != actual_length {
+        if num_field_values != actual_length {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
                     "Unexpected number of entries written to serializer, expected {} entries, got \
                      {} entries",
-                    expected_length, actual_length,
+                    num_field_values, actual_length,
                 ),
             ));
         }
@@ -60,7 +64,7 @@ pub struct ValueSerializer<'se, W> {
 }
 
 impl<'se, W> ValueSerializer<'se, W>
-where W: Write + ?Sized
+where W: Write
 {
     /// Creates a new serializer with a provided writer.
     pub(crate) fn new(writer: &'se mut W) -> Self {
@@ -69,8 +73,13 @@ where W: Write + ?Sized
 
     /// Attempts to serialize a given value and write the output
     /// to the writer.
-    pub(crate) fn serialize_value<'a, V>(&mut self, value: V) -> io::Result<()>
-    where V: DocValue<'a> {
+    pub(crate) fn serialize_value<'a, V>(
+        &mut self,
+        value: ReferenceValue<'a, V>,
+    ) -> io::Result<()>
+    where
+        V: DocValue<'a>,
+    {
         match value {
             ReferenceValue::Null => self.write_type_code(type_codes::NULL_CODE),
             ReferenceValue::Str(val) => {
@@ -159,12 +168,16 @@ where W: Write + ?Sized
                 let mut serializer = ObjectSerializer::begin(entries.len(), self.writer)?;
 
                 for (key, value) in entries {
-                    serializer.serialize_entry(key, value)
+                    serializer.serialize_entry(key, value)?;
                 }
 
                 serializer.end()
             }
         }
+    }
+
+    fn write_type_code(&mut self, code: u8) -> io::Result<()> {
+        code.serialize(self.writer)
     }
 }
 
@@ -176,7 +189,7 @@ pub struct ArraySerializer<'se, W> {
 }
 
 impl<'se, W> ArraySerializer<'se, W>
-where W: Write + ?Sized
+where W: Write
 {
     /// Creates a new array serializer and writes the length of the array to the writer.
     pub(crate) fn begin(length: usize, writer: &'se mut W) -> io::Result<Self> {
@@ -233,7 +246,7 @@ pub struct ObjectSerializer<'se, W> {
 }
 
 impl<'se, W> ObjectSerializer<'se, W>
-where W: Write + ?Sized
+where W: Write
 {
     /// Creates a new object serializer and writes the length of the object to the writer.
     pub(crate) fn begin(length: usize, writer: &'se mut W) -> io::Result<Self> {
@@ -262,7 +275,8 @@ where W: Write + ?Sized
         // Technically this isn't the *most* optimal way of storing the objects
         // as we could avoid writing the extra byte per key. But the gain is
         // largely not worth it for the extra complexity it brings.
-        self.inner.serialize_value(ReferenceValue::Str(key))?;
+        self.inner
+            .serialize_value(ReferenceValue::<'a, V>::Str(key))?;
         self.inner.serialize_value(value)?;
 
         self.actual_length += 1;

@@ -5,11 +5,9 @@ use common::replace_in_place;
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::schema::document::{DocValue, DocumentAccess, ReferenceValue};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{
-    value_type_to_column_type, DocValue, DocumentAccess, Field, FieldType, ReferenceValue, Schema,
-    Type,
-};
+use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTimePrecision, DocId, TantivyError};
 
@@ -382,6 +380,7 @@ mod tests {
 
     use super::record_json_value_to_columnar_writer;
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
+    use crate::schema::document::DocValue;
     use crate::DocId;
 
     fn test_columnar_from_jsons_aux(

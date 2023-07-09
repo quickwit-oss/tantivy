@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;
-use crate::schema::DocumentAccess;
+use crate::schema::document::DocumentAccess;
 use crate::{Directory, Document, Index, IndexMeta, Opstamp, Segment};
 
 #[doc(hidden)]

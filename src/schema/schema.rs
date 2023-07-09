@@ -413,9 +413,10 @@ mod tests {
     use pretty_assertions::assert_eq;
     use serde_json;
 
+    use crate::schema::document::DocValue;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::InvalidJson;
-    use crate::schema::{DocValue, *};
+    use crate::schema::*;
 
     #[test]
     fn test_locate_splitting_dots() {

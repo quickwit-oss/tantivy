@@ -62,7 +62,8 @@ impl FacetReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{DocValue, Facet, FacetOptions, SchemaBuilder, STORED};
+    use crate::schema::document::DocValue;
+    use crate::schema::{Facet, FacetOptions, SchemaBuilder, STORED};
     use crate::{DocAddress, Document, Index};
 
     #[test]

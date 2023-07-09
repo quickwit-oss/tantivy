@@ -4,10 +4,12 @@ use std::net::Ipv6Addr;
 use common::DateTime;
 use serde_json::Map;
 
-use crate::schema::document::de::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
+use crate::schema::document::{
+    DeserializeError, DocumentAccess, DocumentDeserialize, DocumentDeserializer,
+};
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
-use crate::schema::{DocumentAccess, Facet, Field, FieldValue, NamedFieldDocument, Schema, Value};
+use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, Schema, Value};
 use crate::tokenizer::PreTokenizedString;
 
 /// Tantivy's Document is the object that can

@@ -155,6 +155,7 @@ mod tests_indexsorting {
     use crate::collector::TopDocs;
     use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::query::QueryParser;
+    use crate::schema::document::DocValue;
     use crate::schema::{Schema, *};
     use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order};
 

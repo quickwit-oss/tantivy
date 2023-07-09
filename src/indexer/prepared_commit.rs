@@ -1,5 +1,5 @@
 use super::IndexWriter;
-use crate::schema::DocumentAccess;
+use crate::schema::document::DocumentAccess;
 use crate::{Document, FutureResult, Opstamp};
 
 /// A prepared commit

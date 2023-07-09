@@ -312,6 +312,7 @@ pub mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
+    use crate::schema::document::{DocValue, DocumentAccess};
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
 

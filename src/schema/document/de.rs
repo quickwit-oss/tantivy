@@ -1,9 +1,19 @@
+//! Document binary deserialization API
+//!
+//! The deserialization API is strongly inspired by serde's API but with
+//! some tweaks, mostly around some of the types being concrete (errors)
+//! and some more specific types being visited (Ips, datetime, etc...)
+//!
+//! The motivation behind this API is to provide a easy to implement and
+//! efficient way of deserializing a potentially arbitrarily nested object.
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::io;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::net::Ipv6Addr;
+use std::sync::Arc;
 
 use columnar::MonotonicallyMappableToU128;
 use common::{u64_to_f64, BinarySerializable, DateTime, VInt};
@@ -12,7 +22,7 @@ use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
 use crate::tokenizer::PreTokenizedString;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 /// An error which occurs while attempting to deserialize a given value
 /// by using the provided value visitor.
 pub enum DeserializeError {
@@ -29,7 +39,7 @@ pub enum DeserializeError {
     },
     #[error("The value could not be read: {0}")]
     /// The value was unable to be read due to the error.
-    CorruptedValue(io::Error),
+    CorruptedValue(Arc<io::Error>),
     #[error("{0}")]
     /// A custom error message.
     Custom(String),
@@ -42,13 +52,22 @@ impl DeserializeError {
     }
 }
 
+impl From<io::Error> for DeserializeError {
+    fn from(error: io::Error) -> Self {
+        Self::CorruptedValue(Arc::new(error))
+    }
+}
+
 /// The core trait for deserializing a document.
-pub trait DocumentDeserialize {
+///
+/// TODO: Improve docs
+pub trait DocumentDeserialize: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de>;
 }
 
+/// A deserializer that can walk through each entry in the document.
 pub trait DocumentDeserializer<'de> {
     /// A indicator as to how many values are in the document.
     ///
@@ -57,11 +76,13 @@ pub trait DocumentDeserializer<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next field in the document.
-    fn next_field<V: ValueDeserialize>(&mut self) -> Result<(Field, V), DeserializeError>;
+    fn next_field<V: ValueDeserialize>(&mut self) -> Result<Option<(Field, V)>, DeserializeError>;
 }
 
 /// The core trait for deserializing values.
-pub trait ValueDeserialize {
+///
+/// TODO: Improve docs
+pub trait ValueDeserialize: Sized {
     /// Attempts to deserialize Self from a given value deserializer.
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de>;
@@ -107,7 +128,7 @@ pub trait ValueDeserializer<'de> {
     where V: ValueVisitor;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 /// The type of the value attempting to be deserialized.
 pub enum ValueType {
     /// A null value.
@@ -141,6 +162,8 @@ pub enum ValueType {
 /// A value visitor for deserializing a document value.
 ///
 /// This is strongly inspired by serde but has a few extra types.
+///
+/// TODO: Improve docs
 pub trait ValueVisitor {
     /// The value produced by the visitor.
     type Value;
@@ -238,9 +261,10 @@ pub trait ArrayAccess<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next element in the sequence.
-    fn next_element<V: ValueDeserialize>(&mut self) -> Result<V, DeserializeError>;
+    fn next_element<V: ValueDeserialize>(&mut self) -> Result<Option<V>, DeserializeError>;
 }
 
+/// TODO: Improve docs
 pub trait ObjectAccess<'de> {
     /// A indicator as to how many values are in the object.
     ///
@@ -252,6 +276,7 @@ pub trait ObjectAccess<'de> {
     fn next_entry<V: ValueDeserialize>(&mut self) -> Result<Option<(String, V)>, DeserializeError>;
 }
 
+/// TODO: Improve docs
 pub struct GenericDocumentDeserializer<'de, R> {
     length: usize,
     position: usize,
@@ -262,8 +287,8 @@ impl<'de, R> GenericDocumentDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let length = VInt::deserialize(reader).map_err(DeserializeError::CorruptedValue)?;
+    pub(crate) fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+        let length = VInt::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
@@ -292,7 +317,7 @@ where R: Read
             return Ok(None);
         }
 
-        let field = Field::deserialize(self.reader)?;
+        let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
 
         let deserializer = GenericValueDeserializer::from_reader(self.reader)?;
         let value = V::deserialize(deserializer)?;
@@ -304,6 +329,7 @@ where R: Read
 }
 
 /// A single value deserializer for a given reader.
+/// TODO: Improve docs
 pub struct GenericValueDeserializer<'de, R> {
     value_type: ValueType,
     reader: &'de mut R,
@@ -314,8 +340,7 @@ where R: Read
 {
     /// Attempts to create a new value deserializer from a given reader.
     fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let type_code = <u8 as BinarySerializable>::deserialize(reader)
-            .map_err(DeserializeError::CorruptedValue)?;
+        let type_code = <u8 as BinarySerializable>::deserialize(reader)?;
 
         let value_type = match type_code {
             type_codes::TEXT_CODE => ValueType::String,
@@ -327,13 +352,12 @@ where R: Read
             type_codes::HIERARCHICAL_FACET_CODE => ValueType::Facet,
             type_codes::BYTES_CODE => ValueType::Bytes,
             type_codes::EXT_CODE => {
-                let ext_type_code = <u8 as BinarySerializable>::deserialize(reader)
-                    .map_err(DeserializeError::CorruptedValue)?;
+                let ext_type_code = <u8 as BinarySerializable>::deserialize(reader)?;
 
                 match ext_type_code {
                     type_codes::TOK_STR_EXT_CODE => ValueType::PreTokStr,
                     _ => {
-                        return Err(DeserializeError::CorruptedValue(io::Error::new(
+                        return Err(DeserializeError::from(io::Error::new(
                             io::ErrorKind::InvalidData,
                             format!(
                                 "No extended field type is associated with code {ext_type_code:?}"
@@ -347,7 +371,7 @@ where R: Read
             type_codes::ARRAY_CODE => ValueType::Array,
             type_codes::OBJECT_CODE => ValueType::Object,
             _ => {
-                return Err(DeserializeError::CorruptedValue(io::Error::new(
+                return Err(DeserializeError::from(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {type_code:?}"),
                 )))
@@ -379,69 +403,63 @@ where R: Read
 
     fn deserialize_string(self) -> Result<String, DeserializeError> {
         self.validate_type(ValueType::String)?;
-        <String as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <String as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_u64(self) -> Result<u64, DeserializeError> {
         self.validate_type(ValueType::U64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <u64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_i64(self) -> Result<i64, DeserializeError> {
         self.validate_type(ValueType::I64)?;
-        <i64 as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <i64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_f64(self) -> Result<f64, DeserializeError> {
         self.validate_type(ValueType::F64)?;
         <u64 as BinarySerializable>::deserialize(self.reader)
             .map(u64_to_f64)
-            .map_err(DeserializeError::CorruptedValue)
+            .map_err(DeserializeError::from)
     }
 
     fn deserialize_datetime(self) -> Result<DateTime, DeserializeError> {
         self.validate_type(ValueType::DateTime)?;
-        <DateTime as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        let timestamp_micros = <i64 as BinarySerializable>::deserialize(self.reader)
+            .map_err(DeserializeError::from)?;
+        Ok(DateTime::from_timestamp_micros(timestamp_micros))
     }
 
     fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
         self.validate_type(ValueType::Facet)?;
-        <Facet as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <Facet as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_bytes(self) -> Result<Vec<u8>, DeserializeError> {
         self.validate_type(ValueType::Bytes)?;
-        <Vec<u8> as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <Vec<u8> as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError> {
         self.validate_type(ValueType::IpAddr)?;
         <u128 as BinarySerializable>::deserialize(self.reader)
             .map(Ipv6Addr::from_u128)
-            .map_err(DeserializeError::CorruptedValue)
+            .map_err(DeserializeError::from)
     }
 
     fn deserialize_bool(self) -> Result<bool, DeserializeError> {
         self.validate_type(ValueType::Bool)?;
-        <bool as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)
+        <bool as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError> {
         self.validate_type(ValueType::PreTokStr)?;
-        let json_text = <String as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::CorruptedValue)?;
+        let json_text = <String as BinarySerializable>::deserialize(self.reader)?;
 
         if let Ok(value) = serde_json::from_str(&json_text) {
             Ok(value)
         } else {
-            Err(DeserializeError::CorruptedValue(io::Error::new(
+            Err(DeserializeError::from(io::Error::new(
                 io::ErrorKind::Other,
                 "Failed to parse string data as PreTokenizedString.",
             )))
@@ -454,43 +472,43 @@ where R: Read
             ValueType::Null => visitor.visit_null(),
             ValueType::String => {
                 let val = self.deserialize_string()?;
-                visitor.visit_null(val)
+                visitor.visit_string(val)
             }
             ValueType::U64 => {
                 let val = self.deserialize_u64()?;
-                visitor.visit_null(val)
+                visitor.visit_u64(val)
             }
             ValueType::I64 => {
                 let val = self.deserialize_i64()?;
-                visitor.visit_null(val)
+                visitor.visit_i64(val)
             }
             ValueType::F64 => {
                 let val = self.deserialize_f64()?;
-                visitor.visit_null(val)
+                visitor.visit_f64(val)
             }
             ValueType::DateTime => {
                 let val = self.deserialize_datetime()?;
-                visitor.visit_null(val)
+                visitor.visit_datetime(val)
             }
             ValueType::Facet => {
                 let val = self.deserialize_facet()?;
-                visitor.visit_null(val)
+                visitor.visit_facet(val)
             }
             ValueType::Bytes => {
                 let val = self.deserialize_bytes()?;
-                visitor.visit_null(val)
+                visitor.visit_bytes(val)
             }
             ValueType::IpAddr => {
                 let val = self.deserialize_ip_address()?;
-                visitor.visit_null(val)
+                visitor.visit_ip_address(val)
             }
             ValueType::Bool => {
                 let val = self.deserialize_bool()?;
-                visitor.visit_null(val)
+                visitor.visit_bool(val)
             }
             ValueType::PreTokStr => {
                 let val = self.deserialize_pre_tokenized_string()?;
-                visitor.visit_null(val)
+                visitor.visit_pre_tokenized_string(val)
             }
             ValueType::Array => {
                 let access = ArrayDeserializer::from_reader(self.reader)?;
@@ -505,6 +523,7 @@ where R: Read
 }
 
 /// A deserializer for an array of values.
+/// TODO: Improve docs
 pub struct ArrayDeserializer<'de, R> {
     length: usize,
     position: usize,
@@ -516,8 +535,7 @@ where R: Read
 {
     /// Attempts to create a new array deserializer from a given reader.
     fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let length = <VInt as BinarySerializable>::deserialize(reader)
-            .map_err(DeserializeError::CorruptedValue)?;
+        let length = <VInt as BinarySerializable>::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
@@ -541,14 +559,18 @@ where R: Read
         self.length
     }
 
-    fn next_element<V: ValueDeserialize>(&mut self) -> Result<V, DeserializeError> {
+    fn next_element<V: ValueDeserialize>(&mut self) -> Result<Option<V>, DeserializeError> {
+        if self.is_complete() {
+            return Ok(None);
+        }
+
         let deserializer = GenericValueDeserializer::from_reader(self.reader)?;
         let value = V::deserialize(deserializer)?;
 
         // Advance the position cursor.
         self.position += 1;
 
-        Ok(value)
+        Ok(Some(value))
     }
 }
 
@@ -591,8 +613,12 @@ where R: Read
             return Ok(None);
         }
 
-        let key = self.inner.next_element()?;
-        let value = self.inner.next_element()?;
+        let key = self.inner.next_element::<String>()?.expect(
+            "Deserializer should not be empty as it is not marked as complete, this is a bug",
+        );
+        let value = self.inner.next_element::<V>()?.expect(
+            "Deserializer should not be empty as it is not marked as complete, this is a bug",
+        );
 
         Ok(Some((key, value)))
     }
@@ -675,7 +701,6 @@ impl ValueDeserialize for PreTokenizedString {
 // Collections kind of suck, but can't think of a nicer way of doing this generically
 // without quite literally cloning serde entirely...
 
-#[derive(Default)]
 struct VecVisitor<T: ValueDeserialize>(PhantomData<T>);
 impl<T: ValueDeserialize> ValueVisitor for VecVisitor<T> {
     type Value = Vec<T>;
@@ -693,11 +718,10 @@ impl<T: ValueDeserialize> ValueDeserialize for Vec<T> {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(VecVisitor::default())
+        deserializer.deserialize_any(VecVisitor(PhantomData))
     }
 }
 
-#[derive(Default)]
 struct BTreeMapVisitor<T: ValueDeserialize>(PhantomData<T>);
 impl<T: ValueDeserialize> ValueVisitor for BTreeMapVisitor<T> {
     type Value = BTreeMap<String, T>;
@@ -715,11 +739,10 @@ impl<T: ValueDeserialize> ValueDeserialize for BTreeMap<String, T> {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(BTreeMapVisitor::default())
+        deserializer.deserialize_any(BTreeMapVisitor(PhantomData))
     }
 }
 
-#[derive(Default)]
 struct HashMapVisitor<T: ValueDeserialize>(PhantomData<T>);
 impl<T: ValueDeserialize> ValueVisitor for HashMapVisitor<T> {
     type Value = HashMap<String, T>;
@@ -737,11 +760,10 @@ impl<T: ValueDeserialize> ValueDeserialize for HashMap<String, T> {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(HashMapVisitor::default())
+        deserializer.deserialize_any(HashMapVisitor(PhantomData))
     }
 }
 
-#[derive(Default)]
 struct KeyValuesVecVisitor<T: ValueDeserialize>(PhantomData<T>);
 impl<T: ValueDeserialize> ValueVisitor for KeyValuesVecVisitor<T> {
     type Value = Vec<(String, T)>;
@@ -759,6 +781,6 @@ impl<T: ValueDeserialize> ValueDeserialize for Vec<(String, T)> {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(KeyValuesVecVisitor::default())
+        deserializer.deserialize_any(KeyValuesVecVisitor(PhantomData))
     }
 }

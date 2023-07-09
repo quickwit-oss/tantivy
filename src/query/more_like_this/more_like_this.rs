@@ -5,7 +5,8 @@ use tokenizer_api::Token;
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
-use crate::schema::{DocValue, DocumentAccess, Field, FieldType, IndexRecordOption, Term};
+use crate::schema::document::{DocValue, DocumentAccess};
+use crate::schema::{Field, FieldType, IndexRecordOption, Term};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer};
 use crate::{DocAddress, Document, Result, Searcher, TantivyError};
 

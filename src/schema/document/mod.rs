@@ -1,18 +1,19 @@
 mod core;
 mod de;
+mod helpers;
 mod se;
-mod serde_compat;
 
 use std::fmt::Debug;
 use std::mem;
 use std::net::Ipv6Addr;
 
 pub use self::core::{DocParsingError, Document};
+pub(crate) use self::de::GenericDocumentDeserializer;
 pub use self::de::{
     ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
     ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
 };
-pub use self::se::{DocumentSerializer, ValueSerializer};
+pub(crate) use self::se::DocumentSerializer;
 use super::*;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;

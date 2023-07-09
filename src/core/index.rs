@@ -19,7 +19,8 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
-use crate::schema::{DocumentAccess, Field, FieldType, Schema};
+use crate::schema::document::DocumentAccess;
+use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
 

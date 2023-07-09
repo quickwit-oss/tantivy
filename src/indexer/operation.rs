@@ -1,5 +1,6 @@
 use crate::query::Weight;
-use crate::schema::{Document, DocumentAccess, Term};
+use crate::schema::document::DocumentAccess;
+use crate::schema::{Document, Term};
 use crate::Opstamp;
 
 /// Timestamped Delete operation.

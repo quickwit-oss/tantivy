@@ -6,10 +6,10 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, DocValue, ObjectAccess, ValueDeserialize, ValueDeserializer,
-    ValueVisitor,
+    ArrayAccess, DeserializeError, DocValue, ObjectAccess, ReferenceValue, ValueDeserialize,
+    ValueDeserializer, ValueVisitor,
 };
-use crate::schema::{Facet, ReferenceValue};
+use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 

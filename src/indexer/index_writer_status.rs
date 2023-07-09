@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use super::AddBatchReceiver;
-use crate::schema::DocumentAccess;
+use crate::schema::document::DocumentAccess;
 use crate::Document;
 
 #[derive(Clone)]

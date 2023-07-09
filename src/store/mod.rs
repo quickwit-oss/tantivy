@@ -65,9 +65,8 @@ pub mod tests {
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::{
-        self, DocValue, Document, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
-    };
+    use crate::schema::document::DocValue;
+    use crate::schema::{self, Document, Schema, TextFieldIndexing, TextOptions, STORED, TEXT};
     use crate::{Index, IndexWriter, Term};
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \

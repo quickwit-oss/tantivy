@@ -12,10 +12,8 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::{
-    DocValue, DocumentAccess, FieldEntry, FieldType, ReferenceValue, Schema, Term,
-    DATE_TIME_PRECISION_INDEXED,
-};
+use crate::schema::document::{DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, SegmentComponent};
@@ -483,7 +481,8 @@ mod tests {
     use crate::directory::RamDirectory;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
-    use crate::schema::{DocValue, IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::schema::document::DocValue;
+    use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;

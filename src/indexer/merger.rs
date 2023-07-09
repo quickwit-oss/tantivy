@@ -753,9 +753,10 @@ mod tests {
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
+    use crate::schema::document::DocValue;
     use crate::schema::{
-        DocValue, Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term,
-        TextFieldIndexing, INDEXED, TEXT,
+        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
+        INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
