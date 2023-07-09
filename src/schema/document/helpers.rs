@@ -5,9 +5,14 @@
 //! and don't care about some of the more specialised types or only want to customise
 //! part of the document structure.
 use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
+
 use serde_json::Number;
 
-use crate::schema::document::{DeserializeError, DocValue, DocumentAccess, DocumentDeserialize, DocumentDeserializer, ReferenceValue, ValueDeserialize, ValueDeserializer, ValueVisitor, ArrayAccess, ObjectAccess};
+use crate::schema::document::{
+    ArrayAccess, DeserializeError, DocValue, DocumentAccess, DocumentDeserialize,
+    DocumentDeserializer, ObjectAccess, ReferenceValue, ValueDeserialize, ValueDeserializer,
+    ValueVisitor,
+};
 use crate::schema::Field;
 
 // Serde compatibility support.
@@ -43,8 +48,7 @@ impl<'a> DocValue<'a> for &'a serde_json::Value {
 
 impl ValueDeserialize for serde_json::Value {
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de>
-    {
+    where D: ValueDeserializer<'de> {
         struct SerdeValueVisitor;
 
         impl ValueVisitor for SerdeValueVisitor {
@@ -67,8 +71,11 @@ impl ValueDeserialize for serde_json::Value {
             }
 
             fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
-                let num = Number::from_f64(val)
-                    .ok_or_else(|| DeserializeError::custom(format!("serde_json::Value cannot deserialize float {val}")))?;
+                let num = Number::from_f64(val).ok_or_else(|| {
+                    DeserializeError::custom(format!(
+                        "serde_json::Value cannot deserialize float {val}"
+                    ))
+                })?;
                 Ok(serde_json::Value::Number(num))
             }
 
@@ -77,8 +84,7 @@ impl ValueDeserialize for serde_json::Value {
             }
 
             fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ArrayAccess<'de>
-            {
+            where A: ArrayAccess<'de> {
                 let mut elements = Vec::with_capacity(access.size_hint());
 
                 while let Some(value) = access.next_element()? {
@@ -89,8 +95,7 @@ impl ValueDeserialize for serde_json::Value {
             }
 
             fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ObjectAccess<'de>
-            {
+            where A: ObjectAccess<'de> {
                 let mut object = serde_json::Map::with_capacity(access.size_hint());
 
                 while let Some((key, value)) = access.next_entry()? {
