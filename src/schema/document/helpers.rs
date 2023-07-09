@@ -5,11 +5,9 @@
 //! and don't care about some of the more specialised types or only want to customise
 //! part of the document structure.
 use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
+use serde_json::Number;
 
-use crate::schema::document::{
-    DeserializeError, DocValue, DocumentAccess, DocumentDeserialize, DocumentDeserializer,
-    ReferenceValue,
-};
+use crate::schema::document::{DeserializeError, DocValue, DocumentAccess, DocumentDeserialize, DocumentDeserializer, ReferenceValue, ValueDeserialize, ValueDeserializer, ValueVisitor, ArrayAccess, ObjectAccess};
 use crate::schema::Field;
 
 // Serde compatibility support.
@@ -40,6 +38,70 @@ impl<'a> DocValue<'a> for &'a serde_json::Value {
                 ReferenceValue::Object(JsonObjectIter(object.iter()))
             }
         }
+    }
+}
+
+impl ValueDeserialize for serde_json::Value {
+    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+    where D: ValueDeserializer<'de>
+    {
+        struct SerdeValueVisitor;
+
+        impl ValueVisitor for SerdeValueVisitor {
+            type Value = serde_json::Value;
+
+            fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
+                Ok(serde_json::Value::Null)
+            }
+
+            fn visit_string(&self, val: String) -> Result<Self::Value, DeserializeError> {
+                Ok(serde_json::Value::String(val))
+            }
+
+            fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
+                Ok(serde_json::Value::Number(val.into()))
+            }
+
+            fn visit_i64(&self, val: i64) -> Result<Self::Value, DeserializeError> {
+                Ok(serde_json::Value::Number(val.into()))
+            }
+
+            fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
+                let num = Number::from_f64(val)
+                    .ok_or_else(|| DeserializeError::custom(format!("serde_json::Value cannot deserialize float {val}")))?;
+                Ok(serde_json::Value::Number(num))
+            }
+
+            fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
+                Ok(serde_json::Value::Bool(val.into()))
+            }
+
+            fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
+            where A: ArrayAccess<'de>
+            {
+                let mut elements = Vec::with_capacity(access.size_hint());
+
+                while let Some(value) = access.next_element()? {
+                    elements.push(value);
+                }
+
+                OK(serde_json::Value::Array(elements))
+            }
+
+            fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
+            where A: ObjectAccess<'de>
+            {
+                let mut object = serde_json::Map::with_capacity(access.size_hint());
+
+                while let Some((key, value)) = access.next_entry()? {
+                    object.insert(key, value);
+                }
+
+                Ok(serde_json::Value::Object(object))
+            }
+        }
+
+        deserializer.deserialize_any(SerdeValueVisitor)
     }
 }
 
