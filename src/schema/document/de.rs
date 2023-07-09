@@ -219,6 +219,7 @@ trait ArrayAccess<'de> {
     /// be depended on as a fixed size.
     fn size_hint(&self) -> usize;
 
+    /// Attempts to deserialize the next element in the sequence.
     fn next_element<V: Deserialize>(&mut self) -> Result<V, DeserializeError>;
 }
 
@@ -259,7 +260,7 @@ impl<'de, R> ValueDeserializer<'de, R> {
                     .map_err(DeserializeError::CorruptedValue)?;
 
                 match ext_type_code {
-                    type_codes::TOK_STR_CODE => ValueType::PreTokStr,
+                    type_codes::TOK_STR_EXT_CODE => ValueType::PreTokStr,
                     _ => {
                         return Err(DeserializeError::CorruptedValue(io::Error::new(
                             io::ErrorKind::InvalidData,
