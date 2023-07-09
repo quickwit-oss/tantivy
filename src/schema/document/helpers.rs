@@ -44,7 +44,7 @@ impl<'a> DocValue<'a> for &'a serde_json::Value {
 }
 
 /// A wrapper struct for an interator producing [Value]s.
-pub struct JsonArrayIter<'a>(std::slice::Iter<'a, serde_json::Value>);
+pub struct JsonArrayIter<'a>(pub(crate) std::slice::Iter<'a, serde_json::Value>);
 
 impl<'a> Iterator for JsonArrayIter<'a> {
     type Item = ReferenceValue<'a, &'a serde_json::Value>;
@@ -56,7 +56,7 @@ impl<'a> Iterator for JsonArrayIter<'a> {
 }
 
 /// A wrapper struct for an interator producing [Value]s.
-pub struct JsonObjectIter<'a>(serde_json::map::Iter<'a>);
+pub struct JsonObjectIter<'a>(pub(crate) serde_json::map::Iter<'a>);
 
 impl<'a> Iterator for JsonObjectIter<'a> {
     type Item = (&'a str, ReferenceValue<'a, &'a serde_json::Value>);

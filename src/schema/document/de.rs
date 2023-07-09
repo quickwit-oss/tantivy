@@ -425,9 +425,7 @@ where R: Read
 
     fn deserialize_datetime(self) -> Result<DateTime, DeserializeError> {
         self.validate_type(ValueType::DateTime)?;
-        let timestamp_micros = <i64 as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::from)?;
-        Ok(DateTime::from_timestamp_micros(timestamp_micros))
+        <DateTime as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
@@ -454,16 +452,8 @@ where R: Read
 
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError> {
         self.validate_type(ValueType::PreTokStr)?;
-        let json_text = <String as BinarySerializable>::deserialize(self.reader)?;
-
-        if let Ok(value) = serde_json::from_str(&json_text) {
-            Ok(value)
-        } else {
-            Err(DeserializeError::from(io::Error::new(
-                io::ErrorKind::Other,
-                "Failed to parse string data as PreTokenizedString.",
-            )))
-        }
+        <PreTokenizedString as BinarySerializable>::deserialize(self.reader)
+            .map_err(DeserializeError::from)
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>

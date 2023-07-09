@@ -370,8 +370,8 @@ pub(crate) mod type_codes {
     pub const DATE_CODE: u8 = 5;
     pub const F64_CODE: u8 = 6;
     pub const EXT_CODE: u8 = 7;
-    // Depreciated: Replaced by the `OBJECT_CODE`.
-    // pub const JSON_OBJ_CODE: u8 = 8;
+    // Replaced by the `OBJECT_CODE`.
+    // -- pub const JSON_OBJ_CODE: u8 = 8;
     pub const BOOL_CODE: u8 = 9;
     pub const IP_CODE: u8 = 10;
     pub const NULL_CODE: u8 = 11;
