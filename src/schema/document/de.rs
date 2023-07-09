@@ -99,7 +99,7 @@ pub trait ValueDeserializer<'de> {
     /// Attempts to deserialize a u64 value from the deserializer.
     fn deserialize_u64(self) -> Result<u64, DeserializeError>;
 
-    /// Attempts to deserialize a i64 value from the deserializer.
+    /// Attempts to deserialize an i64 value from the deserializer.
     fn deserialize_i64(self) -> Result<i64, DeserializeError>;
 
     /// Attempts to deserialize a f64 value from the deserializer.
@@ -114,7 +114,7 @@ pub trait ValueDeserializer<'de> {
     /// Attempts to deserialize a bytes value from the deserializer.
     fn deserialize_bytes(self) -> Result<Vec<u8>, DeserializeError>;
 
-    /// Attempts to deserialize a IP address value from the deserializer.
+    /// Attempts to deserialize an IP address value from the deserializer.
     fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError>;
 
     /// Attempts to deserialize a bool value from the deserializer.
@@ -211,7 +211,7 @@ pub trait ValueVisitor {
     }
 
     #[inline]
-    /// Called when the deserializer visits a IP address value.
+    /// Called when the deserializer visits an IP address value.
     fn visit_ip_address(&self, _val: Ipv6Addr) -> Result<Self::Value, DeserializeError> {
         Err(DeserializeError::UnsupportedType(ValueType::IpAddr))
     }

@@ -235,13 +235,13 @@ pub trait DocumentAccess: DocumentDeserialize + Send + Sync + 'static {
 
 /// A single field value.
 pub trait DocValue<'a>: Send + Sync + Debug {
-    /// The iterator for walking through the element within the array.
+    /// The iterator for walking through the elements within the array.
     type ArrayIter: Iterator<Item = ReferenceValue<'a, Self>>;
-    /// The visitor for walking through the key-value pairs within
+    /// The visitor walking through the key-value pairs within
     /// the object.
     type ObjectIter: Iterator<Item = (&'a str, ReferenceValue<'a, Self>)>;
 
-    /// Returns the field value represented by a enum which borrows it's data.
+    /// Returns the field value represented by an enum which borrows it's data.
     fn as_value(&self) -> ReferenceValue<'a, Self>;
 
     #[inline]
