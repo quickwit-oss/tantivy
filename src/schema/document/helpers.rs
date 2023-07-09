@@ -4,7 +4,7 @@
 //! This allows users a bit more freedom and ergonomics if they want a simple API
 //! and don't care about some of the more specialised types or only want to customise
 //! part of the document structure.
-use std::collections::{btree_map, BTreeMap, hash_map, HashMap};
+use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
 
 use crate::schema::document::{
     DeserializeError, DocValue, DocumentAccess, DocumentDeserialize, DocumentDeserializer,

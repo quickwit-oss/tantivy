@@ -123,7 +123,7 @@ impl FastFieldsWriter {
         for (field, value) in doc.iter_fields_and_values() {
             let value_access = value as D::Value<'_>;
 
-            self.add_doc_value(doc_id, field,value_access.as_value())?;
+            self.add_doc_value(doc_id, field, value_access.as_value())?;
         }
         self.num_docs += 1;
         Ok(())

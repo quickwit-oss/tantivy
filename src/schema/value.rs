@@ -223,8 +223,7 @@ impl<'de> serde::Deserialize<'de> for Value {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where A: SeqAccess<'de>
-            {
+            where A: SeqAccess<'de> {
                 let mut elements = Vec::with_capacity(seq.size_hint().unwrap_or_default());
 
                 while let Some(value) = seq.next_element()? {
@@ -235,8 +234,7 @@ impl<'de> serde::Deserialize<'de> for Value {
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where A: MapAccess<'de>
-            {
+            where A: MapAccess<'de> {
                 let mut object = BTreeMap::new();
 
                 while let Some((key, value)) = map.next_entry()? {
@@ -344,15 +342,12 @@ impl From<serde_json::Value> for Value {
                 } else {
                     panic!("Unsupported serde_json number {number}");
                 }
-            },
+            }
             serde_json::Value::String(val) => Self::Str(val),
             serde_json::Value::Array(elements) => {
-                let converted_elements = elements
-                    .into_iter()
-                    .map(Self::from)
-                    .collect();
+                let converted_elements = elements.into_iter().map(Self::from).collect();
                 Self::Array(converted_elements)
-            },
+            }
             serde_json::Value::Object(object) => Self::from(object),
         }
     }
@@ -369,7 +364,6 @@ impl From<serde_json::Map<String, serde_json::Value>> for Value {
         Value::Object(object)
     }
 }
-
 
 /// A wrapper type for iterating over a serde_json array producing reference values.
 pub struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
