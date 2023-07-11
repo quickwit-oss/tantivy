@@ -1476,6 +1476,95 @@ mod tests {
 
         Ok(())
     }
+    #[test]
+    fn terms_aggregation_missing_multi_value() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let id_field = schema_builder.add_text_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+                text_field => "Hello Hello",
+                id_field => 1u64,
+                id_field => 1u64,
+            ))?;
+            // Missing
+            index_writer.add_document(doc!())?;
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+            ))?;
+            index_writer.commit()?;
+            // Empty segment special case
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+            // Full segment special case
+            index_writer.add_document(doc!(
+                text_field => "Hello Hello",
+                id_field => 1u64,
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "text",
+                    "missing": "Empty"
+                },
+            },
+            "my_texts2": {
+                "terms": {
+                    "field": "text",
+                    "missing": 1337
+                },
+            },
+            "my_ids": {
+                "terms": {
+                    "field": "id",
+                    "missing": 1337
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // text field
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hello Hello");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "Empty");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(
+            res["my_texts"]["buckets"][2]["key"],
+            serde_json::Value::Null
+        );
+        // text field with numner as missing fallback
+        assert_eq!(res["my_texts2"]["buckets"][0]["key"], "Hello Hello");
+        assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts2"]["buckets"][1]["key"], 1337.0);
+        assert_eq!(res["my_texts2"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(
+            res["my_texts2"]["buckets"][2]["key"],
+            serde_json::Value::Null
+        );
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+
+        // id field
+        assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 4);
+        assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
+        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 3);
+        assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
 
     #[test]
     fn terms_aggregation_missing1() -> crate::Result<()> {

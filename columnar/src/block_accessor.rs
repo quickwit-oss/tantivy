@@ -25,7 +25,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     pub fn fetch_block_with_missing(&mut self, docs: &[u32], accessor: &Column<T>, missing: T) {
         self.fetch_block(docs, accessor);
         // We can compare docid_cache with docs to find missing docs
-        if docs.len() != self.docid_cache.len() {
+        if docs.len() != self.docid_cache.len() || accessor.index.is_multivalue() {
             self.missing_docids_cache.clear();
             find_missing_docs(docs, &self.docid_cache, |doc| {
                 self.missing_docids_cache.push(doc);
@@ -50,6 +50,8 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     }
 }
 
+/// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
+/// Return all docs that are not in `hits`.
 fn find_missing_docs<F>(docs: &[u32], hits: &[u32], mut callback: F)
 where F: FnMut(u32) {
     let mut docs_iter = docs.iter();
