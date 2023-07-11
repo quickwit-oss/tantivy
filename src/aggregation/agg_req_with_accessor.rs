@@ -36,6 +36,9 @@ pub struct AggregationWithAccessor {
     /// based on search terms. That is not that case currently, but eventually this needs to be
     /// Option or moved.
     pub(crate) accessor: Column<u64>,
+    /// Load insert u64 for missing use case
+    pub(crate) missing_accessor1: Option<u64>,
+    pub(crate) missing_accessor2: Option<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
@@ -51,6 +54,8 @@ impl AggregationWithAccessor {
         reader: &SegmentReader,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
+        let mut missing_accessor1 = None;
+        let mut missing_accessor2 = None;
         let mut str_dict_column = None;
         use AggregationVariants::*;
         let acc_field_types: Vec<(Column, ColumnType)> = match &agg.agg {
