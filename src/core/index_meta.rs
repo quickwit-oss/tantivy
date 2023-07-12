@@ -410,7 +410,9 @@ mod tests {
     use super::IndexMeta;
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
-    use crate::store::{Compressor, ZstdCompressor};
+    use crate::store::Compressor;
+    #[cfg(feature = "zstd-compression")]
+    use crate::store::ZstdCompressor;
     use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
@@ -446,6 +448,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "zstd-compression")]
     fn test_serialize_metas_zstd_compressor() {
         let schema = {
             let mut schema_builder = Schema::builder();
@@ -482,6 +485,12 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(
+        feature = "lz4-compression",
+        feature = "brotli-compression",
+        feature = "snappy-compression",
+        feature = "zstd-compression"
+    ))]
     fn test_serialize_metas_invalid_comp() {
         let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 

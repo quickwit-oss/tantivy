@@ -191,7 +191,7 @@ pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
 
-#[cfg(unix)]
+#[cfg(all(feature = "mmap", unix))]
 pub use memmap2::Advice;
 
 /// Structure version for the index.
