@@ -123,6 +123,15 @@ impl AggregationWithAccessor {
             column_block_accessor: Default::default(),
         })
     }
+
+    /// Swaps the accessor and field type with the second accessor and field type.
+    /// This way we can use the same code for both aggregations.
+    pub(crate) fn swap_accessor(&mut self) {
+        if let Some(accessor) = self.accessor2.as_mut() {
+            std::mem::swap(&mut accessor.0, &mut self.accessor);
+            std::mem::swap(&mut accessor.1, &mut self.field_type);
+        }
+    }
 }
 
 fn get_numeric_or_date_column_types() -> &'static [ColumnType] {

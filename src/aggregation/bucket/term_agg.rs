@@ -263,9 +263,9 @@ impl SegmentAggregationCollector for SegmentTermCollectorComposite {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.term_agg1.collect_block(&[doc], agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         self.term_agg2.collect_block(&[doc], agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         Ok(())
     }
 
@@ -276,33 +276,22 @@ impl SegmentAggregationCollector for SegmentTermCollectorComposite {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         self.term_agg1.collect_block(docs, agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         self.term_agg2.collect_block(docs, agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
-
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         Ok(())
     }
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
         self.term_agg1.flush(agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         self.term_agg2.flush(agg_with_accessor)?;
-        self.swap_accessor(&mut agg_with_accessor.aggs.values[self.accessor_idx]);
-
+        agg_with_accessor.aggs.values[self.accessor_idx].swap_accessor();
         Ok(())
     }
 }
 
 impl SegmentTermCollectorComposite {
-    /// Swaps the accessor and field type with the second accessor and field type.
-    /// This way we can use the same code for both aggregations.
-    fn swap_accessor(&self, aggregations: &mut AggregationWithAccessor) {
-        if let Some(accessor) = aggregations.accessor2.as_mut() {
-            std::mem::swap(&mut accessor.0, &mut aggregations.accessor);
-            std::mem::swap(&mut accessor.1, &mut aggregations.field_type);
-        }
-    }
-
     pub(crate) fn from_req_and_validate(
         req: &TermsAggregation,
         sub_aggregations: &mut AggregationsWithAccessor,
