@@ -55,14 +55,41 @@ impl<'de> Deserialize<'de> for Compressor {
             "none" => Compressor::None,
             #[cfg(feature = "lz4-compression")]
             "lz4" => Compressor::Lz4,
+            #[cfg(not(feature = "lz4-compression"))]
+            "lz4" => {
+                return Err(serde::de::Error::custom(
+                    "unsupported variant `lz4`, please enable Tantivy's `lz4-compression` feature",
+                ))
+            }
             #[cfg(feature = "brotli-compression")]
             "brotli" => Compressor::Brotli,
+            #[cfg(not(feature = "brotli-compression"))]
+            "brotli" => {
+                return Err(serde::de::Error::custom(
+                    "unsupported variant `brotli`, please enable Tantivy's `brotli-compression` \
+                     feature",
+                ))
+            }
             #[cfg(feature = "snappy-compression")]
             "snappy" => Compressor::Snappy,
+            #[cfg(not(feature = "snappy-compression"))]
+            "snappy" => {
+                return Err(serde::de::Error::custom(
+                    "unsupported variant `snappy`, please enable Tantivy's `snappy-compression` \
+                     feature",
+                ))
+            }
             #[cfg(feature = "zstd-compression")]
             _ if buf.starts_with("zstd") => Compressor::Zstd(
                 ZstdCompressor::deser_from_str(&buf).map_err(serde::de::Error::custom)?,
             ),
+            #[cfg(not(feature = "zstd-compression"))]
+            _ if buf.starts_with("zstd") => {
+                return Err(serde::de::Error::custom(
+                    "unsupported variant `zstd`, please enable Tantivy's `zstd-compression` \
+                     feature",
+                ))
+            }
             _ => {
                 return Err(serde::de::Error::unknown_variant(
                     &buf,

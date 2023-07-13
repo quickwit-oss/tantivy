@@ -512,6 +512,20 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "zstd-compression"))]
+    fn test_serialize_metas_unsupported_comp() {
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "unsupported variant `zstd`, please enable Tantivy's `zstd-compression` feature at \
+             line 1 column 95"
+                .to_string()
+        );
+    }
+
+    #[test]
     #[cfg(feature = "lz4-compression")]
     fn test_index_settings_default() {
         let mut index_settings = IndexSettings::default();
