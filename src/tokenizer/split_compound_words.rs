@@ -86,6 +86,8 @@ impl TokenFilter for SplitCompoundWords {
         SplitCompoundWordsFilter {
             dict: self.dict,
             inner: tokenizer,
+            cuts: Vec::new(),
+            parts: Vec::new(),
         }
     }
 }
@@ -94,29 +96,33 @@ impl TokenFilter for SplitCompoundWords {
 pub struct SplitCompoundWordsFilter<T> {
     dict: AhoCorasick,
     inner: T,
-}
-
-impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
-    type TokenStream<'a> = SplitCompoundWordsTokenStream<T::TokenStream<'a>>;
-
-    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        SplitCompoundWordsTokenStream {
-            dict: self.dict.clone(),
-            tail: self.inner.token_stream(text),
-            cuts: Vec::new(),
-            parts: Vec::new(),
-        }
-    }
-}
-
-pub struct SplitCompoundWordsTokenStream<T> {
-    dict: AhoCorasick,
-    tail: T,
     cuts: Vec<usize>,
     parts: Vec<Token>,
 }
 
-impl<T: TokenStream> SplitCompoundWordsTokenStream<T> {
+impl<T: Tokenizer> Tokenizer for SplitCompoundWordsFilter<T> {
+    type TokenStream<'a> = SplitCompoundWordsTokenStream<'a, T::TokenStream<'a>>;
+
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        self.cuts.clear();
+        self.parts.clear();
+        SplitCompoundWordsTokenStream {
+            dict: self.dict.clone(),
+            tail: self.inner.token_stream(text),
+            cuts: &mut self.cuts,
+            parts: &mut self.parts,
+        }
+    }
+}
+
+pub struct SplitCompoundWordsTokenStream<'a, T> {
+    dict: AhoCorasick,
+    tail: T,
+    cuts: &'a mut Vec<usize>,
+    parts: &'a mut Vec<Token>,
+}
+
+impl<'a, T: TokenStream> SplitCompoundWordsTokenStream<'a, T> {
     // Will use `self.cuts` to fill `self.parts` if `self.tail.token()`
     // can fully be split into consecutive matches against `self.dict`.
     fn split(&mut self) {
@@ -152,7 +158,7 @@ impl<T: TokenStream> SplitCompoundWordsTokenStream<T> {
     }
 }
 
-impl<T: TokenStream> TokenStream for SplitCompoundWordsTokenStream<T> {
+impl<'a, T: TokenStream> TokenStream for SplitCompoundWordsTokenStream<'a, T> {
     fn advance(&mut self) -> bool {
         self.parts.pop();
 
