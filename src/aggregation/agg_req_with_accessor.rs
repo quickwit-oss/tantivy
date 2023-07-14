@@ -37,8 +37,8 @@ pub struct AggregationWithAccessor {
     /// Option or moved.
     pub(crate) accessor: Column<u64>,
     /// Load insert u64 for missing use case
-    pub(crate) missing_accessor1: Option<u64>,
-    pub(crate) missing_accessor2: Option<u64>,
+    pub(crate) missing_value_for_accessor1: Option<u64>,
+    pub(crate) missing_value_for_accessor2: Option<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
@@ -54,8 +54,7 @@ impl AggregationWithAccessor {
         reader: &SegmentReader,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
-        let mut missing_accessor1 = None;
-        let mut missing_accessor2 = None;
+        let mut missing_value_for_accessor1 = None;
         let mut str_dict_column = None;
         use AggregationVariants::*;
         let acc_field_types: Vec<(Column, ColumnType)> = match &agg.agg {
@@ -139,6 +138,35 @@ impl AggregationWithAccessor {
             .collect::<crate::Result<_>>()?;
         Ok(aggs)
     }
+}
+
+fn handle_missing(
+    column_type: ColumnType,
+    missing: &Key,
+    field_name: &str,
+    second_column: Option<&Column>,
+) -> crate::Result<Option<u64>> {
+    if let Some(_column) = second_column {
+        return Err(crate::TantivyError::InvalidArgument(format!(
+            "Missing value for field {} is not supported for multiple columns",
+            field_name
+        )));
+    }
+    let missing_val = match missing {
+        Key::Str(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        // Allow fallback to number on text fields
+        Key::F64(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        Key::F64(val) if column_type.numerical_type().is_some() => {
+            f64_to_fastfield_u64(*val, &column_type)
+        }
+        _ => {
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Missing value {:?} for field {} is not supported for column type {:?}",
+                missing, field_name, column_type
+            )));
+        }
+    };
+    Ok(missing_val)
 }
 
 fn get_numeric_or_date_column_types() -> &'static [ColumnType] {

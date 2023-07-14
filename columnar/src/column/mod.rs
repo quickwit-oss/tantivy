@@ -130,7 +130,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
             .select_batch_in_place(selected_docid_range.start, doc_ids);
     }
 
-    /// Fils the output vector with the (possibly multiple values that are associated_with
+    /// Fills the output vector with the (possibly multiple values that are associated_with
     /// `row_id`.
     ///
     /// This method clears the `output` vector.

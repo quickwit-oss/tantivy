@@ -151,6 +151,23 @@ pub struct TermsAggregation {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "missing": "NO_DATA" }
+    ///
+    /// # Internal
+    ///
+    /// Internally, `missing` requires some specialized handling in some scenarios.
+    ///
+    /// Simple Case:
+    /// In the simplest case, we can just put the missing value in the termmap use that. In case of
+    /// text we put a special u64::MAX and replace it at the end with the actual missing value,
+    /// when loading the text.
+    /// Special Case 1:
+    /// If we have multiple columns on one field, we need to have a union on the indices on both
+    /// columns, to find docids without a value. That requires a special missing aggreggation.
+    /// Special Case 2: if the key is of type text and the column is numerical, we also need to use
+    /// the special missing aggregation, since there is no mechanism in the numerical column to
+    /// add text.
+    ///
+    ///
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub missing: Option<Key>,
 }
@@ -284,7 +301,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
         let mem_pre = self.get_memory_consumption();
 
-        if let Some(missing) = bucket_agg_accessor.missing_accessor1 {
+        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor1 {
             bucket_agg_accessor
                 .column_block_accessor
                 .fetch_block_with_missing(docs, &bucket_agg_accessor.accessor, missing);
@@ -1480,7 +1497,7 @@ mod tests {
     fn terms_aggregation_missing_multi_value() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", FAST);
-        let id_field = schema_builder.add_text_field("id", FAST);
+        let id_field = schema_builder.add_u64_field("id", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
@@ -1565,12 +1582,50 @@ mod tests {
 
         Ok(())
     }
+    #[test]
+    fn terms_aggregation_missing_simple_id() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                id_field => 1u64,
+            ))?;
+            // Missing
+            index_writer.add_document(doc!())?;
+            index_writer.add_document(doc!())?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_ids": {
+                "terms": {
+                    "field": "id",
+                    "missing": 1337
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // id field
+        assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
+        assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
+        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
 
     #[test]
     fn terms_aggregation_missing1() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", FAST);
-        let id_field = schema_builder.add_text_field("id", FAST);
+        let id_field = schema_builder.add_u64_field("id", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
@@ -1657,7 +1712,7 @@ mod tests {
     fn terms_aggregation_missing_empty() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("text", FAST);
-        schema_builder.add_text_field("id", FAST);
+        schema_builder.add_u64_field("id", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
@@ -1717,7 +1772,8 @@ mod tests {
     }
 
     #[test]
-    // TODO: This is not yet working correctly
+    #[ignore]
+    // TODO: This is not yet implemented
     fn terms_aggregation_missing_mixed_type() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let json = schema_builder.add_json_field("json", FAST);
