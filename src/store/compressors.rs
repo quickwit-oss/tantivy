@@ -19,12 +19,6 @@ pub enum Compressor {
     /// Use the lz4 compressor (block format)
     #[cfg(feature = "lz4-compression")]
     Lz4,
-    /// Use the brotli compressor
-    #[cfg(feature = "brotli-compression")]
-    Brotli,
-    /// Use the snap compressor
-    #[cfg(feature = "snappy-compression")]
-    Snappy,
     /// Use the zstd compressor
     #[cfg(feature = "zstd-compression")]
     Zstd(ZstdCompressor),
@@ -37,10 +31,6 @@ impl Serialize for Compressor {
             Compressor::None => serializer.serialize_str("none"),
             #[cfg(feature = "lz4-compression")]
             Compressor::Lz4 => serializer.serialize_str("lz4"),
-            #[cfg(feature = "brotli-compression")]
-            Compressor::Brotli => serializer.serialize_str("brotli"),
-            #[cfg(feature = "snappy-compression")]
-            Compressor::Snappy => serializer.serialize_str("snappy"),
             #[cfg(feature = "zstd-compression")]
             Compressor::Zstd(zstd) => serializer.serialize_str(&zstd.ser_to_string()),
         }
@@ -61,24 +51,6 @@ impl<'de> Deserialize<'de> for Compressor {
                     "unsupported variant `lz4`, please enable Tantivy's `lz4-compression` feature",
                 ))
             }
-            #[cfg(feature = "brotli-compression")]
-            "brotli" => Compressor::Brotli,
-            #[cfg(not(feature = "brotli-compression"))]
-            "brotli" => {
-                return Err(serde::de::Error::custom(
-                    "unsupported variant `brotli`, please enable Tantivy's `brotli-compression` \
-                     feature",
-                ))
-            }
-            #[cfg(feature = "snappy-compression")]
-            "snappy" => Compressor::Snappy,
-            #[cfg(not(feature = "snappy-compression"))]
-            "snappy" => {
-                return Err(serde::de::Error::custom(
-                    "unsupported variant `snappy`, please enable Tantivy's `snappy-compression` \
-                     feature",
-                ))
-            }
             #[cfg(feature = "zstd-compression")]
             _ if buf.starts_with("zstd") => Compressor::Zstd(
                 ZstdCompressor::deser_from_str(&buf).map_err(serde::de::Error::custom)?,
@@ -97,10 +69,6 @@ impl<'de> Deserialize<'de> for Compressor {
                         "none",
                         #[cfg(feature = "lz4-compression")]
                         "lz4",
-                        #[cfg(feature = "brotli-compression")]
-                        "brotli",
-                        #[cfg(feature = "snappy-compression")]
-                        "snappy",
                         #[cfg(feature = "zstd-compression")]
                         "zstd",
                         #[cfg(feature = "zstd-compression")]
@@ -173,12 +141,6 @@ impl Default for Compressor {
         #[cfg(feature = "lz4-compression")]
         return Compressor::Lz4;
 
-        #[cfg(feature = "brotli-compression")]
-        return Compressor::Brotli;
-
-        #[cfg(feature = "snappy-compression")]
-        return Compressor::Snappy;
-
         #[cfg(feature = "zstd-compression")]
         return Compressor::Zstd(ZstdCompressor::default());
 
@@ -201,10 +163,6 @@ impl Compressor {
             }
             #[cfg(feature = "lz4-compression")]
             Self::Lz4 => super::compression_lz4_block::compress(uncompressed, compressed),
-            #[cfg(feature = "brotli-compression")]
-            Self::Brotli => super::compression_brotli::compress(uncompressed, compressed),
-            #[cfg(feature = "snappy-compression")]
-            Self::Snappy => super::compression_snap::compress(uncompressed, compressed),
             #[cfg(feature = "zstd-compression")]
             Self::Zstd(_zstd_compressor) => super::compression_zstd_block::compress(
                 uncompressed,

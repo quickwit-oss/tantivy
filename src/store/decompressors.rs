@@ -18,12 +18,6 @@ pub enum Decompressor {
     /// Use the lz4 decompressor (block format)
     #[cfg(feature = "lz4-compression")]
     Lz4,
-    /// Use the brotli decompressor
-    #[cfg(feature = "brotli-compression")]
-    Brotli,
-    /// Use the snap decompressor
-    #[cfg(feature = "snappy-compression")]
-    Snappy,
     /// Use the zstd decompressor
     #[cfg(feature = "zstd-compression")]
     Zstd,
@@ -35,10 +29,6 @@ impl From<Compressor> for Decompressor {
             Compressor::None => Decompressor::None,
             #[cfg(feature = "lz4-compression")]
             Compressor::Lz4 => Decompressor::Lz4,
-            #[cfg(feature = "brotli-compression")]
-            Compressor::Brotli => Decompressor::Brotli,
-            #[cfg(feature = "snappy-compression")]
-            Compressor::Snappy => Decompressor::Snappy,
             #[cfg(feature = "zstd-compression")]
             Compressor::Zstd(_) => Decompressor::Zstd,
         }
@@ -51,10 +41,6 @@ impl Decompressor {
             0 => Decompressor::None,
             #[cfg(feature = "lz4-compression")]
             1 => Decompressor::Lz4,
-            #[cfg(feature = "brotli-compression")]
-            2 => Decompressor::Brotli,
-            #[cfg(feature = "snappy-compression")]
-            3 => Decompressor::Snappy,
             #[cfg(feature = "zstd-compression")]
             4 => Decompressor::Zstd,
             _ => panic!("unknown compressor id {id:?}"),
@@ -66,10 +52,6 @@ impl Decompressor {
             Self::None => 0,
             #[cfg(feature = "lz4-compression")]
             Self::Lz4 => 1,
-            #[cfg(feature = "brotli-compression")]
-            Self::Brotli => 2,
-            #[cfg(feature = "snappy-compression")]
-            Self::Snappy => 3,
             #[cfg(feature = "zstd-compression")]
             Self::Zstd => 4,
         }
@@ -95,10 +77,6 @@ impl Decompressor {
             }
             #[cfg(feature = "lz4-compression")]
             Self::Lz4 => super::compression_lz4_block::decompress(compressed, decompressed),
-            #[cfg(feature = "brotli-compression")]
-            Self::Brotli => super::compression_brotli::decompress(compressed, decompressed),
-            #[cfg(feature = "snappy-compression")]
-            Self::Snappy => super::compression_snap::decompress(compressed, decompressed),
             #[cfg(feature = "zstd-compression")]
             Self::Zstd => super::compression_zstd_block::decompress(compressed, decompressed),
         }
@@ -115,10 +93,6 @@ mod tests {
         assert_eq!(Decompressor::from(Compressor::None), Decompressor::None);
         #[cfg(feature = "lz4-compression")]
         assert_eq!(Decompressor::from(Compressor::Lz4), Decompressor::Lz4);
-        #[cfg(feature = "brotli-compression")]
-        assert_eq!(Decompressor::from(Compressor::Brotli), Decompressor::Brotli);
-        #[cfg(feature = "snappy-compression")]
-        assert_eq!(Decompressor::from(Compressor::Snappy), Decompressor::Snappy);
         #[cfg(feature = "zstd-compression")]
         assert_eq!(
             Decompressor::from(Compressor::Zstd(Default::default())),

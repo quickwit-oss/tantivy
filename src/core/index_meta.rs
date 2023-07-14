@@ -485,19 +485,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(
-        feature = "lz4-compression",
-        feature = "brotli-compression",
-        feature = "snappy-compression",
-        feature = "zstd-compression"
-    ))]
+    #[cfg(all(feature = "lz4-compression", feature = "zstd-compression"))]
     fn test_serialize_metas_invalid_comp() {
         let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
         let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "unknown variant `zsstd`, expected one of `none`, `lz4`, `brotli`, `snappy`, `zstd`, \
+            "unknown variant `zsstd`, expected one of `none`, `lz4`, `zstd`, \
              `zstd(compression_level=5)` at line 1 column 96"
                 .to_string()
         );
