@@ -166,8 +166,6 @@ pub struct TermsAggregation {
     /// Special Case 2: if the key is of type text and the column is numerical, we also need to use
     /// the special missing aggregation, since there is no mechanism in the numerical column to
     /// add text.
-    ///
-    ///
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub missing: Option<Key>,
 }
