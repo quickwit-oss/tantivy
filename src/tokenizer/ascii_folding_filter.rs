@@ -5,8 +5,8 @@ use super::{Token, TokenFilter, TokenStream, Tokenizer};
 /// `AsciiFoldingFilter` converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
 /// block) into their ASCII equivalents, if one exists.
-/// If `preserve_original` is `true`, the filter emits both folded token and
-/// original token with the same position if tokens are different.
+/// If `preserve_original` is `true`, the filter emits both original token and
+/// folded token with the same position if tokens are different.
 #[derive(Clone, Default)]
 pub struct AsciiFoldingFilter {
     preserve_original: bool,
@@ -45,7 +45,7 @@ impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
         self.buffer.clear();
         AsciiFoldingFilterTokenStream {
             preserve_original: self.preserve_original,
-            emit_original_token_on_advance: false,
+            emit_folded_token_on_advance: false,
             buffer: &mut self.buffer,
             tail: self.tokenizer.token_stream(text),
         }
@@ -54,29 +54,31 @@ impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
 
 pub struct AsciiFoldingFilterTokenStream<'a, T> {
     preserve_original: bool,
-    emit_original_token_on_advance: bool,
+    emit_folded_token_on_advance: bool,
     buffer: &'a mut String,
     tail: T,
 }
 
 impl<'a, T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'a, T> {
     fn advance(&mut self) -> bool {
-        if self.emit_original_token_on_advance {
-            self.emit_original_token_on_advance = false;
-            mem::swap(self.buffer, &mut self.tail.token_mut().text);
+        if self.emit_folded_token_on_advance {
+            self.emit_folded_token_on_advance = false;
+            mem::swap(&mut self.tail.token_mut().text, self.buffer);
             return true;
         }
         if !self.tail.advance() {
             return false;
         }
+        let mut text_has_changed = false;
         if !self.token_mut().text.is_ascii() {
-            let text_has_changed = to_ascii(&self.tail.token().text, self.buffer);
+            text_has_changed = to_ascii(&self.tail.token().text, self.buffer);
+        }
+        // If preserve original is true and orginal is different from folded text,
+        // the folded token will be emitted on the next call to `advance`.
+        if self.preserve_original && text_has_changed {
+            self.emit_folded_token_on_advance = true;
+        } else if text_has_changed {
             mem::swap(&mut self.tail.token_mut().text, self.buffer);
-            // If preserve original is true and orginal is different from folded text,
-            // the orginal token will be emitted on the next call to `advance`.
-            if self.preserve_original && text_has_changed {
-                self.emit_original_token_on_advance = true;
-            }
         }
         true
     }
@@ -1603,9 +1605,9 @@ mod tests {
         assert_eq!(&folding_helper("âäàéè", false), &["aaaee"]);
         assert_eq!(
             &folding_helper("Ràmon âäàéè ", true),
-            &["Ramon", "Ràmon", "aaaee", "âäàéè"]
+            &["Ràmon", "Ramon", "âäàéè", "aaaee"]
         );
-        assert_eq!(&folding_helper("Ràmon", true), &["Ramon", "Ràmon"]);
+        assert_eq!(&folding_helper("Ràmon", true), &["Ràmon", "Ramon"]);
     }
 
     #[test]
