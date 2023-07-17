@@ -18,7 +18,7 @@ use super::{IntermediateStats, SegmentStatsCollector};
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CountAggregation {
-    /// The field name to compute the minimum on.
+    /// The field name to compute the count on.
     pub field: String,
 }
 
@@ -51,7 +51,7 @@ impl IntermediateCount {
     pub fn merge_fruits(&mut self, other: IntermediateCount) {
         self.stats.merge_fruits(other.stats);
     }
-    /// Computes the final minimum value.
+    /// Computes the final count value.
     pub fn finalize(&self) -> Option<f64> {
         Some(self.stats.finalize().count as f64)
     }
