@@ -3,16 +3,23 @@
 mod occur;
 mod query_grammar;
 mod user_input_ast;
+mod infallible;
 
 pub use crate::occur::Occur;
-use crate::query_grammar::parse_to_ast;
+use crate::query_grammar::{parse_to_ast, parse_to_ast_lenient};
 pub use crate::user_input_ast::{
     Delimiter, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
 };
 
 pub struct Error;
 
+/// Parse a query
 pub fn parse_query(query: &str) -> Result<UserInputAst, Error> {
     let (_remaining, user_input_ast) = parse_to_ast(query).map_err(|_| Error)?;
     Ok(user_input_ast)
+}
+
+/// Parse a query, trying to recover from syntax errors, and giving hints toward fixing errors.
+pub fn parse_query_leniet(query: &str) -> (UserInputAst, Vec<(usize, String)>) {
+    parse_to_ast_lenient(query)
 }
