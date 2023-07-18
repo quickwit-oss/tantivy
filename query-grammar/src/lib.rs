@@ -1,9 +1,9 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+mod infallible;
 mod occur;
 mod query_grammar;
 mod user_input_ast;
-mod infallible;
 
 pub use crate::occur::Occur;
 use crate::query_grammar::{parse_to_ast, parse_to_ast_lenient};

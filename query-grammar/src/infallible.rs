@@ -2,35 +2,33 @@
 
 use nom::{IResult, InputLength};
 pub type ErrorList = Vec<(usize, String)>;
-pub type JResult<I,O> = IResult<I, (O, ErrorList), std::convert::Infallible>;
+pub type JResult<I, O> = IResult<I, (O, ErrorList), std::convert::Infallible>;
 
 // when rfcs#1733 get stabilized, this can make things clearer
 // trait InfallibleParser<I, O> = nom::Parser<I, (O, ErrorList), std::convert::Infallible>;
 
 // TODO space0 and space1: space0 can't fail, space1 can parse nothing but reports missing space
 
-
 /// A variant of the classical `opt` parser, except it returns an infallible error type.
 ///
 /// It's less generic than the original to ease type resolution in the rest of the code.
-pub fn opt_i<I: Clone, O, F>(mut f: F) -> impl FnMut(I) -> JResult<I, Option<O>> where
-  F: nom::Parser<I, O, nom::error::Error<I>>,
-{
-  move |input: I| {
-    let i = input.clone();
-    match f.parse(input) {
-      Ok((i, o)) => Ok((i, (Some(o), Vec::new()))),
-      Err(_) => Ok((i, (None, Vec::new()))),
+pub fn opt_i<I: Clone, O, F>(mut f: F) -> impl FnMut(I) -> JResult<I, Option<O>>
+where F: nom::Parser<I, O, nom::error::Error<I>> {
+    move |input: I| {
+        let i = input.clone();
+        match f.parse(input) {
+            Ok((i, o)) => Ok((i, (Some(o), Vec::new()))),
+            Err(_) => Ok((i, (None, Vec::new()))),
+        }
     }
-  } 
 }
 
-pub fn fallible<I, O, E: nom::error::ParseError<I>, F>(mut f: F) -> impl FnMut(I) -> IResult<I, O, E>
-where F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>
-{   
+pub fn fallible<I, O, E: nom::error::ParseError<I>, F>(
+    mut f: F,
+) -> impl FnMut(I) -> IResult<I, O, E>
+where F: nom::Parser<I, (O, ErrorList), std::convert::Infallible> {
     use nom::Err;
-    move |input: I|
-    match f.parse(input) {
+    move |input: I| match f.parse(input) {
         Ok((input, (output, _err))) => Ok((input, output)),
         Err(Err::Incomplete(needed)) => Err(Err::Incomplete(needed)),
         Err(Err::Error(val)) | Err(Err::Failure(val)) => match val {},
@@ -38,23 +36,23 @@ where F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>
 }
 
 pub fn delimited_infallible<I, O1, O2, O3, F, G, H>(
-  mut first: F,
-  mut second: G,
-  mut third: H,
+    mut first: F,
+    mut second: G,
+    mut third: H,
 ) -> impl FnMut(I) -> JResult<I, O2>
 where
-  F: nom::Parser<I, (O1, ErrorList), std::convert::Infallible>,
-  G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
-  H: nom::Parser<I, (O3, ErrorList), std::convert::Infallible>,
+    F: nom::Parser<I, (O1, ErrorList), std::convert::Infallible>,
+    G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
+    H: nom::Parser<I, (O3, ErrorList), std::convert::Infallible>,
 {
-  move |input: I| {
-    let (input, (_, mut err)) = first.parse(input)?;
-    let (input, (o2, mut err2)) = second.parse(input)?;
-    err.append(&mut err2);
-    let (input, (_, mut err3)) = third.parse(input)?;
-    err.append(&mut err3);
-    Ok((input, (o2, err)))
-  }
+    move |input: I| {
+        let (input, (_, mut err)) = first.parse(input)?;
+        let (input, (o2, mut err2)) = second.parse(input)?;
+        err.append(&mut err2);
+        let (input, (_, mut err3)) = third.parse(input)?;
+        err.append(&mut err3);
+        Ok((input, (o2, err)))
+    }
 }
 
 // Parse nothing. Just a lazy way to not implement terminated/preceded and use delimited instead
@@ -63,18 +61,17 @@ pub fn nothing(i: &str) -> JResult<&str, ()> {
 }
 
 pub trait TupleInfallible<I, O> {
-  /// Parses the input and returns a tuple of results of each parser.
-  fn parse(&mut self, input: I) -> JResult<I, O>;
+    /// Parses the input and returns a tuple of results of each parser.
+    fn parse(&mut self, input: I) -> JResult<I, O>;
 }
 
 impl<Input, Output, F: nom::Parser<Input, (Output, ErrorList), std::convert::Infallible>>
-  TupleInfallible<Input, (Output,)> for (F,)
+    TupleInfallible<Input, (Output,)> for (F,)
 {
-  fn parse(&mut self, input: Input) -> JResult<Input, (Output,)> {
-    self.0.parse(input).map(|(i, (o,e))| (i, ((o,),e)))
-  }
+    fn parse(&mut self, input: Input) -> JResult<Input, (Output,)> {
+        self.0.parse(input).map(|(i, (o, e))| (i, ((o,), e)))
+    }
 }
-
 
 // these macros are heavily copied from nom, with some minor adaptations for our type
 macro_rules! tuple_trait(
@@ -154,73 +151,72 @@ macro_rules! succ (
 tuple_trait!(FnA A, FnB B, FnC C, FnD D, FnE E, FnF F, FnG G, FnH H, FnI I, FnJ J, FnK K, FnL L,
   FnM M, FnN N, FnO O, FnP P, FnQ Q, FnR R, FnS S, FnT T, FnU U);
 
-
 // Special case: implement `TupleInfallible` for `()`, the unit type.
 // This can come up in macros which accept a variable number of arguments.
 // Literally, `()` is an empty tuple, so it should simply parse nothing.
 impl<I> TupleInfallible<I, ()> for () {
-  fn parse(&mut self, input: I) -> JResult<I, ()> {
-    Ok((input, ((), Vec::new())))
-  }
+    fn parse(&mut self, input: I) -> JResult<I, ()> {
+        Ok((input, ((), Vec::new())))
+    }
 }
 
 pub fn tuple_infallible<I, O, List: TupleInfallible<I, O>>(
-  mut l: List,
+    mut l: List,
 ) -> impl FnMut(I) -> JResult<I, O> {
-  move |i: I| l.parse(i)
+    move |i: I| l.parse(i)
 }
 
 pub fn separated_list_infallible<I, O, O2, F, G>(
-  mut sep: G,
-  mut f: F,
+    mut sep: G,
+    mut f: F,
 ) -> impl FnMut(I) -> JResult<I, Vec<O>>
 where
-  I: Clone + InputLength,
-  F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
-  G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
+    I: Clone + InputLength,
+    F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
+    G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
 {
-  move |mut i: I| {
-    let mut res = Vec::new();
-    let mut errors = Vec::new();
+    move |mut i: I| {
+        let mut res = Vec::new();
+        let mut errors = Vec::new();
 
-    match f.parse(i.clone()) {
-      Err(_) => unreachable!(),
-      Ok((i1, (o, mut err))) => {
-        errors.append(&mut err);
-        res.push(o);
-        i = i1;
-      }
-    }
-
-    loop {
-      let len = i.input_len();
-      match sep.parse(i.clone()) {
-        Err(_) => unreachable!(),
-        Ok((i1, (_, mut err))) => {
-          errors.append(&mut err);
-
-          match f.parse(i1.clone()) {
+        match f.parse(i.clone()) {
             Err(_) => unreachable!(),
-            Ok((i2, (o, mut err))) => {
-              // infinite loop check: the parser must always consume
-              // if we consumed nothing here, don't produce an element.
-              if i2.input_len() == len {
-                return Ok((i1, (res, errors))); 
-              }
-              res.push(o);
-              errors.append(&mut err);
-               i = i2;
+            Ok((i1, (o, mut err))) => {
+                errors.append(&mut err);
+                res.push(o);
+                i = i1;
             }
-          }
         }
-      }
+
+        loop {
+            let len = i.input_len();
+            match sep.parse(i.clone()) {
+                Err(_) => unreachable!(),
+                Ok((i1, (_, mut err))) => {
+                    errors.append(&mut err);
+
+                    match f.parse(i1.clone()) {
+                        Err(_) => unreachable!(),
+                        Ok((i2, (o, mut err))) => {
+                            // infinite loop check: the parser must always consume
+                            // if we consumed nothing here, don't produce an element.
+                            if i2.input_len() == len {
+                                return Ok((i1, (res, errors)));
+                            }
+                            res.push(o);
+                            errors.append(&mut err);
+                            i = i2;
+                        }
+                    }
+                }
+            }
+        }
     }
-  }
 }
 
 pub trait Alt<I, O> {
-  /// Tests each parser in the tuple and returns the result of the first one that succeeds
-  fn choice(&mut self, input: I) -> Option<JResult<I, O>>;
+    /// Tests each parser in the tuple and returns the result of the first one that succeeds
+    fn choice(&mut self, input: I) -> Option<JResult<I, O>>;
 }
 
 macro_rules! alt_trait(
@@ -280,12 +276,11 @@ alt_trait!(A1 A, B1 B, C1 C, D1 D, E1 E, F1 F, G1 G, H1 H, I1 I, J1 J, K1 K,
 ///
 /// In case no branch match, the default (fallible) parser is executed.
 pub fn alt_infallible<I: Clone, O, F, List: Alt<I, O>>(
-  mut l: List,
-  mut default: F,
-) -> impl FnMut(I) -> JResult<I, O> where
-  F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
+    mut l: List,
+    mut default: F,
+) -> impl FnMut(I) -> JResult<I, O>
+where
+    F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
 {
-  move |i: I| {
-      l.choice(i.clone()).unwrap_or_else(|| default.parse(i))
-  }
+    move |i: I| l.choice(i.clone()).unwrap_or_else(|| default.parse(i))
 }
