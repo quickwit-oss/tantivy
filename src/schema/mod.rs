@@ -1,6 +1,6 @@
 //! Schema definition for tantivy's indices.
-//!
 //! # Setting your schema in Tantivy
+//!
 //!
 //! Tantivy has a very strict schema.
 //! The schema defines information about the fields your index contains, that is, for each field:
@@ -152,6 +152,8 @@ pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes, JSON_END_OF_PATH};
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
 pub use self::value::Value;
+
+pub(crate) const DEFAULT_FAST_FIELD_TOKENIZER: &str = "default";
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

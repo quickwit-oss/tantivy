@@ -1293,13 +1293,13 @@ mod tests {
         // searching for terma, but min_doc_count will return all terms
         let res = exec_request_with_query(agg_req, &index, Some(("string2", "hit")))?;
 
-        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "a");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
         assert_eq!(
             res["my_texts"]["buckets"][0]["elhistogram"]["buckets"],
             json!([{ "doc_count": 1, "key": 1.0 }, { "doc_count": 1, "key": 2.0 } ])
         );
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "b");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
         assert_eq!(
             res["my_texts"]["buckets"][1]["elhistogram"]["buckets"],
@@ -1421,10 +1421,10 @@ mod tests {
         let res = exec_request_with_query(agg_req, &index, None).unwrap();
         println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
-        assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hallo Hallo");
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "hallo hallo");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
 
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "Hello Hello");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "hello hello");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
 
         Ok(())

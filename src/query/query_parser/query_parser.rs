@@ -956,7 +956,7 @@ mod test {
             .iter()
             .flat_map(|field_name| schema.get_field(field_name))
             .collect();
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         tokenizer_manager.register(
             "en_with_stop_words",
             TextAnalyzer::builder(SimpleTokenizer::default())
@@ -1447,7 +1447,7 @@ mod test {
         let title = schema_builder.add_text_field("title", text_options);
         let schema = schema_builder.build();
         let default_fields = vec![title];
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         let query_parser = QueryParser::new(schema, default_fields, tokenizer_manager);
 
         assert_matches!(
@@ -1622,7 +1622,8 @@ mod test {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field(r#"a\.b"#, STRING);
         let schema = schema_builder.build();
-        let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
+        let query_parser =
+            QueryParser::new(schema, Vec::new(), TokenizerManager::default_for_indexing());
         let query = query_parser.parse_query(r#"a\.b:hello"#).unwrap();
         assert_eq!(
             format!("{query:?}"),
@@ -1639,8 +1640,11 @@ mod test {
         schema_builder.add_text_field("first.toto.titi", STRING);
         schema_builder.add_text_field("third.a.b.c", STRING);
         let schema = schema_builder.build();
-        let query_parser =
-            QueryParser::new(schema.clone(), Vec::new(), TokenizerManager::default());
+        let query_parser = QueryParser::new(
+            schema.clone(),
+            Vec::new(),
+            TokenizerManager::default_for_indexing(),
+        );
         assert_eq!(
             query_parser.split_full_path("first.toto"),
             Some((schema.get_field("first.toto").unwrap(), ""))

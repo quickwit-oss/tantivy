@@ -120,8 +120,8 @@ impl IndexBuilder {
         Self {
             schema: None,
             index_settings: IndexSettings::default(),
-            tokenizer_manager: TokenizerManager::default(),
-            fast_field_tokenizer_manager: TokenizerManager::default(),
+            tokenizer_manager: TokenizerManager::default_for_indexing(),
+            fast_field_tokenizer_manager: TokenizerManager::default_for_fast_fields(),
         }
     }
 
@@ -400,8 +400,8 @@ impl Index {
             settings: metas.index_settings.clone(),
             directory,
             schema,
-            tokenizers: TokenizerManager::default(),
-            fast_field_tokenizers: TokenizerManager::default(),
+            tokenizers: TokenizerManager::default_for_indexing(),
+            fast_field_tokenizers: TokenizerManager::default_for_fast_fields(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
         }

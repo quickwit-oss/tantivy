@@ -27,6 +27,7 @@ pub struct TokenizerManager {
 
 impl TokenizerManager {
     /// Creates an empty tokenizer manager.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             tokenizers: Arc::new(RwLock::new(HashMap::new())),
@@ -51,12 +52,10 @@ impl TokenizerManager {
             .get(tokenizer_name)
             .cloned()
     }
-}
 
-impl Default for TokenizerManager {
     /// Creates an `TokenizerManager` prepopulated with
     /// the default pre-configured tokenizers of `tantivy`.
-    fn default() -> TokenizerManager {
+    pub fn default_for_indexing() -> TokenizerManager {
         let manager = TokenizerManager::new();
         manager.register("raw", RawTokenizer::default());
         manager.register(
@@ -75,6 +74,30 @@ impl Default for TokenizerManager {
                 .build(),
         );
         manager.register("whitespace", WhitespaceTokenizer::default());
+        manager
+    }
+
+    /// Creates an `TokenizerManager` prepopulated with
+    /// the default pre-configured tokenizers of `tantivy`
+    /// for fast fields.
+    ///
+    /// Fast fields usually do not really tokenize the text.
+    /// It is however very useful to filter / normalize the text.
+    pub fn default_for_fast_fields() -> TokenizerManager {
+        let manager = TokenizerManager::new();
+        let raw_tokenizer = TextAnalyzer::builder(RawTokenizer::default())
+            .filter(RemoveLongFilter::limit(255))
+            .build();
+        let lower_tokenizer = TextAnalyzer::builder(RawTokenizer::default())
+            .filter(RemoveLongFilter::limit(255))
+            .filter(LowerCaser)
+            .build();
+        manager.register(
+            crate::schema::DEFAULT_FAST_FIELD_TOKENIZER,
+            lower_tokenizer.clone(),
+        );
+        manager.register("raw", raw_tokenizer);
+        manager.register("lower", lower_tokenizer);
         manager
     }
 }
