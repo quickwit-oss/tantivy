@@ -63,17 +63,14 @@ fn word(i: &str) -> IResult<&str, &str> {
     )(i)
 }
 
-fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, &str> + '_ {
+fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, Option<&str>> + '_ {
     |i| {
-        map(
-            opt_i(preceded(
-                space0,
-                recognize(many0(satisfy(|c| {
-                    !c.is_whitespace() && !delimiter.contains(c)
-                }))),
-            )),
-            |(word, errors)| (word.unwrap(), errors), // many0 can't actually fail
-        )(i)
+        opt_i(preceded(
+            space0,
+            recognize(many1(satisfy(|c| {
+                !c.is_whitespace() && !delimiter.contains(c)
+            }))),
+        ))(i)
     }
 }
 
@@ -130,7 +127,7 @@ fn simple_term(i: &str) -> IResult<&str, (Delimiter, String)> {
 
 fn simple_term_infallible(
     delimiter: &str,
-) -> impl Fn(&str) -> JResult<&str, (Delimiter, String)> + '_ {
+) -> impl Fn(&str) -> JResult<&str, Option<(Delimiter, String)>> + '_ {
     |i| {
         let escaped_string = |delimiter| {
             // we need this because none_of can't accept an owned array of char.
@@ -149,10 +146,10 @@ fn simple_term_infallible(
         };
 
         let double_quotes = map(escaped_string('"'), |(phrase, errors)| {
-            ((Delimiter::DoubleQuotes, phrase), errors)
+            (Some((Delimiter::DoubleQuotes, phrase)), errors)
         });
         let simple_quotes = map(escaped_string('\''), |(phrase, errors)| {
-            ((Delimiter::SingleQuotes, phrase), errors)
+            (Some((Delimiter::SingleQuotes, phrase)), errors)
         });
 
         alt_infallible(
@@ -162,7 +159,7 @@ fn simple_term_infallible(
             ),
             // numbers are parsed with words in this case, as we allow string starting with a -
             map(word_infallible(delimiter), |(text, errors)| {
-                ((Delimiter::None, text.to_string()), errors)
+                (text.map(|text| (Delimiter::None, text.to_string())), errors)
             }),
         )(i)
     }
@@ -184,22 +181,37 @@ fn term_or_phrase(i: &str) -> IResult<&str, UserInputLeaf> {
     )(i)
 }
 
-fn term_or_phrase_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
+fn term_or_phrase_infallible(i: &str) -> JResult<&str, Option<UserInputLeaf>> {
     map(
         // ~* for slop/prefix, ) inside group or ast tree, ^ if boost
-        tuple_infallible((simple_term_infallible("~*)^"), slop_or_prefix_val)),
-        |(((delimiter, phrase), (slop, prefix)), errors)| {
-            (
-                UserInputLiteral {
-                    field_name: None,
-                    phrase,
-                    delimiter,
-                    slop,
-                    prefix,
-                }
-                .into(),
-                errors,
-            )
+        tuple_infallible((simple_term_infallible("*)^"), slop_or_prefix_val)),
+        |((delimiter_phrase, (slop, prefix)), errors)| {
+            let leaf = if let Some((delimiter, phrase)) = delimiter_phrase {
+                Some(
+                    UserInputLiteral {
+                        field_name: None,
+                        phrase,
+                        delimiter,
+                        slop,
+                        prefix,
+                    }
+                    .into(),
+                )
+            } else if slop != 0 {
+                Some(
+                    UserInputLiteral {
+                        field_name: None,
+                        phrase: "".to_string(),
+                        delimiter: Delimiter::None,
+                        slop,
+                        prefix,
+                    }
+                    .into(),
+                )
+            } else {
+                None
+            };
+            (leaf, errors)
         },
     )(i)
 }
@@ -267,7 +279,9 @@ fn term_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
         let (rest, ((occur, leaf, _), mut err)) =
             tuple_infallible((occur_symbol, term_or_phrase_infallible, opt_i(space0)))(i)?;
         errs.append(&mut err);
-        terms.push((occur, leaf.set_field(Some(field_name.clone())).into()));
+        if let Some(leaf) = leaf {
+            terms.push((occur, leaf.set_field(Some(field_name.clone())).into()));
+        }
         i = rest;
     }
 }
@@ -282,7 +296,7 @@ fn literal(i: &str) -> IResult<&str, UserInputAst> {
     ))(i)
 }
 
-fn literal_no_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
+fn literal_no_group_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
     map(
         tuple_infallible((
             opt_i(field_name),
@@ -291,20 +305,28 @@ fn literal_no_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
                 (
                     (
                         value((), tuple((tag("IN"), space0, char('[')))),
-                        set_infallible,
+                        map(set_infallible, |(set, errs)| (Some(set), errs)),
                     ),
-                    (value((), peek(one_of("{[><"))), range_infallible),
+                    (
+                        value((), peek(one_of("{[><"))),
+                        map(range_infallible, |(range, errs)| (Some(range), errs)),
+                    ),
                 ),
                 delimited_infallible(opt_i(space0), term_or_phrase_infallible, nothing),
             ),
         )),
-        |((field_name, _, leaf), errors)| (leaf.set_field(field_name).into(), errors),
+        |((field_name, _, leaf), errors)| {
+            (leaf.map(|leaf| leaf.set_field(field_name).into()), errors)
+        },
     )(i)
 }
 
-fn literal_infallible(i: &str) -> JResult<&str, UserInputAst> {
+fn literal_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
     alt_infallible(
-        ((term_group_precond, term_group_infallible),),
+        ((
+            term_group_precond,
+            map(term_group_infallible, |(group, errs)| (Some(group), errs)),
+        ),),
         literal_no_group_infallible,
     )(i)
 }
@@ -401,21 +423,21 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
             opt_i(space0),
             word_infallible("]}"),
             opt_i(space1),
-            opt_i(tag("TO ")),
-            opt_i(space0),
+            opt_i(terminated(
+                tag("TO"),
+                alt((value((), space1), value((), eof))),
+            )),
             word_infallible("]}"),
             opt_i(one_of("]}")),
         )),
-        |(
-            (lower_bound_kind, _space0, lower, _space1, to, _space2, upper, upper_bound_kind),
-            errs,
-        )| {
+        |((lower_bound_kind, _space0, lower, _space1, to, upper, upper_bound_kind), errs)| {
             let lower_bound = match (lower_bound_kind, lower) {
-                (_, "*") => UserInputBound::Unbounded,
+                (_, Some("*")) => UserInputBound::Unbounded,
+                (_, None) => UserInputBound::Unbounded,
                 // if it is some, TO was actually the bound (i.e. [TO TO something])
-                (_, "TO") if to.is_none() => UserInputBound::Unbounded,
-                (Some('['), bound) => UserInputBound::Inclusive(bound.to_string()),
-                (Some('{'), bound) => UserInputBound::Exclusive(bound.to_string()),
+                (_, Some("TO")) if to.is_none() => UserInputBound::Unbounded,
+                (Some('['), Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
+                (Some('{'), Some(bound)) => UserInputBound::Exclusive(bound.to_string()),
                 _ => unreachable!("precondition failed, range did not start with [ or {{"),
             };
             if to.is_none() {
@@ -423,12 +445,12 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
             }
 
             let upper_bound = match (upper_bound_kind, upper) {
-                (_, "*") => UserInputBound::Unbounded,
-                (_, "") => UserInputBound::Unbounded,
-                (Some(']'), bound) => UserInputBound::Inclusive(bound.to_string()),
-                (Some('}'), bound) => UserInputBound::Exclusive(bound.to_string()),
+                (_, Some("*")) => UserInputBound::Unbounded,
+                (_, None) => UserInputBound::Unbounded,
+                (Some(']'), Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
+                (Some('}'), Some(bound)) => UserInputBound::Exclusive(bound.to_string()),
                 // the end is missing, assume this is an inclusive bound
-                (_, bound) => UserInputBound::Inclusive(bound.to_string()),
+                (_, Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
             };
             ((lower_bound, upper_bound), errs)
         },
@@ -442,7 +464,9 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
                     map(word_infallible(""), |(bound, err)| {
                         (
                             (
-                                UserInputBound::Inclusive(bound.to_string()),
+                                bound
+                                    .map(|bound| UserInputBound::Inclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
                                 UserInputBound::Unbounded,
                             ),
                             err,
@@ -455,7 +479,9 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
                         (
                             (
                                 UserInputBound::Unbounded,
-                                UserInputBound::Inclusive(bound.to_string()),
+                                bound
+                                    .map(|bound| UserInputBound::Inclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
                             ),
                             err,
                         )
@@ -466,7 +492,9 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
                     map(word_infallible(""), |(bound, err)| {
                         (
                             (
-                                UserInputBound::Exclusive(bound.to_string()),
+                                bound
+                                    .map(|bound| UserInputBound::Exclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
                                 UserInputBound::Unbounded,
                             ),
                             err,
@@ -479,7 +507,9 @@ fn range_infallible(i: &str) -> JResult<&str, UserInputLeaf> {
                         (
                             (
                                 UserInputBound::Unbounded,
-                                UserInputBound::Exclusive(bound.to_string()),
+                                bound
+                                    .map(|bound| UserInputBound::Exclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
                             ),
                             err,
                         )
@@ -555,10 +585,12 @@ fn set_infallible(mut i: &str) -> JResult<&str, UserInputLeaf> {
 
         // space0 should be space1 except for last iteration. Alternatively, it should go first,
         // but not be processed for the 1st iteration
-        let (rest, (((_, term), _), mut err)) =
+        let (rest, ((delim_term, _), mut err)) =
             tuple_infallible((simple_term_infallible("]"), opt_i(space0)))(i)?;
         errs.append(&mut err);
-        elements.push(term);
+        if let Some((_, term)) = delim_term {
+            elements.push(term);
+        }
         i = rest;
     }
 }
@@ -576,24 +608,27 @@ fn leaf(i: &str) -> IResult<&str, UserInputAst> {
     ))(i)
 }
 
-fn leaf_infallible(i: &str) -> JResult<&str, UserInputAst> {
+fn leaf_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
     alt_infallible(
         (
             (
                 value((), char('(')),
-                delimited_infallible(nothing, ast_infallible, opt_i(char(')'))),
+                map(
+                    delimited_infallible(nothing, ast_infallible, opt_i(char(')'))),
+                    |(ast, errs)| (Some(ast), errs),
+                ),
             ),
             (
                 value((), char('*')),
                 map(nothing, |_| {
-                    (UserInputAst::from(UserInputLeaf::All), Vec::new())
+                    (Some(UserInputAst::from(UserInputLeaf::All)), Vec::new())
                 }),
             ),
             (
                 value((), tag("NOT ")),
                 delimited_infallible(
                     opt_i(space0),
-                    map(leaf_infallible, |(res, err)| (negate(res), err)),
+                    map(leaf_infallible, |(res, err)| (res.map(negate), err)),
                     nothing,
                 ),
             ),
@@ -627,13 +662,14 @@ fn boosted_leaf(i: &str) -> IResult<&str, UserInputAst> {
     )(i)
 }
 
-fn boosted_leaf_infallible(i: &str) -> JResult<&str, UserInputAst> {
+fn boosted_leaf_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
     map(
         tuple_infallible((leaf_infallible, boost)),
         |((leaf, boost_opt), error)| match boost_opt {
-            Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
-                (UserInputAst::Boost(Box::new(leaf), boost), error)
-            }
+            Some(boost) if (boost - 1.0).abs() > f64::EPSILON => (
+                leaf.map(|leaf| UserInputAst::Boost(Box::new(leaf), boost)),
+                error,
+            ),
             _ => (leaf, error),
         },
     )(i)
@@ -652,7 +688,7 @@ fn occur_leaf(i: &str) -> IResult<&str, (Option<Occur>, UserInputAst)> {
 
 fn operand_occur_leaf_infallible(
     i: &str,
-) -> JResult<&str, (Option<BinaryOperand>, Option<Occur>, UserInputAst)> {
+) -> JResult<&str, (Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)> {
     // TODO maybe this should support multiple chained AND/OR, and "fuse" them?
     tuple_infallible((
         delimited_infallible(nothing, opt_i(binary_operand), opt_i(space0)),
@@ -700,8 +736,12 @@ fn aggregate_binary_expressions(
 }
 
 fn aggregate_infallible_expressions(
-    mut leafs: Vec<(Option<BinaryOperand>, Option<Occur>, UserInputAst)>,
+    leafs: Vec<(Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)>,
 ) -> (UserInputAst, ErrorList) {
+    let mut leafs: Vec<(_, _, UserInputAst)> = leafs
+        .into_iter()
+        .filter_map(|(operand, occur, ast)| ast.map(|ast| (operand, occur, ast)))
+        .collect();
     if leafs.is_empty() {
         // TODO should this produce an error?
         return (UserInputAst::empty_query(), Vec::new());
@@ -712,7 +752,7 @@ fn aggregate_infallible_expressions(
 
     if leafs.len() == 1 {
         match leafs.remove(0) {
-            (_, None, ast) => return (ast, Vec::new()),
+            (_, occur, ast) if occur != Some(Occur::MustNot) => return (ast, Vec::new()),
             (_, occur, ast) => return (UserInputAst::Clause(vec![(occur, ast)]), Vec::new()),
         }
     }
@@ -809,7 +849,7 @@ pub fn parse_to_ast_lenient(i: &str) -> (UserInputAst, ErrorList) {
     error
         .iter_mut()
         .for_each(|error| error.0 = i.len() - error.0);
-    (res, error)
+    (rewrite_ast(res), error)
 }
 
 /// Removes unnecessary children clauses in AST
@@ -902,8 +942,13 @@ mod test {
         assert_eq!(query_lenient_str, expected, "lenient parser failed");
     }
 
-    fn test_is_parse_err(query: &str) {
-        assert!(parse_to_ast(query).is_err());
+    #[track_caller]
+    fn test_is_parse_err(query: &str, lenient_expected: &str) {
+        assert!(parse_to_ast(query).is_err(), "strict parser succeeded");
+
+        let query_lenient = parse_to_ast_lenient(query).0;
+        let query_lenient_str = format!("{query_lenient:?}");
+        assert_eq!(query_lenient_str, lenient_expected, "lenient parser failed");
     }
 
     #[test]
@@ -920,16 +965,24 @@ mod test {
     }
 
     #[test]
+    fn test_parse_query_lenient_unfinished_quote() {
+        test_is_parse_err("\"www-form-encoded", "\"www-form-encoded\"");
+        // TODO strict parser default to parsing a normal term, and parse "'www-forme-encoded" (note
+        // the initial \')
+        // test_is_parse_err("'www-form-encoded", "'www-form-encoded'");
+    }
+
+    #[test]
     fn test_parse_query_to_ast_not_op() {
-        assert!(parse_to_ast("NOT").is_err(),);
+        test_is_parse_err("NOT", "NOT");
         test_parse_query_to_ast_helper("NOTa", "NOTa");
         test_parse_query_to_ast_helper("NOT a", "(-a)");
     }
 
     #[test]
     fn test_boosting() {
-        assert!(parse_to_ast("a^2^3").is_err());
-        assert!(parse_to_ast("a^2^").is_err());
+        test_is_parse_err("a^2^3", "(a)^2");
+        test_is_parse_err("a^2^", "(a)^2");
         test_parse_query_to_ast_helper("a^3", "(a)^3");
         test_parse_query_to_ast_helper("a^3 b^2", "(*(a)^3 *(b)^2)");
         test_parse_query_to_ast_helper("a^1", "a");
@@ -941,10 +994,12 @@ mod test {
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
-        assert!(parse_to_ast("a OR b aaa").is_err());
-        assert!(parse_to_ast("a AND b aaa").is_err());
-        assert!(parse_to_ast("aaa a OR b ").is_err());
-        assert!(parse_to_ast("aaa ccc a OR b ").is_err());
+        test_is_parse_err("a OR b aaa", "(?a ?b ?aaa)");
+        test_is_parse_err("a AND b aaa", "(?(+a +b) ?aaa)");
+        test_is_parse_err("aaa a OR b ", "(?aaa ?a ?b)");
+        test_is_parse_err("aaa ccc a OR b ", "(?aaa ?ccc ?a ?b)");
+        test_is_parse_err("aaa a AND b ", "(?aaa ?(+a +b))");
+        test_is_parse_err("aaa ccc a AND b ", "(?aaa ?ccc ?(+a +b))");
     }
 
     #[test]
@@ -1032,7 +1087,7 @@ mod test {
     fn test_range_parser() {
         // testing the range() parser separately
         let res = literal("title: <hello")
-            .expect("Cannot parse felxible bound word")
+            .expect("Cannot parse flexible bound word")
             .1;
         let expected = UserInputLeaf::Range {
             field: Some("title".to_string()),
@@ -1111,6 +1166,115 @@ mod test {
     }
 
     #[test]
+    fn test_range_parser_lenient() {
+        let literal = |query| literal_infallible(query).unwrap().1 .0.unwrap();
+
+        // same tests as non-lenient
+        let res = literal("title: <hello");
+        let expected = UserInputLeaf::Range {
+            field: Some("title".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Exclusive("hello".to_string()),
+        }
+        .into();
+        let res2 = literal("title:{* TO hello}");
+        assert_eq!(res, expected);
+        assert_eq!(res2, expected);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("weight".to_string()),
+            lower: UserInputBound::Inclusive("71.2".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res3 = literal("weight: >=71.2");
+        let res4 = literal("weight:[71.2 TO *}");
+        assert_eq!(res3, expected_weight);
+        assert_eq!(res4, expected_weight);
+
+        let expected_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
+        }
+        .into();
+        let res5 = literal("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]");
+        assert_eq!(res5, expected_dates);
+
+        let expected_flexible_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
+        }
+        .into();
+
+        let res6 = literal("date_field: <=2021-08-02T18:54:42.12345+02:30");
+        assert_eq!(res6, expected_flexible_dates);
+        // IP Range Unbounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::1".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip: >=::1");
+        let res2 = literal("ip:[::1 TO *}");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+
+        // IP Range Bounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52}");
+        assert_eq!(res1, expected_weight);
+
+        // additional tests
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Inclusive("::0.0.0.52".to_string()),
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52");
+        let res2 = literal("ip:[::0.0.0.50 ::0.0.0.52");
+        let res3 = literal("ip:[::0.0.0.50 ::0.0.0.52 AND ...");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ");
+        let res2 = literal("ip:[::0.0.0.50 TO");
+        let res3 = literal("ip:[::0.0.0.50");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip:[ ");
+        let res2 = literal("ip:{ ");
+        let res3 = literal("ip:[");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+        // we don't test ip: as that is not a valid range request as per percondition
+    }
+
+    #[test]
     fn test_parse_query_to_triming_spaces() {
         test_parse_query_to_ast_helper("   abc", "abc");
         test_parse_query_to_ast_helper("abc ", "abc");
@@ -1120,12 +1284,15 @@ mod test {
         test_parse_query_to_ast_helper("a OR abc ", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR abc )", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR  abc) ", "(?a ?abc)");
+        test_is_parse_err("(a OR  abc ", "(?a ?abc)");
     }
 
     #[test]
     fn test_parse_query_term_group() {
         test_parse_query_to_ast_helper(r#"field:(abc)"#, r#"(*"field":abc)"#);
         test_parse_query_to_ast_helper(r#"field:(+a -"b c")"#, r#"(+"field":a -"field":"b c")"#);
+
+        test_is_parse_err(r#"field:(+a -"b c""#, r#"(+"field":a -"field":"b c")"#);
     }
 
     #[test]
@@ -1182,6 +1349,11 @@ mod test {
         test_parse_query_to_ast_helper("abc: IN [1]", r#""abc": IN ["1"]"#);
         test_parse_query_to_ast_helper("abc: IN []", r#""abc": IN []"#);
         test_parse_query_to_ast_helper("IN [1 2]", r#"IN ["1" "2"]"#);
+        test_is_parse_err("IN [1 2", r#"IN ["1" "2"]"#);
+
+        // TODO maybe support these too?
+        // test_is_parse_err("IN (1 2", r#"IN ["1" "2"]"#);
+        // test_is_parse_err("IN {1 2", r#"IN ["1" "2"]"#);
     }
 
     #[test]
@@ -1191,7 +1363,8 @@ mod test {
         test_parse_query_to_ast_helper("+a\\+b\\+c:toto", "\"a+b+c\":toto");
         test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+\"abc\":toto -titi)");
         test_parse_query_to_ast_helper("-abc:toto", "(-\"abc\":toto)");
-        test_is_parse_err("--abc:toto");
+        // TODO not entirely sure about this one (it's seen as a NOT '-abc:toto')
+        test_is_parse_err("--abc:toto", "(--abc:toto)");
         test_parse_query_to_ast_helper("abc:a b", "(*\"abc\":a *b)");
         test_parse_query_to_ast_helper("abc:\"a b\"", "\"abc\":\"a b\"");
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "\"foo\":[\"1\" TO \"5\"]");
@@ -1208,15 +1381,18 @@ mod test {
             "1.2.foo.bar:[1.1 TO *}",
             "\"1.2.foo.bar\":[\"1.1\" TO \"*\"}",
         );
-        test_is_parse_err("abc +    ");
+        test_is_parse_err("abc +    ", "abc");
     }
 
     #[test]
     fn test_slop() {
-        assert!(parse_to_ast("\"a b\"~").is_err());
-        assert!(parse_to_ast("foo:\"a b\"~").is_err());
-        assert!(parse_to_ast("\"a b\"~a").is_err());
-        assert!(parse_to_ast("\"a b\"~100000000000000000").is_err());
+        test_is_parse_err("\"a b\"~", "(*\"a b\" *~)");
+        test_is_parse_err("foo:\"a b\"~", "(*\"foo\":\"a b\" *~)");
+        test_is_parse_err("\"a b\"~a", "(*\"a b\" *~a)");
+        test_is_parse_err(
+            "\"a b\"~100000000000000000",
+            "(*\"a b\" *~100000000000000000)",
+        );
         test_parse_query_to_ast_helper("\"a b\"^2 ~4", "(*(\"a b\")^2 *~4)");
         test_parse_query_to_ast_helper("\"a b\"~4^2", "(\"a b\"~4)^2");
         test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
