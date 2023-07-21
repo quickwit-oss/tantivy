@@ -38,6 +38,6 @@ impl Ord for BlankRange {
 }
 impl PartialOrd for BlankRange {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.blank_size().cmp(&other.blank_size()))
+        Some(self.cmp(other))
     }
 }
