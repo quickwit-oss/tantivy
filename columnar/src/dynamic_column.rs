@@ -228,7 +228,7 @@ static_dynamic_conversions!(StrColumn, Str);
 static_dynamic_conversions!(BytesColumn, Bytes);
 static_dynamic_conversions!(Column<Ipv6Addr>, IpAddr);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DynamicColumnHandle {
     pub(crate) file_slice: FileSlice,
     pub(crate) column_type: ColumnType,
