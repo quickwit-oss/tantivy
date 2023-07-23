@@ -463,7 +463,7 @@ impl IntermediateBucketResult {
                 let buckets: Result<Vec<IntermediateHistogramBucketEntry>, TantivyError> =
                     buckets_left
                         .drain(..)
-                        .merge_join_by(buckets_right.into_iter(), |left, right| {
+                        .merge_join_by(buckets_right, |left, right| {
                             left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
                         })
                         .map(|either| match either {

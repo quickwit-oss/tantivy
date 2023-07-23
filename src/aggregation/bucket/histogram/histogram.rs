@@ -453,15 +453,12 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
 
     let final_buckets: Vec<BucketEntry> = buckets
         .into_iter()
-        .merge_join_by(
-            fill_gaps_buckets.into_iter(),
-            |existing_bucket, fill_gaps_bucket| {
-                existing_bucket
-                    .key
-                    .partial_cmp(fill_gaps_bucket)
-                    .unwrap_or(Ordering::Equal)
-            },
-        )
+        .merge_join_by(fill_gaps_buckets, |existing_bucket, fill_gaps_bucket| {
+            existing_bucket
+                .key
+                .partial_cmp(fill_gaps_bucket)
+                .unwrap_or(Ordering::Equal)
+        })
         .map(|either| match either {
             // Ignore the generated bucket
             itertools::EitherOrBoth::Both(existing, _) => existing,

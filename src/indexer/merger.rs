@@ -178,7 +178,7 @@ impl IndexMerger {
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
-        for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt.into_iter()) {
+        for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
                 let reader =
                     SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;

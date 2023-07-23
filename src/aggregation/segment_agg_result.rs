@@ -104,7 +104,7 @@ pub(crate) fn build_single_agg_segment_collector(
         Range(range_req) => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             range_req,
             &mut req.sub_aggregation,
-            &mut req.limits,
+            &req.limits,
             req.field_type,
             accessor_idx,
         )?)),

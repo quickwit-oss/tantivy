@@ -167,7 +167,7 @@ fn index_documents(
     memory_budget: usize,
     segment: Segment,
     grouped_document_iterator: &mut dyn Iterator<Item = AddBatch>,
-    segment_updater: &mut SegmentUpdater,
+    segment_updater: &SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone())?;
@@ -392,7 +392,7 @@ impl IndexWriter {
         let document_receiver_clone = self.operation_receiver()?;
         let index_writer_bomb = self.index_writer_status.create_bomb();
 
-        let mut segment_updater = self.segment_updater.clone();
+        let segment_updater = self.segment_updater.clone();
 
         let mut delete_cursor = self.delete_queue.cursor();
 
@@ -428,7 +428,7 @@ impl IndexWriter {
                         mem_budget,
                         index.new_segment(),
                         &mut document_iterator,
-                        &mut segment_updater,
+                        &segment_updater,
                         delete_cursor.clone(),
                     )?;
                 }
