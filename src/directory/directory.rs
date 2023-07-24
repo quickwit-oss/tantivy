@@ -73,7 +73,7 @@ impl From<io::Error> for TryAcquireLockError {
 
 fn try_acquire_lock(
     filepath: &Path,
-    directory: &mut dyn Directory,
+    directory: &dyn Directory,
 ) -> Result<DirectoryLock, TryAcquireLockError> {
     let mut write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
@@ -191,10 +191,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// The method is blocking or not depending on the [`Lock`] object.
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
-        let mut box_directory = self.box_clone();
+        let box_directory = self.box_clone();
         let mut retry_policy = retry_policy(lock.is_blocking);
         loop {
-            match try_acquire_lock(&lock.filepath, &mut *box_directory) {
+            match try_acquire_lock(&lock.filepath, &*box_directory) {
                 Ok(result) => {
                     return Ok(result);
                 }

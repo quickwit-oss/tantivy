@@ -89,6 +89,7 @@ pub struct ZstdCompressor {
     pub compression_level: Option<i32>,
 }
 
+#[cfg(feature = "zstd-compression")]
 impl ZstdCompressor {
     fn deser_from_str(val: &str) -> Result<ZstdCompressor, String> {
         if !val.starts_with("zstd") {
@@ -173,7 +174,7 @@ impl Compressor {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(feature = "zstd-compression", test))]
 mod tests {
     use super::*;
 
