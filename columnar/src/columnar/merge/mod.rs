@@ -384,6 +384,7 @@ fn group_columns_for_merge_iter<'a>(
     required_columns: &'a [(String, ColumnType)],
     merge_row_order: &'a MergeRowOrder,
 ) -> io::Result<impl Iterator<Item = io::Result<(Rc<str>, ColumnType, GroupedColumns)>> + 'a> {
+    // One iterator per columnar reader.
     let column_iters: Vec<_> = columnar_readers
         .iter()
         .enumerate()
@@ -403,18 +404,17 @@ fn group_columns_for_merge_iter<'a>(
         .collect();
     required_columns_list.sort();
 
-    // Kmerge and group on column_name.
-    let group_iter = GroupByIteratorExtended::group_by(
-        column_iters
-            .into_iter()
-            .kmerge_by(|a, b| a.column_name < b.column_name),
-        |el| el.column_name.clone(),
-    );
+    // Kmerge on column_name
+    let kmerge = column_iters
+        .into_iter()
+        .kmerge_by(|a, b| a.column_name < b.column_name);
+    // Group by on column_name.
+    let group_iter = GroupByIteratorExtended::group_by(kmerge, |el| el.column_name.clone());
 
     // Weave in the required columns into the sorted by column name iterator.
     let groups_with_required = required_columns_list
         .into_iter()
-        .merge_join_by(group_iter, |a, b| (a.as_str()).cmp(&b.0));
+        .merge_join_by(group_iter, |left, right| (left.as_str()).cmp(&right.0));
 
     Ok(groups_with_required.flat_map(move |either| {
         // It should be possible to do the grouping also on the column type in one pass, but some
