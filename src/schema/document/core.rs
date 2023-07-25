@@ -26,10 +26,6 @@ impl DocumentAccess for Document {
     type Value<'a> = &'a Value;
     type FieldsValuesIter<'a> = FieldValueIter<'a>;
 
-    fn len(&self) -> usize {
-        self.field_values.len()
-    }
-
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldValueIter(self.field_values.iter())
     }
@@ -92,6 +88,11 @@ impl Document {
     /// Creates a new, empty document object
     pub fn new() -> Document {
         Document::default()
+    }
+
+    /// Returns the length of the document.
+    pub fn len(&self) -> usize {
+        self.field_values.len()
     }
 
     /// Adding a facet to the document.

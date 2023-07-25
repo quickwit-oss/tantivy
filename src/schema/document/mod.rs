@@ -51,11 +51,6 @@
 //!     // Often this is a simple new-type wrapper unless you like super long generics.
 //!     type FieldsValuesIter<'a> = MyCustomIter<'a>;
 //!
-//!     /// The length of the document.
-//!     fn len(&self) -> usize {
-//!         self.fields.len()
-//!     }
-//!
 //!     /// Produces an iterator over the document fields and values.
 //!     /// This method will be called multiple times, it's important
 //!     /// to not do anything too heavy in this step, any heavy operations
@@ -185,14 +180,6 @@ pub trait DocumentAccess: DocumentDeserialize + Send + Sync + 'static {
     /// The iterator over all of the fields and values within the doc.
     type FieldsValuesIter<'a>: Iterator<Item = (Field, Self::Value<'a>)>
     where Self: 'a;
-
-    /// Returns the number of fields within the document.
-    fn len(&self) -> usize;
-
-    /// Returns true if the document contains no fields.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 
     /// Get an iterator iterating over all fields and values in a document.
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_>;

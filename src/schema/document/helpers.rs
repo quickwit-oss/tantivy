@@ -145,10 +145,6 @@ impl DocumentAccess for BTreeMap<Field, crate::schema::Value> {
         crate::schema::Value,
     >;
 
-    fn len(&self) -> usize {
-        self.len()
-    }
-
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldCopyingIterator(self.iter())
     }
@@ -174,10 +170,6 @@ impl DocumentAccess for HashMap<Field, crate::schema::Value> {
         hash_map::Iter<'a, Field, crate::schema::Value>,
         crate::schema::Value,
     >;
-
-    fn len(&self) -> usize {
-        self.len()
-    }
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldCopyingIterator(self.iter())
