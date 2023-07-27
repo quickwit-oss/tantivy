@@ -111,7 +111,7 @@ impl AggregationWithAccessor {
             }
         };
 
-        let aggs: Vec<_> = acc_field_types
+        let aggs: Vec<AggregationWithAccessor> = acc_field_types
             .into_iter()
             .map(|(accessor, field_type)| {
                 Ok(AggregationWithAccessor {
