@@ -465,7 +465,7 @@ mod tests {
         SegmentRangeCollector::from_req_and_validate(
             &req,
             &mut Default::default(),
-            &mut AggregationLimits::default().new_guard(),
+            &AggregationLimits::default().new_guard(),
             field_type,
             0,
         )

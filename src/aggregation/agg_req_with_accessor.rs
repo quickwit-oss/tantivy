@@ -37,9 +37,6 @@ pub struct AggregationWithAccessor {
     pub(crate) accessor: Column<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
-    /// In case there are multiple types of fast fields, e.g. string and numeric.
-    /// Only used for term aggregations currently.
-    pub(crate) accessor2: Option<(Column<u64>, ColumnType)>,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: ResourceLimitGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
@@ -52,20 +49,31 @@ impl AggregationWithAccessor {
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
         limits: AggregationLimits,
-    ) -> crate::Result<AggregationWithAccessor> {
+    ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut str_dict_column = None;
-        let mut accessor2 = None;
         use AggregationVariants::*;
-        let (accessor, field_type) = match &agg.agg {
+        let acc_field_types: Vec<(Column, ColumnType)> = match &agg.agg {
             Range(RangeAggregation {
                 field: field_name, ..
-            }) => get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?,
+            }) => vec![get_ff_reader(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?],
             Histogram(HistogramAggregation {
                 field: field_name, ..
-            }) => get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?,
+            }) => vec![get_ff_reader(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?],
             DateHistogram(DateHistogramAggregationReq {
                 field: field_name, ..
-            }) => get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?,
+            }) => vec![get_ff_reader(
+                reader,
+                field_name,
+                Some(get_numeric_or_date_column_types()),
+            )?],
             Terms(TermsAggregation {
                 field: field_name, ..
             }) => {
@@ -80,11 +88,7 @@ impl AggregationWithAccessor {
                     // ColumnType::IpAddr Unsupported
                     // ColumnType::DateTime Unsupported
                 ];
-                let mut columns =
-                    get_all_ff_reader_or_empty(reader, field_name, Some(&allowed_column_types))?;
-                let first = columns.pop().unwrap();
-                accessor2 = columns.pop();
-                first
+                get_all_ff_reader_or_empty(reader, field_name, Some(&allowed_column_types))?
             }
             Average(AverageAggregation { field: field_name })
             | Count(CountAggregation { field: field_name })
@@ -95,7 +99,7 @@ impl AggregationWithAccessor {
                 let (accessor, field_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
 
-                (accessor, field_type)
+                vec![(accessor, field_type)]
             }
             Percentiles(percentiles) => {
                 let (accessor, field_type) = get_ff_reader(
@@ -103,25 +107,29 @@ impl AggregationWithAccessor {
                     percentiles.field_name(),
                     Some(get_numeric_or_date_column_types()),
                 )?;
-                (accessor, field_type)
+                vec![(accessor, field_type)]
             }
         };
 
-        let sub_aggregation = sub_aggregation.clone();
-        Ok(AggregationWithAccessor {
-            accessor,
-            accessor2,
-            field_type,
-            sub_aggregation: get_aggs_with_segment_accessor_and_validate(
-                &sub_aggregation,
-                reader,
-                &limits,
-            )?,
-            agg: agg.clone(),
-            str_dict_column,
-            limits: limits.new_guard(),
-            column_block_accessor: Default::default(),
-        })
+        let aggs: Vec<AggregationWithAccessor> = acc_field_types
+            .into_iter()
+            .map(|(accessor, field_type)| {
+                Ok(AggregationWithAccessor {
+                    accessor,
+                    field_type,
+                    sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                        sub_aggregation,
+                        reader,
+                        &limits,
+                    )?,
+                    agg: agg.clone(),
+                    str_dict_column: str_dict_column.clone(),
+                    limits: limits.new_guard(),
+                    column_block_accessor: Default::default(),
+                })
+            })
+            .collect::<crate::Result<_>>()?;
+        Ok(aggs)
     }
 }
 
@@ -141,15 +149,15 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut aggss = Vec::new();
     for (key, agg) in aggs.iter() {
-        aggss.push((
-            key.to_string(),
-            AggregationWithAccessor::try_from_agg(
-                agg,
-                agg.sub_aggregation(),
-                reader,
-                limits.clone(),
-            )?,
-        ));
+        let aggs = AggregationWithAccessor::try_from_agg(
+            agg,
+            agg.sub_aggregation(),
+            reader,
+            limits.clone(),
+        )?;
+        for agg in aggs {
+            aggss.push((key.to_string(), agg));
+        }
     }
     Ok(AggregationsWithAccessor::from_data(
         VecWithNames::from_entries(aggss),
