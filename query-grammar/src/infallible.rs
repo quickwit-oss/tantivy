@@ -1,8 +1,39 @@
 //! nom combinators for infallible operations
 
+use std::convert::Infallible;
+
 use nom::{IResult, InputLength};
-pub type ErrorList = Vec<(usize, String)>;
-pub type JResult<I, O> = IResult<I, (O, ErrorList), std::convert::Infallible>;
+
+pub(crate) type ErrorList = Vec<LenientErrorInternal>;
+pub(crate) type JResult<I, O> = IResult<I, (O, ErrorList), Infallible>;
+
+/// An error, with an end-of-string based offset
+pub(crate) struct LenientErrorInternal {
+    pos: usize,
+    message: String,
+}
+
+/// A recoverable error and the position it happened at
+pub struct LenientError {
+    pub pos: usize,
+    pub message: String,
+}
+
+impl LenientError {
+    pub(crate) fn from_internal(internal: LenientErrorInternal, str_len: usize) -> LenientError {
+        LenientError {
+            pos: str_len - internal.pos,
+            message: internal.message,
+        }
+    }
+}
+
+fn unwrap_infallible<T>(res: Result<T, nom::Err<Infallible>>) -> T {
+    match res {
+        Ok(val) => val,
+        Err(_) => unreachable!(),
+    }
+}
 
 // when rfcs#1733 get stabilized, this can make things clearer
 // trait InfallibleParser<I, O> = nom::Parser<I, (O, ErrorList), std::convert::Infallible>;
@@ -12,7 +43,7 @@ pub type JResult<I, O> = IResult<I, (O, ErrorList), std::convert::Infallible>;
 /// A variant of the classical `opt` parser, except it returns an infallible error type.
 ///
 /// It's less generic than the original to ease type resolution in the rest of the code.
-pub fn opt_i<I: Clone, O, F>(mut f: F) -> impl FnMut(I) -> JResult<I, Option<O>>
+pub(crate) fn opt_i<I: Clone, O, F>(mut f: F) -> impl FnMut(I) -> JResult<I, Option<O>>
 where F: nom::Parser<I, O, nom::error::Error<I>> {
     move |input: I| {
         let i = input.clone();
@@ -23,10 +54,10 @@ where F: nom::Parser<I, O, nom::error::Error<I>> {
     }
 }
 
-pub fn fallible<I, O, E: nom::error::ParseError<I>, F>(
+pub(crate) fn fallible<I, O, E: nom::error::ParseError<I>, F>(
     mut f: F,
 ) -> impl FnMut(I) -> IResult<I, O, E>
-where F: nom::Parser<I, (O, ErrorList), std::convert::Infallible> {
+where F: nom::Parser<I, (O, ErrorList), Infallible> {
     use nom::Err;
     move |input: I| match f.parse(input) {
         Ok((input, (output, _err))) => Ok((input, output)),
@@ -35,15 +66,15 @@ where F: nom::Parser<I, (O, ErrorList), std::convert::Infallible> {
     }
 }
 
-pub fn delimited_infallible<I, O1, O2, O3, F, G, H>(
+pub(crate) fn delimited_infallible<I, O1, O2, O3, F, G, H>(
     mut first: F,
     mut second: G,
     mut third: H,
 ) -> impl FnMut(I) -> JResult<I, O2>
 where
-    F: nom::Parser<I, (O1, ErrorList), std::convert::Infallible>,
-    G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
-    H: nom::Parser<I, (O3, ErrorList), std::convert::Infallible>,
+    F: nom::Parser<I, (O1, ErrorList), Infallible>,
+    G: nom::Parser<I, (O2, ErrorList), Infallible>,
+    H: nom::Parser<I, (O3, ErrorList), Infallible>,
 {
     move |input: I| {
         let (input, (_, mut err)) = first.parse(input)?;
@@ -56,16 +87,16 @@ where
 }
 
 // Parse nothing. Just a lazy way to not implement terminated/preceded and use delimited instead
-pub fn nothing(i: &str) -> JResult<&str, ()> {
+pub(crate) fn nothing(i: &str) -> JResult<&str, ()> {
     Ok((i, ((), Vec::new())))
 }
 
-pub trait TupleInfallible<I, O> {
+pub(crate) trait TupleInfallible<I, O> {
     /// Parses the input and returns a tuple of results of each parser.
     fn parse(&mut self, input: I) -> JResult<I, O>;
 }
 
-impl<Input, Output, F: nom::Parser<Input, (Output, ErrorList), std::convert::Infallible>>
+impl<Input, Output, F: nom::Parser<Input, (Output, ErrorList), Infallible>>
     TupleInfallible<Input, (Output,)> for (F,)
 {
     fn parse(&mut self, input: Input) -> JResult<Input, (Output,)> {
@@ -92,7 +123,7 @@ macro_rules! tuple_trait_impl(
   ($($name:ident $ty: ident),+) => (
     impl<
       Input: Clone, $($ty),+ ,
-      $($name: nom::Parser<Input, ($ty, ErrorList), std::convert::Infallible>),+
+      $($name: nom::Parser<Input, ($ty, ErrorList), Infallible>),+
     > TupleInfallible<Input, ( $($ty),+ )> for ( $($name),+ ) {
 
       fn parse(&mut self, input: Input) -> JResult<Input, ( $($ty),+ )> {
@@ -160,61 +191,50 @@ impl<I> TupleInfallible<I, ()> for () {
     }
 }
 
-pub fn tuple_infallible<I, O, List: TupleInfallible<I, O>>(
+pub(crate) fn tuple_infallible<I, O, List: TupleInfallible<I, O>>(
     mut l: List,
 ) -> impl FnMut(I) -> JResult<I, O> {
     move |i: I| l.parse(i)
 }
 
-pub fn separated_list_infallible<I, O, O2, F, G>(
+pub(crate) fn separated_list_infallible<I, O, O2, F, G>(
     mut sep: G,
     mut f: F,
 ) -> impl FnMut(I) -> JResult<I, Vec<O>>
 where
     I: Clone + InputLength,
-    F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
-    G: nom::Parser<I, (O2, ErrorList), std::convert::Infallible>,
+    F: nom::Parser<I, (O, ErrorList), Infallible>,
+    G: nom::Parser<I, (O2, ErrorList), Infallible>,
 {
     move |mut i: I| {
-        let mut res = Vec::new();
-        let mut errors = Vec::new();
+        let mut res: Vec<O> = Vec::new();
+        let mut errors: ErrorList = Vec::new();
 
-        match f.parse(i.clone()) {
-            Err(_) => unreachable!(),
-            Ok((i1, (o, mut err))) => {
-                errors.append(&mut err);
-                res.push(o);
-                i = i1;
-            }
-        }
+        let (i1, (o, mut err)) = unwrap_infallible(f.parse(i.clone()));
+        errors.append(&mut err);
+        res.push(o);
+        i = i1;
 
         loop {
             let len = i.input_len();
-            match sep.parse(i.clone()) {
-                Err(_) => unreachable!(),
-                Ok((i1, (_, mut err))) => {
-                    errors.append(&mut err);
+            let (i1, (_, mut err)) = unwrap_infallible(sep.parse(i.clone()));
+            errors.append(&mut err);
 
-                    match f.parse(i1.clone()) {
-                        Err(_) => unreachable!(),
-                        Ok((i2, (o, mut err))) => {
-                            // infinite loop check: the parser must always consume
-                            // if we consumed nothing here, don't produce an element.
-                            if i2.input_len() == len {
-                                return Ok((i1, (res, errors)));
-                            }
-                            res.push(o);
-                            errors.append(&mut err);
-                            i = i2;
-                        }
-                    }
-                }
+            let (i2, (o, mut err)) = unwrap_infallible(f.parse(i1.clone()));
+
+            // infinite loop check: the parser must always consume
+            // if we consumed nothing here, don't produce an element.
+            if i2.input_len() == len {
+                return Ok((i1, (res, errors)));
             }
+            res.push(o);
+            errors.append(&mut err);
+            i = i2;
         }
     }
 }
 
-pub trait Alt<I, O> {
+pub(crate) trait Alt<I, O> {
     /// Tests each parser in the tuple and returns the result of the first one that succeeds
     fn choice(&mut self, input: I) -> Option<JResult<I, O>>;
 }
@@ -242,7 +262,7 @@ macro_rules! alt_trait_impl(
           // () are to make things easier on me, but I'm not entirely sure whether we can do better
           // with rule E0207
           $id_cond: nom::Parser<Input, (), ()>,
-          $id: nom::Parser<Input, (Output, ErrorList), std::convert::Infallible>
+          $id: nom::Parser<Input, (Output, ErrorList), Infallible>
       ),+
     > Alt<Input, Output> for ( $(($id_cond, $id),)+ ) {
 
@@ -275,12 +295,12 @@ alt_trait!(A1 A, B1 B, C1 C, D1 D, E1 E, F1 F, G1 G, H1 H, I1 I, J1 J, K1 K,
 /// this branch, or tells to check next branch, and the execute the infallible parser which follow.
 ///
 /// In case no branch match, the default (fallible) parser is executed.
-pub fn alt_infallible<I: Clone, O, F, List: Alt<I, O>>(
+pub(crate) fn alt_infallible<I: Clone, O, F, List: Alt<I, O>>(
     mut l: List,
     mut default: F,
 ) -> impl FnMut(I) -> JResult<I, O>
 where
-    F: nom::Parser<I, (O, ErrorList), std::convert::Infallible>,
+    F: nom::Parser<I, (O, ErrorList), Infallible>,
 {
     move |i: I| l.choice(i.clone()).unwrap_or_else(|| default.parse(i))
 }

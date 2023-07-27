@@ -20,7 +20,7 @@ const SPECIAL_CHARS: &[char] = &[
     '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '!', '\\', '*', ' ',
 ];
 
-/// consume a field name followed by collon. Return the field name with escape sequence
+/// consume a field name followed by colon. Return the field name with escape sequence
 /// already interpreted
 fn field_name(i: &str) -> IResult<&str, String> {
     let simple_char = none_of(SPECIAL_CHARS);
@@ -785,7 +785,7 @@ fn operand_leaf(i: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
     ))(i)
 }
 
-pub fn ast(i: &str) -> IResult<&str, UserInputAst> {
+fn ast(i: &str) -> IResult<&str, UserInputAst> {
     let boolean_expr = map(
         separated_pair(boosted_leaf, space1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
@@ -809,7 +809,7 @@ pub fn ast(i: &str) -> IResult<&str, UserInputAst> {
     )(i)
 }
 
-pub fn ast_infallible(i: &str) -> JResult<&str, UserInputAst> {
+fn ast_infallible(i: &str) -> JResult<&str, UserInputAst> {
     // ast() parse either `term AND term OR term` or `+term term -term`
     // both are locally ambiguous, and as we allow error, it's hard to permit backtracking.
     // Instead, we allow a mix of both syntaxes, trying to make sense of what a user meant.
@@ -841,15 +841,17 @@ pub fn parse_to_ast(i: &str) -> IResult<&str, UserInputAst> {
     })(i)
 }
 
-pub fn parse_to_ast_lenient(i: &str) -> (UserInputAst, ErrorList) {
+pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>) {
     // TODO remove front space and detect final eof.
-    let (res, mut error) = ast_infallible(i).unwrap().1;
+    let (res, errors) = ast_infallible(query_str).unwrap().1;
 
     // convert end-based index to start-based index.
-    error
-        .iter_mut()
-        .for_each(|error| error.0 = i.len() - error.0);
-    (rewrite_ast(res), error)
+    let errors = errors
+        .into_iter()
+        .map(|internal_error| LenientError::from_internal(internal_error, query_str.len()))
+        .collect();
+
+    (rewrite_ast(res), errors)
 }
 
 /// Removes unnecessary children clauses in AST
@@ -944,7 +946,10 @@ mod test {
 
     #[track_caller]
     fn test_is_parse_err(query: &str, lenient_expected: &str) {
-        assert!(parse_to_ast(query).is_err(), "strict parser succeeded");
+        assert!(
+            parse_to_ast(query).is_err(),
+            "strict parser succeeded where an error was expected."
+        );
 
         let query_lenient = parse_to_ast_lenient(query).0;
         let query_lenient_str = format!("{query_lenient:?}");
