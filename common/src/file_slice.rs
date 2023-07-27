@@ -34,11 +34,13 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
 }
 
 #[derive(Debug)]
+/// A File with it's length included.
 pub struct WrapFile {
     file: File,
     len: usize,
 }
 impl WrapFile {
+    /// Creates a new WrapFile and stores its length.
     pub fn new(file: File) -> io::Result<Self> {
         let len = file.metadata()?.len() as usize;
         Ok(WrapFile { file, len })
