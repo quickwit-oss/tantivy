@@ -349,7 +349,7 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
         }
         ReferenceValue::Array(elements) => {
             for el in elements {
-                record_json_value_to_columnar_writer::<V>(
+                record_json_value_to_columnar_writer::<V::ChildValue>(
                     doc,
                     el,
                     expand_dots,

@@ -17,6 +17,7 @@ use crate::schema::Field;
 
 // Serde compatibility support.
 impl<'a> DocValue<'a> for &'a serde_json::Value {
+    type ChildValue = Self;
     type ArrayIter = JsonArrayIter<'a>;
     type ObjectIter = JsonObjectIter<'a>;
 

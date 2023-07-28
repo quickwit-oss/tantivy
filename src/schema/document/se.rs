@@ -139,7 +139,7 @@ where W: Write
 
                 // Somewhat unfortunate that we do this here however, writing the
                 // length at the end of the complicates things quite considerably.
-                let elements: Vec<ReferenceValue<'_, V>> = elements.collect();
+                let elements: Vec<ReferenceValue<'_, V::ChildValue>> = elements.collect();
 
                 let mut serializer = ArraySerializer::begin(elements.len(), self.writer)?;
 
@@ -154,7 +154,7 @@ where W: Write
 
                 // Somewhat unfortunate that we do this here however, writing the
                 // length at the end of the complicates things quite considerably.
-                let entries: Vec<(&str, ReferenceValue<'_, V>)> = object.collect();
+                let entries: Vec<(&str, ReferenceValue<'_, V::ChildValue>)> = object.collect();
 
                 let mut serializer = ObjectSerializer::begin(entries.len(), self.writer)?;
 

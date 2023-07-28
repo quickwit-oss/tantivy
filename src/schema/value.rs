@@ -47,6 +47,7 @@ pub enum Value {
 }
 
 impl<'a> DocValue<'a> for &'a Value {
+    type ChildValue = Self;
     type ArrayIter = ArrayIter<'a>;
     type ObjectIter = ObjectMapIter<'a>;
 

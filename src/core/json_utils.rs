@@ -183,7 +183,7 @@ fn index_json_value<'a, V: DocValue<'a>>(
         }
         ReferenceValue::Array(elements) => {
             for val in elements {
-                index_json_value::<V>(
+                index_json_value::<V::ChildValue>(
                     doc,
                     val,
                     text_analyzer,

@@ -129,6 +129,7 @@
 //! }
 //!
 //! impl<'a> DocValue<'a> for MyCustomValue<'a> {
+//!     type ChildValue = Self;
 //!     // We don't need to worry about these types here as we're not
 //!     // working with nested types, but if we wanted to we would
 //!     // define our two iterator types, a sequence of ReferenceValues
@@ -222,11 +223,13 @@ pub trait DocumentAccess: DocumentDeserialize + Send + Sync + 'static {
 
 /// A single field value.
 pub trait DocValue<'a>: Send + Sync + Debug {
+    /// The child value type returned by this doc value.
+    type ChildValue: DocValue<'a>;
     /// The iterator for walking through the elements within the array.
-    type ArrayIter: Iterator<Item = ReferenceValue<'a, Self>>;
+    type ArrayIter: Iterator<Item = ReferenceValue<'a, Self::ChildValue>>;
     /// The visitor walking through the key-value pairs within
     /// the object.
-    type ObjectIter: Iterator<Item = (&'a str, ReferenceValue<'a, Self>)>;
+    type ObjectIter: Iterator<Item = (&'a str, ReferenceValue<'a, Self::ChildValue>)>;
 
     /// Returns the field value represented by an enum which borrows it's data.
     fn as_value(&self) -> ReferenceValue<'a, Self>;
@@ -384,7 +387,7 @@ where V: DocValue<'a> + ?Sized
 }
 
 impl<'a, V> ReferenceValue<'a, V>
-where V: DocValue<'a> + ?Sized
+where V: DocValue<'a>
 {
     #[inline]
     /// Returns if the value is `null` or not.
