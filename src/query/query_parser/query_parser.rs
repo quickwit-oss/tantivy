@@ -5,6 +5,7 @@ use std::str::{FromStr, ParseBoolError};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use itertools::Itertools;
 use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use rustc_hash::FxHashMap;
 
@@ -227,6 +228,25 @@ fn all_negative(ast: &LogicalAst) -> bool {
     }
 }
 
+// Make an all-negative ast into a normal ast. Must not be used on an already okay ast.
+fn make_non_negative(ast: &mut LogicalAst) {
+    match ast {
+        LogicalAst::Leaf(_) => (),
+        LogicalAst::Boost(ref mut child_ast, _) => make_non_negative(child_ast),
+        LogicalAst::Clause(children) => children.push((Occur::Should, LogicalLiteral::All.into())),
+    }
+}
+
+/// Similar to the try/? macro, but returns a tuple of (None, Vec<Error>) instead of Err(Error)
+macro_rules! try_tuple {
+    ($expr:expr) => {{
+        match $expr {
+            Ok(val) => val,
+            Err(e) => return (None, vec![e.into()]),
+        }
+    }};
+}
+
 impl QueryParser {
     /// Creates a `QueryParser`, given
     /// * schema - index Schema
@@ -308,15 +328,20 @@ impl QueryParser {
     ///
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
-    ///
-    /// There is currently no lenient mode for the query parser
-    /// which makes it a bad choice for a public/broad user search engine.
-    ///
-    /// Implementing a lenient mode for this query parser is tracked
-    /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(&self.fuzzy, logical_ast))
+    }
+
+    /// Parse a query leniently
+    ///
+    /// This variant parses invalid query on a best effort basis. If some part of the query can't
+    /// reasonably be executed (range query without field, searching on a non existing field,
+    /// searching without precising field when no default field is provided...), they may get
+    /// turned into a "match-nothing" subquery.
+    pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, ()) {
+        let (logical_ast, _errors) = self.parse_query_to_logical_ast_lenient(query);
+        (convert_to_query(&self.fuzzy, logical_ast), ())
     }
 
     /// Build a query from an already parsed user input AST
@@ -328,7 +353,10 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> Result<Box<dyn Query>, QueryParserError> {
-        let logical_ast = self.compute_logical_ast(user_input_ast)?;
+        let (logical_ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
+        if !err.is_empty() {
+            return Err(err.swap_remove(0));
+        }
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
@@ -336,23 +364,37 @@ impl QueryParser {
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
         let user_input_ast = query_grammar::parse_query(query)
             .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
-        self.compute_logical_ast(user_input_ast)
+        let (ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
+        if !err.is_empty() {
+            return Err(err.swap_remove(0));
+        }
+        Ok(ast)
     }
 
-    fn compute_logical_ast(
+    /// Parse the user query into an AST.
+    fn parse_query_to_logical_ast_lenient(
+        &self,
+        query: &str,
+    ) -> (LogicalAst, Vec<QueryParserError>) {
+        let (user_input_ast, _error) = query_grammar::parse_query_lenient(query);
+        self.compute_logical_ast_lenient(user_input_ast)
+    }
+
+    fn compute_logical_ast_lenient(
         &self,
         user_input_ast: UserInputAst,
-    ) -> Result<LogicalAst, QueryParserError> {
-        let ast = self.compute_logical_ast_with_occur(user_input_ast)?;
+    ) -> (LogicalAst, Vec<QueryParserError>) {
+        let (mut ast, mut err) = self.compute_logical_ast_with_occur_lenient(user_input_ast);
         if let LogicalAst::Clause(children) = &ast {
             if children.is_empty() {
-                return Ok(ast);
+                return (ast, err);
             }
         }
         if all_negative(&ast) {
-            return Err(QueryParserError::AllButQueryForbidden);
+            err.push(QueryParserError::AllButQueryForbidden);
+            make_non_negative(&mut ast);
         }
-        Ok(ast)
+        (ast, err)
     }
 
     fn compute_boundary_term(
@@ -571,26 +613,37 @@ impl QueryParser {
         }
     }
 
-    fn compute_logical_ast_with_occur(
+    fn compute_logical_ast_with_occur_lenient(
         &self,
         user_input_ast: UserInputAst,
-    ) -> Result<LogicalAst, QueryParserError> {
+    ) -> (LogicalAst, Vec<QueryParserError>) {
         match user_input_ast {
             UserInputAst::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
                 let mut logical_sub_queries: Vec<(Occur, LogicalAst)> = Vec::new();
+                let mut errors = Vec::new();
                 for (occur_opt, sub_ast) in sub_queries {
-                    let sub_ast = self.compute_logical_ast_with_occur(sub_ast)?;
+                    let (sub_ast, mut sub_errors) =
+                        self.compute_logical_ast_with_occur_lenient(sub_ast);
                     let occur = occur_opt.unwrap_or(default_occur);
                     logical_sub_queries.push((occur, sub_ast));
+                    errors.append(&mut sub_errors);
                 }
-                Ok(LogicalAst::Clause(logical_sub_queries))
+                (LogicalAst::Clause(logical_sub_queries), errors)
             }
             UserInputAst::Boost(ast, boost) => {
-                let ast = self.compute_logical_ast_with_occur(*ast)?;
-                Ok(ast.boost(boost as Score))
+                let (ast, errors) = self.compute_logical_ast_with_occur_lenient(*ast);
+                (ast.boost(boost as Score), errors)
             }
-            UserInputAst::Leaf(leaf) => self.compute_logical_ast_from_leaf(*leaf),
+            UserInputAst::Leaf(leaf) => {
+                let (ast, errors) = self.compute_logical_ast_from_leaf_lenient(*leaf);
+                // if the error is not recoverable, replace it with an empty clause. We will end up
+                // trimming those later
+                (
+                    ast.unwrap_or_else(|| LogicalAst::Clause(Vec::new())),
+                    errors,
+                )
+            }
         }
     }
 
@@ -658,23 +711,31 @@ impl QueryParser {
         Ok(triplets)
     }
 
-    fn compute_logical_ast_from_leaf(
+    fn compute_logical_ast_from_leaf_lenient(
         &self,
         leaf: UserInputLeaf,
-    ) -> Result<LogicalAst, QueryParserError> {
+    ) -> (Option<LogicalAst>, Vec<QueryParserError>) {
         match leaf {
             UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, &str, &str)> =
-                    self.compute_path_triplets_for_literal(&literal)?;
+                    try_tuple!(self.compute_path_triplets_for_literal(&literal));
                 let mut asts: Vec<LogicalAst> = Vec::new();
+                let mut errors: Vec<QueryParserError> = Vec::new();
                 for (field, json_path, phrase) in term_phrases {
-                    for ast in self.compute_logical_ast_for_leaf(
+                    let unboosted_asts = match self.compute_logical_ast_for_leaf(
                         field,
                         json_path,
                         phrase,
                         literal.slop,
                         literal.prefix,
-                    )? {
+                    ) {
+                        Ok(asts) => asts,
+                        Err(e) => {
+                            errors.push(e);
+                            continue;
+                        }
+                    };
+                    for ast in unboosted_asts {
                         // Apply some field specific boost defined at the query parser level.
                         let boost = self.field_boost(field);
                         asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
@@ -685,56 +746,82 @@ impl QueryParser {
                 } else {
                     LogicalAst::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
                 };
-                Ok(result_ast)
+                (Some(result_ast), errors)
             }
-            UserInputLeaf::All => Ok(LogicalAst::Leaf(Box::new(LogicalLiteral::All))),
+            UserInputLeaf::All => (
+                Some(LogicalAst::Leaf(Box::new(LogicalLiteral::All))),
+                Vec::new(),
+            ),
             UserInputLeaf::Range {
                 field: full_field_opt,
                 lower,
                 upper,
             } => {
-                let full_path = full_field_opt.ok_or_else(|| {
-                    QueryParserError::UnsupportedQuery(
-                        "Range query need to target a specific field.".to_string(),
-                    )
-                })?;
-                let (field, json_path) = self
+                let Some(full_path) = full_field_opt else {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Range query need to target a specific field.".to_string(),
+                        )],
+                    );
+                };
+                let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
-                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone()))?;
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
                 let field_entry = self.schema.get_field_entry(field);
                 let value_type = field_entry.field_type().value_type();
+                let mut errors = Vec::new();
+                let lower = match self.resolve_bound(field, json_path, &lower) {
+                    Ok(bound) => bound,
+                    Err(error) => {
+                        errors.push(error);
+                        Bound::Unbounded
+                    }
+                };
+                let upper = match self.resolve_bound(field, json_path, &upper) {
+                    Ok(bound) => bound,
+                    Err(error) => {
+                        errors.push(error);
+                        Bound::Unbounded
+                    }
+                };
+                if lower == Bound::Unbounded && upper == Bound::Unbounded {
+                    // this range is useless, either because a user requested [* TO *], or because
+                    // we failed to parse something. Either way, there is no point emiting it
+                    return (None, errors);
+                }
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Range {
                     field: self.schema.get_field_name(field).to_string(),
                     value_type,
-                    lower: self.resolve_bound(field, json_path, &lower)?,
-                    upper: self.resolve_bound(field, json_path, &upper)?,
+                    lower,
+                    upper,
                 }));
-                Ok(logical_ast)
+                (Some(logical_ast), errors)
             }
             UserInputLeaf::Set {
                 field: full_field_opt,
                 elements,
             } => {
-                let full_path = full_field_opt.ok_or_else(|| {
+                let full_path = try_tuple!(full_field_opt.ok_or_else(|| {
                     QueryParserError::UnsupportedQuery(
-                        "Set query need to target a specific field.".to_string(),
+                        "Range query need to target a specific field.".to_string(),
                     )
-                })?;
-                let (field, json_path) = self
+                }));
+                let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
-                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone()))?;
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
                 let field_entry = self.schema.get_field_entry(field);
                 let value_type = field_entry.field_type().value_type();
+                let (elements, errors) = elements
+                    .into_iter()
+                    .map(|element| self.compute_boundary_term(field, json_path, &element))
+                    .partition_result();
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set {
-                    elements: elements
-                        .into_iter()
-                        .map(|element| self.compute_boundary_term(field, json_path, &element))
-                        .collect::<Result<Vec<_>, _>>()?,
-
+                    elements,
                     field,
                     value_type,
                 }));
-                Ok(logical_ast)
+                (Some(logical_ast), errors)
             }
         }
     }
