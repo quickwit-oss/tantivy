@@ -264,12 +264,12 @@ fn term_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
     let mut errs = Vec::new();
 
     loop {
-        if i.len() == 0 {
+        if i.is_empty() {
             // TODO push error about missing )
             break Ok((i, (UserInputAst::Clause(terms), errs)));
         }
-        if i.starts_with(')') {
-            break Ok((&i[1..], (UserInputAst::Clause(terms), errs)));
+        if let Some(i) = i.strip_prefix(')') {
+            break Ok((i, (UserInputAst::Clause(terms), errs)));
         }
         // here we do the assumption term_or_phrase_infallible always consume something if the
         // first byte is not `)` or ' '. If it did not, we would end up looping.
@@ -554,7 +554,7 @@ fn set_infallible(mut i: &str) -> JResult<&str, UserInputLeaf> {
     let mut elements = Vec::new();
     let mut errs = Vec::new();
     loop {
-        if i.len() == 0 {
+        if i.is_empty() {
             // TODO push error about missing ]
             break Ok((
                 i,
@@ -567,9 +567,9 @@ fn set_infallible(mut i: &str) -> JResult<&str, UserInputLeaf> {
                 ),
             ));
         }
-        if i.starts_with(']') {
+        if let Some(i) = i.strip_prefix(']') {
             break Ok((
-                &i[1..],
+                i,
                 (
                     UserInputLeaf::Set {
                         field: None,
@@ -686,6 +686,7 @@ fn occur_leaf(i: &str) -> IResult<&str, (Option<Occur>, UserInputAst)> {
     tuple((fallible(occur_symbol), boosted_leaf))(i)
 }
 
+#[allow(clippy::type_complexity)]
 fn operand_occur_leaf_infallible(
     i: &str,
 ) -> JResult<&str, (Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)> {
