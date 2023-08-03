@@ -339,9 +339,11 @@ impl QueryParser {
     /// reasonably be executed (range query without field, searching on a non existing field,
     /// searching without precising field when no default field is provided...), they may get
     /// turned into a "match-nothing" subquery.
-    pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, ()) {
-        let (logical_ast, _errors) = self.parse_query_to_logical_ast_lenient(query);
-        (convert_to_query(&self.fuzzy, logical_ast), ())
+    ///
+    /// In case it encountered such issues, they are reported as a Vec of errors.
+    pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
+        let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
+        (convert_to_query(&self.fuzzy, logical_ast), errors)
     }
 
     /// Build a query from an already parsed user input AST
@@ -360,6 +362,17 @@ impl QueryParser {
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 
+    /// Build leniently a query from an already parsed user input AST.
+    ///
+    /// See also [`QueryParser::build_query_from_user_input_ast`]
+    pub fn build_query_from_user_input_ast_lenient(
+        &self,
+        user_input_ast: UserInputAst,
+    ) -> (Box<dyn Query>, Vec<QueryParserError>) {
+        let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
+        (convert_to_query(&self.fuzzy, logical_ast), errors)
+    }
+
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
         let user_input_ast = query_grammar::parse_query(query)
@@ -376,8 +389,13 @@ impl QueryParser {
         &self,
         query: &str,
     ) -> (LogicalAst, Vec<QueryParserError>) {
-        let (user_input_ast, _error) = query_grammar::parse_query_lenient(query);
-        self.compute_logical_ast_lenient(user_input_ast)
+        let (user_input_ast, errors) = query_grammar::parse_query_lenient(query);
+        let mut errors: Vec<_> = errors.into_iter()
+            .map(|error| QueryParserError::SyntaxError(format!("{} at position {}", error.message, error.pos)))
+            .collect();
+        let (ast, mut ast_errors) = self.compute_logical_ast_lenient(user_input_ast);
+        errors.append(&mut ast_errors);
+        (ast, errors)
     }
 
     fn compute_logical_ast_lenient(
