@@ -2,18 +2,20 @@
 
 use std::convert::Infallible;
 
-use nom::{IResult, InputLength};
+use nom::{AsChar, IResult, InputLength, InputTakeAtPosition};
 
 pub(crate) type ErrorList = Vec<LenientErrorInternal>;
 pub(crate) type JResult<I, O> = IResult<I, (O, ErrorList), Infallible>;
 
 /// An error, with an end-of-string based offset
+#[derive(Debug)]
 pub(crate) struct LenientErrorInternal {
-    pos: usize,
-    message: String,
+    pub pos: usize,
+    pub message: String,
 }
 
 /// A recoverable error and the position it happened at
+#[derive(Debug, PartialEq)]
 pub struct LenientError {
     pub pos: usize,
     pub message: String,
@@ -38,8 +40,6 @@ fn unwrap_infallible<T>(res: Result<T, nom::Err<Infallible>>) -> T {
 // when rfcs#1733 get stabilized, this can make things clearer
 // trait InfallibleParser<I, O> = nom::Parser<I, (O, ErrorList), std::convert::Infallible>;
 
-// TODO space0 and space1: space0 can't fail, space1 can parse nothing but reports missing space
-
 /// A variant of the classical `opt` parser, except it returns an infallible error type.
 ///
 /// It's less generic than the original to ease type resolution in the rest of the code.
@@ -52,6 +52,53 @@ where F: nom::Parser<I, O, nom::error::Error<I>> {
             Err(_) => Ok((i, (None, Vec::new()))),
         }
     }
+}
+
+pub(crate) fn opt_i_err<'a, I: Clone + InputLength, O, F>(
+    mut f: F,
+    message: impl ToString + 'a,
+) -> impl FnMut(I) -> JResult<I, Option<O>> + 'a
+where
+    F: nom::Parser<I, O, nom::error::Error<I>> + 'a,
+{
+    move |input: I| {
+        let i = input.clone();
+        match f.parse(input) {
+            Ok((i, o)) => Ok((i, (Some(o), Vec::new()))),
+            Err(_) => {
+                let errs = vec![LenientErrorInternal {
+                    pos: i.input_len(),
+                    message: message.to_string(),
+                }];
+                Ok((i, (None, errs)))
+            }
+        }
+    }
+}
+
+pub(crate) fn space0_infallible<T>(input: T) -> JResult<T, T>
+where
+    T: InputTakeAtPosition + Clone,
+    <T as InputTakeAtPosition>::Item: AsChar + Clone,
+{
+    opt_i(nom::character::complete::space0)(input)
+        .map(|(left, (spaces, errors))| (left, (spaces.expect("space0 can't fail"), errors)))
+}
+
+pub(crate) fn space1_infallible<T>(input: T) -> JResult<T, Option<T>>
+where
+    T: InputTakeAtPosition + Clone + InputLength,
+    <T as InputTakeAtPosition>::Item: AsChar + Clone,
+{
+    opt_i(nom::character::complete::space1)(input).map(|(left, (spaces, mut errors))| {
+        if spaces.is_none() {
+            errors.push(LenientErrorInternal {
+                pos: left.input_len(),
+                message: "missing space".to_string(),
+            })
+        }
+        (left, (spaces, errors))
+    })
 }
 
 pub(crate) fn fallible<I, O, E: nom::error::ParseError<I>, F>(
@@ -206,30 +253,30 @@ where
     F: nom::Parser<I, (O, ErrorList), Infallible>,
     G: nom::Parser<I, (O2, ErrorList), Infallible>,
 {
-    move |mut i: I| {
+    move |i: I| {
         let mut res: Vec<O> = Vec::new();
         let mut errors: ErrorList = Vec::new();
 
-        let (i1, (o, mut err)) = unwrap_infallible(f.parse(i.clone()));
+        let (mut i, (o, mut err)) = unwrap_infallible(f.parse(i.clone()));
         errors.append(&mut err);
         res.push(o);
-        i = i1;
 
         loop {
-            let len = i.input_len();
-            let (i1, (_, mut err)) = unwrap_infallible(sep.parse(i.clone()));
-            errors.append(&mut err);
+            let (i_sep_parsed, (_, mut err_sep)) = unwrap_infallible(sep.parse(i.clone()));
+            let len_before = i_sep_parsed.input_len();
 
-            let (i2, (o, mut err)) = unwrap_infallible(f.parse(i1.clone()));
+            let (i_elem_parsed, (o, mut err_elem)) =
+                unwrap_infallible(f.parse(i_sep_parsed.clone()));
 
             // infinite loop check: the parser must always consume
             // if we consumed nothing here, don't produce an element.
-            if i2.input_len() == len {
-                return Ok((i1, (res, errors)));
+            if i_elem_parsed.input_len() == len_before {
+                return Ok((i, (res, errors)));
             }
             res.push(o);
-            errors.append(&mut err);
-            i = i2;
+            errors.append(&mut err_sep);
+            errors.append(&mut err_elem);
+            i = i_elem_parsed;
         }
     }
 }
@@ -269,7 +316,7 @@ macro_rules! alt_trait_impl(
       fn choice(&mut self, input: Input) -> Option<JResult<Input, Output>> {
         match self.0.0.parse(input.clone()) {
           Err(_) => alt_trait_inner!(1, self, input, $($id_cond $id),+),
-          Ok((i1, _)) => Some(self.0.1.parse(i1)),
+          Ok((input_left, _)) => Some(self.0.1.parse(input_left)),
         }
       }
     }
@@ -280,7 +327,7 @@ macro_rules! alt_trait_inner(
   ($it:tt, $self:expr, $input:expr, $head_cond:ident $head:ident, $($id_cond:ident $id:ident),+) => (
     match $self.$it.0.parse($input.clone()) {
       Err(_) => succ!($it, alt_trait_inner!($self, $input, $($id_cond $id),+)),
-      Ok((i1, _)) => Some($self.$it.1.parse(i1)),
+      Ok((input_left, _)) => Some($self.$it.1.parse(input_left)),
     }
   );
   ($it:tt, $self:expr, $input:expr, $head_cond:ident $head:ident) => (
