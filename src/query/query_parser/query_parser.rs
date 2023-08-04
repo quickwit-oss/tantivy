@@ -390,8 +390,14 @@ impl QueryParser {
         query: &str,
     ) -> (LogicalAst, Vec<QueryParserError>) {
         let (user_input_ast, errors) = query_grammar::parse_query_lenient(query);
-        let mut errors: Vec<_> = errors.into_iter()
-            .map(|error| QueryParserError::SyntaxError(format!("{} at position {}", error.message, error.pos)))
+        let mut errors: Vec<_> = errors
+            .into_iter()
+            .map(|error| {
+                QueryParserError::SyntaxError(format!(
+                    "{} at position {}",
+                    error.message, error.pos
+                ))
+            })
             .collect();
         let (ast, mut ast_errors) = self.compute_logical_ast_lenient(user_input_ast);
         errors.append(&mut ast_errors);
