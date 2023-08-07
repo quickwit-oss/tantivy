@@ -731,7 +731,7 @@ fn operand_occur_leaf_infallible(
     ))(i)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BinaryOperand {
     Or,
     And,
@@ -770,54 +770,118 @@ fn aggregate_binary_expressions(
 }
 
 fn aggregate_infallible_expressions(
-    leafs: Vec<(Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)>,
+    input_leafs: Vec<(Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)>,
 ) -> (UserInputAst, ErrorList) {
-    let mut leafs: Vec<(_, _, UserInputAst)> = leafs
+    let mut err = Vec::new();
+    let mut leafs: Vec<(_, _, UserInputAst)> = input_leafs
         .into_iter()
         .filter_map(|(operand, occur, ast)| ast.map(|ast| (operand, occur, ast)))
         .collect();
     if leafs.is_empty() {
-        // TODO should this produce an error?
-        return (UserInputAst::empty_query(), Vec::new());
+        return (UserInputAst::empty_query(), err);
     }
 
-    // if no occur => use binary operand (default = or)
-    // if no binary opearnd => use occur
+    let use_operand = leafs.iter().any(|(operand, _, _)| operand.is_some());
+    let all_operand = leafs
+        .iter()
+        .skip(1)
+        .all(|(operand, _, _)| operand.is_some());
+    let early_operand = leafs
+        .iter()
+        .take(1)
+        .all(|(operand, _, _)| operand.is_some());
+    let use_occur = leafs.iter().any(|(_, occur, _)| occur.is_some());
 
-    if leafs.len() == 1 {
-        match leafs.remove(0) {
-            (_, occur, ast) if occur != Some(Occur::MustNot) => return (ast, Vec::new()),
-            (_, occur, ast) => return (UserInputAst::Clause(vec![(occur, ast)]), Vec::new()),
+    if use_operand && use_occur {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Use of mixed occur and boolean operator".to_string(),
+        });
+    }
+
+    if use_operand && !all_operand {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Missing boolean operator".to_string(),
+        });
+    }
+
+    if early_operand {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Found unexpeted boolean operator before term".to_string(),
+        });
+    }
+
+    let mut clauses: Vec<Vec<(Option<Occur>, UserInputAst)>> = vec![];
+    for ((prev_operator, occur, ast), (next_operator, _, _)) in
+        leafs.iter().zip(leafs.iter().skip(1))
+    {
+        match prev_operator {
+            Some(BinaryOperand::And) => {
+                if let Some(last) = clauses.last_mut() {
+                    last.push((occur.or(Some(Occur::Must)), ast.clone()));
+                } else {
+                    let mut last = Vec::new();
+                    last.push((occur.or(Some(Occur::Must)), ast.clone()));
+                    clauses.push(last);
+                }
+            }
+            Some(BinaryOperand::Or) => {
+                let default_op = match next_operator {
+                    Some(BinaryOperand::And) => Some(Occur::Must),
+                    _ => Some(Occur::Should),
+                };
+                clauses.push(vec![(occur.or(default_op), ast.clone())]);
+            }
+            None => {
+                let default_op = match next_operator {
+                    Some(BinaryOperand::And) => Some(Occur::Must),
+                    Some(BinaryOperand::Or) => Some(Occur::Should),
+                    None => None,
+                };
+                clauses.push(vec![(occur.or(default_op), ast.clone())])
+            }
         }
     }
 
-    if leafs.iter().all(|(operand, _, _)| operand.is_none()) {
-        let clauses = leafs
-            .into_iter()
-            .map(|(_, occur, ast)| (occur, ast))
-            .collect();
-        return (UserInputAst::Clause(clauses), Vec::new());
+    // leaf isn't empty, so we can unwrap
+    let (last_operator, last_occur, last_ast) = leafs.pop().unwrap();
+    match last_operator {
+        Some(BinaryOperand::And) => {
+            if let Some(last) = clauses.last_mut() {
+                last.push((last_occur.or(Some(Occur::Must)), last_ast));
+            } else {
+                let mut last = Vec::new();
+                last.push((last_occur.or(Some(Occur::Must)), last_ast));
+                clauses.push(last);
+            }
+        }
+        Some(BinaryOperand::Or) => {
+            clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+        }
+        None => clauses.push(vec![(last_occur, last_ast)]),
     }
 
-    if leafs.iter().all(|(_, occur, _)| occur.is_none()) {
-        let first = leafs.remove(0).2;
-        let errors = if leafs.iter().any(|(operand, _, _)| operand.is_none()) {
-            vec![LenientErrorInternal {
-                pos: 0, // we don't really know the position
-                message: "binary expression with missing binary operator".to_string(),
-            }]
+    if clauses.len() == 1 {
+        let mut clause = clauses.pop().unwrap();
+        if clause.len() == 1 && clause[0].0 != Some(Occur::MustNot) {
+            (clause.pop().unwrap().1, err)
         } else {
-            Vec::new()
-        };
-        let rest = leafs
-            .into_iter()
-            .map(|(operand, _, ast)| (operand.unwrap_or(BinaryOperand::Or), ast))
-            .collect();
-        return (aggregate_binary_expressions(first, rest), errors);
-    }
+            (UserInputAst::Clause(clause), err)
+        }
+    } else {
+        let mut final_clauses: Vec<(Option<Occur>, UserInputAst)> = Vec::new();
+        for mut sub_clauses in clauses {
+            if sub_clauses.len() == 1 {
+                final_clauses.push(sub_clauses.pop().unwrap());
+            } else {
+                final_clauses.push((Some(Occur::Should), UserInputAst::Clause(sub_clauses)));
+            }
+        }
 
-    // TODO a mix of both isn't that easy, will do later
-    todo!()
+        (UserInputAst::Clause(final_clauses), err)
+    }
 }
 
 fn operand_leaf(i: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
@@ -1048,12 +1112,21 @@ mod test {
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
-        test_is_parse_err("a OR b aaa", "(?a ?b ?aaa)");
-        test_is_parse_err("a AND b aaa", "(?(+a +b) ?aaa)");
-        test_is_parse_err("aaa a OR b ", "(?aaa ?a ?b)");
-        test_is_parse_err("aaa ccc a OR b ", "(?aaa ?ccc ?a ?b)");
-        test_is_parse_err("aaa a AND b ", "(?aaa ?(+a +b))");
-        test_is_parse_err("aaa ccc a AND b ", "(?aaa ?ccc ?(+a +b))");
+        test_is_parse_err("a OR b aaa", "(?a ?b *aaa)");
+        test_is_parse_err("a AND b aaa", "(?(+a +b) *aaa)");
+        test_is_parse_err("aaa a OR b ", "(*aaa ?a ?b)");
+        test_is_parse_err("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
+        test_is_parse_err("aaa a AND b ", "(*aaa ?(+a +b))");
+        test_is_parse_err("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
+    }
+
+    #[test]
+    fn test_parse_mixed_bool_occur() {
+        test_is_parse_err("a OR b +aaa", "(?a ?b +aaa)");
+        test_is_parse_err("a AND b -aaa", "(?(+a +b) -aaa)");
+        test_is_parse_err("+a OR +b aaa", "(+a +b *aaa)");
+        test_is_parse_err("-a AND -b aaa", "(?(-a -b) *aaa)");
+        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc -a ?b)");
     }
 
     #[test]

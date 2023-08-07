@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 
 use crate::Occur;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -85,7 +85,7 @@ pub enum Delimiter {
     None,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -123,7 +123,7 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -158,7 +158,7 @@ impl UserInputBound {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),
