@@ -193,7 +193,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
             return Ok(Explanation::new("BooleanQuery with no scoring", 1.0));
         }
 
-        let mut explanation = Explanation::new("BooleanClause. Sum of ...", scorer.score());
+        let mut explanation = Explanation::new("BooleanClause. sum of ...", scorer.score());
         for (occur, subweight) in &self.weights {
             if is_positive_occur(*occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
