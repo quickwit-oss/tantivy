@@ -152,8 +152,11 @@ pub(crate) fn get_doc_id_mapping_from_field(
 
 #[cfg(test)]
 mod tests_indexsorting {
+    use common::DateTime;
+
     use crate::collector::TopDocs;
     use crate::indexer::doc_id_mapping::DocIdMapping;
+    use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Schema, *};
     use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order};
@@ -444,48 +447,93 @@ mod tests_indexsorting {
         Ok(())
     }
 
-    // #[test]
-    // fn test_sort_index_fast_field() -> crate::Result<()> {
-    //     let index = create_test_index(
-    //         Some(IndexSettings {
-    //             sort_by_field: Some(IndexSortByField {
-    //                 field: "my_number".to_string(),
-    //                 order: Order::Asc,
-    //             }),
-    //             ..Default::default()
-    //         }),
-    //         get_text_options(),
-    //     )?;
-    //     assert_eq!(
-    //         index.settings().sort_by_field.as_ref().unwrap().field,
-    //         "my_number".to_string()
-    //     );
+    #[test]
+    fn test_sort_index_fast_field() -> crate::Result<()> {
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }),
+            get_text_options(),
+        )?;
+        assert_eq!(
+            index.settings().sort_by_field.as_ref().unwrap().field,
+            "my_number".to_string()
+        );
 
-    //     let searcher = index.reader()?.searcher();
-    //     assert_eq!(searcher.segment_readers().len(), 1);
-    //     let segment_reader = searcher.segment_reader(0);
-    //     let fast_fields = segment_reader.fast_fields();
-    //     let my_number = index.schema().get_field("my_number").unwrap();
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
 
-    //     let fast_field = fast_fields.u64(my_number).unwrap();
-    //     assert_eq!(fast_field.get_val(0), 10u64);
-    //     assert_eq!(fast_field.get_val(1), 20u64);
-    //     assert_eq!(fast_field.get_val(2), 30u64);
+        let fast_field = fast_fields
+            .u64("my_number")
+            .unwrap()
+            .first_or_default_col(999);
+        assert_eq!(fast_field.get_val(0), 10u64);
+        assert_eq!(fast_field.get_val(1), 20u64);
+        assert_eq!(fast_field.get_val(2), 30u64);
 
-    //     let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
-    //     let multifield = fast_fields.u64s(multi_numbers).unwrap();
-    //     let mut vals = vec![];
-    //     multifield.get_vals(0u32, &mut vals);
-    //     assert_eq!(vals, &[] as &[u64]);
-    //     let mut vals = vec![];
-    //     multifield.get_vals(1u32, &mut vals);
-    //     assert_eq!(vals, &[5, 6]);
+        let multifield = fast_fields.u64("multi_numbers").unwrap();
+        let vals: Vec<u64> = multifield.values_for_doc(0u32).collect();
+        assert_eq!(vals, &[] as &[u64]);
+        let vals: Vec<_> = multifield.values_for_doc(1u32).collect();
+        assert_eq!(vals, &[5, 6]);
 
-    //     let mut vals = vec![];
-    //     multifield.get_vals(2u32, &mut vals);
-    //     assert_eq!(vals, &[3]);
-    //     Ok(())
-    // }
+        let vals: Vec<_> = multifield.values_for_doc(2u32).collect();
+        assert_eq!(vals, &[3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_sort_by_date_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", INDEXED | STORED | FAST);
+        let schema = schema_builder.build();
+
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "date".to_string(),
+                order: Order::Desc,
+            }),
+            ..Default::default()
+        };
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(1000),
+        ))?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(999),
+        ))?;
+        index_writer.add_document(doc!(
+            date_field => DateTime::from_timestamp_secs(1001),
+        ))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+
+        let fast_field = fast_fields
+            .date("date")
+            .unwrap()
+            .first_or_default_col(DateTime::from_timestamp_secs(0));
+        assert_eq!(fast_field.get_val(0), DateTime::from_timestamp_secs(1001));
+        assert_eq!(fast_field.get_val(1), DateTime::from_timestamp_secs(1000));
+        assert_eq!(fast_field.get_val(2), DateTime::from_timestamp_secs(999));
+        Ok(())
+    }
 
     #[test]
     fn test_doc_mapping() {

@@ -101,6 +101,10 @@ impl ColumnarWriter {
         let Some(numerical_col_writer) = self
             .numerical_field_hash_map
             .get::<NumericalColumnWriter>(sort_field.as_bytes())
+            .or_else(|| {
+                self.datetime_field_hash_map
+                    .get::<NumericalColumnWriter>(sort_field.as_bytes())
+            })
         else {
             return Vec::new();
         };
