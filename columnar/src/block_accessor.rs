@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::{Column, DocId, RowId};
 
 #[derive(Debug, Default, Clone)]
@@ -61,14 +63,18 @@ where F: FnMut(u32) {
     let mut hit = hits_iter.next();
 
     while let (Some(&current_doc), Some(&current_hit)) = (doc, hit) {
-        if current_doc < current_hit {
-            callback(current_doc);
-            doc = docs_iter.next();
-        } else if current_doc == current_hit {
-            doc = docs_iter.next();
-            hit = hits_iter.next();
-        } else {
-            hit = hits_iter.next();
+        match current_doc.cmp(&current_hit) {
+            Ordering::Less => {
+                callback(current_doc);
+                doc = docs_iter.next();
+            }
+            Ordering::Equal => {
+                doc = docs_iter.next();
+                hit = hits_iter.next();
+            }
+            Ordering::Greater => {
+                hit = hits_iter.next();
+            }
         }
     }
 

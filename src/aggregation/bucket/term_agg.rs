@@ -299,7 +299,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
         let mem_pre = self.get_memory_consumption();
 
-        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor1 {
+        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor {
             bucket_agg_accessor
                 .column_block_accessor
                 .fetch_block_with_missing(docs, &bucket_agg_accessor.accessor, missing);

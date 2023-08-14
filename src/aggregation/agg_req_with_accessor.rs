@@ -37,8 +37,7 @@ pub struct AggregationWithAccessor {
     /// Option or moved.
     pub(crate) accessor: Column<u64>,
     /// Load insert u64 for missing use case
-    pub(crate) missing_value_for_accessor1: Option<u64>,
-    pub(crate) missing_value_for_accessor2: Option<u64>,
+    pub(crate) missing_value_for_accessor: Option<u64>,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
@@ -48,13 +47,14 @@ pub struct AggregationWithAccessor {
 }
 
 impl AggregationWithAccessor {
+    /// May return multiple accessors if the aggregation is e.g. on mixed field types.
     fn try_from_agg(
         agg: &Aggregation,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
-        let mut missing_value_for_accessor1 = None;
+        let mut missing_value_term_agg = None;
         let mut str_dict_column = None;
         use AggregationVariants::*;
         let acc_field_types: Vec<(Column, ColumnType)> = match &agg.agg {
@@ -84,6 +84,7 @@ impl AggregationWithAccessor {
                 missing,
                 ..
             }) => {
+                missing_value_term_agg = missing.clone();
                 str_dict_column = reader.fast_fields().str(field_name)?;
                 let allowed_column_types = [
                     ColumnType::I64,
@@ -95,7 +96,21 @@ impl AggregationWithAccessor {
                     // ColumnType::IpAddr Unsupported
                     // ColumnType::DateTime Unsupported
                 ];
-                get_all_ff_reader_or_empty(reader, field_name, Some(&allowed_column_types))?
+
+                // In case the column is empty we want the shim column to match the missing type
+                let fallback_type = missing
+                    .as_ref()
+                    .map(|missing| match missing {
+                        Key::Str(_) => ColumnType::Str,
+                        Key::F64(_) => ColumnType::F64,
+                    })
+                    .unwrap_or(ColumnType::U64);
+                get_all_ff_reader_or_empty(
+                    reader,
+                    field_name,
+                    Some(&allowed_column_types),
+                    fallback_type,
+                )?
             }
             Average(AverageAggregation { field: field_name })
             | Count(CountAggregation { field: field_name })
@@ -120,10 +135,18 @@ impl AggregationWithAccessor {
 
         let aggs: Vec<AggregationWithAccessor> = acc_field_types
             .into_iter()
-            .map(|(accessor, field_type)| {
+            .map(|(accessor, column_type)| {
+                let missing_value_for_accessor =
+                    if let Some(missing) = missing_value_term_agg.as_ref() {
+                        get_missing_val(column_type, missing, agg.agg.get_fast_field_name())?
+                    } else {
+                        None
+                    };
+
                 Ok(AggregationWithAccessor {
+                    missing_value_for_accessor,
                     accessor,
-                    field_type,
+                    field_type: column_type,
                     sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                         sub_aggregation,
                         reader,
@@ -140,18 +163,11 @@ impl AggregationWithAccessor {
     }
 }
 
-fn handle_missing(
+fn get_missing_val(
     column_type: ColumnType,
     missing: &Key,
     field_name: &str,
-    second_column: Option<&Column>,
 ) -> crate::Result<Option<u64>> {
-    if let Some(_column) = second_column {
-        return Err(crate::TantivyError::InvalidArgument(format!(
-            "Missing value for field {} is not supported for multiple columns",
-            field_name
-        )));
-    }
     let missing_val = match missing {
         Key::Str(_) if column_type == ColumnType::Str => Some(u64::MAX),
         // Allow fallback to number on text fields
