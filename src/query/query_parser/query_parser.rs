@@ -167,7 +167,7 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed. e.g.,
 ///   `title:"Barack Obama"` will only find documents that have "barack" immediately followed by
 ///   "obama". Single quotes can also be used. If the text to be searched contains quotation mark,
-///   it is possible to escape them with a \.
+///   it is possible to escape them with a `\`.
 ///
 /// * range terms: Range searches can be done by specifying the start and end bound. These can be
 ///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains a
