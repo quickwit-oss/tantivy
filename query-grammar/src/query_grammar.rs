@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{
@@ -35,11 +37,7 @@ fn field_name(i: &str) -> IResult<&str, String> {
             )),
             char(':'),
         ),
-        |(first_char, next)| {
-            std::iter::once(first_char)
-                .chain(next.into_iter())
-                .collect()
-        },
+        |(first_char, next)| once(first_char).chain(next).collect(),
     )(i)
 }
 
@@ -822,8 +820,7 @@ fn aggregate_infallible_expressions(
                 if let Some(last) = clauses.last_mut() {
                     last.push((occur.or(Some(Occur::Must)), ast.clone()));
                 } else {
-                    let mut last = Vec::new();
-                    last.push((occur.or(Some(Occur::Must)), ast.clone()));
+                    let last = vec![(occur.or(Some(Occur::Must)), ast.clone())];
                     clauses.push(last);
                 }
             }
@@ -852,8 +849,7 @@ fn aggregate_infallible_expressions(
             if let Some(last) = clauses.last_mut() {
                 last.push((last_occur.or(Some(Occur::Must)), last_ast));
             } else {
-                let mut last = Vec::new();
-                last.push((last_occur.or(Some(Occur::Must)), last_ast));
+                let last = vec![(last_occur.or(Some(Occur::Must)), last_ast)];
                 clauses.push(last);
             }
         }

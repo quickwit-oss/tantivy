@@ -73,13 +73,9 @@ impl Weight for BoostWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        if scorer.seek(doc) != doc {
-            return Err(does_not_match(doc));
-        }
-        let mut explanation =
-            Explanation::new(format!("Boost x{} of ...", self.boost), scorer.score());
         let underlying_explanation = self.weight.explain(reader, doc)?;
+        let score = underlying_explanation.value() * self.boost;
+        let mut explanation = Explanation::new(format!("Boost x{} of ...", self.boost), score);
         explanation.add_detail(underlying_explanation);
         Ok(explanation)
     }

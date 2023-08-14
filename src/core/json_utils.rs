@@ -60,7 +60,7 @@ impl IndexingPositionsPerPath {
     fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
         self.positions_per_path
             .entry(murmurhash2(term.serialized_term()))
-            .or_insert_with(Default::default)
+            .or_default()
     }
 }
 
