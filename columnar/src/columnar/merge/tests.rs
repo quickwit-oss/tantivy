@@ -29,28 +29,10 @@ fn test_column_coercion_to_u64() {
     let columnar2 = make_columnar("numbers", &[u64::MAX]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(columnars, &[], &merge_order)
-            .unwrap()
-            .map(conv_res)
-            .collect();
+    let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
+        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
     assert_eq!(column_map.len(), 1);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
-}
-
-#[test]
-fn test_column_no_coercion_if_all_the_same() {
-    let columnar1 = make_columnar("numbers", &[1u64]);
-    let columnar2 = make_columnar("numbers", &[2u64]);
-    let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(columnars, &[], &merge_order)
-            .unwrap()
-            .map(conv_res)
-            .collect();
-    assert_eq!(column_map.len(), 1);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
+    assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
 
 #[test]
@@ -59,13 +41,10 @@ fn test_column_coercion_to_i64() {
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(columnars, &[], &merge_order)
-            .unwrap()
-            .map(conv_res)
-            .collect();
+    let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
+        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
     assert_eq!(column_map.len(), 1);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::I64)));
+    assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
 
 //#[test]
@@ -87,17 +66,15 @@ fn test_group_columns_with_required_column() {
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(
+    let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
+        group_columns_for_merge(
             &[&columnar1, &columnar2],
             &[("numbers".to_string(), ColumnType::U64)],
             &merge_order,
         )
-        .unwrap()
-        .map(conv_res)
-        .collect();
+        .unwrap();
     assert_eq!(column_map.len(), 1);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
+    assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
 
 #[test]
@@ -106,19 +83,17 @@ fn test_group_columns_required_column_with_no_existing_columns() {
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(
-            columnars,
-            &[("required_col".to_string(), ColumnType::Str)],
-            &merge_order,
-        )
-        .unwrap()
-        .map(conv_res)
-        .collect();
+    let column_map: BTreeMap<_, _> = group_columns_for_merge(
+        columnars,
+        &[("required_col".to_string(), ColumnType::Str)],
+        &merge_order,
+    )
+    .unwrap();
     assert_eq!(column_map.len(), 2);
-    let columns = column_map
-        .get(&("required_col".to_string(), ColumnType::Str))
-        .unwrap();
+    let columns = &column_map
+        .get(&("required_col".to_string(), ColumnTypeCategory::Str))
+        .unwrap()
+        .columns;
     assert_eq!(columns.len(), 2);
     assert!(columns[0].is_none());
     assert!(columns[1].is_none());
@@ -130,24 +105,15 @@ fn test_group_columns_required_column_is_above_all_columns_have_the_same_type_ru
     let columnar2 = make_columnar("numbers", &[2i64]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(
+    let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
+        group_columns_for_merge(
             columnars,
             &[("numbers".to_string(), ColumnType::U64)],
             &merge_order,
         )
-        .unwrap()
-        .map(conv_res)
-        .collect();
+        .unwrap();
     assert_eq!(column_map.len(), 1);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::U64)));
-}
-
-fn conv_res(
-    el: io::Result<(Rc<str>, ColumnType, GroupedColumns)>,
-) -> ((String, ColumnType), Vec<Option<DynamicColumn>>) {
-    let el = el.unwrap();
-    ((el.0.to_string(), el.1), el.2.columns)
+    assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
 
 #[test]
@@ -156,24 +122,23 @@ fn test_missing_column() {
     let columnar2 = make_columnar("numbers2", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
     let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<(String, ColumnType), Vec<Option<DynamicColumn>>> =
-        group_columns_for_merge_iter(columnars, &[], &merge_order)
-            .unwrap()
-            .map(conv_res)
-            .collect();
+    let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
+        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
     assert_eq!(column_map.len(), 2);
-    assert!(column_map.contains_key(&("numbers".to_string(), ColumnType::I64)));
+    assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
     {
-        let columns = column_map
-            .get(&("numbers".to_string(), ColumnType::I64))
-            .unwrap();
+        let columns = &column_map
+            .get(&("numbers".to_string(), ColumnTypeCategory::Numerical))
+            .unwrap()
+            .columns;
         assert!(columns[0].is_some());
         assert!(columns[1].is_none());
     }
     {
-        let columns = column_map
-            .get(&("numbers2".to_string(), ColumnType::U64))
-            .unwrap();
+        let columns = &column_map
+            .get(&("numbers2".to_string(), ColumnTypeCategory::Numerical))
+            .unwrap()
+            .columns;
         assert!(columns[0].is_none());
         assert!(columns[1].is_some());
     }

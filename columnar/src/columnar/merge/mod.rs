@@ -2,14 +2,12 @@ mod merge_dict_column;
 mod merge_mapping;
 mod term_merger;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::net::Ipv6Addr;
-use std::rc::Rc;
 use std::sync::Arc;
 
-use common::GroupByIteratorExtended;
-use itertools::{EitherOrBoth, Itertools};
+use itertools::Itertools;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
@@ -31,14 +29,16 @@ use crate::{
 /// In practise, today, only Numerical colummns are coerced into one type today.
 ///
 /// See also [README.md].
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+///
+/// The ordering has to match the ordering of the variants in [ColumnType].
+#[derive(Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Hash, Debug)]
 pub(crate) enum ColumnTypeCategory {
-    Bool,
-    Str,
     Numerical,
-    DateTime,
     Bytes,
+    Str,
+    Bool,
     IpAddr,
+    DateTime,
 }
 
 impl From<ColumnType> for ColumnTypeCategory {
@@ -87,11 +87,18 @@ pub fn merge_columnar(
         .map(|reader| reader.num_rows())
         .collect::<Vec<u32>>();
 
-    let columns_to_merge_iter =
-        group_columns_for_merge_iter(columnar_readers, required_columns, &merge_row_order)?;
-    for res in columns_to_merge_iter {
-        let (column_name, column_type, grouped_columns) = res?;
-        let columns = grouped_columns.columns;
+    let columns_to_merge =
+        group_columns_for_merge(columnar_readers, required_columns, &merge_row_order)?;
+    for res in columns_to_merge {
+        let ((column_name, _column_type_category), grouped_columns) = res;
+        let grouped_columns = grouped_columns.open(&merge_row_order)?;
+        if grouped_columns.is_empty() {
+            continue;
+        }
+
+        let column_type = grouped_columns.column_type_after_merge();
+        let mut columns = grouped_columns.columns;
+        coerce_columns(column_type, &mut columns)?;
 
         let mut column_serializer =
             serializer.start_serialize_column(column_name.as_bytes(), column_type);
@@ -221,35 +228,9 @@ struct GroupedColumns {
 }
 
 impl GroupedColumns {
-    fn new(num_columnars: usize) -> Self {
-        GroupedColumns {
-            required_column_type: None,
-            columns: vec![None; num_columnars],
-        }
-    }
-
-    /// Set the dynamic column for a given columnar.
-    fn set_column(&mut self, columnar_id: usize, column: DynamicColumn) {
-        self.columns[columnar_id] = Some(column);
-    }
-
-    /// Force the existence of a column, as well as its type.
-    fn require_type(&mut self, required_type: ColumnType) -> io::Result<()> {
-        if let Some(existing_required_type) = self.required_column_type {
-            if existing_required_type == required_type {
-                // This was just a duplicate in the `required_columns`.
-                // Nothing to do.
-                return Ok(());
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Required column conflicts with another required column of the same type \
-                     category.",
-                ));
-            }
-        }
-        self.required_column_type = Some(required_type);
-        Ok(())
+    /// Check is column group can be skipped during serialization.
+    fn is_empty(&self) -> bool {
+        self.required_column_type.is_none() && self.columns.iter().all(Option::is_none)
     }
 
     /// Returns the column type after merge.
@@ -277,6 +258,67 @@ impl GroupedColumns {
             .flatten()
             .all(|el| ColumnTypeCategory::from(el.column_type()) == ColumnTypeCategory::Numerical));
         merged_numerical_columns_type(self.columns.iter().flatten()).into()
+    }
+}
+
+struct GroupedColumnsHandle {
+    required_column_type: Option<ColumnType>,
+    columns: Vec<Option<DynamicColumnHandle>>,
+}
+
+impl GroupedColumnsHandle {
+    fn new(num_columnars: usize) -> Self {
+        GroupedColumnsHandle {
+            required_column_type: None,
+            columns: vec![None; num_columnars],
+        }
+    }
+    fn open(self, merge_row_order: &MergeRowOrder) -> io::Result<GroupedColumns> {
+        let mut columns: Vec<Option<DynamicColumn>> = Vec::new();
+        for (columnar_id, column) in self.columns.iter().enumerate() {
+            if let Some(column) = column {
+                let column = column.open()?;
+                // We skip columns that end up with 0 documents.
+                // That way, we make sure they don't end up influencing the merge type or
+                // creating empty columns.
+
+                if is_empty_after_merge(merge_row_order, &column, columnar_id) {
+                    columns.push(None);
+                } else {
+                    columns.push(Some(column));
+                }
+            } else {
+                columns.push(None);
+            }
+        }
+        Ok(GroupedColumns {
+            required_column_type: self.required_column_type,
+            columns,
+        })
+    }
+
+    /// Set the dynamic column for a given columnar.
+    fn set_column(&mut self, columnar_id: usize, column: DynamicColumnHandle) {
+        self.columns[columnar_id] = Some(column);
+    }
+
+    /// Force the existence of a column, as well as its type.
+    fn require_type(&mut self, required_type: ColumnType) -> io::Result<()> {
+        if let Some(existing_required_type) = self.required_column_type {
+            if existing_required_type == required_type {
+                // This was just a duplicate in the `required_columns`.
+                // Nothing to do.
+                return Ok(());
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Required column conflicts with another required column of the same type \
+                     category.",
+                ));
+            }
+        }
+        self.required_column_type = Some(required_type);
+        Ok(())
     }
 }
 
@@ -358,157 +400,34 @@ fn is_empty_after_merge(
     }
 }
 
-type MergeIter<'a> =
-    Box<dyn Iterator<Item = io::Result<(Rc<str>, ColumnType, GroupedColumns)>> + 'a>;
-
-#[derive(Debug, Clone)]
-struct MergeColumn {
-    column_name: Rc<str>,
-    reader_ord: usize,
-    column: DynamicColumnHandle,
-}
-impl MergeColumn {
-    fn new(column_name: Rc<str>, reader_ord: usize, column: DynamicColumnHandle) -> Self {
-        MergeColumn {
-            column_name,
-            reader_ord,
-            column,
-        }
-    }
-}
-
 /// Iterates over the columns of the columnar readers, grouped by column name.
 /// Key functionality is that `open` of the Columns is done lazy per group.
-fn group_columns_for_merge_iter<'a>(
+fn group_columns_for_merge<'a>(
     columnar_readers: &'a [&'a ColumnarReader],
     required_columns: &'a [(String, ColumnType)],
-    merge_row_order: &'a MergeRowOrder,
-) -> io::Result<impl Iterator<Item = io::Result<(Rc<str>, ColumnType, GroupedColumns)>> + 'a> {
-    // One iterator per columnar reader.
-    let column_iters: Vec<_> = columnar_readers
-        .iter()
-        .enumerate()
-        .map(|(reader_ord, reader)| {
-            Ok(reader
-                .iter_columns()?
-                .map(move |el| MergeColumn::new(Rc::from(el.0), reader_ord, el.1)))
-        })
-        .collect::<io::Result<_>>()?;
-    let required_columns_map: HashMap<String, ColumnType> = required_columns
-        .iter()
-        .map(|(col_name, typ)| (col_name.to_string(), *typ))
-        .collect::<HashMap<String, _>>();
-    let mut required_columns_list: Vec<String> = required_columns
-        .iter()
-        .map(|(col_name, _)| col_name.to_string())
-        .collect();
-    required_columns_list.sort();
+    _merge_row_order: &'a MergeRowOrder,
+) -> io::Result<BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle>> {
+    let mut columns: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> = BTreeMap::new();
 
-    // Kmerge on column_name
-    let kmerge = column_iters
-        .into_iter()
-        .kmerge_by(|a, b| a.column_name < b.column_name);
-    // Group by on column_name.
-    let group_iter = GroupByIteratorExtended::group_by(kmerge, |el| el.column_name.clone());
-
-    // Weave in the required columns into the sorted by column name iterator.
-    let groups_with_required = required_columns_list
-        .into_iter()
-        .merge_join_by(group_iter, |left, right| (left.as_str()).cmp(&right.0));
-
-    Ok(groups_with_required.flat_map(move |either| {
-        // It should be possible to do the grouping also on the column type in one pass, but some
-        // tests are failing.
-        let mut force_type: Option<ColumnType> = None;
-        let (column_name, group) = match either {
-            // set required column
-            EitherOrBoth::Both(_required, (key, group)) => {
-                force_type = required_columns_map.get(&*key).cloned();
-                (key, group)
-            }
-            // Only required - Return artificial empty column
-            EitherOrBoth::Left(column_name) => {
-                return generate_require_column(
-                    Rc::from(column_name),
-                    columnar_readers,
-                    &required_columns_map,
-                );
-            }
-            // no required column
-            EitherOrBoth::Right((key, group)) => (key, group),
-        };
-        let mut group: Vec<MergeColumn> = group.collect();
-        // We need to create an iterator that returns the columns in the order of `to_code` of
-        // ColumnType
-        group.sort_by_key(|el| el.column.column_type);
-        let group_iter = GroupByIteratorExtended::group_by(group.into_iter(), |el| {
-            let cat_type: ColumnTypeCategory = el.column.column_type().into();
-            cat_type
-        });
-        let group_column_iter = group_iter.map(move |(_cat, group)| {
-            group_columns_iter(
-                column_name.clone(),
-                columnar_readers,
-                force_type,
-                merge_row_order,
-                group,
-            )
-        });
-        let iter = group_column_iter.filter(move |res| {
-            // Filter out empty columns.
-            res.as_ref()
-                .map(|(_, _, group)| {
-                    let column_is_required = force_type.is_some();
-                    if column_is_required {
-                        return true;
-                    }
-                    let all_columns_none = group.columns.iter().all(|column| column.is_none());
-                    !all_columns_none
-                })
-                .unwrap_or(true)
-        });
-        Box::new(iter)
-    }))
-}
-
-fn generate_require_column<'a>(
-    column_name: Rc<str>,
-    columnar_readers: &'a [&'a ColumnarReader],
-    required_columns_map: &HashMap<String, ColumnType>,
-) -> MergeIter<'a> {
-    let mut grouped_columns = GroupedColumns::new(columnar_readers.len());
-    let force_type: ColumnType = required_columns_map.get(&*column_name).cloned().unwrap();
-    grouped_columns.require_type(force_type).unwrap(); // Can't panic
-    Box::new(std::iter::once(Ok((
-        column_name,
-        force_type,
-        grouped_columns,
-    )))) as MergeIter<'a>
-}
-
-fn group_columns_iter<'a>(
-    column_name: Rc<str>,
-    columnar_readers: &'a [&'a ColumnarReader],
-    force_type: Option<ColumnType>,
-    merge_row_order: &'a MergeRowOrder,
-    group: impl Iterator<Item = MergeColumn>,
-) -> io::Result<(Rc<str>, ColumnType, GroupedColumns)> {
-    let mut grouped_columns = GroupedColumns::new(columnar_readers.len());
-    if let Some(force_type) = force_type {
-        grouped_columns.require_type(force_type)?;
+    for &(ref column_name, column_type) in required_columns {
+        columns
+            .entry((column_name.clone(), column_type.into()))
+            .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))
+            .require_type(column_type)?;
     }
-    for col in group {
-        let columnar_ord = col.reader_ord;
-        let column = col.column.open()?;
-        if !is_empty_after_merge(merge_row_order, &column, columnar_ord) {
-            grouped_columns.set_column(col.reader_ord, column);
+
+    for (columnar_id, columnar_reader) in columnar_readers.iter().enumerate() {
+        let column_name_and_handle = columnar_reader.iter_columns()?;
+
+        for (column_name, handle) in column_name_and_handle {
+            let column_category: ColumnTypeCategory = handle.column_type().into();
+            columns
+                .entry((column_name, column_category))
+                .or_insert_with(|| GroupedColumnsHandle::new(columnar_readers.len()))
+                .set_column(columnar_id, handle);
         }
     }
-
-    let column_type = grouped_columns.column_type_after_merge();
-    coerce_columns(column_type, &mut grouped_columns.columns)?;
-
-    Ok((column_name, column_type, grouped_columns))
+    Ok(columns)
 }
 
 fn coerce_columns(
