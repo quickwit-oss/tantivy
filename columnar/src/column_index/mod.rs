@@ -37,6 +37,10 @@ impl From<MultiValueIndex> for ColumnIndex {
 }
 
 impl ColumnIndex {
+    #[inline]
+    pub fn is_multivalue(&self) -> bool {
+        matches!(self, ColumnIndex::Multivalued(_))
+    }
     // Returns the cardinality of the column index.
     //
     // By convention, if the column contains no docs, we consider that it is

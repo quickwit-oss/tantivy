@@ -123,7 +123,8 @@ pub enum AggregationVariants {
 }
 
 impl AggregationVariants {
-    fn get_fast_field_name(&self) -> &str {
+    /// Returns the name of the field used by the aggregation.
+    pub fn get_fast_field_name(&self) -> &str {
         match self {
             AggregationVariants::Terms(terms) => terms.field.as_str(),
             AggregationVariants::Range(range) => range.field.as_str(),
