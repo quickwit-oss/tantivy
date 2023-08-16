@@ -283,7 +283,7 @@ fn test_single_segment_index_writer() -> crate::Result<()> {
     let directory = RamDirectory::default();
     let mut single_segment_index_writer = Index::builder()
         .schema(schema)
-        .single_segment_index_writer(directory, 10_000_000)?;
+        .single_segment_index_writer(directory, 15_000_000)?;
     for _ in 0..10 {
         let doc = doc!(text_field=>"hello");
         single_segment_index_writer.add_document(doc)?;

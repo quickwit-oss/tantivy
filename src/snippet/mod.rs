@@ -262,7 +262,7 @@ fn is_sorted(mut it: impl Iterator<Item = usize>) -> bool {
 /// #    let text_field = schema_builder.add_text_field("text", TEXT);
 /// #    let schema = schema_builder.build();
 /// #    let index = Index::create_in_ram(schema);
-/// #    let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// #    let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
 /// #    let doc = doc!(text_field => r#"Comme je descendais des Fleuves impassibles,
 /// #   Je ne me sentis plus guidé par les haleurs :
 /// #  Des Peaux-Rouges criards les avaient pris pour cibles,

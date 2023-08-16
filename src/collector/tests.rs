@@ -26,7 +26,7 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
 
-    let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+    let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
     index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_utc(OffsetDateTime::parse("1898-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
     index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_utc(OffsetDateTime::parse("2020-04-09T00:00:00+00:00", &Rfc3339).unwrap())))?;
     index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_utc(OffsetDateTime::parse("2019-04-20T00:00:00+00:00", &Rfc3339).unwrap())))?;
