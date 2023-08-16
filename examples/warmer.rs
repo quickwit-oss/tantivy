@@ -143,7 +143,7 @@ fn main() -> tantivy::Result<()> {
     const SNEAKERS: ProductId = 23222;
 
     let index = Index::create_in_ram(schema);
-    let mut writer = index.writer_with_num_threads(1, 10_000_000)?;
+    let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
     writer.add_document(doc!(product_id=>OLIVE_OIL, text=>"cooking olive oil from greece"))?;
     writer.add_document(doc!(product_id=>GLOVES, text=>"kitchen gloves, perfect for cooking"))?;
     writer.add_document(doc!(product_id=>SNEAKERS, text=>"uber sweet sneakers"))?;

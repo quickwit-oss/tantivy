@@ -1269,6 +1269,7 @@ mod tests {
         ];
 
         let index = get_test_index_from_terms(false, &terms_per_segment)?;
+        assert_eq!(index.searchable_segments().unwrap().len(), 2);
 
         let agg_req: Aggregations = serde_json::from_value(json!({
             "my_texts": {

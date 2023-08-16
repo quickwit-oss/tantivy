@@ -38,7 +38,7 @@ use crate::{DocId, Score, SegmentReader, TantivyError};
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
 /// index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64))?;
 /// index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64))?;
 /// index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64))?;
@@ -216,7 +216,7 @@ where
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
 /// index_writer.add_document(doc!(title => "The Name of the Wind", barcode => &b"010101"[..]))?;
 /// index_writer.add_document(doc!(title => "The Diary of Muadib", barcode => &b"110011"[..]))?;
 /// index_writer.add_document(doc!(title => "A Dairy Cow", barcode => &b"110111"[..]))?;

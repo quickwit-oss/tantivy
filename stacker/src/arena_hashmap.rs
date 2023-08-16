@@ -164,7 +164,7 @@ impl ArenaHashMap {
 
     #[inline]
     pub fn mem_usage(&self) -> usize {
-        self.table.len() * mem::size_of::<KeyValue>()
+        self.table.len() * mem::size_of::<KeyValue>() + self.memory_arena.mem_usage()
     }
 
     #[inline]

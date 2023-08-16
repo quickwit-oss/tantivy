@@ -48,7 +48,7 @@ use crate::{DateTime, DocId, Score};
 /// let schema = schema_builder.build();
 ///
 /// let index = Index::create_in_ram(schema);
-/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
