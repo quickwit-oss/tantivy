@@ -78,7 +78,7 @@ impl DateOptions {
         self
     }
 
-    /// Set the field as a single-valued fast field.
+    /// Set the field as a fast field.
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
