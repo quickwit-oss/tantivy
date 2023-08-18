@@ -44,7 +44,7 @@ use super::metric::{
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 /// Aggregation request.
 ///
 /// An aggregation is either a bucket or a metric.
@@ -58,6 +58,70 @@ pub struct Aggregation {
     #[serde(default)]
     #[serde(skip_serializing_if = "Aggregations::is_empty")]
     pub sub_aggregation: Aggregations,
+}
+
+impl<'de> serde::Deserialize<'de> for Aggregation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de> {
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        /// Aggregation request.
+        ///
+        /// An aggregation is either a bucket or a metric.
+        pub struct AggregationWrapper {
+            /// The aggregation variant, which can be either a bucket or a metric.
+            #[serde(flatten)]
+            pub agg: AggregationVariants,
+            /// The sub_aggregations, only valid for bucket type aggregations. Each bucket will
+            /// aggregate on the document set in the bucket.
+            #[serde(rename = "aggs")]
+            #[serde(default)]
+            #[serde(skip_serializing_if = "Aggregations::is_empty")]
+            pub sub_aggregation: Aggregations,
+        }
+
+        let value: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+
+        let agg: AggregationWrapper = serde_json::from_value(value.to_owned()).map_err(|err| {
+            if err.to_string().contains("no variant") {
+                let mut key = "";
+                for (k, _) in value.as_object().unwrap() {
+                    if k != "aggs" {
+                        key = k;
+                        break;
+                    }
+                }
+                let valid_variants = [
+                    "range",
+                    "histogram",
+                    "date_histogram",
+                    "terms",
+                    "avg",
+                    "value_count",
+                    "max",
+                    "min",
+                    "stats",
+                    "sum",
+                    "percentiles",
+                ];
+
+                // Create a custom error message with the list of valid variants
+                let error_msg = format!(
+                    "Invalid Aggregation variant {:?}. Valid variants are: {}",
+                    key,
+                    valid_variants.join(", ")
+                );
+
+                serde::de::Error::custom(error_msg)
+            } else {
+                serde::de::Error::custom(err)
+            }
+        })?;
+
+        Ok(Aggregation {
+            agg: agg.agg,
+            sub_aggregation: agg.sub_aggregation,
+        })
+    }
 }
 
 impl Aggregation {

@@ -560,7 +560,8 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
     // TODO: This should list valid values
     assert_eq!(
         agg_req_1.unwrap_err().to_string(),
-        "no variant of enum AggregationVariants found in flattened data"
+        "Invalid Aggregation variant \"doesnotmatchanyagg\". Valid variants are: range, \
+         histogram, date_histogram, terms, avg, value_count, max, min, stats, sum, percentiles"
     );
 
     // TODO: This should return an error
