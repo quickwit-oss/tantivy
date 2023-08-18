@@ -276,7 +276,7 @@ impl FastFieldReaders {
     }
 
     /// Returns the all `u64` column used to represent any `u64`-mapped typed (String/Bytes term
-    /// ids, i64, u64, f64, DateTime).
+    /// ids, i64, u64, f64, bool, DateTime).
     ///
     /// In case of JSON, there may be two columns. One for term and one for numerical types. (This
     /// may change later to 3 types if JSON handles DateTime)

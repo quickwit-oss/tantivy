@@ -15,6 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
+use crate::aggregation::bucket::TermMissingAgg;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -80,12 +81,21 @@ pub(crate) fn build_single_agg_segment_collector(
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     use AggregationVariants::*;
     match &req.agg.agg {
-        Terms(terms_req) => Ok(Box::new(SegmentTermCollector::from_req_and_validate(
-            terms_req,
-            &mut req.sub_aggregation,
-            req.field_type,
-            accessor_idx,
-        )?)),
+        Terms(terms_req) => {
+            if req.accessors.is_empty() {
+                Ok(Box::new(SegmentTermCollector::from_req_and_validate(
+                    terms_req,
+                    &mut req.sub_aggregation,
+                    req.field_type,
+                    accessor_idx,
+                )?))
+            } else {
+                Ok(Box::new(TermMissingAgg::new(
+                    accessor_idx,
+                    &mut req.sub_aggregation,
+                )?))
+            }
+        }
         Range(range_req) => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             range_req,
             &mut req.sub_aggregation,

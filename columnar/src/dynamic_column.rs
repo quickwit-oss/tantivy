@@ -247,7 +247,7 @@ impl DynamicColumnHandle {
     }
 
     /// Returns the `u64` fast field reader reader associated with `fields` of types
-    /// Str, u64, i64, f64, or datetime.
+    /// Str, u64, i64, f64, bool, or datetime.
     ///
     /// If not, the fastfield reader will returns the u64-value associated with the original
     /// FastValue.
@@ -258,9 +258,12 @@ impl DynamicColumnHandle {
                 let column: BytesColumn = crate::column::open_column_bytes(column_bytes)?;
                 Ok(Some(column.term_ord_column))
             }
-            ColumnType::Bool => Ok(None),
             ColumnType::IpAddr => Ok(None),
-            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::DateTime => {
+            ColumnType::Bool
+            | ColumnType::I64
+            | ColumnType::U64
+            | ColumnType::F64
+            | ColumnType::DateTime => {
                 let column = crate::column::open_column_u64::<u64>(column_bytes)?;
                 Ok(Some(column))
             }

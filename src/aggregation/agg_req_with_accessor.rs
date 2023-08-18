@@ -43,6 +43,11 @@ pub struct AggregationWithAccessor {
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: ResourceLimitGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
+    /// Used for missing term aggregation, which checks all columns for existence.
+    /// By convention the missing aggregation is chosen, when this property is set
+    /// (instead bein set in `agg`).
+    /// If this needs to used by other aggregations, we need to refactor this.
+    pub(crate) accessors: Vec<Column<u64>>,
     pub(crate) agg: Aggregation,
 }
 
@@ -54,38 +59,68 @@ impl AggregationWithAccessor {
         reader: &SegmentReader,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
-        let mut missing_value_term_agg = None;
-        let mut str_dict_column = None;
+        let get_agg_with_accessor = |aggs: &mut Vec<AggregationWithAccessor>,
+                                     accessor,
+                                     column_type,
+                                     str_dict_column: Option<StrColumn>,
+                                     missing_value_term_agg: Option<Key>|
+         -> crate::Result<()> {
+            let missing_value_for_accessor = if let Some(missing) = missing_value_term_agg.as_ref()
+            {
+                get_missing_val(column_type, missing, agg.agg.get_fast_field_name())?
+            } else {
+                None
+            };
+
+            let res = AggregationWithAccessor {
+                missing_value_for_accessor,
+                accessor,
+                accessors: Vec::new(),
+                field_type: column_type,
+                sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                    sub_aggregation,
+                    reader,
+                    &limits,
+                )?,
+                agg: agg.clone(),
+                str_dict_column: str_dict_column.clone(),
+                limits: limits.new_guard(),
+                column_block_accessor: Default::default(),
+            };
+            aggs.push(res);
+            Ok(())
+        };
+
+        let mut res: Vec<AggregationWithAccessor> = Vec::new();
         use AggregationVariants::*;
-        let acc_field_types: Vec<(Column, ColumnType)> = match &agg.agg {
+        match &agg.agg {
             Range(RangeAggregation {
                 field: field_name, ..
-            }) => vec![get_ff_reader(
-                reader,
-                field_name,
-                Some(get_numeric_or_date_column_types()),
-            )?],
+            }) => {
+                let (accessor, column_type) =
+                    get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
+                get_agg_with_accessor(&mut res, accessor, column_type, None, None)?;
+            }
             Histogram(HistogramAggregation {
                 field: field_name, ..
-            }) => vec![get_ff_reader(
-                reader,
-                field_name,
-                Some(get_numeric_or_date_column_types()),
-            )?],
+            }) => {
+                let (accessor, column_type) =
+                    get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
+                get_agg_with_accessor(&mut res, accessor, column_type, None, None)?;
+            }
             DateHistogram(DateHistogramAggregationReq {
                 field: field_name, ..
-            }) => vec![get_ff_reader(
-                reader,
-                field_name,
-                Some(get_numeric_or_date_column_types()),
-            )?],
+            }) => {
+                let (accessor, column_type) =
+                    get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
+                get_agg_with_accessor(&mut res, accessor, column_type, None, None)?;
+            }
             Terms(TermsAggregation {
                 field: field_name,
                 missing,
                 ..
             }) => {
-                missing_value_term_agg = missing.clone();
-                str_dict_column = reader.fast_fields().str(field_name)?;
+                let str_dict_column = reader.fast_fields().str(field_name)?;
                 let allowed_column_types = [
                     ColumnType::I64,
                     ColumnType::U64,
@@ -105,12 +140,60 @@ impl AggregationWithAccessor {
                         Key::F64(_) => ColumnType::F64,
                     })
                     .unwrap_or(ColumnType::U64);
-                get_all_ff_reader_or_empty(
+                let column_and_types = get_all_ff_reader_or_empty(
                     reader,
                     field_name,
                     Some(&allowed_column_types),
                     fallback_type,
-                )?
+                )?;
+                let missing_and_more_than_one_col = column_and_types.len() > 1 && missing.is_some();
+                let text_on_non_text_col = column_and_types.len() == 1
+                    && column_and_types[0].1.numerical_type().is_some()
+                    && missing
+                        .as_ref()
+                        .map(|m| matches!(m, Key::Str(_)))
+                        .unwrap_or(false);
+
+                let use_special_missing_agg = missing_and_more_than_one_col || text_on_non_text_col;
+                if use_special_missing_agg {
+                    let column_and_types =
+                        get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?;
+
+                    let accessors: Vec<Column> =
+                        column_and_types.iter().map(|(a, _)| a.clone()).collect();
+                    let agg_wit_acc = AggregationWithAccessor {
+                        missing_value_for_accessor: None,
+                        accessor: accessors[0].clone(),
+                        accessors,
+                        field_type: ColumnType::U64,
+                        sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                            sub_aggregation,
+                            reader,
+                            &limits,
+                        )?,
+                        agg: agg.clone(),
+                        str_dict_column: str_dict_column.clone(),
+                        limits: limits.new_guard(),
+                        column_block_accessor: Default::default(),
+                    };
+                    res.push(agg_wit_acc);
+                }
+
+                for (accessor, column_type) in column_and_types {
+                    let missing_value_term_agg = if use_special_missing_agg {
+                        None
+                    } else {
+                        missing.clone()
+                    };
+
+                    get_agg_with_accessor(
+                        &mut res,
+                        accessor,
+                        column_type,
+                        str_dict_column.clone(),
+                        missing_value_term_agg,
+                    )?;
+                }
             }
             Average(AverageAggregation {
                 field: field_name, ..
@@ -130,48 +213,21 @@ impl AggregationWithAccessor {
             | Sum(SumAggregation {
                 field: field_name, ..
             }) => {
-                let (accessor, field_type) =
+                let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-
-                vec![(accessor, field_type)]
+                get_agg_with_accessor(&mut res, accessor, column_type, None, None)?;
             }
             Percentiles(percentiles) => {
-                let (accessor, field_type) = get_ff_reader(
+                let (accessor, column_type) = get_ff_reader(
                     reader,
                     percentiles.field_name(),
                     Some(get_numeric_or_date_column_types()),
                 )?;
-                vec![(accessor, field_type)]
+                get_agg_with_accessor(&mut res, accessor, column_type, None, None)?;
             }
         };
 
-        let aggs: Vec<AggregationWithAccessor> = acc_field_types
-            .into_iter()
-            .map(|(accessor, column_type)| {
-                let missing_value_for_accessor =
-                    if let Some(missing) = missing_value_term_agg.as_ref() {
-                        get_missing_val(column_type, missing, agg.agg.get_fast_field_name())?
-                    } else {
-                        None
-                    };
-
-                Ok(AggregationWithAccessor {
-                    missing_value_for_accessor,
-                    accessor,
-                    field_type: column_type,
-                    sub_aggregation: get_aggs_with_segment_accessor_and_validate(
-                        sub_aggregation,
-                        reader,
-                        &limits,
-                    )?,
-                    agg: agg.clone(),
-                    str_dict_column: str_dict_column.clone(),
-                    limits: limits.new_guard(),
-                    column_block_accessor: Default::default(),
-                })
-            })
-            .collect::<crate::Result<_>>()?;
-        Ok(aggs)
+        Ok(res)
     }
 }
 
