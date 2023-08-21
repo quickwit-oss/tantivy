@@ -2427,6 +2427,13 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_regression_1() {
+        use IndexingOp::*;
+        let ops = &[AddDoc { id: 15 }, Commit, AddDoc { id: 9 }, Commit, Merge];
+        test_operation_strategy(&ops[..], false, true).unwrap();
+    }
+
+    #[test]
     fn test_range_query_bug_1() {
         use IndexingOp::*;
         let ops = &[

@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::ops::{Deref, Range, RangeBounds};
 use std::sync::Arc;
 use std::{fmt, io};
@@ -29,6 +30,61 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
             io::ErrorKind::Unsupported,
             "Async read is not supported.",
         ))
+    }
+}
+
+#[derive(Debug)]
+/// A File with it's length included.
+pub struct WrapFile {
+    file: File,
+    len: usize,
+}
+impl WrapFile {
+    /// Creates a new WrapFile and stores its length.
+    pub fn new(file: File) -> io::Result<Self> {
+        let len = file.metadata()?.len() as usize;
+        Ok(WrapFile { file, len })
+    }
+}
+
+#[async_trait]
+impl FileHandle for WrapFile {
+    fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
+        let file_len = self.len();
+
+        // Calculate the actual range to read, ensuring it stays within file boundaries
+        let start = range.start;
+        let end = range.end.min(file_len);
+
+        // Ensure the start is before the end of the range
+        if start >= end {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid range"));
+        }
+
+        let mut buffer = vec![0; end - start];
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::prelude::FileExt;
+            self.file.read_exact_at(&mut buffer, start as u64)?;
+        }
+
+        #[cfg(not(unix))]
+        {
+            let mut file = self.file.try_clone()?; // Clone the file to read from it separately
+                                                   // Seek to the start position in the file
+            file.seek(io::SeekFrom::Start(start as u64))?;
+            // Read the data into the buffer
+            file.read_exact(&mut buffer)?;
+        }
+
+        Ok(OwnedBytes::new(buffer))
+    }
+    // todo implement async
+}
+impl HasLen for WrapFile {
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -64,6 +120,30 @@ pub struct FileSlice {
 impl fmt::Debug for FileSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "FileSlice({:?}, {:?})", &self.data, self.range)
+    }
+}
+
+impl FileSlice {
+    pub fn stream_file_chunks(&self) -> impl Iterator<Item = io::Result<OwnedBytes>> + '_ {
+        let len = self.range.end;
+        let mut start = self.range.start;
+        std::iter::from_fn(move || {
+            /// Returns chunks of 1MB of data from the FileHandle.
+            const CHUNK_SIZE: usize = 1024 * 1024; // 1MB
+
+            if start < len {
+                let end = (start + CHUNK_SIZE).min(len);
+                let range = start..end;
+                let chunk = self.data.read_bytes(range);
+                start += CHUNK_SIZE;
+                match chunk {
+                    Ok(chunk) => Some(Ok(chunk)),
+                    Err(e) => Some(Err(e)),
+                }
+            } else {
+                None
+            }
+        })
     }
 }
 

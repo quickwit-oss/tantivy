@@ -27,15 +27,15 @@ pub trait GroupByIteratorExtended: Iterator {
     where
         Self: Sized,
         F: FnMut(&Self::Item) -> K,
-        K: PartialEq + Copy,
-        Self::Item: Copy,
+        K: PartialEq + Clone,
+        Self::Item: Clone,
     {
         GroupByIterator::new(self, key)
     }
 }
 impl<I: Iterator> GroupByIteratorExtended for I {}
 
-pub struct GroupByIterator<I, F, K: Copy>
+pub struct GroupByIterator<I, F, K: Clone>
 where
     I: Iterator,
     F: FnMut(&I::Item) -> K,
@@ -50,7 +50,7 @@ where
     inner: Rc<RefCell<GroupByShared<I, F, K>>>,
 }
 
-struct GroupByShared<I, F, K: Copy>
+struct GroupByShared<I, F, K: Clone>
 where
     I: Iterator,
     F: FnMut(&I::Item) -> K,
@@ -63,7 +63,7 @@ impl<I, F, K> GroupByIterator<I, F, K>
 where
     I: Iterator,
     F: FnMut(&I::Item) -> K,
-    K: Copy,
+    K: Clone,
 {
     fn new(inner: I, group_by_fn: F) -> Self {
         let inner = GroupByShared {
@@ -80,28 +80,28 @@ where
 impl<I, F, K> Iterator for GroupByIterator<I, F, K>
 where
     I: Iterator,
-    I::Item: Copy,
+    I::Item: Clone,
     F: FnMut(&I::Item) -> K,
-    K: Copy,
+    K: Clone,
 {
     type Item = (K, GroupIterator<I, F, K>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut inner = self.inner.borrow_mut();
-        let value = *inner.iter.peek()?;
+        let value = inner.iter.peek()?.clone();
         let key = (inner.group_by_fn)(&value);
 
         let inner = self.inner.clone();
 
         let group_iter = GroupIterator {
             inner,
-            group_key: key,
+            group_key: key.clone(),
         };
         Some((key, group_iter))
     }
 }
 
-pub struct GroupIterator<I, F, K: Copy>
+pub struct GroupIterator<I, F, K: Clone>
 where
     I: Iterator,
     F: FnMut(&I::Item) -> K,
@@ -110,10 +110,10 @@ where
     group_key: K,
 }
 
-impl<I, F, K: PartialEq + Copy> Iterator for GroupIterator<I, F, K>
+impl<I, F, K: PartialEq + Clone> Iterator for GroupIterator<I, F, K>
 where
     I: Iterator,
-    I::Item: Copy,
+    I::Item: Clone,
     F: FnMut(&I::Item) -> K,
 {
     type Item = I::Item;
@@ -121,7 +121,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let mut inner = self.inner.borrow_mut();
         // peek if next value is in group
-        let peek_val = *inner.iter.peek()?;
+        let peek_val = inner.iter.peek()?.clone();
         if (inner.group_by_fn)(&peek_val) == self.group_key {
             inner.iter.next()
         } else {
