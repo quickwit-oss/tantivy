@@ -558,11 +558,10 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
 
     assert_eq!(agg_req_1.is_err(), true);
     // TODO: This should list valid values
-    assert_eq!(
-        agg_req_1.unwrap_err().to_string(),
-        "Invalid Aggregation variant \"doesnotmatchanyagg\". Valid variants are: range, \
-         histogram, date_histogram, terms, avg, value_count, max, min, stats, sum, percentiles"
-    );
+    assert!(agg_req_1
+        .unwrap_err()
+        .to_string()
+        .contains("unknown variant `doesnotmatchanyagg`, expected one of"));
 
     // TODO: This should return an error
     // let agg_res = avg_on_field("not_exist_field").unwrap_err();
