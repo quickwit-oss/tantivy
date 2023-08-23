@@ -471,7 +471,9 @@ impl SegmentTermCollector {
                 .str_dict_column
                 .as_ref()
                 .cloned()
-                .unwrap_or_else(|| StrColumn::wrap(BytesColumn::empty()));
+                .unwrap_or_else(|| {
+                    StrColumn::wrap(BytesColumn::empty(agg_with_accessor.accessor.num_docs()))
+                });
             let mut buffer = String::new();
             for (term_id, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(term_id, doc_count)?;

@@ -30,10 +30,10 @@ impl fmt::Debug for BytesColumn {
 }
 
 impl BytesColumn {
-    pub fn empty() -> BytesColumn {
+    pub fn empty(num_docs: u32) -> BytesColumn {
         BytesColumn {
             dictionary: Arc::new(Dictionary::empty()),
-            term_ord_column: Column::build_empty_column(0),
+            term_ord_column: Column::build_empty_column(num_docs),
         }
     }
 
