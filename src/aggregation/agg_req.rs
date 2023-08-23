@@ -44,20 +44,47 @@ use super::metric::{
 /// The key is the user defined name of the aggregation.
 pub type Aggregations = HashMap<String, Aggregation>;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// Aggregation request.
 ///
 /// An aggregation is either a bucket or a metric.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "AggregationForDeserialization")]
 pub struct Aggregation {
     /// The aggregation variant, which can be either a bucket or a metric.
     #[serde(flatten)]
     pub agg: AggregationVariants,
-    /// The sub_aggregations, only valid for bucket type aggregations. Each bucket will aggregate
     /// on the document set in the bucket.
     #[serde(rename = "aggs")]
-    #[serde(default)]
     #[serde(skip_serializing_if = "Aggregations::is_empty")]
     pub sub_aggregation: Aggregations,
+}
+
+/// In order to display proper error message, we cannot rely on flattening
+/// the json enum. Instead we introduce an intermediary struct to separate
+/// the aggregation from the subaggregation.
+#[derive(Deserialize)]
+struct AggregationForDeserialization {
+    #[serde(flatten)]
+    pub aggs_remaining_json: serde_json::Value,
+    #[serde(rename = "aggs")]
+    #[serde(default)]
+    pub sub_aggregation: Aggregations,
+}
+
+impl TryFrom<AggregationForDeserialization> for Aggregation {
+    type Error = serde_json::Error;
+
+    fn try_from(value: AggregationForDeserialization) -> serde_json::Result<Self> {
+        let AggregationForDeserialization {
+            aggs_remaining_json,
+            sub_aggregation,
+        } = value;
+        let agg: AggregationVariants = serde_json::from_value(aggs_remaining_json)?;
+        Ok(Aggregation {
+            agg,
+            sub_aggregation,
+        })
+    }
 }
 
 impl Aggregation {

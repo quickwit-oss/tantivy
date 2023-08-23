@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::docset::BUFFER_LEN;
 use crate::fastfield::AliveBitSet;
-use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, Term};
 
