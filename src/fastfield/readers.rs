@@ -349,7 +349,7 @@ mod tests {
         schema_builder.add_json_field(
             "json_expand_dots_enabled",
             JsonObjectOptions::default()
-                .set_fast(None)
+                .set_fast("default")
                 .set_expand_dots_enabled(),
         );
         let dynamic_field = schema_builder.add_json_field("_dyna", FAST);

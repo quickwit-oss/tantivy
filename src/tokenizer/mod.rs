@@ -189,7 +189,7 @@ pub mod tests {
 
     #[test]
     fn test_raw_tokenizer2() {
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         let mut en_tokenizer = tokenizer_manager.get("raw").unwrap();
         let mut tokens: Vec<Token> = vec![];
         {
@@ -206,7 +206,7 @@ pub mod tests {
 
     #[test]
     fn test_en_tokenizer() {
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
         let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];
@@ -228,7 +228,7 @@ pub mod tests {
 
     #[test]
     fn test_non_en_tokenizer() {
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         tokenizer_manager.register(
             "el_stem",
             TextAnalyzer::builder(SimpleTokenizer::default())
@@ -256,7 +256,7 @@ pub mod tests {
 
     #[test]
     fn test_tokenizer_empty() {
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         {
             let mut tokens: Vec<Token> = vec![];
@@ -282,7 +282,7 @@ pub mod tests {
 
     #[test]
     fn test_whitespace_tokenizer() {
-        let tokenizer_manager = TokenizerManager::default();
+        let tokenizer_manager = TokenizerManager::default_for_indexing();
         let mut ws_tokenizer = tokenizer_manager.get("whitespace").unwrap();
         let mut tokens: Vec<Token> = vec![];
         {

@@ -446,7 +446,8 @@ mod tests {
     #[test]
     fn test_text_fastfield() {
         let mut schema_builder = Schema::builder();
-        let text_field = schema_builder.add_text_field("text", TEXT | FAST);
+        let text_options: TextOptions = TextOptions::from(TEXT).set_fast("raw");
+        let text_field = schema_builder.add_text_field("text", text_options);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -1082,7 +1083,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_expand_dots_disabled() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(None);
+        let json_option = JsonObjectOptions::default().set_fast("default");
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1108,7 +1109,7 @@ mod tests {
     #[test]
     fn test_fast_field_in_json_field_with_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let json_option = JsonObjectOptions::default().set_fast(Some("default"));
+        let json_option = JsonObjectOptions::default().set_fast("default");
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -1134,7 +1135,7 @@ mod tests {
     fn test_fast_field_in_json_field_expand_dots_enabled() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast("default")
             .set_expand_dots_enabled();
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
@@ -1202,10 +1203,10 @@ mod tests {
     #[test]
     fn test_fast_field_tokenizer() {
         let mut schema_builder = Schema::builder();
-        let opt = TextOptions::default().set_fast(Some("custom_lowercase"));
+        let opt = TextOptions::default().set_fast("custom_lowercase");
         let text_field = schema_builder.add_text_field("text", opt);
         let schema = schema_builder.build();
-        let ff_tokenizer_manager = TokenizerManager::default();
+        let ff_tokenizer_manager = TokenizerManager::default_for_fast_fields();
         ff_tokenizer_manager.register(
             "custom_lowercase",
             TextAnalyzer::builder(RawTokenizer::default())
@@ -1238,7 +1239,7 @@ mod tests {
                     .set_index_option(crate::schema::IndexRecordOption::WithFreqs)
                     .set_tokenizer("raw"),
             )
-            .set_fast(Some("default"))
+            .set_fast("default")
             .set_stored();
 
         let log_field = schema_builder.add_text_field("log_level", text_fieldtype);
@@ -1271,7 +1272,7 @@ mod tests {
     fn test_shadowing_fast_field_with_expand_dots() {
         let mut schema_builder = Schema::builder();
         let json_option = JsonObjectOptions::default()
-            .set_fast(None)
+            .set_fast("default")
             .set_expand_dots_enabled();
         let json_field = schema_builder.add_json_field("jsonfield", json_option.clone());
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);

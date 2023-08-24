@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::text_options::{FastFieldTextOptions, TokenizerName};
 use crate::schema::flags::{FastFlag, SchemaFlagList, StoredFlag};
-use crate::schema::{TextFieldIndexing, TextOptions};
+use crate::schema::{TextFieldIndexing, TextOptions, DEFAULT_FAST_FIELD_TOKENIZER};
 
 /// The `JsonObjectOptions` make it possible to
 /// configure how a json object field should be indexed and stored.
@@ -58,20 +58,19 @@ impl JsonObjectOptions {
     /// Returns true if and only if the json object fields are
     /// to be treated as fast fields.
     pub fn is_fast(&self) -> bool {
-        matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
-            || matches!(
-                &self.fast,
-                FastFieldTextOptions::EnabledWithTokenizer { with_tokenizer: _ }
-            )
+        match self.fast {
+            FastFieldTextOptions::Disabled => false,
+            FastFieldTextOptions::Enabled { .. } => true,
+        }
     }
 
     /// Returns true if and only if the value is a fast field.
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
         match &self.fast {
-            FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
-            FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            } => Some(tokenizer.name()),
+            FastFieldTextOptions::Disabled => None,
+            FastFieldTextOptions::Enabled {
+                tokenizer: with_tokenizer,
+            } => Some(with_tokenizer.name()),
         }
     }
 
@@ -130,15 +129,11 @@ impl JsonObjectOptions {
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
     /// from the dictionary.
     #[must_use]
-    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> Self {
-        if let Some(tokenizer) = tokenizer_name {
-            let tokenizer = TokenizerName::from_name(tokenizer);
-            self.fast = FastFieldTextOptions::EnabledWithTokenizer {
-                with_tokenizer: tokenizer,
-            }
-        } else {
-            self.fast = FastFieldTextOptions::IsEnabled(true);
-        }
+    pub fn set_fast(mut self, tokenizer_name: &str) -> Self {
+        let with_tokenizer = TokenizerName::from_name(tokenizer_name);
+        self.fast = FastFieldTextOptions::Enabled {
+            tokenizer: with_tokenizer,
+        };
         self
     }
 
@@ -166,7 +161,9 @@ impl From<FastFlag> for JsonObjectOptions {
         JsonObjectOptions {
             stored: false,
             indexing: None,
-            fast: FastFieldTextOptions::IsEnabled(true),
+            fast: FastFieldTextOptions::Enabled {
+                tokenizer: TokenizerName::from_static(DEFAULT_FAST_FIELD_TOKENIZER),
+            },
             expand_dots_enabled: false,
         }
     }
