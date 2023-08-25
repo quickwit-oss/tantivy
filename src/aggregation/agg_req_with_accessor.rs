@@ -112,12 +112,24 @@ impl AggregationWithAccessor {
                     fallback_type,
                 )?
             }
-            Average(AverageAggregation { field: field_name })
-            | Count(CountAggregation { field: field_name })
-            | Max(MaxAggregation { field: field_name })
-            | Min(MinAggregation { field: field_name })
-            | Stats(StatsAggregation { field: field_name })
-            | Sum(SumAggregation { field: field_name }) => {
+            Average(AverageAggregation {
+                field: field_name, ..
+            })
+            | Count(CountAggregation {
+                field: field_name, ..
+            })
+            | Max(MaxAggregation {
+                field: field_name, ..
+            })
+            | Min(MinAggregation {
+                field: field_name, ..
+            })
+            | Stats(StatsAggregation {
+                field: field_name, ..
+            })
+            | Sum(SumAggregation {
+                field: field_name, ..
+            }) => {
                 let (accessor, field_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
 

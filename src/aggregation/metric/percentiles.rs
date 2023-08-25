@@ -80,6 +80,12 @@ pub struct PercentilesAggregationReq {
     /// Whether to return the percentiles as a hash map
     #[serde(default = "default_as_true")]
     pub keyed: bool,
+    /// The missing parameter defines how documents that are missing a value should be treated.
+    /// By default they will be ignored but it is also possible to treat them as if they had a
+    /// value. Examples in JSON format:
+    /// { "field": "my_numbers", "missing": "10.0" }
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub missing: Option<f64>,
 }
 fn default_percentiles() -> &'static [f64] {
     &[1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0]
@@ -95,6 +101,7 @@ impl PercentilesAggregationReq {
             field: field_name,
             percents: None,
             keyed: default_as_true(),
+            missing: None,
         }
     }
     /// Returns the field name the aggregation is computed on.
