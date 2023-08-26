@@ -317,6 +317,7 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
+            #[cfg(feature = "thread-affinity")]
             worker_thread_affinity: thread_affinity,
         };
         index_writer.start_workers()?;
