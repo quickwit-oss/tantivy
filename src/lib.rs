@@ -165,6 +165,9 @@ mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
+#[cfg(feature = "thread-affinity")]
+mod thread_affinity;
+
 use std::fmt;
 
 pub use census::{Inventory, TrackedObject};
@@ -187,6 +190,8 @@ pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
+#[cfg(feature = "thread-affinity")]
+pub use crate::thread_affinity::{SetAffinityError, ThreadAffinity};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
