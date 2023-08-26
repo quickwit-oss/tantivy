@@ -241,6 +241,7 @@ impl MmapDirectory {
         ))
     }
 
+    #[cfg(unix)]
     /// Opens a MmapDirectory in a directory, with a given access pattern.
     ///
     /// This is only supported on unix platforms.
