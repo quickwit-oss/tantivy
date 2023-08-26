@@ -67,6 +67,9 @@ futures-util = { version = "0.3.28", optional = true }
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.26.2", default-features = false, features = ["sched"], optional = true }
+
 [dev-dependencies]
 rand = "0.8.5"
 maplit = "1.0.2"
@@ -104,6 +107,7 @@ overflow-checks = true
 default = ["mmap", "stopwords", "lz4-compression"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
+thread-affinity = ["nix"]
 
 lz4-compression = ["lz4_flex"]
 zstd-compression = ["zstd"]
