@@ -71,6 +71,7 @@ impl FileHandle for WrapFile {
 
         #[cfg(not(unix))]
         {
+            use std::io::{Read, Seek};
             let mut file = self.file.try_clone()?; // Clone the file to read from it separately
                                                    // Seek to the start position in the file
             file.seek(io::SeekFrom::Start(start as u64))?;
