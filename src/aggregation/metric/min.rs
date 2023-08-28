@@ -24,7 +24,7 @@ pub struct MinAggregation {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "field": "my_numbers", "missing": "10.0" }
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub missing: Option<f64>,
 }
 
