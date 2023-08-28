@@ -1455,6 +1455,47 @@ mod tests {
 
         Ok(())
     }
+    #[test]
+    fn terms_empty_json() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        // => Segment with empty json
+        index_writer.add_document(doc!()).unwrap();
+        index_writer.commit().unwrap();
+        // => Segment with json, but no field partially_empty
+        index_writer
+            .add_document(doc!(json => json!({"different_field": "blue"})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        //// => Segment with field partially_empty
+        index_writer
+            .add_document(doc!(json => json!({"partially_empty": "blue"})))
+            .unwrap();
+        index_writer.add_document(doc!())?;
+        index_writer.commit().unwrap();
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "json.partially_empty"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "blue");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["buckets"][1], serde_json::Value::Null);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+        assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
+
+        Ok(())
+    }
 
     #[test]
     fn terms_aggregation_bytes() -> crate::Result<()> {
@@ -1492,6 +1533,7 @@ mod tests {
 
         Ok(())
     }
+
     #[test]
     fn terms_aggregation_missing_multi_value() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();

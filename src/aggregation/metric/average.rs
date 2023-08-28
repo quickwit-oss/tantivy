@@ -20,12 +20,21 @@ use super::{IntermediateStats, SegmentStatsCollector};
 pub struct AverageAggregation {
     /// The field name to compute the average on.
     pub field: String,
+    /// The missing parameter defines how documents that are missing a value should be treated.
+    /// By default they will be ignored but it is also possible to treat them as if they had a
+    /// value. Examples in JSON format:
+    /// { "field": "my_numbers", "missing": "10.0" }
+    #[serde(default)]
+    pub missing: Option<f64>,
 }
 
 impl AverageAggregation {
     /// Creates a new [`AverageAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        Self { field: field_name }
+        Self {
+            field: field_name,
+            missing: None,
+        }
     }
     /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
