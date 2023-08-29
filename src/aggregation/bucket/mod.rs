@@ -28,9 +28,7 @@ mod term_agg;
 
 use std::collections::HashMap;
 
-pub(crate) use histogram::SegmentHistogramCollector;
 pub use histogram::*;
-pub(crate) use range::SegmentRangeCollector;
 pub use range::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use term_agg::*;
