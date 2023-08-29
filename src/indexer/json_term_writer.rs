@@ -60,7 +60,7 @@ impl IndexingPositionsPerPath {
     fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
         self.positions_per_path
             .entry(murmurhash2(term.as_slice()))
-            .or_insert_with(Default::default)
+            .or_default()
     }
 }
 
@@ -595,21 +595,21 @@ mod tests {
 
     #[test]
     fn test_split_json_path_escaped_dot() {
-        let json_path = split_json_path(r#"toto\.titi"#);
+        let json_path = split_json_path(r"toto\.titi");
         assert_eq!(&json_path, &["toto.titi"]);
-        let json_path_2 = split_json_path(r#"k8s\.container\.name"#);
+        let json_path_2 = split_json_path(r"k8s\.container\.name");
         assert_eq!(&json_path_2, &["k8s.container.name"]);
     }
 
     #[test]
     fn test_split_json_path_escaped_backslash() {
-        let json_path = split_json_path(r#"toto\\titi"#);
-        assert_eq!(&json_path, &[r#"toto\titi"#]);
+        let json_path = split_json_path(r"toto\\titi");
+        assert_eq!(&json_path, &[r"toto\titi"]);
     }
 
     #[test]
     fn test_split_json_path_escaped_normal_letter() {
-        let json_path = split_json_path(r#"toto\titi"#);
+        let json_path = split_json_path(r"toto\titi");
         assert_eq!(&json_path, &[r#"tototiti"#]);
     }
 }

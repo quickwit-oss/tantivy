@@ -232,7 +232,7 @@ impl<T: Clone> VecWithNames<T> {
         }
     }
     fn into_iter(self) -> impl Iterator<Item = (String, T)> {
-        self.keys.into_iter().zip(self.values.into_iter())
+        self.keys.into_iter().zip(self.values)
     }
     fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
         self.keys().zip(self.values.iter())

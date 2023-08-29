@@ -95,7 +95,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
             per_occur_scorers
                 .entry(*occur)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(sub_scorer);
         }
         Ok(per_occur_scorers)

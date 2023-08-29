@@ -49,20 +49,24 @@ struct ShuffledOptionalIndex<'a> {
 
 impl<'a> Iterable<u32> for ShuffledOptionalIndex<'a> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.merge_order
-        .iter_new_to_old_row_addrs()
-        .enumerate()
-        .filter_map(|(new_row_id, old_row_addr)| {
-            let Some(column_index) = &self.column_indexes[old_row_addr.segment_ord as usize] else {
-                return None;
-            };
-            let row_id = new_row_id as u32;
-            if column_index.has_value(old_row_addr.row_id) {
-                Some(row_id)
-            } else {
-                None
-            }
-        }))
+        Box::new(
+            self.merge_order
+                .iter_new_to_old_row_addrs()
+                .enumerate()
+                .filter_map(|(new_row_id, old_row_addr)| {
+                    let Some(column_index) =
+                        &self.column_indexes[old_row_addr.segment_ord as usize]
+                    else {
+                        return None;
+                    };
+                    let row_id = new_row_id as u32;
+                    if column_index.has_value(old_row_addr.row_id) {
+                        Some(row_id)
+                    } else {
+                        None
+                    }
+                }),
+        )
     }
 }
 
@@ -87,9 +91,10 @@ fn iter_num_values<'a>(
 ) -> impl Iterator<Item = u32> + 'a {
     merge_order.iter_new_to_old_row_addrs().map(|row_addr| {
         let Some(column_index) = &column_indexes[row_addr.segment_ord as usize] else {
-                    // No values in the entire column. It surely means there are 0 values associated to this row.
-                    return 0u32;
-                };
+            // No values in the entire column. It surely means there are 0 values associated to this
+            // row.
+            return 0u32;
+        };
         match column_index {
             ColumnIndex::Full => 1,
             ColumnIndex::Optional(optional_index) => {
@@ -159,7 +164,13 @@ mod tests {
             Cardinality::Optional,
             &shuffle_merge_order,
         );
-        let SerializableColumnIndex::Optional { non_null_row_ids, num_rows } = serializable_index else { panic!() };
+        let SerializableColumnIndex::Optional {
+            non_null_row_ids,
+            num_rows,
+        } = serializable_index
+        else {
+            panic!()
+        };
         assert_eq!(num_rows, 2);
         let non_null_rows: Vec<RowId> = non_null_row_ids.boxed_iter().collect();
         assert_eq!(&non_null_rows, &[1]);

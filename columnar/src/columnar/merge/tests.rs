@@ -160,7 +160,9 @@ fn test_merge_columnar_numbers() {
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("numbers").unwrap();
     let dynamic_column = cols[0].open().unwrap();
-    let DynamicColumn::F64(vals) = dynamic_column else { panic!() };
+    let DynamicColumn::F64(vals) = dynamic_column else {
+        panic!()
+    };
     assert_eq!(vals.get_cardinality(), Cardinality::Optional);
     assert_eq!(vals.first(0u32), Some(-1f64));
     assert_eq!(vals.first(1u32), None);
@@ -185,7 +187,9 @@ fn test_merge_columnar_texts() {
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("texts").unwrap();
     let dynamic_column = cols[0].open().unwrap();
-    let DynamicColumn::Str(vals) = dynamic_column else { panic!() };
+    let DynamicColumn::Str(vals) = dynamic_column else {
+        panic!()
+    };
     let get_str_for_ord = |ord| {
         let mut out = String::new();
         vals.ord_to_str(ord, &mut out).unwrap();
@@ -229,7 +233,9 @@ fn test_merge_columnar_byte() {
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("bytes").unwrap();
     let dynamic_column = cols[0].open().unwrap();
-    let DynamicColumn::Bytes(vals) = dynamic_column else { panic!() };
+    let DynamicColumn::Bytes(vals) = dynamic_column else {
+        panic!()
+    };
     let get_bytes_for_ord = |ord| {
         let mut out = Vec::new();
         vals.ord_to_bytes(ord, &mut out).unwrap();

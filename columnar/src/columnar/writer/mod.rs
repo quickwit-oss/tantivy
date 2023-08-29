@@ -98,9 +98,11 @@ impl ColumnarWriter {
     ///
     /// The sort applied is stable.
     pub fn sort_order(&self, sort_field: &str, num_docs: RowId, reversed: bool) -> Vec<u32> {
-        let Some(numerical_col_writer) =
-            self.numerical_field_hash_map.get::<NumericalColumnWriter>(sort_field.as_bytes()) else {
-                return Vec::new();
+        let Some(numerical_col_writer) = self
+            .numerical_field_hash_map
+            .get::<NumericalColumnWriter>(sort_field.as_bytes())
+        else {
+            return Vec::new();
         };
         let mut symbols_buffer = Vec::new();
         let mut values = Vec::new();

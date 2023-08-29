@@ -1145,7 +1145,7 @@ mod test {
             "k8s\u{1}node\u{1}name\0shello"
         );
         assert_eq!(
-            extract_query_term_json_path(r#"json.k8s\.node\.name:hello"#),
+            extract_query_term_json_path(r"json.k8s\.node\.name:hello"),
             "k8s.node.name\0shello"
         );
     }
@@ -1566,10 +1566,10 @@ mod test {
     #[test]
     fn test_escaped_field() {
         let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field(r#"a\.b"#, STRING);
+        schema_builder.add_text_field(r"a\.b", STRING);
         let schema = schema_builder.build();
         let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
-        let query = query_parser.parse_query(r#"a\.b:hello"#).unwrap();
+        let query = query_parser.parse_query(r"a\.b:hello").unwrap();
         assert_eq!(
             format!("{:?}", query),
             "TermQuery(Term(type=Str, field=0, \"hello\"))"

@@ -175,6 +175,7 @@ impl SegmentRangeBucketEntry {
 }
 
 impl SegmentRangeCollector {
+    /// Convert the result into an intermediate bucket result.
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,

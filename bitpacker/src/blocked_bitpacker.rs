@@ -64,8 +64,7 @@ fn mem_usage<T>(items: &Vec<T>) -> usize {
 
 impl BlockedBitpacker {
     pub fn new() -> Self {
-        let mut compressed_blocks = vec![];
-        compressed_blocks.resize(8, 0);
+        let compressed_blocks = vec![0; 8];
         Self {
             compressed_blocks,
             buffer: vec![],

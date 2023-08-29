@@ -183,6 +183,7 @@ pub(crate) struct SegmentHistogramBucketEntry {
 }
 
 impl SegmentHistogramBucketEntry {
+    /// Convert the bucket entry into an intermediate bucket entry.
     pub(crate) fn into_intermediate_bucket_entry(
         self,
         sub_aggregation: GenericSegmentAggregationResultsCollector,
@@ -213,6 +214,7 @@ pub struct SegmentHistogramCollector {
 }
 
 impl SegmentHistogramCollector {
+    /// Convert the bucket entry into an intermediate bucket result.
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &BucketAggregationWithAccessor,
@@ -453,15 +455,12 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
 
     buckets
         .into_iter()
-        .merge_join_by(
-            fill_gaps_buckets.into_iter(),
-            |existing_bucket, fill_gaps_bucket| {
-                existing_bucket
-                    .key
-                    .partial_cmp(fill_gaps_bucket)
-                    .unwrap_or(Ordering::Equal)
-            },
-        )
+        .merge_join_by(fill_gaps_buckets, |existing_bucket, fill_gaps_bucket| {
+            existing_bucket
+                .key
+                .partial_cmp(fill_gaps_bucket)
+                .unwrap_or(Ordering::Equal)
+        })
         .map(|either| match either {
             // Ignore the generated bucket
             itertools::EitherOrBoth::Both(existing, _) => existing,

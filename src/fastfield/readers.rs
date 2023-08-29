@@ -128,7 +128,8 @@ impl FastFieldReaders {
 
     /// Returns a `str` column.
     pub fn str(&self, field_name: &str) -> crate::Result<Option<StrColumn>> {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, ColumnType::Str)?
+        let Some(dynamic_column_handle) =
+            self.dynamic_column_handle(field_name, ColumnType::Str)?
         else {
             return Ok(None);
         };
@@ -138,7 +139,8 @@ impl FastFieldReaders {
 
     /// Returns a `bytes` column.
     pub fn bytes(&self, field_name: &str) -> crate::Result<Option<BytesColumn>> {
-        let Some(dynamic_column_handle) = self.dynamic_column_handle(field_name, ColumnType::Bytes)?
+        let Some(dynamic_column_handle) =
+            self.dynamic_column_handle(field_name, ColumnType::Bytes)?
         else {
             return Ok(None);
         };

@@ -27,7 +27,7 @@ impl OwnedBytes {
     ) -> OwnedBytes {
         let box_stable_deref = Arc::new(data_holder);
         let bytes: &[u8] = box_stable_deref.as_ref();
-        let data = unsafe { mem::transmute::<_, &'static [u8]>(bytes.deref()) };
+        let data = unsafe { mem::transmute::<_, &'static [u8]>(bytes) };
         OwnedBytes {
             data,
             box_stable_deref,
@@ -175,7 +175,8 @@ impl PartialEq<str> for OwnedBytes {
 }
 
 impl<'a, T: ?Sized> PartialEq<&'a T> for OwnedBytes
-where OwnedBytes: PartialEq<T>
+where
+    OwnedBytes: PartialEq<T>,
 {
     fn eq(&self, other: &&'a T) -> bool {
         *self == **other

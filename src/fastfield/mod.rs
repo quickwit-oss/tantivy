@@ -967,7 +967,7 @@ mod tests {
             .unwrap()
             .first_or_default_col(0);
 
-        let numbers = vec![100, 200, 300];
+        let numbers = [100, 200, 300];
         let test_range = |range: RangeInclusive<u64>| {
             let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
             let mut vec = vec![];
@@ -1041,7 +1041,7 @@ mod tests {
             .unwrap()
             .first_or_default_col(0);
 
-        let numbers = vec![1000, 1001, 1003];
+        let numbers = [1000, 1001, 1003];
         let test_range = |range: RangeInclusive<u64>| {
             let expexted_count = numbers.iter().filter(|num| range.contains(num)).count();
             let mut vec = vec![];
