@@ -351,6 +351,7 @@ impl SegmentHistogramCollector {
         let buckets_mem = self.buckets.memory_consumption();
         self_mem + sub_aggs_mem + buckets_mem
     }
+    /// Converts the collector result into a intermediate bucket result.
     pub fn into_intermediate_bucket_result(
         self,
         agg_with_accessor: &AggregationWithAccessor,

@@ -499,7 +499,7 @@ mod tests {
 
     fn test_aggregation_percentiles(merge_segments: bool) -> crate::Result<()> {
         use rand_distr::Distribution;
-        let num_values_in_segment = vec![100, 30_000, 8000];
+        let num_values_in_segment = [100, 30_000, 8000];
         let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
         let mut rng = StdRng::from_seed([1u8; 32]);
 

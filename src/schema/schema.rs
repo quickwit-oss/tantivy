@@ -514,8 +514,8 @@ mod tests {
     #[test]
     fn test_locate_splitting_dots() {
         assert_eq!(&super::locate_splitting_dots("a.b.c"), &[1, 3]);
-        assert_eq!(&super::locate_splitting_dots(r#"a\.b.c"#), &[4]);
-        assert_eq!(&super::locate_splitting_dots(r#"a\..b.c"#), &[3, 5]);
+        assert_eq!(&super::locate_splitting_dots(r"a\.b.c"), &[4]);
+        assert_eq!(&super::locate_splitting_dots(r"a\..b.c"), &[3, 5]);
     }
 
     #[test]

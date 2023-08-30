@@ -75,7 +75,7 @@ pub mod tests {
         let index = create_index(&["a b b d c g c", "a b a b c"])?;
         let text_field = index.schema().get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
-        let terms: Vec<Term> = vec!["a", "b", "c"]
+        let terms: Vec<Term> = ["a", "b", "c"]
             .iter()
             .map(|text| Term::from_field_text(text_field, text))
             .collect();
