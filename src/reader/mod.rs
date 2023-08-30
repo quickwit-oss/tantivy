@@ -191,7 +191,7 @@ impl InnerIndexReader {
     }
     /// Opens the freshest segments [`SegmentReader`].
     ///
-    /// This function acquires a lot to prevent GC from removing files
+    /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
     fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
