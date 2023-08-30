@@ -32,6 +32,30 @@ impl SingleSegmentIndexWriter {
             .add_document(AddOperation { opstamp, document })
     }
 
+    pub fn commit(self) -> crate::Result<Index> {
+        let max_doc = self.segment_writer.max_doc();
+        self.segment_writer.finalize()?;
+
+        let segment: Segment = self.segment.with_max_doc(max_doc);
+        let index = segment.index();
+
+        let mut segments = index.searchable_segment_metas()?;
+
+        segments.push(segment.meta().clone());
+
+        let index_meta = IndexMeta {
+            index_settings: index.settings().clone(),
+            segments,
+            schema: index.schema(),
+            opstamp: 0,
+            payload: None,
+        };
+
+        save_metas(&index_meta, index.directory())?;
+        index.directory().sync_directory()?;
+        Ok(segment.index().clone())
+    }
+
     pub fn finalize(self) -> crate::Result<Index> {
         let max_doc = self.segment_writer.max_doc();
         self.segment_writer.finalize()?;
