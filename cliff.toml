@@ -32,6 +32,7 @@ postprocessors = [
     { pattern = 'Michael Kleen', replace = "mkleen"}, # replace with github user
     { pattern = 'Adrien Guillo', replace = "guilload"}, # replace with github user
     { pattern = 'François Massot', replace = "fmassot"}, # replace with github user
+    { pattern = 'Naveen Aiathurai', replace = "naveenann"}, # replace with github user
     { pattern = '', replace = ""}, # replace with github user
 ]
 
