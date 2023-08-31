@@ -1,3 +1,30 @@
+Tantivy 0.21 [unreleased]
+================================
+#### Bugfixes
+- Fix track fast field memory consumption, which led to higher memory consumption than the budget allowed during indexing [#2148](https://github.com/quickwit-oss/tantivy/issues/2148)[#2147](https://github.com/quickwit-oss/tantivy/issues/2147)(@PSeitz)
+- Fix a regression from 0.20 where sort index by date wasn't working anymore [#2124](https://github.com/quickwit-oss/tantivy/issues/2124)(@PSeitz)
+- Fix getting the root facet on the `FacetCollector`. [#2086](https://github.com/quickwit-oss/tantivy/issues/2086)(@adamreichold)
+- Align numerical type priority order of columnar and query. [#2088](https://github.com/quickwit-oss/tantivy/issues/2088)(@fmassot)
+#### Breaking Changes
+- Remove support for Brotli and Snappy compression [#2123](https://github.com/quickwit-oss/tantivy/issues/2123)(@adamreichold)
+#### Features/Improvements
+- Implement lenient query parser [#2129](https://github.com/quickwit-oss/tantivy/pull/2129)(@trinity-1686a)
+- order_by_u64_field and order_by_fast_field allow sorting in ascending and descending order [#2111](https://github.com/quickwit-oss/tantivy/issues/2111)(@naveenann)
+- Allow dynamic filters in text analyzer builder [#2110](https://github.com/quickwit-oss/tantivy/issues/2110)(@fulmicoton @fmassot)
+- **Aggregation**
+  - Add missing parameter for term aggregation [#2149](https://github.com/quickwit-oss/tantivy/issues/2149)[#2103](https://github.com/quickwit-oss/tantivy/issues/2103)(@PSeitz)
+  - Add missing parameter for percentiles [#2157](https://github.com/quickwit-oss/tantivy/issues/2157)(@PSeitz)
+  - Add missing parameter for stats,min,max,count,sum,avg [#2151](https://github.com/quickwit-oss/tantivy/issues/2151)(@PSeitz)
+  - Improve aggregation deserialization error message [#2150](https://github.com/quickwit-oss/tantivy/issues/2150)(@PSeitz)
+  - Add validation for type Bytes to term_agg [#2077](https://github.com/quickwit-oss/tantivy/issues/2077)(@PSeitz)
+  - Alternative mixed field collection [#2135](https://github.com/quickwit-oss/tantivy/issues/2135)(@PSeitz)
+- Add missing query_terms impl for TermSetQuery. [#2120](https://github.com/quickwit-oss/tantivy/issues/2120)(@adamreichold)
+- Minor improvements to OwnedBytes [#2134](https://github.com/quickwit-oss/tantivy/issues/2134)(@adamreichold)
+- Remove allocations in split compound words [#2080](https://github.com/quickwit-oss/tantivy/issues/2080)(@PSeitz)
+- Ngram tokenizer now returns an error with invalid arguments [#2102](https://github.com/quickwit-oss/tantivy/issues/2102)(@fmassot)
+- Make TextAnalyzerBuilder public [#2097](https://github.com/quickwit-oss/tantivy/issues/2097)(@adamreichold)
+- Return an error when tokenizer is not found while indexing [#2093](https://github.com/quickwit-oss/tantivy/issues/2093)(@naveenann)
+- Delayed column opening during merge [#2132](https://github.com/quickwit-oss/tantivy/issues/2132)(@PSeitz)
 
 Tantivy 0.20.2
 ================================
