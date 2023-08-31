@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::ColumnType;
+use columnar::{BytesColumn, ColumnType, StrColumn};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -470,8 +470,10 @@ impl SegmentTermCollector {
             let term_dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
-                .expect("internal error: term dictionary not found for term aggregation");
-
+                .cloned()
+                .unwrap_or_else(|| {
+                    StrColumn::wrap(BytesColumn::empty(agg_with_accessor.accessor.num_docs()))
+                });
             let mut buffer = String::new();
             for (term_id, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(term_id, doc_count)?;
@@ -1808,71 +1810,6 @@ mod tests {
         assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
         assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 1);
         assert_eq!(res["my_ids"]["buckets"][1]["key"], serde_json::Value::Null);
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore]
-    // TODO: This is not yet implemented
-    fn terms_aggregation_missing_mixed_type() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let json = schema_builder.add_json_field("json", FAST);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
-        // => Segment with all values numeric
-        index_writer
-            .add_document(doc!(json => json!({"mixed_type": 10.0})))
-            .unwrap();
-        index_writer.add_document(doc!())?;
-        index_writer.commit().unwrap();
-        //// => Segment with all values text
-        index_writer
-            .add_document(doc!(json => json!({"mixed_type": "blue"})))
-            .unwrap();
-        index_writer.add_document(doc!())?;
-        index_writer.commit().unwrap();
-
-        // => Segment with mixed values
-        index_writer
-            .add_document(doc!(json => json!({"mixed_type": "red"})))
-            .unwrap();
-        index_writer
-            .add_document(doc!(json => json!({"mixed_type": -20.5})))
-            .unwrap();
-        index_writer
-            .add_document(doc!(json => json!({"mixed_type": true})))
-            .unwrap();
-        index_writer.add_document(doc!())?;
-
-        index_writer.commit().unwrap();
-
-        let agg_req: Aggregations = serde_json::from_value(json!({
-            "replace_null": {
-                "terms": {
-                    "field": "json.mixed_type",
-                    "missing": "NULL"
-                },
-            },
-            "replace_num": {
-                "terms": {
-                    "field": "json.mixed_type",
-                    "missing": 1337
-                },
-            },
-        }))
-        .unwrap();
-
-        let res = exec_request_with_query(agg_req, &index, None)?;
-
-        // text field
-        assert_eq!(res["replace_null"]["buckets"][0]["key"], "NULL");
-        assert_eq!(res["replace_null"]["buckets"][0]["doc_count"], 4); // WRONG should be 3
-        assert_eq!(res["replace_num"]["buckets"][0]["key"], 1337.0);
-        assert_eq!(res["replace_num"]["buckets"][0]["doc_count"], 5); // WRONG should be 3
-        assert_eq!(res["replace_null"]["sum_other_doc_count"], 0);
-        assert_eq!(res["replace_null"]["doc_count_error_upper_bound"], 0);
 
         Ok(())
     }

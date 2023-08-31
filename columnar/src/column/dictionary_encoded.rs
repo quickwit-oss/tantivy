@@ -30,6 +30,13 @@ impl fmt::Debug for BytesColumn {
 }
 
 impl BytesColumn {
+    pub fn empty(num_docs: u32) -> BytesColumn {
+        BytesColumn {
+            dictionary: Arc::new(Dictionary::empty()),
+            term_ord_column: Column::build_empty_column(num_docs),
+        }
+    }
+
     /// Fills the given `output` buffer with the term associated to the ordinal `ord`.
     ///
     /// Returns `false` if the term does not exist (e.g. `term_ord` is greater or equal to the
@@ -77,7 +84,7 @@ impl From<StrColumn> for BytesColumn {
 }
 
 impl StrColumn {
-    pub(crate) fn wrap(bytes_column: BytesColumn) -> StrColumn {
+    pub fn wrap(bytes_column: BytesColumn) -> StrColumn {
         StrColumn(bytes_column)
     }
 

@@ -111,9 +111,6 @@ impl IntermediateAggregationResults {
     }
 
     /// Convert intermediate result and its aggregation request to the final result.
-    ///
-    /// Internal function, AggregationsInternal is used instead Aggregations, which is optimized
-    /// for internal processing, by splitting metric and buckets into separate groups.
     pub(crate) fn into_final_result_internal(
         self,
         req: &Aggregations,
@@ -121,7 +118,14 @@ impl IntermediateAggregationResults {
     ) -> crate::Result<AggregationResults> {
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
         for (key, agg_res) in self.aggs_res.into_iter() {
-            let req = req.get(key.as_str()).unwrap();
+            let req = req.get(key.as_str()).unwrap_or_else(|| {
+                panic!(
+                    "Could not find key {:?} in request keys {:?}. This probably means that \
+                     add_intermediate_aggregation_result passed the wrong agg object.",
+                    key,
+                    req.keys().collect::<Vec<_>>()
+                )
+            });
             results.insert(key, agg_res.into_final_result(req, limits)?);
         }
         // Handle empty results
