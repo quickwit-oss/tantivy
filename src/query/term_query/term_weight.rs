@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+
 use super::term_scorer::TermScorer;
 use crate::core::SegmentReader;
 use crate::docset::{DocSet, BUFFER_LEN};
@@ -34,6 +36,7 @@ impl Weight for TermWeight {
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+        println!("term weight: count");
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(self.scorer(reader, 1.0)?.count(alive_bitset))
         } else {
@@ -51,6 +54,8 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
+        let bt = Backtrace::force_capture();
+        println!("term weight: for each");
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
         for_each_scorer(&mut scorer, callback);
         Ok(())
@@ -63,6 +68,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
+        println!("term weight: for each no score");
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
         let mut buffer = [0u32; BUFFER_LEN];
         for_each_docset_buffered(&mut scorer, &mut buffer, callback);
@@ -85,6 +91,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
+        println!("term weight: for each pruning");
         let scorer = self.specialized_scorer(reader, 1.0)?;
         crate::query::boolean_query::block_wand_single_scorer(scorer, threshold, callback);
         Ok(())
@@ -124,7 +131,7 @@ impl TermWeight {
         };
         let fieldnorm_reader =
             fieldnorm_reader_opt.unwrap_or_else(|| FieldNormReader::constant(reader.max_doc(), 1));
-        let similarity_weight = self.similarity_weight.boost_by(boost);
+        let similarity_weight: Bm25Weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
             inverted_index.read_postings(&self.term, self.index_record_option)?;
         if let Some(segment_postings) = postings_opt {

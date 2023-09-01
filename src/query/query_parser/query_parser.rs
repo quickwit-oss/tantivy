@@ -329,7 +329,7 @@ impl QueryParser {
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
-        let logical_ast = self.parse_query_to_logical_ast(query)?;
+        let logical_ast: LogicalAst = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(&self.fuzzy, logical_ast))
     }
 

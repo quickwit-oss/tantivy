@@ -1,7 +1,7 @@
 use std::fmt;
 
 use super::term_weight::TermWeight;
-use crate::query::bm25::Bm25Weight;
+use crate::query::bm25::{Bm25Weight, self};
 use crate::query::{EnableScoring, Explanation, Query, Weight};
 use crate::schema::IndexRecordOption;
 use crate::Term;
@@ -91,10 +91,12 @@ impl TermQuery {
     ) -> crate::Result<TermWeight> {
         let schema = enable_scoring.schema();
         let field_entry = schema.get_field_entry(self.term.field());
+        println!("term field: {:?}", self.term.field());
         if !field_entry.is_indexed() {
             let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
             return Err(crate::TantivyError::SchemaError(error_msg));
         }
+        println!("term in specialized weight: {:?}", self.term.clone());
         let bm25_weight = match enable_scoring {
             EnableScoring::Enabled {
                 statistics_provider,

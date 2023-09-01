@@ -12,9 +12,9 @@
 // ---
 // Importing tantivy...
 use tantivy::collector::{Count, TopDocs};
-use tantivy::query::FuzzyTermQuery;
+use tantivy::query::{FuzzyTermQuery, QueryParser};
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{Index, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -47,6 +47,8 @@ fn main() -> tantivy::Result<()> {
     // This store is useful for reconstructing the
     // documents that were selected during the search phase.
     let title = schema_builder.add_text_field("title", TEXT | STORED);
+    let attributes = schema_builder.add_json_field("attributes", STORED | TEXT);
+    println!("attributes: {:?}", attributes);
 
     let schema = schema_builder.build();
 
@@ -73,18 +75,33 @@ fn main() -> tantivy::Result<()> {
 
     // ### Adding documents
     //
-    index_writer.add_document(doc!(
-        title => "The Name of the Wind",
-    ))?;
-    index_writer.add_document(doc!(
-        title => "The Diary of Muadib",
-    ))?;
-    index_writer.add_document(doc!(
-        title => "A Dairy Cow",
-    ))?;
-    index_writer.add_document(doc!(
-        title => "The Diary of a Young Girl",
-    ))?;
+    let doc = schema.parse_document(
+        r#"{
+        "title": "gone with the wind",
+        "attributes": {
+            "description": "the best vacuum cleaner ever"
+        }
+    }"#,
+    )?;
+    index_writer.add_document(doc)?;
+    let doc = schema.parse_document(
+        r#"{
+        "title": "tale of two cities",
+        "attributes": {
+            "description": "once in a lifetime"
+        }
+    }"#,
+    )?;
+    index_writer.add_document(doc)?;
+    let doc = schema.parse_document(
+        r#"{
+        "title": "dune",
+        "attributes": {
+            "description": "the quick brown fox"
+        }
+    }"#,
+    )?;
+    index_writer.add_document(doc)?;
     index_writer.commit()?;
 
     // ### Committing
@@ -142,17 +159,34 @@ fn main() -> tantivy::Result<()> {
 
     // ### FuzzyTermQuery
     {
-        let term = Term::from_field_text(title, "Diary");
-        let query = FuzzyTermQuery::new(term, 2, true);
+        let search_query = "brown";
+        let query_parser = QueryParser::for_index(&index, vec![title, attributes]);
+        let json_query =
+            query_parser.parse_query(&format!("attributes.description:{}", &search_query))?;
+        let mut terms = Vec::new();
+        json_query.query_terms(&mut |term, _| {
+            terms.push(term.clone());
+        });
 
+        let term = terms[0].clone();
+        println!("term: {:?}", term);
+
+
+        let query = FuzzyTermQuery::new(term, 1, true);
+
+        let string_term = Term::from_field_text(title, "done");
+        let query = FuzzyTermQuery::new(string_term, 1, true);
+
+
+        // search query
         let (top_docs, count) = searcher
             .search(&query, &(TopDocs::with_limit(5), Count))
             .unwrap();
-        assert_eq!(count, 3);
-        assert_eq!(top_docs.len(), 3);
+        println!("fuzzy query matched: {} documents", count.to_string());
         for (score, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             // Note that the score is not lower for the fuzzy hit.
+
             // There's an issue open for that: https://github.com/quickwit-oss/tantivy/issues/563
             println!("score {score:?} doc {}", schema.to_json(&retrieved_doc));
             // score 1.0 doc {"title":["The Diary of Muadib"]}

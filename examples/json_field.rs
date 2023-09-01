@@ -57,6 +57,7 @@ fn main() -> tantivy::Result<()> {
     let query_parser = QueryParser::for_index(&index, vec![event_type, attributes]);
     {
         let query = query_parser.parse_query("target:submit-button")?;
+        println!("query: {:?}", query);
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
         assert_eq!(count_docs.len(), 2);
     }

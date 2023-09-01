@@ -75,7 +75,7 @@ pub struct Bm25Params {
 }
 
 /// A struct used for computing BM25 scores.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bm25Weight {
     idf_explain: Explanation,
     weight: Score,
@@ -99,6 +99,7 @@ impl Bm25Weight {
         statistics: &dyn Bm25StatisticsProvider,
         terms: &[Term],
     ) -> crate::Result<Bm25Weight> {
+        println!("bm25 weight for terms");
         assert!(!terms.is_empty(), "Bm25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
@@ -110,11 +111,14 @@ impl Bm25Weight {
         }
 
         let total_num_tokens = statistics.total_num_tokens(field)?;
+        println!("total tokens: {:?}", total_num_tokens);
         let total_num_docs = statistics.total_num_docs()?;
+        println!("total docs: {:?}", total_num_docs);
         let average_fieldnorm = total_num_tokens as Score / total_num_docs as Score;
 
         if terms.len() == 1 {
             let term_doc_freq = statistics.doc_freq(&terms[0])?;
+            println!("term doc freq: {:?}", term_doc_freq);
             Ok(Bm25Weight::for_one_term(
                 term_doc_freq,
                 total_num_docs,

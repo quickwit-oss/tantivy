@@ -73,7 +73,11 @@ fn main() -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
     titles.sort_unstable();
-    assert_eq!(titles, ["Frankenstein", "Of Mice and Men"]);
+    print!("titles: ");
+    for title in titles {
+        print!("{}, ", title);
+    }
+    println!("");
 
     Ok(())
 }

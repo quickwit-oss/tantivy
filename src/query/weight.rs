@@ -76,6 +76,7 @@ pub trait Weight: Send + Sync + 'static {
 
     /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+        println!("weight: count");
         let mut scorer = self.scorer(reader, 1.0)?;
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(scorer.count(alive_bitset))
@@ -91,6 +92,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
+        println!("weight: for each");
         let mut scorer = self.scorer(reader, 1.0)?;
         for_each_scorer(scorer.as_mut(), callback);
         Ok(())
@@ -103,6 +105,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
+        println!("weight: for each no score");
         let mut docset = self.scorer(reader, 1.0)?;
 
         let mut buffer = [0u32; BUFFER_LEN];
@@ -126,6 +129,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
+        println!("weight: for each pruning");
         let mut scorer = self.scorer(reader, 1.0)?;
         for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
         Ok(())

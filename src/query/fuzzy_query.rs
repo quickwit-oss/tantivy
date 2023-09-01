@@ -132,14 +132,44 @@ impl FuzzyTermQuery {
             });
 
         let term_value = self.term.value();
-        let term_text = term_value.as_str().ok_or_else(|| {
-            InvalidArgument("The fuzzy term query requires a string term.".to_string())
-        })?;
-        let automaton = if self.prefix {
-            automaton_builder.build_prefix_dfa(term_text)
+        let term_value_string = term_value.as_str().is_some();
+        let term_value_json = term_value.as_json().is_some();
+        let term_text: String;
+        if term_value_string {
+            term_text = term_value
+                .as_str()
+                .ok_or_else(|| {
+                    // no-op
+                    InvalidArgument("The fuzzy term query requires a string term".to_string())
+                })?
+                .to_string();
+        } else if term_value_json {
+            // how do i take the path and propogate that through
+            let (path, term_bytes) = term_value.as_json().ok_or_else(|| {
+                // no-op
+                InvalidArgument("The fuzzy term query requires a string term".to_string())
+            })?;
+            term_text = term_bytes
+                .as_str()
+                .ok_or_else(|| {
+                    InvalidArgument("The fuzzy term query requires a string term.".to_string())
+                })?
+                .to_string();
+            // println!("json term path: {:?}", path);
+            // term_text = format!("{}.{}", path, term_bytes_text);
+            // term_text = term_bytes_text + path;
         } else {
-            automaton_builder.build_dfa(term_text)
+            panic!("term value wasn't string or json");
+        }
+
+        println!("term text: {}", term_text);
+        let automaton = if self.prefix {
+            automaton_builder.build_prefix_dfa(&term_text)
+        } else {
+            automaton_builder.build_dfa(&term_text)
         };
+        let field = self.term.field();
+        println!("field : {:?}", field);
         Ok(AutomatonWeight::new(
             self.term.field(),
             DfaWrapper(automaton),
