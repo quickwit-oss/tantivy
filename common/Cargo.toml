@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-common"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Paul Masurel <paul@quickwit.io>", "Pascal Seitz <pascal@quickwit.io>"]
 license = "MIT"
 edition = "2021"
@@ -14,7 +14,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 
 [dependencies]
 byteorder = "1.4.3"
-ownedbytes = { version= "0.5", path="../ownedbytes" }
+ownedbytes = { version= "0.6", path="../ownedbytes" }
 async-trait = "0.1"
 time = { version = "0.3.10", features = ["serde-well-known"] }
 serde = { version = "1.0.136", features = ["derive"] }
