@@ -1,4 +1,4 @@
-Tantivy 0.21 [unreleased]
+Tantivy 0.21
 ================================
 #### Bugfixes
 - Fix track fast field memory consumption, which led to higher memory consumption than the budget allowed during indexing [#2148](https://github.com/quickwit-oss/tantivy/issues/2148)[#2147](https://github.com/quickwit-oss/tantivy/issues/2147)(@PSeitz)
