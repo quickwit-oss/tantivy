@@ -300,10 +300,42 @@ fn term_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
     }
 }
 
+fn exists(i: &str) -> IResult<&str, UserInputLeaf> {
+    value(
+        UserInputLeaf::Exists { field: None },
+        tuple((space0, char('*'))),
+    )(i)
+}
+
+fn exists_precond(i: &str) -> IResult<&str, (), ()> {
+    value(
+        (),
+        peek(tuple((
+            field_name,
+            space0,
+            char('*'), // when we are here, we know it can't be anything but a exists
+        ))),
+    )(i)
+    .map_err(|e| e.map(|_| ()))
+}
+
+fn exists_infallible(i: &str) -> JResult<&str, UserInputAst> {
+    let (i, (field_name, _, _)) =
+        tuple((field_name, space0, char('*')))(i).expect("precondition failed");
+
+    let exists = UserInputLeaf::Exists {
+        field: Some(field_name),
+    }
+    .into();
+    Ok((i, (exists, Vec::new())))
+}
+
 fn literal(i: &str) -> IResult<&str, UserInputAst> {
+    // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
+    // something (a field name) got parsed before
     alt((
         map(
-            tuple((opt(field_name), alt((range, set, term_or_phrase)))),
+            tuple((opt(field_name), alt((range, set, exists, term_or_phrase)))),
             |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
         term_group,
@@ -360,10 +392,16 @@ fn literal_no_group_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
 
 fn literal_infallible(i: &str) -> JResult<&str, Option<UserInputAst>> {
     alt_infallible(
-        ((
-            term_group_precond,
-            map(term_group_infallible, |(group, errs)| (Some(group), errs)),
-        ),),
+        (
+            (
+                term_group_precond,
+                map(term_group_infallible, |(group, errs)| (Some(group), errs)),
+            ),
+            (
+                exists_precond,
+                map(exists_infallible, |(exists, errs)| (Some(exists), errs)),
+            ),
+        ),
         literal_no_group_infallible,
     )(i)
 }
@@ -1536,6 +1574,17 @@ mod test {
         test_parse_query_to_ast_helper("foo:\"a b\"*", "\"foo\":\"a b\"*");
         test_parse_query_to_ast_helper("foo:\"a\"*", "\"foo\":\"a\"*");
         test_parse_query_to_ast_helper("foo:\"\"*", "\"foo\":\"\"*");
+    }
+
+    #[test]
+    fn test_exist_query() {
+        test_parse_query_to_ast_helper("a:*", "\"a\":*");
+        test_parse_query_to_ast_helper("a: *", "\"a\":*");
+        // an exist followed by default term being b
+        test_is_parse_err("a:*b", "(*\"a\":* *b)");
+
+        // this is a term query (not a phrase prefix)
+        test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
     }
 
     #[test]

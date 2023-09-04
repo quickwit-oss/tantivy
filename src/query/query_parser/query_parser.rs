@@ -847,6 +847,11 @@ impl QueryParser {
                 }));
                 (Some(logical_ast), errors)
             }
+            UserInputLeaf::Exists { .. } => {
+                (None, vec![QueryParserError::UnsupportedQuery(
+                    "Range query need to target a specific field.".to_string(),
+                )])
+            }
         }
     }
 }

@@ -16,6 +16,9 @@ pub enum UserInputLeaf {
         field: Option<String>,
         elements: Vec<String>,
     },
+    Exists {
+        field: Option<String>,
+    },
 }
 
 impl UserInputLeaf {
@@ -36,6 +39,7 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
+            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists { field },
         }
     }
 }
@@ -74,6 +78,14 @@ impl Debug for UserInputLeaf {
                 write!(formatter, "]")
             }
             UserInputLeaf::All => write!(formatter, "*"),
+            UserInputLeaf::Exists { field } => {
+                if let Some(field) = field {
+                    write!(formatter, "\"{field}\":*")
+                } else {
+                    // this shouldn't happen.
+                    write!(formatter, "*")
+                }
+            }
         }
     }
 }
