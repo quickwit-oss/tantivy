@@ -17,7 +17,7 @@ pub enum UserInputLeaf {
         elements: Vec<String>,
     },
     Exists {
-        field: Option<String>,
+        field: String,
     },
 }
 
@@ -39,7 +39,9 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
-            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists { field },
+            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
+                field: field.expect("Exist query without a field isn't allowed"),
+            },
         }
     }
 }
@@ -79,12 +81,7 @@ impl Debug for UserInputLeaf {
             }
             UserInputLeaf::All => write!(formatter, "*"),
             UserInputLeaf::Exists { field } => {
-                if let Some(field) = field {
-                    write!(formatter, "\"{field}\":*")
-                } else {
-                    // this shouldn't happen.
-                    write!(formatter, "*")
-                }
+                write!(formatter, "\"{field}\":*")
             }
         }
     }

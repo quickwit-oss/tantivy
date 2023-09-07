@@ -302,7 +302,9 @@ fn term_group_infallible(i: &str) -> JResult<&str, UserInputAst> {
 
 fn exists(i: &str) -> IResult<&str, UserInputLeaf> {
     value(
-        UserInputLeaf::Exists { field: None },
+        UserInputLeaf::Exists {
+            field: String::new(),
+        },
         tuple((space0, char('*'))),
     )(i)
 }
@@ -323,10 +325,7 @@ fn exists_infallible(i: &str) -> JResult<&str, UserInputAst> {
     let (i, (field_name, _, _)) =
         tuple((field_name, space0, char('*')))(i).expect("precondition failed");
 
-    let exists = UserInputLeaf::Exists {
-        field: Some(field_name),
-    }
-    .into();
+    let exists = UserInputLeaf::Exists { field: field_name }.into();
     Ok((i, (exists, Vec::new())))
 }
 
