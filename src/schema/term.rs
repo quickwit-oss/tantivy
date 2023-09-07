@@ -397,6 +397,21 @@ where B: AsRef<[u8]>
         Some(Ipv6Addr::from_u128(ip_u128))
     }
 
+    /// Returns the json path type.
+    ///
+    /// Returns `None` if the value is not JSON.
+    pub fn json_path_type(&self) -> Option<Type> {
+        if self.typ() != Type::Json {
+            return None;
+        }
+
+        let bytes = self.value_bytes();
+        let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
+        let path_type_code = bytes[pos + 1];
+        let path_type = Type::from_code(path_type_code).expect("The json path has an invalid type code");
+        Some(path_type)
+    }
+
     /// Returns the json path (without non-human friendly separators),
     /// and the encoded ValueBytes after the json path.
     ///
@@ -411,6 +426,20 @@ where B: AsRef<[u8]>
         let (json_path_bytes, term) = bytes.split_at(pos);
         let json_path = str::from_utf8(json_path_bytes).ok()?;
         Some((json_path, ValueBytes::wrap(&term[1..])))
+    }
+
+    /// Returns the json path bytes (including the JSON_END_OF_PATH byte)
+    ///
+    /// Returns `None` if the value is not JSON.
+    pub(crate) fn as_json_path_bytes(&self) -> Option<&[u8]> {
+        if self.typ() != Type::Json {
+            return None;
+        }
+
+        let bytes = self.value_bytes();
+        let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
+        let (json_path_bytes, _) = bytes.split_at(pos+1);
+        Some(json_path_bytes)
     }
 
     /// Returns the encoded ValueBytes after the json path.

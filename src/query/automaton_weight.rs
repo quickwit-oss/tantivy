@@ -10,10 +10,14 @@ use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score, TantivyError};
 
+use super::phrase_prefix_query::prefix_end;
+
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A> {
     field: Field,
     automaton: Arc<A>,
+    // Used to filter out terms that don't match the json path
+    json_path_bytes: Option<Vec<u8>>,
 }
 
 impl<A> AutomatonWeight<A>
@@ -26,6 +30,20 @@ where
         AutomatonWeight {
             field,
             automaton: automaton.into(),
+            json_path_bytes: None,
+        }
+    }
+
+    /// Create a new AutomationWeight for a json path
+    pub fn new_with_json_path<IntoArcA: Into<Arc<A>>>(
+        field: Field,
+        automaton: IntoArcA,
+        json_path_bytes: Option<&[u8]>,
+    ) -> AutomatonWeight<A> {
+        AutomatonWeight {
+            field,
+            automaton: automaton.into(),
+            json_path_bytes: json_path_bytes.map(|bytes_ref| bytes_ref.to_vec()),
         }
     }
 
@@ -34,7 +52,15 @@ where
         term_dict: &'a TermDictionary,
     ) -> io::Result<TermStreamer<'a, &'a A>> {
         let automaton: &A = &self.automaton;
-        let term_stream_builder = term_dict.search(automaton);
+        let mut term_stream_builder = term_dict.search(automaton);
+
+        if self.json_path_bytes.is_some() {
+            let json_path_bytes = self.json_path_bytes.as_ref().unwrap();
+            term_stream_builder = term_stream_builder.ge(json_path_bytes);
+            if let Some(end) = prefix_end(json_path_bytes) {
+                term_stream_builder = term_stream_builder.lt(&end);
+            }
+        }
         term_stream_builder.into_stream()
     }
 }
