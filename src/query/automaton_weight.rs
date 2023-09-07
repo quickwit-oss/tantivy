@@ -16,10 +16,9 @@ use super::phrase_prefix_query::prefix_end;
 pub struct AutomatonWeight<A> {
     field: Field,
     automaton: Arc<A>,
-    // This is specifically used for JSON fields.
-    // Context: For a JSON field, the term's value bytes include the JSON path, JSON path type, and the actual value bytes.
-    // When performing fuzzy or regex search on a JSON field's terms dictionary, it's essential to filter out terms that don't match the JSON path.
-    // Otherwise, a term might be mistakenly matched because of the JSON path, even if the actual value bytes don't match the search criteria.
+    // For JSON fields, the term dictionary include terms from all paths.
+    // We apply additional filtering based on the given JSON path, when searching within the term dictionary.
+    // This prevents terms from unrelated paths from matching the search criteria.
     json_path_bytes: Option<Box<[u8]>>,
 }
 
