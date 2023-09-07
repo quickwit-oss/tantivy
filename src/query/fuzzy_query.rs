@@ -137,7 +137,7 @@ impl FuzzyTermQuery {
             if let Some(json_path_type) = term_value.json_path_type() {
                 if json_path_type != Type::Str {
                     return Err(InvalidArgument(format!(
-                        "The fuzzy term query requires a string path type for json term. Found {:?}",
+                        "The fuzzy term query requires a string path type for a json term. Found {:?}",
                         json_path_type
                     )));
                 }
@@ -159,11 +159,18 @@ impl FuzzyTermQuery {
             automaton_builder.build_dfa(term_text)
         };
 
-        Ok(AutomatonWeight::new_with_json_path(
-            self.term.field(),
-            DfaWrapper(automaton),
-            term_value.as_json_path_bytes(),
-        ))
+        if let Some(json_path_bytes) = term_value.as_json_path_bytes() {
+            return Ok(AutomatonWeight::new_for_json_path(
+                self.term.field(),
+                DfaWrapper(automaton),
+                json_path_bytes,
+            ));
+        } else {
+            Ok(AutomatonWeight::new(
+                self.term.field(),
+                DfaWrapper(automaton),
+            ))
+        }
     }
 }
 

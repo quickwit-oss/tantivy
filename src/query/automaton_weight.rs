@@ -16,8 +16,11 @@ use super::phrase_prefix_query::prefix_end;
 pub struct AutomatonWeight<A> {
     field: Field,
     automaton: Arc<A>,
-    // Used to filter out terms that don't match the json path
-    json_path_bytes: Option<Vec<u8>>,
+    // This is specifically used for JSON fields.
+    // Context: For a JSON field, the term's value bytes include the JSON path, JSON path type, and the actual value bytes.
+    // When performing fuzzy or regex search on a JSON field's terms dictionary, it's essential to filter out terms that don't match the JSON path.
+    // Otherwise, a term might be mistakenly matched because of the JSON path, even if the actual value bytes don't match the search criteria.
+    json_path_bytes: Option<Box<[u8]>>,
 }
 
 impl<A> AutomatonWeight<A>
@@ -35,15 +38,15 @@ where
     }
 
     /// Create a new AutomationWeight for a json path
-    pub fn new_with_json_path<IntoArcA: Into<Arc<A>>>(
+    pub fn new_for_json_path<IntoArcA: Into<Arc<A>>>(
         field: Field,
         automaton: IntoArcA,
-        json_path_bytes: Option<&[u8]>,
+        json_path_bytes: &[u8],
     ) -> AutomatonWeight<A> {
         AutomatonWeight {
             field,
             automaton: automaton.into(),
-            json_path_bytes: json_path_bytes.map(|bytes_ref| bytes_ref.to_vec()),
+            json_path_bytes: Some(json_path_bytes.to_vec().into_boxed_slice()),
         }
     }
 
@@ -54,13 +57,13 @@ where
         let automaton: &A = &self.automaton;
         let mut term_stream_builder = term_dict.search(automaton);
 
-        if self.json_path_bytes.is_some() {
-            let json_path_bytes = self.json_path_bytes.as_ref().unwrap();
+        if let Some(json_path_bytes) = &self.json_path_bytes {
             term_stream_builder = term_stream_builder.ge(json_path_bytes);
             if let Some(end) = prefix_end(json_path_bytes) {
                 term_stream_builder = term_stream_builder.lt(&end);
             }
         }
+
         term_stream_builder.into_stream()
     }
 }

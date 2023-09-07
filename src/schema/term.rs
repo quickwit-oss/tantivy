@@ -401,15 +401,9 @@ where B: AsRef<[u8]>
     ///
     /// Returns `None` if the value is not JSON.
     pub fn json_path_type(&self) -> Option<Type> {
-        if self.typ() != Type::Json {
-            return None;
-        }
+        let json_value_bytes = self.as_json_value_bytes()?;
 
-        let bytes = self.value_bytes();
-        let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
-        let path_type_code = bytes[pos + 1];
-        let path_type = Type::from_code(path_type_code).expect("The json path has an invalid type code");
-        Some(path_type)
+        Some(json_value_bytes.typ())
     }
 
     /// Returns the json path (without non-human friendly separators),
@@ -438,6 +432,7 @@ where B: AsRef<[u8]>
 
         let bytes = self.value_bytes();
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
+        // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
         let (json_path_bytes, _) = bytes.split_at(pos+1);
         Some(json_path_bytes)
     }
