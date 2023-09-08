@@ -425,7 +425,7 @@ where B: AsRef<[u8]>
     /// Returns the json path bytes (including the JSON_END_OF_PATH byte)
     ///
     /// Returns `None` if the value is not JSON.
-    pub(crate) fn as_json_path_bytes(&self) -> Option<&[u8]> {
+    pub(crate) fn json_path_bytes(&self) -> Option<&[u8]> {
         if self.typ() != Type::Json {
             return None;
         }
@@ -433,7 +433,7 @@ where B: AsRef<[u8]>
         let bytes = self.value_bytes();
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
         // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
-        let (json_path_bytes, _) = bytes.split_at(pos+1);
+        let (json_path_bytes, _) = bytes.split_at(pos + 1);
         Some(json_path_bytes)
     }
 

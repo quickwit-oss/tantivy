@@ -4,21 +4,20 @@ use std::sync::Arc;
 use common::BitSet;
 use tantivy_fst::Automaton;
 
+use super::phrase_prefix_query::prefix_end;
 use crate::core::SegmentReader;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score, TantivyError};
 
-use super::phrase_prefix_query::prefix_end;
-
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A> {
     field: Field,
     automaton: Arc<A>,
     // For JSON fields, the term dictionary include terms from all paths.
-    // We apply additional filtering based on the given JSON path, when searching within the term dictionary.
-    // This prevents terms from unrelated paths from matching the search criteria.
+    // We apply additional filtering based on the given JSON path, when searching within the term
+    // dictionary. This prevents terms from unrelated paths from matching the search criteria.
     json_path_bytes: Option<Box<[u8]>>,
 }
 

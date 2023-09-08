@@ -137,7 +137,8 @@ impl FuzzyTermQuery {
             if let Some(json_path_type) = term_value.json_path_type() {
                 if json_path_type != Type::Str {
                     return Err(InvalidArgument(format!(
-                        "The fuzzy term query requires a string path type for a json term. Found {:?}",
+                        "The fuzzy term query requires a string path type for a json term. Found \
+                         {:?}",
                         json_path_type
                     )));
                 }
@@ -159,12 +160,12 @@ impl FuzzyTermQuery {
             automaton_builder.build_dfa(term_text)
         };
 
-        if let Some(json_path_bytes) = term_value.as_json_path_bytes() {
-            return Ok(AutomatonWeight::new_for_json_path(
+        if let Some(json_path_bytes) = term_value.json_path_bytes() {
+            Ok(AutomatonWeight::new_for_json_path(
                 self.term.field(),
                 DfaWrapper(automaton),
                 json_path_bytes,
-            ));
+            ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
@@ -244,7 +245,8 @@ mod test {
             assert_eq!(top_docs[0].1.doc_id, 1, "Expected the second document");
         }
 
-        // shall match the first document because Levenshtein distance is 1 (substitute 'o' with 'a')
+        // shall match the first document because Levenshtein distance is 1 (substitute 'o' with
+        // 'a')
         {
             let term = get_json_path_term("attributes.a:japon")?;
 
