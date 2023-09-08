@@ -419,7 +419,7 @@ where B: AsRef<[u8]>
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
         // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
         let (json_path_bytes, term) = bytes.split_at(pos + 1);
-        Some((json_path_bytes, ValueBytes::wrap(&term)))
+        Some((json_path_bytes, ValueBytes::wrap(term)))
     }
 
     /// Returns the encoded ValueBytes after the json path.
