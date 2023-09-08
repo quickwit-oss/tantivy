@@ -160,7 +160,7 @@ impl FuzzyTermQuery {
             automaton_builder.build_dfa(term_text)
         };
 
-        if let Some(json_path_bytes) = term_value.json_path_bytes() {
+        if let Some((json_path_bytes, _)) = term_value.as_json() {
             Ok(AutomatonWeight::new_for_json_path(
                 self.term.field(),
                 DfaWrapper(automaton),
