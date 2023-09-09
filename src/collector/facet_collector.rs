@@ -89,7 +89,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
 ///     {
-///         let mut index_writer = index.writer(3_000_000)?;
+///         let mut index_writer = index.writer(15_000_000)?;
 ///         // a document can be associated with any number of facets
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",

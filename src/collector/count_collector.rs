@@ -16,7 +16,7 @@ use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer(3_000_000).unwrap();
+/// let mut index_writer = index.writer(15_000_000).unwrap();
 /// index_writer.add_document(doc!(title => "The Name of the Wind")).unwrap();
 /// index_writer.add_document(doc!(title => "The Diary of Muadib")).unwrap();
 /// index_writer.add_document(doc!(title => "A Dairy Cow")).unwrap();
