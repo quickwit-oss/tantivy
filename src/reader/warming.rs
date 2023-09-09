@@ -179,6 +179,7 @@ mod tests {
     use super::Warmer;
     use crate::core::searcher::SearcherGeneration;
     use crate::directory::RamDirectory;
+    use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::schema::{Schema, INDEXED};
     use crate::{Index, IndexSettings, ReloadPolicy, Searcher, SegmentId};
 
@@ -255,7 +256,10 @@ mod tests {
 
         let num_writer_threads = 4;
         let mut writer = index
-            .writer_with_num_threads(num_writer_threads, 25_000_000)
+            .writer_with_num_threads(
+                num_writer_threads,
+                MEMORY_BUDGET_NUM_BYTES_MIN * num_writer_threads,
+            )
             .unwrap();
 
         for i in 0u64..1000u64 {

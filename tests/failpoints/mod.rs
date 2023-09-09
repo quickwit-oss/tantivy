@@ -45,7 +45,7 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
     let text_field = schema_builder.add_text_field("text", TEXT);
     let index = Index::create_in_ram(schema_builder.build());
 
-    let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    let mut index_writer = index.writer_with_num_threads(1, 15_000_000)?;
     for _ in 0..100 {
         index_writer.add_document(doc!(text_field => "a"))?;
     }
@@ -75,7 +75,7 @@ fn test_fail_on_flush_segment() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let text_field = schema_builder.add_text_field("text", TEXT);
     let index = Index::create_in_ram(schema_builder.build());
-    let index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    let index_writer = index.writer_with_num_threads(1, 15_000_000)?;
     fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
     for i in 0..100_000 {
         if index_writer
@@ -94,7 +94,7 @@ fn test_fail_on_flush_segment_but_one_worker_remains() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let text_field = schema_builder.add_text_field("text", TEXT);
     let index = Index::create_in_ram(schema_builder.build());
-    let index_writer = index.writer_with_num_threads(2, 6_000_000)?;
+    let index_writer = index.writer_with_num_threads(2, 30_000_000)?;
     fail::cfg("FieldSerializer::close_term", "1*return(simulatederror)").unwrap();
     for i in 0..100_000 {
         if index_writer
@@ -113,7 +113,7 @@ fn test_fail_on_commit_segment() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let text_field = schema_builder.add_text_field("text", TEXT);
     let index = Index::create_in_ram(schema_builder.build());
-    let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    let mut index_writer = index.writer_with_num_threads(1, 15_000_000)?;
     fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
     for i in 0..10 {
         index_writer

@@ -128,7 +128,7 @@ members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sst
 [[test]]
 name = "failpoints"
 path = "tests/failpoints/mod.rs"
-required-features = ["fail/failpoints"]
+required-features = ["failpoints"]
 
 [[bench]]
 name = "analyzer"
