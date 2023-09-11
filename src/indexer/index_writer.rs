@@ -21,6 +21,8 @@ use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
 use crate::schema::{Document, IndexRecordOption, Term};
+#[cfg(feature = "thread-affinity")]
+use crate::thread_affinity::ThreadAffinity;
 use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
@@ -74,6 +76,9 @@ pub struct IndexWriter {
 
     stamper: Stamper,
     committed_opstamp: Opstamp,
+
+    #[cfg(feature = "thread-affinity")]
+    worker_thread_affinity: ThreadAffinity,
 }
 
 fn compute_deleted_bitset(
@@ -266,6 +271,7 @@ impl IndexWriter {
         num_threads: usize,
         memory_arena_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
+        #[cfg(feature = "thread-affinity")] thread_affinity: ThreadAffinity,
     ) -> crate::Result<IndexWriter> {
         if memory_arena_in_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
             let err_msg = format!(
@@ -311,6 +317,8 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
+            #[cfg(feature = "thread-affinity")]
+            worker_thread_affinity: thread_affinity,
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -397,10 +405,22 @@ impl IndexWriter {
         let mut delete_cursor = self.delete_queue.cursor();
 
         let mem_budget = self.memory_arena_in_bytes_per_thread;
+        #[cfg(feature = "thread-affinity")]
+        let worker_thread_affinity = self.worker_thread_affinity.clone();
+
         let index = self.index.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
+                #[cfg(feature = "thread-affinity")]
+                // Setting the affinity can potentially fail for a lot of reasons which are outside
+                // of the control of the process, especially on windows for this reason we don't
+                // want to shut down the worker simply because we couldn't set the affinity,
+                // instead we will just log the error.
+                if let Err(e) = worker_thread_affinity.configure_current_thread() {
+                    error!("Failed to set indexing thread affinity, skipping configuration: {e}");
+                }
+
                 loop {
                     let mut document_iterator = document_receiver_clone
                         .clone()
@@ -556,6 +576,8 @@ impl IndexWriter {
             self.num_threads,
             self.memory_arena_in_bytes_per_thread,
             directory_lock,
+            #[cfg(feature = "thread-affinity")]
+            self.worker_thread_affinity.clone(),
         )?;
 
         // the current `self` is dropped right away because of this call.

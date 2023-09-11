@@ -512,6 +512,60 @@ impl Index {
         load_metas(self.directory(), &self.inventory)
     }
 
+    #[cfg(feature = "thread-affinity")]
+    /// Open a new index writer. Attempts to acquire a lockfile.
+    ///
+    /// The lockfile should be deleted on drop, but it is possible
+    /// that due to a panic or other error, a stale lockfile will be
+    /// left in the index directory. If you are sure that no other
+    /// `IndexWriter` on the system is accessing the index directory,
+    /// it is safe to manually delete the lockfile.
+    ///
+    /// - `num_threads` defines the number of indexing workers that
+    /// should work at the same time.
+    ///
+    /// - `overall_memory_arena_in_bytes` sets the amount of memory
+    /// allocated for all indexing thread.
+    /// Each thread will receive a budget of  `overall_memory_arena_in_bytes / num_threads`.
+    ///
+    /// - `thread_affinity` defines the worker thread CPU affinity.
+    /// This allows you to more easily control what resources are dedicated to indexing vs
+    /// searching.
+    ///
+    /// # Errors
+    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
+    /// If the memory arena per thread is too small or too big, returns
+    /// `TantivyError::InvalidArgument`
+    pub fn writer_with_affinity_and_num_threads(
+        &self,
+        num_threads: usize,
+        overall_memory_arena_in_bytes: usize,
+        thread_affinity: crate::thread_affinity::ThreadAffinity,
+    ) -> crate::Result<IndexWriter> {
+        let directory_lock = self
+            .directory
+            .acquire_lock(&INDEX_WRITER_LOCK)
+            .map_err(|err| {
+                TantivyError::LockFailure(
+                    err,
+                    Some(
+                        "Failed to acquire index lock. If you are using a regular directory, this \
+                         means there is already an `IndexWriter` working on this `Directory`, in \
+                         this process or in a different process."
+                            .to_string(),
+                    ),
+                )
+            })?;
+        let memory_arena_in_bytes_per_thread = overall_memory_arena_in_bytes / num_threads;
+        IndexWriter::new(
+            self,
+            num_threads,
+            memory_arena_in_bytes_per_thread,
+            directory_lock,
+            thread_affinity,
+        )
+    }
+
     /// Open a new index writer. Attempts to acquire a lockfile.
     ///
     /// The lockfile should be deleted on drop, but it is possible
@@ -556,6 +610,8 @@ impl Index {
             num_threads,
             memory_arena_in_bytes_per_thread,
             directory_lock,
+            #[cfg(feature = "thread-affinity")]
+            crate::thread_affinity::ThreadAffinity::default(),
         )
     }
 
