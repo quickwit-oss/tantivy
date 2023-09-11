@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install nightly
       uses: actions-rs/toolchain@v1
@@ -60,7 +60,7 @@ jobs:
     name: test-${{ matrix.features.label}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install stable
       uses: actions-rs/toolchain@v1
