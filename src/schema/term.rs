@@ -397,20 +397,29 @@ where B: AsRef<[u8]>
         Some(Ipv6Addr::from_u128(ip_u128))
     }
 
-    /// Returns the json path (without non-human friendly separators),
+    /// Returns the json path type.
+    ///
+    /// Returns `None` if the value is not JSON.
+    pub fn json_path_type(&self) -> Option<Type> {
+        let json_value_bytes = self.as_json_value_bytes()?;
+
+        Some(json_value_bytes.typ())
+    }
+
+    /// Returns the json path bytes (including the JSON_END_OF_PATH byte),
     /// and the encoded ValueBytes after the json path.
     ///
     /// Returns `None` if the value is not JSON.
-    pub(crate) fn as_json(&self) -> Option<(&str, ValueBytes<&[u8]>)> {
+    pub(crate) fn as_json(&self) -> Option<(&[u8], ValueBytes<&[u8]>)> {
         if self.typ() != Type::Json {
             return None;
         }
         let bytes = self.value_bytes();
 
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
-        let (json_path_bytes, term) = bytes.split_at(pos);
-        let json_path = str::from_utf8(json_path_bytes).ok()?;
-        Some((json_path, ValueBytes::wrap(&term[1..])))
+        // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
+        let (json_path_bytes, term) = bytes.split_at(pos + 1);
+        Some((json_path_bytes, ValueBytes::wrap(&term)))
     }
 
     /// Returns the encoded ValueBytes after the json path.
@@ -469,7 +478,10 @@ where B: AsRef<[u8]>
                 write_opt(f, self.as_bytes())?;
             }
             Type::Json => {
-                if let Some((path, sub_value_bytes)) = self.as_json() {
+                if let Some((path_bytes, sub_value_bytes)) = self.as_json() {
+                    // Remove the JSON_END_OF_PATH byte & convert to utf8.
+                    let path = str::from_utf8(&path_bytes[..path_bytes.len() - 1])
+                        .map_err(|_| std::fmt::Error)?;
                     let path_pretty = path.replace(JSON_PATH_SEGMENT_SEP_STR, ".");
                     write!(f, "path={path_pretty}, ")?;
                     sub_value_bytes.debug_value_bytes(f)?;

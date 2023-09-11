@@ -6,7 +6,7 @@ pub use phrase_prefix_query::PhrasePrefixQuery;
 pub use phrase_prefix_scorer::PhrasePrefixScorer;
 pub use phrase_prefix_weight::PhrasePrefixWeight;
 
-fn prefix_end(prefix_start: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn prefix_end(prefix_start: &[u8]) -> Option<Vec<u8>> {
     let mut res = prefix_start.to_owned();
     while !res.is_empty() {
         let end = res.len() - 1;

@@ -3,7 +3,7 @@ use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
 use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
-use crate::schema::Term;
+use crate::schema::{Term, Type};
 use crate::TantivyError::InvalidArgument;
 
 pub(crate) struct DfaWrapper(pub DFA);
@@ -132,18 +132,46 @@ impl FuzzyTermQuery {
             });
 
         let term_value = self.term.value();
-        let term_text = term_value.as_str().ok_or_else(|| {
-            InvalidArgument("The fuzzy term query requires a string term.".to_string())
-        })?;
+
+        let term_text = if term_value.typ() == Type::Json {
+            if let Some(json_path_type) = term_value.json_path_type() {
+                if json_path_type != Type::Str {
+                    return Err(InvalidArgument(format!(
+                        "The fuzzy term query requires a string path type for a json term. Found \
+                         {:?}",
+                        json_path_type
+                    )));
+                }
+            }
+
+            std::str::from_utf8(self.term.serialized_value_bytes()).map_err(|_| {
+                InvalidArgument(
+                    "Failed to convert json term value bytes to utf8 string.".to_string(),
+                )
+            })?
+        } else {
+            term_value.as_str().ok_or_else(|| {
+                InvalidArgument("The fuzzy term query requires a string term.".to_string())
+            })?
+        };
         let automaton = if self.prefix {
             automaton_builder.build_prefix_dfa(term_text)
         } else {
             automaton_builder.build_dfa(term_text)
         };
-        Ok(AutomatonWeight::new(
-            self.term.field(),
-            DfaWrapper(automaton),
-        ))
+
+        if let Some((json_path_bytes, _)) = term_value.as_json() {
+            Ok(AutomatonWeight::new_for_json_path(
+                self.term.field(),
+                DfaWrapper(automaton),
+                json_path_bytes,
+            ))
+        } else {
+            Ok(AutomatonWeight::new(
+                self.term.field(),
+                DfaWrapper(automaton),
+            ))
+        }
     }
 }
 
@@ -157,8 +185,88 @@ impl Query for FuzzyTermQuery {
 mod test {
     use super::FuzzyTermQuery;
     use crate::collector::{Count, TopDocs};
-    use crate::schema::{Schema, TEXT};
+    use crate::indexer::NoMergePolicy;
+    use crate::query::QueryParser;
+    use crate::schema::{Schema, STORED, TEXT};
     use crate::{assert_nearly_equals, Index, Term};
+
+    #[test]
+    pub fn test_fuzzy_json_path() -> crate::Result<()> {
+        // # Defining the schema
+        let mut schema_builder = Schema::builder();
+        let attributes = schema_builder.add_json_field("attributes", TEXT | STORED);
+        let schema = schema_builder.build();
+
+        // # Indexing documents
+        let index = Index::create_in_ram(schema.clone());
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        let doc = schema.parse_document(
+            r#"{
+            "attributes": {
+                "a": "japan"
+            }
+        }"#,
+        )?;
+        index_writer.add_document(doc)?;
+        let doc = schema.parse_document(
+            r#"{
+            "attributes": {
+                "aa": "japan"
+            }
+        }"#,
+        )?;
+        index_writer.add_document(doc)?;
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // # Fuzzy search
+        let query_parser = QueryParser::for_index(&index, vec![attributes]);
+
+        let get_json_path_term = |query: &str| -> crate::Result<Term> {
+            let query = query_parser.parse_query(query)?;
+            let mut terms = Vec::new();
+            query.query_terms(&mut |term, _| {
+                terms.push(term.clone());
+            });
+
+            Ok(terms[0].clone())
+        };
+
+        // shall not match the first document due to json path mismatch
+        {
+            let term = get_json_path_term("attributes.aa:japan")?;
+            let fuzzy_query = FuzzyTermQuery::new(term, 2, true);
+            let top_docs = searcher.search(&fuzzy_query, &TopDocs::with_limit(2))?;
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            assert_eq!(top_docs[0].1.doc_id, 1, "Expected the second document");
+        }
+
+        // shall match the first document because Levenshtein distance is 1 (substitute 'o' with
+        // 'a')
+        {
+            let term = get_json_path_term("attributes.a:japon")?;
+
+            let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let top_docs = searcher.search(&fuzzy_query, &TopDocs::with_limit(2))?;
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            assert_eq!(top_docs[0].1.doc_id, 0, "Expected the first document");
+        }
+
+        // shall not match because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
+        {
+            let term = get_json_path_term("attributes.a:jap")?;
+
+            let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let top_docs = searcher.search(&fuzzy_query, &TopDocs::with_limit(2))?;
+            assert_eq!(top_docs.len(), 0, "Expected no document");
+        }
+
+        Ok(())
+    }
 
     #[test]
     pub fn test_fuzzy_term() -> crate::Result<()> {
