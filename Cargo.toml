@@ -1,5 +1,5 @@
 [package]
-name = "tantivy"
+name = "paradedb-tantivy"
 version = "0.21.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
