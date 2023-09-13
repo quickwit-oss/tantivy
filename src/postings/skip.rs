@@ -6,6 +6,11 @@ use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
+// doc num bits between 0..=32 are used for legacy, delta without -1 encoding
+// 33..=65 are used for current delta-1 encoding
+// 66..=255 is currently unused
+const STRICT_DELTA_OFFSET: u8 = 33;
+
 #[inline]
 fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
     max_tf.min(u8::MAX as u32) as u8
@@ -41,7 +46,7 @@ impl SkipSerializer {
 
     pub fn write_doc(&mut self, last_doc: DocId, doc_num_bits: u8) {
         write_u32(last_doc, &mut self.buffer);
-        self.buffer.push(doc_num_bits);
+        self.buffer.push(doc_num_bits + STRICT_DELTA_OFFSET);
     }
 
     pub fn write_term_freq(&mut self, tf_num_bits: u8) {
@@ -85,6 +90,7 @@ pub(crate) struct SkipReader {
 pub(crate) enum BlockInfo {
     BitPacked {
         doc_num_bits: u8,
+        strict_delta_encoded: bool,
         tf_num_bits: u8,
         tf_sum: u32,
         block_wand_fieldnorm_id: u8,
@@ -172,12 +178,17 @@ impl SkipReader {
         let bytes = self.owned_read.as_slice();
         let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
-        let doc_num_bits = bytes[4];
+        let mut doc_num_bits = bytes[4];
+        let strict_delta_encoded = doc_num_bits >= STRICT_DELTA_OFFSET;
+        if strict_delta_encoded {
+            doc_num_bits -= STRICT_DELTA_OFFSET;
+        }
         match self.skip_info {
             IndexRecordOption::Basic => {
                 advance_len = 5;
                 self.block_info = BlockInfo::BitPacked {
                     doc_num_bits,
+                    strict_delta_encoded,
                     tf_num_bits: 0,
                     tf_sum: 0,
                     block_wand_fieldnorm_id: 0,
@@ -191,6 +202,7 @@ impl SkipReader {
                 advance_len = 8;
                 self.block_info = BlockInfo::BitPacked {
                     doc_num_bits,
+                    strict_delta_encoded,
                     tf_num_bits,
                     tf_sum: 0,
                     block_wand_fieldnorm_id,
@@ -205,6 +217,7 @@ impl SkipReader {
                 advance_len = 12;
                 self.block_info = BlockInfo::BitPacked {
                     doc_num_bits,
+                    strict_delta_encoded,
                     tf_num_bits,
                     tf_sum,
                     block_wand_fieldnorm_id,
@@ -310,6 +323,7 @@ mod tests {
             skip_reader.block_info,
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
+                strict_delta_encoded: true,
                 tf_num_bits: 3u8,
                 tf_sum: 0,
                 block_wand_fieldnorm_id: 13,
@@ -322,6 +336,7 @@ mod tests {
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 5u8,
+                strict_delta_encoded: true,
                 tf_num_bits: 2u8,
                 tf_sum: 0,
                 block_wand_fieldnorm_id: 8,
@@ -352,6 +367,7 @@ mod tests {
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
+                strict_delta_encoded: true,
                 tf_num_bits: 0,
                 tf_sum: 0u32,
                 block_wand_fieldnorm_id: 0,
@@ -364,6 +380,7 @@ mod tests {
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 5u8,
+                strict_delta_encoded: true,
                 tf_num_bits: 0,
                 tf_sum: 0u32,
                 block_wand_fieldnorm_id: 0,
@@ -393,6 +410,7 @@ mod tests {
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
+                strict_delta_encoded: true,
                 tf_num_bits: 0,
                 tf_sum: 0u32,
                 block_wand_fieldnorm_id: 0,

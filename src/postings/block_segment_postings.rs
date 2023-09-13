@@ -40,8 +40,10 @@ fn decode_bitpacked_block(
     doc_offset: DocId,
     doc_num_bits: u8,
     tf_num_bits: u8,
+    strict_delta: bool,
 ) {
-    let num_consumed_bytes = doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits);
+    let num_consumed_bytes =
+        doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits, strict_delta);
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
     }
@@ -274,13 +276,15 @@ impl BlockSegmentPostings {
 
     pub(crate) fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
-        if self.loaded_offset == offset {
-            return;
-        }
+        // I'm not sure why it's there, but it breaks with blocks that can be encoded on zero byte.
+        // if self.loaded_offset == offset {
+        // return;
+        // }
         self.loaded_offset = offset;
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,
+                strict_delta_encoded,
                 tf_num_bits,
                 ..
             } => {
@@ -295,6 +299,7 @@ impl BlockSegmentPostings {
                     self.skip_reader.last_doc_in_previous_block,
                     doc_num_bits,
                     tf_num_bits,
+                    strict_delta_encoded,
                 );
             }
             BlockInfo::VInt { num_docs } => {
@@ -321,8 +326,6 @@ impl BlockSegmentPostings {
     }
 
     /// Advance to the next block.
-    ///
-    /// Returns false if and only if there is no remaining block.
     pub fn advance(&mut self) {
         self.skip_reader.advance();
         self.block_max_score_cache = None;
