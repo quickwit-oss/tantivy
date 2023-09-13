@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use rand::{thread_rng, Rng};
 
+use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
 use crate::schema::*;
 use crate::{doc, schema, Index, IndexSettings, IndexSortByField, Order, Searcher};
 
@@ -30,7 +31,7 @@ fn test_functional_store() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 12_000_000)?;
+    let mut index_writer = index.writer_with_num_threads(3, MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
     let mut doc_set: Vec<u64> = Vec::new();
 

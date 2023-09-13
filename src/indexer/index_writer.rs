@@ -27,9 +27,9 @@ use crate::{FutureResult, Opstamp};
 // in the `memory_arena` goes below MARGIN_IN_BYTES.
 pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
-// We impose the memory per thread to be at least 3 MB.
-pub const MEMORY_ARENA_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
-pub const MEMORY_ARENA_NUM_BYTES_MAX: usize = u32::MAX as usize - MARGIN_IN_BYTES;
+// We impose the memory per thread to be at least 15 MB, as the baseline consumption is 12MB.
+pub const MEMORY_BUDGET_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 15u32) as usize;
+pub const MEMORY_BUDGET_NUM_BYTES_MAX: usize = u32::MAX as usize - MARGIN_IN_BYTES;
 
 // We impose the number of index writer threads to be at most this.
 pub const MAX_NUM_THREAD: usize = 8;
@@ -57,7 +57,8 @@ pub struct IndexWriter {
 
     index: Index,
 
-    memory_arena_in_bytes_per_thread: usize,
+    // The memory budget per thread, after which a commit is triggered.
+    memory_budget_in_bytes_per_thread: usize,
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
@@ -264,19 +265,19 @@ impl IndexWriter {
     pub(crate) fn new(
         index: &Index,
         num_threads: usize,
-        memory_arena_in_bytes_per_thread: usize,
+        memory_budget_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
     ) -> crate::Result<IndexWriter> {
-        if memory_arena_in_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
+        if memory_budget_in_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
             let err_msg = format!(
                 "The memory arena in bytes per thread needs to be at least \
-                 {MEMORY_ARENA_NUM_BYTES_MIN}."
+                 {MEMORY_BUDGET_NUM_BYTES_MIN}."
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
-        if memory_arena_in_bytes_per_thread >= MEMORY_ARENA_NUM_BYTES_MAX {
+        if memory_budget_in_bytes_per_thread >= MEMORY_BUDGET_NUM_BYTES_MAX {
             let err_msg = format!(
-                "The memory arena in bytes per thread cannot exceed {MEMORY_ARENA_NUM_BYTES_MAX}"
+                "The memory arena in bytes per thread cannot exceed {MEMORY_BUDGET_NUM_BYTES_MAX}"
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
@@ -295,7 +296,7 @@ impl IndexWriter {
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
 
-            memory_arena_in_bytes_per_thread,
+            memory_budget_in_bytes_per_thread,
             index: index.clone(),
             index_writer_status: IndexWriterStatus::from(document_receiver),
             operation_sender: document_sender,
@@ -396,7 +397,7 @@ impl IndexWriter {
 
         let mut delete_cursor = self.delete_queue.cursor();
 
-        let mem_budget = self.memory_arena_in_bytes_per_thread;
+        let mem_budget = self.memory_budget_in_bytes_per_thread;
         let index = self.index.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
@@ -554,7 +555,7 @@ impl IndexWriter {
         let new_index_writer: IndexWriter = IndexWriter::new(
             &self.index,
             self.num_threads,
-            self.memory_arena_in_bytes_per_thread,
+            self.memory_budget_in_bytes_per_thread,
             directory_lock,
         )?;
 
@@ -810,6 +811,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
+    use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
@@ -941,7 +943,7 @@ mod tests {
     fn test_empty_operations_group() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(3_000_000).unwrap();
+        let index_writer = index.writer_for_tests().unwrap();
         let operations1 = vec![];
         let batch_opstamp1 = index_writer.run(operations1).unwrap();
         assert_eq!(batch_opstamp1, 0u64);
@@ -954,8 +956,8 @@ mod tests {
     fn test_lockfile_stops_duplicates() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer(3_000_000).unwrap();
-        match index.writer(3_000_000) {
+        let _index_writer = index.writer_for_tests().unwrap();
+        match index.writer_for_tests() {
             Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
             _ => panic!("Expected a `LockFailure` error"),
         }
@@ -979,7 +981,7 @@ mod tests {
     fn test_set_merge_policy() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(3_000_000).unwrap();
+        let index_writer = index.writer_for_tests().unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
             "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
@@ -998,11 +1000,11 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let _index_writer = index.writer(3_000_000).unwrap();
+            let _index_writer = index.writer_for_tests().unwrap();
             // the lock should be released when the
             // index_writer leaves the scope.
         }
-        let _index_writer_two = index.writer(3_000_000).unwrap();
+        let _index_writer_two = index.writer_for_tests().unwrap();
     }
 
     #[test]
@@ -1022,7 +1024,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer(3_000_000)?;
+            let mut index_writer = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"a"))?;
             index_writer.rollback()?;
             assert_eq!(index_writer.commit_opstamp(), 0u64);
@@ -1054,7 +1056,7 @@ mod tests {
             reader.searcher().doc_freq(&term_a).unwrap()
         };
         // writing the segment
-        let mut index_writer = index.writer(12_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.commit()?;
         //  this should create 1 segment
@@ -1094,7 +1096,7 @@ mod tests {
             reader.searcher().doc_freq(&term_a).unwrap()
         };
         // writing the segment
-        let mut index_writer = index.writer(12_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.commit()?;
         index_writer.add_document(doc!(text_field=>"a"))?;
@@ -1140,7 +1142,7 @@ mod tests {
             reader.searcher().doc_freq(&term_a).unwrap()
         };
         // writing the segment
-        let mut index_writer = index.writer(12_000_000).unwrap();
+        let mut index_writer = index.writer(MEMORY_BUDGET_NUM_BYTES_MIN).unwrap();
         // create 8 segments with 100 tiny docs
         for _doc in 0..100 {
             index_writer.add_document(doc!(text_field=>"a"))?;
@@ -1196,7 +1198,8 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(4, 12_000_000)?;
+            let mut index_writer =
+                index.writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)?;
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
                 index_writer.add_document(doc!(text_field => "a"))?;
@@ -1245,7 +1248,9 @@ mod tests {
             let term = Term::from_field_text(text_field, s);
             searcher.doc_freq(&term).unwrap()
         };
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
 
         let add_tstamp = index_writer.add_document(doc!(text_field => "a")).unwrap();
         let commit_tstamp = index_writer.commit().unwrap();
@@ -1262,7 +1267,9 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
 
         let add_tstamp = index_writer.add_document(doc!(text_field => "a")).unwrap();
 
@@ -1311,7 +1318,9 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         // writing the segment
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
         let res = index_writer.delete_all_documents();
         assert!(res.is_ok());
 
@@ -1338,7 +1347,9 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
 
         // add one simple doc
         assert!(index_writer.add_document(doc!(text_field => "a")).is_ok());
@@ -1371,7 +1382,9 @@ mod tests {
     fn test_delete_all_documents_empty_index() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
         let clear = index_writer.delete_all_documents();
         let commit = index_writer.commit();
         assert!(clear.is_ok());
@@ -1382,7 +1395,9 @@ mod tests {
     fn test_delete_all_documents_index_twice() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let mut index_writer = index
+            .writer_with_num_threads(4, MEMORY_BUDGET_NUM_BYTES_MIN * 4)
+            .unwrap();
         let clear = index_writer.delete_all_documents();
         let commit = index_writer.commit();
         assert!(clear.is_ok());

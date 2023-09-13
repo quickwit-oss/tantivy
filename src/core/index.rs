@@ -16,7 +16,7 @@ use crate::directory::error::OpenReadError;
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
-use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
+use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::{Field, FieldType, Schema};
@@ -523,9 +523,9 @@ impl Index {
     /// - `num_threads` defines the number of indexing workers that
     /// should work at the same time.
     ///
-    /// - `overall_memory_arena_in_bytes` sets the amount of memory
+    /// - `overall_memory_budget_in_bytes` sets the amount of memory
     /// allocated for all indexing thread.
-    /// Each thread will receive a budget of  `overall_memory_arena_in_bytes / num_threads`.
+    /// Each thread will receive a budget of  `overall_memory_budget_in_bytes / num_threads`.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
@@ -534,7 +534,7 @@ impl Index {
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
-        overall_memory_arena_in_bytes: usize,
+        overall_memory_budget_in_bytes: usize,
     ) -> crate::Result<IndexWriter> {
         let directory_lock = self
             .directory
@@ -550,7 +550,7 @@ impl Index {
                     ),
                 )
             })?;
-        let memory_arena_in_bytes_per_thread = overall_memory_arena_in_bytes / num_threads;
+        let memory_arena_in_bytes_per_thread = overall_memory_budget_in_bytes / num_threads;
         IndexWriter::new(
             self,
             num_threads,
@@ -561,7 +561,7 @@ impl Index {
 
     /// Helper to create an index writer for tests.
     ///
-    /// That index writer only simply has a single thread and a memory arena of 10 MB.
+    /// That index writer only simply has a single thread and a memory budget of 15 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
     pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
@@ -579,13 +579,13 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer(&self, memory_arena_num_bytes: usize) -> crate::Result<IndexWriter> {
+    pub fn writer(&self, memory_budget_in_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
-        let memory_arena_num_bytes_per_thread = memory_arena_num_bytes / num_threads;
-        if memory_arena_num_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
-            num_threads = (memory_arena_num_bytes / MEMORY_ARENA_NUM_BYTES_MIN).max(1);
+        let memory_budget_num_bytes_per_thread = memory_budget_in_bytes / num_threads;
+        if memory_budget_num_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
+            num_threads = (memory_budget_in_bytes / MEMORY_BUDGET_NUM_BYTES_MIN).max(1);
         }
-        self.writer_with_num_threads(num_threads, memory_arena_num_bytes)
+        self.writer_with_num_threads(num_threads, memory_budget_in_bytes)
     }
 
     /// Accessor to the index settings
