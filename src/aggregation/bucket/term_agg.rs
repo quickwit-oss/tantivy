@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{BytesColumn, ColumnType, StrColumn};
+use columnar::{BytesColumn, ColumnType, MonotonicallyMappableToU64, StrColumn};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, Key};
+use crate::aggregation::{f64_from_fastfield_u64, format_date, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -531,6 +531,13 @@ impl SegmentTermCollector {
                         });
                 }
             }
+        } else if self.field_type == ColumnType::DateTime {
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val = i64::from_u64(val);
+                let date = format_date(val)?;
+                dict.insert(IntermediateKey::Str(date), intermediate_entry);
+            }
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
@@ -583,6 +590,9 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 
 #[cfg(test)]
 mod tests {
+    use common::DateTime;
+    use time::{Date, Month};
+
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
@@ -1810,6 +1820,77 @@ mod tests {
         assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
         assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 1);
         assert_eq!(res["my_ids"]["buckets"][1]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_date() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 4_000_000)?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?)))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_date": {
+                "terms": {
+                    "field": "date_field"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // date_field field
+        assert_eq!(res["my_date"]["buckets"][0]["key"], "1982-09-17T00:00:00Z");
+        assert_eq!(res["my_date"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_date"]["buckets"][1]["key"], "1983-09-27T00:00:00Z");
+        assert_eq!(res["my_date"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_date"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+    #[test]
+    fn terms_aggregation_date_missing() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 4_000_000)?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1982, Month::September, 17)?.with_hms(0, 0, 0)?)))?;
+            writer.add_document(doc!(date_field=>DateTime::from_primitive(Date::from_calendar_date(1983, Month::September, 27)?.with_hms(0, 0, 0)?)))?;
+            writer.add_document(doc!())?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_date": {
+                "terms": {
+                    "field": "date_field",
+                    "missing": "1982-09-17T00:00:00Z"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // date_field field
+        assert_eq!(res["my_date"]["buckets"][0]["key"], "1982-09-17T00:00:00Z");
+        assert_eq!(res["my_date"]["buckets"][0]["doc_count"], 3);
+        assert_eq!(res["my_date"]["buckets"][1]["key"], "1983-09-27T00:00:00Z");
+        assert_eq!(res["my_date"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_date"]["buckets"][2]["key"], serde_json::Value::Null);
 
         Ok(())
     }

@@ -117,10 +117,10 @@ impl AggregationWithAccessor {
                     ColumnType::U64,
                     ColumnType::F64,
                     ColumnType::Str,
+                    ColumnType::DateTime,
                     // ColumnType::Bytes Unsupported
                     // ColumnType::Bool Unsupported
                     // ColumnType::IpAddr Unsupported
-                    // ColumnType::DateTime Unsupported
                 ];
 
                 // In case the column is empty we want the shim column to match the missing type
@@ -145,7 +145,18 @@ impl AggregationWithAccessor {
                         .map(|m| matches!(m, Key::Str(_)))
                         .unwrap_or(false);
 
-                let use_special_missing_agg = missing_and_more_than_one_col || text_on_non_text_col;
+                // Actually we could convert the text to a number and have the fast path, if it is
+                // provided in Rfc3339 format. But this use case is probably common
+                // enough to justify the effort.
+                let text_on_date_col = column_and_types.len() == 1
+                    && column_and_types[0].1 == ColumnType::DateTime
+                    && missing
+                        .as_ref()
+                        .map(|m| matches!(m, Key::Str(_)))
+                        .unwrap_or(false);
+
+                let use_special_missing_agg =
+                    missing_and_more_than_one_col || text_on_non_text_col || text_on_date_col;
                 if use_special_missing_agg {
                     let column_and_types =
                         get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?;
