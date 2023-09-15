@@ -9,6 +9,8 @@ use crate::{DocId, Score, TERMINATED};
 // doc num bits between 0..=32 are used for legacy, delta without -1 encoding
 // 33..=65 are used for current delta-1 encoding
 // 66..=255 is currently unused
+//
+// when ysing strict delta, we also encode term frequency as value-1 instead of value.
 const STRICT_DELTA_OFFSET: u8 = 33;
 
 #[inline]

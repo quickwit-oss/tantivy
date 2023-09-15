@@ -63,7 +63,7 @@ impl<W: io::Write> PositionSerializer<W> {
         }
         if self.block.len() == COMPRESSION_BLOCK_SIZE {
             let (bit_width, block_encoded): (u8, &[u8]) =
-                self.block_encoder.compress_block_unsorted(&self.block[..]);
+                self.block_encoder.compress_block_unsorted(&self.block[..], false);
             self.bit_widths.push(bit_width);
             self.positions_buffer.extend(block_encoded);
         } else {

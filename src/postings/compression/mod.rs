@@ -44,11 +44,21 @@ impl BlockEncoder {
         (num_bits, &self.output[..written_size])
     }
 
-    pub fn compress_block_unsorted(&mut self, block: &[u32]) -> (u8, &[u8]) {
-        let num_bits = self.bitpacker.num_bits(block);
+    pub fn compress_block_unsorted(&mut self, block: &[u32], minus_one_encoded: bool) -> (u8, &[u8]) {
+        let mut block_minus_one = [0; COMPRESSION_BLOCK_SIZE];
+        let block = if minus_one_encoded {
+            for (elem_min_one, elem) in (&mut block_minus_one).into_iter().zip(block) {
+                *elem_min_one = elem - 1;
+            }
+            &block_minus_one
+        } else {
+            block
+        };
+
+        let num_bits = self.bitpacker.num_bits(&block);
         let written_size = self
             .bitpacker
-            .compress(block, &mut self.output[..], num_bits);
+            .compress(&block, &mut self.output[..], num_bits);
         (num_bits, &self.output[..written_size])
     }
 }
@@ -103,10 +113,16 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8) -> usize {
+    pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8, minus_one_encoded: bool) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
-        self.bitpacker
-            .decompress(compressed_data, &mut self.output, num_bits)
+        let res = self.bitpacker
+            .decompress(compressed_data, &mut self.output, num_bits);
+        if minus_one_encoded {
+            for val in &mut self.output {
+                *val += 1;
+            }
+        }
+        res
     }
 
     #[inline]
@@ -287,21 +303,23 @@ pub mod tests {
 
     #[test]
     fn test_encode_unsorted_block_with_junk() {
-        let mut compressed: Vec<u8> = Vec::new();
-        let n = 128;
-        let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32 % 12).collect();
-        let mut encoder = BlockEncoder::default();
-        let (num_bits, compressed_data) = encoder.compress_block_unsorted(&vals);
-        compressed.extend_from_slice(compressed_data);
-        compressed.push(173u8);
-        let mut decoder = BlockDecoder::default();
-        {
-            let consumed_num_bytes = decoder.uncompress_block_unsorted(&compressed, num_bits);
-            assert_eq!(consumed_num_bytes + 1, compressed.len());
-            assert_eq!(compressed[consumed_num_bytes], 173u8);
-        }
-        for i in 0..n {
-            assert_eq!(vals[i], decoder.output(i));
+        for minus_one_encode in [false, true] {
+            let mut compressed: Vec<u8> = Vec::new();
+            let n = 128;
+            let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32 % 12).collect();
+            let mut encoder = BlockEncoder::default();
+            let (num_bits, compressed_data) = encoder.compress_block_unsorted(&vals, minus_one_encode);
+            compressed.extend_from_slice(compressed_data);
+            compressed.push(173u8);
+            let mut decoder = BlockDecoder::default();
+            {
+                let consumed_num_bytes = decoder.uncompress_block_unsorted(&compressed, num_bits, minus_one_encode);
+                assert_eq!(consumed_num_bytes + 1, compressed.len());
+                assert_eq!(compressed[consumed_num_bytes], 173u8);
+            }
+            for i in 0..n {
+                assert_eq!(vals[i], decoder.output(i));
+            }
         }
     }
 

@@ -92,7 +92,7 @@ impl PositionReader {
             // that block is bitpacked.
             let bit_width = bit_widths[block_rel_id];
             self.block_decoder
-                .uncompress_block_unsorted(compressed_data, bit_width);
+                .uncompress_block_unsorted(compressed_data, bit_width, false);
         } else {
             // that block is vint encoded.
             self.block_decoder
