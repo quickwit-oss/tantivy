@@ -16,6 +16,9 @@ pub enum UserInputLeaf {
         field: Option<String>,
         elements: Vec<String>,
     },
+    Exists {
+        field: String,
+    },
 }
 
 impl UserInputLeaf {
@@ -36,6 +39,9 @@ impl UserInputLeaf {
                 upper,
             },
             UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
+            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
+                field: field.expect("Exist query without a field isn't allowed"),
+            },
         }
     }
 }
@@ -74,6 +80,9 @@ impl Debug for UserInputLeaf {
                 write!(formatter, "]")
             }
             UserInputLeaf::All => write!(formatter, "*"),
+            UserInputLeaf::Exists { field } => {
+                write!(formatter, "\"{field}\":*")
+            }
         }
     }
 }
