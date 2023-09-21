@@ -104,6 +104,37 @@ mod tests_mmap {
     }
 
     #[test]
+    fn test_json_field_number() {
+        // this test was added specifically to reach some cases related to using json fields, with
+        // frequency enabled, to store integers, with enough documents containing a single integer
+        // that the posting list can be bitpacked.
+        let mut schema_builder = Schema::builder();
+
+        let json_field = schema_builder.add_json_field("json", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        for _ in 0..256 {
+            let json = serde_json::json!({"somekey": 1u64, "otherkey": -2i64});
+            index_writer.add_document(doc!(json_field=>json)).unwrap();
+
+            let json = serde_json::json!({"somekey": "1str", "otherkey": "2str"});
+            index_writer.add_document(doc!(json_field=>json)).unwrap();
+        }
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 512);
+        let parse_query = QueryParser::for_index(&index, Vec::new());
+        {
+            let query = parse_query
+                .parse_query(r"json.somekey:1")
+                .unwrap();
+            let num_docs = searcher.search(&query, &Count).unwrap();
+            assert_eq!(num_docs, 256);
+        }
+    }
+
+    #[test]
     fn test_json_field_expand_dots_enabled_dot_escape_not_required() {
         let mut schema_builder = Schema::builder();
         let json_options: JsonObjectOptions =

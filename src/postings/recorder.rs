@@ -133,11 +133,11 @@ impl Recorder for DocIdRecorder {
             doc_ids.sort_unstable();
 
             for doc in doc_ids {
-                serializer.write_doc(*doc, 1u32, &[0][..]);
+                serializer.write_doc(*doc, 0u32, &[][..]);
             }
         } else {
             for doc in VInt32Reader::new(&buffer[..]) {
-                serializer.write_doc(doc, 1u32, &[0][..]);
+                serializer.write_doc(doc, 0u32, &[][..]);
             }
         }
     }

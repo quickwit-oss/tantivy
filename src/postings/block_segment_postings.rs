@@ -59,11 +59,15 @@ fn decode_vint_block(
     let num_consumed_bytes =
         doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs, TERMINATED);
     if let Some(freq_decoder) = freq_decoder_opt {
-        freq_decoder.uncompress_vint_unsorted(
-            &data[num_consumed_bytes..],
-            num_vint_docs,
-            TERMINATED,
-        );
+        // if it's a json term with freq, containing less than 256 docs, we can reach here thinking
+        // we have a freq, despite not really having one.
+        if data.len() > num_consumed_bytes {
+            freq_decoder.uncompress_vint_unsorted(
+                &data[num_consumed_bytes..],
+                num_vint_docs,
+                TERMINATED,
+            );
+        }
     }
 }
 
@@ -83,20 +87,29 @@ impl BlockSegmentPostings {
     pub(crate) fn open(
         doc_freq: u32,
         data: FileSlice,
-        record_option: IndexRecordOption,
+        mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
+        let bytes = data.read_bytes()?;
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
+        let skip_reader = match skip_data_opt {
+            Some(skip_data) => {
+                let block_count = doc_freq as usize / COMPRESSION_BLOCK_SIZE;
+                // 8 is the minimum size of a block with frequency (can be more if pos are stored
+                // too)
+                if skip_data.len() < 8 * block_count {
+                    // the field might be encoded with frequency, but this term in particular isn't
+                    record_option = IndexRecordOption::Basic;
+                }
+                SkipReader::new(skip_data, doc_freq, record_option)
+            }
+            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
+        };
+
         let freq_reading_option = match (record_option, requested_option) {
             (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
             (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
             (_, _) => FreqReadingOption::ReadFreq,
-        };
-
-        let bytes = data.read_bytes()?;
-        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
-        let skip_reader = match skip_data_opt {
-            Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
-            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
         };
 
         let mut block_segment_postings = BlockSegmentPostings {

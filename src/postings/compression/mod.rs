@@ -45,6 +45,8 @@ impl BlockEncoder {
     }
 
     pub fn compress_block_unsorted(&mut self, block: &[u32], minus_one_encoded: bool) -> (u8, &[u8]) {
+        debug_assert!(!minus_one_encoded || !block.contains(&0));
+
         let mut block_minus_one = [0; COMPRESSION_BLOCK_SIZE];
         let block = if minus_one_encoded {
             for (elem_min_one, elem) in (&mut block_minus_one).into_iter().zip(block) {
