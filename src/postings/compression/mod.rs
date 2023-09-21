@@ -396,7 +396,7 @@ mod bench {
         let (num_bits, compressed) = encoder.compress_block_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::default();
         b.iter(|| {
-            decoder.uncompress_block_sorted(compressed, 0u32, num_bits);
+            decoder.uncompress_block_sorted(compressed, 0u32, num_bits, true);
         });
     }
 
