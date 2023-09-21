@@ -53,7 +53,7 @@ impl BlockEncoder {
 
         let mut block_minus_one = [0; COMPRESSION_BLOCK_SIZE];
         let block = if minus_one_encoded {
-            for (elem_min_one, elem) in (&mut block_minus_one).into_iter().zip(block) {
+            for (elem_min_one, elem) in block_minus_one.iter_mut().zip(block) {
                 *elem_min_one = elem - 1;
             }
             &block_minus_one
@@ -61,10 +61,10 @@ impl BlockEncoder {
             block
         };
 
-        let num_bits = self.bitpacker.num_bits(&block);
+        let num_bits = self.bitpacker.num_bits(block);
         let written_size = self
             .bitpacker
-            .compress(&block, &mut self.output[..], num_bits);
+            .compress(block, &mut self.output[..], num_bits);
         (num_bits, &self.output[..written_size])
     }
 }
