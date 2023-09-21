@@ -103,7 +103,8 @@ impl AggregationWithAccessor {
                 field: field_name, ..
             }) => {
                 let (accessor, column_type) =
-                    get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
+                    // Only DateTime is supported for DateHistogram
+                    get_ff_reader(reader, field_name, Some(&[ColumnType::DateTime]))?;
                 add_agg_with_accessor(accessor, column_type, &mut res)?;
             }
             Terms(TermsAggregation {
