@@ -122,11 +122,14 @@ pub struct HistogramAggregation {
     /// Whether to return the buckets as a hash map
     #[serde(default)]
     pub keyed: bool,
+    /// Whether the values are normalized to ns for date time values. Defaults to false.
+    #[serde(default)]
+    pub is_normalized_to_ns: bool,
 }
 
 impl HistogramAggregation {
-    pub(crate) fn normalize(&mut self, column_type: ColumnType) {
-        if column_type.is_date_time() {
+    pub(crate) fn normalize_date_time(&mut self) {
+        if !self.is_normalized_to_ns {
             // values are provided in ms, but the fastfield is in nano seconds
             self.interval *= 1_000_000.0;
             self.offset = self.offset.map(|off| off * 1_000_000.0);
@@ -138,6 +141,7 @@ impl HistogramAggregation {
                 min: bounds.min * 1_000_000.0,
                 max: bounds.max * 1_000_000.0,
             });
+            self.is_normalized_to_ns = true;
         }
     }
 
@@ -370,7 +374,7 @@ impl SegmentHistogramCollector {
 
         Ok(IntermediateBucketResult::Histogram {
             buckets,
-            column_type: Some(self.column_type),
+            is_date_agg: self.column_type == ColumnType::DateTime,
         })
     }
 
@@ -381,7 +385,9 @@ impl SegmentHistogramCollector {
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         req.validate()?;
-        req.normalize(field_type);
+        if field_type == ColumnType::DateTime {
+            req.normalize_date_time();
+        }
 
         let sub_aggregation_blueprint = if sub_aggregation.is_empty() {
             None
@@ -439,6 +445,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     // memory check upfront
     let (_, first_bucket_num, last_bucket_num) =
         generate_bucket_pos_with_opt_minmax(histogram_req, min_max);
+
     // It's based on user input, so we need to account for overflows
     let added_buckets = ((last_bucket_num.saturating_sub(first_bucket_num)).max(0) as u64)
         .saturating_sub(buckets.len() as u64);
@@ -482,7 +489,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
 // Convert to BucketEntry
 pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     buckets: Vec<IntermediateHistogramBucketEntry>,
-    column_type: Option<ColumnType>,
+    is_date_agg: bool,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &Aggregations,
     limits: &AggregationLimits,
@@ -491,8 +498,8 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     // The request used in the the call to final is not yet be normalized.
     // Normalization is changing the precision from milliseconds to nanoseconds.
     let mut histogram_req = histogram_req.clone();
-    if let Some(column_type) = column_type {
-        histogram_req.normalize(column_type);
+    if is_date_agg {
+        histogram_req.normalize_date_time();
     }
     let mut buckets = if histogram_req.min_doc_count() == 0 {
         // With min_doc_count != 0, we may need to add buckets, so that there are no
@@ -516,7 +523,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
 
     // If we have a date type on the histogram buckets, we add the `key_as_string` field as rfc339
     // and normalize from nanoseconds to milliseconds
-    if column_type == Some(ColumnType::DateTime) {
+    if is_date_agg {
         for bucket in buckets.iter_mut() {
             if let crate::aggregation::Key::F64(ref mut val) = bucket.key {
                 let key_as_string = format_date(*val as i64)?;
