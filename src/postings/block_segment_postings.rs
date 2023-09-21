@@ -45,7 +45,11 @@ fn decode_bitpacked_block(
     let num_consumed_bytes =
         doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits, strict_delta);
     if let Some(freq_decoder) = freq_decoder_opt {
-        freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits, strict_delta);
+        freq_decoder.uncompress_block_unsorted(
+            &data[num_consumed_bytes..],
+            tf_num_bits,
+            strict_delta,
+        );
     }
 }
 

@@ -126,9 +126,7 @@ mod tests_mmap {
         assert_eq!(searcher.num_docs(), 512);
         let parse_query = QueryParser::for_index(&index, Vec::new());
         {
-            let query = parse_query
-                .parse_query(r"json.somekey:1")
-                .unwrap();
+            let query = parse_query.parse_query(r"json.somekey:1").unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
             assert_eq!(num_docs, 256);
         }
