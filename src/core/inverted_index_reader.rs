@@ -1,11 +1,12 @@
 use std::io;
 
 use common::BinarySerializable;
+use fnv::FnvHashSet;
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
-use crate::schema::{IndexRecordOption, Term};
+use crate::schema::{IndexRecordOption, Term, JSON_END_OF_PATH};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
@@ -67,6 +68,26 @@ impl InvertedIndexReader {
     /// Return the term dictionary datastructure.
     pub fn terms(&self) -> &TermDictionary {
         &self.termdict
+    }
+
+    /// Return the fields encoded in the dictionary in lexicographic oder.
+    /// Only valid on JSON fields.
+    ///
+    /// Notice: This requires a full scan and therefore **very expensive**.
+    pub fn list_fields(&self) -> io::Result<Vec<String>> {
+        let mut stream = self.termdict.stream()?;
+        let mut fields = Vec::new();
+        let mut fields_set = FnvHashSet::default();
+        while let Some((term, _term_info)) = stream.next() {
+            if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {
+                if !fields_set.contains(&term[..index]) {
+                    fields_set.insert(term[..index].to_vec());
+                    fields.push(String::from_utf8_lossy(&term[..index]).to_string());
+                }
+            }
+        }
+
+        Ok(fields)
     }
 
     /// Resets the block segment to another position of the postings
