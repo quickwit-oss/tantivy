@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use std::marker::PhantomData;
 
+use super::top_score_collector::TopNComputer;
 use crate::{DocAddress, DocId, SegmentOrdinal, SegmentReader};
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
@@ -86,32 +86,48 @@ where T: PartialOrd + Clone
 
     pub fn merge_fruits(
         &self,
-        children: Vec<Vec<(T, DocAddress)>>,
+        mut children: Vec<Vec<(T, DocAddress)>>,
     ) -> crate::Result<Vec<(T, DocAddress)>> {
         if self.limit == 0 {
             return Ok(Vec::new());
         }
-        let mut top_collector = BinaryHeap::new();
+        if children.len() == 1 {
+            let mut child = children.pop().unwrap();
+            child.sort_by(|a, b| {
+                if a.0 == b.0 {
+                    a.1.cmp(&b.1)
+                } else {
+                    b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                }
+            });
+            if self.offset != 0 {
+                return Ok(child
+                    .into_iter()
+                    .skip(self.offset)
+                    .take(self.limit)
+                    .collect());
+            }
+            if child.len() > self.limit {
+                child.truncate(self.limit);
+            }
+
+            return Ok(child);
+        }
+        let mut top_collector = TopNComputer::new(self.limit + self.offset);
         for child_fruit in children {
             for (feature, doc) in child_fruit {
-                if top_collector.len() < (self.limit + self.offset) {
-                    top_collector.push(ComparableDoc { feature, doc });
-                } else if let Some(mut head) = top_collector.peek_mut() {
-                    if head.feature < feature {
-                        *head = ComparableDoc { feature, doc };
-                    }
-                }
+                top_collector.push(ComparableDoc { feature, doc });
             }
         }
+
         Ok(top_collector
-            .into_sorted_vec()
-            .into_iter()
+            .into_iter_sorted()
             .skip(self.offset)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
 
-    pub(crate) fn for_segment<F: PartialOrd>(
+    pub(crate) fn for_segment<F: PartialOrd + Clone>(
         &self,
         segment_id: SegmentOrdinal,
         _: &SegmentReader,
@@ -140,16 +156,14 @@ where T: PartialOrd + Clone
 /// The theoretical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
 pub(crate) struct TopSegmentCollector<T> {
-    limit: usize,
-    heap: BinaryHeap<ComparableDoc<T, DocId>>,
+    topn_computer: TopNComputer<T, DocId>,
     segment_ord: u32,
 }
 
-impl<T: PartialOrd> TopSegmentCollector<T> {
+impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
         TopSegmentCollector {
-            limit,
-            heap: BinaryHeap::with_capacity(limit),
+            topn_computer: TopNComputer::new(limit),
             segment_ord,
         }
     }
@@ -158,9 +172,8 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
         let segment_ord = self.segment_ord;
-        self.heap
-            .into_sorted_vec()
-            .into_iter()
+        self.topn_computer
+            .into_iter_sorted()
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
@@ -173,33 +186,13 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
             .collect()
     }
 
-    /// Return true if more documents have been collected than the limit.
-    #[inline]
-    pub(crate) fn at_capacity(&self) -> bool {
-        self.heap.len() >= self.limit
-    }
-
     /// Collects a document scored by the given feature
     ///
     /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
     /// will compare the lowest scoring item with the given one and keep whichever is greater.
     #[inline]
     pub fn collect(&mut self, doc: DocId, feature: T) {
-        if self.at_capacity() {
-            // It's ok to unwrap as long as a limit of 0 is forbidden.
-            if let Some(limit_feature) = self.heap.peek().map(|head| head.feature.clone()) {
-                if limit_feature < feature {
-                    if let Some(mut head) = self.heap.peek_mut() {
-                        head.feature = feature;
-                        head.doc = doc;
-                    }
-                }
-            }
-        } else {
-            // we have not reached capacity yet, so we can just push the
-            // element.
-            self.heap.push(ComparableDoc { feature, doc });
-        }
+        self.topn_computer.push(ComparableDoc { feature, doc });
     }
 }
 

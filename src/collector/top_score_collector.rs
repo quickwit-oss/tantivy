@@ -1,4 +1,3 @@
-use std::collections::BinaryHeap;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -86,12 +85,15 @@ where
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
 ///
-/// The implementation is based on a `BinaryHeap`.
-/// The theoretical complexity for collecting the top `K` out of `n` documents
-/// is `O(n log K)`.
+/// The implementation is based on a repeatedly truncating on the median after K * 2 documents
+/// with pattern defeating QuickSort.
+/// The theoretical complexity for collecting the top `K` out of `N` documents
+/// is `O(N + K)`.
 ///
-/// This collector guarantees a stable sorting in case of a tie on the
-/// document score. As such, it is suitable to implement pagination.
+/// This collector does not guarantee a stable sorting in case of a tie on the
+/// document score, for stable sorting `PartialOrd` needs to resolve on other fields
+/// like docid in case of score equality.
+/// Only then, it is suitable for pagination.
 ///
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -661,11 +663,12 @@ impl Collector for TopDocs {
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let heap_len = self.0.limit + self.0.offset;
-        let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> = BinaryHeap::with_capacity(heap_len);
+        let mut top_n = TopNComputer::new(heap_len);
 
         if let Some(alive_bitset) = reader.alive_bitset() {
             let mut threshold = Score::MIN;
-            weight.for_each_pruning(threshold, reader, &mut |doc, score| {
+            top_n.threshold = Some(threshold);
+            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
                 if alive_bitset.is_deleted(doc) {
                     return threshold;
                 }
@@ -673,15 +676,8 @@ impl Collector for TopDocs {
                     feature: score,
                     doc,
                 };
-                if heap.len() < heap_len {
-                    heap.push(heap_item);
-                    if heap.len() == heap_len {
-                        threshold = heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
-                    }
-                    return threshold;
-                }
-                *heap.peek_mut().unwrap() = heap_item;
-                threshold = heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
+                top_n.push(heap_item);
+                threshold = top_n.threshold.unwrap_or(Score::MIN);
                 threshold
             })?;
         } else {
@@ -690,23 +686,13 @@ impl Collector for TopDocs {
                     feature: score,
                     doc,
                 };
-                if heap.len() < heap_len {
-                    heap.push(heap_item);
-                    // TODO the threshold is suboptimal for heap.len == heap_len
-                    if heap.len() == heap_len {
-                        return heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
-                    } else {
-                        return Score::MIN;
-                    }
-                }
-                *heap.peek_mut().unwrap() = heap_item;
-                heap.peek().map(|el| el.feature).unwrap_or(Score::MIN)
+                top_n.push(heap_item);
+                top_n.threshold.unwrap_or(Score::MIN)
             })?;
         }
 
-        let fruit = heap
-            .into_sorted_vec()
-            .into_iter()
+        let fruit = top_n
+            .into_iter_sorted()
             .map(|cid| {
                 (
                     cid.feature,
@@ -733,6 +719,64 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
     fn harvest(self) -> Vec<(Score, DocAddress)> {
         self.0.harvest()
+    }
+}
+
+pub struct TopNComputer<Score, DocId> {
+    buffer: Vec<ComparableDoc<Score, DocId>>,
+    max_size: usize,
+    pub threshold: Option<Score>,
+}
+
+impl<Score, DocId> TopNComputer<Score, DocId>
+where
+    Score: PartialOrd + Clone,
+    DocId: Ord + Clone,
+{
+    pub fn new(top_n: usize) -> Self {
+        let max_size = top_n.max(1) * 2;
+        TopNComputer {
+            buffer: Vec::with_capacity(max_size),
+            max_size,
+            threshold: None,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn push(&mut self, doc: ComparableDoc<Score, DocId>) {
+        if let Some(last_median) = self.threshold.clone() {
+            if doc.feature < last_median {
+                return;
+            }
+        }
+        // Check on capacity should eleminate the check in `push`
+        if self.buffer.len() == self.buffer.capacity() {
+            let median = self.truncate_median();
+            self.threshold = Some(median);
+        }
+
+        self.buffer.push(doc);
+    }
+
+    #[inline(never)]
+    fn truncate_median(&mut self) -> Score {
+        let len = self.buffer.len();
+        // Use select_nth_unstable to find the median score
+        let (_, median_el, _) = self.buffer.select_nth_unstable(len / 2);
+
+        let median_score = median_el.feature.clone();
+        // Remove all elements below the median
+        self.buffer.truncate(len / 2);
+
+        median_score
+    }
+
+    pub(crate) fn into_iter_sorted(self) -> impl Iterator<Item = ComparableDoc<Score, DocId>> {
+        let mut sorted_buffer = self.buffer;
+        sorted_buffer.sort_unstable();
+
+        // Return the sorted top N elements
+        sorted_buffer.into_iter().take(self.max_size / 2)
     }
 }
 
