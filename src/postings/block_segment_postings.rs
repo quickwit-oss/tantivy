@@ -24,7 +24,7 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
 #[derive(Clone)]
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
-    loaded_offset: usize,
+    block_loaded: bool,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
@@ -88,6 +88,12 @@ fn split_into_skips_and_postings(
 }
 
 impl BlockSegmentPostings {
+    /// Opens a `BlockSegmentPostings`.
+    /// `doc_freq` is the number of documents in the posting list.
+    /// `record_option` represents the amount of data available according to the schema.
+    /// `requested_option` is the amount of data requested by the user.
+    /// If for instance, we do not request for term frequencies, this function will not decompress
+    /// term frequency blocks.
     pub(crate) fn open(
         doc_freq: u32,
         data: FileSlice,
@@ -102,7 +108,10 @@ impl BlockSegmentPostings {
                 // 8 is the minimum size of a block with frequency (can be more if pos are stored
                 // too)
                 if skip_data.len() < 8 * block_count {
-                    // the field might be encoded with frequency, but this term in particular isn't
+                    // the field might be encoded with frequency, but this term in particular isn't.
+                    // This can happen for JSON field with term frequencies:
+                    // - text terms are encoded with term freqs.
+                    // - numerical terms are encoded without term freqs.
                     record_option = IndexRecordOption::Basic;
                 }
                 SkipReader::new(skip_data, doc_freq, record_option)
@@ -118,7 +127,7 @@ impl BlockSegmentPostings {
 
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: usize::MAX,
+            block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             block_max_score_cache: None,
@@ -188,7 +197,7 @@ impl BlockSegmentPostings {
             split_into_skips_and_postings(doc_freq, postings_data)?;
         self.data = postings_data;
         self.block_max_score_cache = None;
-        self.loaded_offset = usize::MAX;
+        self.block_loaded = false;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
@@ -284,20 +293,20 @@ impl BlockSegmentPostings {
     pub(crate) fn shallow_seek(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
+            self.block_loaded = false;
         }
     }
 
     pub(crate) fn block_is_loaded(&self) -> bool {
-        self.loaded_offset == self.skip_reader.byte_offset()
+        self.block_loaded
     }
 
     pub(crate) fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
         // I'm not sure why it's there, but it breaks with blocks that can be encoded on zero byte.
-        // if self.loaded_offset == offset {
-        // return;
-        // }
-        self.loaded_offset = offset;
+        if self.block_is_loaded() {
+            return;
+        }
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,
@@ -340,11 +349,13 @@ impl BlockSegmentPostings {
                 );
             }
         }
+        self.block_loaded = true;
     }
 
     /// Advance to the next block.
     pub fn advance(&mut self) {
         self.skip_reader.advance();
+        self.block_loaded = false;
         self.block_max_score_cache = None;
         self.load_block();
     }
@@ -353,7 +364,7 @@ impl BlockSegmentPostings {
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: 0,
+            block_loaded: true,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
             block_max_score_cache: None,

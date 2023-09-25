@@ -35,7 +35,7 @@ impl BlockEncoder {
     pub fn compress_block_sorted(&mut self, block: &[u32], offset: u32) -> (u8, &[u8]) {
         // if offset is zero, convert it to None. This is correct as long as we do the same when
         // decompressing. It's required in case the block starts with an actual zero.
-        let offset = std::num::NonZeroU32::new(offset).map(std::num::NonZeroU32::get);
+        let offset = if offset == 0u32 { None } else { Some(offset) };
 
         let num_bits = self.bitpacker.num_bits_strictly_sorted(offset, block);
         let written_size =
@@ -44,6 +44,12 @@ impl BlockEncoder {
         (num_bits, &self.output[..written_size])
     }
 
+    /// Compress a single block of unsorted numbers.
+    ///
+    /// If `minus_one_encoded` is set, each value must be >= 1, and will be encoded in a sligly
+    /// more compact format. This is useful for some values where 0 isn't a correct value, such
+    /// as term frequency, but isn't correct for some usages like position lists, where 0 can
+    /// appear.
     pub fn compress_block_unsorted(
         &mut self,
         block: &[u32],
@@ -91,6 +97,10 @@ impl BlockDecoder {
         }
     }
 
+    /// Decompress block of sorted integers.
+    ///
+    /// `strict_delta` depends on what encoding was used. Older version of tantivy never use strict
+    /// deltas, newer versions always use them.
     pub fn uncompress_block_sorted(
         &mut self,
         compressed_data: &[u8],
@@ -115,6 +125,11 @@ impl BlockDecoder {
         }
     }
 
+    /// Decompress block of unsorted integers.
+    ///
+    /// `minus_one_encoded` depends on what encoding was used. Older version of tantivy never use
+    /// that encoding. Newer version use it for some structures, but not all. See the corresponding
+    /// call to `BlockEncoder::compress_block_unsorted`.
     pub fn uncompress_block_unsorted(
         &mut self,
         compressed_data: &[u8],

@@ -6,12 +6,21 @@ use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
-// doc num bits between 0..=32 are used for legacy, delta without -1 encoding
-// 33..=65 are used for current delta-1 encoding
-// 66..=255 is currently unused
-//
-// when ysing strict delta, we also encode term frequency as value-1 instead of value.
-const STRICT_DELTA_OFFSET: u8 = 33;
+// doc num bits uses the following encoding:
+// given 0b a b cdefgh
+//         |1|2|   3  |
+// - 1: unused
+// - 2: is delta-1 encoded. 0 if not, 1, if yes
+// - 3: a 6 bit number in 0..=32, the actual bitwidth
+fn encode_bitwidth(bitwidth: u8, delta_1: bool) -> u8 {
+    bitwidth | ((delta_1 as u8) << 6)
+}
+
+fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
+    let delta_1 = (raw_bitwidth >> 6 & 1) != 0;
+    let bitwidth = raw_bitwidth & 0x3f;
+    (bitwidth, delta_1)
+}
 
 #[inline]
 fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
@@ -48,7 +57,7 @@ impl SkipSerializer {
 
     pub fn write_doc(&mut self, last_doc: DocId, doc_num_bits: u8) {
         write_u32(last_doc, &mut self.buffer);
-        self.buffer.push(doc_num_bits + STRICT_DELTA_OFFSET);
+        self.buffer.push(encode_bitwidth(doc_num_bits, true));
     }
 
     pub fn write_term_freq(&mut self, tf_num_bits: u8) {
@@ -180,11 +189,7 @@ impl SkipReader {
         let bytes = self.owned_read.as_slice();
         let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
-        let mut doc_num_bits = bytes[4];
-        let strict_delta_encoded = doc_num_bits >= STRICT_DELTA_OFFSET;
-        if strict_delta_encoded {
-            doc_num_bits -= STRICT_DELTA_OFFSET;
-        }
+        let (doc_num_bits, strict_delta_encoded) = decode_bitwidth(bytes[4]);
         match self.skip_info {
             IndexRecordOption::Basic => {
                 advance_len = 5;
@@ -283,7 +288,9 @@ impl SkipReader {
 #[cfg(test)]
 mod tests {
 
-    use super::{BlockInfo, IndexRecordOption, SkipReader, SkipSerializer};
+    use super::{
+        decode_bitwidth, encode_bitwidth, BlockInfo, IndexRecordOption, SkipReader, SkipSerializer,
+    };
     use crate::directory::OwnedBytes;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 
@@ -421,5 +428,19 @@ mod tests {
         );
         skip_reader.advance();
         assert_eq!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 });
+    }
+
+    #[test]
+    fn test_encode_decode_bitwidth() {
+        for bitwidth in 0..=32 {
+            for delta_1 in [false, true] {
+                assert_eq!(
+                    (bitwidth, delta_1),
+                    decode_bitwidth(encode_bitwidth(bitwidth, delta_1))
+                );
+            }
+        }
+        assert_eq!(0b01000010, encode_bitwidth(0b10, true));
+        assert_eq!(0b00000010, encode_bitwidth(0b10, false));
     }
 }
