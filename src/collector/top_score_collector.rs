@@ -722,10 +722,13 @@ impl SegmentCollector for TopScoreSegmentCollector {
     }
 }
 
+/// Fast TopN Computation
+///
+/// For TopN == 0, it will be relative expensive.
 pub struct TopNComputer<Score, DocId> {
     buffer: Vec<ComparableDoc<Score, DocId>>,
-    max_size: usize,
-    pub threshold: Option<Score>,
+    top_n: usize,
+    pub(crate) threshold: Option<Score>,
 }
 
 impl<Score, DocId> TopNComputer<Score, DocId>
@@ -733,11 +736,13 @@ where
     Score: PartialOrd + Clone,
     DocId: Ord + Clone,
 {
+    /// Create a new `TopNComputer`.
+    /// Internally it will allocate a buffer of size `2 * top_n`.
     pub fn new(top_n: usize) -> Self {
-        let max_size = top_n.max(1) * 2;
+        let vec_cap = top_n.max(1) * 2;
         TopNComputer {
-            buffer: Vec::with_capacity(max_size),
-            max_size,
+            buffer: Vec::with_capacity(vec_cap),
+            top_n,
             threshold: None,
         }
     }
@@ -749,13 +754,21 @@ where
                 return;
             }
         }
-        // Check on capacity should eleminate the check in `push`
         if self.buffer.len() == self.buffer.capacity() {
             let median = self.truncate_median();
             self.threshold = Some(median);
         }
 
-        self.buffer.push(doc);
+        // This is faster since it avoids the buffer resizing to be inlined from vec.push()
+        // (this is in the hot path)
+        let uninit = self.buffer.spare_capacity_mut();
+        // This cannot panic, because we truncate_median will at least remove one element, since
+        // the min capacity is 2.
+        uninit[0].write(doc);
+        // This is safe because it would panic in the line above
+        unsafe {
+            self.buffer.set_len(self.buffer.len() + 1);
+        }
     }
 
     #[inline(never)]
@@ -776,13 +789,14 @@ where
         sorted_buffer.sort_unstable();
 
         // Return the sorted top N elements
-        sorted_buffer.into_iter().take(self.max_size / 2)
+        sorted_buffer.into_iter().take(self.top_n)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::TopDocs;
+    use super::{TopDocs, TopNComputer};
+    use crate::collector::top_collector::ComparableDoc;
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
@@ -808,6 +822,42 @@ mod tests {
         for (result, expected) in results.iter().zip(expected.iter()) {
             assert_eq!(result.1, expected.1);
             crate::assert_nearly_equals!(result.0, expected.0);
+        }
+    }
+
+    #[test]
+    fn test_empty_topn_computer() {
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(0);
+
+        computer.push(ComparableDoc {
+            feature: 1u32,
+            doc: 1u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 1u32,
+            doc: 2u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 1u32,
+            doc: 3u32,
+        });
+        computer
+            .into_iter_sorted()
+            .for_each(|_| panic!("Should be empty"));
+    }
+
+    #[test]
+    fn test_topn_computer_no_panic() {
+        for top_n in 0..10 {
+            let mut computer: TopNComputer<u32, u32> = TopNComputer::new(top_n);
+
+            for _ in 0..1 + top_n * 2 {
+                computer.push(ComparableDoc {
+                    feature: 1u32,
+                    doc: 1u32,
+                });
+            }
+            let _vals = computer.into_iter_sorted().collect::<Vec<_>>();
         }
     }
 

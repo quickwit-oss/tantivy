@@ -60,7 +60,8 @@ pub(crate) struct TopCollector<T> {
 }
 
 impl<T> TopCollector<T>
-where T: PartialOrd + Clone
+where
+    T: PartialOrd + Clone,
 {
     /// Creates a top collector, with a number of documents equal to "limit".
     ///
@@ -86,30 +87,10 @@ where T: PartialOrd + Clone
 
     pub fn merge_fruits(
         &self,
-        mut children: Vec<Vec<(T, DocAddress)>>,
+        children: Vec<Vec<(T, DocAddress)>>,
     ) -> crate::Result<Vec<(T, DocAddress)>> {
         if self.limit == 0 {
             return Ok(Vec::new());
-        }
-        if children.len() == 1 {
-            let mut child = children.pop().unwrap();
-            child.sort_by(|a, b| {
-                if a.0 == b.0 {
-                    a.1.cmp(&b.1)
-                } else {
-                    b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-                }
-            });
-            if self.offset != 0 {
-                return Ok(child
-                    .into_iter()
-                    .skip(self.offset)
-                    .take(self.limit)
-                    .collect());
-            }
-            child.truncate(self.limit);
-
-            return Ok(child);
         }
         let mut top_collector = TopNComputer::new(self.limit + self.offset);
         for child_fruit in children {
@@ -150,9 +131,9 @@ where T: PartialOrd + Clone
 /// The Top Collector keeps track of the K documents
 /// sorted by type `T`.
 ///
-/// The implementation is based on a `BinaryHeap`.
+/// The implementation is based on a repeatedly truncating on the median after K * 2 documents
 /// The theoretical complexity for collecting the top `K` out of `n` documents
-/// is `O(n log K)`.
+/// is `O(n + K)`.
 pub(crate) struct TopSegmentCollector<T> {
     topn_computer: TopNComputer<T, DocId>,
     segment_ord: u32,

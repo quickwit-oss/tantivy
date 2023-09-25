@@ -97,7 +97,7 @@ pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 mod top_collector;
 
 mod top_score_collector;
-pub use self::top_score_collector::TopDocs;
+pub use self::top_score_collector::{TopDocs, TopNComputer};
 
 mod custom_score_top_collector;
 pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
