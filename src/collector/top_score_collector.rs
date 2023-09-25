@@ -896,20 +896,25 @@ mod tests {
         // using AllQuery to get a constant score
         let searcher = index.reader().unwrap().searcher();
 
+        let page_0 = searcher.search(&AllQuery, &TopDocs::with_limit(1)).unwrap();
+
         let page_1 = searcher.search(&AllQuery, &TopDocs::with_limit(2)).unwrap();
 
         let page_2 = searcher.search(&AllQuery, &TopDocs::with_limit(3)).unwrap();
 
         // precondition for the test to be meaningful: we did get documents
         // with the same score
+        assert!(page_0.iter().all(|result| result.0 == page_1[0].0));
         assert!(page_1.iter().all(|result| result.0 == page_1[0].0));
         assert!(page_2.iter().all(|result| result.0 == page_2[0].0));
 
         // sanity check since we're relying on make_index()
+        assert_eq!(page_0.len(), 1);
         assert_eq!(page_1.len(), 2);
         assert_eq!(page_2.len(), 3);
 
         assert_eq!(page_1, &page_2[..page_1.len()]);
+        assert_eq!(page_0, &page_2[..page_0.len()]);
     }
 
     #[test]

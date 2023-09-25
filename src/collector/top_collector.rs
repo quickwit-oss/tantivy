@@ -107,9 +107,7 @@ where T: PartialOrd + Clone
                     .take(self.limit)
                     .collect());
             }
-            if child.len() > self.limit {
-                child.truncate(self.limit);
-            }
+            child.truncate(self.limit);
 
             return Ok(child);
         }
