@@ -761,6 +761,7 @@ where
 
         // This is faster since it avoids the buffer resizing to be inlined from vec.push()
         // (this is in the hot path)
+        // TODO: Replace with `push_within_capacity` when it's stabilized
         let uninit = self.buffer.spare_capacity_mut();
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
