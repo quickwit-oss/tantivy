@@ -775,9 +775,8 @@ where
 
     #[inline(never)]
     fn truncate_top_n(&mut self) -> Score {
-        let truncate_pos = self.top_n.min(self.buffer.len().saturating_sub(1));
         // Use select_nth_unstable to find the top nth score
-        let (_, median_el, _) = self.buffer.select_nth_unstable(truncate_pos);
+        let (_, median_el, _) = self.buffer.select_nth_unstable(self.top_n);
 
         let median_score = median_el.feature.clone();
         // Remove all elements below the top_n
@@ -787,9 +786,7 @@ where
     }
 
     pub(crate) fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
-        if self.buffer.len() == 0 {
-            self.buffer.clear();
-        } else {
+        if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
         self.buffer.sort_unstable();
