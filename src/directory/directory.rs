@@ -171,6 +171,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// This should only be used for small files.
     ///
     /// You should only use this to read files create with [`Directory::atomic_write()`].
+    /// The file may or may not previously exist.
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
 
     /// Atomically replace the content of a file with data.
@@ -234,7 +235,8 @@ pub trait DirectoryClone {
 }
 
 impl<T> DirectoryClone for T
-where T: 'static + Directory + Clone
+where
+    T: 'static + Directory + Clone,
 {
     fn box_clone(&self) -> Box<dyn Directory> {
         Box::new(self.clone())
