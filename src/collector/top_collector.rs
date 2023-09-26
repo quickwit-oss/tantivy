@@ -20,6 +20,14 @@ pub(crate) struct ComparableDoc<T, D> {
     pub feature: T,
     pub doc: D,
 }
+impl<T: std::fmt::Debug, D: std::fmt::Debug> std::fmt::Debug for ComparableDoc<T, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ComparableDoc")
+            .field("feature", &self.feature)
+            .field("doc", &self.doc)
+            .finish()
+    }
+}
 
 impl<T: PartialOrd, D: PartialOrd> PartialOrd for ComparableDoc<T, D> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -99,7 +107,8 @@ where T: PartialOrd + Clone
         }
 
         Ok(top_collector
-            .into_iter_sorted()
+            .into_sorted_vec()
+            .into_iter()
             .skip(self.offset)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
@@ -151,7 +160,8 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
         let segment_ord = self.segment_ord;
         self.topn_computer
-            .into_iter_sorted()
+            .into_sorted_vec()
+            .into_iter()
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,

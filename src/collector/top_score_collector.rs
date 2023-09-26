@@ -672,27 +672,28 @@ impl Collector for TopDocs {
                 if alive_bitset.is_deleted(doc) {
                     return threshold;
                 }
-                let heap_item = ComparableDoc {
+                let doc = ComparableDoc {
                     feature: score,
                     doc,
                 };
-                top_n.push(heap_item);
+                top_n.push(doc);
                 threshold = top_n.threshold.unwrap_or(Score::MIN);
                 threshold
             })?;
         } else {
             weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
-                let heap_item = ComparableDoc {
+                let doc = ComparableDoc {
                     feature: score,
                     doc,
                 };
-                top_n.push(heap_item);
+                top_n.push(doc);
                 top_n.threshold.unwrap_or(Score::MIN)
             })?;
         }
 
         let fruit = top_n
-            .into_iter_sorted()
+            .into_sorted_vec()
+            .into_iter()
             .map(|cid| {
                 (
                     cid.feature,
@@ -755,7 +756,7 @@ where
             }
         }
         if self.buffer.len() == self.buffer.capacity() {
-            let median = self.truncate_median();
+            let median = self.truncate_top_n();
             self.threshold = Some(median);
         }
 
@@ -773,24 +774,26 @@ where
     }
 
     #[inline(never)]
-    fn truncate_median(&mut self) -> Score {
-        let len = self.buffer.len();
-        // Use select_nth_unstable to find the median score
-        let (_, median_el, _) = self.buffer.select_nth_unstable(len / 2);
+    fn truncate_top_n(&mut self) -> Score {
+        let truncate_pos = self.top_n.min(self.buffer.len().saturating_sub(1));
+        // Use select_nth_unstable to find the top nth score
+        let (_, median_el, _) = self.buffer.select_nth_unstable(truncate_pos);
 
         let median_score = median_el.feature.clone();
-        // Remove all elements below the median
-        self.buffer.truncate(len / 2);
+        // Remove all elements below the top_n
+        self.buffer.truncate(self.top_n);
 
         median_score
     }
 
-    pub(crate) fn into_iter_sorted(self) -> impl Iterator<Item = ComparableDoc<Score, DocId>> {
-        let mut sorted_buffer = self.buffer;
-        sorted_buffer.sort_unstable();
-
-        // Return the sorted top N elements
-        sorted_buffer.into_iter().take(self.top_n)
+    pub(crate) fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
+        if self.buffer.len() == 0 {
+            self.buffer.clear();
+        } else {
+            self.truncate_top_n();
+        }
+        self.buffer.sort_unstable();
+        self.buffer
     }
 }
 
@@ -842,9 +845,45 @@ mod tests {
             feature: 1u32,
             doc: 3u32,
         });
-        computer
-            .into_iter_sorted()
-            .for_each(|_| panic!("Should be empty"));
+        assert!(computer.into_sorted_vec().is_empty());
+    }
+    #[test]
+    fn test_topn_computer() {
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(2);
+
+        computer.push(ComparableDoc {
+            feature: 1u32,
+            doc: 1u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 2u32,
+            doc: 2u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 3u32,
+            doc: 3u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 2u32,
+            doc: 4u32,
+        });
+        computer.push(ComparableDoc {
+            feature: 1u32,
+            doc: 5u32,
+        });
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    feature: 3u32,
+                    doc: 3u32,
+                },
+                ComparableDoc {
+                    feature: 2u32,
+                    doc: 2u32,
+                }
+            ]
+        );
     }
 
     #[test]
@@ -858,7 +897,7 @@ mod tests {
                     doc: 1u32,
                 });
             }
-            let _vals = computer.into_iter_sorted().collect::<Vec<_>>();
+            let _vals = computer.into_sorted_vec();
         }
     }
 
