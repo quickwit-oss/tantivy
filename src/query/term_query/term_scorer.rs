@@ -93,7 +93,7 @@ impl TermScorer {
     }
 
     pub fn last_doc_in_block(&self) -> DocId {
-        self.postings.block_cursor.skip_reader.last_doc_in_block()
+        self.postings.block_cursor.skip_reader().last_doc_in_block()
     }
 }
 

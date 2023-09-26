@@ -30,7 +30,7 @@ pub struct BlockSegmentPostings {
     block_max_score_cache: Option<Score>,
     doc_freq: u32,
     data: OwnedBytes,
-    pub(crate) skip_reader: SkipReader,
+    skip_reader: SkipReader,
 }
 
 fn decode_bitpacked_block(
@@ -303,7 +303,6 @@ impl BlockSegmentPostings {
 
     pub(crate) fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
-        // I'm not sure why it's there, but it breaks with blocks that can be encoded on zero byte.
         if self.block_is_loaded() {
             return;
         }
@@ -372,6 +371,10 @@ impl BlockSegmentPostings {
             data: OwnedBytes::empty(),
             skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
         }
+    }
+
+    pub(crate) fn skip_reader(&self) -> &SkipReader {
+        &self.skip_reader
     }
 }
 
