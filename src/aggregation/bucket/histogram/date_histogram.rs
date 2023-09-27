@@ -132,6 +132,7 @@ impl DateHistogramAggregationReq {
             hard_bounds: self.hard_bounds,
             extended_bounds: self.extended_bounds,
             keyed: self.keyed,
+            is_normalized_to_ns: false,
         })
     }
 
@@ -243,14 +244,14 @@ fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::exec_request;
     use crate::indexer::NoMergePolicy;
-    use crate::schema::{Schema, FAST};
+    use crate::schema::{Schema, FAST, STRING};
     use crate::{Document, Index, IndexWriter};
 
     #[test]
@@ -306,7 +307,8 @@ mod tests {
     ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         schema_builder.add_date_field("date", FAST);
-        schema_builder.add_text_field("text", FAST);
+        schema_builder.add_text_field("text", FAST | STRING);
+        schema_builder.add_text_field("text2", FAST | STRING);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         {

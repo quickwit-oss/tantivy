@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
-use fail::fail_point;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
@@ -43,7 +42,7 @@ pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate:
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
-    fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
+    crate::fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
         std::io::Error::new(
             std::io::ErrorKind::Other,
             msg.unwrap_or_else(|| "Undefined".to_string())
@@ -597,10 +596,15 @@ impl SegmentUpdater {
             );
             {
                 if let Some(after_merge_segment_entry) = after_merge_segment_entry.as_mut() {
+                    // Deletes and commits could have happened as we were merging.
+                    // We need to make sure we are up to date with deletes before accepting the
+                    // segment.
                     let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                     if let Some(delete_operation) = delete_cursor.get() {
                         let committed_opstamp = segment_updater.load_meta().opstamp;
                         if delete_operation.opstamp < committed_opstamp {
+                            // We are not up to date! Let's create a new tombstone file for our
+                            // freshly create split.
                             let index = &segment_updater.index;
                             let segment = index.segment(after_merge_segment_entry.meta().clone());
                             if let Err(advance_deletes_err) = advance_deletes(

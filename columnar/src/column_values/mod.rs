@@ -2,7 +2,7 @@
 
 //! # `fastfield_codecs`
 //!
-//! - Columnar storage of data for tantivy [`Column`].
+//! - Columnar storage of data for tantivy [`crate::Column`].
 //! - Encode data in different codecs.
 //! - Monotonically map values to u64/u128
 

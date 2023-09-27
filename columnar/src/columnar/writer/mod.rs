@@ -79,7 +79,6 @@ fn mutate_or_create_column<V, TMutator>(
 
 impl ColumnarWriter {
     pub fn mem_usage(&self) -> usize {
-        // TODO add dictionary builders.
         self.arena.mem_usage()
             + self.numerical_field_hash_map.mem_usage()
             + self.bool_field_hash_map.mem_usage()
@@ -87,6 +86,11 @@ impl ColumnarWriter {
             + self.str_field_hash_map.mem_usage()
             + self.ip_addr_field_hash_map.mem_usage()
             + self.datetime_field_hash_map.mem_usage()
+            + self
+                .dictionaries
+                .iter()
+                .map(|dict| dict.mem_usage())
+                .sum::<usize>()
     }
 
     /// Returns the list of doc ids from 0..num_docs sorted by the `sort_field`
@@ -98,9 +102,15 @@ impl ColumnarWriter {
     ///
     /// The sort applied is stable.
     pub fn sort_order(&self, sort_field: &str, num_docs: RowId, reversed: bool) -> Vec<u32> {
-        let Some(numerical_col_writer) =
-            self.numerical_field_hash_map.get::<NumericalColumnWriter>(sort_field.as_bytes()) else {
-                return Vec::new();
+        let Some(numerical_col_writer) = self
+            .numerical_field_hash_map
+            .get::<NumericalColumnWriter>(sort_field.as_bytes())
+            .or_else(|| {
+                self.datetime_field_hash_map
+                    .get::<NumericalColumnWriter>(sort_field.as_bytes())
+            })
+        else {
+            return Vec::new();
         };
         let mut symbols_buffer = Vec::new();
         let mut values = Vec::new();

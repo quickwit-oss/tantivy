@@ -1,17 +1,18 @@
-use combine::error::StringStreamError;
-use combine::parser::char::{char, digit, space, spaces, string};
-use combine::parser::combinator::recognize;
-use combine::parser::range::{take_while, take_while1};
-use combine::parser::repeat::escaped;
-use combine::parser::Parser;
-use combine::{
-    any, attempt, between, choice, eof, many, many1, one_of, optional, parser, satisfy, sep_by,
-    skip_many1, value,
+use std::iter::once;
+
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::character::complete::{
+    anychar, char, digit1, none_of, one_of, satisfy, space0, space1, u32,
 };
-use once_cell::sync::Lazy;
-use regex::Regex;
+use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
+use nom::error::{Error, ErrorKind};
+use nom::multi::{many0, many1, separated_list0, separated_list1};
+use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
+use nom::IResult;
 
 use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
 use crate::Occur;
 
@@ -20,181 +21,155 @@ use crate::Occur;
 const SPECIAL_CHARS: &[char] = &[
     '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '!', '\\', '*', ' ',
 ];
-const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|!|\\|\*|\s)"#;
 
-/// Parses a field_name
-/// A field name must have at least one character and be followed by a colon.
-/// All characters are allowed including special characters `SPECIAL_CHARS`, but these
-/// need to be escaped with a backslash character '\'.
-fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
-    static ESCAPED_SPECIAL_CHARS_RE: Lazy<Regex> =
-        Lazy::new(|| Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap());
+/// consume a field name followed by colon. Return the field name with escape sequence
+/// already interpreted
+fn field_name(inp: &str) -> IResult<&str, String> {
+    let simple_char = none_of(SPECIAL_CHARS);
+    let first_char = verify(none_of(SPECIAL_CHARS), |c| *c != '-');
+    let escape_sequence = || preceded(char('\\'), one_of(SPECIAL_CHARS));
 
-    recognize::<String, _, _>(escaped(
-        (
-            take_while1(|c| !SPECIAL_CHARS.contains(&c) && c != '-'),
-            take_while(|c| !SPECIAL_CHARS.contains(&c)),
+    map(
+        terminated(
+            tuple((
+                alt((first_char, escape_sequence())),
+                many0(alt((simple_char, escape_sequence(), char('\\')))),
+            )),
+            char(':'),
         ),
-        '\\',
-        satisfy(|_| true), /* if the next character is not a special char, the \ will be treated
-                            * as the \ character. */
-    ))
-    .skip(char(':'))
-    .map(|s| ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string())
-    .and_then(|s: String| match s.is_empty() {
-        true => Err(StringStreamError::UnexpectedParse),
-        _ => Ok(s),
-    })
+        |(first_char, next)| once(first_char).chain(next).collect(),
+    )(inp)
 }
 
-fn word<'a>() -> impl Parser<&'a str, Output = String> {
-    (
-        satisfy(|c: char| {
-            !c.is_whitespace()
-                && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
-        }),
-        many(satisfy(|c: char| {
-            !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
-        })),
-    )
-        .map(|(s1, s2): (char, String)| format!("{s1}{s2}"))
-        .and_then(|s: String| match s.as_str() {
-            "OR" | "AND " | "NOT" => Err(StringStreamError::UnexpectedParse),
+/// Consume a word outside of any context.
+// TODO should support escape sequences
+fn word(inp: &str) -> IResult<&str, &str> {
+    map_res(
+        recognize(tuple((
+            satisfy(|c| {
+                !c.is_whitespace()
+                    && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+            }),
+            many0(satisfy(|c: char| {
+                !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+            })),
+        ))),
+        |s| match s {
+            "OR" | "AND" | "NOT" | "IN" => Err(Error::new(inp, ErrorKind::Tag)),
             _ => Ok(s),
-        })
+        },
+    )(inp)
 }
 
-// word variant that allows more characters, e.g. for range queries that don't allow field
-// specifier
-fn relaxed_word<'a>() -> impl Parser<&'a str, Output = String> {
-    (
-        satisfy(|c: char| {
-            !c.is_whitespace() && !['`', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
-        }),
-        many(satisfy(|c: char| {
+fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, Option<&str>> + '_ {
+    |inp| {
+        opt_i_err(
+            preceded(
+                space0,
+                recognize(many1(satisfy(|c| {
+                    !c.is_whitespace() && !delimiter.contains(c)
+                }))),
+            ),
+            "expected word",
+        )(inp)
+    }
+}
+
+/// Consume a word inside a Range context. More values are allowed as they are
+/// not ambiguous in this context.
+fn relaxed_word(inp: &str) -> IResult<&str, &str> {
+    recognize(tuple((
+        satisfy(|c| !c.is_whitespace() && !['`', '{', '}', '"', '[', ']', '(', ')'].contains(&c)),
+        many0(satisfy(|c: char| {
             !c.is_whitespace() && !['{', '}', '"', '[', ']', '(', ')'].contains(&c)
         })),
-    )
-        .map(|(s1, s2): (char, String)| format!("{s1}{s2}"))
+    )))(inp)
 }
 
-/// Parses a date time according to rfc3339
-/// 2015-08-02T18:54:42+02
-/// 2021-04-13T19:46:26.266051969+00:00
-///
-/// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
-/// We delegate rejecting such invalid dates to the logical AST computation code
-/// which invokes `time::OffsetDateTime::parse(..., &Rfc3339)` on the value to actually parse
-/// it (instead of merely extracting the datetime value as string as done here).
-fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
-    let two_digits = || recognize::<String, _, _>((digit(), digit()));
+fn negative_number(inp: &str) -> IResult<&str, &str> {
+    recognize(preceded(
+        char('-'),
+        tuple((digit1, opt(tuple((char('.'), digit1))))),
+    ))(inp)
+}
 
-    // Parses a time zone
-    // -06:30
-    // Z
-    let time_zone = {
-        let utc = recognize::<String, _, _>(char('Z'));
-        let offset = recognize((
-            choice([char('-'), char('+')]),
-            two_digits(),
-            char(':'),
-            two_digits(),
-        ));
-
-        utc.or(offset)
+fn simple_term(inp: &str) -> IResult<&str, (Delimiter, String)> {
+    let escaped_string = |delimiter| {
+        // we need this because none_of can't accept an owned array of char.
+        let not_delimiter = verify(anychar, move |parsed| *parsed != delimiter);
+        map(
+            delimited(
+                char(delimiter),
+                many0(alt((preceded(char('\\'), anychar), not_delimiter))),
+                char(delimiter),
+            ),
+            |res| res.into_iter().collect::<String>(),
+        )
     };
 
-    // Parses a date
-    // 2010-01-30
-    let date = {
-        recognize::<String, _, _>((
-            many1::<String, _, _>(digit()),
-            char('-'),
-            two_digits(),
-            char('-'),
-            two_digits(),
-        ))
-    };
+    let negative_number = map(negative_number, |number| {
+        (Delimiter::None, number.to_string())
+    });
+    let double_quotes = map(escaped_string('"'), |phrase| {
+        (Delimiter::DoubleQuotes, phrase)
+    });
+    let simple_quotes = map(escaped_string('\''), |phrase| {
+        (Delimiter::SingleQuotes, phrase)
+    });
+    let text_no_delimiter = map(word, |text| (Delimiter::None, text.to_string()));
 
-    // Parses a time
-    // 12:30:02
-    // 19:46:26.266051969
-    let time = {
-        recognize::<String, _, _>((
-            two_digits(),
-            char(':'),
-            two_digits(),
-            char(':'),
-            two_digits(),
-            optional((char('.'), many1::<String, _, _>(digit()))),
-            time_zone,
-        ))
-    };
-
-    recognize((date, char('T'), time))
+    alt((
+        negative_number,
+        simple_quotes,
+        double_quotes,
+        text_no_delimiter,
+    ))(inp)
 }
 
-fn escaped_character<'a>() -> impl Parser<&'a str, Output = char> {
-    (char('\\'), any()).map(|(_, x)| x)
-}
+fn simple_term_infallible(
+    delimiter: &str,
+) -> impl Fn(&str) -> JResult<&str, Option<(Delimiter, String)>> + '_ {
+    |inp| {
+        let escaped_string = |delimiter| {
+            // we need this because none_of can't accept an owned array of char.
+            let not_delimiter = verify(anychar, move |parsed| *parsed != delimiter);
+            map(
+                delimited_infallible(
+                    nothing,
+                    opt_i(many0(alt((preceded(char('\\'), anychar), not_delimiter)))),
+                    opt_i_err(char(delimiter), format!("missing delimiter \\{delimiter}")),
+                ),
+                |(res, err)| {
+                    // many0 can't fail
+                    (res.unwrap().into_iter().collect::<String>(), err)
+                },
+            )
+        };
 
-fn escaped_string<'a>(delimiter: char) -> impl Parser<&'a str, Output = String> {
-    (
-        char(delimiter),
-        many(choice((
-            escaped_character(),
-            satisfy(move |c: char| c != delimiter),
-        ))),
-        char(delimiter),
-    )
-        .map(|(_, s, _)| s)
-}
-
-fn term_val<'a>() -> impl Parser<&'a str, Output = (Delimiter, String)> {
-    let double_quotes = escaped_string('"').map(|phrase| (Delimiter::DoubleQuotes, phrase));
-    let single_quotes = escaped_string('\'').map(|phrase| (Delimiter::SingleQuotes, phrase));
-    let text_no_delimiter = word().map(|text| (Delimiter::None, text));
-    negative_number()
-        .map(|negative_number_str| (Delimiter::None, negative_number_str))
-        .or(double_quotes)
-        .or(single_quotes)
-        .or(text_no_delimiter)
-}
-
-fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
-    (field_name(), term_val(), slop_or_prefix_val()).map(
-        |(field_name, (delimiter, phrase), (slop, prefix))| UserInputLiteral {
-            field_name: Some(field_name),
-            phrase,
-            delimiter,
-            slop,
-            prefix,
-        },
-    )
-}
-
-fn slop_or_prefix_val<'a>() -> impl Parser<&'a str, Output = (u32, bool)> {
-    let prefix_val = char('*').map(|_ast| (0, true));
-    let slop_val = slop_val().map(|slop| (slop, false));
-
-    prefix_val.or(slop_val)
-}
-
-fn slop_val<'a>() -> impl Parser<&'a str, Output = u32> {
-    let slop =
-        (char('~'), many1(digit())).and_then(|(_, slop): (_, String)| match slop.parse::<u32>() {
-            Ok(d) => Ok(d),
-            _ => Err(StringStreamError::UnexpectedParse),
+        let double_quotes = map(escaped_string('"'), |(phrase, errors)| {
+            (Some((Delimiter::DoubleQuotes, phrase)), errors)
         });
-    optional(slop).map(|slop| match slop {
-        Some(d) => d,
-        _ => 0,
-    })
+        let simple_quotes = map(escaped_string('\''), |(phrase, errors)| {
+            (Some((Delimiter::SingleQuotes, phrase)), errors)
+        });
+
+        alt_infallible(
+            (
+                (value((), char('"')), double_quotes),
+                (value((), char('\'')), simple_quotes),
+            ),
+            // numbers are parsed with words in this case, as we allow string starting with a -
+            map(word_infallible(delimiter), |(text, errors)| {
+                (text.map(|text| (Delimiter::None, text.to_string())), errors)
+            }),
+        )(inp)
+    }
 }
 
-fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let term_default_field =
-        (term_val(), slop_or_prefix_val()).map(|((delimiter, phrase), (slop, prefix))| {
+fn term_or_phrase(inp: &str) -> IResult<&str, UserInputLeaf> {
+    map(
+        tuple((simple_term, fallible(slop_or_prefix_val))),
+        |((delimiter, phrase), (slop, prefix))| {
             UserInputLiteral {
                 field_name: None,
                 phrase,
@@ -202,67 +177,275 @@ fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
                 slop,
                 prefix,
             }
-        });
-
-    attempt(term_query())
-        .or(term_default_field)
-        .map(UserInputLeaf::from)
+            .into()
+        },
+    )(inp)
 }
 
-fn negative_number<'a>() -> impl Parser<&'a str, Output = String> {
-    (
-        char('-'),
-        many1(digit()),
-        optional((char('.'), many1(digit()))),
-    )
-        .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
-            if let Some(('.', s3)) = s3 {
-                format!("{s1}{s2}.{s3}")
+fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> {
+    map(
+        // ~* for slop/prefix, ) inside group or ast tree, ^ if boost
+        tuple_infallible((simple_term_infallible("*)^"), slop_or_prefix_val)),
+        |((delimiter_phrase, (slop, prefix)), errors)| {
+            let leaf = if let Some((delimiter, phrase)) = delimiter_phrase {
+                Some(
+                    UserInputLiteral {
+                        field_name: None,
+                        phrase,
+                        delimiter,
+                        slop,
+                        prefix,
+                    }
+                    .into(),
+                )
+            } else if slop != 0 {
+                Some(
+                    UserInputLiteral {
+                        field_name: None,
+                        phrase: "".to_string(),
+                        delimiter: Delimiter::None,
+                        slop,
+                        prefix,
+                    }
+                    .into(),
+                )
             } else {
-                format!("{s1}{s2}")
-            }
-        })
+                None
+            };
+            (leaf, errors)
+        },
+    )(inp)
 }
 
-fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
-    skip_many1(space())
+fn term_group(inp: &str) -> IResult<&str, UserInputAst> {
+    let occur_symbol = alt((
+        value(Occur::MustNot, char('-')),
+        value(Occur::Must, char('+')),
+    ));
+
+    map(
+        tuple((
+            terminated(field_name, space0),
+            delimited(
+                tuple((char('('), space0)),
+                separated_list0(space1, tuple((opt(occur_symbol), term_or_phrase))),
+                char(')'),
+            ),
+        )),
+        |(field_name, terms)| {
+            UserInputAst::Clause(
+                terms
+                    .into_iter()
+                    .map(|(occur, leaf)| (occur, leaf.set_field(Some(field_name.clone())).into()))
+                    .collect(),
+            )
+        },
+    )(inp)
+}
+
+// this is a precondition for term_group_infallible. Without it, term_group_infallible can fail
+// with a panic. It does not consume its input.
+fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
+    value(
+        (),
+        peek(tuple((
+            field_name,
+            space0,
+            char('('), // when we are here, we know it can't be anything but a term group
+        ))),
+    )(inp)
+    .map_err(|e| e.map(|_| ()))
+}
+
+fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
+    let (mut inp, (field_name, _, _, _)) =
+        tuple((field_name, space0, char('('), space0))(inp).expect("precondition failed");
+
+    let mut terms = Vec::new();
+    let mut errs = Vec::new();
+
+    let mut first_round = true;
+    loop {
+        let mut space_error = if first_round {
+            first_round = false;
+            Vec::new()
+        } else {
+            let (rest, (_, err)) = space1_infallible(inp)?;
+            inp = rest;
+            err
+        };
+        if inp.is_empty() {
+            errs.push(LenientErrorInternal {
+                pos: inp.len(),
+                message: "missing )".to_string(),
+            });
+            break Ok((inp, (UserInputAst::Clause(terms), errs)));
+        }
+        if let Some(inp) = inp.strip_prefix(')') {
+            break Ok((inp, (UserInputAst::Clause(terms), errs)));
+        }
+        // only append missing space error if we did not reach the end of group
+        errs.append(&mut space_error);
+
+        // here we do the assumption term_or_phrase_infallible always consume something if the
+        // first byte is not `)` or ' '. If it did not, we would end up looping.
+
+        let (rest, ((occur, leaf), mut err)) =
+            tuple_infallible((occur_symbol, term_or_phrase_infallible))(inp)?;
+        errs.append(&mut err);
+        if let Some(leaf) = leaf {
+            terms.push((occur, leaf.set_field(Some(field_name.clone())).into()));
+        }
+        inp = rest;
+    }
+}
+
+fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
+    value(
+        UserInputLeaf::Exists {
+            field: String::new(),
+        },
+        tuple((space0, char('*'))),
+    )(inp)
+}
+
+fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
+    value(
+        (),
+        peek(tuple((
+            field_name,
+            space0,
+            char('*'), // when we are here, we know it can't be anything but a exists
+        ))),
+    )(inp)
+    .map_err(|e| e.map(|_| ()))
+}
+
+fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
+    let (inp, (field_name, _, _)) =
+        tuple((field_name, space0, char('*')))(inp).expect("precondition failed");
+
+    let exists = UserInputLeaf::Exists { field: field_name }.into();
+    Ok((inp, (exists, Vec::new())))
+}
+
+fn literal(inp: &str) -> IResult<&str, UserInputAst> {
+    // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
+    // something (a field name) got parsed before
+    alt((
+        map(
+            tuple((opt(field_name), alt((range, set, exists, term_or_phrase)))),
+            |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
+        ),
+        term_group,
+    ))(inp)
+}
+
+fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
+    map(
+        tuple_infallible((
+            opt_i(field_name),
+            space0_infallible,
+            alt_infallible(
+                (
+                    (
+                        value((), tuple((tag("IN"), space0, char('[')))),
+                        map(set_infallible, |(set, errs)| (Some(set), errs)),
+                    ),
+                    (
+                        value((), peek(one_of("{[><"))),
+                        map(range_infallible, |(range, errs)| (Some(range), errs)),
+                    ),
+                ),
+                delimited_infallible(space0_infallible, term_or_phrase_infallible, nothing),
+            ),
+        )),
+        |((field_name, _, leaf), mut errors)| {
+            (
+                leaf.map(|leaf| {
+                    if matches!(&leaf, UserInputLeaf::Literal(literal)
+                            if literal.phrase.contains(':') && literal.delimiter == Delimiter::None)
+                        && field_name.is_none()
+                    {
+                        errors.push(LenientErrorInternal {
+                            pos: inp.len(),
+                            message: "parsed possible invalid field as term".to_string(),
+                        });
+                    }
+                    if matches!(&leaf, UserInputLeaf::Literal(literal)
+                            if literal.phrase == "NOT" && literal.delimiter == Delimiter::None)
+                        && field_name.is_none()
+                    {
+                        errors.push(LenientErrorInternal {
+                            pos: inp.len(),
+                            message: "parsed keyword NOT as term. It should be quoted".to_string(),
+                        });
+                    }
+                    leaf.set_field(field_name).into()
+                }),
+                errors,
+            )
+        },
+    )(inp)
+}
+
+fn literal_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
+    alt_infallible(
+        (
+            (
+                term_group_precond,
+                map(term_group_infallible, |(group, errs)| (Some(group), errs)),
+            ),
+            (
+                exists_precond,
+                map(exists_infallible, |(exists, errs)| (Some(exists), errs)),
+            ),
+        ),
+        literal_no_group_infallible,
+    )(inp)
+}
+
+fn slop_or_prefix_val(inp: &str) -> JResult<&str, (u32, bool)> {
+    map(
+        opt_i(alt((
+            value((0, true), char('*')),
+            map(preceded(char('~'), u32), |slop| (slop, false)),
+        ))),
+        |(slop_or_prefix_opt, err)| (slop_or_prefix_opt.unwrap_or_default(), err),
+    )(inp)
 }
 
 /// Function that parses a range out of a Stream
 /// Supports ranges like:
 /// [5 TO 10], {5 TO 10}, [* TO 10], [10 TO *], {10 TO *], >5, <=10
 /// [a TO *], [a TO c], [abc TO bcd}
-fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
+fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     let range_term_val = || {
-        attempt(date_time())
-            .or(negative_number())
-            .or(relaxed_word())
-            .or(char('*').with(value("*".to_string())))
+        map(
+            alt((negative_number, relaxed_word, tag("*"))),
+            ToString::to_string,
+        )
     };
 
     // check for unbounded range in the form of <5, <=10, >5, >=5
-    let elastic_unbounded_range = (
-        choice([
-            attempt(string(">=")),
-            attempt(string("<=")),
-            attempt(string("<")),
-            attempt(string(">")),
-        ])
-        .skip(spaces()),
-        range_term_val(),
-    )
-        .map(
-            |(comparison_sign, bound): (&str, String)| match comparison_sign {
-                ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
-                "<=" => (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
-                "<" => (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
-                ">" => (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
-                // default case
-                _ => (UserInputBound::Unbounded, UserInputBound::Unbounded),
-            },
-        );
-    let lower_bound = (one_of("{[".chars()), range_term_val()).map(
-        |(boundary_char, lower_bound): (char, String)| {
+    let elastic_unbounded_range = map(
+        tuple((
+            preceded(space0, alt((tag(">="), tag("<="), tag("<"), tag(">")))),
+            preceded(space0, range_term_val()),
+        )),
+        |(comparison_sign, bound)| match comparison_sign {
+            ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
+            "<=" => (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
+            "<" => (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
+            ">" => (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
+            // unreachable case
+            _ => (UserInputBound::Unbounded, UserInputBound::Unbounded),
+        },
+    );
+
+    let lower_bound = map(
+        separated_pair(one_of("{["), space0, range_term_val()),
+        |(boundary_char, lower_bound)| {
             if lower_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '{' {
@@ -272,120 +455,328 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
             }
         },
     );
-    let upper_bound = (range_term_val(), one_of("}]".chars())).map(
-        |(higher_bound, boundary_char): (String, char)| {
-            if higher_bound == "*" {
+
+    let upper_bound = map(
+        separated_pair(range_term_val(), space0, one_of("}]")),
+        |(upper_bound, boundary_char)| {
+            if upper_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '}' {
-                UserInputBound::Exclusive(higher_bound)
+                UserInputBound::Exclusive(upper_bound)
             } else {
-                UserInputBound::Inclusive(higher_bound)
+                UserInputBound::Inclusive(upper_bound)
             }
         },
     );
-    // return only lower and upper
-    let lower_to_upper = (
-        lower_bound.skip((spaces(), string("TO"), spaces())),
-        upper_bound,
-    );
 
-    (
-        optional(field_name()).skip(spaces()),
-        // try elastic first, if it matches, the range is unbounded
-        attempt(elastic_unbounded_range).or(lower_to_upper),
-    )
-        .map(|(field, (lower, upper))|
-             // Construct the leaf from extracted field (optional)
-             // and bounds
-             UserInputLeaf::Range {
-                 field,
-                 lower,
-                 upper
-    })
+    let lower_to_upper =
+        separated_pair(lower_bound, tuple((space1, tag("TO"), space1)), upper_bound);
+
+    map(
+        alt((elastic_unbounded_range, lower_to_upper)),
+        |(lower, upper)| UserInputLeaf::Range {
+            field: None,
+            lower,
+            upper,
+        },
+    )(inp)
 }
 
-/// Function that parses a set out of a Stream
-/// Supports ranges like: `IN [val1 val2 val3]`
-fn set<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
-    let term_list = between(
-        char('['),
-        char(']'),
-        sep_by(term_val().map(|(_delimiter, text)| text), spaces()),
+fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
+    let lower_to_upper = map(
+        tuple_infallible((
+            opt_i(anychar),
+            space0_infallible,
+            word_infallible("]}"),
+            space1_infallible,
+            opt_i_err(
+                terminated(tag("TO"), alt((value((), space1), value((), eof)))),
+                "missing keyword TO",
+            ),
+            word_infallible("]}"),
+            opt_i_err(one_of("]}"), "missing range delimiter"),
+        )),
+        |((lower_bound_kind, _space0, lower, _space1, to, upper, upper_bound_kind), errs)| {
+            let lower_bound = match (lower_bound_kind, lower) {
+                (_, Some("*")) => UserInputBound::Unbounded,
+                (_, None) => UserInputBound::Unbounded,
+                // if it is some, TO was actually the bound (i.e. [TO TO something])
+                (_, Some("TO")) if to.is_none() => UserInputBound::Unbounded,
+                (Some('['), Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
+                (Some('{'), Some(bound)) => UserInputBound::Exclusive(bound.to_string()),
+                _ => unreachable!("precondition failed, range did not start with [ or {{"),
+            };
+            let upper_bound = match (upper_bound_kind, upper) {
+                (_, Some("*")) => UserInputBound::Unbounded,
+                (_, None) => UserInputBound::Unbounded,
+                (Some(']'), Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
+                (Some('}'), Some(bound)) => UserInputBound::Exclusive(bound.to_string()),
+                // the end is missing, assume this is an inclusive bound
+                (_, Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
+            };
+            ((lower_bound, upper_bound), errs)
+        },
     );
 
-    let set_content = ((string("IN"), spaces()), term_list).map(|(_, elements)| elements);
+    map(
+        alt_infallible(
+            (
+                (
+                    value((), tag(">=")),
+                    map(word_infallible(""), |(bound, err)| {
+                        (
+                            (
+                                bound
+                                    .map(|bound| UserInputBound::Inclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
+                                UserInputBound::Unbounded,
+                            ),
+                            err,
+                        )
+                    }),
+                ),
+                (
+                    value((), tag("<=")),
+                    map(word_infallible(""), |(bound, err)| {
+                        (
+                            (
+                                UserInputBound::Unbounded,
+                                bound
+                                    .map(|bound| UserInputBound::Inclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
+                            ),
+                            err,
+                        )
+                    }),
+                ),
+                (
+                    value((), tag(">")),
+                    map(word_infallible(""), |(bound, err)| {
+                        (
+                            (
+                                bound
+                                    .map(|bound| UserInputBound::Exclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
+                                UserInputBound::Unbounded,
+                            ),
+                            err,
+                        )
+                    }),
+                ),
+                (
+                    value((), tag("<")),
+                    map(word_infallible(""), |(bound, err)| {
+                        (
+                            (
+                                UserInputBound::Unbounded,
+                                bound
+                                    .map(|bound| UserInputBound::Exclusive(bound.to_string()))
+                                    .unwrap_or(UserInputBound::Unbounded),
+                            ),
+                            err,
+                        )
+                    }),
+                ),
+            ),
+            lower_to_upper,
+        ),
+        |((lower, upper), errors)| {
+            (
+                UserInputLeaf::Range {
+                    field: None,
+                    lower,
+                    upper,
+                },
+                errors,
+            )
+        },
+    )(inp)
+}
 
-    (optional(attempt(field_name().skip(spaces()))), set_content)
-        .map(|(field, elements)| UserInputLeaf::Set { field, elements })
+fn set(inp: &str) -> IResult<&str, UserInputLeaf> {
+    map(
+        preceded(
+            tuple((space0, tag("IN"), space1)),
+            delimited(
+                tuple((char('['), space0)),
+                separated_list0(space1, map(simple_term, |(_, term)| term)),
+                char(']'),
+            ),
+        ),
+        |elements| UserInputLeaf::Set {
+            field: None,
+            elements,
+        },
+    )(inp)
+}
+
+fn set_infallible(mut inp: &str) -> JResult<&str, UserInputLeaf> {
+    // `IN [` has already been parsed when we enter, we only need to parse simple terms until we
+    // find a `]`
+    let mut elements = Vec::new();
+    let mut errs = Vec::new();
+    let mut first_round = true;
+    loop {
+        let mut space_error = if first_round {
+            first_round = false;
+            Vec::new()
+        } else {
+            let (rest, (_, err)) = space1_infallible(inp)?;
+            inp = rest;
+            err
+        };
+        if inp.is_empty() {
+            // TODO push error about missing ]
+            //
+            errs.push(LenientErrorInternal {
+                pos: inp.len(),
+                message: "missing ]".to_string(),
+            });
+            let res = UserInputLeaf::Set {
+                field: None,
+                elements,
+            };
+            return Ok((inp, (res, errs)));
+        }
+        if let Some(inp) = inp.strip_prefix(']') {
+            let res = UserInputLeaf::Set {
+                field: None,
+                elements,
+            };
+            return Ok((inp, (res, errs)));
+        }
+        errs.append(&mut space_error);
+        // TODO
+        // here we do the assumption term_or_phrase_infallible always consume something if the
+        // first byte is not `)` or ' '. If it did not, we would end up looping.
+
+        let (rest, (delim_term, mut err)) = simple_term_infallible("]")(inp)?;
+        errs.append(&mut err);
+        if let Some((_, term)) = delim_term {
+            elements.push(term);
+        }
+        inp = rest;
+    }
 }
 
 fn negate(expr: UserInputAst) -> UserInputAst {
     expr.unary(Occur::MustNot)
 }
 
-fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
-    parser(|input| {
-        char('(')
-            .with(ast())
-            .skip(char(')'))
-            .or(char('*').map(|_| UserInputAst::from(UserInputLeaf::All)))
-            .or(attempt(
-                string("NOT").skip(spaces1()).with(leaf()).map(negate),
-            ))
-            .or(attempt(range().map(UserInputAst::from)))
-            .or(attempt(set().map(UserInputAst::from)))
-            .or(literal().map(UserInputAst::from))
-            .parse_stream(input)
-            .into_result()
-    })
+fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
+    alt((
+        delimited(char('('), ast, char(')')),
+        map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
+        map(preceded(tuple((tag("NOT"), space1)), leaf), negate),
+        literal,
+    ))(inp)
 }
 
-fn occur_symbol<'a>() -> impl Parser<&'a str, Output = Occur> {
-    char('-')
-        .map(|_| Occur::MustNot)
-        .or(char('+').map(|_| Occur::Must))
+fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
+    alt_infallible(
+        (
+            (
+                value((), char('(')),
+                map(
+                    delimited_infallible(
+                        nothing,
+                        ast_infallible,
+                        opt_i_err(char(')'), "expected ')'"),
+                    ),
+                    |(ast, errs)| (Some(ast), errs),
+                ),
+            ),
+            (
+                value((), char('*')),
+                map(nothing, |_| {
+                    (Some(UserInputAst::from(UserInputLeaf::All)), Vec::new())
+                }),
+            ),
+            (
+                value((), tag("NOT ")),
+                delimited_infallible(
+                    space0_infallible,
+                    map(leaf_infallible, |(res, err)| (res.map(negate), err)),
+                    nothing,
+                ),
+            ),
+        ),
+        literal_infallible,
+    )(inp)
 }
 
-fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAst)> {
-    (optional(occur_symbol()), boosted_leaf())
+fn positive_float_number(inp: &str) -> IResult<&str, f64> {
+    map(
+        recognize(tuple((digit1, opt(tuple((char('.'), digit1)))))),
+        // TODO this is actually dangerous if the number is actually not representable as a f64
+        // (too big for instance)
+        |float_str: &str| float_str.parse::<f64>().unwrap(),
+    )(inp)
 }
 
-fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f64> {
-    (many1(digit()), optional((char('.'), many1(digit())))).map(
-        |(int_part, decimal_part_opt): (String, Option<(char, String)>)| {
-            let mut float_str = int_part;
-            if let Some((chr, decimal_str)) = decimal_part_opt {
-                float_str.push(chr);
-                float_str.push_str(&decimal_str);
+fn boost(inp: &str) -> JResult<&str, Option<f64>> {
+    opt_i(preceded(char('^'), positive_float_number))(inp)
+}
+
+fn boosted_leaf(inp: &str) -> IResult<&str, UserInputAst> {
+    map(
+        tuple((leaf, fallible(boost))),
+        |(leaf, boost_opt)| match boost_opt {
+            Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
+                UserInputAst::Boost(Box::new(leaf), boost)
             }
-            float_str.parse::<f64>().unwrap()
+            _ => leaf,
         },
-    )
+    )(inp)
 }
 
-fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
-    (char('^'), positive_float_number()).map(|(_, boost)| boost)
+fn boosted_leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
+    map(
+        tuple_infallible((leaf_infallible, boost)),
+        |((leaf, boost_opt), error)| match boost_opt {
+            Some(boost) if (boost - 1.0).abs() > f64::EPSILON => (
+                leaf.map(|leaf| UserInputAst::Boost(Box::new(leaf), boost)),
+                error,
+            ),
+            _ => (leaf, error),
+        },
+    )(inp)
 }
 
-fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
-    (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
-        Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
-            UserInputAst::Boost(Box::new(leaf), boost)
-        }
-        _ => leaf,
-    })
+fn occur_symbol(inp: &str) -> JResult<&str, Option<Occur>> {
+    opt_i(alt((
+        value(Occur::MustNot, char('-')),
+        value(Occur::Must, char('+')),
+    )))(inp)
 }
 
-#[derive(Clone, Copy)]
+fn occur_leaf(inp: &str) -> IResult<&str, (Option<Occur>, UserInputAst)> {
+    tuple((fallible(occur_symbol), boosted_leaf))(inp)
+}
+
+#[allow(clippy::type_complexity)]
+fn operand_occur_leaf_infallible(
+    inp: &str,
+) -> JResult<&str, (Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)> {
+    // TODO maybe this should support multiple chained AND/OR, and "fuse" them?
+    tuple_infallible((
+        delimited_infallible(nothing, opt_i(binary_operand), space0_infallible),
+        occur_symbol,
+        boosted_leaf_infallible,
+    ))(inp)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BinaryOperand {
     Or,
     And,
 }
 
-fn binary_operand<'a>() -> impl Parser<&'a str, Output = BinaryOperand> {
-    string("AND")
-        .with(value(BinaryOperand::And))
-        .or(string("OR").with(value(BinaryOperand::Or)))
+fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
+    alt((
+        value(BinaryOperand::And, tag("AND ")),
+        value(BinaryOperand::Or, tag("OR ")),
+    ))(inp)
 }
 
 fn aggregate_binary_expressions(
@@ -413,38 +804,195 @@ fn aggregate_binary_expressions(
     }
 }
 
-fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAst)> {
-    (
-        binary_operand().skip(spaces()),
-        boosted_leaf().skip(spaces()),
-    )
+fn aggregate_infallible_expressions(
+    input_leafs: Vec<(Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)>,
+) -> (UserInputAst, ErrorList) {
+    let mut err = Vec::new();
+    let mut leafs: Vec<(_, _, UserInputAst)> = input_leafs
+        .into_iter()
+        .filter_map(|(operand, occur, ast)| ast.map(|ast| (operand, occur, ast)))
+        .collect();
+    if leafs.is_empty() {
+        return (UserInputAst::empty_query(), err);
+    }
+
+    let use_operand = leafs.iter().any(|(operand, _, _)| operand.is_some());
+    let all_operand = leafs
+        .iter()
+        .skip(1)
+        .all(|(operand, _, _)| operand.is_some());
+    let early_operand = leafs
+        .iter()
+        .take(1)
+        .all(|(operand, _, _)| operand.is_some());
+    let use_occur = leafs.iter().any(|(_, occur, _)| occur.is_some());
+
+    if use_operand && use_occur {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Use of mixed occur and boolean operator".to_string(),
+        });
+    }
+
+    if use_operand && !all_operand {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Missing boolean operator".to_string(),
+        });
+    }
+
+    if early_operand {
+        err.push(LenientErrorInternal {
+            pos: 0,
+            message: "Found unexpeted boolean operator before term".to_string(),
+        });
+    }
+
+    let mut clauses: Vec<Vec<(Option<Occur>, UserInputAst)>> = vec![];
+    for ((prev_operator, occur, ast), (next_operator, _, _)) in
+        leafs.iter().zip(leafs.iter().skip(1))
+    {
+        match prev_operator {
+            Some(BinaryOperand::And) => {
+                if let Some(last) = clauses.last_mut() {
+                    last.push((occur.or(Some(Occur::Must)), ast.clone()));
+                } else {
+                    let last = vec![(occur.or(Some(Occur::Must)), ast.clone())];
+                    clauses.push(last);
+                }
+            }
+            Some(BinaryOperand::Or) => {
+                let default_op = match next_operator {
+                    Some(BinaryOperand::And) => Some(Occur::Must),
+                    _ => Some(Occur::Should),
+                };
+                clauses.push(vec![(occur.or(default_op), ast.clone())]);
+            }
+            None => {
+                let default_op = match next_operator {
+                    Some(BinaryOperand::And) => Some(Occur::Must),
+                    Some(BinaryOperand::Or) => Some(Occur::Should),
+                    None => None,
+                };
+                clauses.push(vec![(occur.or(default_op), ast.clone())])
+            }
+        }
+    }
+
+    // leaf isn't empty, so we can unwrap
+    let (last_operator, last_occur, last_ast) = leafs.pop().unwrap();
+    match last_operator {
+        Some(BinaryOperand::And) => {
+            if let Some(last) = clauses.last_mut() {
+                last.push((last_occur.or(Some(Occur::Must)), last_ast));
+            } else {
+                let last = vec![(last_occur.or(Some(Occur::Must)), last_ast)];
+                clauses.push(last);
+            }
+        }
+        Some(BinaryOperand::Or) => {
+            clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+        }
+        None => clauses.push(vec![(last_occur, last_ast)]),
+    }
+
+    if clauses.len() == 1 {
+        let mut clause = clauses.pop().unwrap();
+        if clause.len() == 1 && clause[0].0 != Some(Occur::MustNot) {
+            (clause.pop().unwrap().1, err)
+        } else {
+            (UserInputAst::Clause(clause), err)
+        }
+    } else {
+        let mut final_clauses: Vec<(Option<Occur>, UserInputAst)> = Vec::new();
+        for mut sub_clauses in clauses {
+            if sub_clauses.len() == 1 {
+                final_clauses.push(sub_clauses.pop().unwrap());
+            } else {
+                final_clauses.push((Some(Occur::Should), UserInputAst::Clause(sub_clauses)));
+            }
+        }
+
+        (UserInputAst::Clause(final_clauses), err)
+    }
 }
 
-pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
-    let boolean_expr = (boosted_leaf().skip(spaces()), many1(operand_leaf()))
-        .map(|(left, right)| aggregate_binary_expressions(left, right));
-    let whitespace_separated_leaves = many1(occur_leaf().skip(spaces().silent())).map(
-        |subqueries: Vec<(Option<Occur>, UserInputAst)>| {
-            if subqueries.len() == 1 {
-                let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
-                match occur_opt.unwrap_or(Occur::Should) {
-                    Occur::Must | Occur::Should => ast,
-                    Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
-                }
-            } else {
-                UserInputAst::Clause(subqueries.into_iter().collect())
+fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
+    tuple((
+        terminated(binary_operand, space0),
+        terminated(boosted_leaf, space0),
+    ))(inp)
+}
+
+fn ast(inp: &str) -> IResult<&str, UserInputAst> {
+    let boolean_expr = map(
+        separated_pair(boosted_leaf, space1, many1(operand_leaf)),
+        |(left, right)| aggregate_binary_expressions(left, right),
+    );
+    let whitespace_separated_leaves = map(separated_list1(space1, occur_leaf), |subqueries| {
+        if subqueries.len() == 1 {
+            let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
+            match occur_opt.unwrap_or(Occur::Should) {
+                Occur::Must | Occur::Should => ast,
+                Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
             }
+        } else {
+            UserInputAst::Clause(subqueries.into_iter().collect())
+        }
+    });
+
+    delimited(
+        space0,
+        alt((boolean_expr, whitespace_separated_leaves)),
+        space0,
+    )(inp)
+}
+
+fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
+    // ast() parse either `term AND term OR term` or `+term term -term`
+    // both are locally ambiguous, and as we allow error, it's hard to permit backtracking.
+    // Instead, we allow a mix of both syntaxes, trying to make sense of what a user meant.
+    // For instance `term OR -term` is interpreted as `*term -term`, but `term AND -term`
+    // is interpreted as `+term -term`. We also allow `AND term` to make things easier for us,
+    // even if it's not very sensical.
+
+    let expression = map(
+        separated_list_infallible(space1_infallible, operand_occur_leaf_infallible),
+        |(leaf, mut err)| {
+            let (res, mut err2) = aggregate_infallible_expressions(leaf);
+            err.append(&mut err2);
+            (res, err)
         },
     );
-    let expr = attempt(boolean_expr).or(whitespace_separated_leaves);
-    spaces().with(expr).skip(spaces())
+
+    delimited_infallible(space0_infallible, expression, space0_infallible)(inp)
 }
 
-pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
-    spaces()
-        .with(optional(ast()).skip(eof()))
-        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAst::empty_query))
-        .map(rewrite_ast)
+pub fn parse_to_ast(inp: &str) -> IResult<&str, UserInputAst> {
+    map(delimited(space0, opt(ast), eof), |opt_ast| {
+        rewrite_ast(opt_ast.unwrap_or_else(UserInputAst::empty_query))
+    })(inp)
+}
+
+pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>) {
+    if query_str.trim().is_empty() {
+        return (UserInputAst::Clause(Vec::new()), Vec::new());
+    }
+    let (left, (res, mut errors)) = ast_infallible(query_str).unwrap();
+    if !left.trim().is_empty() {
+        errors.push(LenientErrorInternal {
+            pos: left.len(),
+            message: "unparsed end of query".to_string(),
+        })
+    }
+
+    // convert end-based index to start-based index.
+    let errors = errors
+        .into_iter()
+        .map(|internal_error| LenientError::from_internal(internal_error, query_str.len()))
+        .collect();
+
+    (rewrite_ast(res), errors)
 }
 
 /// Removes unnecessary children clauses in AST
@@ -470,11 +1018,6 @@ fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
 
 #[cfg(test)]
 mod test {
-
-    type TestParseResult = Result<(), StringStreamError>;
-
-    use combine::parser::Parser;
-
     use super::*;
 
     pub fn nearly_equals(a: f64, b: f64) -> bool {
@@ -488,42 +1031,44 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_occur_symbol() -> TestParseResult {
-        assert_eq!(super::occur_symbol().parse("-")?, (Occur::MustNot, ""));
-        assert_eq!(super::occur_symbol().parse("+")?, (Occur::Must, ""));
-        Ok(())
-    }
+    // TODO test as part of occur_leaf
+    // #[test]
+    // fn test_occur_symbol() -> TestParseResult {
+    // assert_eq!(super::occur_symbol("-")?, ("", Occur::MustNot));
+    // assert_eq!(super::occur_symbol("+")?, ("", Occur::Must));
+    // Ok(())
+    // }
 
     #[test]
     fn test_positive_float_number() {
         fn valid_parse(float_str: &str, expected_val: f64, expected_remaining: &str) {
-            let (val, remaining) = positive_float_number().parse(float_str).unwrap();
+            let (remaining, val) = positive_float_number(float_str).unwrap();
             assert_eq!(remaining, expected_remaining);
             assert_nearly_equals(val, expected_val);
         }
         fn error_parse(float_str: &str) {
-            assert!(positive_float_number().parse(float_str).is_err());
+            assert!(positive_float_number(float_str).is_err());
         }
         valid_parse("1.0", 1.0, "");
         valid_parse("1", 1.0, "");
         valid_parse("0.234234 aaa", 0.234234f64, " aaa");
         error_parse(".3332");
-        error_parse("1.");
+        // TODO trinity-1686a: I disagree that it should fail, I think it should succeeed,
+        // consuming only "1", and leave "." for the next thing (which will likely fail then)
+        // error_parse("1.");
         error_parse("-1.");
     }
 
     #[test]
     fn test_date_time() {
-        let (val, remaining) = date_time()
-            .parse("2015-08-02T18:54:42+02:30")
-            .expect("cannot parse date");
+        let (remaining, val) =
+            relaxed_word("2015-08-02T18:54:42+02:30").expect("cannot parse date");
         assert_eq!(val, "2015-08-02T18:54:42+02:30");
         assert_eq!(remaining, "");
-        assert!(date_time().parse("2015-08-02T18:54:42+02").is_err());
+        // this isn't a valid date, but relaxed_word allows it.
+        // assert!(date_time().parse("2015-08-02T18:54:42+02").is_err());
 
-        let (val, remaining) = date_time()
-            .parse("2021-04-13T19:46:26.266051969+00:00")
+        let (remaining, val) = relaxed_word("2021-04-13T19:46:26.266051969+00:00")
             .expect("cannot parse fractional date");
         assert_eq!(val, "2021-04-13T19:46:26.266051969+00:00");
         assert_eq!(remaining, "");
@@ -531,13 +1076,30 @@ mod test {
 
     #[track_caller]
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
-        let query = parse_to_ast().parse(query).unwrap().0;
-        let query_str = format!("{query:?}");
-        assert_eq!(query_str, expected);
+        let query_strict = parse_to_ast(query).unwrap().1;
+        let query_strict_str = format!("{query_strict:?}");
+        assert_eq!(query_strict_str, expected, "strict parser failed");
+
+        let (query_lenient, errs) = parse_to_ast_lenient(query);
+        let query_lenient_str = format!("{query_lenient:?}");
+        assert_eq!(query_lenient_str, expected, "lenient parser failed");
+        assert!(
+            errs.is_empty(),
+            "lenient parser returned errors on valid query: {errs:?}"
+        );
     }
 
-    fn test_is_parse_err(query: &str) {
-        assert!(parse_to_ast().parse(query).is_err());
+    #[track_caller]
+    fn test_is_parse_err(query: &str, lenient_expected: &str) {
+        assert!(
+            parse_to_ast(query).is_err(),
+            "strict parser succeeded where an error was expected."
+        );
+
+        let (query_lenient, errs) = parse_to_ast_lenient(query);
+        let query_lenient_str = format!("{query_lenient:?}");
+        assert_eq!(query_lenient_str, lenient_expected, "lenient parser failed");
+        assert!(!errs.is_empty());
     }
 
     #[test]
@@ -554,19 +1116,24 @@ mod test {
     }
 
     #[test]
+    fn test_parse_query_lenient_unfinished_quote() {
+        test_is_parse_err("\"www-form-encoded", "\"www-form-encoded\"");
+        // TODO strict parser default to parsing a normal term, and parse "'www-forme-encoded" (note
+        // the initial \')
+        // test_is_parse_err("'www-form-encoded", "'www-form-encoded'");
+    }
+
+    #[test]
     fn test_parse_query_to_ast_not_op() {
-        assert_eq!(
-            format!("{:?}", parse_to_ast().parse("NOT")),
-            "Err(UnexpectedParse)"
-        );
+        test_is_parse_err("NOT", "NOT");
         test_parse_query_to_ast_helper("NOTa", "NOTa");
         test_parse_query_to_ast_helper("NOT a", "(-a)");
     }
 
     #[test]
     fn test_boosting() {
-        assert!(parse_to_ast().parse("a^2^3").is_err());
-        assert!(parse_to_ast().parse("a^2^").is_err());
+        test_is_parse_err("a^2^3", "(a)^2");
+        test_is_parse_err("a^2^", "(a)^2");
         test_parse_query_to_ast_helper("a^3", "(a)^3");
         test_parse_query_to_ast_helper("a^3 b^2", "(*(a)^3 *(b)^2)");
         test_parse_query_to_ast_helper("a^1", "a");
@@ -578,22 +1145,21 @@ mod test {
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
-        assert_eq!(
-            format!("{:?}", parse_to_ast().parse("a OR b aaa")),
-            "Err(UnexpectedParse)"
-        );
-        assert_eq!(
-            format!("{:?}", parse_to_ast().parse("a AND b aaa")),
-            "Err(UnexpectedParse)"
-        );
-        assert_eq!(
-            format!("{:?}", parse_to_ast().parse("aaa a OR b ")),
-            "Err(UnexpectedParse)"
-        );
-        assert_eq!(
-            format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")),
-            "Err(UnexpectedParse)"
-        );
+        test_is_parse_err("a OR b aaa", "(?a ?b *aaa)");
+        test_is_parse_err("a AND b aaa", "(?(+a +b) *aaa)");
+        test_is_parse_err("aaa a OR b ", "(*aaa ?a ?b)");
+        test_is_parse_err("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
+        test_is_parse_err("aaa a AND b ", "(*aaa ?(+a +b))");
+        test_is_parse_err("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
+    }
+
+    #[test]
+    fn test_parse_mixed_bool_occur() {
+        test_is_parse_err("a OR b +aaa", "(?a ?b +aaa)");
+        test_is_parse_err("a AND b -aaa", "(?(+a +b) -aaa)");
+        test_is_parse_err("+a OR +b aaa", "(+a +b *aaa)");
+        test_is_parse_err("-a AND -b aaa", "(?(-a -b) *aaa)");
+        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc -a ?b)");
     }
 
     #[test]
@@ -617,7 +1183,7 @@ mod test {
 
     #[test]
     fn test_occur_leaf() {
-        let ((occur, ast), _) = super::occur_leaf().parse("+abc").unwrap();
+        let (_, (occur, ast)) = super::occur_leaf("+abc").unwrap();
         assert_eq!(occur, Some(Occur::Must));
         assert_eq!(format!("{ast:?}"), "abc");
     }
@@ -625,61 +1191,54 @@ mod test {
     #[test]
     fn test_field_name() {
         assert_eq!(
-            super::field_name().parse(".my.field.name:a"),
-            Ok((".my.field.name".to_string(), "a"))
+            super::field_name(".my.field.name:a"),
+            Ok(("a", ".my.field.name".to_string()))
         );
         assert_eq!(
-            super::field_name().parse(r#"にんじん:a"#),
-            Ok(("にんじん".to_string(), "a"))
+            super::field_name(r#"にんじん:a"#),
+            Ok(("a", "にんじん".to_string()))
         );
         assert_eq!(
-            super::field_name().parse(r#"my\field:a"#),
-            Ok((r#"my\field"#.to_string(), "a"))
-        );
-        assert!(super::field_name().parse("my field:a").is_err());
-        assert_eq!(
-            super::field_name().parse("\\(1\\+1\\):2"),
-            Ok(("(1+1)".to_string(), "2"))
+            super::field_name(r#"my\field:a"#),
+            Ok(("a", r#"my\field"#.to_string()))
         );
         assert_eq!(
-            super::field_name().parse("my_field_name:a"),
-            Ok(("my_field_name".to_string(), "a"))
+            super::field_name(r#"my\\field:a"#),
+            Ok(("a", r#"my\field"#.to_string()))
+        );
+        assert!(super::field_name("my field:a").is_err());
+        assert_eq!(
+            super::field_name("\\(1\\+1\\):2"),
+            Ok(("2", "(1+1)".to_string()))
         );
         assert_eq!(
-            super::field_name().parse("myfield.b:hello").unwrap(),
-            ("myfield.b".to_string(), "hello")
+            super::field_name("my_field_name:a"),
+            Ok(("a", "my_field_name".to_string()))
         );
         assert_eq!(
-            super::field_name().parse(r#"myfield\.b:hello"#).unwrap(),
-            (r#"myfield\.b"#.to_string(), "hello")
-        );
-        assert!(super::field_name().parse("my_field_name").is_err());
-        assert!(super::field_name().parse(":a").is_err());
-        assert!(super::field_name().parse("-my_field:a").is_err());
-        assert_eq!(
-            super::field_name().parse("_my_field:a"),
-            Ok(("_my_field".to_string(), "a"))
+            super::field_name("myfield.b:hello").unwrap(),
+            ("hello", "myfield.b".to_string())
         );
         assert_eq!(
-            super::field_name().parse("~my~field:a"),
-            Ok(("~my~field".to_string(), "a"))
+            super::field_name(r#"myfield\.b:hello"#).unwrap(),
+            ("hello", r#"myfield\.b"#.to_string())
+        );
+        assert!(super::field_name("my_field_name").is_err());
+        assert!(super::field_name(":a").is_err());
+        assert!(super::field_name("-my_field:a").is_err());
+        assert_eq!(
+            super::field_name("_my_field:a"),
+            Ok(("a", "_my_field".to_string()))
+        );
+        assert_eq!(
+            super::field_name("~my~field:a"),
+            Ok(("a", "~my~field".to_string()))
         );
         for special_char in SPECIAL_CHARS.iter() {
             let query = &format!("\\{special_char}my\\{special_char}field:a");
             assert_eq!(
-                super::field_name().parse(query),
-                Ok((format!("{special_char}my{special_char}field"), "a"))
-            );
-        }
-    }
-
-    #[test]
-    fn test_field_name_re() {
-        let escaped_special_chars_re = Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap();
-        for special_char in SPECIAL_CHARS.iter() {
-            assert_eq!(
-                escaped_special_chars_re.replace_all(&format!("\\{special_char}"), "$1"),
-                special_char.to_string()
+                super::field_name(query),
+                Ok(("a", format!("{special_char}my{special_char}field")))
             );
         }
     }
@@ -687,19 +1246,18 @@ mod test {
     #[test]
     fn test_range_parser() {
         // testing the range() parser separately
-        let res = range()
-            .parse("title: <hello")
-            .expect("Cannot parse felxible bound word")
-            .0;
+        let res = literal("title: <hello")
+            .expect("Cannot parse flexible bound word")
+            .1;
         let expected = UserInputLeaf::Range {
             field: Some("title".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Exclusive("hello".to_string()),
-        };
-        let res2 = range()
-            .parse("title:{* TO hello}")
+        }
+        .into();
+        let res2 = literal("title:{* TO hello}")
             .expect("Cannot parse ununbounded to word")
-            .0;
+            .1;
         assert_eq!(res, expected);
         assert_eq!(res2, expected);
 
@@ -707,15 +1265,14 @@ mod test {
             field: Some("weight".to_string()),
             lower: UserInputBound::Inclusive("71.2".to_string()),
             upper: UserInputBound::Unbounded,
-        };
-        let res3 = range()
-            .parse("weight: >=71.2")
+        }
+        .into();
+        let res3 = literal("weight: >=71.2")
             .expect("Cannot parse flexible bound float")
-            .0;
-        let res4 = range()
-            .parse("weight:[71.2 TO *}")
+            .1;
+        let res4 = literal("weight:[71.2 TO *}")
             .expect("Cannot parse float to unbounded")
-            .0;
+            .1;
         assert_eq!(res3, expected_weight);
         assert_eq!(res4, expected_weight);
 
@@ -723,38 +1280,35 @@ mod test {
             field: Some("date_field".to_string()),
             lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
             upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
-        };
-        let res5 = range()
-            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
+        }
+        .into();
+        let res5 = literal("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
             .expect("Cannot parse date range")
-            .0;
+            .1;
         assert_eq!(res5, expected_dates);
 
         let expected_flexible_dates = UserInputLeaf::Range {
             field: Some("date_field".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
-        };
+        }
+        .into();
 
-        let res6 = range()
-            .parse("date_field: <=2021-08-02T18:54:42.12345+02:30")
+        let res6 = literal("date_field: <=2021-08-02T18:54:42.12345+02:30")
             .expect("Cannot parse date range")
-            .0;
+            .1;
         assert_eq!(res6, expected_flexible_dates);
         // IP Range Unbounded
         let expected_weight = UserInputLeaf::Range {
             field: Some("ip".to_string()),
             lower: UserInputBound::Inclusive("::1".to_string()),
             upper: UserInputBound::Unbounded,
-        };
-        let res1 = range()
-            .parse("ip: >=::1")
+        }
+        .into();
+        let res1 = literal("ip: >=::1").expect("Cannot parse ip v6 format").1;
+        let res2 = literal("ip:[::1 TO *}")
             .expect("Cannot parse ip v6 format")
-            .0;
-        let res2 = range()
-            .parse("ip:[::1 TO *}")
-            .expect("Cannot parse ip v6 format")
-            .0;
+            .1;
         assert_eq!(res1, expected_weight);
         assert_eq!(res2, expected_weight);
 
@@ -763,12 +1317,121 @@ mod test {
             field: Some("ip".to_string()),
             lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
             upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
-        };
-        let res1 = range()
-            .parse("ip:[::0.0.0.50 TO ::0.0.0.52}")
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52}")
             .expect("Cannot parse ip v6 format")
-            .0;
+            .1;
         assert_eq!(res1, expected_weight);
+    }
+
+    #[test]
+    fn test_range_parser_lenient() {
+        let literal = |query| literal_infallible(query).unwrap().1 .0.unwrap();
+
+        // same tests as non-lenient
+        let res = literal("title: <hello");
+        let expected = UserInputLeaf::Range {
+            field: Some("title".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Exclusive("hello".to_string()),
+        }
+        .into();
+        let res2 = literal("title:{* TO hello}");
+        assert_eq!(res, expected);
+        assert_eq!(res2, expected);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("weight".to_string()),
+            lower: UserInputBound::Inclusive("71.2".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res3 = literal("weight: >=71.2");
+        let res4 = literal("weight:[71.2 TO *}");
+        assert_eq!(res3, expected_weight);
+        assert_eq!(res4, expected_weight);
+
+        let expected_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
+        }
+        .into();
+        let res5 = literal("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]");
+        assert_eq!(res5, expected_dates);
+
+        let expected_flexible_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
+        }
+        .into();
+
+        let res6 = literal("date_field: <=2021-08-02T18:54:42.12345+02:30");
+        assert_eq!(res6, expected_flexible_dates);
+        // IP Range Unbounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::1".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip: >=::1");
+        let res2 = literal("ip:[::1 TO *}");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+
+        // IP Range Bounded
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Exclusive("::0.0.0.52".to_string()),
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52}");
+        assert_eq!(res1, expected_weight);
+
+        // additional tests
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Inclusive("::0.0.0.52".to_string()),
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ::0.0.0.52");
+        let res2 = literal("ip:[::0.0.0.50 ::0.0.0.52");
+        let res3 = literal("ip:[::0.0.0.50 ::0.0.0.52 AND ...");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Inclusive("::0.0.0.50".to_string()),
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip:[::0.0.0.50 TO ");
+        let res2 = literal("ip:[::0.0.0.50 TO");
+        let res3 = literal("ip:[::0.0.0.50");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("ip".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Unbounded,
+        }
+        .into();
+        let res1 = literal("ip:[ ");
+        let res2 = literal("ip:{ ");
+        let res3 = literal("ip:[");
+        assert_eq!(res1, expected_weight);
+        assert_eq!(res2, expected_weight);
+        assert_eq!(res3, expected_weight);
+        // we don't test ip: as that is not a valid range request as per percondition
     }
 
     #[test]
@@ -781,6 +1444,15 @@ mod test {
         test_parse_query_to_ast_helper("a OR abc ", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR abc )", "(?a ?abc)");
         test_parse_query_to_ast_helper("(a OR  abc) ", "(?a ?abc)");
+        test_is_parse_err("(a OR  abc ", "(?a ?abc)");
+    }
+
+    #[test]
+    fn test_parse_query_term_group() {
+        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#"(*"field":abc)"#);
+        test_parse_query_to_ast_helper(r#"field:(+a -"b c")"#, r#"(+"field":a -"field":"b c")"#);
+
+        test_is_parse_err(r#"field:(+a -"b c""#, r#"(+"field":a -"field":"b c")"#);
     }
 
     #[test]
@@ -837,6 +1509,11 @@ mod test {
         test_parse_query_to_ast_helper("abc: IN [1]", r#""abc": IN ["1"]"#);
         test_parse_query_to_ast_helper("abc: IN []", r#""abc": IN []"#);
         test_parse_query_to_ast_helper("IN [1 2]", r#"IN ["1" "2"]"#);
+        test_is_parse_err("IN [1 2", r#"IN ["1" "2"]"#);
+
+        // TODO maybe support these too?
+        // test_is_parse_err("IN (1 2", r#"IN ["1" "2"]"#);
+        // test_is_parse_err("IN {1 2", r#"IN ["1" "2"]"#);
     }
 
     #[test]
@@ -846,7 +1523,8 @@ mod test {
         test_parse_query_to_ast_helper("+a\\+b\\+c:toto", "\"a+b+c\":toto");
         test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+\"abc\":toto -titi)");
         test_parse_query_to_ast_helper("-abc:toto", "(-\"abc\":toto)");
-        test_is_parse_err("--abc:toto");
+        // TODO not entirely sure about this one (it's seen as a NOT '-abc:toto')
+        test_is_parse_err("--abc:toto", "(--abc:toto)");
         test_parse_query_to_ast_helper("abc:a b", "(*\"abc\":a *b)");
         test_parse_query_to_ast_helper("abc:\"a b\"", "\"abc\":\"a b\"");
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "\"foo\":[\"1\" TO \"5\"]");
@@ -863,16 +1541,20 @@ mod test {
             "1.2.foo.bar:[1.1 TO *}",
             "\"1.2.foo.bar\":[\"1.1\" TO \"*\"}",
         );
-        test_is_parse_err("abc +    ");
+        test_is_parse_err("abc +    ", "abc");
     }
 
     #[test]
     fn test_slop() {
-        assert!(parse_to_ast().parse("\"a b\"~").is_err());
-        assert!(parse_to_ast().parse("foo:\"a b\"~").is_err());
-        assert!(parse_to_ast().parse("\"a b\"~a").is_err());
-        assert!(parse_to_ast().parse("\"a b\"~100000000000000000").is_err());
-        test_parse_query_to_ast_helper("\"a b\"^2~4", "(*(\"a b\")^2 *~4)");
+        test_is_parse_err("\"a b\"~", "(*\"a b\" *~)");
+        test_is_parse_err("foo:\"a b\"~", "(*\"foo\":\"a b\" *~)");
+        test_is_parse_err("\"a b\"~a", "(*\"a b\" *~a)");
+        test_is_parse_err(
+            "\"a b\"~100000000000000000",
+            "(*\"a b\" *~100000000000000000)",
+        );
+        test_parse_query_to_ast_helper("\"a b\"^2 ~4", "(*(\"a b\")^2 *~4)");
+        test_parse_query_to_ast_helper("\"a b\"~4^2", "(\"a b\"~4)^2");
         test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
         test_parse_query_to_ast_helper("~Document", "~Document");
         test_parse_query_to_ast_helper("a~2", "a~2");
@@ -891,6 +1573,17 @@ mod test {
         test_parse_query_to_ast_helper("foo:\"a b\"*", "\"foo\":\"a b\"*");
         test_parse_query_to_ast_helper("foo:\"a\"*", "\"foo\":\"a\"*");
         test_parse_query_to_ast_helper("foo:\"\"*", "\"foo\":\"\"*");
+    }
+
+    #[test]
+    fn test_exist_query() {
+        test_parse_query_to_ast_helper("a:*", "\"a\":*");
+        test_parse_query_to_ast_helper("a: *", "\"a\":*");
+        // an exist followed by default term being b
+        test_is_parse_err("a:*b", "(*\"a\":* *b)");
+
+        // this is a term query (not a phrase prefix)
+        test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
     }
 
     #[test]

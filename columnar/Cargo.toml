@@ -1,22 +1,22 @@
 [package]
 name = "tantivy-columnar"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
-desciption = "column oriented storage for tantivy"
+description = "column oriented storage for tantivy"
 categories = ["database-implementations", "data-structures", "compression"]
 
 [dependencies]
-itertools = "0.10.5"
+itertools = "0.11.0"
 fnv = "1.0.7"
 fastdivide = "0.4.0"
 
-stacker = { version= "0.1", path = "../stacker", package="tantivy-stacker"}
-sstable = { version= "0.1", path = "../sstable", package = "tantivy-sstable" }
-common = { version= "0.5", path = "../common", package = "tantivy-common" }
-tantivy-bitpacker = { version= "0.4", path = "../bitpacker/" }
+stacker = { version= "0.2", path = "../stacker", package="tantivy-stacker"}
+sstable = { version= "0.2", path = "../sstable", package = "tantivy-sstable" }
+common = { version= "0.6", path = "../common", package = "tantivy-common" }
+tantivy-bitpacker = { version= "0.5", path = "../bitpacker/" }
 serde = "1.0.152"
 
 [dev-dependencies]

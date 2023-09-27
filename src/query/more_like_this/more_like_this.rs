@@ -26,13 +26,15 @@ impl Eq for ScoreTerm {}
 
 impl PartialOrd for ScoreTerm {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.score.partial_cmp(&other.score)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for ScoreTerm {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+        self.score
+            .partial_cmp(&other.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -207,6 +209,7 @@ impl MoreLikeThis {
                     }
                 };
 
+                // TOOD: Validate these changed align with the HEAD branch.
                 for value in values {
                     if let Some(text) = value.as_str() {
                         let tokenizer = match &mut tokenizer_opt {

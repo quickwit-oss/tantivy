@@ -558,10 +558,10 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
 
     assert_eq!(agg_req_1.is_err(), true);
     // TODO: This should list valid values
-    assert_eq!(
-        agg_req_1.unwrap_err().to_string(),
-        "no variant of enum AggregationVariants found in flattened data"
-    );
+    assert!(agg_req_1
+        .unwrap_err()
+        .to_string()
+        .contains("unknown variant `doesnotmatchanyagg`, expected one of"));
 
     // TODO: This should return an error
     // let agg_res = avg_on_field("not_exist_field").unwrap_err();

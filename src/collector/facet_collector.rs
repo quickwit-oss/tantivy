@@ -89,7 +89,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
 ///     {
-///         let mut index_writer = index.writer(3_000_000)?;
+///         let mut index_writer = index.writer(15_000_000)?;
 ///         // a document can be associated with any number of facets
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",
@@ -158,6 +158,21 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///         let facets: Vec<(&Facet, u64)> = facet_counts.top_k("/category/fiction", 1);
 ///         assert_eq!(facets, vec![
 ///             (&Facet::from("/category/fiction/fantasy"), 2)
+///         ]);
+///     }
+///
+///     {
+///         let mut facet_collector = FacetCollector::for_field("facet");
+///         facet_collector.add_facet("/");
+///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
+///
+///         // This lists all of the facet counts
+///         let facets: Vec<(&Facet, u64)> = facet_counts
+///             .get("/")
+///             .collect();
+///         assert_eq!(facets, vec![
+///             (&Facet::from("/category"), 4),
+///             (&Facet::from("/lang"), 4)
 ///         ]);
 ///     }
 ///
@@ -284,6 +299,9 @@ impl Collector for FacetCollector {
 fn is_child_facet(parent_facet: &[u8], possible_child_facet: &[u8]) -> bool {
     if !possible_child_facet.starts_with(parent_facet) {
         return false;
+    }
+    if parent_facet.is_empty() {
+        return true;
     }
     possible_child_facet.get(parent_facet.len()).copied() == Some(0u8)
 }
@@ -788,6 +806,15 @@ mod tests {
             vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
         );
         Ok(())
+    }
+
+    #[test]
+    fn is_child_facet() {
+        assert!(super::is_child_facet(&b"foo"[..], &b"foo\0bar"[..]));
+        assert!(super::is_child_facet(&b""[..], &b"foo\0bar"[..]));
+        assert!(super::is_child_facet(&b""[..], &b"foo"[..]));
+        assert!(!super::is_child_facet(&b"foo\0bar"[..], &b"foo"[..]));
+        assert!(!super::is_child_facet(&b"foo"[..], &b"foobar\0baz"[..]));
     }
 }
 

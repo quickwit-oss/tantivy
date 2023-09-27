@@ -4,8 +4,8 @@
 //! order to be handled in the `Store`.
 //!
 //! Internally, documents (or rather their stored fields) are serialized to a buffer.
-//! When the buffer exceeds `block_size` (defaults to 16K), the buffer is compressed using `brotli`,
-//! `LZ4` or `snappy` and the resulting block is written to disk.
+//! When the buffer exceeds `block_size` (defaults to 16K), the buffer is compressed
+//! using LZ4 or Zstd and the resulting block is written to disk.
 //!
 //! One can then request for a specific `DocId`.
 //! A skip list helps navigating to the right block,
@@ -47,12 +47,6 @@ pub(crate) const DOC_STORE_VERSION: u32 = 1;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
-
-#[cfg(feature = "brotli-compression")]
-mod compression_brotli;
-
-#[cfg(feature = "snappy-compression")]
-mod compression_snap;
 
 #[cfg(feature = "zstd-compression")]
 mod compression_zstd_block;
@@ -201,16 +195,6 @@ pub mod tests {
     fn test_store_lz4_block() -> crate::Result<()> {
         test_store(Compressor::Lz4, BLOCK_SIZE, true)
     }
-    #[cfg(feature = "snappy-compression")]
-    #[test]
-    fn test_store_snap() -> crate::Result<()> {
-        test_store(Compressor::Snappy, BLOCK_SIZE, true)
-    }
-    #[cfg(feature = "brotli-compression")]
-    #[test]
-    fn test_store_brotli() -> crate::Result<()> {
-        test_store(Compressor::Brotli, BLOCK_SIZE, true)
-    }
 
     #[cfg(feature = "zstd-compression")]
     #[test]
@@ -262,8 +246,8 @@ pub mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "snappy-compression")]
     #[cfg(feature = "lz4-compression")]
+    #[cfg(feature = "zstd-compression")]
     #[test]
     fn test_merge_with_changed_compressor() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
@@ -295,7 +279,7 @@ pub mod tests {
         );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
-        index_settings.docstore_compression = Compressor::Snappy;
+        index_settings.docstore_compression = Compressor::Zstd(Default::default());
         // Merging the segments
         {
             let segment_ids = index
@@ -317,7 +301,7 @@ pub mod tests {
                 LOREM.to_string()
             );
         }
-        assert_eq!(store.decompressor(), Decompressor::Snappy);
+        assert_eq!(store.decompressor(), Decompressor::Zstd);
 
         Ok(())
     }

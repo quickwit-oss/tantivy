@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::io::{self, Write};
 
 use common::{BinarySerializable, CountingWriter, VInt};
-use fail::fail_point;
 
 use super::TermInfo;
 use crate::core::Segment;
@@ -205,7 +204,7 @@ impl<'a> FieldSerializer<'a> {
     /// If the current block is incomplete, it needs to be encoded
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
-        fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
+        crate::fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
             Err(io::Error::new(io::ErrorKind::Other, format!("{msg:?}")))
         });
         if self.term_open {

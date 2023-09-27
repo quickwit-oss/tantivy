@@ -44,7 +44,7 @@ Details about the benchmark can be found at this [repository](https://github.com
 - Single valued and multivalued u64, i64, and f64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
 - Text, i64, u64, f64, dates, ip, bool, and hierarchical facet fields
-- Compressed document store (LZ4, Zstd, None, Brotli, Snap)
+- Compressed document store (LZ4, Zstd, None)
 - Range queries
 - Faceted search
 - Configurable indexing (optional term frequency and position indexing)

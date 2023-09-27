@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install nightly
       uses: actions-rs/toolchain@v1
@@ -53,14 +53,14 @@ jobs:
     strategy:
       matrix:
         features: [
-            { label: "all", flags: "mmap,stopwords,brotli-compression,lz4-compression,snappy-compression,zstd-compression,failpoints" },
+            { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints" },
             { label: "quickwit", flags: "mmap,quickwit,failpoints" }
         ]
 
     name: test-${{ matrix.features.label}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install stable
       uses: actions-rs/toolchain@v1

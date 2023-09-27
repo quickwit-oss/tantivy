@@ -44,7 +44,7 @@
 //! #     let title = schema_builder.add_text_field("title", TEXT);
 //! #     let schema = schema_builder.build();
 //! #     let index = Index::create_in_ram(schema);
-//! #     let mut index_writer = index.writer(3_000_000)?;
+//! #     let mut index_writer = index.writer(15_000_000)?;
 //! #       index_writer.add_document(doc!(
 //! #       title => "The Name of the Wind",
 //! #      ))?;
@@ -97,7 +97,7 @@ pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 mod top_collector;
 
 mod top_score_collector;
-pub use self::top_score_collector::TopDocs;
+pub use self::top_score_collector::{TopDocs, TopNComputer};
 
 mod custom_score_top_collector;
 pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
@@ -112,7 +112,7 @@ mod docset_collector;
 pub use self::docset_collector::DocSetCollector;
 
 mod filter_collector_wrapper;
-pub use self::filter_collector_wrapper::FilterCollector;
+pub use self::filter_collector_wrapper::{BytesFilterCollector, FilterCollector};
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.

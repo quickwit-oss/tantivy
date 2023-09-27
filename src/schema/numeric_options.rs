@@ -120,12 +120,9 @@ impl NumericOptions {
         self
     }
 
-    /// Set the field as a single-valued fast field.
+    /// Set the field as a fast field.
     ///
     /// Fast fields are designed for random access.
-    /// Access time are similar to a random lookup in an array.
-    /// If more than one value is associated with a fast field, only the last one is
-    /// kept.
     #[must_use]
     pub fn set_fast(mut self) -> NumericOptions {
         self.fast = true;

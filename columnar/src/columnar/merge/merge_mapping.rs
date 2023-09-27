@@ -52,8 +52,8 @@ pub enum MergeRowOrder {
     /// Columnar tables are simply stacked one above the other.
     /// If the i-th columnar_readers has n_rows_i rows, then
     /// in the resulting columnar,
-    /// rows [r0..n_row_0) contains the row of columnar_readers[0], in ordder
-    /// rows [n_row_0..n_row_0 + n_row_1 contains the row of columnar_readers[1], in order.
+    /// rows [r0..n_row_0) contains the row of `columnar_readers[0]`, in ordder
+    /// rows [n_row_0..n_row_0 + n_row_1 contains the row of `columnar_readers[1]`, in order.
     /// ..
     /// No documents is deleted.
     Stack(StackMergeOrder),

@@ -53,7 +53,7 @@ fn main() -> tantivy::Result<()> {
     // this will store tokens of 3 characters each
     index
         .tokenizers()
-        .register("ngram3", NgramTokenizer::new(3, 3, false));
+        .register("ngram3", NgramTokenizer::new(3, 3, false).unwrap());
 
     // To insert document we need an index writer.
     // There must be only one writer at a time.

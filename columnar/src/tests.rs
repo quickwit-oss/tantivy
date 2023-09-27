@@ -57,7 +57,9 @@ fn test_dataframe_writer_bool() {
     assert_eq!(cols[0].num_bytes(), 22);
     assert_eq!(cols[0].column_type(), ColumnType::Bool);
     let dyn_bool_col = cols[0].open().unwrap();
-    let DynamicColumn::Bool(bool_col) = dyn_bool_col else { panic!(); };
+    let DynamicColumn::Bool(bool_col) = dyn_bool_col else {
+        panic!();
+    };
     let vals: Vec<Option<bool>> = (0..5).map(|row_id| bool_col.first(row_id)).collect();
     assert_eq!(&vals, &[None, Some(false), None, Some(true), None,]);
 }
@@ -79,7 +81,9 @@ fn test_dataframe_writer_u64_multivalued() {
     assert_eq!(cols.len(), 1);
     assert_eq!(cols[0].num_bytes(), 29);
     let dyn_i64_col = cols[0].open().unwrap();
-    let DynamicColumn::I64(divisor_col) = dyn_i64_col else { panic!(); };
+    let DynamicColumn::I64(divisor_col) = dyn_i64_col else {
+        panic!();
+    };
     assert_eq!(
         divisor_col.get_cardinality(),
         crate::Cardinality::Multivalued
@@ -101,7 +105,9 @@ fn test_dataframe_writer_ip_addr() {
     assert_eq!(cols[0].num_bytes(), 42);
     assert_eq!(cols[0].column_type(), ColumnType::IpAddr);
     let dyn_bool_col = cols[0].open().unwrap();
-    let DynamicColumn::IpAddr(ip_col) = dyn_bool_col else { panic!(); };
+    let DynamicColumn::IpAddr(ip_col) = dyn_bool_col else {
+        panic!();
+    };
     let vals: Vec<Option<Ipv6Addr>> = (0..5).map(|row_id| ip_col.first(row_id)).collect();
     assert_eq!(
         &vals,
@@ -134,7 +140,9 @@ fn test_dataframe_writer_numerical() {
     // - null footer 6 bytes
     assert_eq!(cols[0].num_bytes(), 33);
     let column = cols[0].open().unwrap();
-    let DynamicColumn::I64(column_i64) = column else { panic!(); };
+    let DynamicColumn::I64(column_i64) = column else {
+        panic!();
+    };
     assert_eq!(column_i64.index.get_cardinality(), Cardinality::Optional);
     assert_eq!(column_i64.first(0), None);
     assert_eq!(column_i64.first(1), Some(12i64));
@@ -198,7 +206,9 @@ fn test_dictionary_encoded_str() {
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
     assert_eq!(col_handles.len(), 1);
-    let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else  { panic!(); };
+    let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else {
+        panic!();
+    };
     let index: Vec<Option<u64>> = (0..5).map(|row_id| str_col.ords().first(row_id)).collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
@@ -230,7 +240,9 @@ fn test_dictionary_encoded_bytes() {
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
     assert_eq!(col_handles.len(), 1);
-    let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else  { panic!(); };
+    let DynamicColumn::Bytes(bytes_col) = col_handles[0].open().unwrap() else {
+        panic!();
+    };
     let index: Vec<Option<u64>> = (0..5)
         .map(|row_id| bytes_col.ords().first(row_id))
         .collect();
@@ -533,28 +545,36 @@ trait AssertEqualToColumnValue {
 
 impl AssertEqualToColumnValue for bool {
     fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
-        let ColumnValue::Bool(val) = column_value else { panic!() };
+        let ColumnValue::Bool(val) = column_value else {
+            panic!()
+        };
         assert_eq!(self, val);
     }
 }
 
 impl AssertEqualToColumnValue for Ipv6Addr {
     fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
-        let ColumnValue::IpAddr(val) = column_value else { panic!() };
+        let ColumnValue::IpAddr(val) = column_value else {
+            panic!()
+        };
         assert_eq!(self, val);
     }
 }
 
 impl<T: Coerce + PartialEq + Debug + Into<NumericalValue>> AssertEqualToColumnValue for T {
     fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
-        let ColumnValue::Numerical(num) = column_value else { panic!() };
+        let ColumnValue::Numerical(num) = column_value else {
+            panic!()
+        };
         assert_eq!(self, &T::coerce(*num));
     }
 }
 
 impl AssertEqualToColumnValue for DateTime {
     fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
-        let ColumnValue::DateTime(dt) = column_value else { panic!() };
+        let ColumnValue::DateTime(dt) = column_value else {
+            panic!()
+        };
         assert_eq!(self, dt);
     }
 }

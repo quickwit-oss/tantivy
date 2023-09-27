@@ -191,7 +191,7 @@ pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
 
-#[cfg(unix)]
+#[cfg(all(feature = "mmap", unix))]
 pub use memmap2::Advice;
 
 /// Structure version for the index.
@@ -299,9 +299,39 @@ pub struct DocAddress {
     pub doc_id: DocId,
 }
 
+#[macro_export]
+/// Enable fail_point if feature is enabled.
+macro_rules! fail_point {
+    ($name:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            fail::eval($name, |_| {
+                panic!("Return is not supported for the fail point \"{}\"", $name);
+            });
+        }
+    }};
+    ($name:expr, $e:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            if let Some(res) = fail::eval($name, $e) {
+                return res;
+            }
+        }
+    }};
+    ($name:expr, $cond:expr, $e:expr) => {{
+        #[cfg(feature = "failpoints")]
+        {
+            if $cond {
+                fail::fail_point!($name, $e);
+            }
+        }
+    }};
+}
+
 #[cfg(test)]
 pub mod tests {
     use common::{BinarySerializable, FixedSize};
+    use query_grammar::{UserInputAst, UserInputLeaf, UserInputLiteral};
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
@@ -856,6 +886,95 @@ pub mod tests {
         reader.reload()?;
         assert_eq!(reader.searcher().num_docs(), 3u64);
         Ok(())
+    }
+
+    #[test]
+    fn test_searcher_on_json_field_with_type_inference() {
+        // When indexing and searching a json value, we infer its type.
+        // This tests aims to check the type infereence is consistent between indexing and search.
+        // Inference order is date, i64, u64, f64, bool.
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", STORED | TEXT);
+        let schema = schema_builder.build();
+        let json_val: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+            r#"{
+            "signed": 2,
+            "float": 2.0,
+            "unsigned": 10000000000000,
+            "date": "1985-04-12T23:20:50.52Z",
+            "bool": true
+        }"#,
+        )
+        .unwrap();
+        let doc = doc!(json_field=>json_val);
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc).unwrap();
+        writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let get_doc_ids = |user_input_literal: UserInputLiteral| {
+            let query_parser = crate::query::QueryParser::for_index(&index, Vec::new());
+            let query = query_parser
+                .build_query_from_user_input_ast(UserInputAst::from(UserInputLeaf::Literal(
+                    user_input_literal,
+                )))
+                .unwrap();
+            searcher
+                .search(&query, &TEST_COLLECTOR_WITH_SCORE)
+                .map(|topdocs| topdocs.docs().to_vec())
+                .unwrap()
+        };
+        {
+            let user_input_literal = UserInputLiteral {
+                field_name: Some("json.signed".to_string()),
+                phrase: "2".to_string(),
+                delimiter: crate::query_grammar::Delimiter::None,
+                slop: 0,
+                prefix: false,
+            };
+            assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
+        }
+        {
+            let user_input_literal = UserInputLiteral {
+                field_name: Some("json.float".to_string()),
+                phrase: "2.0".to_string(),
+                delimiter: crate::query_grammar::Delimiter::None,
+                slop: 0,
+                prefix: false,
+            };
+            assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
+        }
+        {
+            let user_input_literal = UserInputLiteral {
+                field_name: Some("json.date".to_string()),
+                phrase: "1985-04-12T23:20:50.52Z".to_string(),
+                delimiter: crate::query_grammar::Delimiter::None,
+                slop: 0,
+                prefix: false,
+            };
+            assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
+        }
+        {
+            let user_input_literal = UserInputLiteral {
+                field_name: Some("json.unsigned".to_string()),
+                phrase: "10000000000000".to_string(),
+                delimiter: crate::query_grammar::Delimiter::None,
+                slop: 0,
+                prefix: false,
+            };
+            assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
+        }
+        {
+            let user_input_literal = UserInputLiteral {
+                field_name: Some("json.bool".to_string()),
+                phrase: "true".to_string(),
+                delimiter: crate::query_grammar::Delimiter::None,
+                slop: 0,
+                prefix: false,
+            };
+            assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
+        }
     }
 
     #[test]

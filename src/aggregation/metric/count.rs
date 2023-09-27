@@ -18,14 +18,23 @@ use super::{IntermediateStats, SegmentStatsCollector};
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CountAggregation {
-    /// The field name to compute the minimum on.
+    /// The field name to compute the count on.
     pub field: String,
+    /// The missing parameter defines how documents that are missing a value should be treated.
+    /// By default they will be ignored but it is also possible to treat them as if they had a
+    /// value. Examples in JSON format:
+    /// { "field": "my_numbers", "missing": "10.0" }
+    #[serde(default)]
+    pub missing: Option<f64>,
 }
 
 impl CountAggregation {
     /// Creates a new [`CountAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        Self { field: field_name }
+        Self {
+            field: field_name,
+            missing: None,
+        }
     }
     /// Returns the field name the aggregation is computed on.
     pub fn field_name(&self) -> &str {
@@ -51,7 +60,7 @@ impl IntermediateCount {
     pub fn merge_fruits(&mut self, other: IntermediateCount) {
         self.stats.merge_fruits(other.stats);
     }
-    /// Computes the final minimum value.
+    /// Computes the final count value.
     pub fn finalize(&self) -> Option<f64> {
         Some(self.stats.finalize().count as f64)
     }

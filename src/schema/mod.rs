@@ -5,8 +5,10 @@
 //! Tantivy has a very strict schema.
 //! The schema defines information about the fields your index contains, that is, for each field:
 //!
-//! - the field name (may only contain letters `[a-zA-Z]`, number `[0-9]`, and `_`)
-//! - the type of the field (currently only  `text` and `u64` are supported)
+//! - the field name (may contain any characted, can't start with a `-` and can't be empty. Some
+//!   characters may require escaping when using the query parser).
+//! - the type of the field (currently `text`, `u64`, `i64`, `f64`, `bool`, `date`, `IpAddr`,
+//!   facets, bytes and json are supported)
 //! - how the field should be indexed / stored.
 //!
 //! This very last point is critical as it will enable / disable some of the functionality

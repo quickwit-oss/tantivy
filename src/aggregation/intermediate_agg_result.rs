@@ -111,9 +111,6 @@ impl IntermediateAggregationResults {
     }
 
     /// Convert intermediate result and its aggregation request to the final result.
-    ///
-    /// Internal function, AggregationsInternal is used instead Aggregations, which is optimized
-    /// for internal processing, by splitting metric and buckets into separate groups.
     pub(crate) fn into_final_result_internal(
         self,
         req: &Aggregations,
@@ -121,7 +118,14 @@ impl IntermediateAggregationResults {
     ) -> crate::Result<AggregationResults> {
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
         for (key, agg_res) in self.aggs_res.into_iter() {
-            let req = req.get(key.as_str()).unwrap();
+            let req = req.get(key.as_str()).unwrap_or_else(|| {
+                panic!(
+                    "Could not find key {:?} in request keys {:?}. This probably means that \
+                     add_intermediate_aggregation_result passed the wrong agg object.",
+                    key,
+                    req.keys().collect::<Vec<_>>()
+                )
+            });
             results.insert(key, agg_res.into_final_result(req, limits)?);
         }
         // Handle empty results
@@ -168,10 +172,16 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Range(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
             Default::default(),
         )),
-        Histogram(_) | DateHistogram(_) => {
+        Histogram(_) => {
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
                 buckets: Vec::new(),
-                column_type: None,
+                is_date_agg: false,
+            })
+        }
+        DateHistogram(_) => {
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
+                buckets: Vec::new(),
+                is_date_agg: true,
             })
         }
         Average(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Average(
@@ -339,8 +349,8 @@ pub enum IntermediateBucketResult {
     /// This is the histogram entry for a bucket, which contains a key, count, and optionally
     /// sub_aggregations.
     Histogram {
-        /// The column_type of the underlying `Column`
-        column_type: Option<ColumnType>,
+        /// The column_type of the underlying `Column` is DateTime
+        is_date_agg: bool,
         /// The buckets
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
@@ -395,7 +405,7 @@ impl IntermediateBucketResult {
                 Ok(BucketResult::Range { buckets })
             }
             IntermediateBucketResult::Histogram {
-                column_type,
+                is_date_agg,
                 buckets,
             } => {
                 let histogram_req = &req
@@ -404,7 +414,7 @@ impl IntermediateBucketResult {
                     .expect("unexpected aggregation, expected histogram aggregation");
                 let buckets = intermediate_histogram_buckets_to_final_buckets(
                     buckets,
-                    column_type,
+                    is_date_agg,
                     histogram_req,
                     req.sub_aggregation(),
                     limits,
@@ -453,17 +463,17 @@ impl IntermediateBucketResult {
             (
                 IntermediateBucketResult::Histogram {
                     buckets: buckets_left,
-                    ..
+                    is_date_agg: _,
                 },
                 IntermediateBucketResult::Histogram {
                     buckets: buckets_right,
-                    ..
+                    is_date_agg: _,
                 },
             ) => {
                 let buckets: Result<Vec<IntermediateHistogramBucketEntry>, TantivyError> =
                     buckets_left
                         .drain(..)
-                        .merge_join_by(buckets_right.into_iter(), |left, right| {
+                        .merge_join_by(buckets_right, |left, right| {
                             left.key.partial_cmp(&right.key).unwrap_or(Ordering::Equal)
                         })
                         .map(|either| match either {

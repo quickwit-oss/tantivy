@@ -15,7 +15,7 @@ impl<B: AsRef<[u8]>> Ord for HeapItem<B> {
 }
 impl<B: AsRef<[u8]>> PartialOrd for HeapItem<B> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.0.as_ref().cmp(self.0.as_ref()))
+        Some(self.cmp(other))
     }
 }
 

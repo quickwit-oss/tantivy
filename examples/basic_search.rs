@@ -221,5 +221,19 @@ fn main() -> tantivy::Result<()> {
         println!("{}", schema.to_json(&retrieved_doc));
     }
 
+    // We can also get an explanation to understand
+    // how a found document got its score.
+    let query = query_parser.parse_query("title:sea^20 body:whale^70")?;
+
+    let (_score, doc_address) = searcher
+        .search(&query, &TopDocs::with_limit(1))?
+        .into_iter()
+        .next()
+        .unwrap();
+
+    let explanation = query.explain(&searcher, doc_address)?;
+
+    println!("{}", explanation.to_pretty_json());
+
     Ok(())
 }

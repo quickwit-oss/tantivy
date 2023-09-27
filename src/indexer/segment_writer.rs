@@ -1,5 +1,6 @@
 use columnar::MonotonicallyMappableToU64;
 use itertools::Itertools;
+use tokenizer_api::BoxTokenStream;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
@@ -16,7 +17,7 @@ use crate::schema::document::{DocValue, DocumentAccess, ReferenceValue};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DocId, Opstamp, SegmentComponent};
+use crate::{DocId, Opstamp, SegmentComponent, TantivyError};
 
 /// Computes the initial size of the hash table.
 ///
@@ -26,6 +27,8 @@ use crate::{DocId, Opstamp, SegmentComponent};
 fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     let table_memory_upper_bound = per_thread_memory_budget / 3;
     (10..20) // We cap it at 2^19 = 512K capacity.
+        // TODO: There are cases where this limit causes a
+        // reallocation in the hashmap. Check if this affects performance.
         .map(|power| 1 << power)
         .take_while(|capacity| compute_table_memory_size(*capacity) < table_memory_upper_bound)
         .last()
@@ -96,14 +99,18 @@ impl SegmentWriter {
                     }
                     _ => None,
                 };
-                text_options
-                    .and_then(|text_index_option| {
-                        let tokenizer_name = &text_index_option.tokenizer();
-                        tokenizer_manager.get(tokenizer_name)
-                    })
-                    .unwrap_or_default()
+                let tokenizer_name = text_options
+                    .map(|text_index_option| text_index_option.tokenizer())
+                    .unwrap_or("default");
+
+                tokenizer_manager.get(tokenizer_name).ok_or_else(|| {
+                    TantivyError::SchemaError(format!(
+                        "Error getting tokenizer for field: {}",
+                        field_entry.name()
+                    ))
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             max_doc: 0,
             ctx: IndexingContext::new(table_size),
@@ -474,7 +481,9 @@ fn remap_and_write(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    use tempfile::TempDir;
 
     use super::compute_initial_table_size;
     use crate::collector::Count;
@@ -483,7 +492,9 @@ mod tests {
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
     use crate::schema::document::DocValue;
-    use crate::schema::{IndexRecordOption, Schema, Type, STORED, STRING, TEXT};
+    use crate::schema::{
+        IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING, TEXT,
+    };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
@@ -934,5 +945,33 @@ mod tests {
         let mut positions = Vec::new();
         postings.positions(&mut positions);
         assert_eq!(positions, &[4]); //< as opposed to 3 if we had a position length of 1.
+    }
+
+    #[test]
+    fn test_show_error_when_tokenizer_not_registered() {
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("custom_en")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("title", text_options);
+        let schema = schema_builder.build();
+        let tempdir = TempDir::new().unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+        Index::create_in_dir(&tempdir_path, schema).unwrap();
+        let index = Index::open_in_dir(tempdir_path).unwrap();
+        let schema = index.schema();
+        let mut index_writer = index.writer(50_000_000).unwrap();
+        let title = schema.get_field("title").unwrap();
+        let mut document = Document::default();
+        document.add_text(title, "The Old Man and the Sea");
+        index_writer.add_document(document).unwrap();
+        let error = index_writer.commit().unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Schema error: 'Error getting tokenizer for field: title'"
+        );
     }
 }

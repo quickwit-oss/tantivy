@@ -12,7 +12,7 @@ use std::io;
 
 mod block_accessor;
 mod column;
-mod column_index;
+pub mod column_index;
 pub mod column_values;
 mod columnar;
 mod dictionary;

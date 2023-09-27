@@ -410,7 +410,9 @@ mod tests {
     use super::IndexMeta;
     use crate::core::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
-    use crate::store::{Compressor, ZstdCompressor};
+    use crate::store::Compressor;
+    #[cfg(feature = "zstd-compression")]
+    use crate::store::ZstdCompressor;
     use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
@@ -446,6 +448,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "zstd-compression")]
     fn test_serialize_metas_zstd_compressor() {
         let schema = {
             let mut schema_builder = Schema::builder();
@@ -482,13 +485,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "lz4-compression", feature = "zstd-compression"))]
     fn test_serialize_metas_invalid_comp() {
         let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zsstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
 
         let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "unknown variant `zsstd`, expected one of `none`, `lz4`, `brotli`, `snappy`, `zstd`, \
+            "unknown variant `zsstd`, expected one of `none`, `lz4`, `zstd`, \
              `zstd(compression_level=5)` at line 1 column 96"
                 .to_string()
         );
@@ -499,6 +503,20 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "unknown zstd option \"bla\" at line 1 column 103".to_string()
+        );
+    }
+
+    #[test]
+    #[cfg(not(feature = "zstd-compression"))]
+    fn test_serialize_metas_unsupported_comp() {
+        let json = r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"zstd","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#;
+
+        let err = serde_json::from_str::<UntrackedIndexMeta>(json).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "unsupported variant `zstd`, please enable Tantivy's `zstd-compression` feature at \
+             line 1 column 95"
+                .to_string()
         );
     }
 

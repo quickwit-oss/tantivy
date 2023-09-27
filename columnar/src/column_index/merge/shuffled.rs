@@ -157,7 +157,13 @@ mod tests {
             Cardinality::Optional,
             &shuffle_merge_order,
         );
-        let SerializableColumnIndex::Optional { non_null_row_ids, num_rows } = serializable_index else { panic!() };
+        let SerializableColumnIndex::Optional {
+            non_null_row_ids,
+            num_rows,
+        } = serializable_index
+        else {
+            panic!()
+        };
         assert_eq!(num_rows, 2);
         let non_null_rows: Vec<RowId> = non_null_row_ids.boxed_iter().collect();
         assert_eq!(&non_null_rows, &[1]);

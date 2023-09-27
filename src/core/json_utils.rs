@@ -61,7 +61,7 @@ impl IndexingPositionsPerPath {
     fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
         self.positions_per_path
             .entry(murmurhash2(term.serialized_term()))
-            .or_insert_with(Default::default)
+            .or_default()
     }
 }
 
@@ -235,11 +235,11 @@ pub fn convert_to_fast_value_and_get_term(
             DateTime::from_utc(dt_utc),
         ));
     }
-    if let Ok(u64_val) = str::parse::<u64>(phrase) {
-        return Some(set_fastvalue_and_get_term(json_term_writer, u64_val));
-    }
     if let Ok(i64_val) = str::parse::<i64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, i64_val));
+    }
+    if let Ok(u64_val) = str::parse::<u64>(phrase) {
+        return Some(set_fastvalue_and_get_term(json_term_writer, u64_val));
     }
     if let Ok(f64_val) = str::parse::<f64>(phrase) {
         return Some(set_fastvalue_and_get_term(json_term_writer, f64_val));
@@ -282,7 +282,7 @@ pub(crate) fn set_string_and_get_terms(
 
 /// Writes a value of a JSON field to a `Term`.
 /// The Term format is as follows:
-/// [JSON_TYPE][JSON_PATH][JSON_END_OF_PATH][VALUE_BYTES]
+/// `[JSON_TYPE][JSON_PATH][JSON_END_OF_PATH][VALUE_BYTES]`
 pub struct JsonTermWriter<'a> {
     term_buffer: &'a mut Term,
     path_stack: Vec<usize>,
@@ -642,21 +642,21 @@ mod tests {
 
     #[test]
     fn test_split_json_path_escaped_dot() {
-        let json_path = split_json_path(r#"toto\.titi"#);
+        let json_path = split_json_path(r"toto\.titi");
         assert_eq!(&json_path, &["toto.titi"]);
-        let json_path_2 = split_json_path(r#"k8s\.container\.name"#);
+        let json_path_2 = split_json_path(r"k8s\.container\.name");
         assert_eq!(&json_path_2, &["k8s.container.name"]);
     }
 
     #[test]
     fn test_split_json_path_escaped_backslash() {
-        let json_path = split_json_path(r#"toto\\titi"#);
-        assert_eq!(&json_path, &[r#"toto\titi"#]);
+        let json_path = split_json_path(r"toto\\titi");
+        assert_eq!(&json_path, &[r"toto\titi"]);
     }
 
     #[test]
     fn test_split_json_path_escaped_normal_letter() {
-        let json_path = split_json_path(r#"toto\titi"#);
+        let json_path = split_json_path(r"toto\titi");
         assert_eq!(&json_path, &[r#"tototiti"#]);
     }
 }

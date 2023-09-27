@@ -6,12 +6,14 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{
-    doc, DocAddress, DocId, Index, IndexReader, Opstamp, Searcher, SearcherGeneration, SegmentId,
-    SegmentReader, Warmer,
+    doc, DocAddress, DocId, Index, Opstamp, Searcher, SearcherGeneration, SegmentId, SegmentReader,
+    Warmer,
 };
 
 // This example shows how warmers can be used to
-// load a values from an external sources using the Warmer API.
+// load values from an external sources and
+// tie their lifecycle to that of the index segments
+// using the Warmer API.
 //
 // In this example, we assume an e-commerce search engine.
 
@@ -23,9 +25,11 @@ pub trait PriceFetcher: Send + Sync + 'static {
     fn fetch_prices(&self, product_ids: &[ProductId]) -> Vec<Price>;
 }
 
+type SegmentKey = (SegmentId, Option<Opstamp>);
+
 struct DynamicPriceColumn {
     field: String,
-    price_cache: RwLock<HashMap<(SegmentId, Option<Opstamp>), Arc<Vec<Price>>>>,
+    price_cache: RwLock<HashMap<SegmentKey, Arc<Vec<Price>>>>,
     price_fetcher: Box<dyn PriceFetcher>,
 }
 
@@ -46,7 +50,6 @@ impl DynamicPriceColumn {
 impl Warmer for DynamicPriceColumn {
     fn warm(&self, searcher: &Searcher) -> tantivy::Result<()> {
         for segment in searcher.segment_readers() {
-            let key = (segment.segment_id(), segment.delete_opstamp());
             let product_id_reader = segment
                 .fast_fields()
                 .u64(&self.field)?
@@ -55,37 +58,40 @@ impl Warmer for DynamicPriceColumn {
                 .doc_ids_alive()
                 .map(|doc| product_id_reader.get_val(doc))
                 .collect();
-            let mut prices_it = self.price_fetcher.fetch_prices(&product_ids).into_iter();
-            let mut price_vals: Vec<Price> = Vec::new();
-            for doc in 0..segment.max_doc() {
-                if segment.is_deleted(doc) {
-                    price_vals.push(0);
-                } else {
-                    price_vals.push(prices_it.next().unwrap())
-                }
-            }
+
+            let mut prices = self.price_fetcher.fetch_prices(&product_ids).into_iter();
+
+            let prices: Vec<Price> = (0..segment.max_doc())
+                .map(|doc| {
+                    if !segment.is_deleted(doc) {
+                        prices.next().unwrap()
+                    } else {
+                        0
+                    }
+                })
+                .collect();
+
+            let key = (segment.segment_id(), segment.delete_opstamp());
             self.price_cache
                 .write()
                 .unwrap()
-                .insert(key, Arc::new(price_vals));
+                .insert(key, Arc::new(prices));
         }
+
         Ok(())
     }
 
     fn garbage_collect(&self, live_generations: &[&SearcherGeneration]) {
-        let live_segment_id_and_delete_ops: HashSet<(SegmentId, Option<Opstamp>)> =
-            live_generations
-                .iter()
-                .flat_map(|gen| gen.segments())
-                .map(|(&segment_id, &opstamp)| (segment_id, opstamp))
-                .collect();
-        let mut price_cache_wrt = self.price_cache.write().unwrap();
-        // let price_cache = std::mem::take(&mut *price_cache_wrt);
-        // Drain would be nicer here.
-        *price_cache_wrt = std::mem::take(&mut *price_cache_wrt)
-            .into_iter()
-            .filter(|(seg_id_and_op, _)| !live_segment_id_and_delete_ops.contains(seg_id_and_op))
+        let live_keys: HashSet<SegmentKey> = live_generations
+            .iter()
+            .flat_map(|gen| gen.segments())
+            .map(|(&segment_id, &opstamp)| (segment_id, opstamp))
             .collect();
+
+        self.price_cache
+            .write()
+            .unwrap()
+            .retain(|key, _| live_keys.contains(key));
     }
 }
 
@@ -100,17 +106,17 @@ pub struct ExternalPriceTable {
 
 impl ExternalPriceTable {
     pub fn update_price(&self, product_id: ProductId, price: Price) {
-        let mut prices_wrt = self.prices.write().unwrap();
-        prices_wrt.insert(product_id, price);
+        self.prices.write().unwrap().insert(product_id, price);
     }
 }
 
 impl PriceFetcher for ExternalPriceTable {
     fn fetch_prices(&self, product_ids: &[ProductId]) -> Vec<Price> {
-        let prices_read = self.prices.read().unwrap();
+        let prices = self.prices.read().unwrap();
+
         product_ids
             .iter()
-            .map(|product_id| prices_read.get(product_id).cloned().unwrap_or(0))
+            .map(|product_id| prices.get(product_id).cloned().unwrap_or(0))
             .collect()
     }
 }
@@ -137,17 +143,14 @@ fn main() -> tantivy::Result<()> {
     const SNEAKERS: ProductId = 23222;
 
     let index = Index::create_in_ram(schema);
-    let mut writer: IndexWriter = index.writer_with_num_threads(1, 10_000_000)?;
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000)?;
     writer.add_document(doc!(product_id=>OLIVE_OIL, text=>"cooking olive oil from greece"))?;
     writer.add_document(doc!(product_id=>GLOVES, text=>"kitchen gloves, perfect for cooking"))?;
     writer.add_document(doc!(product_id=>SNEAKERS, text=>"uber sweet sneakers"))?;
     writer.commit()?;
 
-    let warmers: Vec<Weak<dyn Warmer>> = vec![Arc::downgrade(
-        &(price_dynamic_column.clone() as Arc<dyn Warmer>),
-    )];
-    let reader: IndexReader = index.reader_builder().warmers(warmers).try_into()?;
-    reader.reload()?;
+    let warmers = vec![Arc::downgrade(&price_dynamic_column) as Weak<dyn Warmer>];
+    let reader = index.reader_builder().warmers(warmers).try_into()?;
 
     let query_parser = QueryParser::for_index(&index, vec![text]);
     let query = query_parser.parse_query("cooking")?;

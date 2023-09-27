@@ -119,7 +119,7 @@ pub mod tests {
         serializer.close_term()?;
         serializer.close()?;
         let position_delta = OwnedBytes::new(positions_buffer);
-        let mut output_delta_pos_buffer = vec![0u32; 5];
+        let mut output_delta_pos_buffer = [0u32; 5];
         let mut position_reader = PositionReader::open(position_delta)?;
         position_reader.read(0, &mut output_delta_pos_buffer[..]);
         assert_eq!(

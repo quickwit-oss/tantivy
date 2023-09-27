@@ -32,6 +32,7 @@ pub struct OrderedId(pub u32);
 #[derive(Default)]
 pub(crate) struct DictionaryBuilder {
     dict: FnvHashMap<Vec<u8>, UnorderedId>,
+    memory_consumption: usize,
 }
 
 impl DictionaryBuilder {
@@ -43,6 +44,8 @@ impl DictionaryBuilder {
         }
         let new_id = UnorderedId(self.dict.len() as u32);
         self.dict.insert(term.to_vec(), new_id);
+        self.memory_consumption += term.len();
+        self.memory_consumption += 40; // Term Metadata + HashMap overhead
         new_id
     }
 
@@ -62,6 +65,10 @@ impl DictionaryBuilder {
         }
         sstable_builder.finish()?;
         Ok(TermIdMapping { unordered_to_ord })
+    }
+
+    pub(crate) fn mem_usage(&self) -> usize {
+        self.memory_consumption
     }
 }
 

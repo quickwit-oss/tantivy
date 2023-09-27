@@ -80,12 +80,12 @@ impl JsonObjectOptions {
     /// When expand_dots is enabled, json object like
     /// `{"k8s.node.id": 5}` is processed as if it was
     /// `{"k8s": {"node": {"id": 5}}}`.
-    /// It option has the merit of allowing users to
+    /// This option has the merit of allowing users to
     /// write queries  like `k8s.node.id:5`.
     /// On the other, enabling that feature can lead to
     /// ambiguity.
     ///
-    /// If disabled, the "." need to be escaped:
+    /// If disabled, the "." needs to be escaped:
     /// `k8s\.node\.id:5`.
     pub fn is_expand_dots_enabled(&self) -> bool {
         self.expand_dots_enabled

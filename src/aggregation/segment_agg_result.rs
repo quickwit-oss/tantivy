@@ -15,7 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use crate::aggregation::bucket::SegmentTermCollectorComposite;
+use crate::aggregation::bucket::TermMissingAgg;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -82,29 +82,24 @@ pub(crate) fn build_single_agg_segment_collector(
     use AggregationVariants::*;
     match &req.agg.agg {
         Terms(terms_req) => {
-            if let Some(acc2) = req.accessor2.as_ref() {
-                Ok(Box::new(
-                    SegmentTermCollectorComposite::from_req_and_validate(
-                        terms_req,
-                        &mut req.sub_aggregation,
-                        req.field_type,
-                        acc2.1,
-                        accessor_idx,
-                    )?,
-                ))
-            } else {
+            if req.accessors.is_empty() {
                 Ok(Box::new(SegmentTermCollector::from_req_and_validate(
                     terms_req,
                     &mut req.sub_aggregation,
                     req.field_type,
                     accessor_idx,
                 )?))
+            } else {
+                Ok(Box::new(TermMissingAgg::new(
+                    accessor_idx,
+                    &mut req.sub_aggregation,
+                )?))
             }
         }
         Range(range_req) => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             range_req,
             &mut req.sub_aggregation,
-            &mut req.limits,
+            &req.limits,
             req.field_type,
             accessor_idx,
         )?)),
@@ -120,35 +115,43 @@ pub(crate) fn build_single_agg_segment_collector(
             req.field_type,
             accessor_idx,
         )?)),
-        Average(AverageAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
-            SegmentStatsType::Average,
-            accessor_idx,
-        ))),
-        Count(CountAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+        Average(AverageAggregation { missing, .. }) => {
+            Ok(Box::new(SegmentStatsCollector::from_req(
+                req.field_type,
+                SegmentStatsType::Average,
+                accessor_idx,
+                *missing,
+            )))
+        }
+        Count(CountAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Count,
             accessor_idx,
+            *missing,
         ))),
-        Max(MaxAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+        Max(MaxAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Max,
             accessor_idx,
+            *missing,
         ))),
-        Min(MinAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+        Min(MinAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Min,
             accessor_idx,
+            *missing,
         ))),
-        Stats(StatsAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+        Stats(StatsAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Stats,
             accessor_idx,
+            *missing,
         ))),
-        Sum(SumAggregation { .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+        Sum(SumAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Sum,
             accessor_idx,
+            *missing,
         ))),
         Percentiles(percentiles_req) => Ok(Box::new(
             SegmentPercentilesCollector::from_req_and_validate(

@@ -89,7 +89,7 @@ mod tests_mmap {
         let parse_query = QueryParser::for_index(&index, Vec::new());
         {
             let query = parse_query
-                .parse_query(r#"json.k8s\.container\.name:prometheus"#)
+                .parse_query(r"json.k8s\.container\.name:prometheus")
                 .unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
             assert_eq!(num_docs, 1);
@@ -127,7 +127,7 @@ mod tests_mmap {
         }
         {
             let query = parse_query
-                .parse_query(r#"json.k8s\.container\.name:prometheus"#)
+                .parse_query(r"json.k8s\.container\.name:prometheus")
                 .unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
             assert_eq!(num_docs, 1);
