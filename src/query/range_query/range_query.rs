@@ -41,7 +41,7 @@ use crate::{DateTime, DocId, Score};
 /// use tantivy::collector::Count;
 /// use tantivy::query::RangeQuery;
 /// use tantivy::schema::{Schema, INDEXED};
-/// use tantivy::{doc, Index};
+/// use tantivy::{doc, Index, IndexWriter};
 /// # fn test() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let year_field = schema_builder.add_u64_field("year", INDEXED);
@@ -475,7 +475,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Document, Field, IntoIpv6Addr, Schema, FAST, INDEXED, STORED, TEXT};
-    use crate::{doc, Index};
+    use crate::{doc, Index, IndexWriter};
 
     #[test]
     fn test_range_query_simple() -> crate::Result<()> {
@@ -722,7 +722,7 @@ mod tests {
         let ip_addr_2 = IpAddr::from_str("127.0.0.20").unwrap().into_ipv6_addr();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..1_000 {
                 index_writer
                     .add_document(doc!(

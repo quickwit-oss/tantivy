@@ -285,7 +285,7 @@ pub mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             assert!(index_writer.merge(&segment_ids).wait().is_ok());
             assert!(index_writer.wait_merging_threads().is_ok());
         }

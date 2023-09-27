@@ -598,7 +598,7 @@ mod bench {
         let index = Index::create_in_ram(schema);
         let posting_list_size = 1_000_000;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
                 let mut doc = Document::default();
                 if rng.gen_bool(1f64 / 15f64) {

@@ -64,7 +64,7 @@ impl FacetReader {
 mod tests {
     use crate::schema::document::DocValue;
     use crate::schema::{Facet, FacetOptions, SchemaBuilder, STORED};
-    use crate::{DocAddress, Document, Index};
+    use crate::{DocAddress, Document, Index, IndexWriter};
 
     #[test]
     fn test_facet_only_indexed() {
@@ -72,7 +72,7 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()))
             .unwrap();
@@ -99,7 +99,7 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(facet_field=>Facet::from_text("/parent/child1").unwrap()))
             .unwrap();

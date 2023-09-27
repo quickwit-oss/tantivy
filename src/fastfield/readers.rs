@@ -357,7 +357,7 @@ mod tests {
     use columnar::ColumnType;
 
     use crate::schema::{JsonObjectOptions, Schema, FAST};
-    use crate::{Document, Index};
+    use crate::{Document, Index, IndexWriter};
 
     #[test]
     fn test_fast_field_reader_resolve_with_dynamic_internal() {
@@ -373,7 +373,7 @@ mod tests {
         let dynamic_field = schema_builder.add_json_field("_dyna", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(Document::default()).unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
@@ -443,7 +443,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(id=> 1u64, json => json!({"foo": 42})))
             .unwrap();

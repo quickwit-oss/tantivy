@@ -496,7 +496,7 @@ mod tests {
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
     use crate::schema::{Document, Facet, FacetOptions, IndexRecordOption, Schema};
-    use crate::Term;
+    use crate::{IndexWriter, Term};
 
     fn test_collapse_mapping_aux(
         facet_terms: &[&str],
@@ -559,7 +559,7 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(facet_field=>Facet::from("/facet/a")))
             .unwrap();
@@ -588,7 +588,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -749,7 +749,7 @@ mod tests {
             .collect();
         docs[..].shuffle(&mut thread_rng());
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {
             index_writer.add_document(doc).unwrap();
         }
@@ -847,7 +847,7 @@ mod bench {
         // 40425 docs
         docs[..].shuffle(&mut thread_rng());
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {
             index_writer.add_document(doc).unwrap();
         }

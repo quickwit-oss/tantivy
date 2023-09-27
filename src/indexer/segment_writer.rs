@@ -501,7 +501,8 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
-        DateTime, Directory, DocAddress, DocSet, Document, Index, Postings, Term, TERMINATED,
+        DateTime, Directory, DocAddress, DocSet, Document, Index, IndexWriter, Postings, Term,
+        TERMINATED,
     };
 
     #[test]
@@ -842,7 +843,7 @@ mod tests {
         let schema = schema_builder.build();
         let doc = Document::parse_json(&schema, r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#).unwrap();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc).unwrap();
         // On debug this did panic on the underflow
         index_writer.commit().unwrap();
@@ -882,7 +883,7 @@ mod tests {
         doc.add_pre_tokenized_text(text, tokens.clone());
         doc.add_pre_tokenized_text(text, tokens);
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc).unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
@@ -930,7 +931,7 @@ mod tests {
         doc.add_pre_tokenized_text(text, tokens);
         doc.add_text(text, "hello");
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc).unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();

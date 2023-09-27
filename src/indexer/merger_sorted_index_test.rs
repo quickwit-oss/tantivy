@@ -30,7 +30,7 @@ mod tests {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer
                 .add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")))
                 .unwrap();
@@ -500,7 +500,7 @@ mod bench_sorted_index_merge {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let index_doc = |index_writer: &mut IndexWriter, val: u64| {
                 index_writer.add_document(doc!(int_field=>val)).unwrap();
             };

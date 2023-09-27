@@ -855,7 +855,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(text_field => "hello1"))
             .unwrap();
@@ -908,7 +908,7 @@ mod tests {
             .reload_policy(ReloadPolicy::Manual)
             .try_into()
             .unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
         let operations = vec![
@@ -1059,7 +1059,7 @@ mod tests {
             reader.searcher().doc_freq(&term_a).unwrap()
         };
         // writing the segment
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.commit()?;
         //  this should create 1 segment
@@ -1099,7 +1099,7 @@ mod tests {
             reader.searcher().doc_freq(&term_a).unwrap()
         };
         // writing the segment
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.commit()?;
         index_writer.add_document(doc!(text_field=>"a"))?;
@@ -1418,7 +1418,7 @@ mod tests {
         let schema = schema_builder.build();
 
         let index = Index::builder().schema(schema).create_in_ram().unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(text_field => "one"))
             .unwrap();

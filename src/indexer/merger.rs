@@ -1295,7 +1295,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let mut int_val = 0;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let index_doc =
                 |index_writer: &mut IndexWriter, doc_facets: &[&str], int_val: &mut u64| {
                     let mut doc = Document::default();
@@ -1426,7 +1426,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(int_field => 1u64))?;
         index_writer.commit().expect("commit failed");
         index_writer.add_document(doc!(int_field => 1u64))?;

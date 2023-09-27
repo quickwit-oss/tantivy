@@ -416,7 +416,7 @@ mod tests {
         let date_field = schema_builder.add_date_field("date", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer
             .add_document(doc!(date_field => DateTime::from_utc(OffsetDateTime::now_utc())))
@@ -452,7 +452,7 @@ mod tests {
 
         {
             // first segment
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
             index_writer
                 .add_document(doc!(
@@ -506,7 +506,7 @@ mod tests {
 
         {
             // second segment
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
 
             index_writer
                 .add_document(doc!(
@@ -962,7 +962,7 @@ mod tests {
         let ip_field = schema_builder.add_u64_field("ip", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let ip_addr = Ipv6Addr::new(1, 2, 3, 4, 5, 1, 2, 3);
         index_writer.add_document(Document::default()).unwrap();
         index_writer.add_document(doc!(ip_field=>ip_addr)).unwrap();
@@ -1086,7 +1086,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(json => json!({"attr.age": 32})))
             .unwrap();
@@ -1112,7 +1112,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(json => json!({"age": 32})))
             .unwrap();
@@ -1139,7 +1139,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(json => json!({"attr.age": 32})))
             .unwrap();
@@ -1162,7 +1162,7 @@ mod tests {
         let field_with_dot = schema_builder.add_i64_field("field.with.dot", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(field_with_dot => 32i64))
             .unwrap();
@@ -1184,7 +1184,7 @@ mod tests {
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(json_field=> json!({"attr": {"age": 32}}), shadowing_json_field=>json!({"age": 33})))
             .unwrap();
@@ -1215,7 +1215,7 @@ mod tests {
 
         let mut index = Index::create_in_ram(schema);
         index.set_fast_field_tokenizers(ff_tokenizer_manager);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(text_field => "Test1 test2"))
             .unwrap();
@@ -1244,7 +1244,7 @@ mod tests {
         let log_field = schema_builder.add_text_field("log_level", text_fieldtype);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(log_field => "info"))
             .unwrap();
@@ -1277,7 +1277,7 @@ mod tests {
         let shadowing_json_field = schema_builder.add_json_field("jsonfield.attr", json_option);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(json_field=> json!({"attr.age": 32}), shadowing_json_field=>json!({"age": 33})))
             .unwrap();

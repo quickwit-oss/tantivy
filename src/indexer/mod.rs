@@ -110,7 +110,7 @@ mod tests_mmap {
             JsonObjectOptions::from(TEXT).set_expand_dots_enabled();
         let json_field = schema_builder.add_json_field("json", json_options);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello"});
         index_writer.add_document(doc!(json_field=>json)).unwrap();
         index_writer.commit().unwrap();
