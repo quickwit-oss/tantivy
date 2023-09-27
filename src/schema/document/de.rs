@@ -276,14 +276,17 @@ pub trait ObjectAccess<'de> {
     fn next_entry<V: ValueDeserialize>(&mut self) -> Result<Option<(String, V)>, DeserializeError>;
 }
 
-/// TODO: Improve docs
-pub struct GenericDocumentDeserializer<'de, R> {
+/// The default document deserializer used to read the tantivy block data.
+///
+/// This acts very similarly to serde's deserialize types and can incrementally
+/// deserialize each field of the document from the provided reader (`R`).
+pub struct DefaultDocumentDeserializer<'de, R> {
     length: usize,
     position: usize,
     reader: &'de mut R,
 }
 
-impl<'de, R> GenericDocumentDeserializer<'de, R>
+impl<'de, R> DefaultDocumentDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
@@ -304,7 +307,7 @@ where R: Read
     }
 }
 
-impl<'de, R> DocumentDeserializer<'de> for GenericDocumentDeserializer<'de, R>
+impl<'de, R> DocumentDeserializer<'de> for DefaultDocumentDeserializer<'de, R>
 where R: Read
 {
     #[inline]
@@ -783,7 +786,7 @@ mod tests {
     use tokenizer_api::Token;
 
     use super::*;
-    use crate::schema::document::helpers::{JsonArrayIter, JsonObjectIter};
+    use crate::schema::document::existing_type_impls::{JsonArrayIter, JsonObjectIter};
     use crate::schema::document::se::ValueSerializer;
     use crate::schema::document::ReferenceValue;
 

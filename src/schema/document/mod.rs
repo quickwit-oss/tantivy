@@ -152,21 +152,21 @@
 //!
 //! TODO: Complete this section...
 
-mod core;
 mod de;
-mod helpers;
+mod default_doc_type;
+mod existing_type_impls;
 mod se;
 
 use std::fmt::Debug;
 use std::mem;
 use std::net::Ipv6Addr;
 
-pub use self::core::{DocParsingError, Document};
-pub(crate) use self::de::GenericDocumentDeserializer;
+pub(crate) use self::de::DefaultDocumentDeserializer;
 pub use self::de::{
     ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
     ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
 };
+pub use self::default_doc_type::{DocParsingError, Document};
 pub(crate) use self::se::DocumentSerializer;
 use super::*;
 use crate::tokenizer::PreTokenizedString;
@@ -313,7 +313,7 @@ pub trait DocValue<'a>: Send + Sync + Debug {
     #[inline]
     /// If the Value is a pre-tokenized string, returns the associated string. Returns None
     /// otherwise.
-    fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
+    fn as_pre_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
         if let ReferenceValue::PreTokStr(val) = self.as_value() {
             Some(val)
         } else {
@@ -468,7 +468,7 @@ where V: DocValue<'a>
     #[inline]
     /// If the Value is a pre-tokenized string, returns the associated string. Returns None
     /// otherwise.
-    pub fn as_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
+    pub fn as_pre_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
         if let Self::PreTokStr(val) = self {
             Some(val)
         } else {

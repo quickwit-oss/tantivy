@@ -14,7 +14,7 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::document::{DocumentAccess, GenericDocumentDeserializer};
+use crate::schema::document::{DefaultDocumentDeserializer, DocumentAccess};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -201,7 +201,7 @@ impl StoreReader {
     pub fn get<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
-        let deserializer = GenericDocumentDeserializer::from_reader(&mut doc_bytes)
+        let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
@@ -242,7 +242,7 @@ impl StoreReader {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
 
-            let deserializer = GenericDocumentDeserializer::from_reader(&mut doc_bytes)
+            let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
                 .map_err(crate::TantivyError::from)?;
             D::deserialize(deserializer).map_err(crate::TantivyError::from)
         })
@@ -373,7 +373,7 @@ impl StoreReader {
     pub async fn get_async<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
 
-        let deserializer = GenericDocumentDeserializer::from_reader(&mut doc_bytes)
+        let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }

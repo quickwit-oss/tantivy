@@ -164,7 +164,8 @@ impl SegmentWriter {
 
     fn index_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
-        // TODO: This should be removed...
+
+        // TODO: Can this be optimised a bit?
         let vals_grouped_by_field = doc
             .iter_fields_and_values()
             .sorted_by_key(|(field, _)| *field)
@@ -175,7 +176,7 @@ impl SegmentWriter {
 
             let field_entry = self.schema.get_field_entry(field);
             let make_schema_error = || {
-                crate::TantivyError::SchemaError(format!(
+                TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
                     field_entry.field_type().value_type(),
                     field_entry.name()
@@ -220,7 +221,7 @@ impl SegmentWriter {
                             let text_analyzer =
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
-                        } else if let Some(tok_str) = value.as_tokenized_text() {
+                        } else if let Some(tok_str) = value.as_pre_tokenized_text() {
                             PreTokenizedStream::from(tok_str.clone()).into()
                         } else {
                             continue;

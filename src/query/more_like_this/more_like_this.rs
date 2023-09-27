@@ -219,7 +219,7 @@ impl MoreLikeThis {
 
                         let mut token_stream = tokenizer.token_stream(text);
                         token_stream.process(sink);
-                    } else if let Some(tok_str) = value.as_tokenized_text() {
+                    } else if let Some(tok_str) = value.as_pre_tokenized_text() {
                         let mut token_stream = PreTokenizedStream::from(tok_str.clone());
                         token_stream.process(sink);
                     }

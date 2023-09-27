@@ -40,7 +40,6 @@ pub enum FacetParseError {
 /// belonging to a facet also belongs to the ancestor of
 /// its facet. In the example above, `/electronics/tv_and_video/`
 /// and `/electronics`.
-#[repr(transparent)]
 #[derive(Clone, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct Facet(pub(crate) String);
 

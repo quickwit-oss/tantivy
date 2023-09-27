@@ -127,28 +127,18 @@ fn index_json_value<'a, V: DocValue<'a>>(
     match json_value {
         ReferenceValue::Null => {}
         ReferenceValue::Str(val) => {
-            // TODO: Maybe this should be removed now we can explicitly state the type can be a
-            // datetime.
-            match infer_type_from_str(val) {
-                TextOrDateTime::Text(text) => {
-                    let mut token_stream = text_analyzer.token_stream(text);
-                    // TODO make sure the chain position works out.
-                    json_term_writer.close_path_and_set_type(Type::Str);
-                    let indexing_position =
-                        positions_per_path.get_position(json_term_writer.term());
-                    postings_writer.index_text(
-                        doc,
-                        &mut *token_stream,
-                        json_term_writer.term_buffer,
-                        ctx,
-                        indexing_position,
-                    );
-                }
-                TextOrDateTime::DateTime(dt) => {
-                    json_term_writer.set_fast_value(DateTime::from_utc(dt));
-                    postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-                }
-            }
+            let mut token_stream = text_analyzer.token_stream(val);
+
+            // TODO: make sure the chain position works out.
+            json_term_writer.close_path_and_set_type(Type::Str);
+            let indexing_position = positions_per_path.get_position(json_term_writer.term());
+            postings_writer.index_text(
+                doc,
+                &mut *token_stream,
+                json_term_writer.term_buffer,
+                ctx,
+                indexing_position,
+            );
         }
         ReferenceValue::U64(val) => {
             json_term_writer.set_fast_value(val);
@@ -172,8 +162,9 @@ fn index_json_value<'a, V: DocValue<'a>>(
         ReferenceValue::IpAddr(_) => {
             unimplemented!("IP address support in dynamic fields is not yet implemented")
         }
-        ReferenceValue::Date(_) => {
-            unimplemented!("Datetime support in dynamic fields is not yet implemented")
+        ReferenceValue::Date(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
         ReferenceValue::PreTokStr(_) => {
             unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented")

@@ -275,7 +275,7 @@ impl DocParsingError {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::core::Document;
+    use crate::schema::document::default_doc_type::Document;
     use crate::schema::*;
 
     #[test]

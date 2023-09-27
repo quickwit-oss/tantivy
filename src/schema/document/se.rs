@@ -299,7 +299,7 @@ mod tests {
     use tokenizer_api::Token;
 
     use super::*;
-    use crate::schema::document::helpers::{JsonArrayIter, JsonObjectIter};
+    use crate::schema::document::existing_type_impls::{JsonArrayIter, JsonObjectIter};
     use crate::schema::{Facet, Field, FAST, STORED, TEXT};
     use crate::tokenizer::PreTokenizedString;
 
