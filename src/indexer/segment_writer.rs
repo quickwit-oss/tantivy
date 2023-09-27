@@ -222,7 +222,7 @@ impl SegmentWriter {
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
                         } else if let Some(tok_str) = value.as_pre_tokenized_text() {
-                            PreTokenizedStream::from(tok_str.clone()).into()
+                            BoxTokenStream::new(PreTokenizedStream::from(tok_str.clone()))
                         } else {
                             continue;
                         };
