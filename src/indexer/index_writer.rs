@@ -960,7 +960,7 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer: IndexWriter = index.writer_for_tests().unwrap();
-        match index.writer_for_tests::<IndexWriter>() {
+        match index.writer_for_tests::<Document>() {
             Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
             _ => panic!("Expected a `LockFailure` error"),
         }
