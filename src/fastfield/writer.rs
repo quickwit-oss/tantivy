@@ -338,7 +338,7 @@ fn record_json_value_to_columnar_writer<'a, V: DocValue<'a>>(
         ReferenceValue::Facet(_) => {
             unimplemented!("Facet support in dynamic fields is not yet implemented")
         }
-        ReferenceValue::Bytes(val) => {
+        ReferenceValue::Bytes(_) => {
             // TODO: This can be re added once it is added to the JSON Utils section as well.
             // columnar_writer.record_bytes(doc, json_path_writer.as_str(), val);
             unimplemented!("Bytes support in dynamic fields is not yet implemented")

@@ -199,21 +199,6 @@ fn index_json_value<'a, V: DocValue<'a>>(
     }
 }
 
-enum TextOrDateTime<'a> {
-    Text(&'a str),
-    DateTime(OffsetDateTime),
-}
-
-fn infer_type_from_str(text: &str) -> TextOrDateTime {
-    match OffsetDateTime::parse(text, &Rfc3339) {
-        Ok(dt) => {
-            let dt_utc = dt.to_offset(UtcOffset::UTC);
-            TextOrDateTime::DateTime(dt_utc)
-        }
-        Err(_) => TextOrDateTime::Text(text),
-    }
-}
-
 // Tries to infer a JSON type from a string.
 pub fn convert_to_fast_value_and_get_term(
     json_term_writer: &mut JsonTermWriter,

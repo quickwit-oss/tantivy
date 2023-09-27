@@ -1,7 +1,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy, Result};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy, Result};
 use tempfile::TempDir;
 
 fn main() -> Result<()> {
@@ -68,7 +68,11 @@ fn main() -> Result<()> {
         .into_iter()
         .map(|(_score, doc_address)| {
             let doc = searcher.doc(doc_address)?;
-            let title = doc.get_first(title).unwrap().as_text().unwrap().to_owned();
+            let title = doc
+                .get_first(title)
+                .and_then(|v| v.as_str())
+                .unwrap()
+                .to_owned();
             Ok(title)
         })
         .collect::<Result<Vec<_>>>()?;

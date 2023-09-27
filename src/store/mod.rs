@@ -297,7 +297,7 @@ pub mod tests {
 
         for doc in store.iter::<Document>(reader.alive_bitset()).take(50) {
             assert_eq!(
-                *doc?.get_first(text_field).unwrap().as_text().unwrap(),
+                *doc?.get_first(text_field).and_then(|v| v.as_str()).unwrap(),
                 LOREM.to_string()
             );
         }
