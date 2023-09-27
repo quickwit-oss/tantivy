@@ -12,7 +12,7 @@ use tantivy::aggregation::agg_result::AggregationResults;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{self, IndexRecordOption, Schema, TextFieldIndexing, FAST};
-use tantivy::Index;
+use tantivy::{Document, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // # Create Schema

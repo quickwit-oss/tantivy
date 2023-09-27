@@ -5,7 +5,7 @@
 use tantivy::collector::Count;
 use tantivy::query::RangeQuery;
 use tantivy::schema::{Schema, INDEXED};
-use tantivy::{doc, Index, Result};
+use tantivy::{doc, Index, IndexWriter, Result};
 
 fn main() -> Result<()> {
     // For the sake of simplicity, this schema will only have 1 field

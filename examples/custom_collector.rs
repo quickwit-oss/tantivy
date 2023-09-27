@@ -13,7 +13,7 @@ use columnar::Column;
 use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::{doc, Index, Score, SegmentReader};
+use tantivy::{doc, Index, IndexWriter, Score, SegmentReader};
 
 #[derive(Default)]
 struct Stats {

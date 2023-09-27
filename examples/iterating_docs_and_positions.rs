@@ -10,7 +10,7 @@
 // ---
 // Importing tantivy...
 use tantivy::schema::*;
-use tantivy::{doc, DocSet, Index, Postings, TERMINATED};
+use tantivy::{doc, DocSet, Index, IndexWriter, Postings, TERMINATED};
 
 fn main() -> tantivy::Result<()> {
     // We first create a schema for the sake of the

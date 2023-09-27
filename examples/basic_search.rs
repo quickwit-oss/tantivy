@@ -15,7 +15,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -217,8 +217,8 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
     for (_score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("{}", schema.to_json(&retrieved_doc));
+        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     // We can also get an explanation to understand

@@ -14,7 +14,7 @@
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::FuzzyTermQuery;
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -151,10 +151,10 @@ fn main() -> tantivy::Result<()> {
         assert_eq!(count, 3);
         assert_eq!(top_docs.len(), 3);
         for (score, doc_address) in top_docs {
-            let retrieved_doc = searcher.doc(doc_address)?;
             // Note that the score is not lower for the fuzzy hit.
             // There's an issue open for that: https://github.com/quickwit-oss/tantivy/issues/563
-            println!("score {score:?} doc {}", schema.to_json(&retrieved_doc));
+            let retrieved_doc: Document = searcher.doc(doc_address)?;
+            println!("score {score:?} doc {}", retrieved_doc.to_json(&schema));
             // score 1.0 doc {"title":["The Diary of Muadib"]}
             //
             // score 1.0 doc {"title":["The Diary of a Young Girl"]}

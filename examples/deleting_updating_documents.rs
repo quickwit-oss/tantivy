@@ -11,7 +11,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
-use tantivy::{doc, Index, IndexReader};
+use tantivy::{doc, Index, IndexReader, IndexWriter};
 
 // A simple helper function to fetch a single document
 // given its id from our index.
@@ -94,7 +94,7 @@ fn main() -> tantivy::Result<()> {
     // Oops our frankenstein doc seems misspelled
     let frankenstein_doc_misspelled = extract_doc_given_isbn(&reader, &frankenstein_isbn)?.unwrap();
     assert_eq!(
-        schema.to_json(&frankenstein_doc_misspelled),
+        frankenstein_doc_misspelled.to_json(&schema),
         r#"{"isbn":["978-9176370711"],"title":["Frankentein"]}"#,
     );
 
@@ -136,7 +136,7 @@ fn main() -> tantivy::Result<()> {
     // No more typo!
     let frankenstein_new_doc = extract_doc_given_isbn(&reader, &frankenstein_isbn)?.unwrap();
     assert_eq!(
-        schema.to_json(&frankenstein_new_doc),
+        frankenstein_new_doc.to_json(&schema),
         r#"{"isbn":["978-9176370711"],"title":["Frankenstein"]}"#,
     );
 

@@ -7,7 +7,7 @@
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, STORED, STRING, TEXT};
-use tantivy::Index;
+use tantivy::{Document, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema

@@ -6,8 +6,8 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{
-    doc, DocAddress, DocId, Index, Opstamp, Searcher, SearcherGeneration, SegmentId, SegmentReader,
-    Warmer,
+    doc, DocAddress, DocId, Index, IndexWriter, Opstamp, Searcher, SearcherGeneration, SegmentId,
+    SegmentReader, Warmer,
 };
 
 // This example shows how warmers can be used to

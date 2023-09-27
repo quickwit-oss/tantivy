@@ -10,7 +10,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, Snippet, SnippetGenerator};
+use tantivy::{doc, Index, IndexWriter, Snippet, SnippetGenerator};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -54,7 +54,7 @@ fn main() -> tantivy::Result<()> {
     let snippet_generator = SnippetGenerator::create(&searcher, &*query, body)?;
 
     for (score, doc_address) in top_docs {
-        let doc = searcher.doc(doc_address)?;
+        let doc = searcher.doc::<Document>(doc_address)?;
         let snippet = snippet_generator.snippet_from_doc(&doc);
         println!("Document score {score}:");
         println!("title: {}", doc.get_first(title).unwrap().as_str().unwrap());

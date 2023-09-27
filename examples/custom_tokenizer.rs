@@ -6,7 +6,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::NgramTokenizer;
-use tantivy::{doc, Index};
+use tantivy::{doc, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -103,8 +103,8 @@ fn main() -> tantivy::Result<()> {
     let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     for (_, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("{}", schema.to_json(&retrieved_doc));
+        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     Ok(())

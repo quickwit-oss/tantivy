@@ -13,7 +13,7 @@ use tantivy::collector::{Count, TopDocs};
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
 use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, TokenStream, Tokenizer};
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
 fn pre_tokenize_text(text: &str) -> Vec<Token> {
@@ -115,8 +115,8 @@ fn main() -> tantivy::Result<()> {
     // Note that the tokens are not stored along with the original text
     // in the document store
     for (_score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("Document: {}", schema.to_json(&retrieved_doc));
+        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     // In contrary to the previous query, when we search for the "man" term we

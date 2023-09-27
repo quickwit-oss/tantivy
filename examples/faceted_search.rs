@@ -17,7 +17,7 @@
 use tantivy::collector::FacetCollector;
 use tantivy::query::{AllQuery, TermQuery};
 use tantivy::schema::*;
-use tantivy::{doc, Index};
+use tantivy::{doc, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the sake of this example
