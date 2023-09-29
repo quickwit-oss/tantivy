@@ -90,7 +90,10 @@ impl SegmentAggregationCollector for TermMissingAgg {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let agg = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        let has_value = agg.accessors.iter().any(|acc| acc.index.has_value(doc));
+        let has_value = agg
+            .accessors
+            .iter()
+            .any(|(acc, _)| acc.index.has_value(doc));
         if !has_value {
             self.missing_count += 1;
             if let Some(sub_agg) = self.sub_agg.as_mut() {

@@ -14,7 +14,7 @@ use super::metric::{
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
-use crate::SegmentReader;
+use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -32,6 +32,7 @@ impl AggregationsWithAccessor {
 }
 
 pub struct AggregationWithAccessor {
+    pub(crate) segment_id: SegmentOrdinal,
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. That is not that case currently, but eventually this needs to be
     /// Option or moved.
@@ -44,10 +45,13 @@ pub struct AggregationWithAccessor {
     pub(crate) limits: ResourceLimitGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     /// Used for missing term aggregation, which checks all columns for existence.
+    /// And also for `top_hits` aggregation, which may sort on multiple fields.
     /// By convention the missing aggregation is chosen, when this property is set
     /// (instead bein set in `agg`).
     /// If this needs to used by other aggregations, we need to refactor this.
-    pub(crate) accessors: Vec<Column<u64>>,
+    // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
+    // (making them obsolete) But will it have a performance impact?
+    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     pub(crate) agg: Aggregation,
 }
 
@@ -57,6 +61,7 @@ impl AggregationWithAccessor {
         agg: &Aggregation,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
+        segment_id: SegmentOrdinal,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let add_agg_with_accessor = |accessor: Column<u64>,
@@ -64,12 +69,38 @@ impl AggregationWithAccessor {
                                      aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
             let res = AggregationWithAccessor {
+                segment_id,
                 accessor,
                 accessors: Vec::new(),
                 field_type: column_type,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
                     reader,
+                    segment_id,
+                    &limits,
+                )?,
+                agg: agg.clone(),
+                limits: limits.new_guard(),
+                missing_value_for_accessor: None,
+                str_dict_column: None,
+                column_block_accessor: Default::default(),
+            };
+            aggs.push(res);
+            Ok(())
+        };
+
+        let add_agg_with_accessors = |accessors: Vec<(Column<u64>, ColumnType)>,
+                                      aggs: &mut Vec<AggregationWithAccessor>|
+         -> crate::Result<()> {
+            let res = AggregationWithAccessor {
+                segment_id,
+                accessor: accessors[0].0.clone(),
+                field_type: accessors[0].1,
+                accessors,
+                sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                    sub_aggregation,
+                    reader,
+                    segment_id,
                     &limits,
                 )?,
                 agg: agg.clone(),
@@ -162,24 +193,11 @@ impl AggregationWithAccessor {
                     let column_and_types =
                         get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?;
 
-                    let accessors: Vec<Column> =
-                        column_and_types.iter().map(|(a, _)| a.clone()).collect();
-                    let agg_wit_acc = AggregationWithAccessor {
-                        missing_value_for_accessor: None,
-                        accessor: accessors[0].clone(),
-                        accessors,
-                        field_type: ColumnType::U64,
-                        sub_aggregation: get_aggs_with_segment_accessor_and_validate(
-                            sub_aggregation,
-                            reader,
-                            &limits,
-                        )?,
-                        agg: agg.clone(),
-                        str_dict_column: str_dict_column.clone(),
-                        limits: limits.new_guard(),
-                        column_block_accessor: Default::default(),
-                    };
-                    res.push(agg_wit_acc);
+                    let accessors: Vec<(Column<u64>, ColumnType)> = column_and_types
+                        .iter()
+                        .map(|(c, t)| (c.clone(), *t))
+                        .collect();
+                    add_agg_with_accessors(accessors, &mut res)?;
                 }
 
                 for (accessor, column_type) in column_and_types {
@@ -197,6 +215,7 @@ impl AggregationWithAccessor {
                         };
 
                     let agg = AggregationWithAccessor {
+                        segment_id,
                         missing_value_for_accessor,
                         accessor,
                         accessors: Vec::new(),
@@ -204,6 +223,7 @@ impl AggregationWithAccessor {
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
                             reader,
+                            segment_id,
                             &limits,
                         )?,
                         agg: agg.clone(),
@@ -243,6 +263,16 @@ impl AggregationWithAccessor {
                     Some(get_numeric_or_date_column_types()),
                 )?;
                 add_agg_with_accessor(accessor, column_type, &mut res)?;
+            }
+            TopHits(top_hits) => {
+                let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
+                    .get_fields()
+                    .iter()
+                    .map(|field| {
+                        get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))
+                    })
+                    .collect::<crate::Result<_>>()?;
+                add_agg_with_accessors(accessors, &mut res)?;
             }
         };
 
@@ -284,6 +314,7 @@ fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
 pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
+    segment_id: SegmentOrdinal,
     limits: &AggregationLimits,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut aggss = Vec::new();
@@ -292,6 +323,7 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
             agg,
             agg.sub_aggregation(),
             reader,
+            segment_id,
             limits.clone(),
         )?;
         for agg in aggs {

@@ -35,7 +35,7 @@ use super::bucket::{
 };
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
-    PercentilesAggregationReq, StatsAggregation, SumAggregation,
+    PercentilesAggregationReq, StatsAggregation, SumAggregation, TopHitsAggregation,
 };
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -147,6 +147,9 @@ pub enum AggregationVariants {
     /// Computes the sum of the extracted values.
     #[serde(rename = "percentiles")]
     Percentiles(PercentilesAggregationReq),
+    /// Finds the top k values matching some order
+    #[serde(rename = "top_hits")]
+    TopHits(TopHitsAggregation),
 }
 
 impl AggregationVariants {
@@ -164,6 +167,9 @@ impl AggregationVariants {
             AggregationVariants::Stats(stats) => stats.field_name(),
             AggregationVariants::Sum(sum) => sum.field_name(),
             AggregationVariants::Percentiles(per) => per.field_name(),
+            // FIXME: a single fast field doesn't make sense for top hits
+            // What should we do here?
+            AggregationVariants::TopHits(top_hits) => top_hits.field_name(),
         }
     }
 

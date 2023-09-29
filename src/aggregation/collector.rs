@@ -8,7 +8,7 @@ use super::segment_agg_result::{
 };
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_segment_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
-use crate::{DocId, SegmentReader, TantivyError};
+use crate::{DocId, SegmentOrdinal, SegmentReader, TantivyError};
 
 /// The default max bucket count, before the aggregation fails.
 pub const DEFAULT_BUCKET_LIMIT: u32 = 65000;
@@ -64,10 +64,15 @@ impl Collector for DistributedAggregationCollector {
 
     fn for_segment(
         &self,
-        _segment_local_id: crate::SegmentOrdinal,
+        segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader, &self.limits)
+        AggregationSegmentCollector::from_agg_req_and_reader(
+            &self.agg,
+            reader,
+            segment_local_id,
+            &self.limits,
+        )
     }
 
     fn requires_scoring(&self) -> bool {
@@ -89,10 +94,15 @@ impl Collector for AggregationCollector {
 
     fn for_segment(
         &self,
-        _segment_local_id: crate::SegmentOrdinal,
+        segment_local_id: crate::SegmentOrdinal,
         reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        AggregationSegmentCollector::from_agg_req_and_reader(&self.agg, reader, &self.limits)
+        AggregationSegmentCollector::from_agg_req_and_reader(
+            &self.agg,
+            reader,
+            segment_local_id,
+            &self.limits,
+        )
     }
 
     fn requires_scoring(&self) -> bool {
@@ -135,10 +145,11 @@ impl AggregationSegmentCollector {
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
         reader: &SegmentReader,
+        segment_local_id: SegmentOrdinal,
         limits: &AggregationLimits,
     ) -> crate::Result<Self> {
         let mut aggs_with_accessor =
-            get_aggs_with_segment_accessor_and_validate(agg, reader, limits)?;
+            get_aggs_with_segment_accessor_and_validate(agg, reader, segment_local_id, limits)?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collector(&mut aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {
