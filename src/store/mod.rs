@@ -396,6 +396,6 @@ mod bench {
         );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file, 10).unwrap();
-        b.iter(|| store.iter::<Document>(None).collect::<Vec<_>>());
+        b.iter(|| store.iter::<TantivyDocument>(None).collect::<Vec<_>>());
     }
 }

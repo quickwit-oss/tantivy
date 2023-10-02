@@ -600,7 +600,7 @@ mod bench {
         {
             let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 if rng.gen_bool(1f64 / 15f64) {
                     doc.add_text(text_field, "a");
                 }
