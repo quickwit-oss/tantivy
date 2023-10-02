@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
-use crate::schema::{Field, Value};
+use crate::schema::{Field, OwnedValue};
 use crate::DocAddress;
 
 /// A query that matches all of the documents similar to a document
@@ -33,7 +33,7 @@ pub struct MoreLikeThisQuery {
 #[derive(Debug, Clone, PartialEq)]
 enum TargetDocument {
     DocumentAddress(DocAddress),
-    DocumentFields(Vec<(Field, Vec<Value>)>),
+    DocumentFields(Vec<(Field, Vec<OwnedValue>)>),
 }
 
 impl MoreLikeThisQuery {
@@ -60,7 +60,7 @@ impl Query for MoreLikeThisQuery {
             TargetDocument::DocumentFields(doc_fields) => {
                 let values = doc_fields
                     .iter()
-                    .map(|(field, values)| (*field, values.iter().collect::<Vec<&Value>>()))
+                    .map(|(field, values)| (*field, values.iter().collect::<Vec<&OwnedValue>>()))
                     .collect::<Vec<_>>();
 
                 self.mlt
@@ -175,7 +175,10 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields(self, doc_fields: Vec<(Field, Vec<Value>)>) -> MoreLikeThisQuery {
+    pub fn with_document_fields(
+        self,
+        doc_fields: Vec<(Field, Vec<OwnedValue>)>,
+    ) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),

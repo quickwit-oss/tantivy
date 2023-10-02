@@ -9,17 +9,18 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, DocValue, ObjectAccess, ReferenceValue, ValueDeserialize,
+    ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value, ValueDeserialize,
     ValueDeserializer, ValueVisitor,
 };
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
-/// Value represents the value of a any field.
+/// This is a owned variant of `Value`, that can be passed around without lifetimes.
+/// Represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum OwnedValue {
     /// A null value.
     Null,
     /// The str type is used for any text information.
@@ -48,83 +49,83 @@ pub enum Value {
     IpAddr(Ipv6Addr),
 }
 
-impl<'a> DocValue<'a> for &'a Value {
+impl<'a> Value<'a> for &'a OwnedValue {
     type ChildValue = Self;
     type ArrayIter = ArrayIter<'a>;
     type ObjectIter = ObjectMapIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
-            Value::Null => ReferenceValue::Null,
-            Value::Str(val) => ReferenceValue::Str(val),
-            Value::PreTokStr(val) => ReferenceValue::PreTokStr(val),
-            Value::U64(val) => ReferenceValue::U64(*val),
-            Value::I64(val) => ReferenceValue::I64(*val),
-            Value::F64(val) => ReferenceValue::F64(*val),
-            Value::Bool(val) => ReferenceValue::Bool(*val),
-            Value::Date(val) => ReferenceValue::Date(*val),
-            Value::Facet(val) => ReferenceValue::Facet(val),
-            Value::Bytes(val) => ReferenceValue::Bytes(val),
-            Value::IpAddr(val) => ReferenceValue::IpAddr(*val),
-            Value::Array(array) => ReferenceValue::Array(ArrayIter(array.iter())),
-            Value::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
+            OwnedValue::Null => ReferenceValue::Null,
+            OwnedValue::Str(val) => ReferenceValue::Str(val),
+            OwnedValue::PreTokStr(val) => ReferenceValue::PreTokStr(val),
+            OwnedValue::U64(val) => ReferenceValue::U64(*val),
+            OwnedValue::I64(val) => ReferenceValue::I64(*val),
+            OwnedValue::F64(val) => ReferenceValue::F64(*val),
+            OwnedValue::Bool(val) => ReferenceValue::Bool(*val),
+            OwnedValue::Date(val) => ReferenceValue::Date(*val),
+            OwnedValue::Facet(val) => ReferenceValue::Facet(val),
+            OwnedValue::Bytes(val) => ReferenceValue::Bytes(val),
+            OwnedValue::IpAddr(val) => ReferenceValue::IpAddr(*val),
+            OwnedValue::Array(array) => ReferenceValue::Array(ArrayIter(array.iter())),
+            OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
         }
     }
 }
 
-impl ValueDeserialize for Value {
+impl ValueDeserialize for OwnedValue {
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
         struct Visitor;
 
         impl ValueVisitor for Visitor {
-            type Value = Value;
+            type Value = OwnedValue;
 
             fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Null)
+                Ok(OwnedValue::Null)
             }
 
             fn visit_string(&self, val: String) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Str(val))
+                Ok(OwnedValue::Str(val))
             }
 
             fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::U64(val))
+                Ok(OwnedValue::U64(val))
             }
 
             fn visit_i64(&self, val: i64) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::I64(val))
+                Ok(OwnedValue::I64(val))
             }
 
             fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::F64(val))
+                Ok(OwnedValue::F64(val))
             }
 
             fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Bool(val))
+                Ok(OwnedValue::Bool(val))
             }
 
             fn visit_datetime(&self, val: DateTime) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Date(val))
+                Ok(OwnedValue::Date(val))
             }
 
             fn visit_ip_address(&self, val: Ipv6Addr) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::IpAddr(val))
+                Ok(OwnedValue::IpAddr(val))
             }
 
             fn visit_facet(&self, val: Facet) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Facet(val))
+                Ok(OwnedValue::Facet(val))
             }
 
             fn visit_bytes(&self, val: Vec<u8>) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::Bytes(val))
+                Ok(OwnedValue::Bytes(val))
             }
 
             fn visit_pre_tokenized_string(
                 &self,
                 val: PreTokenizedString,
             ) -> Result<Self::Value, DeserializeError> {
-                Ok(Value::PreTokStr(val))
+                Ok(OwnedValue::PreTokStr(val))
             }
 
             fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
@@ -135,7 +136,7 @@ impl ValueDeserialize for Value {
                     elements.push(value);
                 }
 
-                Ok(Value::Array(elements))
+                Ok(OwnedValue::Array(elements))
             }
 
             fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
@@ -146,7 +147,7 @@ impl ValueDeserialize for Value {
                     elements.insert(key, value);
                 }
 
-                Ok(Value::Object(elements))
+                Ok(OwnedValue::Object(elements))
             }
         }
 
@@ -154,24 +155,26 @@ impl ValueDeserialize for Value {
     }
 }
 
-impl Eq for Value {}
+impl Eq for OwnedValue {}
 
-impl serde::Serialize for Value {
+impl serde::Serialize for OwnedValue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
         match *self {
-            Value::Null => serializer.serialize_unit(),
-            Value::Str(ref v) => serializer.serialize_str(v),
-            Value::PreTokStr(ref v) => v.serialize(serializer),
-            Value::U64(u) => serializer.serialize_u64(u),
-            Value::I64(u) => serializer.serialize_i64(u),
-            Value::F64(u) => serializer.serialize_f64(u),
-            Value::Bool(b) => serializer.serialize_bool(b),
-            Value::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
-            Value::Facet(ref facet) => facet.serialize(serializer),
-            Value::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
-            Value::Object(ref obj) => obj.serialize(serializer),
-            Value::IpAddr(ref ip_v6) => {
+            OwnedValue::Null => serializer.serialize_unit(),
+            OwnedValue::Str(ref v) => serializer.serialize_str(v),
+            OwnedValue::PreTokStr(ref v) => v.serialize(serializer),
+            OwnedValue::U64(u) => serializer.serialize_u64(u),
+            OwnedValue::I64(u) => serializer.serialize_i64(u),
+            OwnedValue::F64(u) => serializer.serialize_f64(u),
+            OwnedValue::Bool(b) => serializer.serialize_bool(b),
+            OwnedValue::Date(ref date) => {
+                time::serde::rfc3339::serialize(&date.into_utc(), serializer)
+            }
+            OwnedValue::Facet(ref facet) => facet.serialize(serializer),
+            OwnedValue::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
+            OwnedValue::Object(ref obj) => obj.serialize(serializer),
+            OwnedValue::IpAddr(ref ip_v6) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
                 if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
                     ip_v4.serialize(serializer)
@@ -179,50 +182,50 @@ impl serde::Serialize for Value {
                     ip_v6.serialize(serializer)
                 }
             }
-            Value::Array(ref array) => array.serialize(serializer),
+            OwnedValue::Array(ref array) => array.serialize(serializer),
         }
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Value {
+impl<'de> serde::Deserialize<'de> for OwnedValue {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: serde::Deserializer<'de> {
         struct ValueVisitor;
 
         impl<'de> serde::de::Visitor<'de> for ValueVisitor {
-            type Value = Value;
+            type Value = OwnedValue;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a string or u32")
             }
 
             fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
-                Ok(Value::Bool(v))
+                Ok(OwnedValue::Bool(v))
             }
 
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
-                Ok(Value::I64(v))
+                Ok(OwnedValue::I64(v))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-                Ok(Value::U64(v))
+                Ok(OwnedValue::U64(v))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
-                Ok(Value::F64(v))
+                Ok(OwnedValue::F64(v))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-                Ok(Value::Str(v.to_owned()))
+                Ok(OwnedValue::Str(v.to_owned()))
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
-                Ok(Value::Str(v))
+                Ok(OwnedValue::Str(v))
             }
 
             fn visit_unit<E>(self) -> Result<Self::Value, E>
             where E: serde::de::Error {
-                Ok(Value::Null)
+                Ok(OwnedValue::Null)
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -233,7 +236,7 @@ impl<'de> serde::Deserialize<'de> for Value {
                     elements.push(value);
                 }
 
-                Ok(Value::Array(elements))
+                Ok(OwnedValue::Array(elements))
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -244,7 +247,7 @@ impl<'de> serde::Deserialize<'de> for Value {
                     object.insert(key, value);
                 }
 
-                Ok(Value::Object(object))
+                Ok(OwnedValue::Object(object))
             }
         }
 
@@ -252,81 +255,81 @@ impl<'de> serde::Deserialize<'de> for Value {
     }
 }
 
-impl From<String> for Value {
-    fn from(s: String) -> Value {
-        Value::Str(s)
+impl From<String> for OwnedValue {
+    fn from(s: String) -> OwnedValue {
+        OwnedValue::Str(s)
     }
 }
 
-impl From<Ipv6Addr> for Value {
-    fn from(v: Ipv6Addr) -> Value {
-        Value::IpAddr(v)
+impl From<Ipv6Addr> for OwnedValue {
+    fn from(v: Ipv6Addr) -> OwnedValue {
+        OwnedValue::IpAddr(v)
     }
 }
 
-impl From<u64> for Value {
-    fn from(v: u64) -> Value {
-        Value::U64(v)
+impl From<u64> for OwnedValue {
+    fn from(v: u64) -> OwnedValue {
+        OwnedValue::U64(v)
     }
 }
 
-impl From<i64> for Value {
-    fn from(v: i64) -> Value {
-        Value::I64(v)
+impl From<i64> for OwnedValue {
+    fn from(v: i64) -> OwnedValue {
+        OwnedValue::I64(v)
     }
 }
 
-impl From<f64> for Value {
-    fn from(v: f64) -> Value {
-        Value::F64(v)
+impl From<f64> for OwnedValue {
+    fn from(v: f64) -> OwnedValue {
+        OwnedValue::F64(v)
     }
 }
 
-impl From<bool> for Value {
+impl From<bool> for OwnedValue {
     fn from(b: bool) -> Self {
-        Value::Bool(b)
+        OwnedValue::Bool(b)
     }
 }
 
-impl From<DateTime> for Value {
-    fn from(dt: DateTime) -> Value {
-        Value::Date(dt)
+impl From<DateTime> for OwnedValue {
+    fn from(dt: DateTime) -> OwnedValue {
+        OwnedValue::Date(dt)
     }
 }
 
-impl<'a> From<&'a str> for Value {
-    fn from(s: &'a str) -> Value {
-        Value::Str(s.to_string())
+impl<'a> From<&'a str> for OwnedValue {
+    fn from(s: &'a str) -> OwnedValue {
+        OwnedValue::Str(s.to_string())
     }
 }
 
-impl<'a> From<&'a [u8]> for Value {
-    fn from(bytes: &'a [u8]) -> Value {
-        Value::Bytes(bytes.to_vec())
+impl<'a> From<&'a [u8]> for OwnedValue {
+    fn from(bytes: &'a [u8]) -> OwnedValue {
+        OwnedValue::Bytes(bytes.to_vec())
     }
 }
 
-impl From<Facet> for Value {
-    fn from(facet: Facet) -> Value {
-        Value::Facet(facet)
+impl From<Facet> for OwnedValue {
+    fn from(facet: Facet) -> OwnedValue {
+        OwnedValue::Facet(facet)
     }
 }
 
-impl From<Vec<u8>> for Value {
-    fn from(bytes: Vec<u8>) -> Value {
-        Value::Bytes(bytes)
+impl From<Vec<u8>> for OwnedValue {
+    fn from(bytes: Vec<u8>) -> OwnedValue {
+        OwnedValue::Bytes(bytes)
     }
 }
 
-impl From<PreTokenizedString> for Value {
-    fn from(pretokenized_string: PreTokenizedString) -> Value {
-        Value::PreTokStr(pretokenized_string)
+impl From<PreTokenizedString> for OwnedValue {
+    fn from(pretokenized_string: PreTokenizedString) -> OwnedValue {
+        OwnedValue::PreTokStr(pretokenized_string)
     }
 }
 
-impl From<BTreeMap<String, Value>> for Value {
-    fn from(object: BTreeMap<String, Value>) -> Value {
-        Value::Object(object)
+impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
+    fn from(object: BTreeMap<String, OwnedValue>) -> OwnedValue {
+        OwnedValue::Object(object)
     }
 }
 
@@ -340,7 +343,7 @@ fn can_be_rfc3339_date_time(text: &str) -> bool {
     false
 }
 
-impl From<serde_json::Value> for Value {
+impl From<serde_json::Value> for OwnedValue {
     fn from(value: serde_json::Value) -> Self {
         match value {
             serde_json::Value::Null => Self::Null,
@@ -378,23 +381,23 @@ impl From<serde_json::Value> for Value {
     }
 }
 
-impl From<serde_json::Map<String, serde_json::Value>> for Value {
+impl From<serde_json::Map<String, serde_json::Value>> for OwnedValue {
     fn from(map: serde_json::Map<String, serde_json::Value>) -> Self {
         let mut object = BTreeMap::new();
 
         for (key, value) in map {
-            object.insert(key, Value::from(value));
+            object.insert(key, OwnedValue::from(value));
         }
 
-        Value::Object(object)
+        OwnedValue::Object(object)
     }
 }
 
 /// A wrapper type for iterating over a serde_json array producing reference values.
-pub struct ArrayIter<'a>(std::slice::Iter<'a, Value>);
+pub struct ArrayIter<'a>(std::slice::Iter<'a, OwnedValue>);
 
 impl<'a> Iterator for ArrayIter<'a> {
-    type Item = ReferenceValue<'a, &'a Value>;
+    type Item = ReferenceValue<'a, &'a OwnedValue>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.0.next()?;
@@ -403,10 +406,10 @@ impl<'a> Iterator for ArrayIter<'a> {
 }
 
 /// A wrapper type for iterating over a serde_json object producing reference values.
-pub struct ObjectMapIter<'a>(btree_map::Iter<'a, String, Value>);
+pub struct ObjectMapIter<'a>(btree_map::Iter<'a, String, OwnedValue>);
 
 impl<'a> Iterator for ObjectMapIter<'a> {
-    type Item = (&'a str, ReferenceValue<'a, &'a Value>);
+    type Item = (&'a str, ReferenceValue<'a, &'a OwnedValue>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.0.next()?;
@@ -416,7 +419,7 @@ impl<'a> Iterator for ObjectMapIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Value;
+    use super::OwnedValue;
     use crate::schema::{BytesOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
@@ -466,12 +469,12 @@ mod tests {
 
     #[test]
     fn test_serialize_date() {
-        let value = Value::from(DateTime::from_utc(
+        let value = OwnedValue::from(DateTime::from_utc(
             OffsetDateTime::parse("1996-12-20T00:39:57+00:00", &Rfc3339).unwrap(),
         ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
         assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57Z""#);
-        let value = Value::from(DateTime::from_utc(
+        let value = OwnedValue::from(DateTime::from_utc(
             OffsetDateTime::parse("1996-12-20T00:39:57-01:00", &Rfc3339).unwrap(),
         ));
         let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();

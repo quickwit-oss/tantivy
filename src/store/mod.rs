@@ -59,7 +59,7 @@ pub mod tests {
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{
         self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, STORED, TEXT,
     };

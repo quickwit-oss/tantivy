@@ -1,8 +1,8 @@
 //! Document definition for Tantivy to index and store.
 //!
 //! A document and its values are defined by a couple core traits:
-//! - [DocumentAccess] which describes your top-level document and it's fields.
-//! - [DocValue] which provides tantivy with a way to access the document's values in a common way
+//! - [Document] which describes your top-level document and it's fields.
+//! - [Value] which provides tantivy with a way to access the document's values in a common way
 //!   without performing any additional allocations.
 //! - [DocumentDeserialize] which implements the necessary code to deserialize the document from the
 //!   doc store.
@@ -24,7 +24,7 @@
 //! significant amount of time when indexing by avoiding the additional allocations.
 //!
 //! ### Important Note
-//! The implementor of the `DocumentAccess` trait must be `'static` and safe to send across
+//! The implementor of the `Document` trait must be `'static` and safe to send across
 //! thread boundaries.
 //!
 //! ## Reusing existing types
@@ -96,27 +96,27 @@
 //! ## Implementing custom values
 //! Internally, Tantivy only works with `ReferenceValue` which is an enum that tries to borrow
 //! as much data as it can, in order to allow documents to return custom types, they must implement
-//! the `DocValue` trait which provides a way for Tantivy to get a `ReferenceValue` that it can then
+//! the `Value` trait which provides a way for Tantivy to get a `ReferenceValue` that it can then
 //! index and store.
 //!
-//! Values can just as easily be customised as documents by implementing the `DocValue` trait.
+//! Values can just as easily be customised as documents by implementing the `Value` trait.
 //!
 //! The implementor of this type should not own the data it's returning, instead it should just
 //! hold references of the data held by the parent [Document] which can then be passed
 //! on to the [ReferenceValue].
 //!
-//! This is why `DocValue` is implemented for `&'a serde_json::Value` and `&'a
+//! This is why `Value` is implemented for `&'a serde_json::Value` and `&'a
 //! tantivy::schema::Value` but not for their owned counterparts, as we cannot satisfy the lifetime
 //! bounds necessary when indexing the documents.
 //!
 //! ### A note about returning values
 //! The custom value type does not have to be the type stored by the document, instead the
-//! implementor of a `DocValue` can just be used as a way to convert between the owned type
+//! implementor of a `Value` can just be used as a way to convert between the owned type
 //! kept in the parent document, and the value passed into Tantivy.
 //!
 //! ```
 //! use tantivy::schema::document::ReferenceValue;
-//! use tantivy::schema::{DocValue};
+//! use tantivy::schema::{Value};
 //!
 //! #[derive(Debug)]
 //! /// Our custom value type which has 3 types, a string, float and bool.
@@ -129,7 +129,7 @@
 //!     Bool(bool),
 //! }
 //!
-//! impl<'a> DocValue<'a> for MyCustomValue<'a> {
+//! impl<'a> Value<'a> for MyCustomValue<'a> {
 //!     type ChildValue = Self;
 //!     // We don't need to worry about these types here as we're not
 //!     // working with nested types, but if we wanted to we would
@@ -176,7 +176,7 @@ use crate::DateTime;
 /// The core trait representing a document within the index.
 pub trait Document: DocumentDeserialize + Send + Sync + 'static {
     /// The value of the field.
-    type Value<'a>: DocValue<'a> + Clone
+    type Value<'a>: Value<'a> + Clone
     where Self: 'a;
 
     /// The iterator over all of the fields and values within the doc.
@@ -223,9 +223,9 @@ pub trait Document: DocumentDeserialize + Send + Sync + 'static {
 }
 
 /// A single field value.
-pub trait DocValue<'a>: Send + Sync + Debug {
+pub trait Value<'a>: Send + Sync + Debug {
     /// The child value type returned by this doc value.
-    type ChildValue: DocValue<'a>;
+    type ChildValue: Value<'a>;
     /// The iterator for walking through the elements within the array.
     type ArrayIter: Iterator<Item = ReferenceValue<'a, Self::ChildValue>>;
     /// The visitor walking through the key-value pairs within
@@ -357,7 +357,7 @@ pub trait DocValue<'a>: Send + Sync + Debug {
 
 /// A enum representing a value for tantivy to index.
 pub enum ReferenceValue<'a, V>
-where V: DocValue<'a> + ?Sized
+where V: Value<'a> + ?Sized
 {
     /// A null value.
     Null,
@@ -388,7 +388,7 @@ where V: DocValue<'a> + ?Sized
 }
 
 impl<'a, V> ReferenceValue<'a, V>
-where V: DocValue<'a>
+where V: Value<'a>
 {
     #[inline]
     /// Returns if the value is `null` or not.

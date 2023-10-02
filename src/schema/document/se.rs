@@ -5,7 +5,7 @@ use std::io::Write;
 use columnar::MonotonicallyMappableToU128;
 use common::{f64_to_u64, BinarySerializable, VInt};
 
-use crate::schema::document::{type_codes, DocValue, Document, ReferenceValue};
+use crate::schema::document::{type_codes, Document, ReferenceValue, Value};
 use crate::schema::Schema;
 
 /// A serializer writing documents which implement [`Document`] to a provided writer.
@@ -40,9 +40,9 @@ where W: Write
             let mut serializer = BinaryValueSerializer::new(self.writer);
             match value_access.as_value() {
                 ReferenceValue::PreTokStr(pre_tokenized_text) => {
-                    serializer.serialize_value(ReferenceValue::Str::<&'_ crate::schema::Value>(
-                        &pre_tokenized_text.text,
-                    ))?;
+                    serializer.serialize_value(ReferenceValue::Str::<
+                        &'_ crate::schema::OwnedValue,
+                    >(&pre_tokenized_text.text))?;
                 }
                 _ => {
                     serializer.serialize_value(value_access.as_value())?;
@@ -87,7 +87,7 @@ where W: Write
         value: ReferenceValue<'a, V>,
     ) -> io::Result<()>
     where
-        V: DocValue<'a>,
+        V: Value<'a>,
     {
         match value {
             ReferenceValue::Null => self.write_type_code(type_codes::NULL_CODE),
@@ -209,7 +209,7 @@ where W: Write
         value: ReferenceValue<'a, V>,
     ) -> io::Result<()>
     where
-        V: DocValue<'a>,
+        V: Value<'a>,
     {
         let mut serializer = BinaryValueSerializer::new(self.writer);
         serializer.serialize_value(value)?;
@@ -265,7 +265,7 @@ where W: Write
         value: ReferenceValue<'a, V>,
     ) -> io::Result<()>
     where
-        V: DocValue<'a>,
+        V: Value<'a>,
     {
         // Keys and values are stored inline with one another.
         // Technically this isn't the *most* optimal way of storing the objects
@@ -712,8 +712,8 @@ mod tests {
         let schema = builder.build();
 
         let mut document = BTreeMap::new();
-        document.insert(name, crate::schema::Value::Str("ChillFish8".into()));
-        document.insert(age, crate::schema::Value::U64(20));
+        document.insert(name, crate::schema::OwnedValue::Str("ChillFish8".into()));
+        document.insert(age, crate::schema::OwnedValue::U64(20));
 
         let result = serialize_doc(&document, &schema);
         let mut expected = expected_doc_data!(length document.len());
@@ -734,8 +734,8 @@ mod tests {
         let schema = builder.build();
 
         let mut document = BTreeMap::new();
-        document.insert(name, crate::schema::Value::Str("ChillFish8".into()));
-        document.insert(age, crate::schema::Value::U64(20));
+        document.insert(name, crate::schema::OwnedValue::Str("ChillFish8".into()));
+        document.insert(age, crate::schema::OwnedValue::U64(20));
 
         let result = serialize_doc(&document, &schema);
         let mut expected = expected_doc_data!(length 1);
@@ -749,7 +749,7 @@ mod tests {
 
         let builder = Schema::builder();
         let schema = builder.build();
-        let document = BTreeMap::<Field, crate::schema::Value>::new();
+        let document = BTreeMap::<Field, crate::schema::OwnedValue>::new();
         let result = serialize_doc(&document, &schema);
         let expected = expected_doc_data!(length document.len());
         assert_eq!(

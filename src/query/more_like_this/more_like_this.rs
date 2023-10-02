@@ -5,7 +5,7 @@ use tokenizer_api::Token;
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
-use crate::schema::document::{DocValue, Document};
+use crate::schema::document::{Document, Value};
 use crate::schema::{Field, FieldType, IndexRecordOption, Term};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer};
 use crate::{DocAddress, Result, Searcher, TantivyDocument, TantivyError};
@@ -93,7 +93,7 @@ impl MoreLikeThis {
     }
 
     /// Creates a [`BooleanQuery`] using a set of field values.
-    pub fn query_with_document_fields<'a, V: DocValue<'a>>(
+    pub fn query_with_document_fields<'a, V: Value<'a>>(
         &self,
         searcher: &Searcher,
         doc_fields: &[(Field, Vec<V>)],
@@ -137,7 +137,7 @@ impl MoreLikeThis {
 
     /// Finds terms for a more-like-this query.
     /// field_to_field_values is a mapping from field to possible values of that field.
-    fn retrieve_terms_from_doc_fields<'a, V: DocValue<'a>>(
+    fn retrieve_terms_from_doc_fields<'a, V: Value<'a>>(
         &self,
         searcher: &Searcher,
         field_to_values: &[(Field, Vec<V>)],
@@ -159,7 +159,7 @@ impl MoreLikeThis {
     /// Computes the frequency of values for a field while updating the term frequencies
     /// Note: A FieldValue can be made up of multiple terms.
     /// We are interested in extracting terms within FieldValue
-    fn add_term_frequencies<'a, V: DocValue<'a>>(
+    fn add_term_frequencies<'a, V: Value<'a>>(
         &self,
         searcher: &Searcher,
         field: Field,

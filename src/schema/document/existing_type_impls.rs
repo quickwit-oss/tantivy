@@ -9,13 +9,13 @@ use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
 use serde_json::Number;
 
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, DocValue, Document, DocumentDeserialize, DocumentDeserializer,
-    ObjectAccess, ReferenceValue, ValueDeserialize, ValueDeserializer, ValueVisitor,
+    ArrayAccess, DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
+    ObjectAccess, ReferenceValue, Value, ValueDeserialize, ValueDeserializer, ValueVisitor,
 };
 use crate::schema::Field;
 
 // Serde compatibility support.
-impl<'a> DocValue<'a> for &'a serde_json::Value {
+impl<'a> Value<'a> for &'a serde_json::Value {
     type ChildValue = Self;
     type ArrayIter = JsonArrayIter<'a>;
     type ObjectIter = JsonObjectIter<'a>;
@@ -137,19 +137,19 @@ impl<'a> Iterator for JsonObjectIter<'a> {
 // Custom document types
 
 // BTreeMap based documents
-impl Document for BTreeMap<Field, crate::schema::Value> {
-    type Value<'a> = &'a crate::schema::Value;
+impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
+    type Value<'a> = &'a crate::schema::OwnedValue;
     type FieldsValuesIter<'a> = FieldCopyingIterator<
         'a,
-        btree_map::Iter<'a, Field, crate::schema::Value>,
-        crate::schema::Value,
+        btree_map::Iter<'a, Field, crate::schema::OwnedValue>,
+        crate::schema::OwnedValue,
     >;
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserialize for BTreeMap<Field, crate::schema::Value> {
+impl DocumentDeserialize for BTreeMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut document = BTreeMap::new();
@@ -163,19 +163,19 @@ impl DocumentDeserialize for BTreeMap<Field, crate::schema::Value> {
 }
 
 // HashMap based documents
-impl Document for HashMap<Field, crate::schema::Value> {
-    type Value<'a> = &'a crate::schema::Value;
+impl Document for HashMap<Field, crate::schema::OwnedValue> {
+    type Value<'a> = &'a crate::schema::OwnedValue;
     type FieldsValuesIter<'a> = FieldCopyingIterator<
         'a,
-        hash_map::Iter<'a, Field, crate::schema::Value>,
-        crate::schema::Value,
+        hash_map::Iter<'a, Field, crate::schema::OwnedValue>,
+        crate::schema::OwnedValue,
     >;
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserialize for HashMap<Field, crate::schema::Value> {
+impl DocumentDeserialize for HashMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut document = HashMap::with_capacity(deserializer.size_hint());

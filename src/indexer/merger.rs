@@ -753,7 +753,7 @@ mod tests {
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
         TextFieldIndexing, INDEXED, TEXT,

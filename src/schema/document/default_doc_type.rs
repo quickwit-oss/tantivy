@@ -9,7 +9,7 @@ use crate::schema::document::{
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
-use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, Schema, Value};
+use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, OwnedValue, Schema};
 use crate::tokenizer::PreTokenizedString;
 
 /// Tantivy's Document is the object that can be indexed and then searched for.
@@ -23,7 +23,7 @@ pub struct TantivyDocument {
 }
 
 impl Document for TantivyDocument {
-    type Value<'a> = &'a Value;
+    type Value<'a> = &'a OwnedValue;
     type FieldsValuesIter<'a> = FieldValueIter<'a>;
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
@@ -99,13 +99,13 @@ impl TantivyDocument {
     pub fn add_facet<F>(&mut self, field: Field, path: F)
     where Facet: From<F> {
         let facet = Facet::from(path);
-        let value = Value::Facet(facet);
+        let value = OwnedValue::Facet(facet);
         self.add_field_value(field, value);
     }
 
     /// Add a text field.
     pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
-        let value = Value::Str(text.to_string());
+        let value = OwnedValue::Str(text.to_string());
         self.add_field_value(field, value);
     }
 
@@ -150,12 +150,12 @@ impl TantivyDocument {
     }
 
     /// Add a dynamic object field
-    pub fn add_object(&mut self, field: Field, object: BTreeMap<String, Value>) {
+    pub fn add_object(&mut self, field: Field, object: BTreeMap<String, OwnedValue>) {
         self.add_field_value(field, object);
     }
 
     /// Add a (field, value) to the document.
-    pub fn add_field_value<T: Into<Value>>(&mut self, field: Field, typed_val: T) {
+    pub fn add_field_value<T: Into<OwnedValue>>(&mut self, field: Field, typed_val: T) {
         let value = typed_val.into();
         let field_value = FieldValue { field, value };
         self.field_values.push(field_value);
@@ -167,7 +167,7 @@ impl TantivyDocument {
     }
 
     /// Returns all of the `FieldValue`s associated the given field
-    pub fn get_all(&self, field: Field) -> impl Iterator<Item = &Value> {
+    pub fn get_all(&self, field: Field) -> impl Iterator<Item = &OwnedValue> {
         self.field_values
             .iter()
             .filter(move |field_value| field_value.field() == field)
@@ -175,7 +175,7 @@ impl TantivyDocument {
     }
 
     /// Returns the first `FieldValue` associated the given field
-    pub fn get_first(&self, field: Field) -> Option<&Value> {
+    pub fn get_first(&self, field: Field) -> Option<&OwnedValue> {
         self.get_all(field).next()
     }
 
@@ -200,7 +200,7 @@ impl TantivyDocument {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in self.get_sorted_field_values() {
             let field_name = schema.get_field_name(field);
-            let values: Vec<Value> = field_values.into_iter().cloned().collect();
+            let values: Vec<OwnedValue> = field_values.into_iter().cloned().collect();
             field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)

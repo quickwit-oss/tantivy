@@ -342,7 +342,7 @@ pub mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
 
@@ -986,11 +986,11 @@ pub mod tests {
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
-        let values: Vec<&Value> = document.get_all(text_field).collect();
+        let values: Vec<&OwnedValue> = document.get_all(text_field).collect();
         assert_eq!(values.len(), 2);
         assert_eq!(values[0].as_str(), Some("tantivy"));
         assert_eq!(values[1].as_str(), Some("some other value"));
-        let values: Vec<&Value> = document.get_all(other_text_field).collect();
+        let values: Vec<&OwnedValue> = document.get_all(other_text_field).collect();
         assert_eq!(values.len(), 1);
         assert_eq!(values[0].as_str(), Some("short"));
     }
