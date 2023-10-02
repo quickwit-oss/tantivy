@@ -35,7 +35,7 @@
 //! ## A basic custom document
 //! ```
 //! use std::collections::{btree_map, BTreeMap};
-//! use tantivy::schema::{document, DocumentAccess, Field};
+//! use tantivy::schema::{DocumentAccess, Field};
 //! use tantivy::schema::document::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
 //!
 //! /// Our custom document to let us use a map of `serde_json::Values`.
@@ -76,7 +76,7 @@
 //! }
 //!
 //! /// Our custom iterator just helps us to avoid some messy generics.
-//! pub struct MyCustomIter<'a>(btree_map::Iter<'a, Field, serde_json::Value>);//!
+//! pub struct MyCustomIter<'a>(btree_map::Iter<'a, Field, serde_json::Value>);
 //! impl<'a> Iterator for MyCustomIter<'a> {
 //!     // Here we can see our field-value pairs being produced by the iterator.
 //!     // The value returned alongside the field is the same type as `DocumentAccess::Value<'_>`.
@@ -116,10 +116,11 @@
 //!
 //! ```
 //! use tantivy::schema::document::ReferenceValue;
-//! use tantivy::schema::{DocValue, Field};
+//! use tantivy::schema::{DocValue};
 //!
 //! #[derive(Debug)]
 //! /// Our custom value type which has 3 types, a string, float and bool.
+//! #[allow(dead_code)]
 //! pub enum MyCustomValue<'a> {
 //!     // Our string data is owned by the parent document, instead we just
 //!     // hold onto a reference of this data.

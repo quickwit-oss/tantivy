@@ -38,7 +38,16 @@ where W: Write
             field.serialize(self.writer)?;
 
             let mut serializer = ValueSerializer::new(self.writer);
-            serializer.serialize_value(value_access.as_value())?;
+            match value_access.as_value() {
+                ReferenceValue::PreTokStr(pre_tokenized_text) => {
+                    serializer.serialize_value(ReferenceValue::Str::<&'_ crate::schema::Value>(
+                        &pre_tokenized_text.text,
+                    ))?;
+                }
+                _ => {
+                    serializer.serialize_value(value_access.as_value())?;
+                }
+            }
 
             actual_length += 1;
         }

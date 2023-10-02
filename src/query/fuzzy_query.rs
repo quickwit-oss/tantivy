@@ -38,7 +38,7 @@ impl Automaton for DfaWrapper {
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::FuzzyTermQuery;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Term};
+/// use tantivy::{doc, Index, IndexWriter, Term};
 ///
 /// fn example() -> tantivy::Result<()> {
 ///     let mut schema_builder = Schema::builder();
@@ -215,7 +215,7 @@ mod test {
             &schema,
             r#"{
             "attributes": {
-                "as": "japan"
+                "aa": "japan"
             }
         }"#,
         )?;

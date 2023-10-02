@@ -24,6 +24,7 @@ use crate::schema::{IndexRecordOption, Term};
 /// use tantivy::schema::{IndexRecordOption, Schema, TEXT};
 /// use tantivy::Term;
 /// use tantivy::Index;
+/// use tantivy::IndexWriter;
 ///
 /// fn main() -> tantivy::Result<()> {
 ///    let mut schema_builder = Schema::builder();

@@ -20,7 +20,7 @@ use crate::Term;
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::TermQuery;
 /// use tantivy::schema::{Schema, TEXT, IndexRecordOption};
-/// use tantivy::{doc, Index, Term};
+/// use tantivy::{doc, Index, IndexWriter, Term};
 /// # fn test() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let title = schema_builder.add_text_field("title", TEXT);

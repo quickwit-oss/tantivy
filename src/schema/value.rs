@@ -5,6 +5,8 @@ use std::net::Ipv6Addr;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::de::{MapAccess, SeqAccess};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::schema::document::{
     ArrayAccess, DeserializeError, DocValue, ObjectAccess, ReferenceValue, ValueDeserialize,
@@ -328,23 +330,45 @@ impl From<BTreeMap<String, Value>> for Value {
     }
 }
 
+fn can_be_rfc3339_date_time(text: &str) -> bool {
+    if let Some(&first_byte) = text.as_bytes().get(0) {
+        if first_byte >= b'0' && first_byte <= b'9' {
+            return true;
+        }
+    }
+
+    false
+}
+
 impl From<serde_json::Value> for Value {
     fn from(value: serde_json::Value) -> Self {
         match value {
             serde_json::Value::Null => Self::Null,
             serde_json::Value::Bool(val) => Self::Bool(val),
             serde_json::Value::Number(number) => {
-                if let Some(val) = number.as_u64() {
-                    Self::U64(val)
-                } else if let Some(val) = number.as_i64() {
+                if let Some(val) = number.as_i64() {
                     Self::I64(val)
+                } else if let Some(val) = number.as_u64() {
+                    Self::U64(val)
                 } else if let Some(val) = number.as_f64() {
                     Self::F64(val)
                 } else {
                     panic!("Unsupported serde_json number {number}");
                 }
             }
-            serde_json::Value::String(val) => Self::Str(val),
+            serde_json::Value::String(text) => {
+                if can_be_rfc3339_date_time(&text) {
+                    match OffsetDateTime::parse(&text, &Rfc3339) {
+                        Ok(dt) => {
+                            let dt_utc = dt.to_offset(time::UtcOffset::UTC);
+                            Self::Date(DateTime::from_utc(dt_utc))
+                        }
+                        Err(_) => Self::Str(text),
+                    }
+                } else {
+                    Self::Str(text)
+                }
+            }
             serde_json::Value::Array(elements) => {
                 let converted_elements = elements.into_iter().map(Self::from).collect();
                 Self::Array(converted_elements)

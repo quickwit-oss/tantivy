@@ -18,7 +18,7 @@ use crate::schema::Field;
 /// use tantivy::collector::Count;
 /// use tantivy::query::RegexQuery;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Term};
+/// use tantivy::{doc, Index, IndexWriter, Term};
 ///
 /// # fn test() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();

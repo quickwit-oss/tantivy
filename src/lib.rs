@@ -21,7 +21,7 @@
 //! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
 //! # use tantivy::schema::*;
-//! # use tantivy::{doc, DocAddress, Index, Score};
+//! # use tantivy::{doc, DocAddress, Index, IndexWriter, Score};
 //! #
 //! # fn main() {
 //! #     // Let's create a temporary directory for the
@@ -89,8 +89,8 @@
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
-//!     let retrieved_doc = searcher.doc(doc_address)?;
-//!     println!("{}", schema.to_json(&retrieved_doc));
+//!     let retrieved_doc = searcher.doc::<Document>(doc_address)?;
+//!     println!("{}", retrieved_doc.to_json(&schema));
 //! }
 //!
 //! # Ok(())
