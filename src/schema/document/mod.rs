@@ -35,7 +35,7 @@
 //! ## A basic custom document
 //! ```
 //! use std::collections::{btree_map, BTreeMap};
-//! use tantivy::schema::{DocumentAccess, Field};
+//! use tantivy::schema::{Document, Field};
 //! use tantivy::schema::document::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
 //!
 //! /// Our custom document to let us use a map of `serde_json::Values`.
@@ -44,7 +44,7 @@
 //!     fields: BTreeMap<Field, serde_json::Value>
 //! }
 //!
-//! impl DocumentAccess for MyCustomDocument {
+//! impl Document for MyCustomDocument {
 //!     // The value type produced by the `iter_fields_and_values` iterator.
 //!     type Value<'a> = &'a serde_json::Value;
 //!     // The iterator which is produced by `iter_fields_and_values`.
@@ -79,7 +79,7 @@
 //! pub struct MyCustomIter<'a>(btree_map::Iter<'a, Field, serde_json::Value>);
 //! impl<'a> Iterator for MyCustomIter<'a> {
 //!     // Here we can see our field-value pairs being produced by the iterator.
-//!     // The value returned alongside the field is the same type as `DocumentAccess::Value<'_>`.
+//!     // The value returned alongside the field is the same type as `Document::Value<'_>`.
 //!     type Item = (Field, &'a serde_json::Value);
 //!
 //!     fn next(&mut self) -> Option<Self::Item> {
@@ -102,7 +102,7 @@
 //! Values can just as easily be customised as documents by implementing the `DocValue` trait.
 //!
 //! The implementor of this type should not own the data it's returning, instead it should just
-//! hold references of the data held by the parent [DocumentAccess] which can then be passed
+//! hold references of the data held by the parent [Document] which can then be passed
 //! on to the [ReferenceValue].
 //!
 //! This is why `DocValue` is implemented for `&'a serde_json::Value` and `&'a
@@ -162,19 +162,19 @@ use std::fmt::Debug;
 use std::mem;
 use std::net::Ipv6Addr;
 
-pub(crate) use self::de::DefaultDocumentDeserializer;
+pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
     ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
     ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
 };
-pub use self::default_doc_type::{DocParsingError, Document};
-pub(crate) use self::se::DocumentSerializer;
+pub use self::default_doc_type::{DocParsingError, TantivyDocument};
+pub(crate) use self::se::BinaryDocumentSerializer;
 use super::*;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
 /// The core trait representing a document within the index.
-pub trait DocumentAccess: DocumentDeserialize + Send + Sync + 'static {
+pub trait Document: DocumentDeserialize + Send + Sync + 'static {
     /// The value of the field.
     type Value<'a>: DocValue<'a> + Clone
     where Self: 'a;

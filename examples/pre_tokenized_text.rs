@@ -83,7 +83,7 @@ fn main() -> tantivy::Result<()> {
         }]
     }"#;
 
-    let short_man_doc = Document::parse_json(&schema, short_man_json)?;
+    let short_man_doc = TantivyDocument::parse_json(&schema, short_man_json)?;
 
     index_writer.add_document(short_man_doc)?;
 
@@ -115,7 +115,7 @@ fn main() -> tantivy::Result<()> {
     // Note that the tokens are not stored along with the original text
     // in the document store
     for (_score, doc_address) in top_docs {
-        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
         println!("{}", retrieved_doc.to_json(&schema));
     }
 

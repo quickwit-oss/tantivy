@@ -252,7 +252,7 @@ pub mod tests {
     use crate::aggregation::tests::exec_request;
     use crate::indexer::NoMergePolicy;
     use crate::schema::{Schema, FAST, STRING};
-    use crate::{Document, Index, IndexWriter};
+    use crate::{Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_parse_into_millisecs() {
@@ -316,7 +316,7 @@ pub mod tests {
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for values in segment_and_docs {
                 for doc_str in values {
-                    let doc = Document::parse_json(&schema, doc_str)?;
+                    let doc = TantivyDocument::parse_json(&schema, doc_str)?;
                     index_writer.add_document(doc)?;
                 }
                 // writing the segment

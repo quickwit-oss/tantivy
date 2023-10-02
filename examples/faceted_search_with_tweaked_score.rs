@@ -91,7 +91,7 @@ fn main() -> tantivy::Result<()> {
             .iter()
             .map(|(_, doc_id)| {
                 searcher
-                    .doc::<Document>(*doc_id)
+                    .doc::<TantivyDocument>(*doc_id)
                     .unwrap()
                     .get_first(title)
                     .and_then(|v| v.as_str())

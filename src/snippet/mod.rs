@@ -5,7 +5,7 @@ use std::ops::Range;
 use htmlescape::encode_minimal;
 
 use crate::query::Query;
-use crate::schema::document::{DocValue, DocumentAccess};
+use crate::schema::document::{DocValue, Document};
 use crate::schema::Field;
 use crate::tokenizer::{TextAnalyzer, Token};
 use crate::{Score, Searcher, Term};
@@ -360,7 +360,7 @@ impl SnippetGenerator {
     ///
     /// This method extract the text associated with the `SnippetGenerator`'s field
     /// and computes a snippet.
-    pub fn snippet_from_doc<D: DocumentAccess>(&self, doc: &D) -> Snippet {
+    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Snippet {
         let mut text = String::new();
         for (field, value) in doc.iter_fields_and_values() {
             let value = value as D::Value<'_>;

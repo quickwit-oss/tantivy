@@ -9,9 +9,8 @@ use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
 use serde_json::Number;
 
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, DocValue, DocumentAccess, DocumentDeserialize,
-    DocumentDeserializer, ObjectAccess, ReferenceValue, ValueDeserialize, ValueDeserializer,
-    ValueVisitor,
+    ArrayAccess, DeserializeError, DocValue, Document, DocumentDeserialize, DocumentDeserializer,
+    ObjectAccess, ReferenceValue, ValueDeserialize, ValueDeserializer, ValueVisitor,
 };
 use crate::schema::Field;
 
@@ -138,7 +137,7 @@ impl<'a> Iterator for JsonObjectIter<'a> {
 // Custom document types
 
 // BTreeMap based documents
-impl DocumentAccess for BTreeMap<Field, crate::schema::Value> {
+impl Document for BTreeMap<Field, crate::schema::Value> {
     type Value<'a> = &'a crate::schema::Value;
     type FieldsValuesIter<'a> = FieldCopyingIterator<
         'a,
@@ -164,7 +163,7 @@ impl DocumentDeserialize for BTreeMap<Field, crate::schema::Value> {
 }
 
 // HashMap based documents
-impl DocumentAccess for HashMap<Field, crate::schema::Value> {
+impl Document for HashMap<Field, crate::schema::Value> {
     type Value<'a> = &'a crate::schema::Value;
     type FieldsValuesIter<'a> = FieldCopyingIterator<
         'a,

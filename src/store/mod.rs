@@ -60,7 +60,9 @@ pub mod tests {
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
     use crate::schema::document::DocValue;
-    use crate::schema::{self, Document, Schema, TextFieldIndexing, TextOptions, STORED, TEXT};
+    use crate::schema::{
+        self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, STORED, TEXT,
+    };
     use crate::{Index, IndexWriter, Term};
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -89,7 +91,7 @@ pub mod tests {
             let mut store_writer =
                 StoreWriter::new(writer, compressor, blocksize, separate_thread).unwrap();
             for i in 0..num_docs {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 doc.add_field_value(field_body, LOREM.to_string());
                 doc.add_field_value(field_title, format!("Doc {i}"));
                 store_writer.store(&doc, &schema).unwrap();
@@ -118,7 +120,7 @@ pub mod tests {
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
-                    .get::<Document>(i)?
+                    .get::<TantivyDocument>(i)?
                     .get_first(field_title)
                     .unwrap()
                     .as_str()
@@ -127,7 +129,10 @@ pub mod tests {
             );
         }
 
-        for (_, doc) in store.iter::<Document>(Some(&alive_bitset)).enumerate() {
+        for (_, doc) in store
+            .iter::<TantivyDocument>(Some(&alive_bitset))
+            .enumerate()
+        {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().as_str().unwrap();
             if !title_content.starts_with("Doc ") {
@@ -163,7 +168,7 @@ pub mod tests {
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
-                    .get::<Document>(i)?
+                    .get::<TantivyDocument>(i)?
                     .get_first(field_title)
                     .unwrap()
                     .as_str()
@@ -171,7 +176,7 @@ pub mod tests {
                 format!("Doc {i}")
             );
         }
-        for (i, doc) in store.iter::<Document>(None).enumerate() {
+        for (i, doc) in store.iter::<TantivyDocument>(None).enumerate() {
             assert_eq!(
                 *doc?.get_first(field_title).unwrap().as_str().unwrap(),
                 format!("Doc {i}")
@@ -237,7 +242,7 @@ pub mod tests {
         let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
         let store = reader.get_store_reader(10)?;
-        for doc in store.iter::<Document>(reader.alive_bitset()) {
+        for doc in store.iter::<TantivyDocument>(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().as_str().unwrap(),
                 "deletemenot".to_string()
@@ -295,7 +300,10 @@ pub mod tests {
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader(10).unwrap();
 
-        for doc in store.iter::<Document>(reader.alive_bitset()).take(50) {
+        for doc in store
+            .iter::<TantivyDocument>(reader.alive_bitset())
+            .take(50)
+        {
             assert_eq!(
                 *doc?.get_first(text_field).and_then(|v| v.as_str()).unwrap(),
                 LOREM.to_string()
@@ -356,7 +364,7 @@ mod bench {
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::{Directory, RamDirectory};
     use crate::store::{Compressor, StoreReader};
-    use crate::Document;
+    use crate::TantivyDocument;
 
     #[bench]
     #[cfg(feature = "mmap")]

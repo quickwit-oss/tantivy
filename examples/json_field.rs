@@ -7,7 +7,7 @@
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, STORED, STRING, TEXT};
-use tantivy::{Document, Index, IndexWriter};
+use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -21,7 +21,7 @@ fn main() -> tantivy::Result<()> {
     let index = Index::create_in_ram(schema.clone());
 
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
-    let doc = Document::parse_json(
+    let doc = TantivyDocument::parse_json(
         &schema,
         r#"{
         "timestamp": "2022-02-22T23:20:50.53Z",
@@ -34,7 +34,7 @@ fn main() -> tantivy::Result<()> {
     }"#,
     )?;
     index_writer.add_document(doc)?;
-    let doc = Document::parse_json(
+    let doc = TantivyDocument::parse_json(
         &schema,
         r#"{
         "timestamp": "2022-02-22T23:20:51.53Z",

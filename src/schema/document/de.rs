@@ -276,17 +276,20 @@ pub trait ObjectAccess<'de> {
     fn next_entry<V: ValueDeserialize>(&mut self) -> Result<Option<(String, V)>, DeserializeError>;
 }
 
-/// The default document deserializer used to read the tantivy block data.
+/// The document deserializer used to read the tantivy documents serialized with
+/// `BinarySerializable`.
 ///
 /// This acts very similarly to serde's deserialize types and can incrementally
 /// deserialize each field of the document from the provided reader (`R`).
-pub struct DefaultDocumentDeserializer<'de, R> {
+///
+/// TODO: Switch to slice instead?
+pub struct BinaryDocumentDeserializer<'de, R> {
     length: usize,
     position: usize,
     reader: &'de mut R,
 }
 
-impl<'de, R> DefaultDocumentDeserializer<'de, R>
+impl<'de, R> BinaryDocumentDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
@@ -307,7 +310,7 @@ where R: Read
     }
 }
 
-impl<'de, R> DocumentDeserializer<'de> for DefaultDocumentDeserializer<'de, R>
+impl<'de, R> DocumentDeserializer<'de> for BinaryDocumentDeserializer<'de, R>
 where R: Read
 {
     #[inline]
@@ -322,7 +325,7 @@ where R: Read
 
         let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
 
-        let deserializer = GenericValueDeserializer::from_reader(self.reader)?;
+        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
         let value = V::deserialize(deserializer)?;
 
         self.position += 1;
@@ -331,14 +334,14 @@ where R: Read
     }
 }
 
-/// A single value deserializer for a given reader.
+/// A single value deserializer that deserializes a value serialized with `BinarySerializable`.
 /// TODO: Improve docs
-pub struct GenericValueDeserializer<'de, R> {
+pub struct BinaryValueDeserializer<'de, R> {
     value_type: ValueType,
     reader: &'de mut R,
 }
 
-impl<'de, R> GenericValueDeserializer<'de, R>
+impl<'de, R> BinaryValueDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new value deserializer from a given reader.
@@ -396,7 +399,7 @@ where R: Read
     }
 }
 
-impl<'de, R> ValueDeserializer<'de> for GenericValueDeserializer<'de, R>
+impl<'de, R> ValueDeserializer<'de> for BinaryValueDeserializer<'de, R>
 where R: Read
 {
     fn deserialize_null(self) -> Result<(), DeserializeError> {
@@ -504,26 +507,26 @@ where R: Read
                 visitor.visit_pre_tokenized_string(val)
             }
             ValueType::Array => {
-                let access = ArrayDeserializer::from_reader(self.reader)?;
+                let access = BinaryArrayDeserializer::from_reader(self.reader)?;
                 visitor.visit_array(access)
             }
             ValueType::Object => {
-                let access = ObjectDeserializer::from_reader(self.reader)?;
+                let access = BinaryObjectDeserializer::from_reader(self.reader)?;
                 visitor.visit_object(access)
             }
         }
     }
 }
 
-/// A deserializer for an array of values.
+/// A deserializer for an array of values serialized with `BinarySerializable`.
 /// TODO: Improve docs
-pub struct ArrayDeserializer<'de, R> {
+pub struct BinaryArrayDeserializer<'de, R> {
     length: usize,
     position: usize,
     reader: &'de mut R,
 }
 
-impl<'de, R> ArrayDeserializer<'de, R>
+impl<'de, R> BinaryArrayDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new array deserializer from a given reader.
@@ -544,7 +547,7 @@ where R: Read
     }
 }
 
-impl<'de, R> ArrayAccess<'de> for ArrayDeserializer<'de, R>
+impl<'de, R> ArrayAccess<'de> for BinaryArrayDeserializer<'de, R>
 where R: Read
 {
     #[inline]
@@ -557,7 +560,7 @@ where R: Read
             return Ok(None);
         }
 
-        let deserializer = GenericValueDeserializer::from_reader(self.reader)?;
+        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
         let value = V::deserialize(deserializer)?;
 
         // Advance the position cursor.
@@ -568,25 +571,25 @@ where R: Read
 }
 
 /// A deserializer for a object consisting of key-value pairs.
-pub struct ObjectDeserializer<'de, R> {
+pub struct BinaryObjectDeserializer<'de, R> {
     /// The inner deserializer.
     ///
     /// Internally an object is just represented by an array
     /// in the format of `[key, value, key, value, key, value]`.
-    inner: ArrayDeserializer<'de, R>,
+    inner: BinaryArrayDeserializer<'de, R>,
 }
 
-impl<'de, R> ObjectDeserializer<'de, R>
+impl<'de, R> BinaryObjectDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new object deserializer from a given reader.
     fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let inner = ArrayDeserializer::from_reader(reader)?;
+        let inner = BinaryArrayDeserializer::from_reader(reader)?;
         Ok(Self { inner })
     }
 }
 
-impl<'de, R> ObjectAccess<'de> for ObjectDeserializer<'de, R>
+impl<'de, R> ObjectAccess<'de> for BinaryObjectDeserializer<'de, R>
 where R: Read
 {
     #[inline]
@@ -787,13 +790,13 @@ mod tests {
 
     use super::*;
     use crate::schema::document::existing_type_impls::{JsonArrayIter, JsonObjectIter};
-    use crate::schema::document::se::ValueSerializer;
+    use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::ReferenceValue;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
 
-        let mut serializer = ValueSerializer::new(&mut writer);
+        let mut serializer = BinaryValueSerializer::new(&mut writer);
         serializer.serialize_value(value).expect("Serialize value");
 
         writer
@@ -801,7 +804,7 @@ mod tests {
 
     fn deserialize_value(buffer: Vec<u8>) -> crate::schema::Value {
         let mut cursor = Cursor::new(buffer);
-        let deserializer = GenericValueDeserializer::from_reader(&mut cursor).unwrap();
+        let deserializer = BinaryValueDeserializer::from_reader(&mut cursor).unwrap();
         crate::schema::Value::deserialize(deserializer).expect("Deserialize value")
     }
 

@@ -2,15 +2,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use super::AddBatchReceiver;
-use crate::schema::document::DocumentAccess;
-use crate::Document;
+use crate::schema::document::Document;
+use crate::TantivyDocument;
 
 #[derive(Clone)]
-pub(crate) struct IndexWriterStatus<D: DocumentAccess = Document> {
+pub(crate) struct IndexWriterStatus<D: Document = TantivyDocument> {
     inner: Arc<Inner<D>>,
 }
 
-impl<D: DocumentAccess> IndexWriterStatus<D> {
+impl<D: Document> IndexWriterStatus<D> {
     /// Returns true iff the index writer is alive.
     pub fn is_alive(&self) -> bool {
         self.inner.as_ref().is_alive()
@@ -36,12 +36,12 @@ impl<D: DocumentAccess> IndexWriterStatus<D> {
     }
 }
 
-struct Inner<D: DocumentAccess> {
+struct Inner<D: Document> {
     is_alive: AtomicBool,
     receive_channel: RwLock<Option<AddBatchReceiver<D>>>,
 }
 
-impl<D: DocumentAccess> Inner<D> {
+impl<D: Document> Inner<D> {
     fn is_alive(&self) -> bool {
         self.is_alive.load(Ordering::Relaxed)
     }
@@ -55,7 +55,7 @@ impl<D: DocumentAccess> Inner<D> {
     }
 }
 
-impl<D: DocumentAccess> From<AddBatchReceiver<D>> for IndexWriterStatus<D> {
+impl<D: Document> From<AddBatchReceiver<D>> for IndexWriterStatus<D> {
     fn from(receiver: AddBatchReceiver<D>) -> Self {
         IndexWriterStatus {
             inner: Arc::new(Inner {
@@ -68,11 +68,11 @@ impl<D: DocumentAccess> From<AddBatchReceiver<D>> for IndexWriterStatus<D> {
 
 /// If dropped, the index writer will be killed.
 /// To prevent this, clients can call `.defuse()`.
-pub(crate) struct IndexWriterBomb<D: DocumentAccess> {
+pub(crate) struct IndexWriterBomb<D: Document> {
     inner: Option<Arc<Inner<D>>>,
 }
 
-impl<D: DocumentAccess> IndexWriterBomb<D> {
+impl<D: Document> IndexWriterBomb<D> {
     /// Defuses the bomb.
     ///
     /// This is the only way to drop the bomb without killing
@@ -82,7 +82,7 @@ impl<D: DocumentAccess> IndexWriterBomb<D> {
     }
 }
 
-impl<D: DocumentAccess> Drop for IndexWriterBomb<D> {
+impl<D: Document> Drop for IndexWriterBomb<D> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.kill();

@@ -5,7 +5,7 @@ use common::replace_in_place;
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
-use crate::schema::document::{DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::document::{DocValue, Document, ReferenceValue};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
@@ -118,7 +118,7 @@ impl FastFieldsWriter {
     }
 
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
+    pub fn add_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.num_docs;
         for (field, value) in doc.iter_fields_and_values() {
             let value_access = value as D::Value<'_>;

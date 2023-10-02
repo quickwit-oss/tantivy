@@ -143,14 +143,14 @@ mod tests {
     use super::ConstScoreQuery;
     use crate::query::{AllQuery, Query};
     use crate::schema::Schema;
-    use crate::{DocAddress, Document, Index, IndexWriter};
+    use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_const_score_query_explain() -> crate::Result<()> {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests()?;
-        index_writer.add_document(Document::new())?;
+        index_writer.add_document(TantivyDocument::new())?;
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();

@@ -5,8 +5,8 @@ use crate::query::TermQuery;
 use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, Document, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
-    ReloadPolicy, SegmentId, Term,
+    Directory, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
+    SegmentId, TantivyDocument, Term,
 };
 
 #[test]
@@ -317,13 +317,13 @@ fn test_merging_segment_update_docfreq() {
     writer
         .add_document(doc!(text_field=>"hello", id_field=>"TO_BE_DELETED"))
         .unwrap();
-    writer.add_document(Document::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
     writer.commit().unwrap();
     for _ in 0..7 {
         writer.add_document(doc!(text_field=>"hello")).unwrap();
     }
-    writer.add_document(Document::default()).unwrap();
-    writer.add_document(Document::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
     writer.delete_term(Term::from_field_text(id_field, "TO_BE_DELETED"));
     writer.commit().unwrap();
 

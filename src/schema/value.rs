@@ -331,8 +331,8 @@ impl From<BTreeMap<String, Value>> for Value {
 }
 
 fn can_be_rfc3339_date_time(text: &str) -> bool {
-    if let Some(&first_byte) = text.as_bytes().get(0) {
-        if first_byte >= b'0' && first_byte <= b'9' {
+    if let Some(&first_byte) = text.as_bytes().first() {
+        if (b'0'..=b'9').contains(&first_byte) {
             return true;
         }
     }
@@ -420,7 +420,7 @@ mod tests {
     use crate::schema::{BytesOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::{DateTime, Document};
+    use crate::{DateTime, TantivyDocument};
 
     #[test]
     fn test_parse_bytes_doc() {
@@ -428,7 +428,7 @@ mod tests {
         let bytes_options = BytesOptions::default();
         let bytes_field = schema_builder.add_bytes_field("my_bytes", bytes_options);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "this is a test".as_bytes());
         let json_string = doc.to_json(&schema);
         assert_eq!(json_string, r#"{"my_bytes":["dGhpcyBpcyBhIHRlc3Q="]}"#);
@@ -440,7 +440,7 @@ mod tests {
         let bytes_options = BytesOptions::default();
         let bytes_field = schema_builder.add_bytes_field("my_bytes", bytes_options);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "".as_bytes());
         let json_string = doc.to_json(&schema);
         assert_eq!(json_string, r#"{"my_bytes":[""]}"#);
@@ -452,7 +452,7 @@ mod tests {
         let bytes_options = BytesOptions::default();
         let bytes_field = schema_builder.add_bytes_field("my_bytes", bytes_options);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         doc.add_bytes(
             bytes_field,
             "A bigger test I guess\nspanning on multiple lines\nhoping this will work".as_bytes(),

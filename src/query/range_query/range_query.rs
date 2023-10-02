@@ -474,7 +474,9 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::{Document, Field, IntoIpv6Addr, Schema, FAST, INDEXED, STORED, TEXT};
+    use crate::schema::{
+        Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
+    };
     use crate::{doc, Index, IndexWriter};
 
     #[test]
@@ -552,7 +554,7 @@ mod tests {
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
             for i in 1..100 {
-                let mut doc = Document::new();
+                let mut doc = TantivyDocument::new();
                 for j in 1..100 {
                     if i % j == 0 {
                         doc.add_i64(int_field, j as i64);
@@ -617,7 +619,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 60_000_000).unwrap();
             let mut docs = Vec::new();
             for i in 1..100 {
-                let mut doc = Document::new();
+                let mut doc = TantivyDocument::new();
                 for j in 1..100 {
                     if i % j == 0 {
                         doc.add_f64(float_field, j as f64);

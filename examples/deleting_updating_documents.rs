@@ -19,7 +19,7 @@ use tantivy::{doc, Index, IndexReader, IndexWriter};
 fn extract_doc_given_isbn(
     reader: &IndexReader,
     isbn_term: &Term,
-) -> tantivy::Result<Option<Document>> {
+) -> tantivy::Result<Option<TantivyDocument>> {
     let searcher = reader.searcher();
 
     // This is the simplest query you can think of.
@@ -72,7 +72,7 @@ fn main() -> tantivy::Result<()> {
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // Let's add a couple of documents, for the sake of the example.
-    let mut old_man_doc = Document::default();
+    let mut old_man_doc = TantivyDocument::default();
     old_man_doc.add_text(title, "The Old Man and the Sea");
     index_writer.add_document(doc!(
         isbn => "978-0099908401",

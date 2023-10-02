@@ -188,7 +188,7 @@ mod test {
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::{assert_nearly_equals, Document, Index, IndexWriter, Term};
+    use crate::{assert_nearly_equals, Index, IndexWriter, TantivyDocument, Term};
 
     #[test]
     pub fn test_fuzzy_json_path() -> crate::Result<()> {
@@ -202,7 +202,7 @@ mod test {
 
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        let doc = Document::parse_json(
+        let doc = TantivyDocument::parse_json(
             &schema,
             r#"{
             "attributes": {
@@ -211,7 +211,7 @@ mod test {
         }"#,
         )?;
         index_writer.add_document(doc)?;
-        let doc = Document::parse_json(
+        let doc = TantivyDocument::parse_json(
             &schema,
             r#"{
             "attributes": {

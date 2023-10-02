@@ -6,7 +6,7 @@
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, INDEXED, STORED, STRING};
-use tantivy::{Document, Index, IndexWriter};
+use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -28,7 +28,7 @@ fn main() -> tantivy::Result<()> {
     // Adding documents that contain an IPv4 address. Notice that the IP addresses are passed as
     // `String`. Since the field is of type ip, we parse the IP address from the string and store it
     // internally as IPv6.
-    let doc = Document::parse_json(
+    let doc = TantivyDocument::parse_json(
         &schema,
         r#"{
             "ip": "192.168.0.33",
@@ -36,7 +36,7 @@ fn main() -> tantivy::Result<()> {
         }"#,
     )?;
     index_writer.add_document(doc)?;
-    let doc = Document::parse_json(
+    let doc = TantivyDocument::parse_json(
         &schema,
         r#"{
             "ip": "192.168.0.80",
@@ -46,7 +46,7 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc)?;
     // ### IPv6
     // Adding a document that contains an IPv6 address.
-    let doc = Document::parse_json(
+    let doc = TantivyDocument::parse_json(
         &schema,
         r#"{
             "ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",

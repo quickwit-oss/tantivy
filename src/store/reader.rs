@@ -14,7 +14,7 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::document::{DefaultDocumentDeserializer, DocumentAccess};
+use crate::schema::document::{BinaryDocumentDeserializer, Document};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -198,10 +198,10 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
+    pub fn get<D: Document>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
-        let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
+        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
@@ -235,14 +235,14 @@ impl StoreReader {
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
-    pub fn iter<'a: 'b, 'b, D: DocumentAccess>(
+    pub fn iter<'a: 'b, 'b, D: Document>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
 
-            let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
+            let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
                 .map_err(crate::TantivyError::from)?;
             D::deserialize(deserializer).map_err(crate::TantivyError::from)
         })
@@ -370,10 +370,10 @@ impl StoreReader {
     }
 
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
-    pub async fn get_async<D: DocumentAccess>(&self, doc_id: DocId) -> crate::Result<D> {
+    pub async fn get_async<D: Document>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
 
-        let deserializer = DefaultDocumentDeserializer::from_reader(&mut doc_bytes)
+        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
@@ -386,14 +386,14 @@ mod tests {
     use super::*;
     use crate::directory::RamDirectory;
     use crate::schema::document::DocValue;
-    use crate::schema::{Document, Field};
+    use crate::schema::{Field, TantivyDocument};
     use crate::store::tests::write_lorem_ipsum_store;
     use crate::store::Compressor;
     use crate::Directory;
 
     const BLOCK_SIZE: usize = 16_384;
 
-    fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
+    fn get_text_field<'a>(doc: &'a TantivyDocument, field: &'a Field) -> Option<&'a str> {
         doc.get_first(*field).and_then(|f| f.as_str())
     }
 

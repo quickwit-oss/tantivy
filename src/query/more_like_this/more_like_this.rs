@@ -5,10 +5,10 @@ use tokenizer_api::Token;
 
 use crate::query::bm25::idf;
 use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
-use crate::schema::document::{DocValue, DocumentAccess};
+use crate::schema::document::{DocValue, Document};
 use crate::schema::{Field, FieldType, IndexRecordOption, Term};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TokenStream, Tokenizer};
-use crate::{DocAddress, Document, Result, Searcher, TantivyError};
+use crate::{DocAddress, Result, Searcher, TantivyDocument, TantivyError};
 
 #[derive(Debug, PartialEq)]
 struct ScoreTerm {
@@ -129,7 +129,7 @@ impl MoreLikeThis {
         searcher: &Searcher,
         doc_address: DocAddress,
     ) -> Result<Vec<ScoreTerm>> {
-        let doc = searcher.doc::<Document>(doc_address)?;
+        let doc = searcher.doc::<TantivyDocument>(doc_address)?;
 
         let field_to_values = doc.get_sorted_field_values();
         self.retrieve_terms_from_doc_fields(searcher, &field_to_values)

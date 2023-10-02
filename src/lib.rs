@@ -89,7 +89,7 @@
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
-//!     let retrieved_doc = searcher.doc::<Document>(doc_address)?;
+//!     let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
 //!     println!("{}", retrieved_doc.to_json(&schema));
 //! }
 //!
@@ -186,7 +186,7 @@ pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, Pr
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
-pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
+pub use crate::schema::{DateOptions, DateTimePrecision, TantivyDocument, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;

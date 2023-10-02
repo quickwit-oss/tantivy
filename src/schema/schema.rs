@@ -582,9 +582,9 @@ mod tests {
                 "ip": "127.0.0.1",
                 "is_read": true
         }"#;
-        let doc = Document::parse_json(&schema, doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
-        let doc_serdeser = Document::parse_json(&schema, &doc.to_json(&schema)).unwrap();
+        let doc_serdeser = TantivyDocument::parse_json(&schema, &doc.to_json(&schema)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }
 
@@ -598,7 +598,7 @@ mod tests {
         let doc_json = r#"{
                 "ip": "127.0.0.1"
         }"#;
-        let doc = Document::parse_json(&schema, doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "127.0.0.1");
 
@@ -606,7 +606,7 @@ mod tests {
         let doc_json = r#"{
                 "ip": "::1"
         }"#;
-        let doc = Document::parse_json(&schema, doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
         let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "::1");
@@ -615,7 +615,7 @@ mod tests {
         let doc_json = r#"{
                 "ip": "192.168.0.1"
         }"#;
-        let doc = Document::parse_json(&schema, doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
         let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
         assert_eq!(value["ip"][0], "192.168.0.1");
@@ -636,7 +636,8 @@ mod tests {
             "val".to_string(),
             vec![Value::from(14u64), Value::from(-1i64)],
         );
-        let doc = Document::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
+        let doc =
+            TantivyDocument::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
         assert_eq!(
             doc.get_all(title).collect::<Vec<_>>(),
             vec![
@@ -658,7 +659,7 @@ mod tests {
             "title".to_string(),
             vec![Value::from("title1"), Value::from("title2")],
         );
-        Document::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
+        TantivyDocument::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
     }
 
     #[test]
@@ -674,11 +675,11 @@ mod tests {
         let score_field = schema_builder.add_f64_field("score", score_options);
         let schema = schema_builder.build();
         {
-            let doc = Document::parse_json(&schema, "{}").unwrap();
+            let doc = TantivyDocument::parse_json(&schema, "{}").unwrap();
             assert!(doc.field_values().is_empty());
         }
         {
-            let doc = Document::parse_json(
+            let doc = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",
@@ -702,7 +703,7 @@ mod tests {
             assert_eq!(doc.get_first(score_field).unwrap().as_f64(), Some(80.5f64));
         }
         {
-            let res = Document::parse_json(
+            let res = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "thisfieldisnotdefinedintheschema": "my title",
@@ -717,7 +718,7 @@ mod tests {
             assert!(res.is_ok());
         }
         {
-            let json_err = Document::parse_json(
+            let json_err = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",
@@ -737,7 +738,7 @@ mod tests {
             );
         }
         {
-            let json_err = Document::parse_json(
+            let json_err = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",
@@ -756,7 +757,7 @@ mod tests {
             );
         }
         {
-            let json_err = Document::parse_json(
+            let json_err = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",
@@ -775,7 +776,7 @@ mod tests {
             ));
         }
         {
-            let json_err = Document::parse_json(
+            let json_err = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",
@@ -795,11 +796,11 @@ mod tests {
         }
         {
             // Short JSON, under the 20 char take.
-            let json_err = Document::parse_json(&schema, r#"{"count": 50,}"#);
+            let json_err = TantivyDocument::parse_json(&schema, r#"{"count": 50,}"#);
             assert_matches!(json_err, Err(InvalidJson(_)));
         }
         {
-            let json_err = Document::parse_json(
+            let json_err = TantivyDocument::parse_json(
                 &schema,
                 r#"{
                 "title": "my title",

@@ -3,18 +3,18 @@ use std::marker::PhantomData;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;
-use crate::schema::document::DocumentAccess;
-use crate::{Directory, Document, Index, IndexMeta, Opstamp, Segment};
+use crate::schema::document::Document;
+use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
-pub struct SingleSegmentIndexWriter<D: DocumentAccess = Document> {
+pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
     segment_writer: SegmentWriter,
     segment: Segment,
     opstamp: Opstamp,
     _phantom: PhantomData<D>,
 }
 
-impl<D: DocumentAccess> SingleSegmentIndexWriter<D> {
+impl<D: Document> SingleSegmentIndexWriter<D> {
     pub fn new(index: Index, mem_budget: usize) -> crate::Result<Self> {
         let segment = index.new_segment();
         let segment_writer = SegmentWriter::for_segment(mem_budget, segment.clone())?;

@@ -67,7 +67,7 @@ fn main() -> Result<()> {
     let mut titles = top_docs
         .into_iter()
         .map(|(_score, doc_address)| {
-            let doc = searcher.doc::<Document>(doc_address)?;
+            let doc = searcher.doc::<TantivyDocument>(doc_address)?;
             let title = doc
                 .get_first(title)
                 .and_then(|v| v.as_str())

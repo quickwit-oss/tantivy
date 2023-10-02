@@ -103,7 +103,7 @@ fn main() -> tantivy::Result<()> {
     let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     for (_, doc_address) in top_docs {
-        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
         println!("{}", retrieved_doc.to_json(&schema));
     }
 

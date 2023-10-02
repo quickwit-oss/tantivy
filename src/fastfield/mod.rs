@@ -90,7 +90,7 @@ mod tests {
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        Document, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder,
+        Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder, TantivyDocument,
         TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
@@ -271,7 +271,7 @@ mod tests {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             for i in -100i64..10_000i64 {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 doc.add_i64(i64_field, i);
                 fast_field_writers.add_document(&doc).unwrap();
             }
@@ -312,7 +312,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
-            let doc = Document::default();
+            let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
@@ -345,7 +345,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
-            let doc = Document::default();
+            let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
@@ -824,7 +824,7 @@ mod tests {
         {
             let mut write: WritePtr = directory.open_write(path).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
-            let doc = Document::default();
+            let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
             fast_field_writers.serialize(&mut write, None).unwrap();
             write.terminate().unwrap();
@@ -846,7 +846,7 @@ mod tests {
         assert_eq!(col.get_val(0), true);
     }
 
-    fn get_index(docs: &[crate::Document], schema: &Schema) -> crate::Result<RamDirectory> {
+    fn get_index(docs: &[crate::TantivyDocument], schema: &Schema) -> crate::Result<RamDirectory> {
         let directory: RamDirectory = RamDirectory::create();
         {
             let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
@@ -888,7 +888,7 @@ mod tests {
         let field = schema_builder.add_date_field("field", date_options);
         let schema = schema_builder.build();
 
-        let docs: Vec<Document> = times.iter().map(|time| doc!(field=>*time)).collect();
+        let docs: Vec<TantivyDocument> = times.iter().map(|time| doc!(field=>*time)).collect();
 
         let directory = get_index(&docs[..], &schema).unwrap();
         let path = Path::new("test");
@@ -964,9 +964,13 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let ip_addr = Ipv6Addr::new(1, 2, 3, 4, 5, 1, 2, 3);
-        index_writer.add_document(Document::default()).unwrap();
+        index_writer
+            .add_document(TantivyDocument::default())
+            .unwrap();
         index_writer.add_document(doc!(ip_field=>ip_addr)).unwrap();
-        index_writer.add_document(Document::default()).unwrap();
+        index_writer
+            .add_document(TantivyDocument::default())
+            .unwrap();
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let fastfields = searcher.segment_reader(0u32).fast_fields();

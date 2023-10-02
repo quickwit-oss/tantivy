@@ -568,7 +568,7 @@ mod bench {
 
     use crate::docset::TERMINATED;
     use crate::query::Intersection;
-    use crate::schema::{Document, Field, IndexRecordOption, Schema, Term, STRING};
+    use crate::schema::{Field, IndexRecordOption, Schema, TantivyDocument, Term, STRING};
     use crate::{tests, DocSet, Index, IndexWriter};
 
     pub static TERM_A: Lazy<Term> = Lazy::new(|| {

@@ -5,7 +5,7 @@ use std::{fmt, io};
 use crate::collector::Collector;
 use crate::core::{Executor, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::DocumentAccess;
+use crate::schema::document::Document;
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
@@ -84,7 +84,7 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
-    pub fn doc<D: DocumentAccess>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub fn doc<D: Document>(&self, doc_address: DocAddress) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
     }
@@ -104,7 +104,7 @@ impl Searcher {
 
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
-    pub async fn doc_async<D: DocumentAccess>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub async fn doc_async<D: Document>(&self, doc_address: DocAddress) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
     }

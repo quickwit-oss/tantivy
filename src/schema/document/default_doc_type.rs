@@ -5,24 +5,24 @@ use common::DateTime;
 use serde_json::Map;
 
 use crate::schema::document::{
-    DeserializeError, DocumentAccess, DocumentDeserialize, DocumentDeserializer,
+    DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
 use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, Schema, Value};
 use crate::tokenizer::PreTokenizedString;
 
-/// Tantivy's Document is the object that can
-/// be indexed and then searched for.
+/// Tantivy's Document is the object that can be indexed and then searched for.
+/// It provides a default implementation of the `Document` trait.
 ///
 /// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub struct Document {
+pub struct TantivyDocument {
     field_values: Vec<FieldValue>,
 }
 
-impl DocumentAccess for Document {
+impl Document for TantivyDocument {
     type Value<'a> = &'a Value;
     type FieldsValuesIter<'a> = FieldValueIter<'a>;
 
@@ -31,7 +31,7 @@ impl DocumentAccess for Document {
     }
 }
 
-impl DocumentDeserialize for Document {
+impl DocumentDeserialize for TantivyDocument {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut field_values = Vec::with_capacity(deserializer.size_hint());
@@ -44,13 +44,13 @@ impl DocumentDeserialize for Document {
     }
 }
 
-impl From<Vec<FieldValue>> for Document {
+impl From<Vec<FieldValue>> for TantivyDocument {
     fn from(field_values: Vec<FieldValue>) -> Self {
         Self { field_values }
     }
 }
 
-impl PartialEq for Document {
+impl PartialEq for TantivyDocument {
     fn eq(&self, other: &Self) -> bool {
         // super slow, but only here for tests
         let convert_to_comparable_map = |field_values: &[FieldValue]| {
@@ -72,9 +72,9 @@ impl PartialEq for Document {
     }
 }
 
-impl Eq for Document {}
+impl Eq for TantivyDocument {}
 
-impl IntoIterator for Document {
+impl IntoIterator for TantivyDocument {
     type Item = FieldValue;
 
     type IntoIter = std::vec::IntoIter<FieldValue>;
@@ -84,10 +84,10 @@ impl IntoIterator for Document {
     }
 }
 
-impl Document {
+impl TantivyDocument {
     /// Creates a new, empty document object
-    pub fn new() -> Document {
-        Document::default()
+    pub fn new() -> TantivyDocument {
+        TantivyDocument::default()
     }
 
     /// Returns the length of the document.
@@ -183,8 +183,8 @@ impl Document {
     pub fn convert_named_doc(
         schema: &Schema,
         named_doc: NamedFieldDocument,
-    ) -> Result<Document, DocParsingError> {
-        let mut document = Document::new();
+    ) -> Result<TantivyDocument, DocParsingError> {
+        let mut document = TantivyDocument::new();
         for (field_name, values) in named_doc.0 {
             if let Ok(field) = schema.get_field(&field_name) {
                 for value in values {
@@ -215,7 +215,7 @@ impl Document {
     }
 
     /// Build a document object from a json-object.
-    pub fn parse_json(schema: &Schema, doc_json: &str) -> Result<Document, DocParsingError> {
+    pub fn parse_json(schema: &Schema, doc_json: &str) -> Result<TantivyDocument, DocParsingError> {
         let json_obj: Map<String, serde_json::Value> =
             serde_json::from_str(doc_json).map_err(|_| DocParsingError::invalid_json(doc_json))?;
         Self::from_json_object(schema, json_obj)
@@ -225,8 +225,8 @@ impl Document {
     pub fn from_json_object(
         schema: &Schema,
         json_obj: Map<String, serde_json::Value>,
-    ) -> Result<Document, DocParsingError> {
-        let mut doc = Document::default();
+    ) -> Result<TantivyDocument, DocParsingError> {
+        let mut doc = TantivyDocument::default();
         for (field_name, json_value) in json_obj {
             if let Ok(field) = schema.get_field(&field_name) {
                 let field_entry = schema.get_field_entry(field);
@@ -275,14 +275,14 @@ impl DocParsingError {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::default_doc_type::Document;
+    use crate::schema::document::default_doc_type::TantivyDocument;
     use crate::schema::*;
 
     #[test]
     fn test_doc() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("title", TEXT);
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         doc.add_text(text_field, "My title");
         assert_eq!(doc.field_values().len(), 1);
     }

@@ -12,7 +12,7 @@ fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     for segment_reader in searcher.segment_readers() {
         let store_reader = segment_reader.get_store_reader(1)?;
         for doc_id in 0..segment_reader.max_doc() {
-            let _doc: Document = store_reader.get(doc_id)?;
+            let _doc: TantivyDocument = store_reader.get(doc_id)?;
         }
     }
     Ok(())
@@ -115,7 +115,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
             index_writer.delete_term(doc_id_term);
         } else {
             uncommitted_docs.insert(random_val);
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_u64(id_field, random_val);
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);
@@ -190,7 +190,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
             index_writer.delete_term(doc_id_term);
         } else {
             uncommitted_docs.insert(random_val);
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_u64(id_field, random_val);
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);

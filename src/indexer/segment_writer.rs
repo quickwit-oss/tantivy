@@ -13,7 +13,7 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::document::{DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::document::{DocValue, Document, ReferenceValue};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
@@ -162,7 +162,7 @@ impl SegmentWriter {
             + self.segment_serializer.mem_usage()
     }
 
-    fn index_document<D: DocumentAccess>(&mut self, doc: &D) -> crate::Result<()> {
+    fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
 
         // TODO: Can this be optimised a bit?
@@ -379,7 +379,7 @@ impl SegmentWriter {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document<D: DocumentAccess>(
+    pub fn add_document<D: Document>(
         &mut self,
         add_operation: AddOperation<D>,
     ) -> crate::Result<()> {
@@ -501,8 +501,8 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
-        DateTime, Directory, DocAddress, DocSet, Document, Index, IndexWriter, Postings, Term,
-        TERMINATED,
+        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, Postings, TantivyDocument,
+        Term, TERMINATED,
     };
 
     #[test]
@@ -519,7 +519,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("title", TEXT | STORED);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         let pre_tokenized_text = PreTokenizedString {
             text: String::from("A"),
             tokens: vec![Token {
@@ -543,7 +543,7 @@ mod tests {
         store_writer.close().unwrap();
 
         let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
-        let doc = reader.get::<Document>(0).unwrap();
+        let doc = reader.get::<TantivyDocument>(0).unwrap();
 
         assert_eq!(doc.field_values().len(), 2);
         assert_eq!(doc.field_values()[0].value().as_str(), Some("A"));
@@ -578,7 +578,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let doc = searcher
-            .doc::<Document>(DocAddress {
+            .doc::<TantivyDocument>(DocAddress {
                 segment_ord: 0u32,
                 doc_id: 0u32,
             })
@@ -714,7 +714,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         let json_val: BTreeMap<String, crate::schema::Value> =
             serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
         doc.add_object(json_field, json_val);
@@ -841,7 +841,8 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let doc = Document::parse_json(&schema, r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, r#"{"text": [ "bbb", "aaa", "", "aaa"]}"#)
+            .unwrap();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc).unwrap();
@@ -868,7 +869,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         // This is a bit of a contrived example.
         let tokens = PreTokenizedString {
             text: "roller-coaster".to_string(),
@@ -906,7 +907,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        let mut doc = Document::default();
+        let mut doc = TantivyDocument::default();
         // This is a bit of a contrived example.
         let tokens = PreTokenizedString {
             text: "contrived-example".to_string(), //< I can't think of a use case where this corner case happens in real life.
@@ -967,7 +968,7 @@ mod tests {
         let schema = index.schema();
         let mut index_writer = index.writer(50_000_000).unwrap();
         let title = schema.get_field("title").unwrap();
-        let mut document = Document::default();
+        let mut document = TantivyDocument::default();
         document.add_text(title, "The Old Man and the Sea");
         index_writer.add_document(document).unwrap();
         let error = index_writer.commit().unwrap_err();

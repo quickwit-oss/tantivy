@@ -20,8 +20,8 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
-use crate::schema::document::DocumentAccess;
-use crate::schema::{Document, IndexRecordOption, Term};
+use crate::schema::document::Document;
+use crate::schema::{IndexRecordOption, TantivyDocument, Term};
 use crate::{FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
@@ -51,7 +51,7 @@ fn error_in_index_worker_thread(context: &str) -> TantivyError {
 /// indexing queue.
 /// Each indexing thread builds its own independent [`Segment`], via
 /// a `SegmentWriter` object.
-pub struct IndexWriter<D: DocumentAccess = Document> {
+pub struct IndexWriter<D: Document = TantivyDocument> {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: Option<DirectoryLock>,
@@ -165,7 +165,7 @@ pub(crate) fn advance_deletes(
     Ok(())
 }
 
-fn index_documents<D: DocumentAccess>(
+fn index_documents<D: Document>(
     memory_budget: usize,
     segment: Segment,
     grouped_document_iterator: &mut dyn Iterator<Item = AddBatch<D>>,
@@ -248,7 +248,7 @@ fn apply_deletes(
     })
 }
 
-impl<D: DocumentAccess> IndexWriter<D> {
+impl<D: Document> IndexWriter<D> {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
     /// The lockfile should be deleted on drop, but it is possible
@@ -788,7 +788,7 @@ impl<D: DocumentAccess> IndexWriter<D> {
     }
 }
 
-impl<D: DocumentAccess> Drop for IndexWriter<D> {
+impl<D: Document> Drop for IndexWriter<D> {
     fn drop(&mut self) {
         self.segment_updater.kill();
         self.drop_sender();
@@ -822,8 +822,8 @@ mod tests {
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{
-        DateTime, DocAddress, Document, Index, IndexSettings, IndexSortByField, IndexWriter, Order,
-        ReloadPolicy, Term,
+        DateTime, DocAddress, Index, IndexSettings, IndexSortByField, IndexWriter, Order,
+        ReloadPolicy, TantivyDocument, Term,
     };
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -960,7 +960,7 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer: IndexWriter = index.writer_for_tests().unwrap();
-        match index.writer_for_tests::<Document>() {
+        match index.writer_for_tests::<TantivyDocument>() {
             Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
             _ => panic!("Expected a `LockFailure` error"),
         }
@@ -971,7 +971,7 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer: IndexWriter = index.writer_for_tests().unwrap();
-        match index.writer_for_tests::<Document>() {
+        match index.writer_for_tests::<TantivyDocument>() {
             Err(err) => {
                 let err_msg = err.to_string();
                 assert!(err_msg.contains("already an `IndexWriter`"));
@@ -1976,14 +1976,14 @@ mod tests {
                 .get_store_reader(DOCSTORE_CACHE_CAPACITY)
                 .unwrap();
             // test store iterator
-            for doc in store_reader.iter::<Document>(segment_reader.alive_bitset()) {
+            for doc in store_reader.iter::<TantivyDocument>(segment_reader.alive_bitset()) {
                 let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
             }
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
-                    .get::<Document>(doc_id)
+                    .get::<TantivyDocument>(doc_id)
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
@@ -1992,7 +1992,7 @@ mod tests {
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 if id_exists(id) {
                     let id2 = store_reader
-                        .get::<Document>(doc_id)
+                        .get::<TantivyDocument>(doc_id)
                         .unwrap()
                         .get_first(multi_numbers)
                         .unwrap()
@@ -2000,13 +2000,13 @@ mod tests {
                         .unwrap();
                     assert_eq!(id, id2);
                     let bool = store_reader
-                        .get::<Document>(doc_id)
+                        .get::<TantivyDocument>(doc_id)
                         .unwrap()
                         .get_first(bool_field)
                         .unwrap()
                         .as_bool()
                         .unwrap();
-                    let doc = store_reader.get::<Document>(doc_id).unwrap();
+                    let doc = store_reader.get::<TantivyDocument>(doc_id).unwrap();
                     let mut bool2 = doc.get_all(multi_bools);
                     assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
                     assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());

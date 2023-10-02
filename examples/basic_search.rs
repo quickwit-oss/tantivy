@@ -87,7 +87,7 @@ fn main() -> tantivy::Result<()> {
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();
 
-    let mut old_man_doc = Document::default();
+    let mut old_man_doc = TantivyDocument::default();
     old_man_doc.add_text(title, "The Old Man and the Sea");
     old_man_doc.add_text(
         body,
@@ -217,7 +217,7 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
     for (_score, doc_address) in top_docs {
-        let retrieved_doc: Document = searcher.doc(doc_address)?;
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
         println!("{}", retrieved_doc.to_json(&schema));
     }
 

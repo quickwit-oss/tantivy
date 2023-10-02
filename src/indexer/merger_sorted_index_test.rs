@@ -10,8 +10,8 @@ mod tests {
         TextFieldIndexing, TextOptions,
     };
     use crate::{
-        DocAddress, DocSet, Document, IndexSettings, IndexSortByField, IndexWriter, Order,
-        Postings, Term,
+        DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, Postings,
+        TantivyDocument, Term,
     };
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
@@ -277,13 +277,15 @@ mod tests {
                 2
             };
             let doc = searcher
-                .doc::<Document>(DocAddress::new(0, blubber_pos))
+                .doc::<TantivyDocument>(DocAddress::new(0, blubber_pos))
                 .unwrap();
             assert_eq!(
                 doc.get_first(my_text_field).unwrap().as_str(),
                 Some("blubber")
             );
-            let doc = searcher.doc::<Document>(DocAddress::new(0, 0)).unwrap();
+            let doc = searcher
+                .doc::<TantivyDocument>(DocAddress::new(0, 0))
+                .unwrap();
             assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1000));
         }
     }

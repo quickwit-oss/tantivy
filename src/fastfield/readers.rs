@@ -357,7 +357,7 @@ mod tests {
     use columnar::ColumnType;
 
     use crate::schema::{JsonObjectOptions, Schema, FAST};
-    use crate::{Document, Index, IndexWriter};
+    use crate::{Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_fast_field_reader_resolve_with_dynamic_internal() {
@@ -374,7 +374,9 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
-        index_writer.add_document(Document::default()).unwrap();
+        index_writer
+            .add_document(TantivyDocument::default())
+            .unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();

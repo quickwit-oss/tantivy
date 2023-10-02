@@ -64,7 +64,7 @@ impl FacetReader {
 mod tests {
     use crate::schema::document::DocValue;
     use crate::schema::{Facet, FacetOptions, SchemaBuilder, STORED};
-    use crate::{DocAddress, Document, Index, IndexWriter};
+    use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_facet_only_indexed() {
@@ -87,7 +87,7 @@ mod tests {
         facet_reader.facet_from_ord(0, &mut facet).unwrap();
         assert_eq!(facet.to_path_string(), "/a/b");
         let doc = searcher
-            .doc::<Document>(DocAddress::new(0u32, 0u32))
+            .doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))
             .unwrap();
         let value = doc.get_first(facet_field).and_then(|v| v.as_facet());
         assert_eq!(value, None);
@@ -145,7 +145,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
-        let doc = searcher.doc::<Document>(DocAddress::new(0u32, 0u32))?;
+        let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))?;
         let value: Option<&Facet> = doc.get_first(facet_field).and_then(|v| v.as_facet());
         assert_eq!(value, Facet::from_text("/a/b").ok().as_ref());
         Ok(())
@@ -159,7 +159,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()))?;
-        index_writer.add_document(Document::default())?;
+        index_writer.add_document(TantivyDocument::default())?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
@@ -179,8 +179,8 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(Document::default())?;
-        index_writer.add_document(Document::default())?;
+        index_writer.add_document(TantivyDocument::default())?;
+        index_writer.add_document(TantivyDocument::default())?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();

@@ -5,16 +5,16 @@ use std::io::Write;
 use columnar::MonotonicallyMappableToU128;
 use common::{f64_to_u64, BinarySerializable, VInt};
 
-use crate::schema::document::{type_codes, DocValue, DocumentAccess, ReferenceValue};
+use crate::schema::document::{type_codes, DocValue, Document, ReferenceValue};
 use crate::schema::Schema;
 
-/// A serializer writing documents which implement [`DocumentAccess`] to a provided writer.
-pub struct DocumentSerializer<'se, W> {
+/// A serializer writing documents which implement [`Document`] to a provided writer.
+pub struct BinaryDocumentSerializer<'se, W> {
     writer: &'se mut W,
     schema: &'se Schema,
 }
 
-impl<'se, W> DocumentSerializer<'se, W>
+impl<'se, W> BinaryDocumentSerializer<'se, W>
 where W: Write
 {
     /// Creates a new serializer with a provided writer.
@@ -25,7 +25,7 @@ where W: Write
     /// Attempts to serialize a given document and write the output
     /// to the writer.
     pub(crate) fn serialize_doc<D>(&mut self, doc: &D) -> io::Result<()>
-    where D: DocumentAccess {
+    where D: Document {
         let stored_field_values = || {
             doc.iter_fields_and_values()
                 .filter(|(field, _)| self.schema.get_field_entry(*field).is_stored())
@@ -37,7 +37,7 @@ where W: Write
         for (field, value_access) in stored_field_values() {
             field.serialize(self.writer)?;
 
-            let mut serializer = ValueSerializer::new(self.writer);
+            let mut serializer = BinaryValueSerializer::new(self.writer);
             match value_access.as_value() {
                 ReferenceValue::PreTokStr(pre_tokenized_text) => {
                     serializer.serialize_value(ReferenceValue::Str::<&'_ crate::schema::Value>(
@@ -68,11 +68,11 @@ where W: Write
 }
 
 /// A serializer for a single value.
-pub struct ValueSerializer<'se, W> {
+pub struct BinaryValueSerializer<'se, W> {
     writer: &'se mut W,
 }
 
-impl<'se, W> ValueSerializer<'se, W>
+impl<'se, W> BinaryValueSerializer<'se, W>
 where W: Write
 {
     /// Creates a new serializer with a provided writer.
@@ -150,7 +150,7 @@ where W: Write
                 // length at the end of the complicates things quite considerably.
                 let elements: Vec<ReferenceValue<'_, V::ChildValue>> = elements.collect();
 
-                let mut serializer = ArraySerializer::begin(elements.len(), self.writer)?;
+                let mut serializer = BinaryArraySerializer::begin(elements.len(), self.writer)?;
 
                 for value in elements {
                     serializer.serialize_value(value)?;
@@ -165,7 +165,7 @@ where W: Write
                 // length at the end of the complicates things quite considerably.
                 let entries: Vec<(&str, ReferenceValue<'_, V::ChildValue>)> = object.collect();
 
-                let mut serializer = ObjectSerializer::begin(entries.len(), self.writer)?;
+                let mut serializer = BinaryObjectSerializer::begin(entries.len(), self.writer)?;
 
                 for (key, value) in entries {
                     serializer.serialize_entry(key, value)?;
@@ -182,13 +182,13 @@ where W: Write
 }
 
 /// A serializer for writing a sequence of values to a writer.
-pub struct ArraySerializer<'se, W> {
+pub struct BinaryArraySerializer<'se, W> {
     writer: &'se mut W,
     expected_length: usize,
     actual_length: usize,
 }
 
-impl<'se, W> ArraySerializer<'se, W>
+impl<'se, W> BinaryArraySerializer<'se, W>
 where W: Write
 {
     /// Creates a new array serializer and writes the length of the array to the writer.
@@ -211,7 +211,7 @@ where W: Write
     where
         V: DocValue<'a>,
     {
-        let mut serializer = ValueSerializer::new(self.writer);
+        let mut serializer = BinaryValueSerializer::new(self.writer);
         serializer.serialize_value(value)?;
 
         self.actual_length += 1;
@@ -235,20 +235,20 @@ where W: Write
 }
 
 /// A serializer for writing a set of key-value pairs to a writer.
-pub struct ObjectSerializer<'se, W> {
-    inner: ArraySerializer<'se, W>,
+pub struct BinaryObjectSerializer<'se, W> {
+    inner: BinaryArraySerializer<'se, W>,
     expected_length: usize,
     actual_length: usize,
 }
 
-impl<'se, W> ObjectSerializer<'se, W>
+impl<'se, W> BinaryObjectSerializer<'se, W>
 where W: Write
 {
     /// Creates a new object serializer and writes the length of the object to the writer.
     pub(crate) fn begin(length: usize, writer: &'se mut W) -> io::Result<Self> {
         // We mul by 2 here to count the keys and values separately:
         // [("a", 1), ("b", 2)] is actually stored as ["a", 1, "b", 2]
-        let inner = ArraySerializer::begin(length * 2, writer)?;
+        let inner = BinaryArraySerializer::begin(length * 2, writer)?;
 
         Ok(Self {
             inner,
@@ -315,7 +315,7 @@ mod tests {
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
 
-        let mut serializer = ValueSerializer::new(&mut writer);
+        let mut serializer = BinaryValueSerializer::new(&mut writer);
         serializer.serialize_value(value).expect("Serialize value");
 
         writer
@@ -675,10 +675,10 @@ mod tests {
         );
     }
 
-    fn serialize_doc<D: DocumentAccess>(doc: &D, schema: &Schema) -> Vec<u8> {
+    fn serialize_doc<D: Document>(doc: &D, schema: &Schema) -> Vec<u8> {
         let mut writer = Vec::new();
 
-        let mut serializer = DocumentSerializer::new(&mut writer, schema);
+        let mut serializer = BinaryDocumentSerializer::new(&mut writer, schema);
         serializer.serialize_doc(doc).expect("Serialize value");
 
         writer
