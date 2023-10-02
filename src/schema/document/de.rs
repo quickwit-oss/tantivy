@@ -802,52 +802,52 @@ mod tests {
         writer
     }
 
-    fn deserialize_value(buffer: Vec<u8>) -> crate::schema::Value {
+    fn deserialize_value(buffer: Vec<u8>) -> crate::schema::OwnedValue {
         let mut cursor = Cursor::new(buffer);
         let deserializer = BinaryValueDeserializer::from_reader(&mut cursor).unwrap();
-        crate::schema::Value::deserialize(deserializer).expect("Deserialize value")
+        crate::schema::OwnedValue::deserialize(deserializer).expect("Deserialize value")
     }
 
     #[test]
     fn test_simple_value_serialize() {
         let result = serialize_value(ReferenceValue::Null);
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::Null);
+        assert_eq!(value, crate::schema::OwnedValue::Null);
 
         let result = serialize_value(ReferenceValue::Str("hello, world"));
         let value = deserialize_value(result);
         assert_eq!(
             value,
-            crate::schema::Value::Str(String::from("hello, world"))
+            crate::schema::OwnedValue::Str(String::from("hello, world"))
         );
 
         let result = serialize_value(ReferenceValue::U64(123));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::U64(123));
+        assert_eq!(value, crate::schema::OwnedValue::U64(123));
 
         let result = serialize_value(ReferenceValue::I64(-123));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::I64(-123));
+        assert_eq!(value, crate::schema::OwnedValue::I64(-123));
 
         let result = serialize_value(ReferenceValue::F64(123.3845));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::F64(123.3845));
+        assert_eq!(value, crate::schema::OwnedValue::F64(123.3845));
 
         let result = serialize_value(ReferenceValue::Bool(false));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::Bool(false));
+        assert_eq!(value, crate::schema::OwnedValue::Bool(false));
 
         let result = serialize_value(ReferenceValue::Date(DateTime::from_timestamp_micros(100)));
         let value = deserialize_value(result);
         assert_eq!(
             value,
-            crate::schema::Value::Date(DateTime::from_timestamp_micros(100))
+            crate::schema::OwnedValue::Date(DateTime::from_timestamp_micros(100))
         );
 
         let facet = Facet::from_text("/hello/world").unwrap();
         let result = serialize_value(ReferenceValue::Facet(&facet));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::Facet(facet));
+        assert_eq!(value, crate::schema::OwnedValue::Facet(facet));
 
         let pre_tok_str = PreTokenizedString {
             text: "hello, world".to_string(),
@@ -855,7 +855,7 @@ mod tests {
         };
         let result = serialize_value(ReferenceValue::PreTokStr(&pre_tok_str));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::PreTokStr(pre_tok_str));
+        assert_eq!(value, crate::schema::OwnedValue::PreTokStr(pre_tok_str));
     }
 
     #[test]
@@ -865,9 +865,9 @@ mod tests {
         let value = deserialize_value(result);
         assert_eq!(
             value,
-            crate::schema::Value::Array(vec![
-                crate::schema::Value::Null,
-                crate::schema::Value::Null,
+            crate::schema::OwnedValue::Array(vec![
+                crate::schema::OwnedValue::Null,
+                crate::schema::OwnedValue::Null,
             ]),
         );
 
@@ -879,16 +879,16 @@ mod tests {
         let value = deserialize_value(result);
         assert_eq!(
             value,
-            crate::schema::Value::Array(vec![
-                crate::schema::Value::Str(String::from("Hello, world")),
-                crate::schema::Value::Str(String::from("Some demo")),
+            crate::schema::OwnedValue::Array(vec![
+                crate::schema::OwnedValue::Str(String::from("Hello, world")),
+                crate::schema::OwnedValue::Str(String::from("Some demo")),
             ]),
         );
 
         let elements = vec![];
         let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
         let value = deserialize_value(result);
-        assert_eq!(value, crate::schema::Value::Array(vec![]));
+        assert_eq!(value, crate::schema::OwnedValue::Array(vec![]));
 
         let elements = vec![
             serde_json::Value::Null,
@@ -899,10 +899,10 @@ mod tests {
         let value = deserialize_value(result);
         assert_eq!(
             value,
-            crate::schema::Value::Array(vec![
-                crate::schema::Value::Null,
-                crate::schema::Value::Str(String::from("Hello, world")),
-                crate::schema::Value::U64(12345),
+            crate::schema::OwnedValue::Array(vec![
+                crate::schema::OwnedValue::Null,
+                crate::schema::OwnedValue::Str(String::from("Hello, world")),
+                crate::schema::OwnedValue::U64(12345),
             ]),
         );
     }
@@ -925,17 +925,20 @@ mod tests {
         let mut expected_object = BTreeMap::new();
         expected_object.insert(
             "my-first-key".to_string(),
-            crate::schema::Value::Str(String::from("Hello")),
+            crate::schema::OwnedValue::Str(String::from("Hello")),
         );
-        expected_object.insert("my-second-key".to_string(), crate::schema::Value::Null);
-        expected_object.insert("my-third-key".to_string(), crate::schema::Value::F64(123.0));
-        assert_eq!(value, crate::schema::Value::Object(expected_object));
+        expected_object.insert("my-second-key".to_string(), crate::schema::OwnedValue::Null);
+        expected_object.insert(
+            "my-third-key".to_string(),
+            crate::schema::OwnedValue::F64(123.0),
+        );
+        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
 
         let object = serde_json::Map::new();
         let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
         let value = deserialize_value(result);
         let expected_object = BTreeMap::new();
-        assert_eq!(value, crate::schema::Value::Object(expected_object));
+        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
 
         let mut object = serde_json::Map::new();
         object.insert("my-first-key".into(), serde_json::Value::Null);
@@ -944,10 +947,10 @@ mod tests {
         let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
         let value = deserialize_value(result);
         let mut expected_object = BTreeMap::new();
-        expected_object.insert("my-first-key".to_string(), crate::schema::Value::Null);
-        expected_object.insert("my-second-key".to_string(), crate::schema::Value::Null);
-        expected_object.insert("my-third-key".to_string(), crate::schema::Value::Null);
-        assert_eq!(value, crate::schema::Value::Object(expected_object));
+        expected_object.insert("my-first-key".to_string(), crate::schema::OwnedValue::Null);
+        expected_object.insert("my-second-key".to_string(), crate::schema::OwnedValue::Null);
+        expected_object.insert("my-third-key".to_string(), crate::schema::OwnedValue::Null);
+        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
     }
 
     #[test]
@@ -983,26 +986,29 @@ mod tests {
         let mut expected_object = BTreeMap::new();
         expected_object.insert(
             "my-array".to_string(),
-            crate::schema::Value::Array(vec![
-                crate::schema::Value::Null,
-                crate::schema::Value::Str(String::from("bobby of the sea")),
+            crate::schema::OwnedValue::Array(vec![
+                crate::schema::OwnedValue::Null,
+                crate::schema::OwnedValue::Str(String::from("bobby of the sea")),
             ]),
         );
         expected_object.insert(
             "my-object".to_string(),
-            crate::schema::Value::Object(
+            crate::schema::OwnedValue::Object(
                 vec![
-                    ("inner-1".to_string(), crate::schema::Value::I64(-123i64)),
+                    (
+                        "inner-1".to_string(),
+                        crate::schema::OwnedValue::I64(-123i64),
+                    ),
                     (
                         "inner-2".to_string(),
-                        crate::schema::Value::Str(String::from("bobby of the sea 2")),
+                        crate::schema::OwnedValue::Str(String::from("bobby of the sea 2")),
                     ),
                 ]
                 .into_iter()
                 .collect(),
             ),
         );
-        assert_eq!(value, crate::schema::Value::Object(expected_object));
+        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
 
         // Some more extreme nesting that might behave weirdly
         let mut object = serde_json::Map::new();
@@ -1019,11 +1025,11 @@ mod tests {
         let mut expected_object = BTreeMap::new();
         expected_object.insert(
             "my-array".to_string(),
-            crate::schema::Value::Array(vec![crate::schema::Value::Array(vec![
-                crate::schema::Value::Array(vec![]),
-                crate::schema::Value::Array(vec![crate::schema::Value::Null]),
+            crate::schema::OwnedValue::Array(vec![crate::schema::OwnedValue::Array(vec![
+                crate::schema::OwnedValue::Array(vec![]),
+                crate::schema::OwnedValue::Array(vec![crate::schema::OwnedValue::Null]),
             ])]),
         );
-        assert_eq!(value, crate::schema::Value::Object(expected_object));
+        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
     }
 }

@@ -413,7 +413,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use serde_json;
 
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;
@@ -630,24 +630,24 @@ mod tests {
         let mut named_doc_map = BTreeMap::default();
         named_doc_map.insert(
             "title".to_string(),
-            vec![Value::from("title1"), Value::from("title2")],
+            vec![OwnedValue::from("title1"), OwnedValue::from("title2")],
         );
         named_doc_map.insert(
             "val".to_string(),
-            vec![Value::from(14u64), Value::from(-1i64)],
+            vec![OwnedValue::from(14u64), OwnedValue::from(-1i64)],
         );
         let doc =
             TantivyDocument::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
         assert_eq!(
             doc.get_all(title).collect::<Vec<_>>(),
             vec![
-                &Value::from("title1".to_string()),
-                &Value::from("title2".to_string())
+                &OwnedValue::from("title1".to_string()),
+                &OwnedValue::from("title2".to_string())
             ]
         );
         assert_eq!(
             doc.get_all(val).collect::<Vec<_>>(),
-            vec![&Value::from(14u64), &Value::from(-1i64)]
+            vec![&OwnedValue::from(14u64), &OwnedValue::from(-1i64)]
         );
     }
 
@@ -657,7 +657,7 @@ mod tests {
         let mut named_doc_map = BTreeMap::default();
         named_doc_map.insert(
             "title".to_string(),
-            vec![Value::from("title1"), Value::from("title2")],
+            vec![OwnedValue::from("title1"), OwnedValue::from("title2")],
         );
         TantivyDocument::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
     }

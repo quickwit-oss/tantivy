@@ -5,7 +5,7 @@ use std::ops::Range;
 use htmlescape::encode_minimal;
 
 use crate::query::Query;
-use crate::schema::document::{DocValue, Document};
+use crate::schema::document::{Document, Value};
 use crate::schema::Field;
 use crate::tokenizer::{TextAnalyzer, Token};
 use crate::{Score, Searcher, Term};

@@ -1,16 +1,16 @@
-use crate::schema::{Field, Value};
+use crate::schema::{Field, OwnedValue};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FieldValue {
     pub field: Field,
-    pub value: Value,
+    pub value: OwnedValue,
 }
 
 impl FieldValue {
     /// Constructor
-    pub fn new(field: Field, value: Value) -> FieldValue {
+    pub fn new(field: Field, value: OwnedValue) -> FieldValue {
         FieldValue { field, value }
     }
 
@@ -20,12 +20,12 @@ impl FieldValue {
     }
 
     /// Value accessor
-    pub fn value(&self) -> &Value {
+    pub fn value(&self) -> &OwnedValue {
         &self.value
     }
 }
 
-impl From<FieldValue> for Value {
+impl From<FieldValue> for OwnedValue {
     fn from(field_value: FieldValue) -> Self {
         field_value.value
     }
@@ -36,7 +36,7 @@ impl From<FieldValue> for Value {
 pub struct FieldValueIter<'a>(pub(crate) std::slice::Iter<'a, FieldValue>);
 
 impl<'a> Iterator for FieldValueIter<'a> {
-    type Item = (Field, &'a Value);
+    type Item = (Field, &'a OwnedValue);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0

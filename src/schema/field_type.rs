@@ -12,8 +12,8 @@ use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
-    DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing,
-    TextOptions, Value,
+    DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, OwnedValue,
+    TextFieldIndexing, TextOptions,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
@@ -316,7 +316,7 @@ impl FieldType {
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the
     /// target field is a `Str`, this method will return an Error.
-    pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
+    pub fn value_from_json(&self, json: JsonValue) -> Result<OwnedValue, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
                 match self {
@@ -328,10 +328,10 @@ impl FieldType {
                             })?;
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
-                    FieldType::Str(_) => Ok(Value::Str(field_text)),
+                    FieldType::Str(_) => Ok(OwnedValue::Str(field_text)),
                     FieldType::U64(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::U64(field_text.parse().map_err(|_| {
+                            Ok(OwnedValue::U64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a u64 or a u64 as string",
                                     json: JsonValue::String(field_text),
@@ -346,7 +346,7 @@ impl FieldType {
                     }
                     FieldType::I64(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::I64(field_text.parse().map_err(|_| {
+                            Ok(OwnedValue::I64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a i64 or a i64 as string",
                                     json: JsonValue::String(field_text),
@@ -361,7 +361,7 @@ impl FieldType {
                     }
                     FieldType::F64(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::F64(field_text.parse().map_err(|_| {
+                            Ok(OwnedValue::F64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a f64 or a f64 as string",
                                     json: JsonValue::String(field_text),
@@ -376,7 +376,7 @@ impl FieldType {
                     }
                     FieldType::Bool(opt) => {
                         if opt.should_coerce() {
-                            Ok(Value::Bool(field_text.parse().map_err(|_| {
+                            Ok(OwnedValue::Bool(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a i64 or a bool as string",
                                     json: JsonValue::String(field_text),
@@ -389,10 +389,10 @@ impl FieldType {
                             })
                         }
                     }
-                    FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                    FieldType::Facet(_) => Ok(OwnedValue::Facet(Facet::from(&field_text))),
                     FieldType::Bytes(_) => BASE64
                         .decode(&field_text)
-                        .map(Value::Bytes)
+                        .map(OwnedValue::Bytes)
                         .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
                     FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
                         expected: "a json object",
@@ -406,14 +406,14 @@ impl FieldType {
                             }
                         })?;
 
-                        Ok(Value::IpAddr(ip_addr.into_ipv6_addr()))
+                        Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
                     }
                 }
             }
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
-                        Ok(Value::I64(field_val_i64))
+                        Ok(OwnedValue::I64(field_val_i64))
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "an i64 int",
@@ -423,7 +423,7 @@ impl FieldType {
                 }
                 FieldType::U64(_) => {
                     if let Some(field_val_u64) = field_val_num.as_u64() {
-                        Ok(Value::U64(field_val_u64))
+                        Ok(OwnedValue::U64(field_val_u64))
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "u64",
@@ -433,7 +433,7 @@ impl FieldType {
                 }
                 FieldType::F64(_) => {
                     if let Some(field_val_f64) = field_val_num.as_f64() {
-                        Ok(Value::F64(field_val_f64))
+                        Ok(OwnedValue::F64(field_val_f64))
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "a f64",
@@ -447,7 +447,7 @@ impl FieldType {
                 }),
                 FieldType::Str(opt) => {
                     if opt.should_coerce() {
-                        Ok(Value::Str(field_val_num.to_string()))
+                        Ok(OwnedValue::Str(field_val_num.to_string()))
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string",
@@ -473,7 +473,7 @@ impl FieldType {
                     if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
                         serde_json::Value::Object(json_map.clone()),
                     ) {
-                        Ok(Value::PreTokStr(tok_str_val))
+                        Ok(OwnedValue::PreTokStr(tok_str_val))
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string or an pretokenized string",
@@ -481,17 +481,17 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::JsonObject(_) => Ok(Value::from(json_map)),
+                FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
                 }),
             },
             JsonValue::Bool(json_bool_val) => match self {
-                FieldType::Bool(_) => Ok(Value::Bool(json_bool_val)),
+                FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
                 FieldType::Str(opt) => {
                     if opt.should_coerce() {
-                        Ok(Value::Str(json_bool_val.to_string()))
+                        Ok(OwnedValue::Str(json_bool_val.to_string()))
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string",
@@ -508,7 +508,7 @@ impl FieldType {
             JsonValue::Null => match self {
                 FieldType::Str(opt) => {
                     if opt.should_coerce() {
-                        Ok(Value::Str("null".to_string()))
+                        Ok(OwnedValue::Str("null".to_string()))
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string",
@@ -535,7 +535,7 @@ mod tests {
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::{NumericOptions, Schema, TextOptions, Type, Value, COERCE, INDEXED};
+    use crate::schema::{NumericOptions, OwnedValue, Schema, TextOptions, Type, COERCE, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, TantivyDocument};
@@ -547,20 +547,20 @@ mod tests {
         let schema = schema_builder.build();
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": 100}"#).unwrap();
         assert_eq!(
-            &Value::Str("100".to_string()),
+            &OwnedValue::Str("100".to_string()),
             doc.get_first(text_field).unwrap()
         );
 
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": true}"#).unwrap();
         assert_eq!(
-            &Value::Str("true".to_string()),
+            &OwnedValue::Str("true".to_string()),
             doc.get_first(text_field).unwrap()
         );
 
         // Not sure if this null coercion is the best approach
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": null}"#).unwrap();
         assert_eq!(
-            &Value::Str("null".to_string()),
+            &OwnedValue::Str("null".to_string()),
             doc.get_first(text_field).unwrap()
         );
     }
@@ -574,9 +574,9 @@ mod tests {
         let schema = schema_builder.build();
         let doc_json = r#"{"i64": "100", "u64": "100", "f64": "100"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&Value::I64(100), doc.get_first(i64_field).unwrap());
-        assert_eq!(&Value::U64(100), doc.get_first(u64_field).unwrap());
-        assert_eq!(&Value::F64(100.0), doc.get_first(f64_field).unwrap());
+        assert_eq!(&OwnedValue::I64(100), doc.get_first(i64_field).unwrap());
+        assert_eq!(&OwnedValue::U64(100), doc.get_first(u64_field).unwrap());
+        assert_eq!(&OwnedValue::F64(100.0), doc.get_first(f64_field).unwrap());
     }
 
     #[test]
@@ -586,11 +586,11 @@ mod tests {
         let schema = schema_builder.build();
         let doc_json = r#"{"bool": "true"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&Value::Bool(true), doc.get_first(bool_field).unwrap());
+        assert_eq!(&OwnedValue::Bool(true), doc.get_first(bool_field).unwrap());
 
         let doc_json = r#"{"bool": "false"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&Value::Bool(false), doc.get_first(bool_field).unwrap());
+        assert_eq!(&OwnedValue::Bool(false), doc.get_first(bool_field).unwrap());
     }
 
     #[test]
@@ -647,7 +647,10 @@ mod tests {
         let result = FieldType::Bytes(Default::default())
             .value_from_json(json!("dGhpcyBpcyBhIHRlc3Q="))
             .unwrap();
-        assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
+        assert_eq!(
+            result,
+            OwnedValue::Bytes("this is a test".as_bytes().to_vec())
+        );
 
         let result = FieldType::Bytes(Default::default()).value_from_json(json!(521));
         match result {
@@ -691,7 +694,7 @@ mod tests {
   ]
 }"#;
 
-        let expected_value = Value::PreTokStr(PreTokenizedString {
+        let expected_value = OwnedValue::PreTokStr(PreTokenizedString {
             text: String::from("The Old Man"),
             tokens: vec![
                 Token {

@@ -62,7 +62,7 @@ impl FacetReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{Facet, FacetOptions, SchemaBuilder, STORED};
     use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
 

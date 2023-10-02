@@ -4,7 +4,7 @@ mod tests {
     use crate::core::Index;
     use crate::fastfield::AliveBitSet;
     use crate::query::QueryParser;
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions,

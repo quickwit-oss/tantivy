@@ -13,7 +13,7 @@ use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::document::{DocValue, Document, ReferenceValue};
+use crate::schema::document::{Document, ReferenceValue, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
@@ -492,7 +492,7 @@ mod tests {
     use crate::directory::RamDirectory;
     use crate::postings::TermInfo;
     use crate::query::PhraseQuery;
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{
         IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING, TEXT,
     };
@@ -715,7 +715,7 @@ mod tests {
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
         let schema = schema_builder.build();
         let mut doc = TantivyDocument::default();
-        let json_val: BTreeMap<String, crate::schema::Value> =
+        let json_val: BTreeMap<String, crate::schema::OwnedValue> =
             serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
         doc.add_object(json_field, json_val);
         let index = Index::create_in_ram(schema);

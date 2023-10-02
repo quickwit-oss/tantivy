@@ -4,7 +4,7 @@
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{DateOptions, Schema, Value, INDEXED, STORED, STRING};
+use tantivy::schema::{DateOptions, OwnedValue, Schema, INDEXED, STORED, STRING};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
@@ -63,7 +63,7 @@ fn main() -> tantivy::Result<()> {
             let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
             assert!(matches!(
                 retrieved_doc.get_first(occurred_at),
-                Some(Value::Date(_))
+                Some(OwnedValue::Date(_))
             ));
             assert_eq!(
                 retrieved_doc.to_json(&schema),

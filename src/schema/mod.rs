@@ -134,7 +134,7 @@ pub use self::bytes_options::BytesOptions;
 #[allow(deprecated)]
 pub use self::date_time_options::DatePrecision;
 pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
-pub use self::document::{DocParsingError, DocValue, Document, TantivyDocument};
+pub use self::document::{DocParsingError, Document, TantivyDocument, Value};
 pub(crate) use self::facet::FACET_SEP_BYTE;
 pub use self::facet::{Facet, FacetParseError};
 pub use self::facet_options::FacetOptions;
@@ -153,7 +153,7 @@ pub use self::numeric_options::NumericOptions;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes, JSON_END_OF_PATH};
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
-pub use self::value::Value;
+pub use self::value::OwnedValue;
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

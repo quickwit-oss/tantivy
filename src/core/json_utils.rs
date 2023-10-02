@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::document::{DocValue, ReferenceValue};
+use crate::schema::document::{ReferenceValue, Value};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
@@ -65,7 +65,7 @@ impl IndexingPositionsPerPath {
     }
 }
 
-pub(crate) fn index_json_values<'a, V: DocValue<'a>>(
+pub(crate) fn index_json_values<'a, V: Value<'a>>(
     doc: DocId,
     json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
     text_analyzer: &mut TextAnalyzer,
@@ -91,7 +91,7 @@ pub(crate) fn index_json_values<'a, V: DocValue<'a>>(
     Ok(())
 }
 
-fn index_json_object<'a, V: DocValue<'a>>(
+fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
@@ -115,7 +115,7 @@ fn index_json_object<'a, V: DocValue<'a>>(
     }
 }
 
-fn index_json_value<'a, V: DocValue<'a>>(
+fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: ReferenceValue<'a, V>,
     text_analyzer: &mut TextAnalyzer,

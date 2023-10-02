@@ -815,7 +815,7 @@ mod tests {
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::indexer::NoMergePolicy;
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{
         self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions, Schema,
         TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,

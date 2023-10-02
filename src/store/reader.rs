@@ -385,7 +385,7 @@ mod tests {
 
     use super::*;
     use crate::directory::RamDirectory;
-    use crate::schema::document::DocValue;
+    use crate::schema::document::Value;
     use crate::schema::{Field, TantivyDocument};
     use crate::store::tests::write_lorem_ipsum_store;
     use crate::store::Compressor;
