@@ -828,7 +828,7 @@ mod bench {
     use crate::collector::FacetCollector;
     use crate::query::AllQuery;
     use crate::schema::{Facet, Schema, INDEXED};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {
