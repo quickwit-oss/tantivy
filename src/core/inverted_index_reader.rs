@@ -6,7 +6,7 @@ use fnv::FnvHashSet;
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
-use crate::schema::{IndexRecordOption, Term, JSON_END_OF_PATH};
+use crate::schema::{IndexRecordOption, Term, Type, JSON_END_OF_PATH};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
@@ -70,19 +70,21 @@ impl InvertedIndexReader {
         &self.termdict
     }
 
-    /// Return the fields encoded in the dictionary in lexicographic oder.
+    /// Return the fields and types encoded in the dictionary in lexicographic oder.
     /// Only valid on JSON fields.
     ///
     /// Notice: This requires a full scan and therefore **very expensive**.
-    pub fn list_fields(&self) -> io::Result<Vec<String>> {
+    /// TODO: Move to sstable to use the index.
+    pub fn list_fields(&self) -> io::Result<Vec<(String, Type)>> {
         let mut stream = self.termdict.stream()?;
         let mut fields = Vec::new();
         let mut fields_set = FnvHashSet::default();
         while let Some((term, _term_info)) = stream.next() {
             if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {
-                if !fields_set.contains(&term[..index]) {
-                    fields_set.insert(term[..index].to_vec());
-                    fields.push(String::from_utf8_lossy(&term[..index]).to_string());
+                if !fields_set.contains(&term[..index + 2]) {
+                    fields_set.insert(term[..index + 2].to_vec());
+                    let typ = Type::from_code(term[index + 1]).unwrap();
+                    fields.push((String::from_utf8_lossy(&term[..index]).to_string(), typ));
                 }
             }
         }
