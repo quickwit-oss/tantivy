@@ -1,7 +1,3 @@
-use std::io::{self, Read, Write};
-
-use common::BinarySerializable;
-
 use crate::schema::{Field, Value};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
@@ -35,15 +31,16 @@ impl From<FieldValue> for Value {
     }
 }
 
-impl BinarySerializable for FieldValue {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        self.field.serialize(writer)?;
-        self.value.serialize(writer)
-    }
+/// A helper wrapper for creating standard iterators
+/// out of the fields iterator trait.
+pub struct FieldValueIter<'a>(pub(crate) std::slice::Iter<'a, FieldValue>);
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let field = Field::deserialize(reader)?;
-        let value = Value::deserialize(reader)?;
-        Ok(FieldValue { field, value })
+impl<'a> Iterator for FieldValueIter<'a> {
+    type Item = (Field, &'a Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0
+            .next()
+            .map(|field_value| (field_value.field, &field_value.value))
     }
 }

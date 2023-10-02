@@ -4,11 +4,15 @@ mod tests {
     use crate::core::Index;
     use crate::fastfield::AliveBitSet;
     use crate::query::QueryParser;
+    use crate::schema::document::DocValue;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions,
     };
-    use crate::{DocAddress, DocSet, IndexSettings, IndexSortByField, Order, Postings, Term};
+    use crate::{
+        DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, Postings,
+        TantivyDocument, Term,
+    };
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
@@ -26,7 +30,7 @@ mod tests {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer
                 .add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")))
                 .unwrap();
@@ -45,7 +49,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             assert!(index_writer.merge(&segment_ids).wait().is_ok());
             assert!(index_writer.wait_merging_threads().is_ok());
         }
@@ -133,7 +137,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -272,12 +276,16 @@ mod tests {
             } else {
                 2
             };
-            let doc = searcher.doc(DocAddress::new(0, blubber_pos)).unwrap();
+            let doc = searcher
+                .doc::<TantivyDocument>(DocAddress::new(0, blubber_pos))
+                .unwrap();
             assert_eq!(
-                doc.get_first(my_text_field).unwrap().as_text(),
+                doc.get_first(my_text_field).unwrap().as_str(),
                 Some("blubber")
             );
-            let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
+            let doc = searcher
+                .doc::<TantivyDocument>(DocAddress::new(0, 0))
+                .unwrap();
             assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1000));
         }
     }
@@ -494,7 +502,7 @@ mod bench_sorted_index_merge {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let index_doc = |index_writer: &mut IndexWriter, val: u64| {
                 index_writer.add_document(doc!(int_field=>val)).unwrap();
             };

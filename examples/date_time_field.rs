@@ -5,7 +5,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{DateOptions, Schema, Value, INDEXED, STORED, STRING};
-use tantivy::Index;
+use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -22,16 +22,18 @@ fn main() -> tantivy::Result<()> {
     // # Indexing documents
     let index = Index::create_in_ram(schema.clone());
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     // The dates are passed as string in the RFC3339 format
-    let doc = schema.parse_document(
+    let doc = TantivyDocument::parse_json(
+        &schema,
         r#"{
         "occurred_at": "2022-06-22T12:53:50.53Z",
         "event": "pull-request"
     }"#,
     )?;
     index_writer.add_document(doc)?;
-    let doc = schema.parse_document(
+    let doc = TantivyDocument::parse_json(
+        &schema,
         r#"{
         "occurred_at": "2022-06-22T13:00:00.22Z",
         "event": "comment"
@@ -58,13 +60,13 @@ fn main() -> tantivy::Result<()> {
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(4))?;
         assert_eq!(count_docs.len(), 1);
         for (_score, doc_address) in count_docs {
-            let retrieved_doc = searcher.doc(doc_address)?;
+            let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
             assert!(matches!(
                 retrieved_doc.get_first(occurred_at),
                 Some(Value::Date(_))
             ));
             assert_eq!(
-                schema.to_json(&retrieved_doc),
+                retrieved_doc.to_json(&schema),
                 r#"{"event":["comment"],"occurred_at":["2022-06-22T13:00:00.22Z"]}"#
             );
         }

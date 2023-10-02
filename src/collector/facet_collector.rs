@@ -495,8 +495,8 @@ mod tests {
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{Document, Facet, FacetOptions, IndexRecordOption, Schema};
-    use crate::Term;
+    use crate::schema::{Facet, FacetOptions, IndexRecordOption, Schema, TantivyDocument};
+    use crate::{IndexWriter, Term};
 
     fn test_collapse_mapping_aux(
         facet_terms: &[&str],
@@ -559,7 +559,7 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer
             .add_document(doc!(facet_field=>Facet::from("/facet/a")))
             .unwrap();
@@ -588,7 +588,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -601,7 +601,7 @@ mod tests {
             })
             .collect();
         for i in 0..num_facets * 10 {
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
             index_writer.add_document(doc).unwrap();
         }
@@ -732,24 +732,25 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         let uniform = Uniform::new_inclusive(1, 100_000);
-        let mut docs: Vec<Document> = vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
-            .into_iter()
-            .flat_map(|(c, count)| {
-                let facet = Facet::from(&format!("/facet/{}", c));
-                let doc = doc!(facet_field => facet);
-                iter::repeat(doc).take(count)
-            })
-            .map(|mut doc| {
-                doc.add_facet(
-                    facet_field,
-                    &format!("/facet/{}", thread_rng().sample(uniform)),
-                );
-                doc
-            })
-            .collect();
+        let mut docs: Vec<TantivyDocument> =
+            vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
+                .into_iter()
+                .flat_map(|(c, count)| {
+                    let facet = Facet::from(&format!("/facet/{}", c));
+                    let doc = doc!(facet_field => facet);
+                    iter::repeat(doc).take(count)
+                })
+                .map(|mut doc| {
+                    doc.add_facet(
+                        facet_field,
+                        &format!("/facet/{}", thread_rng().sample(uniform)),
+                    );
+                    doc
+                })
+                .collect();
         docs[..].shuffle(&mut thread_rng());
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {
             index_writer.add_document(doc).unwrap();
         }
@@ -780,7 +781,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let docs: Vec<Document> = vec![("b", 2), ("a", 2), ("c", 4)]
+        let docs: Vec<TantivyDocument> = vec![("b", 2), ("a", 2), ("c", 4)]
             .into_iter()
             .flat_map(|(c, count)| {
                 let facet = Facet::from(&format!("/facet/{}", c));
@@ -828,7 +829,7 @@ mod bench {
     use crate::collector::FacetCollector;
     use crate::query::AllQuery;
     use crate::schema::{Facet, Schema, INDEXED};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {
@@ -847,7 +848,7 @@ mod bench {
         // 40425 docs
         docs[..].shuffle(&mut thread_rng());
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {
             index_writer.add_document(doc).unwrap();
         }

@@ -1,10 +1,13 @@
 #![allow(deprecated)]
 
 use std::fmt;
+use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+
+use crate::BinarySerializable;
 
 /// Precision with which datetimes are truncated when stored in fast fields. This setting is only
 /// relevant for fast fields. In the docstore, datetimes are always saved with nanosecond precision.
@@ -162,5 +165,17 @@ impl fmt::Debug for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let utc_rfc3339 = self.into_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
         f.write_str(&utc_rfc3339)
+    }
+}
+
+impl BinarySerializable for DateTime {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
+        let timestamp_micros = self.into_timestamp_micros();
+        <i64 as BinarySerializable>::serialize(&timestamp_micros, writer)
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let timestamp_micros = <i64 as BinarySerializable>::deserialize(reader)?;
+        Ok(Self::from_timestamp_micros(timestamp_micros))
     }
 }

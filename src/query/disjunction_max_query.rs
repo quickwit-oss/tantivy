@@ -15,6 +15,7 @@ use crate::{Score, Term};
 /// use tantivy::schema::{IndexRecordOption, Schema, TEXT};
 /// use tantivy::Term;
 /// use tantivy::Index;
+/// use tantivy::IndexWriter;
 ///
 /// fn main() -> tantivy::Result<()> {
 ///    let mut schema_builder = Schema::builder();
@@ -23,7 +24,7 @@ use crate::{Score, Term};
 ///    let schema = schema_builder.build();
 ///    let index = Index::create_in_ram(schema);
 ///    {
-///        let mut index_writer = index.writer(15_000_000)?;
+///        let mut index_writer: IndexWriter = index.writer(15_000_000)?;
 ///        index_writer.add_document(doc!(
 ///            title => "The Name of Girl",
 ///        ))?;

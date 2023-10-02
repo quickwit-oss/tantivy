@@ -1,16 +1,17 @@
 use super::IndexWriter;
-use crate::{FutureResult, Opstamp};
+use crate::schema::document::Document;
+use crate::{FutureResult, Opstamp, TantivyDocument};
 
 /// A prepared commit
-pub struct PreparedCommit<'a> {
-    index_writer: &'a mut IndexWriter,
+pub struct PreparedCommit<'a, D: Document = TantivyDocument> {
+    index_writer: &'a mut IndexWriter<D>,
     payload: Option<String>,
     opstamp: Opstamp,
 }
 
-impl<'a> PreparedCommit<'a> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp) -> PreparedCommit<'_> {
-        PreparedCommit {
+impl<'a, D: Document> PreparedCommit<'a, D> {
+    pub(crate) fn new(index_writer: &'a mut IndexWriter<D>, opstamp: Opstamp) -> Self {
+        Self {
             index_writer,
             payload: None,
             opstamp,

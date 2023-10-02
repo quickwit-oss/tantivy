@@ -19,6 +19,7 @@ use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
+use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
@@ -184,11 +185,11 @@ impl IndexBuilder {
     ///
     /// It expects an originally empty directory, and will not run any GC operation.
     #[doc(hidden)]
-    pub fn single_segment_index_writer(
+    pub fn single_segment_index_writer<D: Document>(
         self,
         dir: impl Into<Box<dyn Directory>>,
         mem_budget: usize,
-    ) -> crate::Result<SingleSegmentIndexWriter> {
+    ) -> crate::Result<SingleSegmentIndexWriter<D>> {
         let index = self.create(dir)?;
         let index_simple_writer = SingleSegmentIndexWriter::new(index, mem_budget)?;
         Ok(index_simple_writer)
@@ -531,11 +532,11 @@ impl Index {
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer_with_num_threads(
+    pub fn writer_with_num_threads<D: Document>(
         &self,
         num_threads: usize,
         overall_memory_budget_in_bytes: usize,
-    ) -> crate::Result<IndexWriter> {
+    ) -> crate::Result<IndexWriter<D>> {
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -564,7 +565,7 @@ impl Index {
     /// That index writer only simply has a single thread and a memory budget of 15 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
-    pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
+    pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<D>> {
         self.writer_with_num_threads(1, 15_000_000)
     }
 
@@ -579,7 +580,10 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer(&self, memory_budget_in_bytes: usize) -> crate::Result<IndexWriter> {
+    pub fn writer<D: Document>(
+        &self,
+        memory_budget_in_bytes: usize,
+    ) -> crate::Result<IndexWriter<D>> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let memory_budget_num_bytes_per_thread = memory_budget_in_bytes / num_threads;
         if memory_budget_num_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {

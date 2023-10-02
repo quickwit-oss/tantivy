@@ -753,9 +753,10 @@ mod tests {
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
+    use crate::schema::document::DocValue;
     use crate::schema::{
-        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
-        INDEXED, TEXT,
+        Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
+        TextFieldIndexing, INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
@@ -817,7 +818,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -866,30 +867,24 @@ mod tests {
                 );
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 0))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 1))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("a b c"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 2))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c d")
-                );
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 3))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 3))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 4))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c g")
-                );
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c g"));
             }
 
             {
@@ -1300,10 +1295,10 @@ mod tests {
         let reader = index.reader().unwrap();
         let mut int_val = 0;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let index_doc =
                 |index_writer: &mut IndexWriter, doc_facets: &[&str], int_val: &mut u64| {
-                    let mut doc = Document::default();
+                    let mut doc = TantivyDocument::default();
                     for facet in doc_facets {
                         doc.add_facet(facet_field, Facet::from(facet));
                     }
@@ -1384,7 +1379,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer
                 .merge(&segment_ids)
                 .wait()
@@ -1406,7 +1401,7 @@ mod tests {
 
         // Deleting one term
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let facet = Facet::from_path(vec!["top", "a", "firstdoc"]);
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
@@ -1431,7 +1426,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(int_field => 1u64))?;
         index_writer.commit().expect("commit failed");
         index_writer.add_document(doc!(int_field => 1u64))?;
@@ -1460,7 +1455,7 @@ mod tests {
         let reader = index.reader()?;
         {
             let mut index_writer = index.writer_for_tests()?;
-            let mut doc = Document::default();
+            let mut doc = TantivyDocument::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone())?;
             index_writer.commit()?;
@@ -1503,7 +1498,7 @@ mod tests {
         {
             let mut index_writer = index.writer_for_tests()?;
             let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 for &val in int_vals {
                     doc.add_u64(int_field, val);
                 }
@@ -1566,7 +1561,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -1613,7 +1608,7 @@ mod tests {
         writer.set_merge_policy(Box::new(policy));
 
         for i in 0..100 {
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_f64(field, 42.0);
             doc.add_f64(multi_field, 0.24);
             doc.add_f64(multi_field, 0.27);

@@ -52,7 +52,7 @@ pub mod tests {
         Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, INDEXED, TEXT,
     };
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
-    use crate::{DocId, HasLen, Score};
+    use crate::{DocId, HasLen, IndexWriter, Score};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -432,7 +432,7 @@ pub mod tests {
 
         // delete some of the documents
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
@@ -483,7 +483,7 @@ pub mod tests {
 
         // delete everything else
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }
@@ -568,8 +568,8 @@ mod bench {
 
     use crate::docset::TERMINATED;
     use crate::query::Intersection;
-    use crate::schema::{Document, Field, IndexRecordOption, Schema, Term, STRING};
-    use crate::{tests, DocSet, Index};
+    use crate::schema::{Field, IndexRecordOption, Schema, TantivyDocument, Term, STRING};
+    use crate::{tests, DocSet, Index, IndexWriter};
 
     pub static TERM_A: Lazy<Term> = Lazy::new(|| {
         let field = Field::from_field_id(0);
@@ -598,9 +598,9 @@ mod bench {
         let index = Index::create_in_ram(schema);
         let posting_list_size = 1_000_000;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 if rng.gen_bool(1f64 / 15f64) {
                     doc.add_text(text_field, "a");
                 }

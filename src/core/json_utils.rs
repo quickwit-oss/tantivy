@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
+use crate::schema::document::{DocValue, ReferenceValue};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
@@ -64,9 +65,9 @@ impl IndexingPositionsPerPath {
     }
 }
 
-pub(crate) fn index_json_values<'a>(
+pub(crate) fn index_json_values<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_values: impl Iterator<Item = crate::Result<&'a serde_json::Map<String, serde_json::Value>>>,
+    json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
     text_analyzer: &mut TextAnalyzer,
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
@@ -75,11 +76,11 @@ pub(crate) fn index_json_values<'a>(
 ) -> crate::Result<()> {
     let mut json_term_writer = JsonTermWriter::wrap(term_buffer, expand_dots_enabled);
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
-    for json_value_res in json_values {
-        let json_value = json_value_res?;
-        index_json_object(
+    for json_visitor_res in json_visitors {
+        let json_visitor = json_visitor_res?;
+        index_json_object::<V>(
             doc,
-            json_value,
+            json_visitor,
             text_analyzer,
             &mut json_term_writer,
             postings_writer,
@@ -90,20 +91,20 @@ pub(crate) fn index_json_values<'a>(
     Ok(())
 }
 
-fn index_json_object(
+fn index_json_object<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_value: &serde_json::Map<String, serde_json::Value>,
+    json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    for (json_path_segment, json_value) in json_value {
+    for (json_path_segment, json_value_visitor) in json_visitor {
         json_term_writer.push_path_segment(json_path_segment);
         index_json_value(
             doc,
-            json_value,
+            json_value_visitor,
             text_analyzer,
             json_term_writer,
             postings_writer,
@@ -114,9 +115,9 @@ fn index_json_object(
     }
 }
 
-fn index_json_value(
+fn index_json_value<'a, V: DocValue<'a>>(
     doc: DocId,
-    json_value: &serde_json::Value,
+    json_value: ReferenceValue<'a, V>,
     text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
@@ -124,43 +125,56 @@ fn index_json_value(
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
     match json_value {
-        serde_json::Value::Null => {}
-        serde_json::Value::Bool(val_bool) => {
-            json_term_writer.set_fast_value(*val_bool);
+        ReferenceValue::Null => {}
+        ReferenceValue::Str(val) => {
+            let mut token_stream = text_analyzer.token_stream(val);
+
+            // TODO: make sure the chain position works out.
+            json_term_writer.close_path_and_set_type(Type::Str);
+            let indexing_position = positions_per_path.get_position(json_term_writer.term());
+            postings_writer.index_text(
+                doc,
+                &mut *token_stream,
+                json_term_writer.term_buffer,
+                ctx,
+                indexing_position,
+            );
+        }
+        ReferenceValue::U64(val) => {
+            json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
-        serde_json::Value::Number(number) => {
-            if let Some(number_i64) = number.as_i64() {
-                json_term_writer.set_fast_value(number_i64);
-            } else if let Some(number_u64) = number.as_u64() {
-                json_term_writer.set_fast_value(number_u64);
-            } else if let Some(number_f64) = number.as_f64() {
-                json_term_writer.set_fast_value(number_f64);
-            }
+        ReferenceValue::I64(val) => {
+            json_term_writer.set_fast_value(val);
             postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
         }
-        serde_json::Value::String(text) => match infer_type_from_str(text) {
-            TextOrDateTime::Text(text) => {
-                let mut token_stream = text_analyzer.token_stream(text);
-                // TODO make sure the chain position works out.
-                json_term_writer.close_path_and_set_type(Type::Str);
-                let indexing_position = positions_per_path.get_position(json_term_writer.term());
-                postings_writer.index_text(
-                    doc,
-                    &mut *token_stream,
-                    json_term_writer.term_buffer,
-                    ctx,
-                    indexing_position,
-                );
-            }
-            TextOrDateTime::DateTime(dt) => {
-                json_term_writer.set_fast_value(DateTime::from_utc(dt));
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-            }
-        },
-        serde_json::Value::Array(arr) => {
-            for val in arr {
-                index_json_value(
+        ReferenceValue::F64(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        }
+        ReferenceValue::Bool(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        }
+        ReferenceValue::Facet(_) => {
+            unimplemented!("Facet support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::IpAddr(_) => {
+            unimplemented!("IP address support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Date(val) => {
+            json_term_writer.set_fast_value(val);
+            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+        }
+        ReferenceValue::PreTokStr(_) => {
+            unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Bytes(_) => {
+            unimplemented!("Bytes support in dynamic fields is not yet implemented")
+        }
+        ReferenceValue::Array(elements) => {
+            for val in elements {
+                index_json_value::<V::ChildValue>(
                     doc,
                     val,
                     text_analyzer,
@@ -171,10 +185,10 @@ fn index_json_value(
                 );
             }
         }
-        serde_json::Value::Object(map) => {
-            index_json_object(
+        ReferenceValue::Object(object) => {
+            index_json_object::<V>(
                 doc,
-                map,
+                object,
                 text_analyzer,
                 json_term_writer,
                 postings_writer,
@@ -182,21 +196,6 @@ fn index_json_value(
                 positions_per_path,
             );
         }
-    }
-}
-
-enum TextOrDateTime<'a> {
-    Text(&'a str),
-    DateTime(OffsetDateTime),
-}
-
-fn infer_type_from_str(text: &str) -> TextOrDateTime {
-    match OffsetDateTime::parse(text, &Rfc3339) {
-        Ok(dt) => {
-            let dt_utc = dt.to_offset(UtcOffset::UTC);
-            TextOrDateTime::DateTime(dt_utc)
-        }
-        Err(_) => TextOrDateTime::Text(text),
     }
 }
 

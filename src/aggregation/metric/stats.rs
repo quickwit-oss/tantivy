@@ -300,7 +300,7 @@ mod tests {
     use crate::aggregation::AggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, FAST};
-    use crate::{Index, Term};
+    use crate::{Index, IndexWriter, Term};
 
     #[test]
     fn test_aggregation_stats_empty_index() -> crate::Result<()> {
@@ -494,7 +494,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with empty json
         index_writer.add_document(doc!()).unwrap();
         index_writer.commit().unwrap();
@@ -541,7 +541,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with empty json
         index_writer.add_document(doc!()).unwrap();
         index_writer.commit().unwrap();

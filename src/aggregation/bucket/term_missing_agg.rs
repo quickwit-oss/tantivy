@@ -117,7 +117,7 @@ mod tests {
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::exec_request_with_query;
     use crate::schema::{Schema, FAST};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[test]
     fn terms_aggregation_missing_mixed_type_mult_seg_sub_agg() -> crate::Result<()> {
@@ -126,7 +126,7 @@ mod tests {
         let score = schema_builder.add_f64_field("score", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with all values numeric
         index_writer
             .add_document(doc!(score => 1.0, json => json!({"mixed_type": 10.0})))
@@ -186,7 +186,7 @@ mod tests {
         let score = schema_builder.add_f64_field("score", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with all values numeric
         index_writer.add_document(doc!(score => 1.0, json => json!({"mixed_type": 10.0})))?;
         index_writer.add_document(doc!(score => 5.0))?;
@@ -231,7 +231,7 @@ mod tests {
         let score = schema_builder.add_f64_field("score", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
 
         index_writer.add_document(doc!(score => 5.0))?;
         index_writer.commit().unwrap();
@@ -278,7 +278,7 @@ mod tests {
         let score = schema_builder.add_f64_field("score", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
 
         index_writer.add_document(doc!(score => 5.0))?;
         index_writer.add_document(doc!(score => 5.0))?;
@@ -323,7 +323,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with all values numeric
         index_writer
             .add_document(doc!(json => json!({"mixed_type": 10.0})))
@@ -385,7 +385,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with all values numeric
         index_writer
             .add_document(doc!(json => json!({"mixed_type": 10.0})))
@@ -427,7 +427,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with all values numeric
         index_writer
             .add_document(doc!(json => json!({"mixed_type": 10.0})))

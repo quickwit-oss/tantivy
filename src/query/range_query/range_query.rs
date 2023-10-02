@@ -41,14 +41,14 @@ use crate::{DateTime, DocId, Score};
 /// use tantivy::collector::Count;
 /// use tantivy::query::RangeQuery;
 /// use tantivy::schema::{Schema, INDEXED};
-/// use tantivy::{doc, Index};
+/// use tantivy::{doc, Index, IndexWriter};
 /// # fn test() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let year_field = schema_builder.add_u64_field("year", INDEXED);
 /// let schema = schema_builder.build();
 ///
 /// let index = Index::create_in_ram(schema);
-/// let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+/// let mut index_writer: IndexWriter = index.writer_with_num_threads(1, 20_000_000)?;
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
@@ -474,8 +474,10 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::{Document, Field, IntoIpv6Addr, Schema, FAST, INDEXED, STORED, TEXT};
-    use crate::{doc, Index};
+    use crate::schema::{
+        Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
+    };
+    use crate::{doc, Index, IndexWriter};
 
     #[test]
     fn test_range_query_simple() -> crate::Result<()> {
@@ -552,7 +554,7 @@ mod tests {
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
             for i in 1..100 {
-                let mut doc = Document::new();
+                let mut doc = TantivyDocument::new();
                 for j in 1..100 {
                     if i % j == 0 {
                         doc.add_i64(int_field, j as i64);
@@ -617,7 +619,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 60_000_000).unwrap();
             let mut docs = Vec::new();
             for i in 1..100 {
-                let mut doc = Document::new();
+                let mut doc = TantivyDocument::new();
                 for j in 1..100 {
                     if i % j == 0 {
                         doc.add_f64(float_field, j as f64);
@@ -722,7 +724,7 @@ mod tests {
         let ip_addr_2 = IpAddr::from_str("127.0.0.20").unwrap().into_ipv6_addr();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..1_000 {
                 index_writer
                     .add_document(doc!(

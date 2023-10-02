@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 
 use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
 use crate::schema::*;
-use crate::{doc, schema, Index, IndexSettings, IndexSortByField, Order, Searcher};
+use crate::{doc, schema, Index, IndexSettings, IndexSortByField, IndexWriter, Order, Searcher};
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
@@ -12,7 +12,7 @@ fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     for segment_reader in searcher.segment_readers() {
         let store_reader = segment_reader.get_store_reader(1)?;
         for doc_id in 0..segment_reader.max_doc() {
-            let _doc = store_reader.get(doc_id)?;
+            let _doc: TantivyDocument = store_reader.get(doc_id)?;
         }
     }
     Ok(())
@@ -31,7 +31,8 @@ fn test_functional_store() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, MEMORY_BUDGET_NUM_BYTES_MIN)?;
+    let mut index_writer: IndexWriter =
+        index.writer_with_num_threads(3, MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
     let mut doc_set: Vec<u64> = Vec::new();
 
@@ -91,7 +92,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
@@ -114,7 +115,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
             index_writer.delete_term(doc_id_term);
         } else {
             uncommitted_docs.insert(random_val);
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_u64(id_field, random_val);
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);
@@ -166,7 +167,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
@@ -189,7 +190,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
             index_writer.delete_term(doc_id_term);
         } else {
             uncommitted_docs.insert(random_val);
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_u64(id_field, random_val);
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);

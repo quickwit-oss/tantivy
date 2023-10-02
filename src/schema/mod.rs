@@ -106,7 +106,7 @@
 //! let schema = schema_builder.build();
 //! ```
 
-mod document;
+pub mod document;
 mod facet;
 mod facet_options;
 mod schema;
@@ -134,7 +134,7 @@ pub use self::bytes_options::BytesOptions;
 #[allow(deprecated)]
 pub use self::date_time_options::DatePrecision;
 pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
-pub use self::document::Document;
+pub use self::document::{DocParsingError, DocValue, Document, TantivyDocument};
 pub(crate) use self::facet::FACET_SEP_BYTE;
 pub use self::facet::{Facet, FacetParseError};
 pub use self::facet_options::FacetOptions;
@@ -150,7 +150,7 @@ pub use self::named_field_document::NamedFieldDocument;
 #[allow(deprecated)]
 pub use self::numeric_options::IntOptions;
 pub use self::numeric_options::NumericOptions;
-pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
+pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes, JSON_END_OF_PATH};
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
 pub use self::value::Value;

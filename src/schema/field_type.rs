@@ -481,7 +481,7 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::JsonObject(_) => Ok(Value::JsonObject(json_map)),
+                FieldType::JsonObject(_) => Ok(Value::from(json_map)),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
@@ -538,27 +538,27 @@ mod tests {
     use crate::schema::{NumericOptions, Schema, TextOptions, Type, Value, COERCE, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::{DateTime, Document};
+    use crate::{DateTime, TantivyDocument};
 
     #[test]
     fn test_to_string_coercion() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("id", COERCE);
         let schema = schema_builder.build();
-        let doc = schema.parse_document(r#"{"id": 100}"#).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, r#"{"id": 100}"#).unwrap();
         assert_eq!(
             &Value::Str("100".to_string()),
             doc.get_first(text_field).unwrap()
         );
 
-        let doc = schema.parse_document(r#"{"id": true}"#).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, r#"{"id": true}"#).unwrap();
         assert_eq!(
             &Value::Str("true".to_string()),
             doc.get_first(text_field).unwrap()
         );
 
         // Not sure if this null coercion is the best approach
-        let doc = schema.parse_document(r#"{"id": null}"#).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, r#"{"id": null}"#).unwrap();
         assert_eq!(
             &Value::Str("null".to_string()),
             doc.get_first(text_field).unwrap()
@@ -573,7 +573,7 @@ mod tests {
         let f64_field = schema_builder.add_f64_field("f64", COERCE);
         let schema = schema_builder.build();
         let doc_json = r#"{"i64": "100", "u64": "100", "f64": "100"}"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         assert_eq!(&Value::I64(100), doc.get_first(i64_field).unwrap());
         assert_eq!(&Value::U64(100), doc.get_first(u64_field).unwrap());
         assert_eq!(&Value::F64(100.0), doc.get_first(f64_field).unwrap());
@@ -585,11 +585,11 @@ mod tests {
         let bool_field = schema_builder.add_bool_field("bool", COERCE);
         let schema = schema_builder.build();
         let doc_json = r#"{"bool": "true"}"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         assert_eq!(&Value::Bool(true), doc.get_first(bool_field).unwrap());
 
         let doc_json = r#"{"bool": "false"}"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         assert_eq!(&Value::Bool(false), doc.get_first(bool_field).unwrap());
     }
 
@@ -600,20 +600,17 @@ mod tests {
         schema_builder.add_u64_field("u64", NumericOptions::default());
         schema_builder.add_f64_field("f64", NumericOptions::default());
         let schema = schema_builder.build();
-        assert!(schema
-            .parse_document(r#"{"u64": "100"}"#)
+        assert!(TantivyDocument::parse_json(&schema, r#"{"u64": "100"}"#)
             .unwrap_err()
             .to_string()
             .contains("a u64"));
 
-        assert!(schema
-            .parse_document(r#"{"i64": "100"}"#)
+        assert!(TantivyDocument::parse_json(&schema, r#"{"i64": "100"}"#)
             .unwrap_err()
             .to_string()
             .contains("a i64"));
 
-        assert!(schema
-            .parse_document(r#"{"f64": "100"}"#)
+        assert!(TantivyDocument::parse_json(&schema, r#"{"f64": "100"}"#)
             .unwrap_err()
             .to_string()
             .contains("a f64"));
@@ -625,7 +622,7 @@ mod tests {
         let date_field = schema_builder.add_date_field("date", INDEXED);
         let schema = schema_builder.build();
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
-        let doc = schema.parse_document(doc_json).unwrap();
+        let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
         // Time zone is converted to UTC
         assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
@@ -633,7 +630,7 @@ mod tests {
 
     #[test]
     fn test_serialize_json_date() {
-        let mut doc = Document::new();
+        let mut doc = TantivyDocument::new();
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", INDEXED);
         let schema = schema_builder.build();
@@ -641,7 +638,7 @@ mod tests {
         let naive_time = Time::from_hms(13, 20, 0).unwrap();
         let date_time = PrimitiveDateTime::new(naive_date, naive_time);
         doc.add_date(date_field, DateTime::from_primitive(date_time));
-        let doc_json = schema.to_json(&doc);
+        let doc_json = doc.to_json(&schema);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
     }
 

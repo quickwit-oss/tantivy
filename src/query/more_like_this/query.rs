@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use super::MoreLikeThis;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, Value};
@@ -28,9 +30,9 @@ pub struct MoreLikeThisQuery {
     target: TargetDocument,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum TargetDocument {
-    DocumentAdress(DocAddress),
+    DocumentAddress(DocAddress),
     DocumentFields(Vec<(Field, Vec<Value>)>),
 }
 
@@ -51,14 +53,20 @@ impl Query for MoreLikeThisQuery {
             }
         };
         match &self.target {
-            TargetDocument::DocumentAdress(doc_address) => self
+            TargetDocument::DocumentAddress(doc_address) => self
                 .mlt
                 .query_with_document(searcher, *doc_address)?
                 .weight(enable_scoring),
-            TargetDocument::DocumentFields(doc_fields) => self
-                .mlt
-                .query_with_document_fields(searcher, doc_fields)?
-                .weight(enable_scoring),
+            TargetDocument::DocumentFields(doc_fields) => {
+                let values = doc_fields
+                    .iter()
+                    .map(|(field, values)| (*field, values.iter().collect::<Vec<&Value>>()))
+                    .collect::<Vec<_>>();
+
+                self.mlt
+                    .query_with_document_fields(searcher, &values)?
+                    .weight(enable_scoring)
+            }
         }
     }
 }
@@ -156,7 +164,7 @@ impl MoreLikeThisQueryBuilder {
     pub fn with_document(self, doc_address: DocAddress) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
-            target: TargetDocument::DocumentAdress(doc_address),
+            target: TargetDocument::DocumentAddress(doc_address),
         }
     }
 
@@ -180,7 +188,7 @@ mod tests {
     use super::{MoreLikeThisQuery, TargetDocument};
     use crate::collector::TopDocs;
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::{DocAddress, Index};
+    use crate::{DocAddress, Index, IndexWriter};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -188,7 +196,7 @@ mod tests {
         let body = schema_builder.add_text_field("body", TEXT | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(title => "aaa", body => "the old man and the sea"))?;
         index_writer.add_document(doc!(title => "bbb", body => "an old man sailing on the sea"))?;
         index_writer.add_document(doc!(title => "ccc", body=> "send this message to alice"))?;
@@ -236,7 +244,7 @@ mod tests {
         );
         assert_eq!(
             query.target,
-            TargetDocument::DocumentAdress(DocAddress::new(1, 2))
+            TargetDocument::DocumentAddress(DocAddress::new(1, 2))
         );
     }
 

@@ -601,7 +601,7 @@ mod tests {
     use crate::aggregation::AggregationLimits;
     use crate::indexer::NoMergePolicy;
     use crate::schema::{Schema, FAST, STRING};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[test]
     fn terms_aggregation_test_single_segment() -> crate::Result<()> {
@@ -1473,7 +1473,7 @@ mod tests {
         let json = schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         // => Segment with empty json
         index_writer.add_document(doc!()).unwrap();
         index_writer.commit().unwrap();

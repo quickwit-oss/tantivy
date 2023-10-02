@@ -161,7 +161,7 @@ mod tests {
     use crate::docset::TERMINATED;
     use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
     use crate::schema::{Schema, TEXT};
-    use crate::{DocSet, Term};
+    use crate::{DocSet, IndexWriter, Term};
 
     pub fn create_index(texts: &[&'static str]) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -169,7 +169,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             for &text in texts {
                 let doc = doc!(text_field=>text);
                 index_writer.add_document(doc)?;

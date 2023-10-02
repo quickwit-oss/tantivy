@@ -5,8 +5,8 @@ use crate::query::TermQuery;
 use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, Document, Index, IndexBuilder, IndexReader, IndexSettings, ReloadPolicy, SegmentId,
-    Term,
+    Directory, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
+    SegmentId, TantivyDocument, Term,
 };
 
 #[test]
@@ -159,7 +159,7 @@ mod mmap_specific {
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
         let mut index = Index::create_from_tempdir(schema)?;
-        let mut writer = index.writer_for_tests()?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
         writer.commit()?;
         let reader = index
             .reader_builder()
@@ -208,7 +208,7 @@ fn test_index_on_commit_reload_policy_aux(
         .watch(WatchCallback::new(move || {
             let _ = sender.send(());
         }));
-    let mut writer = index.writer_for_tests()?;
+    let mut writer: IndexWriter = index.writer_for_tests()?;
     assert_eq!(reader.searcher().num_docs(), 0);
     writer.add_document(doc!(field=>1u64))?;
     writer.commit().unwrap();
@@ -242,7 +242,7 @@ fn garbage_collect_works_as_intended() -> crate::Result<()> {
     let field = schema.get_field("num_likes").unwrap();
     let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
 
-    let mut writer = index.writer_with_num_threads(1, 32_000_000).unwrap();
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 32_000_000).unwrap();
     for _seg in 0..8 {
         for i in 0u64..1_000u64 {
             writer.add_document(doc!(field => i))?;
@@ -306,7 +306,7 @@ fn test_merging_segment_update_docfreq() {
     let id_field = schema_builder.add_text_field("id", STRING);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
-    let mut writer = index.writer_for_tests().unwrap();
+    let mut writer: IndexWriter = index.writer_for_tests().unwrap();
     writer.set_merge_policy(Box::new(NoMergePolicy));
     for _ in 0..5 {
         writer.add_document(doc!(text_field=>"hello")).unwrap();
@@ -317,13 +317,13 @@ fn test_merging_segment_update_docfreq() {
     writer
         .add_document(doc!(text_field=>"hello", id_field=>"TO_BE_DELETED"))
         .unwrap();
-    writer.add_document(Document::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
     writer.commit().unwrap();
     for _ in 0..7 {
         writer.add_document(doc!(text_field=>"hello")).unwrap();
     }
-    writer.add_document(Document::default()).unwrap();
-    writer.add_document(Document::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
+    writer.add_document(TantivyDocument::default()).unwrap();
     writer.delete_term(Term::from_field_text(id_field, "TO_BE_DELETED"));
     writer.commit().unwrap();
 

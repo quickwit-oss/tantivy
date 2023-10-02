@@ -15,7 +15,7 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -75,7 +75,7 @@ fn main() -> tantivy::Result<()> {
     // Here we give tantivy a budget of `50MB`.
     // Using a bigger memory_arena for the indexer may increase
     // throughput, but 50 MB is already plenty.
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     // Let's index our documents!
     // We first need a handle on the title and the body field.
@@ -87,7 +87,7 @@ fn main() -> tantivy::Result<()> {
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();
 
-    let mut old_man_doc = Document::default();
+    let mut old_man_doc = TantivyDocument::default();
     old_man_doc.add_text(title, "The Old Man and the Sea");
     old_man_doc.add_text(
         body,
@@ -217,8 +217,8 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
     for (_score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("{}", schema.to_json(&retrieved_doc));
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     // We can also get an explanation to understand

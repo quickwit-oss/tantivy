@@ -9,7 +9,7 @@ use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_v
 use crate::aggregation::DistributedAggregationCollector;
 use crate::query::{AllQuery, TermQuery};
 use crate::schema::{IndexRecordOption, Schema, FAST};
-use crate::{Index, Term};
+use crate::{Index, IndexWriter, Term};
 
 fn get_avg_req(field_name: &str) -> Aggregation {
     serde_json::from_value(json!({
@@ -586,7 +586,7 @@ fn test_aggregation_on_json_object() {
     let json = schema_builder.add_json_field("json", FAST);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
-    let mut index_writer = index.writer_for_tests().unwrap();
+    let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     index_writer
         .add_document(doc!(json => json!({"color": "red"})))
         .unwrap();
@@ -630,7 +630,7 @@ fn test_aggregation_on_json_object_empty_columns() {
     let json = schema_builder.add_json_field("json", FAST);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
-    let mut index_writer = index.writer_for_tests().unwrap();
+    let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     // => Empty column when accessing color
     index_writer
         .add_document(doc!(json => json!({"price": 10.0})))
@@ -748,7 +748,7 @@ fn test_aggregation_on_json_object_mixed_types() {
     let json = schema_builder.add_json_field("json", FAST);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
-    let mut index_writer = index.writer_for_tests().unwrap();
+    let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     // => Segment with all values numeric
     index_writer
         .add_document(doc!(json => json!({"mixed_type": 10.0})))
