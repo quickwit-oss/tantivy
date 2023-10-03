@@ -186,7 +186,7 @@ pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, Pr
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
-pub use crate::schema::{DateOptions, DateTimePrecision, TantivyDocument, Term};
+pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;

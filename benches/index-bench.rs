@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use pprof::criterion::{Output, PProfProfiler};
-use tantivy::schema::{FAST, INDEXED, STORED, STRING, TEXT};
-use tantivy::Index;
+use tantivy::schema::{TantivyDocument, FAST, INDEXED, STORED, STRING, TEXT};
+use tantivy::{Index, IndexWriter};
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
 const GH_LOGS: &str = include_str!("gh.json");
@@ -41,7 +41,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let index = Index::create_in_ram(schema.clone());
             let index_writer: IndexWriter = index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
-                let doc = Document::parse_json(&schema, doc_json).unwrap();
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
         })
@@ -53,7 +53,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let mut index_writer: IndexWriter =
                 index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
-                let doc = Document::parse_json(&schema, doc_json).unwrap();
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
@@ -65,7 +65,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let index = Index::create_in_ram(schema_with_store.clone());
             let index_writer: IndexWriter = index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
-                let doc = Document::parse_json(&schema, doc_json).unwrap();
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
         })
@@ -77,7 +77,7 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             let mut index_writer: IndexWriter =
                 index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
-                let doc = Document::parse_json(&schema, doc_json).unwrap();
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
