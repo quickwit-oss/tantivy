@@ -520,6 +520,12 @@ impl Directory for MmapDirectory {
     }
 }
 
+impl Drop for MmapDirectory {
+    fn drop(&mut self) {
+        self.inner.watcher.terminate();
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
