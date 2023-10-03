@@ -522,7 +522,7 @@ impl Directory for MmapDirectory {
 
 impl Drop for MmapDirectory {
     fn drop(&mut self) {
-        self.inner.watcher.unsubscribe();
+        self.inner.watcher.terminate();
     }
 }
 

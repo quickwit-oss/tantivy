@@ -88,7 +88,7 @@ impl FileWatcher {
 
         Ok(hasher.finalize())
     }
-    pub fn unsubscribe(&self) {
+    pub fn terminate(&self) {
         self.state.store(2, Ordering::SeqCst);
     }
 }
