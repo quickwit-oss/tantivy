@@ -1,9 +1,8 @@
-extern crate tuple_vec_map;
-
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Formatter;
 
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{TopHitsMetricResult, TopHitsVecEntry};
 use crate::aggregation::bucket::Order;
@@ -68,10 +67,30 @@ use crate::{DocAddress, SegmentOrdinal};
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TopHitsAggregation {
-    #[serde(with = "tuple_vec_map")]
-    sort: Vec<(String, Order)>,
+    sort: Vec<KeyOrder>,
     size: usize,
     from: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+struct KeyOrder(String, Order);
+
+impl Serialize for KeyOrder {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let KeyOrder(key, order) = self;
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(key, order)?;
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyOrder {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de> {
+        let k_o: HashMap<String, Order> = Deserialize::deserialize(deserializer)?;
+        let (k, v) = k_o.into_iter().next().unwrap();
+        Ok(Self(k, v))
+    }
 }
 
 impl TopHitsAggregation {
@@ -84,7 +103,10 @@ impl TopHitsAggregation {
 
     /// Return fields accessed by the aggregator, in order.
     pub fn get_fields(&self) -> Vec<&str> {
-        self.sort.iter().map(|(field, _)| field.as_str()).collect()
+        self.sort
+            .iter()
+            .map(|KeyOrder(field, _)| field.as_str())
+            .collect()
     }
 }
 
@@ -291,7 +313,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
             .accessors
             .iter()
             .zip(self.inner_collector.req.sort.iter())
-            .map(|((c, _), (_, order))| {
+            .map(|((c, _), KeyOrder(_, order))| {
                 let order = *order;
                 match c.values_for_doc(doc_id).next() {
                     Some(value) => ComparableDocFeature { value, order },

@@ -718,7 +718,7 @@ impl SegmentCollector for TopScoreSegmentCollector {
         self.0.collect(doc, score);
     }
 
-    fn harvest(self) -> Self::Fruit {
+    fn harvest(self) -> Vec<(Score, DocAddress)> {
         self.0.harvest()
     }
 }
