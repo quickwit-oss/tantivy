@@ -31,7 +31,7 @@ log = "0.4.16"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 num_cpus = "1.13.1"
-fs4 = { version = "0.6.3", optional = true }
+fs4 = { version = "0.7.0", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
