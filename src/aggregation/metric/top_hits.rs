@@ -28,7 +28,7 @@ use crate::{DocAddress, SegmentOrdinal};
 /// for example.
 ///
 /// The following example demonstrates a request for the top_hits aggregation:
-/// ```json
+/// ```JSON
 /// {
 ///     "aggs": {
 ///         "top_authors": {
@@ -51,14 +51,21 @@ use crate::{DocAddress, SegmentOrdinal};
 ///
 /// This request will return an object containing the top two documents, sorted
 /// by the `date` field in descending order. You can also sort by multiple fields, which
-/// helps to resolve ties:
-/// ```json
+/// helps to resolve ties. The aggregation object for each bucket will look like:
+/// ```JSON
 /// {
 ///     "hits": [
 ///         {
-///             "id":
+///           "id": <doc_address>,
+///           score: [<time_u64>]
+///         },
+///         {
+///             "id": <doc_address>,
+///             score: [<time_u64>]
 ///         }
 ///     ]
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TopHitsAggregation {
     #[serde(with = "tuple_vec_map")]
@@ -75,9 +82,10 @@ impl TopHitsAggregation {
         todo!();
     }
 
-    // pub fn get_fields(&self) -> Vec<&str> {
-    //     self.sort.iter().map(|(field, _)| field.as_str()).collect()
-    // }
+    /// Return fields accessed by the aggregator, in order.
+    pub fn get_fields(&self) -> Vec<&str> {
+        self.sort.iter().map(|(field, _)| field.as_str()).collect()
+    }
 }
 
 /// Holds a single comparable doc feature, and the order in which it should be sorted.
@@ -85,6 +93,7 @@ impl TopHitsAggregation {
 struct ComparableDocFeature {
     /// Stores any u64-mappable feature.
     value: u64,
+    /// Sort order for the doc feature
     order: Order,
 }
 
@@ -148,6 +157,7 @@ impl PartialEq for ComparableDocMultipleFeatures {
 
 impl Eq for ComparableDocMultipleFeatures {}
 
+/// The TopHitsCollector used for collecting over segments and merging results.
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct TopHitsCollector {
     req: TopHitsAggregation,
@@ -170,10 +180,9 @@ impl std::cmp::PartialEq for TopHitsCollector {
 }
 
 impl TopHitsCollector {
-    fn collect(&mut self, comparable_doc: ComparableDocMultipleFeatures) -> crate::Result<()> {
+    fn collect(&mut self, comparable_doc: ComparableDocMultipleFeatures) {
         if self.heap.len() < self.req.size + self.req.from.unwrap_or(0) {
             self.heap.push(comparable_doc);
-            Ok(())
         } else {
             let mut min_doc = self
                 .heap
@@ -182,21 +191,21 @@ impl TopHitsCollector {
             if comparable_doc < *min_doc {
                 *min_doc = comparable_doc;
             }
-            Ok(())
         }
     }
 
-    pub fn merge_fruits(&mut self, other_fruit: Self) -> crate::Result<()> {
+    pub(crate) fn merge_fruits(&mut self, other_fruit: Self) -> crate::Result<()> {
         for doc in other_fruit.heap.into_vec() {
-            self.collect(doc)?;
+            self.collect(doc);
         }
         Ok(())
     }
 
+    /// Finalize by converting self into the final result form
     pub fn finalize(self) -> TopHitsMetricResult {
         let mut hits: Vec<TopHitsVecEntry> = self
             .heap
-            // TODO: use `into_sorted_vec` once it's stable
+            // TODO: use `into_sorted_iter` once it's stable
             // Using an in-order iterator would avoid allocating a new vector.
             // Ref: https://github.com/rust-lang/rust/issues/59278
             .into_sorted_vec()
@@ -270,8 +279,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_result),
-        );
-        Ok(())
+        )
     }
 
     fn collect(
