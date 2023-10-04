@@ -255,6 +255,28 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
     }
 }
 
+impl<'a, V: Value<'a> + ?Sized> From<ReferenceValue<'a, V>> for OwnedValue {
+    fn from(val: ReferenceValue<'a, V>) -> OwnedValue {
+        match val {
+            ReferenceValue::Null => OwnedValue::Null,
+            ReferenceValue::Str(val) => OwnedValue::Str(val.to_string()),
+            ReferenceValue::U64(val) => OwnedValue::U64(val),
+            ReferenceValue::I64(val) => OwnedValue::I64(val),
+            ReferenceValue::F64(val) => OwnedValue::F64(val),
+            ReferenceValue::Date(val) => OwnedValue::Date(val),
+            ReferenceValue::Facet(val) => OwnedValue::Facet(val.clone()),
+            ReferenceValue::Bytes(val) => OwnedValue::Bytes(val.to_vec()),
+            ReferenceValue::IpAddr(val) => OwnedValue::IpAddr(val),
+            ReferenceValue::Bool(val) => OwnedValue::Bool(val),
+            ReferenceValue::PreTokStr(val) => OwnedValue::PreTokStr(val.clone()),
+            ReferenceValue::Array(val) => OwnedValue::Array(val.map(|v| v.into()).collect()),
+            ReferenceValue::Object(val) => {
+                OwnedValue::Object(val.map(|(k, v)| (k.to_string(), v.into())).collect())
+            }
+        }
+    }
+}
+
 impl From<String> for OwnedValue {
     fn from(s: String) -> OwnedValue {
         OwnedValue::Str(s)

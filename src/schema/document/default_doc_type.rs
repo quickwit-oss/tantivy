@@ -195,17 +195,6 @@ impl TantivyDocument {
         Ok(document)
     }
 
-    /// Create a named document from the doc.
-    pub fn to_named_doc(&self, schema: &Schema) -> NamedFieldDocument {
-        let mut field_map = BTreeMap::new();
-        for (field, field_values) in self.get_sorted_field_values() {
-            let field_name = schema.get_field_name(field);
-            let values: Vec<OwnedValue> = field_values.into_iter().cloned().collect();
-            field_map.insert(field_name.to_string(), values);
-        }
-        NamedFieldDocument(field_map)
-    }
-
     /// Encode the schema in JSON.
     ///
     /// Encoding a document cannot fail.
