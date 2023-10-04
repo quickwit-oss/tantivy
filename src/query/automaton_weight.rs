@@ -56,7 +56,6 @@ where
         term_dict: &'a TermDictionary,
     ) -> io::Result<TermWithStateStreamer<'a, &'a A>> {
         let automaton: &A = &self.automaton;
-        // let mut term_stream_builder = term_dict.search(automaton);
         let mut term_stream_builder = term_dict.search_with_state(automaton);
 
         if let Some(json_path_bytes) = &self.json_path_bytes {
