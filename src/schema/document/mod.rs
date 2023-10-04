@@ -358,6 +358,26 @@ pub trait Value<'a>: Send + Sync + Debug {
     }
 
     #[inline]
+    /// Returns the iterator over the array if the Value is an array.
+    fn as_array(&self) -> Option<Self::ArrayIter> {
+        if let ReferenceValue::Array(val) = self.as_value() {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Returns the iterator over the object if the Value is an object.
+    fn as_object(&self) -> Option<Self::ObjectIter> {
+        if let ReferenceValue::Object(val) = self.as_value() {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     /// Returns true if the Value is an array.
     fn is_array(&self) -> bool {
         matches!(self.as_value(), ReferenceValue::Object(_))

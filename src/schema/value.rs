@@ -49,6 +49,13 @@ pub enum OwnedValue {
     IpAddr(Ipv6Addr),
 }
 
+impl AsRef<OwnedValue> for OwnedValue {
+    #[inline]
+    fn as_ref(&self) -> &OwnedValue {
+        self
+    }
+}
+
 impl<'a> Value<'a> for &'a OwnedValue {
     type ChildValue = Self;
     type ArrayIter = ArrayIter<'a>;
