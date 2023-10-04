@@ -158,6 +158,7 @@ mod default_doc_type;
 mod existing_type_impls;
 mod se;
 
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::mem;
 use std::net::Ipv6Addr;
@@ -219,6 +220,20 @@ pub trait Document: DocumentDeserialize + Send + Sync + 'static {
 
         grouped_field_values.push((current_field, current_group));
         grouped_field_values
+    }
+
+    /// Create a named document from the doc.
+    fn to_named_doc(&self, schema: &Schema) -> NamedFieldDocument {
+        let mut field_map = BTreeMap::new();
+        for (field, field_values) in self.get_sorted_field_values() {
+            let field_name = schema.get_field_name(field);
+            let values: Vec<OwnedValue> = field_values
+                .into_iter()
+                .map(|val| val.as_value().into())
+                .collect();
+            field_map.insert(field_name.to_string(), values);
+        }
+        NamedFieldDocument(field_map)
     }
 }
 
