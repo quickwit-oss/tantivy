@@ -49,6 +49,13 @@ pub enum OwnedValue {
     IpAddr(Ipv6Addr),
 }
 
+impl AsRef<OwnedValue> for OwnedValue {
+    #[inline]
+    fn as_ref(&self) -> &OwnedValue {
+        self
+    }
+}
+
 impl<'a> Value<'a> for &'a OwnedValue {
     type ChildValue = Self;
     type ArrayIter = ArrayIter<'a>;
@@ -441,11 +448,11 @@ impl<'a> Iterator for ObjectMapIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::OwnedValue;
+    use super::*;
     use crate::schema::{BytesOptions, Schema};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::{DateTime, TantivyDocument};
+    use crate::{DateTime, Document, TantivyDocument};
 
     #[test]
     fn test_parse_bytes_doc() {

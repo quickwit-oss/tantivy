@@ -235,6 +235,14 @@ pub trait Document: DocumentDeserialize + Send + Sync + 'static {
         }
         NamedFieldDocument(field_map)
     }
+
+    /// Encode the doc in JSON.
+    ///
+    /// Encoding a document cannot fail.
+    fn to_json(&self, schema: &Schema) -> String {
+        serde_json::to_string(&self.to_named_doc(schema))
+            .expect("doc encoding failed. This is a bug")
+    }
 }
 
 /// A single field value.
@@ -351,6 +359,26 @@ pub trait Value<'a>: Send + Sync + Debug {
     /// If the Value is a facet, returns the associated facet. Returns None otherwise.
     fn as_facet(&self) -> Option<&'a Facet> {
         if let ReferenceValue::Facet(val) = self.as_value() {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Returns the iterator over the array if the Value is an array.
+    fn as_array(&self) -> Option<Self::ArrayIter> {
+        if let ReferenceValue::Array(val) = self.as_value() {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Returns the iterator over the object if the Value is an object.
+    fn as_object(&self) -> Option<Self::ObjectIter> {
+        if let ReferenceValue::Object(val) = self.as_value() {
             Some(val)
         } else {
             None

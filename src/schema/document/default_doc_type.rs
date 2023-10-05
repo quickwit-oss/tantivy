@@ -195,14 +195,6 @@ impl TantivyDocument {
         Ok(document)
     }
 
-    /// Encode the schema in JSON.
-    ///
-    /// Encoding a document cannot fail.
-    pub fn to_json(&self, schema: &Schema) -> String {
-        serde_json::to_string(&self.to_named_doc(schema))
-            .expect("doc encoding failed. This is a bug")
-    }
-
     /// Build a document object from a json-object.
     pub fn parse_json(schema: &Schema, doc_json: &str) -> Result<TantivyDocument, DocParsingError> {
         let json_obj: Map<String, serde_json::Value> =

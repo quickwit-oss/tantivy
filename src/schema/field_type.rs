@@ -535,7 +535,9 @@ mod tests {
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::{NumericOptions, OwnedValue, Schema, TextOptions, Type, COERCE, INDEXED};
+    use crate::schema::{
+        Document, NumericOptions, OwnedValue, Schema, TextOptions, Type, COERCE, INDEXED,
+    };
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, TantivyDocument};

@@ -4,7 +4,7 @@
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{DateOptions, OwnedValue, Schema, INDEXED, STORED, STRING};
+use tantivy::schema::{DateOptions, Document, OwnedValue, Schema, INDEXED, STORED, STRING};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {

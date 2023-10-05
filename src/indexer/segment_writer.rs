@@ -494,7 +494,8 @@ mod tests {
     use crate::query::PhraseQuery;
     use crate::schema::document::Value;
     use crate::schema::{
-        IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING, TEXT,
+        Document, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING,
+        TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
