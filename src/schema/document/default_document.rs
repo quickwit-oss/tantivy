@@ -12,8 +12,8 @@ use crate::schema::field_value::FieldValueIter;
 use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, OwnedValue, Schema};
 use crate::tokenizer::PreTokenizedString;
 
-/// Tantivy's Document is the object that can be indexed and then searched for.
-/// It provides a default implementation of the `Document` trait.
+/// TantivyDocument provides a default implementation of the `Document` trait.
+/// It is the object that can be indexed and then searched for.
 ///
 /// Documents are fundamentally a collection of unordered couples `(field, value)`.
 /// In this list, one field may appear more than once.
@@ -256,7 +256,7 @@ impl DocParsingError {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::default_doc_type::TantivyDocument;
+    use crate::schema::document::default_document::TantivyDocument;
     use crate::schema::*;
 
     #[test]

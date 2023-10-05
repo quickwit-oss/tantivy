@@ -25,10 +25,10 @@ impl<'a> Value<'a> for &'a serde_json::Value {
             serde_json::Value::Null => ReferenceValue::Null,
             serde_json::Value::Bool(value) => ReferenceValue::Bool(*value),
             serde_json::Value::Number(number) => {
-                if let Some(val) = number.as_u64() {
-                    ReferenceValue::U64(val)
-                } else if let Some(val) = number.as_i64() {
+                if let Some(val) = number.as_i64() {
                     ReferenceValue::I64(val)
+                } else if let Some(val) = number.as_u64() {
+                    ReferenceValue::U64(val)
                 } else if let Some(val) = number.as_f64() {
                     ReferenceValue::F64(val)
                 } else {
