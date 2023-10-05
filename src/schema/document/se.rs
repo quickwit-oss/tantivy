@@ -501,7 +501,7 @@ mod tests {
             length elements.len(),
             type_codes::NULL_CODE => (),
             type_codes::TEXT_CODE => String::from("Hello, world"),
-            type_codes::U64_CODE => 12345u64,
+            type_codes::I64_CODE => 12345i64,
         );
         assert_eq!(
             result, expected,

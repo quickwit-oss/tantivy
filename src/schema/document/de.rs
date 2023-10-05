@@ -902,7 +902,7 @@ mod tests {
             crate::schema::OwnedValue::Array(vec![
                 crate::schema::OwnedValue::Null,
                 crate::schema::OwnedValue::Str(String::from("Hello, world")),
-                crate::schema::OwnedValue::U64(12345),
+                crate::schema::OwnedValue::I64(12345),
             ]),
         );
     }
