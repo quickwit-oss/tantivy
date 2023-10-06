@@ -3,8 +3,6 @@ name: Coverage
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 # Ensures that we cancel running jobs for the same PR / same workflow.
 concurrency:
