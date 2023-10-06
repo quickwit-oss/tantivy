@@ -789,7 +789,7 @@ mod tests {
     use tokenizer_api::Token;
 
     use super::*;
-    use crate::schema::document::existing_type_impls::{JsonArrayIter, JsonObjectIter};
+    use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::ReferenceValue;
 
@@ -861,7 +861,7 @@ mod tests {
     #[test]
     fn test_array_serialize() {
         let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(
             value,
@@ -875,7 +875,7 @@ mod tests {
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::String("Some demo".into()),
         ];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(
             value,
@@ -886,7 +886,7 @@ mod tests {
         );
 
         let elements = vec![];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(value, crate::schema::OwnedValue::Array(vec![]));
 
@@ -895,7 +895,7 @@ mod tests {
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::Number(12345.into()),
         ];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(
             value,

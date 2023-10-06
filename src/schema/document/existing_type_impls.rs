@@ -16,8 +16,7 @@ use crate::schema::Field;
 
 // Serde compatibility support.
 impl<'a> Value<'a> for &'a serde_json::Value {
-    type ChildValue = Self;
-    type ArrayIter = JsonArrayIter<'a>;
+    type ArrayIter = std::slice::Iter<'a, serde_json::Value>;
     type ObjectIter = JsonObjectIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
@@ -36,9 +35,7 @@ impl<'a> Value<'a> for &'a serde_json::Value {
                 }
             }
             serde_json::Value::String(val) => ReferenceValue::Str(val),
-            serde_json::Value::Array(elements) => {
-                ReferenceValue::Array(JsonArrayIter(elements.iter()))
-            }
+            serde_json::Value::Array(elements) => ReferenceValue::Array(elements.iter()),
             serde_json::Value::Object(object) => {
                 ReferenceValue::Object(JsonObjectIter(object.iter()))
             }
@@ -111,26 +108,14 @@ impl ValueDeserialize for serde_json::Value {
 }
 
 /// A wrapper struct for an interator producing [Value]s.
-pub struct JsonArrayIter<'a>(pub(crate) std::slice::Iter<'a, serde_json::Value>);
-
-impl<'a> Iterator for JsonArrayIter<'a> {
-    type Item = ReferenceValue<'a, &'a serde_json::Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let value = self.0.next()?;
-        Some(value.as_value())
-    }
-}
-
-/// A wrapper struct for an interator producing [Value]s.
 pub struct JsonObjectIter<'a>(pub(crate) serde_json::map::Iter<'a>);
 
 impl<'a> Iterator for JsonObjectIter<'a> {
-    type Item = (&'a str, ReferenceValue<'a, &'a serde_json::Value>);
+    type Item = (&'a str, &'a serde_json::Value);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.0.next()?;
-        Some((key, value.as_value()))
+        Some((key, value))
     }
 }
 

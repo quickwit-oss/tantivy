@@ -123,7 +123,7 @@ impl FastFieldsWriter {
         for (field, value) in doc.iter_fields_and_values() {
             let value_access = value as D::Value<'_>;
 
-            self.add_doc_value(doc_id, field, value_access.as_value())?;
+            self.add_doc_value(doc_id, field, value_access)?;
         }
         self.num_docs += 1;
         Ok(())
@@ -133,14 +133,14 @@ impl FastFieldsWriter {
         &mut self,
         doc_id: DocId,
         field: Field,
-        value: ReferenceValue<'a, V>,
+        value: V,
     ) -> crate::Result<()> {
         let field_name = match &self.fast_field_names[field.field_id() as usize] {
             None => return Ok(()),
             Some(name) => name,
         };
 
-        match value {
+        match value.as_value() {
             ReferenceValue::Null => {}
             ReferenceValue::Str(val) => {
                 if let Some(tokenizer) = &mut self.per_field_tokenizer[field.field_id() as usize] {
@@ -284,7 +284,7 @@ fn record_json_obj_to_columnar_writer<'a, V: Value<'a>>(
 
 fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
     doc: DocId,
-    json_val: ReferenceValue<'a, V>,
+    json_val: V,
     expand_dots: bool,
     mut remaining_depth_limit: usize,
     json_path_writer: &mut String,
@@ -296,7 +296,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
     }
     remaining_depth_limit -= 1;
 
-    match json_val {
+    match json_val.as_value() {
         ReferenceValue::Null => {} // TODO: Handle null
         ReferenceValue::Str(val) => {
             if let Some(text_analyzer) = tokenizer.as_mut() {
@@ -351,7 +351,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
         }
         ReferenceValue::Array(elements) => {
             for el in elements {
-                record_json_value_to_columnar_writer::<V::ChildValue>(
+                record_json_value_to_columnar_writer(
                     doc,
                     el,
                     expand_dots,
@@ -382,7 +382,6 @@ mod tests {
 
     use super::record_json_value_to_columnar_writer;
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
-    use crate::schema::document::Value;
     use crate::DocId;
 
     fn test_columnar_from_jsons_aux(
@@ -394,7 +393,7 @@ mod tests {
         for (doc, json_doc) in json_docs.iter().enumerate() {
             record_json_value_to_columnar_writer(
                 doc as u32,
-                json_doc.as_value(),
+                json_doc,
                 expand_dots,
                 JSON_DEPTH_LIMIT,
                 &mut json_path,

@@ -9,12 +9,11 @@ use crate::tokenizer::PreTokenizedString;
 /// A single field value.
 pub trait Value<'a>: Send + Sync + Debug {
     /// The child value type returned by this doc value.
-    type ChildValue: Value<'a>;
     /// The iterator for walking through the elements within the array.
-    type ArrayIter: Iterator<Item = ReferenceValue<'a, Self::ChildValue>>;
+    type ArrayIter: Iterator<Item = Self>;
     /// The visitor walking through the key-value pairs within
     /// the object.
-    type ObjectIter: Iterator<Item = (&'a str, ReferenceValue<'a, Self::ChildValue>)>;
+    type ObjectIter: Iterator<Item = (&'a str, Self)>;
 
     /// Returns the field value represented by an enum which borrows it's data.
     fn as_value(&self) -> ReferenceValue<'a, Self>;
