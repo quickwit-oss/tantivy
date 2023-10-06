@@ -57,8 +57,7 @@ impl AsRef<OwnedValue> for OwnedValue {
 }
 
 impl<'a> Value<'a> for &'a OwnedValue {
-    type ChildValue = Self;
-    type ArrayIter = ArrayIter<'a>;
+    type ArrayIter = std::slice::Iter<'a, OwnedValue>;
     type ObjectIter = ObjectMapIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
@@ -74,7 +73,7 @@ impl<'a> Value<'a> for &'a OwnedValue {
             OwnedValue::Facet(val) => ReferenceValue::Facet(val),
             OwnedValue::Bytes(val) => ReferenceValue::Bytes(val),
             OwnedValue::IpAddr(val) => ReferenceValue::IpAddr(*val),
-            OwnedValue::Array(array) => ReferenceValue::Array(ArrayIter(array.iter())),
+            OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
         }
     }
@@ -262,7 +261,7 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
     }
 }
 
-impl<'a, V: Value<'a> + ?Sized> From<ReferenceValue<'a, V>> for OwnedValue {
+impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
     fn from(val: ReferenceValue<'a, V>) -> OwnedValue {
         match val {
             ReferenceValue::Null => OwnedValue::Null,
@@ -276,10 +275,13 @@ impl<'a, V: Value<'a> + ?Sized> From<ReferenceValue<'a, V>> for OwnedValue {
             ReferenceValue::IpAddr(val) => OwnedValue::IpAddr(val),
             ReferenceValue::Bool(val) => OwnedValue::Bool(val),
             ReferenceValue::PreTokStr(val) => OwnedValue::PreTokStr(val.clone()),
-            ReferenceValue::Array(val) => OwnedValue::Array(val.map(|v| v.into()).collect()),
-            ReferenceValue::Object(val) => {
-                OwnedValue::Object(val.map(|(k, v)| (k.to_string(), v.into())).collect())
+            ReferenceValue::Array(val) => {
+                OwnedValue::Array(val.map(|v| v.as_value().into()).collect())
             }
+            ReferenceValue::Object(val) => OwnedValue::Object(
+                val.map(|(k, v)| (k.to_string(), v.as_value().into()))
+                    .collect(),
+            ),
         }
     }
 }
@@ -422,27 +424,15 @@ impl From<serde_json::Map<String, serde_json::Value>> for OwnedValue {
     }
 }
 
-/// A wrapper type for iterating over a serde_json array producing reference values.
-pub struct ArrayIter<'a>(std::slice::Iter<'a, OwnedValue>);
-
-impl<'a> Iterator for ArrayIter<'a> {
-    type Item = ReferenceValue<'a, &'a OwnedValue>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let value = self.0.next()?;
-        Some(value.as_value())
-    }
-}
-
 /// A wrapper type for iterating over a serde_json object producing reference values.
 pub struct ObjectMapIter<'a>(btree_map::Iter<'a, String, OwnedValue>);
 
 impl<'a> Iterator for ObjectMapIter<'a> {
-    type Item = (&'a str, ReferenceValue<'a, &'a OwnedValue>);
+    type Item = (&'a str, &'a OwnedValue);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.0.next()?;
-        Some((key.as_str(), value.as_value()))
+        Some((key.as_str(), value))
     }
 }
 

@@ -148,12 +148,12 @@ where W: Write
 
                 // Somewhat unfortunate that we do this here however, writing the
                 // length at the end of the complicates things quite considerably.
-                let elements: Vec<ReferenceValue<'_, V::ChildValue>> = elements.collect();
+                let elements: Vec<V> = elements.collect();
 
                 let mut serializer = BinaryArraySerializer::begin(elements.len(), self.writer)?;
 
                 for value in elements {
-                    serializer.serialize_value(value)?;
+                    serializer.serialize_value(value.as_value())?;
                 }
 
                 serializer.end()
@@ -163,12 +163,12 @@ where W: Write
 
                 // Somewhat unfortunate that we do this here however, writing the
                 // length at the end of the complicates things quite considerably.
-                let entries: Vec<(&str, ReferenceValue<'_, V::ChildValue>)> = object.collect();
+                let entries: Vec<(&str, V)> = object.collect();
 
                 let mut serializer = BinaryObjectSerializer::begin(entries.len(), self.writer)?;
 
                 for (key, value) in entries {
-                    serializer.serialize_entry(key, value)?;
+                    serializer.serialize_entry(key, value.as_value())?;
                 }
 
                 serializer.end()
@@ -308,7 +308,7 @@ mod tests {
     use tokenizer_api::Token;
 
     use super::*;
-    use crate::schema::document::existing_type_impls::{JsonArrayIter, JsonObjectIter};
+    use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::{Facet, Field, FAST, STORED, TEXT};
     use crate::tokenizer::PreTokenizedString;
 
@@ -451,7 +451,7 @@ mod tests {
     #[test]
     fn test_array_serialize() {
         let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
             length elements.len(),
@@ -467,7 +467,7 @@ mod tests {
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::String("Some demo".into()),
         ];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
             length elements.len(),
@@ -480,7 +480,7 @@ mod tests {
         );
 
         let elements = vec![];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
             length elements.len(),
@@ -495,7 +495,7 @@ mod tests {
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::Number(12345.into()),
         ];
-        let result = serialize_value(ReferenceValue::Array(JsonArrayIter(elements.iter())));
+        let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
             length elements.len(),

@@ -117,14 +117,14 @@ fn index_json_object<'a, V: Value<'a>>(
 
 fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
-    json_value: ReferenceValue<'a, V>,
+    json_value: V,
     text_analyzer: &mut TextAnalyzer,
     json_term_writer: &mut JsonTermWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    match json_value {
+    match json_value.as_value() {
         ReferenceValue::Null => {}
         ReferenceValue::Str(val) => {
             let mut token_stream = text_analyzer.token_stream(val);
@@ -174,7 +174,7 @@ fn index_json_value<'a, V: Value<'a>>(
         }
         ReferenceValue::Array(elements) => {
             for val in elements {
-                index_json_value::<V::ChildValue>(
+                index_json_value(
                     doc,
                     val,
                     text_analyzer,

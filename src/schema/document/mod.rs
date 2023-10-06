@@ -130,13 +130,12 @@
 //! }
 //!
 //! impl<'a> Value<'a> for MyCustomValue<'a> {
-//!     type ChildValue = Self;
 //!     // We don't need to worry about these types here as we're not
 //!     // working with nested types, but if we wanted to we would
 //!     // define our two iterator types, a sequence of ReferenceValues
 //!     // for the array iterator and a sequence of key-value pairs for objects.
-//!     type ArrayIter = std::iter::Empty<ReferenceValue<'a, Self>>;
-//!     type ObjectIter = std::iter::Empty<(&'a str, ReferenceValue<'a, Self>)>;
+//!     type ArrayIter = std::iter::Empty<Self>;
+//!     type ObjectIter = std::iter::Empty<(&'a str, Self)>;
 //!
 //!     // The ReferenceValue which Tantivy can use.
 //!     fn as_value(&self) -> ReferenceValue<'a, Self> {
