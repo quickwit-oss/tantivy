@@ -93,7 +93,12 @@ impl Aggregation {
     }
 
     fn get_fast_field_names(&self, fast_field_names: &mut HashSet<String>) {
-        fast_field_names.insert(self.agg.get_fast_field_name().to_string());
+        fast_field_names.extend(
+            self.agg
+                .get_fast_field_names()
+                .iter()
+                .map(|s| s.to_string()),
+        );
         fast_field_names.extend(get_fast_field_names(&self.sub_aggregation));
     }
 }
@@ -154,22 +159,20 @@ pub enum AggregationVariants {
 
 impl AggregationVariants {
     /// Returns the name of the field used by the aggregation.
-    pub fn get_fast_field_name(&self) -> &str {
+    pub fn get_fast_field_names(&self) -> Vec<&str> {
         match self {
-            AggregationVariants::Terms(terms) => terms.field.as_str(),
-            AggregationVariants::Range(range) => range.field.as_str(),
-            AggregationVariants::Histogram(histogram) => histogram.field.as_str(),
-            AggregationVariants::DateHistogram(histogram) => histogram.field.as_str(),
-            AggregationVariants::Average(avg) => avg.field_name(),
-            AggregationVariants::Count(count) => count.field_name(),
-            AggregationVariants::Max(max) => max.field_name(),
-            AggregationVariants::Min(min) => min.field_name(),
-            AggregationVariants::Stats(stats) => stats.field_name(),
-            AggregationVariants::Sum(sum) => sum.field_name(),
-            AggregationVariants::Percentiles(per) => per.field_name(),
-            // FIXME: a single fast field doesn't make sense for top hits
-            // What should we do here?
-            AggregationVariants::TopHits(top_hits) => top_hits.field_name(),
+            AggregationVariants::Terms(terms) => vec![terms.field.as_str()],
+            AggregationVariants::Range(range) => vec![range.field.as_str()],
+            AggregationVariants::Histogram(histogram) => vec![histogram.field.as_str()],
+            AggregationVariants::DateHistogram(histogram) => vec![histogram.field.as_str()],
+            AggregationVariants::Average(avg) => vec![avg.field_name()],
+            AggregationVariants::Count(count) => vec![count.field_name()],
+            AggregationVariants::Max(max) => vec![max.field_name()],
+            AggregationVariants::Min(min) => vec![min.field_name()],
+            AggregationVariants::Stats(stats) => vec![stats.field_name()],
+            AggregationVariants::Sum(sum) => vec![sum.field_name()],
+            AggregationVariants::Percentiles(per) => vec![per.field_name()],
+            AggregationVariants::TopHits(top_hits) => top_hits.field_names(),
         }
     }
 

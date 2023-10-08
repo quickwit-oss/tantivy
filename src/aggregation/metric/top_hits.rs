@@ -96,15 +96,8 @@ impl<'de> Deserialize<'de> for KeyOrder {
 }
 
 impl TopHitsAggregation {
-    /// Supposed to return the field name the aggregation is performed on.
-    /// This is not implemented yet, because it doesn't make sense for multi-field top hits.
-    /// FIXME: Would it make sense to return a `{fields.join(';')}` or something?
-    pub fn field_name(&self) -> &str {
-        todo!();
-    }
-
     /// Return fields accessed by the aggregator, in order.
-    pub fn get_fields(&self) -> Vec<&str> {
+    pub fn field_names(&self) -> Vec<&str> {
         self.sort
             .iter()
             .map(|KeyOrder(field, _)| field.as_str())

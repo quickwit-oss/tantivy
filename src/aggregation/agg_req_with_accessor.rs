@@ -207,12 +207,13 @@ impl AggregationWithAccessor {
                         missing.clone()
                     };
 
-                    let missing_value_for_accessor =
-                        if let Some(missing) = missing_value_term_agg.as_ref() {
-                            get_missing_val(column_type, missing, agg.agg.get_fast_field_name())?
-                        } else {
-                            None
-                        };
+                    let missing_value_for_accessor = if let Some(missing) =
+                        missing_value_term_agg.as_ref()
+                    {
+                        get_missing_val(column_type, missing, agg.agg.get_fast_field_names()[0])?
+                    } else {
+                        None
+                    };
 
                     let agg = AggregationWithAccessor {
                         segment_id,
@@ -266,7 +267,7 @@ impl AggregationWithAccessor {
             }
             TopHits(top_hits) => {
                 let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
-                    .get_fields()
+                    .field_names()
                     .iter()
                     .map(|field| {
                         get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))
