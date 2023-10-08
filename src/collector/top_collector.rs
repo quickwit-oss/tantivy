@@ -1,23 +1,28 @@
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
+
 use super::top_score_collector::TopNComputer;
 use crate::{DocAddress, DocId, SegmentOrdinal, SegmentReader};
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
-/// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
-/// default Rust heap is a max heap, whereas a min heap is needed.
-///
-/// Additionally, it guarantees stable sorting: in case of a tie on the feature, the document
+/// It guarantees stable sorting: in case of a tie on the feature, the document
 /// address is used.
 ///
 /// WARNING: equality is not what you would expect here.
 /// Two elements are equal if their feature is equal, and regardless of whether `doc`
 /// is equal. This should be perfectly fine for this usage, but let's make sure this
 /// struct is never public.
-pub(crate) struct ComparableDoc<T, D> {
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct ComparableDoc<T, D> {
+    /// The feature of the document. In practice, this is
+    /// is any type that implements `PartialOrd`.
     pub feature: T,
+    /// The document address. In practice, this is any
+    /// type that implements `PartialOrd`, and is guaranteed
+    /// to be unique for each document.
     pub doc: D,
 }
 impl<T: std::fmt::Debug, D: std::fmt::Debug> std::fmt::Debug for ComparableDoc<T, D> {

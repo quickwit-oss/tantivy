@@ -1,4 +1,4 @@
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::fmt::Formatter;
 
 use serde::ser::SerializeMap;
@@ -10,6 +10,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::collector::{ComparableDoc, TopNComputer};
 use crate::{DocAddress, SegmentOrdinal};
 
 /// # Top Hits
@@ -137,55 +138,56 @@ impl PartialEq for ComparableDocFeature {
 
 impl Eq for ComparableDocFeature {}
 
-/// Multi-feature comparable docs that can be used in a binary heap.
-/// Includes a custom `Ord` implementation that:
-/// - Allows to sort documents by multiple features
-/// - Inverts sorting order to make `BinaryHeap`, a max-heap, behave like a min-heap that lets us
-///   access its lowest-scoring member.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ComparableDocMultipleFeatures {
-    doc: DocAddress,
-    features: Vec<ComparableDocFeature>,
-}
+struct ComparableDocFeatures(Vec<ComparableDocFeature>);
 
-impl Ord for ComparableDocMultipleFeatures {
+impl Ord for ComparableDocFeatures {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        for (self_feature, other_feature) in self.features.iter().zip(other.features.iter()) {
+        for (self_feature, other_feature) in self.0.iter().zip(other.0.iter()) {
             let cmp = self_feature.cmp(other_feature);
             if cmp != std::cmp::Ordering::Equal {
-                return cmp.reverse();
+                return cmp;
             }
         }
-        self.doc.cmp(&other.doc).reverse()
+        std::cmp::Ordering::Equal
     }
 }
 
-impl PartialOrd for ComparableDocMultipleFeatures {
+impl PartialOrd for ComparableDocFeatures {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for ComparableDocMultipleFeatures {
+impl PartialEq for ComparableDocFeatures {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == std::cmp::Ordering::Equal
     }
 }
 
-impl Eq for ComparableDocMultipleFeatures {}
+impl Eq for ComparableDocFeatures {}
 
 /// The TopHitsCollector used for collecting over segments and merging results.
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TopHitsCollector {
     req: TopHitsAggregation,
-    heap: BinaryHeap<ComparableDocMultipleFeatures>,
+    top_n: TopNComputer<ComparableDocFeatures, DocAddress>,
+}
+
+impl Default for TopHitsCollector {
+    fn default() -> Self {
+        Self {
+            req: TopHitsAggregation::default(),
+            top_n: TopNComputer::new(1),
+        }
+    }
 }
 
 impl std::fmt::Debug for TopHitsCollector {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TopHitsCollector")
             .field("req", &self.req)
-            .field("heap_len", &self.heap.len())
+            .field("top_n_threshold", &self.top_n.threshold)
             .finish()
     }
 }
@@ -197,22 +199,12 @@ impl std::cmp::PartialEq for TopHitsCollector {
 }
 
 impl TopHitsCollector {
-    fn collect(&mut self, comparable_doc: ComparableDocMultipleFeatures) {
-        if self.heap.len() < self.req.size + self.req.from.unwrap_or(0) {
-            self.heap.push(comparable_doc);
-        } else {
-            let mut min_doc = self
-                .heap
-                .peek_mut()
-                .expect("heap should have at least one element at max capacity");
-            if comparable_doc < *min_doc {
-                *min_doc = comparable_doc;
-            }
-        }
+    fn collect(&mut self, comparable_doc: ComparableDoc<ComparableDocFeatures, DocAddress>) {
+        self.top_n.push(comparable_doc);
     }
 
     pub(crate) fn merge_fruits(&mut self, other_fruit: Self) -> crate::Result<()> {
-        for doc in other_fruit.heap.into_vec() {
+        for doc in other_fruit.top_n.into_vec() {
             self.collect(doc);
         }
         Ok(())
@@ -221,15 +213,12 @@ impl TopHitsCollector {
     /// Finalize by converting self into the final result form
     pub fn finalize(self) -> TopHitsMetricResult {
         let mut hits: Vec<TopHitsVecEntry> = self
-            .heap
-            // TODO: use `into_sorted_iter` once it's stable
-            // Using an in-order iterator would avoid allocating a new vector.
-            // Ref: https://github.com/rust-lang/rust/issues/59278
+            .top_n
             .into_sorted_vec()
             .into_iter()
             .map(|doc| TopHitsVecEntry {
                 id: doc.doc,
-                sort: doc.features.iter().map(|f| f.value).collect(),
+                sort: doc.feature.0.iter().map(|f| f.value).collect(),
             })
             .collect();
 
@@ -267,7 +256,7 @@ impl SegmentTopHitsCollector {
         Self {
             inner_collector: TopHitsCollector {
                 req: req.clone(),
-                heap: BinaryHeap::with_capacity(req.size + req.from.unwrap_or(0)),
+                top_n: TopNComputer::new(req.size + req.from.unwrap_or(0)),
             },
             segment_id,
             accessor_idx,
@@ -317,12 +306,12 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
                 }
             })
             .collect();
-        self.inner_collector.collect(ComparableDocMultipleFeatures {
+        self.inner_collector.collect(ComparableDoc {
             doc: DocAddress {
-                doc_id,
                 segment_ord: self.segment_id,
+                doc_id,
             },
-            features,
+            feature: ComparableDocFeatures(features),
         });
         Ok(())
     }

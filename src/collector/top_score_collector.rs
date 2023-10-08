@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use columnar::ColumnValues;
+use serde::{Deserialize, Serialize};
 
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
@@ -726,6 +727,7 @@ impl SegmentCollector for TopScoreSegmentCollector {
 /// Fast TopN Computation
 ///
 /// For TopN == 0, it will be relative expensive.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TopNComputer<Score, DocId> {
     buffer: Vec<ComparableDoc<Score, DocId>>,
     top_n: usize,
@@ -748,8 +750,11 @@ where
         }
     }
 
+    /// Push a new document to the top n.
+    /// If the document is below the current threshold, it will be ignored.
+    /// TODO: perhaps make this take in score, docid instead of ComparableDoc
     #[inline]
-    pub(crate) fn push(&mut self, doc: ComparableDoc<Score, DocId>) {
+    pub fn push(&mut self, doc: ComparableDoc<Score, DocId>) {
         if let Some(last_median) = self.threshold.clone() {
             if doc.feature < last_median {
                 return;
@@ -785,11 +790,22 @@ where
         median_score
     }
 
-    pub(crate) fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
+    /// Returns the top n elements in sorted order.
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
         self.buffer.sort_unstable();
+        self.buffer
+    }
+
+    /// Returns the top n elements in stored order.
+    /// Useful if you do not need the elements in sorted order,
+    /// for example when merging the results of multiple segments.
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
+        if self.buffer.len() > self.top_n {
+            self.truncate_top_n();
+        }
         self.buffer
     }
 }
