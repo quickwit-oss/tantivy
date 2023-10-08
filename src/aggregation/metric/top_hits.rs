@@ -88,7 +88,9 @@ impl<'de> Deserialize<'de> for KeyOrder {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
         let k_o: HashMap<String, Order> = Deserialize::deserialize(deserializer)?;
-        let (k, v) = k_o.into_iter().next().unwrap();
+        let (k, v) = k_o.into_iter().next().ok_or(serde::de::Error::custom(
+            "Expected exactly one key-value pair in KeyOrder",
+        ))?;
         Ok(Self(k, v))
     }
 }
