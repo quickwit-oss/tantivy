@@ -54,7 +54,7 @@ mod tests_mmap {
 
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{JsonObjectOptions, Schema, TEXT};
+    use crate::schema::{JsonObjectOptions, Schema, Type, TEXT};
     use crate::{Index, IndexWriter, Term};
 
     #[test]
@@ -132,5 +132,41 @@ mod tests_mmap {
             let num_docs = searcher.search(&query, &Count).unwrap();
             assert_eq!(num_docs, 1);
         }
+    }
+
+    #[test]
+    fn test_json_field_list_fields() {
+        let mut schema_builder = Schema::builder();
+        let json_options: JsonObjectOptions =
+            JsonObjectOptions::from(TEXT).set_expand_dots_enabled();
+        let json_field = schema_builder.add_json_field("json", json_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "sub": {"a": 1, "b": 2}});
+        index_writer.add_document(doc!(json_field=>json)).unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": 1, "b": 2}});
+        index_writer.add_document(doc!(json_field=>json)).unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": "mixed", "b": 2}});
+        index_writer.add_document(doc!(json_field=>json)).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 3);
+
+        let reader = &searcher.segment_readers()[0];
+        let inverted_index = reader.inverted_index(json_field).unwrap();
+        assert_eq!(
+            inverted_index.list_fields().unwrap(),
+            [
+                ("k8s\u{1}container\u{1}name".to_string(), Type::Str),
+                ("sub\u{1}a".to_string(), Type::I64),
+                ("sub\u{1}b".to_string(), Type::I64),
+                ("suber\u{1}a".to_string(), Type::I64),
+                ("suber\u{1}a".to_string(), Type::Str),
+                ("suber\u{1}b".to_string(), Type::I64),
+                ("val".to_string(), Type::Str),
+            ]
+        );
     }
 }

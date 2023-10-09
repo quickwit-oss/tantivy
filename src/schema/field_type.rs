@@ -313,9 +313,10 @@ impl FieldType {
 
     /// Parses a field value from json, given the target FieldType.
     ///
-    /// Tantivy will not try to cast values.
+    /// Tantivy will try to cast values only with the coerce option.
     /// For instance, If the json value is the integer `3` and the
-    /// target field is a `Str`, this method will return an Error.
+    /// target field is a `Str`, this method will return an Error if `coerce`
+    /// is not enabled.
     pub fn value_from_json(&self, json: JsonValue) -> Result<OwnedValue, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
