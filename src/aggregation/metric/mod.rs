@@ -91,7 +91,7 @@ pub struct TopHitsVecEntry {
     /// The document id, composed of segment local `DocId` and segment ordinal.
     pub id: DocAddress,
     /// The sort values of the document, depending on the sort criteria in the request.
-    pub sort: Vec<u64>,
+    pub sort: Vec<Option<u64>>,
 }
 
 /// The top_hits metric aggregation results a list of top hits by sort criteria.
