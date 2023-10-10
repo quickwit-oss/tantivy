@@ -10,7 +10,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::collector::{ComparableDoc, TopNComputer};
+use crate::collector::TopNComputer;
 use crate::{DocAddress, SegmentOrdinal};
 
 /// # Top Hits
@@ -74,13 +74,16 @@ pub struct TopHitsAggregation {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-struct KeyOrder(String, Order);
+struct KeyOrder {
+    field: String,
+    order: Order,
+}
 
 impl Serialize for KeyOrder {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let KeyOrder(key, order) = self;
+        let KeyOrder { field, order } = self;
         let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(key, order)?;
+        map.serialize_entry(field, order)?;
         map.end()
     }
 }
@@ -88,11 +91,16 @@ impl Serialize for KeyOrder {
 impl<'de> Deserialize<'de> for KeyOrder {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        let k_o: HashMap<String, Order> = Deserialize::deserialize(deserializer)?;
-        let (k, v) = k_o.into_iter().next().ok_or(serde::de::Error::custom(
-            "Expected exactly one key-value pair in KeyOrder",
+        let mut k_o = <HashMap<String, Order>>::deserialize(deserializer)?.into_iter();
+        let (k, v) = k_o.next().ok_or(serde::de::Error::custom(
+            "Expected exactly one key-value pair in KeyOrder, found none",
         ))?;
-        Ok(Self(k, v))
+        if k_o.next().is_some() {
+            return Err(serde::de::Error::custom(
+                "Expected exactly one key-value pair in KeyOrder, found more",
+            ));
+        }
+        Ok(Self { field: k, order: v })
     }
 }
 
@@ -101,7 +109,7 @@ impl TopHitsAggregation {
     pub fn field_names(&self) -> Vec<&str> {
         self.sort
             .iter()
-            .map(|KeyOrder(field, _)| field.as_str())
+            .map(|KeyOrder { field, .. }| field.as_str())
             .collect()
     }
 }
@@ -295,7 +303,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
             .accessors
             .iter()
             .zip(self.inner_collector.req.sort.iter())
-            .map(|((c, _), KeyOrder(_, order))| {
+            .map(|((c, _), KeyOrder { order, .. })| {
                 let order = *order;
                 ComparableDocFeature {
                     value: c.values_for_doc(doc_id).next(),
@@ -334,12 +342,13 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
 mod tests {
     use serde_json::Value;
 
-    use super::{ComparableDoc, ComparableDocFeature, ComparableDocFeatures, Order};
+    use super::{ComparableDocFeature, ComparableDocFeatures, Order};
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
     use crate::aggregation::tests::get_test_index_from_values;
     use crate::aggregation::AggregationCollector;
+    use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
 
     fn invert_order(cmp_feature: ComparableDocFeature) -> ComparableDocFeature {
