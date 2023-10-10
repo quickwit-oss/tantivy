@@ -171,7 +171,7 @@ impl Eq for ComparableDocFeatures {}
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TopHitsCollector {
     req: TopHitsAggregation,
-    top_n: TopNComputer<ComparableDocFeatures, DocAddress>,
+    top_n: TopNComputer<ComparableDocFeatures, DocAddress, false>,
 }
 
 impl Default for TopHitsCollector {
@@ -199,13 +199,13 @@ impl std::cmp::PartialEq for TopHitsCollector {
 }
 
 impl TopHitsCollector {
-    fn collect(&mut self, comparable_doc: ComparableDoc<ComparableDocFeatures, DocAddress>) {
-        self.top_n.push(comparable_doc);
+    fn collect(&mut self, features: ComparableDocFeatures, doc: DocAddress) {
+        self.top_n.push(features, doc);
     }
 
     pub(crate) fn merge_fruits(&mut self, other_fruit: Self) -> crate::Result<()> {
         for doc in other_fruit.top_n.into_vec() {
-            self.collect(doc);
+            self.collect(doc.feature, doc.doc);
         }
         Ok(())
     }
@@ -239,15 +239,6 @@ pub(crate) struct SegmentTopHitsCollector {
 }
 
 impl SegmentTopHitsCollector {
-    // // TODO: confirm if this is required (idts)
-    // pub fn new(
-    //     segment_id: SegmentOrdinal,
-    //     accessor_idx: usize,
-    //     req: TopHitsAggregation,
-    // ) -> SegmentTopHitsCollector { SegmentTopHitsCollector { segment_id, accessor_idx,
-    //   inner_collector: TopHitsCollector { req, heap: BinaryHeap::new(), }, }
-    // }
-
     pub fn from_req(
         req: &TopHitsAggregation,
         accessor_idx: usize,
@@ -306,13 +297,13 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
                 }
             })
             .collect();
-        self.inner_collector.collect(ComparableDoc {
-            doc: DocAddress {
+        self.inner_collector.collect(
+            ComparableDocFeatures(features),
+            DocAddress {
                 segment_ord: self.segment_id,
                 doc_id,
             },
-            feature: ComparableDocFeatures(features),
-        });
+        );
         Ok(())
     }
 
