@@ -198,7 +198,7 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get<D: Document + DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
+    pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
         let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
@@ -370,10 +370,7 @@ impl StoreReader {
     }
 
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
-    pub async fn get_async<D: Document + DocumentDeserialize>(
-        &self,
-        doc_id: DocId,
-    ) -> crate::Result<D> {
+    pub async fn get_async<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
 
         let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
