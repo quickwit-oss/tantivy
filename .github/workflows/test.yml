@@ -43,8 +43,6 @@ jobs:
     - name: Check Stable Compilation
       run: cargo build --all-features
 
-    - name: Check Nightly Compilation
-      run: cargo +nightly build --all-features
     
     - name: Check Bench Compilation
       run: cargo +nightly bench --no-run --profile=dev --all-features
