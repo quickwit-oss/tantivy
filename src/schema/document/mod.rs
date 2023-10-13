@@ -174,7 +174,7 @@ pub use self::value::{ReferenceValue, Value};
 use super::*;
 
 /// The core trait representing a document within the index.
-pub trait Document: DocumentDeserialize + Send + Sync + 'static {
+pub trait Document: Send + Sync + 'static {
     /// The value of the field.
     type Value<'a>: Value<'a> + Clone
     where Self: 'a;
