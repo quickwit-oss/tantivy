@@ -8,6 +8,7 @@ use serde::de::{MapAccess, SeqAccess};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+use super::ReferenceValueLeaf;
 use crate::schema::document::{
     ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value, ValueDeserialize,
     ValueDeserializer, ValueVisitor,
@@ -62,17 +63,17 @@ impl<'a> Value<'a> for &'a OwnedValue {
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
-            OwnedValue::Null => ReferenceValue::Null,
-            OwnedValue::Str(val) => ReferenceValue::Str(val),
-            OwnedValue::PreTokStr(val) => ReferenceValue::PreTokStr(val),
-            OwnedValue::U64(val) => ReferenceValue::U64(*val),
-            OwnedValue::I64(val) => ReferenceValue::I64(*val),
-            OwnedValue::F64(val) => ReferenceValue::F64(*val),
-            OwnedValue::Bool(val) => ReferenceValue::Bool(*val),
-            OwnedValue::Date(val) => ReferenceValue::Date(*val),
-            OwnedValue::Facet(val) => ReferenceValue::Facet(val),
-            OwnedValue::Bytes(val) => ReferenceValue::Bytes(val),
-            OwnedValue::IpAddr(val) => ReferenceValue::IpAddr(*val),
+            OwnedValue::Null => ReferenceValueLeaf::Null.into(),
+            OwnedValue::Str(val) => ReferenceValueLeaf::Str(val).into(),
+            OwnedValue::PreTokStr(val) => ReferenceValueLeaf::PreTokStr(val).into(),
+            OwnedValue::U64(val) => ReferenceValueLeaf::U64(*val).into(),
+            OwnedValue::I64(val) => ReferenceValueLeaf::I64(*val).into(),
+            OwnedValue::F64(val) => ReferenceValueLeaf::F64(*val).into(),
+            OwnedValue::Bool(val) => ReferenceValueLeaf::Bool(*val).into(),
+            OwnedValue::Date(val) => ReferenceValueLeaf::Date(*val).into(),
+            OwnedValue::Facet(val) => ReferenceValueLeaf::Facet(val).into(),
+            OwnedValue::Bytes(val) => ReferenceValueLeaf::Bytes(val).into(),
+            OwnedValue::IpAddr(val) => ReferenceValueLeaf::IpAddr(*val).into(),
             OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
         }
@@ -264,17 +265,19 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
 impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
     fn from(val: ReferenceValue<'a, V>) -> OwnedValue {
         match val {
-            ReferenceValue::Null => OwnedValue::Null,
-            ReferenceValue::Str(val) => OwnedValue::Str(val.to_string()),
-            ReferenceValue::U64(val) => OwnedValue::U64(val),
-            ReferenceValue::I64(val) => OwnedValue::I64(val),
-            ReferenceValue::F64(val) => OwnedValue::F64(val),
-            ReferenceValue::Date(val) => OwnedValue::Date(val),
-            ReferenceValue::Facet(val) => OwnedValue::Facet(val.clone()),
-            ReferenceValue::Bytes(val) => OwnedValue::Bytes(val.to_vec()),
-            ReferenceValue::IpAddr(val) => OwnedValue::IpAddr(val),
-            ReferenceValue::Bool(val) => OwnedValue::Bool(val),
-            ReferenceValue::PreTokStr(val) => OwnedValue::PreTokStr(val.clone()),
+            ReferenceValue::Leaf(leaf) => match leaf {
+                ReferenceValueLeaf::Null => OwnedValue::Null,
+                ReferenceValueLeaf::Str(val) => OwnedValue::Str(val.to_string()),
+                ReferenceValueLeaf::U64(val) => OwnedValue::U64(val),
+                ReferenceValueLeaf::I64(val) => OwnedValue::I64(val),
+                ReferenceValueLeaf::F64(val) => OwnedValue::F64(val),
+                ReferenceValueLeaf::Date(val) => OwnedValue::Date(val),
+                ReferenceValueLeaf::Facet(val) => OwnedValue::Facet(val.clone()),
+                ReferenceValueLeaf::Bytes(val) => OwnedValue::Bytes(val.to_vec()),
+                ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
+                ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
+                ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(val.clone()),
+            },
             ReferenceValue::Array(val) => {
                 OwnedValue::Array(val.map(|v| v.as_value().into()).collect())
             }

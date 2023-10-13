@@ -8,6 +8,7 @@ use std::collections::{btree_map, hash_map, BTreeMap, HashMap};
 
 use serde_json::Number;
 
+use super::ReferenceValueLeaf;
 use crate::schema::document::{
     ArrayAccess, DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
     ObjectAccess, ReferenceValue, Value, ValueDeserialize, ValueDeserializer, ValueVisitor,
@@ -21,20 +22,20 @@ impl<'a> Value<'a> for &'a serde_json::Value {
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
-            serde_json::Value::Null => ReferenceValue::Null,
-            serde_json::Value::Bool(value) => ReferenceValue::Bool(*value),
+            serde_json::Value::Null => ReferenceValueLeaf::Null.into(),
+            serde_json::Value::Bool(value) => ReferenceValueLeaf::Bool(*value).into(),
             serde_json::Value::Number(number) => {
                 if let Some(val) = number.as_i64() {
-                    ReferenceValue::I64(val)
+                    ReferenceValueLeaf::I64(val).into()
                 } else if let Some(val) = number.as_u64() {
-                    ReferenceValue::U64(val)
+                    ReferenceValueLeaf::U64(val).into()
                 } else if let Some(val) = number.as_f64() {
-                    ReferenceValue::F64(val)
+                    ReferenceValueLeaf::F64(val).into()
                 } else {
                     panic!("Unsupported serde_json number {number}");
                 }
             }
-            serde_json::Value::String(val) => ReferenceValue::Str(val),
+            serde_json::Value::String(val) => ReferenceValueLeaf::Str(val).into(),
             serde_json::Value::Array(elements) => ReferenceValue::Array(elements.iter()),
             serde_json::Value::Object(object) => {
                 ReferenceValue::Object(JsonObjectIter(object.iter()))
@@ -77,7 +78,7 @@ impl ValueDeserialize for serde_json::Value {
             }
 
             fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
-                Ok(serde_json::Value::Bool(val.into()))
+                Ok(serde_json::Value::Bool(val))
             }
 
             fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>

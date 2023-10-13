@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::document::{ReferenceValue, Value};
+use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
@@ -125,53 +125,57 @@ fn index_json_value<'a, V: Value<'a>>(
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
     match json_value.as_value() {
-        ReferenceValue::Null => {}
-        ReferenceValue::Str(val) => {
-            let mut token_stream = text_analyzer.token_stream(val);
+        ReferenceValue::Leaf(leaf) => match leaf {
+            ReferenceValueLeaf::Null => {}
+            ReferenceValueLeaf::Str(val) => {
+                let mut token_stream = text_analyzer.token_stream(val);
 
-            // TODO: make sure the chain position works out.
-            json_term_writer.close_path_and_set_type(Type::Str);
-            let indexing_position = positions_per_path.get_position(json_term_writer.term());
-            postings_writer.index_text(
-                doc,
-                &mut *token_stream,
-                json_term_writer.term_buffer,
-                ctx,
-                indexing_position,
-            );
-        }
-        ReferenceValue::U64(val) => {
-            json_term_writer.set_fast_value(val);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        ReferenceValue::I64(val) => {
-            json_term_writer.set_fast_value(val);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        ReferenceValue::F64(val) => {
-            json_term_writer.set_fast_value(val);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        ReferenceValue::Bool(val) => {
-            json_term_writer.set_fast_value(val);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        ReferenceValue::Facet(_) => {
-            unimplemented!("Facet support in dynamic fields is not yet implemented")
-        }
-        ReferenceValue::IpAddr(_) => {
-            unimplemented!("IP address support in dynamic fields is not yet implemented")
-        }
-        ReferenceValue::Date(val) => {
-            json_term_writer.set_fast_value(val);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        ReferenceValue::PreTokStr(_) => {
-            unimplemented!("Pre-tokenized string support in dynamic fields is not yet implemented")
-        }
-        ReferenceValue::Bytes(_) => {
-            unimplemented!("Bytes support in dynamic fields is not yet implemented")
-        }
+                // TODO: make sure the chain position works out.
+                json_term_writer.close_path_and_set_type(Type::Str);
+                let indexing_position = positions_per_path.get_position(json_term_writer.term());
+                postings_writer.index_text(
+                    doc,
+                    &mut *token_stream,
+                    json_term_writer.term_buffer,
+                    ctx,
+                    indexing_position,
+                );
+            }
+            ReferenceValueLeaf::U64(val) => {
+                json_term_writer.set_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            }
+            ReferenceValueLeaf::I64(val) => {
+                json_term_writer.set_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            }
+            ReferenceValueLeaf::F64(val) => {
+                json_term_writer.set_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            }
+            ReferenceValueLeaf::Bool(val) => {
+                json_term_writer.set_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            }
+            ReferenceValueLeaf::Date(val) => {
+                json_term_writer.set_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            }
+            ReferenceValueLeaf::PreTokStr(_) => {
+                unimplemented!(
+                    "Pre-tokenized string support in dynamic fields is not yet implemented"
+                )
+            }
+            ReferenceValueLeaf::Bytes(_) => {
+                unimplemented!("Bytes support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::Facet(_) => {
+                unimplemented!("Facet support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::IpAddr(_) => {
+                unimplemented!("IP address support in dynamic fields is not yet implemented")
+            }
+        },
         ReferenceValue::Array(elements) => {
             for val in elements {
                 index_json_value(

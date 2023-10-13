@@ -5,6 +5,7 @@ use std::io::Write;
 use columnar::MonotonicallyMappableToU128;
 use common::{f64_to_u64, BinarySerializable, VInt};
 
+use super::{OwnedValue, ReferenceValueLeaf};
 use crate::schema::document::{type_codes, Document, ReferenceValue, Value};
 use crate::schema::Schema;
 
@@ -39,10 +40,10 @@ where W: Write
 
             let mut serializer = BinaryValueSerializer::new(self.writer);
             match value_access.as_value() {
-                ReferenceValue::PreTokStr(pre_tokenized_text) => {
-                    serializer.serialize_value(ReferenceValue::Str::<
-                        &'_ crate::schema::OwnedValue,
-                    >(&pre_tokenized_text.text))?;
+                ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(pre_tokenized_text)) => {
+                    serializer.serialize_value(ReferenceValue::Leaf::<&'_ OwnedValue>(
+                        ReferenceValueLeaf::Str(&pre_tokenized_text.text),
+                    ))?;
                 }
                 _ => {
                     serializer.serialize_value(value_access.as_value())?;
@@ -90,59 +91,61 @@ where W: Write
         V: Value<'a>,
     {
         match value {
-            ReferenceValue::Null => self.write_type_code(type_codes::NULL_CODE),
-            ReferenceValue::Str(val) => {
-                self.write_type_code(type_codes::TEXT_CODE)?;
+            ReferenceValue::Leaf(leaf) => match leaf {
+                ReferenceValueLeaf::Null => self.write_type_code(type_codes::NULL_CODE),
+                ReferenceValueLeaf::Str(val) => {
+                    self.write_type_code(type_codes::TEXT_CODE)?;
 
-                let temp_val = Cow::Borrowed(val);
-                temp_val.serialize(self.writer)
-            }
-            ReferenceValue::U64(val) => {
-                self.write_type_code(type_codes::U64_CODE)?;
+                    let temp_val = Cow::Borrowed(val);
+                    temp_val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::U64(val) => {
+                    self.write_type_code(type_codes::U64_CODE)?;
 
-                val.serialize(self.writer)
-            }
-            ReferenceValue::I64(val) => {
-                self.write_type_code(type_codes::I64_CODE)?;
+                    val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::I64(val) => {
+                    self.write_type_code(type_codes::I64_CODE)?;
 
-                val.serialize(self.writer)
-            }
-            ReferenceValue::F64(val) => {
-                self.write_type_code(type_codes::F64_CODE)?;
+                    val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::F64(val) => {
+                    self.write_type_code(type_codes::F64_CODE)?;
 
-                f64_to_u64(val).serialize(self.writer)
-            }
-            ReferenceValue::Date(val) => {
-                self.write_type_code(type_codes::DATE_CODE)?;
-                val.serialize(self.writer)
-            }
-            ReferenceValue::Facet(val) => {
-                self.write_type_code(type_codes::HIERARCHICAL_FACET_CODE)?;
+                    f64_to_u64(val).serialize(self.writer)
+                }
+                ReferenceValueLeaf::Date(val) => {
+                    self.write_type_code(type_codes::DATE_CODE)?;
+                    val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::Facet(val) => {
+                    self.write_type_code(type_codes::HIERARCHICAL_FACET_CODE)?;
 
-                val.serialize(self.writer)
-            }
-            ReferenceValue::Bytes(val) => {
-                self.write_type_code(type_codes::BYTES_CODE)?;
+                    val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::Bytes(val) => {
+                    self.write_type_code(type_codes::BYTES_CODE)?;
 
-                let temp_val = Cow::Borrowed(val);
-                temp_val.serialize(self.writer)
-            }
-            ReferenceValue::IpAddr(val) => {
-                self.write_type_code(type_codes::IP_CODE)?;
+                    let temp_val = Cow::Borrowed(val);
+                    temp_val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::IpAddr(val) => {
+                    self.write_type_code(type_codes::IP_CODE)?;
 
-                val.to_u128().serialize(self.writer)
-            }
-            ReferenceValue::Bool(val) => {
-                self.write_type_code(type_codes::BOOL_CODE)?;
+                    val.to_u128().serialize(self.writer)
+                }
+                ReferenceValueLeaf::Bool(val) => {
+                    self.write_type_code(type_codes::BOOL_CODE)?;
 
-                val.serialize(self.writer)
-            }
-            ReferenceValue::PreTokStr(val) => {
-                self.write_type_code(type_codes::EXT_CODE)?;
-                self.write_type_code(type_codes::TOK_STR_EXT_CODE)?;
+                    val.serialize(self.writer)
+                }
+                ReferenceValueLeaf::PreTokStr(val) => {
+                    self.write_type_code(type_codes::EXT_CODE)?;
+                    self.write_type_code(type_codes::TOK_STR_EXT_CODE)?;
 
-                val.serialize(self.writer)
-            }
+                    val.serialize(self.writer)
+                }
+            },
             ReferenceValue::Array(elements) => {
                 self.write_type_code(type_codes::ARRAY_CODE)?;
 
@@ -272,7 +275,7 @@ where W: Write
         // as we could avoid writing the extra byte per key. But the gain is
         // largely not worth it for the extra complexity it brings.
         self.inner
-            .serialize_value(ReferenceValue::<'a, V>::Str(key))?;
+            .serialize_value(ReferenceValue::<'a, V>::Leaf(ReferenceValueLeaf::Str(key)))?;
         self.inner.serialize_value(value)?;
 
         self.actual_length += 1;
@@ -361,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_simple_value_serialize() {
-        let result = serialize_value(ReferenceValue::Null);
+        let result = serialize_value(ReferenceValueLeaf::Null.into());
         let expected = binary_repr!(
             type_codes::NULL_CODE => (),
         );
@@ -370,7 +373,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::Str("hello, world"));
+        let result = serialize_value(ReferenceValueLeaf::Str("hello, world").into());
         let expected = binary_repr!(
             type_codes::TEXT_CODE => String::from("hello, world"),
         );
@@ -379,7 +382,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::U64(123));
+        let result = serialize_value(ReferenceValueLeaf::U64(123).into());
         let expected = binary_repr!(
             type_codes::U64_CODE => 123u64,
         );
@@ -388,7 +391,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::I64(-123));
+        let result = serialize_value(ReferenceValueLeaf::I64(-123).into());
         let expected = binary_repr!(
             type_codes::I64_CODE => -123i64,
         );
@@ -397,7 +400,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::F64(123.3845));
+        let result = serialize_value(ReferenceValueLeaf::F64(123.3845f64).into());
         let expected = binary_repr!(
             type_codes::F64_CODE => f64_to_u64(123.3845f64),
         );
@@ -406,7 +409,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::Bool(false));
+        let result = serialize_value(ReferenceValueLeaf::Bool(false).into());
         let expected = binary_repr!(
             type_codes::BOOL_CODE => false,
         );
@@ -415,7 +418,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let result = serialize_value(ReferenceValue::Date(DateTime::MAX));
+        let result = serialize_value(ReferenceValueLeaf::Date(DateTime::MAX).into());
         let expected = binary_repr!(
             type_codes::DATE_CODE => DateTime::MAX,
         );
@@ -425,7 +428,7 @@ mod tests {
         );
 
         let facet = Facet::from_text("/hello/world").unwrap();
-        let result = serialize_value(ReferenceValue::Facet(&facet));
+        let result = serialize_value(ReferenceValueLeaf::Facet(&facet).into());
         let expected = binary_repr!(
             type_codes::HIERARCHICAL_FACET_CODE => Facet::from_text("/hello/world").unwrap(),
         );
@@ -438,7 +441,7 @@ mod tests {
             text: "hello, world".to_string(),
             tokens: vec![Token::default(), Token::default()],
         };
-        let result = serialize_value(ReferenceValue::PreTokStr(&pre_tok_str));
+        let result = serialize_value(ReferenceValueLeaf::PreTokStr(&pre_tok_str).into());
         let expected = binary_repr!(
             type_codes::EXT_CODE, type_codes::TOK_STR_EXT_CODE => pre_tok_str,
         );
