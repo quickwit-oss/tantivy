@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
 
+use columnar::{Column, ColumnType, DocId};
+use common::{u64_to_f64, u64_to_i64};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -11,6 +13,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::collector::TopNComputer;
+use crate::schema::Value;
 use crate::{DocAddress, SegmentOrdinal};
 
 /// # Top Hits
@@ -71,6 +74,83 @@ pub struct TopHitsAggregation {
     sort: Vec<KeyOrder>,
     size: usize,
     from: Option<usize>,
+
+    /// Request one or more fast fields to be returned for each hit.
+    /// TODO: support the {field, format} variant for custom formatting.
+    // #[serde(rename = "docvalue_fields")]
+    // #[serde(default = "default_doc_value_fields")]
+
+    #[serde(flatten)]
+    search_fields: SearchFields,
+}
+
+const fn default_doc_value_fields() -> Vec<String> {
+    Vec::new()
+}
+
+/// Search query spec for each matched document
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct SearchFields {
+    /// The fast fields to return for each hit.
+    /// This is the only variant supported for now.
+    /// TODO: support the {field, format} variant for custom formatting.
+    #[serde(rename = "docvalue_fields")]
+    #[serde(default = "default_doc_value_fields")]
+    pub doc_value_fields: Vec<String>,
+}
+
+/// Search query result for each matched document
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct SearchFieldResults {
+    /// The fast fields returned for each hit.
+    #[serde(rename = "docvalue_fields")]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub doc_value_fields: HashMap<String, Value>,
+}
+
+impl SearchFields {
+    fn get_field_names(&self) -> Vec<&str> {
+        // TOOD: support wildcard, we'll need a step to do this translation/matching
+        self.doc_value_fields.iter().map(|s| s.as_str()).collect()
+    }
+
+    fn get_fields(
+        &self,
+        accessors: &HashMap<String, (Column<u64>, ColumnType)>,
+        doc_id: DocId,
+    ) -> SearchFieldResults {
+        let dvf: HashMap<String, Value> = self
+            .doc_value_fields
+            .iter()
+            .map(|field| {
+                let accessor = accessors.get(field).expect("field accessor must exist");
+
+                let values = accessor
+                    .0
+                    .values_for_doc(doc_id)
+                    // TODO: actually it may not
+                    .next()
+                    .expect("val must exist");
+
+                // TODO: for string/bytes we'll need access to the segment reader
+                // to get the actual values associated with the term ids we get from
+                // our fast reader here. We have 2 options:
+                // - Expose the segment reader to the aggregator
+                // - Add a new accessor type that does this for us, and returns the underlying types
+                //   wrapped in a Value enum.
+                let value = match accessor.1 {
+                    ColumnType::U64 => Value::U64(values),
+                    ColumnType::I64 => Value::I64(u64_to_i64(values)),
+                    ColumnType::F64 => Value::F64(u64_to_f64(values)),
+                    _ => todo!(),
+                };
+                (field.to_owned(), value)
+            })
+            .collect();
+        SearchFieldResults {
+            doc_value_fields: dvf,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -109,7 +189,10 @@ impl TopHitsAggregation {
     pub fn field_names(&self) -> Vec<&str> {
         self.sort
             .iter()
+            // TODO: Support wildcard fields
+            // We'll need to do a translation step to match the wildcards
             .map(|KeyOrder { field, .. }| field.as_str())
+            .chain(self.search_fields.get_field_names())
             .collect()
     }
 }
@@ -154,7 +237,7 @@ impl PartialEq for ComparableDocFeature {
 impl Eq for ComparableDocFeature {}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ComparableDocFeatures(Vec<ComparableDocFeature>);
+struct ComparableDocFeatures(Vec<ComparableDocFeature>, SearchFieldResults);
 
 impl Ord for ComparableDocFeatures {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -234,6 +317,7 @@ impl TopHitsCollector {
             .map(|doc| TopHitsVecEntry {
                 id: doc.doc,
                 sort: doc.feature.0.iter().map(|f| f.value).collect(),
+                search_results: doc.feature.1,
             })
             .collect();
 
@@ -299,20 +383,32 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
         doc_id: crate::DocId,
         agg_with_accessor: &mut crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let features: Vec<ComparableDocFeature> = agg_with_accessor.aggs.values[self.accessor_idx]
-            .accessors
+        let accessors = &agg_with_accessor.aggs.values[self.accessor_idx].accessors;
+        let features: Vec<ComparableDocFeature> = self
+            .inner_collector
+            .req
+            .sort
             .iter()
-            .zip(self.inner_collector.req.sort.iter())
-            .map(|((c, _), KeyOrder { order, .. })| {
+            .map(|KeyOrder { order, field }| {
                 let order = *order;
-                ComparableDocFeature {
-                    value: c.values_for_doc(doc_id).next(),
-                    order,
-                }
+                let value = accessors
+                    .get(field)
+                    .expect("field accessor must exist")
+                    .0
+                    .values_for_doc(doc_id)
+                    .next();
+                ComparableDocFeature { value, order }
             })
             .collect();
+
+        let search_results = self
+            .inner_collector
+            .req
+            .search_fields
+            .get_fields(accessors, doc_id);
+
         self.inner_collector.collect(
-            ComparableDocFeatures(features),
+            ComparableDocFeatures(features, search_results),
             DocAddress {
                 segment_ord: self.segment_id,
                 doc_id,

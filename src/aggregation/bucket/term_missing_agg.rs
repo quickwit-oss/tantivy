@@ -92,7 +92,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
         let agg = &mut agg_with_accessor.aggs.values[self.accessor_idx];
         let has_value = agg
             .accessors
-            .iter()
+            .values()
             .any(|(acc, _)| acc.index.has_value(doc));
         if !has_value {
             self.missing_count += 1;

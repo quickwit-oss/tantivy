@@ -158,7 +158,7 @@ pub enum AggregationVariants {
 }
 
 impl AggregationVariants {
-    /// Returns the name of the field used by the aggregation.
+    /// Returns the name of the field(s) used by the aggregation.
     pub fn get_fast_field_names(&self) -> Vec<&str> {
         match self {
             AggregationVariants::Terms(terms) => vec![terms.field.as_str()],

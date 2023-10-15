@@ -92,6 +92,11 @@ pub struct TopHitsVecEntry {
     pub id: DocAddress,
     /// The sort values of the document, depending on the sort criteria in the request.
     pub sort: Vec<Option<u64>>,
+
+    /// Search results, for queries that include field retrieval requests
+    /// (`docvalue_fields`).
+    #[serde(flatten)]
+    pub search_results: SearchFieldResults,
 }
 
 /// The top_hits metric aggregation results a list of top hits by sort criteria.

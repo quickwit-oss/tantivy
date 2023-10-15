@@ -1,5 +1,7 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
+use std::collections::HashMap;
+
 use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
 
 use super::agg_limits::ResourceLimitGuard;
@@ -51,7 +53,8 @@ pub struct AggregationWithAccessor {
     /// If this needs to used by other aggregations, we need to refactor this.
     // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
     // (making them obsolete) But will it have a performance impact?
-    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
+    pub(crate) accessors: HashMap<String, (Column<u64>, ColumnType)>,
+    // pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     pub(crate) agg: Aggregation,
 }
 
@@ -71,7 +74,7 @@ impl AggregationWithAccessor {
             let res = AggregationWithAccessor {
                 segment_id,
                 accessor,
-                accessors: Vec::new(),
+                accessors: Default::default(),
                 field_type: column_type,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
@@ -89,13 +92,15 @@ impl AggregationWithAccessor {
             Ok(())
         };
 
-        let add_agg_with_accessors = |accessors: Vec<(Column<u64>, ColumnType)>,
+        let add_agg_with_accessors = |accessors: HashMap<String, (Column<u64>, ColumnType)>,
                                       aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
+            let (accessor, field_type) = accessors.values().next().expect("at least one accessor");
             let res = AggregationWithAccessor {
                 segment_id,
-                accessor: accessors[0].0.clone(),
-                field_type: accessors[0].1,
+                // TODO: We should do away with the `accessor` field altogether
+                accessor: accessor.clone(),
+                field_type: field_type.clone(),
                 accessors,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
@@ -193,9 +198,9 @@ impl AggregationWithAccessor {
                     let column_and_types =
                         get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?;
 
-                    let accessors: Vec<(Column<u64>, ColumnType)> = column_and_types
+                    let accessors: HashMap<String, (Column<u64>, ColumnType)> = column_and_types
                         .iter()
-                        .map(|(c, t)| (c.clone(), *t))
+                        .map(|c_t| (format!("{field_name}-{}", c_t.1), c_t.clone()))
                         .collect();
                     add_agg_with_accessors(accessors, &mut res)?;
                 }
@@ -219,7 +224,7 @@ impl AggregationWithAccessor {
                         segment_id,
                         missing_value_for_accessor,
                         accessor,
-                        accessors: Vec::new(),
+                        accessors: Default::default(),
                         field_type: column_type,
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
@@ -266,11 +271,13 @@ impl AggregationWithAccessor {
                 add_agg_with_accessor(accessor, column_type, &mut res)?;
             }
             TopHits(top_hits) => {
-                let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
+                let accessors: HashMap<String, (Column<u64>, ColumnType)> = top_hits
                     .field_names()
                     .iter()
                     .map(|field| {
-                        get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))
+                        let cct =
+                            get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))?;
+                        Ok((field.to_string(), cct))
                     })
                     .collect::<crate::Result<_>>()?;
                 add_agg_with_accessors(accessors, &mut res)?;
