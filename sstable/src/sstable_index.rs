@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
+use tracing::instrument;
 use common::OwnedBytes;
 
 use crate::{common_prefix_len, SSTable, SSTableDataCorruption, TermOrdinal};
@@ -27,6 +28,7 @@ impl SSTableIndex {
     }
 
     /// Get the [`BlockAddr`] of the requested block.
+    #[instrument]
     pub(crate) fn get_block(&self, block_id: usize) -> Option<BlockAddr> {
         self.blocks
             .get(block_id)
@@ -56,6 +58,7 @@ impl SSTableIndex {
     /// Get the [`BlockAddr`] of the block that would contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
+    #[instrument]
     pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
         self.locate_with_key(key).and_then(|id| self.get_block(id))
     }
