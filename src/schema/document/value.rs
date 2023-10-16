@@ -21,108 +21,81 @@ pub trait Value<'a>: Send + Sync + Debug {
     #[inline]
     /// Returns if the value is `null` or not.
     fn is_null(&self) -> bool {
-        matches!(self.as_value(), ReferenceValue::Null)
+        matches!(
+            self.as_value(),
+            ReferenceValue::Leaf(ReferenceValueLeaf::Null)
+        )
+    }
+
+    #[inline]
+    /// If the Value is a String, returns the associated str. Returns None otherwise.
+    fn as_leaf(&self) -> Option<ReferenceValueLeaf<'a>> {
+        if let ReferenceValue::Leaf(val) = self.as_value() {
+            Some(val)
+        } else {
+            None
+        }
     }
 
     #[inline]
     /// If the Value is a String, returns the associated str. Returns None otherwise.
     fn as_str(&self) -> Option<&'a str> {
-        if let ReferenceValue::Str(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_str())
     }
 
     #[inline]
     /// If the Value is a u64, returns the associated u64. Returns None otherwise.
     fn as_u64(&self) -> Option<u64> {
-        if let ReferenceValue::U64(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_u64())
     }
 
     #[inline]
     /// If the Value is a i64, returns the associated i64. Returns None otherwise.
     fn as_i64(&self) -> Option<i64> {
-        if let ReferenceValue::I64(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_i64())
     }
 
     #[inline]
     /// If the Value is a f64, returns the associated f64. Returns None otherwise.
     fn as_f64(&self) -> Option<f64> {
-        if let ReferenceValue::F64(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_f64())
     }
 
     #[inline]
     /// If the Value is a datetime, returns the associated datetime. Returns None otherwise.
     fn as_datetime(&self) -> Option<DateTime> {
-        if let ReferenceValue::Date(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_datetime())
     }
 
     #[inline]
     /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
     fn as_ip_addr(&self) -> Option<Ipv6Addr> {
-        if let ReferenceValue::IpAddr(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_ip_addr())
     }
 
     #[inline]
     /// If the Value is a bool, returns the associated bool. Returns None otherwise.
     fn as_bool(&self) -> Option<bool> {
-        if let ReferenceValue::Bool(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_bool())
     }
 
     #[inline]
     /// If the Value is a pre-tokenized string, returns the associated string. Returns None
     /// otherwise.
     fn as_pre_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
-        if let ReferenceValue::PreTokStr(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_pre_tokenized_text())
     }
 
     #[inline]
     /// If the Value is a bytes value, returns the associated set of bytes. Returns None otherwise.
     fn as_bytes(&self) -> Option<&'a [u8]> {
-        if let ReferenceValue::Bytes(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_bytes())
     }
 
     #[inline]
     /// If the Value is a facet, returns the associated facet. Returns None otherwise.
     fn as_facet(&self) -> Option<&'a Facet> {
-        if let ReferenceValue::Facet(val) = self.as_value() {
-            Some(val)
-        } else {
-            None
-        }
+        self.as_leaf().and_then(|leaf| leaf.as_facet())
     }
 
     #[inline]
@@ -158,11 +131,9 @@ pub trait Value<'a>: Send + Sync + Debug {
     }
 }
 
-/// A enum representing a value for tantivy to index.
-#[derive(Clone, Debug, PartialEq)]
-pub enum ReferenceValue<'a, V>
-where V: Value<'a> + ?Sized
-{
+/// A enum representing a leaf value for tantivy to index.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ReferenceValueLeaf<'a> {
     /// A null value.
     Null,
     /// The str type is used for any text information.
@@ -185,15 +156,32 @@ where V: Value<'a> + ?Sized
     Bool(bool),
     /// Pre-tokenized str type,
     PreTokStr(&'a PreTokenizedString),
-    /// A an array containing multiple values.
-    Array(V::ArrayIter),
-    /// A nested / dynamic object.
-    Object(V::ObjectIter),
 }
 
-impl<'a, V> ReferenceValue<'a, V>
-where V: Value<'a>
-{
+impl<'a, T: Value<'a> + ?Sized> From<ReferenceValueLeaf<'a>> for ReferenceValue<'a, T> {
+    #[inline]
+    fn from(value: ReferenceValueLeaf<'a>) -> Self {
+        match value {
+            ReferenceValueLeaf::Null => ReferenceValue::Leaf(ReferenceValueLeaf::Null),
+            ReferenceValueLeaf::Str(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Str(val)),
+            ReferenceValueLeaf::U64(val) => ReferenceValue::Leaf(ReferenceValueLeaf::U64(val)),
+            ReferenceValueLeaf::I64(val) => ReferenceValue::Leaf(ReferenceValueLeaf::I64(val)),
+            ReferenceValueLeaf::F64(val) => ReferenceValue::Leaf(ReferenceValueLeaf::F64(val)),
+            ReferenceValueLeaf::Date(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Date(val)),
+            ReferenceValueLeaf::Facet(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Facet(val)),
+            ReferenceValueLeaf::Bytes(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Bytes(val)),
+            ReferenceValueLeaf::IpAddr(val) => {
+                ReferenceValue::Leaf(ReferenceValueLeaf::IpAddr(val))
+            }
+            ReferenceValueLeaf::Bool(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Bool(val)),
+            ReferenceValueLeaf::PreTokStr(val) => {
+                ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(val))
+            }
+        }
+    }
+}
+
+impl<'a> ReferenceValueLeaf<'a> {
     #[inline]
     /// Returns if the value is `null` or not.
     pub fn is_null(&self) -> bool {
@@ -300,11 +288,105 @@ where V: Value<'a>
             None
         }
     }
+}
+
+/// A enum representing a value for tantivy to index.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ReferenceValue<'a, V>
+where V: Value<'a> + ?Sized
+{
+    /// A null value.
+    Leaf(ReferenceValueLeaf<'a>),
+    /// A an array containing multiple values.
+    Array(V::ArrayIter),
+    /// A nested / dynamic object.
+    Object(V::ObjectIter),
+}
+
+impl<'a, V> ReferenceValue<'a, V>
+where V: Value<'a>
+{
+    #[inline]
+    /// Returns if the value is `null` or not.
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Leaf(ReferenceValueLeaf::Null))
+    }
+
+    #[inline]
+    /// If the Value is a leaf, returns the associated leaf. Returns None otherwise.
+    pub fn as_leaf(&self) -> Option<&ReferenceValueLeaf<'a>> {
+        if let Self::Leaf(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a String, returns the associated str. Returns None otherwise.
+    pub fn as_str(&self) -> Option<&'a str> {
+        self.as_leaf().and_then(|leaf| leaf.as_str())
+    }
+
+    #[inline]
+    /// If the Value is a u64, returns the associated u64. Returns None otherwise.
+    pub fn as_u64(&self) -> Option<u64> {
+        self.as_leaf().and_then(|leaf| leaf.as_u64())
+    }
+
+    #[inline]
+    /// If the Value is a i64, returns the associated i64. Returns None otherwise.
+    pub fn as_i64(&self) -> Option<i64> {
+        self.as_leaf().and_then(|leaf| leaf.as_i64())
+    }
+
+    #[inline]
+    /// If the Value is a f64, returns the associated f64. Returns None otherwise.
+    pub fn as_f64(&self) -> Option<f64> {
+        self.as_leaf().and_then(|leaf| leaf.as_f64())
+    }
+
+    #[inline]
+    /// If the Value is a datetime, returns the associated datetime. Returns None otherwise.
+    pub fn as_datetime(&self) -> Option<DateTime> {
+        self.as_leaf().and_then(|leaf| leaf.as_datetime())
+    }
+
+    #[inline]
+    /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
+    pub fn as_ip_addr(&self) -> Option<Ipv6Addr> {
+        self.as_leaf().and_then(|leaf| leaf.as_ip_addr())
+    }
+
+    #[inline]
+    /// If the Value is a bool, returns the associated bool. Returns None otherwise.
+    pub fn as_bool(&self) -> Option<bool> {
+        self.as_leaf().and_then(|leaf| leaf.as_bool())
+    }
+
+    #[inline]
+    /// If the Value is a pre-tokenized string, returns the associated string. Returns None
+    /// otherwise.
+    pub fn as_pre_tokenized_text(&self) -> Option<&'a PreTokenizedString> {
+        self.as_leaf().and_then(|leaf| leaf.as_pre_tokenized_text())
+    }
+
+    #[inline]
+    /// If the Value is a bytes value, returns the associated set of bytes. Returns None otherwise.
+    pub fn as_bytes(&self) -> Option<&'a [u8]> {
+        self.as_leaf().and_then(|leaf| leaf.as_bytes())
+    }
+
+    #[inline]
+    /// If the Value is a facet, returns the associated facet. Returns None otherwise.
+    pub fn as_facet(&self) -> Option<&'a Facet> {
+        self.as_leaf().and_then(|leaf| leaf.as_facet())
+    }
 
     #[inline]
     /// Returns true if the Value is an array.
     pub fn is_array(&self) -> bool {
-        matches!(self, Self::Object(_))
+        matches!(self, Self::Array(_))
     }
 
     #[inline]

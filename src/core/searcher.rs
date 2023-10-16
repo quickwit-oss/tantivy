@@ -5,7 +5,7 @@ use std::{fmt, io};
 use crate::collector::Collector;
 use crate::core::{Executor, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::{Document, DocumentDeserialize};
+use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};

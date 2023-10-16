@@ -116,6 +116,7 @@
 //!
 //! ```
 //! use tantivy::schema::document::ReferenceValue;
+//! use tantivy::schema::document::ReferenceValueLeaf;
 //! use tantivy::schema::{Value};
 //!
 //! #[derive(Debug)]
@@ -141,9 +142,9 @@
 //!     fn as_value(&self) -> ReferenceValue<'a, Self> {
 //!         // We can support any type that Tantivy itself supports.
 //!         match self {
-//!             MyCustomValue::String(val) => ReferenceValue::Str(val),
-//!             MyCustomValue::Float(val) => ReferenceValue::F64(*val),
-//!             MyCustomValue::Bool(val) => ReferenceValue::Bool(*val),
+//!             MyCustomValue::String(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Str(*val)),
+//!             MyCustomValue::Float(val) => ReferenceValue::Leaf(ReferenceValueLeaf::F64(*val)),
+//!             MyCustomValue::Bool(val) => ReferenceValue::Leaf(ReferenceValueLeaf::Bool(*val)),
 //!         }
 //!     }
 //!
@@ -170,7 +171,7 @@ pub use self::de::{
 pub use self::default_document::{DocParsingError, TantivyDocument};
 pub use self::owned_value::OwnedValue;
 pub(crate) use self::se::BinaryDocumentSerializer;
-pub use self::value::{ReferenceValue, Value};
+pub use self::value::{ReferenceValue, ReferenceValueLeaf, Value};
 use super::*;
 
 /// The core trait representing a document within the index.
