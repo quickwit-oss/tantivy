@@ -3,6 +3,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
+use tracing::instrument;
 
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
@@ -94,6 +95,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(TSSTable::delta_reader(data))
     }
 
+    #[instrument(skip_all)]
     pub(crate) async fn sstable_delta_reader_block_async(
         &self,
         block_addr: BlockAddr,
@@ -232,6 +234,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// If the key was not found, returns Ok(None).
     /// After calling this function, it is possible to call `DeltaReader::value` to get the
     /// associated value.
+    #[instrument(skip_all)]
     fn decode_up_to_key<K: AsRef<[u8]>>(
         &self,
         key: K,
@@ -344,6 +347,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     }
 
     /// Lookups the value corresponding to the key.
+    #[instrument(skip_all)]
     pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TSSTable::Value>> {
         if let Some(block_addr) = self.sstable_index.get_block_with_key(key.as_ref()) {
             let sstable_reader = self.sstable_delta_reader_block_async(block_addr).await?;
