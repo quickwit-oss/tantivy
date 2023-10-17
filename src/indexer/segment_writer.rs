@@ -155,6 +155,8 @@ impl SegmentWriter {
         Ok(doc_opstamps)
     }
 
+    /// Returns an estimation of the current memory usage of the segment writer.
+    /// If the mem usage exceeds the `memory_budget`, the segment be serialized.
     pub fn mem_usage(&self) -> usize {
         self.ctx.mem_usage()
             + self.fieldnorms_writer.mem_usage()

@@ -137,7 +137,7 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
-mod indexer;
+pub mod indexer;
 
 #[allow(unused_doc_comments)]
 pub mod error;
@@ -161,8 +161,7 @@ pub mod termdict;
 mod reader;
 
 pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy, Warmer};
-mod snippet;
-pub use self::snippet::{Snippet, SnippetGenerator};
+pub mod snippet;
 
 mod docset;
 use std::fmt;
@@ -181,8 +180,7 @@ pub use crate::core::{
     SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
-pub use crate::indexer::operation::UserOperation;
-pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
+pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
@@ -190,9 +188,6 @@ pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocumen
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
-
-#[cfg(all(feature = "mmap", unix))]
-pub use memmap2::Advice;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

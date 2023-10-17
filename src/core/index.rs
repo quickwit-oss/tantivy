@@ -18,11 +18,11 @@ use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_L
 use crate::error::{DataCorruption, TantivyError};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
+use crate::indexer::IndexWriter;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::IndexWriter;
 
 fn load_metas(
     directory: &dyn Directory,

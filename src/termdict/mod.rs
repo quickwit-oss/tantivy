@@ -1,5 +1,5 @@
 //! The term dictionary main role is to associate the sorted [`Term`s](crate::Term) to
-//! a [`TermInfo`](crate::postings::TermInfo) struct that contains some meta-information
+//! a [`TermInfo`] struct that contains some meta-information
 //! about the term.
 //!
 //! Internally, the term dictionary relies on the `fst` crate to store
@@ -16,8 +16,7 @@
 //! `f64`-terms are transformed to `u64` using a mapping that preserve order, and are then treated
 //! as `u64`.
 //!
-//! A second datastructure makes it possible to access a
-//! [`TermInfo`](crate::postings::TermInfo).
+//! A second datastructure makes it possible to access a [`TermInfo`].
 
 #[cfg(not(feature = "quickwit"))]
 mod fst_termdict;
