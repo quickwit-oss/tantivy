@@ -18,6 +18,8 @@ use std::sync::Arc;
 use columnar::MonotonicallyMappableToU128;
 use common::{u64_to_f64, BinarySerializable, DateTime, VInt};
 
+use super::se::BinaryObjectSerializer;
+use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
 use crate::tokenizer::PreTokenizedString;
@@ -157,6 +159,9 @@ pub enum ValueType {
     Array,
     /// A dynamic object value.
     Object,
+    /// A JSON object value. Deprecated.
+    #[deprecated]
+    JSONObject,
 }
 
 /// A value visitor for deserializing a document value.
@@ -376,6 +381,8 @@ where R: Read
             type_codes::NULL_CODE => ValueType::Null,
             type_codes::ARRAY_CODE => ValueType::Array,
             type_codes::OBJECT_CODE => ValueType::Object,
+            #[allow(deprecated)]
+            type_codes::JSON_OBJ_CODE => ValueType::JSONObject,
             _ => {
                 return Err(DeserializeError::from(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -512,6 +519,26 @@ where R: Read
             }
             ValueType::Object => {
                 let access = BinaryObjectDeserializer::from_reader(self.reader)?;
+                visitor.visit_object(access)
+            }
+            #[allow(deprecated)]
+            ValueType::JSONObject => {
+                // This is a compatibility layer
+                // The implementation is slow, but is temporary anyways
+                let mut de = serde_json::Deserializer::from_reader(self.reader);
+                let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de).map_err(|err| DeserializeError::Custom(err.to_string()))?;
+                let mut out = Vec::new();
+                let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
+                for (key, val) in json_map {
+                    let val: OwnedValue = val.into();
+                    serializer.serialize_entry(&key, (&val).as_value())?;
+                }
+                serializer.end()?;
+
+                let out_rc = std::rc::Rc::new(out);
+                let mut slice: &[u8] = &out_rc;
+                let access = BinaryObjectDeserializer::from_reader(&mut slice)?;
+
                 visitor.visit_object(access)
             }
         }
@@ -953,6 +980,25 @@ mod tests {
         expected_object.insert("my-second-key".to_string(), crate::schema::OwnedValue::Null);
         expected_object.insert("my-third-key".to_string(), crate::schema::OwnedValue::Null);
         assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
+    }
+
+    #[test]
+    fn test_json_compat() {
+        let data = [
+            8, 123, 34, 107, 101, 121, 97, 58, 34, 58, 34, 98, 108, 117, 98, 34, 44, 34, 118, 97,
+            108, 115, 34, 58, 123, 34, 104, 101, 121, 34, 58, 34, 104, 111, 34, 125, 125,
+        ]
+        .to_vec();
+        let expected = json!({
+            "keya:": "blub",
+            "vals": {
+                "hey": "ho"
+            }
+        });
+        let expected_val: OwnedValue = expected.clone().into();
+
+        let value = deserialize_value(data);
+        assert_eq!(value, expected_val);
     }
 
     #[test]
