@@ -103,7 +103,48 @@
 //! the example code (
 //! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
 //! [source code](https://github.com/quickwit-oss/tantivy/blob/main/examples/basic_search.rs))
-
+//!
+//! # Tantivy Architecture Overview
+//!
+//! Tantivy is inspired by Lucene, the Architecture is very similar.
+//!
+//! ## Core Concepts
+//!
+//! - **[Index]**: A collection of segments. The top level entry point for tantivy users to search
+//!   and index data.
+//!
+//! - **[Segment]**: At the heart of Tantivy's indexing structure is the [Segment]. It contains
+//!   documents and indices and is the atomic unit of indexing and search.
+//!
+//! - **[Schema](schema)**: A schema is a set of fields in an index. Each field has a specific data
+//!   type and set of attributes.
+//!
+//! - **[IndexWriter]**: Responsible creating and merging segments. It executes the indexing
+//!   pipeline including tokenization, creating indices, and storing the index in the
+//!   [Directory](directory).
+//!
+//! - **Searching**: [Searcher] searches the segments with anything that implements
+//!   [Query](query::Query) and merges the results. The list of [supported
+//! queries](query::Query#implementors). Custom Queries are supported by implementing the
+//! [Query](query::Query) trait.
+//!
+//! - **[Directory](directory)**: Abstraction over the storage where the index data is stored.
+//!
+//! - **[Tokenizer](tokenizer)**: Breaks down text into individual tokens. Users can implement or
+//!   use provided tokenizers.
+//!
+//! ## Architecture Flow
+//!
+//! 1. **Document Addition**: Users create documents according to the defined schema. The documents
+//!    fields are tokenized, processed, and added to the current segment. See
+//!    [Document](schema::document) for the structure and usage.
+//!
+//! 2. **Segment Creation**: Once the memory limit threshold is reached or a commit is called, the
+//!    segment is written to the Directory. Documents are searchable after `commit`.
+//!
+//! 3. **Merging**: To optimize space and search speed, segments might be merged. This operation is
+//!    performed in the background. Customize the merge behaviour via
+//!    [IndexWriter::set_merge_policy].
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
 #[macro_use]
@@ -172,6 +213,11 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub use self::docset::{DocSet, TERMINATED};
+#[deprecated(
+    since = "0.22.0",
+    note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
+)]
+pub use self::snippet::{Snippet, SnippetGenerator};
 #[doc(hidden)]
 pub use crate::core::json_utils;
 pub use crate::core::{
@@ -181,22 +227,15 @@ pub use crate::core::{
 };
 pub use crate::directory::Directory;
 pub use crate::indexer::IndexWriter;
+#[deprecated(
+    since = "0.22.0",
+    note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
+)]
+pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
-
-#[deprecated(
-    since = "22.0",
-    note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
-)]
-pub use self::snippet::{Snippet, SnippetGenerator};
-
-#[deprecated(
-    since = "22.0",
-    note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
-)]
-pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
