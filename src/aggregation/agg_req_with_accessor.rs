@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
+use columnar::{Column, ColumnBlockAccessor, ColumnType, DynamicColumn, StrColumn};
 
 use super::agg_limits::ResourceLimitGuard;
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
@@ -53,8 +53,9 @@ pub struct AggregationWithAccessor {
     /// If this needs to used by other aggregations, we need to refactor this.
     // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
     // (making them obsolete) But will it have a performance impact?
-    pub(crate) accessors: HashMap<String, (Column<u64>, ColumnType)>,
-    // pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
+    // pub(crate) accessors: HashMap<String, (Column<u64>, ColumnType)>,
+    pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
+    pub(crate) value_accessors: HashMap<String, DynamicColumn>,
     pub(crate) agg: Aggregation,
 }
 
@@ -75,6 +76,7 @@ impl AggregationWithAccessor {
                 segment_id,
                 accessor,
                 accessors: Default::default(),
+                value_accessors: Default::default(),
                 field_type: column_type,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
@@ -92,14 +94,22 @@ impl AggregationWithAccessor {
             Ok(())
         };
 
-        let add_agg_with_accessors = |accessors: HashMap<String, (Column<u64>, ColumnType)>,
-                                      aggs: &mut Vec<AggregationWithAccessor>|
+        let add_agg_with_accessors = |accessors: Vec<(Column<u64>, ColumnType)>,
+                                      aggs: &mut Vec<AggregationWithAccessor>,
+                                      value_accessors: HashMap<String, DynamicColumn>,
+                                      agg_override: Option<&Aggregation>|
          -> crate::Result<()> {
-            let (accessor, field_type) = accessors.values().next().expect("at least one accessor");
+            let agg = if let Some(agg_override) = agg_override {
+                agg_override
+            } else {
+                agg
+            };
+            let (accessor, field_type) = accessors.get(0).expect("at least one accessor");
             let res = AggregationWithAccessor {
                 segment_id,
                 // TODO: We should do away with the `accessor` field altogether
                 accessor: accessor.clone(),
+                value_accessors,
                 field_type: field_type.clone(),
                 accessors,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
@@ -198,11 +208,11 @@ impl AggregationWithAccessor {
                     let column_and_types =
                         get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?;
 
-                    let accessors: HashMap<String, (Column<u64>, ColumnType)> = column_and_types
+                    let accessors = column_and_types
                         .iter()
-                        .map(|c_t| (format!("{field_name}-{}", c_t.1), c_t.clone()))
+                        .map(|c_t| (c_t.0.clone(), c_t.1.clone()))
                         .collect();
-                    add_agg_with_accessors(accessors, &mut res)?;
+                    add_agg_with_accessors(accessors, &mut res, Default::default(), None)?;
                 }
 
                 for (accessor, column_type) in column_and_types {
@@ -225,6 +235,7 @@ impl AggregationWithAccessor {
                         missing_value_for_accessor,
                         accessor,
                         accessors: Default::default(),
+                        value_accessors: Default::default(),
                         field_type: column_type,
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
@@ -271,16 +282,35 @@ impl AggregationWithAccessor {
                 add_agg_with_accessor(accessor, column_type, &mut res)?;
             }
             TopHits(top_hits) => {
-                let accessors: HashMap<String, (Column<u64>, ColumnType)> = top_hits
+                let agg = {
+                    let top_hits =
+                        top_hits.validate_and_resolve(reader.fast_fields().columnar())?;
+                    Aggregation {
+                        agg: AggregationVariants::TopHits(top_hits),
+                        sub_aggregation: agg.sub_aggregation().clone(),
+                    }
+                };
+                let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                     .field_names()
                     .iter()
                     .map(|field| {
-                        let cct =
-                            get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))?;
-                        Ok((field.to_string(), cct))
+                        Ok(get_ff_reader(
+                            reader,
+                            field,
+                            Some(get_numeric_or_date_column_types()),
+                        )?)
                     })
                     .collect::<crate::Result<_>>()?;
-                add_agg_with_accessors(accessors, &mut res)?;
+
+                let value_accessors = top_hits
+                    .value_field_names()
+                    .iter()
+                    .map(|field_name| {
+                        Ok((field_name.to_string(), get_dyn_column(reader, field_name)?))
+                    })
+                    .collect::<crate::Result<_>>()?;
+
+                add_agg_with_accessors(accessors, &mut res, value_accessors, Some(&agg))?;
             }
         };
 
@@ -359,6 +389,18 @@ fn get_ff_reader(
             )
         });
     Ok(ff_field_with_type)
+}
+
+fn get_dyn_column(
+    reader: &SegmentReader,
+    field_name: &str,
+) -> crate::Result<columnar::DynamicColumn> {
+    let ff_fields = reader.fast_fields();
+    Ok(ff_fields
+        .dynamic_column_handles(field_name)?
+        .get(0)
+        .expect("column must exist")
+        .open()?)
 }
 
 /// Get all fast field reader or empty as default.

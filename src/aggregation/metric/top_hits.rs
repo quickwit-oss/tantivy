@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
 
-use columnar::{Column, ColumnType, DocId};
-use common::{u64_to_f64, u64_to_i64};
+use columnar::{ColumnarReader, DynamicColumn};
+use regex::Regex;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -14,7 +14,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::collector::TopNComputer;
 use crate::schema::Value;
-use crate::{DocAddress, SegmentOrdinal};
+use crate::{DocAddress, DocId, SegmentOrdinal};
 
 /// # Top Hits
 ///
@@ -81,7 +81,7 @@ pub struct TopHitsAggregation {
     // #[serde(default = "default_doc_value_fields")]
 
     #[serde(flatten)]
-    search_fields: SearchFields,
+    retrieval: RetrievalFields,
 }
 
 const fn default_doc_value_fields() -> Vec<String> {
@@ -90,7 +90,7 @@ const fn default_doc_value_fields() -> Vec<String> {
 
 /// Search query spec for each matched document
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub struct SearchFields {
+pub struct RetrievalFields {
     /// The fast fields to return for each hit.
     /// This is the only variant supported for now.
     /// TODO: support the {field, format} variant for custom formatting.
@@ -101,53 +101,117 @@ pub struct SearchFields {
 
 /// Search query result for each matched document
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub struct SearchFieldResults {
+pub struct FieldRetrivalResult {
     /// The fast fields returned for each hit.
     #[serde(rename = "docvalue_fields")]
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub doc_value_fields: HashMap<String, Value>,
+    pub doc_value_fields: HashMap<String, Option<Value>>,
 }
 
-impl SearchFields {
+impl RetrievalFields {
     fn get_field_names(&self) -> Vec<&str> {
         // TOOD: support wildcard, we'll need a step to do this translation/matching
         self.doc_value_fields.iter().map(|s| s.as_str()).collect()
     }
 
+    fn resolve_field_names(self, reader: &ColumnarReader) -> crate::Result<Self> {
+        let globbed_string_to_regex = |globbed: &str| {
+            let sanitized = format!("^{}$", regex::escape(globbed).replace(r"\*", ".*"));
+            Regex::new(&sanitized.replace('*', ".*")).map_err(|e| {
+                crate::TantivyError::SchemaError(format!(
+                    "Invalid regex '{}' in docvalue_fields: {}",
+                    globbed, e
+                ))
+            })
+        };
+        let resolved_fields = self
+            .doc_value_fields
+            .into_iter()
+            .map(|field| {
+                if !field.contains('*') && reader.iter_columns()?.any(|(name, _)| name == field) {
+                    return Ok(vec![field]);
+                }
+
+                let pattern = globbed_string_to_regex(&field)?;
+                Ok(reader
+                    .iter_columns()?
+                    .filter(|(name, _)| pattern.is_match(name))
+                    .map(|(name, _)| name)
+                    .collect::<Vec<_>>())
+            })
+            .collect::<crate::Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok(Self {
+            doc_value_fields: resolved_fields,
+        })
+    }
+
     fn get_fields(
         &self,
-        accessors: &HashMap<String, (Column<u64>, ColumnType)>,
+        accessors: &HashMap<String, DynamicColumn>,
         doc_id: DocId,
-    ) -> SearchFieldResults {
-        let dvf: HashMap<String, Value> = self
+    ) -> FieldRetrivalResult {
+        let dvf = self
             .doc_value_fields
             .iter()
             .map(|field| {
                 let accessor = accessors.get(field).expect("field accessor must exist");
 
-                let values = accessor
-                    .0
-                    .values_for_doc(doc_id)
-                    // TODO: actually it may not
-                    .next()
-                    .expect("val must exist");
-
-                // TODO: for string/bytes we'll need access to the segment reader
-                // to get the actual values associated with the term ids we get from
-                // our fast reader here. We have 2 options:
-                // - Expose the segment reader to the aggregator
-                // - Add a new accessor type that does this for us, and returns the underlying types
-                //   wrapped in a Value enum.
-                let value = match accessor.1 {
-                    ColumnType::U64 => Value::U64(values),
-                    ColumnType::I64 => Value::I64(u64_to_i64(values)),
-                    ColumnType::F64 => Value::F64(u64_to_f64(values)),
-                    _ => todo!(),
+                let value: Option<Value> = match accessor {
+                    DynamicColumn::U64(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::U64)
+                    }
+                    DynamicColumn::I64(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::I64)
+                    }
+                    DynamicColumn::F64(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::F64)
+                    }
+                    DynamicColumn::Bytes(accessor) => 'l: {
+                        let Some(term_ord) = accessor.term_ords(doc_id).next() else {
+                            break 'l None;
+                        };
+                        let mut buffer = vec![];
+                        match accessor
+                            .ord_to_bytes(term_ord, &mut buffer)
+                            .expect("must succeed")
+                        {
+                            false => None,
+                            true => Some(Value::Bytes(buffer)),
+                        }
+                    }
+                    DynamicColumn::Str(accessor) => 'l: {
+                        let Some(term_ord) = accessor.term_ords(doc_id).next() else {
+                            break 'l None;
+                        };
+                        let mut buffer = vec![];
+                        match accessor
+                            .ord_to_bytes(term_ord, &mut buffer)
+                            .expect("must succeed")
+                        {
+                            false => None,
+                            true => Some(Value::Str(
+                                String::from_utf8(buffer).expect("string must be valid utf8"),
+                            )),
+                        }
+                    }
+                    DynamicColumn::Bool(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::Bool)
+                    }
+                    DynamicColumn::IpAddr(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::IpAddr)
+                    }
+                    DynamicColumn::DateTime(accessor) => {
+                        accessor.values_for_doc(doc_id).next().map(Value::Date)
+                    }
                 };
                 (field.to_owned(), value)
             })
             .collect();
-        SearchFieldResults {
+        FieldRetrivalResult {
             doc_value_fields: dvf,
         }
     }
@@ -185,6 +249,13 @@ impl<'de> Deserialize<'de> for KeyOrder {
 }
 
 impl TopHitsAggregation {
+    /// Validate and resolve field retrieval parameters
+    pub fn validate_and_resolve(&self, reader: &ColumnarReader) -> crate::Result<Self> {
+        let cf = self.clone(); // :(
+        let retrieval = cf.retrieval.resolve_field_names(reader)?;
+        Ok(Self { retrieval, ..cf })
+    }
+
     /// Return fields accessed by the aggregator, in order.
     pub fn field_names(&self) -> Vec<&str> {
         self.sort
@@ -192,8 +263,13 @@ impl TopHitsAggregation {
             // TODO: Support wildcard fields
             // We'll need to do a translation step to match the wildcards
             .map(|KeyOrder { field, .. }| field.as_str())
-            .chain(self.search_fields.get_field_names())
+            // .chain(self.retrieval.get_field_names())
             .collect()
+    }
+
+    /// Return fields accessed by the aggregator's value retrieval.
+    pub fn value_field_names(&self) -> Vec<&str> {
+        self.retrieval.get_field_names()
     }
 }
 
@@ -237,7 +313,7 @@ impl PartialEq for ComparableDocFeature {
 impl Eq for ComparableDocFeature {}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ComparableDocFeatures(Vec<ComparableDocFeature>, SearchFieldResults);
+struct ComparableDocFeatures(Vec<ComparableDocFeature>, FieldRetrivalResult);
 
 impl Ord for ComparableDocFeatures {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -384,15 +460,17 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
         agg_with_accessor: &mut crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let accessors = &agg_with_accessor.aggs.values[self.accessor_idx].accessors;
+        let value_accessors = &agg_with_accessor.aggs.values[self.accessor_idx].value_accessors;
         let features: Vec<ComparableDocFeature> = self
             .inner_collector
             .req
             .sort
             .iter()
-            .map(|KeyOrder { order, field }| {
+            .enumerate()
+            .map(|(idx, KeyOrder { order, field })| {
                 let order = *order;
                 let value = accessors
-                    .get(field)
+                    .get(idx)
                     .expect("field accessor must exist")
                     .0
                     .values_for_doc(doc_id)
@@ -401,14 +479,14 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
             })
             .collect();
 
-        let search_results = self
+        let retrieval_result = self
             .inner_collector
             .req
-            .search_fields
-            .get_fields(accessors, doc_id);
+            .retrieval
+            .get_fields(value_accessors, doc_id);
 
         self.inner_collector.collect(
-            ComparableDocFeatures(features, search_results),
+            ComparableDocFeatures(features, retrieval_result),
             DocAddress {
                 segment_ord: self.segment_id,
                 doc_id,
@@ -442,6 +520,7 @@ mod tests {
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
+    use crate::aggregation::metric::FieldRetrivalResult;
     use crate::aggregation::tests::get_test_index_from_values;
     use crate::aggregation::AggregationCollector;
     use crate::collector::ComparableDoc;
@@ -485,3 +564,4 @@ mod tests {
 
         Ok(())
     }
+}

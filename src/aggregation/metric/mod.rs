@@ -96,7 +96,7 @@ pub struct TopHitsVecEntry {
     /// Search results, for queries that include field retrieval requests
     /// (`docvalue_fields`).
     #[serde(flatten)]
-    pub search_results: SearchFieldResults,
+    pub search_results: FieldRetrivalResult,
 }
 
 /// The top_hits metric aggregation results a list of top hits by sort criteria.
