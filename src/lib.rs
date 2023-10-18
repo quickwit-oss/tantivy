@@ -186,6 +186,18 @@ pub use crate::postings::Postings;
 pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
+#[deprecated(
+    since = "22.0",
+    note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
+)]
+pub use self::snippet::{Snippet, SnippetGenerator};
+
+#[deprecated(
+    since = "22.0",
+    note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
+)]
+pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
+
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 5;
 
