@@ -10,7 +10,8 @@
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, IndexWriter, Snippet, SnippetGenerator};
+use tantivy::snippet::{Snippet, SnippetGenerator};
+use tantivy::{doc, Index, IndexWriter};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {

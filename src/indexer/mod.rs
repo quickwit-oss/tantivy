@@ -1,23 +1,29 @@
-pub mod delete_queue;
+//! Indexing and merging data.
+//!
+//! Contains code to create and merge segments.
+//! `IndexWriter` is the main entry point for that, which created from
+//! [`Index::writer`](crate::Index::writer).
 
-pub mod doc_id_mapping;
+pub(crate) mod delete_queue;
+
+pub(crate) mod doc_id_mapping;
 mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
-pub mod index_writer;
-mod index_writer_status;
+pub(crate) mod index_writer;
+pub(crate) mod index_writer_status;
 mod log_merge_policy;
 mod merge_operation;
-pub mod merge_policy;
-pub mod merger;
+pub(crate) mod merge_policy;
+pub(crate) mod merger;
 mod merger_sorted_index_test;
-pub mod operation;
-pub mod prepared_commit;
+pub(crate) mod operation;
+pub(crate) mod prepared_commit;
 mod segment_entry;
 mod segment_manager;
 mod segment_register;
-pub mod segment_serializer;
-pub mod segment_updater;
-mod segment_writer;
+pub(crate) mod segment_serializer;
+pub(crate) mod segment_updater;
+pub(crate) mod segment_writer;
 mod stamper;
 
 use crossbeam_channel as channel;
@@ -27,10 +33,10 @@ pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
+pub use self::operation::UserOperation;
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
-pub use self::segment_manager::SegmentManager;
-pub use self::segment_serializer::SegmentSerializer;
+pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
 use crate::indexer::operation::AddOperation;

@@ -8,6 +8,8 @@ use std::sync::{Arc, RwLock, Weak};
 
 use common::StableDeref;
 use fs4::FileExt;
+#[cfg(all(feature = "mmap", unix))]
+pub use memmap2::Advice;
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -21,8 +23,6 @@ use crate::directory::{
     AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
     WatchCallback, WatchHandle, WritePtr,
 };
-#[cfg(unix)]
-use crate::Advice;
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
