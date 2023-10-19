@@ -61,8 +61,8 @@ mod tests_mmap {
 
     use crate::collector::Count;
     use crate::query::QueryParser;
-    use crate::schema::{JsonObjectOptions, Schema, Type, TEXT};
-    use crate::{Index, IndexWriter, Term};
+    use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
+    use crate::{FieldMetadata, Index, IndexWriter, Term};
 
     #[test]
     fn test_advance_delete_bug() -> crate::Result<()> {
@@ -193,7 +193,7 @@ mod tests_mmap {
         let reader = &searcher.segment_readers()[0];
         let inverted_index = reader.inverted_index(json_field).unwrap();
         assert_eq!(
-            inverted_index.list_fields().unwrap(),
+            inverted_index.list_encoded_fields().unwrap(),
             [
                 ("k8s\u{1}container\u{1}name".to_string(), Type::Str),
                 ("sub\u{1}a".to_string(), Type::I64),
@@ -202,6 +202,129 @@ mod tests_mmap {
                 ("suber\u{1}a".to_string(), Type::Str),
                 ("suber\u{1}b".to_string(), Type::I64),
                 ("val".to_string(), Type::Str),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_json_fields_metadata() {
+        use pretty_assertions::assert_eq;
+        let mut schema_builder = Schema::builder();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_expand_dots_enabled()
+            .set_stored();
+        schema_builder.add_json_field("json.confusing", json_options);
+        let json_options: JsonObjectOptions =
+            JsonObjectOptions::from(TEXT).set_expand_dots_enabled();
+        let json_field = schema_builder.add_json_field("json", json_options.clone());
+        schema_builder.add_json_field("empty_json", json_options);
+        let number_field = schema_builder.add_u64_field("numbers", FAST);
+        schema_builder.add_u64_field("empty", FAST | INDEXED | STORED);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "sub": {"a": 1, "b": 2}});
+        index_writer.add_document(doc!(json_field=>json)).unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": 1, "b": 2}});
+        index_writer.add_document(doc!(json_field=>json)).unwrap();
+        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": "mixed", "b": 2}});
+        index_writer
+            .add_document(doc!(number_field => 50u64, json_field=>json))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 3);
+
+        let reader = &searcher.segment_readers()[0];
+        let fields_metadata = reader.fields_metadata().unwrap();
+        assert_eq!(
+            fields_metadata,
+            [
+                FieldMetadata {
+                    field_name: "empty".to_string(),
+                    indexed: true,
+                    stored: true,
+                    fast: true,
+                    typ: Type::U64
+                },
+                FieldMetadata {
+                    field_name: "empty_json".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::Json
+                },
+                FieldMetadata {
+                    field_name: "json".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::Json
+                },
+                FieldMetadata {
+                    field_name: "json.confusing".to_string(),
+                    indexed: true,
+                    stored: true,
+                    fast: false,
+                    typ: Type::Json
+                },
+                FieldMetadata {
+                    field_name: "json.k8s\u{1}container\u{1}name".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::Str
+                },
+                FieldMetadata {
+                    field_name: "json.sub\u{1}a".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::I64
+                },
+                FieldMetadata {
+                    field_name: "json.sub\u{1}b".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::I64
+                },
+                FieldMetadata {
+                    field_name: "json.suber\u{1}a".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::I64
+                },
+                FieldMetadata {
+                    field_name: "json.suber\u{1}a".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::Str
+                },
+                FieldMetadata {
+                    field_name: "json.suber\u{1}b".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::I64
+                },
+                FieldMetadata {
+                    field_name: "json.val".to_string(),
+                    indexed: true,
+                    stored: false,
+                    fast: false,
+                    typ: Type::Str
+                },
+                FieldMetadata {
+                    field_name: "numbers".to_string(),
+                    indexed: false,
+                    stored: false,
+                    fast: true,
+                    typ: Type::U64
+                }
             ]
         );
     }

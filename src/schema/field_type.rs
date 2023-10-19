@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
@@ -47,7 +48,7 @@ pub enum ValueParsingError {
 ///
 /// Contrary to FieldType, this does
 /// not include the way the field must be indexed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum Type {
     /// `&str`
@@ -70,6 +71,21 @@ pub enum Type {
     Json = b'j',
     /// IpAddr
     IpAddr = b'p',
+}
+
+impl From<ColumnType> for Type {
+    fn from(value: ColumnType) -> Self {
+        match value {
+            ColumnType::Str => Type::Str,
+            ColumnType::U64 => Type::U64,
+            ColumnType::I64 => Type::I64,
+            ColumnType::F64 => Type::F64,
+            ColumnType::Bool => Type::Bool,
+            ColumnType::DateTime => Type::Date,
+            ColumnType::Bytes => Type::Bytes,
+            ColumnType::IpAddr => Type::IpAddr,
+        }
+    }
 }
 
 const ALL_TYPES: [Type; 10] = [
