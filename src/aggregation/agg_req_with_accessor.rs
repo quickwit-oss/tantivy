@@ -16,7 +16,7 @@ use super::metric::{
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
-use crate::{SegmentOrdinal, SegmentReader};
+use crate::{SegmentOrdinal, SegmentReader, TantivyError};
 
 #[derive(Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -210,7 +210,7 @@ impl AggregationWithAccessor {
 
                     let accessors = column_and_types
                         .iter()
-                        .map(|c_t| (c_t.0.clone(), c_t.1.clone()))
+                        .map(|c_t| (c_t.0.clone(), c_t.1))
                         .collect();
                     add_agg_with_accessors(accessors, &mut res, Default::default(), None)?;
                 }
@@ -282,23 +282,22 @@ impl AggregationWithAccessor {
                 add_agg_with_accessor(accessor, column_type, &mut res)?;
             }
             TopHits(top_hits) => {
-                let agg = {
+                let (agg, top_hits) = {
                     let top_hits =
                         top_hits.validate_and_resolve(reader.fast_fields().columnar())?;
-                    Aggregation {
-                        agg: AggregationVariants::TopHits(top_hits),
-                        sub_aggregation: agg.sub_aggregation().clone(),
-                    }
+                    (
+                        Aggregation {
+                            agg: AggregationVariants::TopHits(top_hits.clone()),
+                            sub_aggregation: agg.sub_aggregation().clone(),
+                        },
+                        top_hits,
+                    )
                 };
                 let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                     .field_names()
                     .iter()
                     .map(|field| {
-                        Ok(get_ff_reader(
-                            reader,
-                            field,
-                            Some(get_numeric_or_date_column_types()),
-                        )?)
+                        get_ff_reader(reader, field, Some(get_numeric_or_date_column_types()))
                     })
                     .collect::<crate::Result<_>>()?;
 
@@ -399,7 +398,9 @@ fn get_dyn_column(
     Ok(ff_fields
         .dynamic_column_handles(field_name)?
         .get(0)
-        .expect("column must exist")
+        .ok_or(TantivyError::FieldNotFound(format!(
+            "field {field_name} not found"
+        )))?
         .open()?)
 }
 
