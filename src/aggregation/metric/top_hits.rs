@@ -467,7 +467,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
             .sort
             .iter()
             .enumerate()
-            .map(|(idx, KeyOrder { order, field })| {
+            .map(|(idx, KeyOrder { order, .. })| {
                 let order = *order;
                 let value = accessors
                     .get(idx)
@@ -514,17 +514,21 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
 
 #[cfg(test)]
 mod tests {
+    use common::DateTime;
+    use pretty_assertions::assert_eq;
     use serde_json::Value;
+    use time::macros::datetime;
 
     use super::{ComparableDocFeature, ComparableDocFeatures, Order};
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::agg_result::{AggregationResult, AggregationResults, MetricResult};
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
-    use crate::aggregation::metric::FieldRetrivalResult;
+    use crate::aggregation::metric::{FieldRetrivalResult, TopHitsMetricResult, TopHitsVecEntry};
     use crate::aggregation::tests::get_test_index_from_values;
     use crate::aggregation::AggregationCollector;
     use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
+    use crate::schema::Value as SchemaValue;
 
     fn invert_order(cmp_feature: ComparableDocFeature) -> ComparableDocFeature {
         let ComparableDocFeature { value, order } = cmp_feature;
@@ -533,6 +537,22 @@ mod tests {
             Order::Desc => Order::Asc,
         };
         ComparableDocFeature { value, order }
+    }
+
+    fn collector_with_capacity(capacity: usize) -> super::TopHitsCollector {
+        super::TopHitsCollector {
+            top_n: super::TopNComputer::new(capacity),
+            ..Default::default()
+        }
+    }
+
+    fn invert_order_features(cmp_features: ComparableDocFeatures) -> ComparableDocFeatures {
+        let ComparableDocFeatures(cmp_features, search_results) = cmp_features;
+        let cmp_features = cmp_features
+            .into_iter()
+            .map(invert_order)
+            .collect::<Vec<_>>();
+        ComparableDocFeatures(cmp_features, search_results)
     }
 
     #[test]
@@ -563,5 +583,245 @@ mod tests {
         assert!(none < big);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_comparable_doc_features() -> crate::Result<()> {
+        let features_1 = ComparableDocFeatures(
+            vec![ComparableDocFeature {
+                value: Some(1),
+                order: Order::Asc,
+            }],
+            Default::default(),
+        );
+
+        let features_2 = ComparableDocFeatures(
+            vec![ComparableDocFeature {
+                value: Some(2),
+                order: Order::Asc,
+            }],
+            Default::default(),
+        );
+
+        assert!(features_1 < features_2);
+
+        assert!(invert_order_features(features_1.clone()) > invert_order_features(features_2));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_top_hits_empty_index() -> crate::Result<()> {
+        let values = vec![];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let d: Aggregations = serde_json::from_value(json!({
+            "top_hits_req": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "date": "desc" }
+                    ],
+                    "from": 0,
+                }
+        }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(d, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(
+            &serde_json::to_string(&agg_res).expect("JSON serialization failed"),
+        )
+        .expect("JSON parsing failed");
+
+        assert_eq!(
+            res,
+            json!({
+                "top_hits_req": {
+                    "hits": []
+                }
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_top_hits_collector_single_feature() -> crate::Result<()> {
+        let docs = vec![
+            ComparableDoc::<_, _, false> {
+                doc: crate::DocAddress {
+                    segment_ord: 0,
+                    doc_id: 0,
+                },
+                feature: ComparableDocFeatures(
+                    vec![ComparableDocFeature {
+                        value: Some(1),
+                        order: Order::Asc,
+                    }],
+                    Default::default(),
+                ),
+            },
+            ComparableDoc {
+                doc: crate::DocAddress {
+                    segment_ord: 0,
+                    doc_id: 2,
+                },
+                feature: ComparableDocFeatures(
+                    vec![ComparableDocFeature {
+                        value: Some(3),
+                        order: Order::Asc,
+                    }],
+                    Default::default(),
+                ),
+            },
+            ComparableDoc {
+                doc: crate::DocAddress {
+                    segment_ord: 0,
+                    doc_id: 1,
+                },
+                feature: ComparableDocFeatures(
+                    vec![ComparableDocFeature {
+                        value: Some(5),
+                        order: Order::Asc,
+                    }],
+                    Default::default(),
+                ),
+            },
+        ];
+
+        let mut collector = collector_with_capacity(3);
+        for doc in docs.clone() {
+            collector.collect(doc.feature, doc.doc);
+        }
+
+        let res = collector.finalize();
+
+        assert_eq!(
+            res,
+            super::TopHitsMetricResult {
+                hits: vec![
+                    super::TopHitsVecEntry {
+                        id: docs[0].doc,
+                        sort: vec![docs[0].feature.0[0].value],
+                        search_results: Default::default(),
+                    },
+                    super::TopHitsVecEntry {
+                        id: docs[1].doc,
+                        sort: vec![docs[1].feature.0[0].value],
+                        search_results: Default::default(),
+                    },
+                    super::TopHitsVecEntry {
+                        id: docs[2].doc,
+                        sort: vec![docs[2].feature.0[0].value],
+                        search_results: Default::default(),
+                    },
+                ]
+            }
+        );
+
+        Ok(())
+    }
+
+    fn test_aggregation_top_hits(merge_segments: bool) -> crate::Result<()> {
+        let docs = vec![
+            vec![
+                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb" }"#,
+                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd" }"#,
+            ],
+            vec![
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z" }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z" }"#,
+            ],
+        ];
+
+        let index = get_test_index_from_docs(merge_segments, &docs)?;
+
+        let d: Aggregations = serde_json::from_value(json!({
+            "top_hits_req": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "date": "desc" }
+                    ],
+                    "from": 1,
+                    "docvalue_fields": [
+                        "date"
+                    ],
+                }
+        }
+        }))?;
+
+        let collector = AggregationCollector::from_aggs(d, Default::default());
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let date_2017 = datetime!(2017-06-15 00:00:00 UTC);
+        let date_2016 = datetime!(2016-01-02 00:00:00 UTC);
+
+        assert_eq!(
+            agg_res
+                .0
+                .get("top_hits_req")
+                .expect("top_hits_req must exist"),
+            &AggregationResult::MetricResult(MetricResult::TopHits(TopHitsMetricResult {
+                hits: vec![
+                    TopHitsVecEntry {
+                        id: crate::DocAddress {
+                            segment_ord: 0,
+                            doc_id: 1,
+                        },
+                        sort: vec![Some(common::i64_to_u64(
+                            date_2017.unix_timestamp_nanos() as i64
+                        ))],
+                        search_results: FieldRetrivalResult {
+                            doc_value_fields: vec![(
+                                "date".to_string(),
+                                Some(SchemaValue::Date(DateTime::from_utc(date_2017)))
+                            )]
+                            .into_iter()
+                            .collect()
+                        }
+                    },
+                    TopHitsVecEntry {
+                        id: crate::DocAddress {
+                            segment_ord: if merge_segments { 0 } else { 1 },
+                            doc_id: if merge_segments { 2 + 1 } else { 1 },
+                        },
+                        sort: vec![Some(common::i64_to_u64(
+                            date_2016.unix_timestamp_nanos() as i64
+                        ))],
+                        search_results: FieldRetrivalResult {
+                            doc_value_fields: vec![(
+                                "date".to_string(),
+                                Some(SchemaValue::Date(DateTime::from_utc(date_2016)))
+                            )]
+                            .into_iter()
+                            .collect()
+                        }
+                    }
+                ]
+            }))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_top_hits_single_segment() -> crate::Result<()> {
+        test_aggregation_top_hits(true)
+    }
+
+    #[test]
+    fn test_aggregation_top_hits_multi_segment() -> crate::Result<()> {
+        test_aggregation_top_hits(false)
     }
 }
