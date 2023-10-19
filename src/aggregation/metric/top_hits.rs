@@ -110,7 +110,6 @@ pub struct FieldRetrivalResult {
 
 impl RetrievalFields {
     fn get_field_names(&self) -> Vec<&str> {
-        // TOOD: support wildcard, we'll need a step to do this translation/matching
         self.doc_value_fields.iter().map(|s| s.as_str()).collect()
     }
 
@@ -752,7 +751,8 @@ mod tests {
                     ],
                     "from": 1,
                     "docvalue_fields": [
-                        "date"
+                        "date",
+                        "tex*",
                     ],
                 }
         }
@@ -783,10 +783,20 @@ mod tests {
                             date_2017.unix_timestamp_nanos() as i64
                         ))],
                         search_results: FieldRetrivalResult {
-                            doc_value_fields: vec![(
-                                "date".to_string(),
-                                Some(SchemaValue::Date(DateTime::from_utc(date_2017)))
-                            )]
+                            doc_value_fields: vec![
+                                (
+                                    "date".to_string(),
+                                    Some(SchemaValue::Date(DateTime::from_utc(date_2017)))
+                                ),
+                                (
+                                    "text".to_string(),
+                                    Some(SchemaValue::Str("ccc".to_string()))
+                                ),
+                                (
+                                    "text2".to_string(),
+                                    Some(SchemaValue::Str("ddd".to_string()))
+                                )
+                            ]
                             .into_iter()
                             .collect()
                         }
@@ -800,10 +810,20 @@ mod tests {
                             date_2016.unix_timestamp_nanos() as i64
                         ))],
                         search_results: FieldRetrivalResult {
-                            doc_value_fields: vec![(
-                                "date".to_string(),
-                                Some(SchemaValue::Date(DateTime::from_utc(date_2016)))
-                            )]
+                            doc_value_fields: vec![
+                                (
+                                    "date".to_string(),
+                                    Some(SchemaValue::Date(DateTime::from_utc(date_2016)))
+                                ),
+                                (
+                                    "text".to_string(),
+                                    Some(SchemaValue::Str("aaa".to_string()))
+                                ),
+                                (
+                                    "text2".to_string(),
+                                    Some(SchemaValue::Str("bbb".to_string()))
+                                )
+                            ]
                             .into_iter()
                             .collect()
                         }
