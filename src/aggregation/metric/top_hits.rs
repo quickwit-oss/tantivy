@@ -75,11 +75,6 @@ pub struct TopHitsAggregation {
     size: usize,
     from: Option<usize>,
 
-    /// Request one or more fast fields to be returned for each hit.
-    /// TODO: support the {field, format} variant for custom formatting.
-    // #[serde(rename = "docvalue_fields")]
-    // #[serde(default = "default_doc_value_fields")]
-
     #[serde(flatten)]
     retrieval: RetrievalFields,
 }
@@ -105,7 +100,7 @@ pub struct FieldRetrivalResult {
     /// The fast fields returned for each hit.
     #[serde(rename = "docvalue_fields")]
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub doc_value_fields: HashMap<String, Option<OwnedValue>>,
+    pub doc_value_fields: HashMap<String, OwnedValue>,
 }
 
 impl RetrievalFields {
@@ -159,54 +154,59 @@ impl RetrievalFields {
             .map(|field| {
                 let accessor = accessors.get(field).expect("field accessor must exist");
 
-                let value: Option<OwnedValue> = match accessor {
-                    DynamicColumn::U64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(OwnedValue::U64)
-                    }
-                    DynamicColumn::I64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(OwnedValue::I64)
-                    }
-                    DynamicColumn::F64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(OwnedValue::F64)
-                    }
+                let value: OwnedValue = match accessor {
+                    DynamicColumn::U64(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map_or(OwnedValue::Null, OwnedValue::U64),
+                    DynamicColumn::I64(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map_or(OwnedValue::Null, OwnedValue::I64),
+                    DynamicColumn::F64(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map_or(OwnedValue::Null, OwnedValue::F64),
                     DynamicColumn::Bytes(accessor) => 'l: {
                         let Some(term_ord) = accessor.term_ords(doc_id).next() else {
-                            break 'l None;
+                            break 'l OwnedValue::Null;
                         };
                         let mut buffer = vec![];
                         match accessor
                             .ord_to_bytes(term_ord, &mut buffer)
                             .expect("must succeed")
                         {
-                            false => None,
-                            true => Some(OwnedValue::Bytes(buffer)),
+                            false => OwnedValue::Null,
+                            true => OwnedValue::Bytes(buffer),
                         }
                     }
                     DynamicColumn::Str(accessor) => 'l: {
                         let Some(term_ord) = accessor.term_ords(doc_id).next() else {
-                            break 'l None;
+                            break 'l OwnedValue::Null;
                         };
                         let mut buffer = vec![];
                         match accessor
                             .ord_to_bytes(term_ord, &mut buffer)
                             .expect("must succeed")
                         {
-                            false => None,
-                            true => Some(OwnedValue::Str(
+                            false => OwnedValue::Null,
+                            true => OwnedValue::Str(
                                 String::from_utf8(buffer).expect("string must be valid utf8"),
-                            )),
+                            ),
                         }
                     }
-                    DynamicColumn::Bool(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(OwnedValue::Bool)
-                    }
+                    DynamicColumn::Bool(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map_or(OwnedValue::Null, OwnedValue::Bool),
                     DynamicColumn::IpAddr(accessor) => accessor
                         .values_for_doc(doc_id)
                         .next()
-                        .map(OwnedValue::IpAddr),
-                    DynamicColumn::DateTime(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(OwnedValue::Date)
-                    }
+                        .map_or(OwnedValue::Null, OwnedValue::IpAddr),
+                    DynamicColumn::DateTime(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map_or(OwnedValue::Null, OwnedValue::Date),
                 };
                 (field.to_owned(), value)
             })
@@ -260,10 +260,7 @@ impl TopHitsAggregation {
     pub fn field_names(&self) -> Vec<&str> {
         self.sort
             .iter()
-            // TODO: Support wildcard fields
-            // We'll need to do a translation step to match the wildcards
             .map(|KeyOrder { field, .. }| field.as_str())
-            // .chain(self.retrieval.get_field_names())
             .collect()
     }
 
@@ -787,16 +784,10 @@ mod tests {
                             doc_value_fields: vec![
                                 (
                                     "date".to_string(),
-                                    Some(SchemaValue::Date(DateTime::from_utc(date_2017)))
+                                    SchemaValue::Date(DateTime::from_utc(date_2017))
                                 ),
-                                (
-                                    "text".to_string(),
-                                    Some(SchemaValue::Str("ccc".to_string()))
-                                ),
-                                (
-                                    "text2".to_string(),
-                                    Some(SchemaValue::Str("ddd".to_string()))
-                                )
+                                ("text".to_string(), SchemaValue::Str("ccc".to_string())),
+                                ("text2".to_string(), SchemaValue::Str("ddd".to_string()))
                             ]
                             .into_iter()
                             .collect()
@@ -814,16 +805,10 @@ mod tests {
                             doc_value_fields: vec![
                                 (
                                     "date".to_string(),
-                                    Some(SchemaValue::Date(DateTime::from_utc(date_2016)))
+                                    SchemaValue::Date(DateTime::from_utc(date_2016))
                                 ),
-                                (
-                                    "text".to_string(),
-                                    Some(SchemaValue::Str("aaa".to_string()))
-                                ),
-                                (
-                                    "text2".to_string(),
-                                    Some(SchemaValue::Str("bbb".to_string()))
-                                )
+                                ("text".to_string(), SchemaValue::Str("aaa".to_string())),
+                                ("text2".to_string(), SchemaValue::Str("bbb".to_string()))
                             ]
                             .into_iter()
                             .collect()
