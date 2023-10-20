@@ -215,12 +215,12 @@ mod bench {
         let vals: Vec<RowId> = (0..TOTAL_NUM_VALUES)
             .map(|_| rng.gen_bool(fill_ratio))
             .enumerate()
-            .filter(|(pos, val)| *val)
+            .filter(|(_pos, val)| *val)
             .map(|(pos, _)| pos as RowId)
             .collect();
         serialize_optional_index(&&vals[..], TOTAL_NUM_VALUES, &mut out).unwrap();
-        let codec = open_optional_index(OwnedBytes::new(out)).unwrap();
-        codec
+
+        open_optional_index(OwnedBytes::new(out)).unwrap()
     }
 
     fn random_range_iterator(
@@ -242,7 +242,7 @@ mod bench {
     }
 
     fn n_percent_step_iterator(percent: f32, num_values: u32) -> impl Iterator<Item = u32> {
-        let ratio = percent as f32 / 100.0;
+        let ratio = percent / 100.0;
         let step_size = (1f32 / ratio) as u32;
         let deviation = step_size - 1;
         random_range_iterator(0, num_values, step_size, deviation)
