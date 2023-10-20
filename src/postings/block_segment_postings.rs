@@ -24,13 +24,13 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
 #[derive(Clone)]
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
-    loaded_offset: usize,
+    block_loaded: bool,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
     doc_freq: u32,
     data: OwnedBytes,
-    pub(crate) skip_reader: SkipReader,
+    skip_reader: SkipReader,
 }
 
 fn decode_bitpacked_block(
@@ -40,10 +40,16 @@ fn decode_bitpacked_block(
     doc_offset: DocId,
     doc_num_bits: u8,
     tf_num_bits: u8,
+    strict_delta: bool,
 ) {
-    let num_consumed_bytes = doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits);
+    let num_consumed_bytes =
+        doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits, strict_delta);
     if let Some(freq_decoder) = freq_decoder_opt {
-        freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
+        freq_decoder.uncompress_block_unsorted(
+            &data[num_consumed_bytes..],
+            tf_num_bits,
+            strict_delta,
+        );
     }
 }
 
@@ -57,11 +63,15 @@ fn decode_vint_block(
     let num_consumed_bytes =
         doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs, TERMINATED);
     if let Some(freq_decoder) = freq_decoder_opt {
-        freq_decoder.uncompress_vint_unsorted(
-            &data[num_consumed_bytes..],
-            num_vint_docs,
-            TERMINATED,
-        );
+        // if it's a json term with freq, containing less than 256 docs, we can reach here thinking
+        // we have a freq, despite not really having one.
+        if data.len() > num_consumed_bytes {
+            freq_decoder.uncompress_vint_unsorted(
+                &data[num_consumed_bytes..],
+                num_vint_docs,
+                TERMINATED,
+            );
+        }
     }
 }
 
@@ -78,28 +88,46 @@ fn split_into_skips_and_postings(
 }
 
 impl BlockSegmentPostings {
+    /// Opens a `BlockSegmentPostings`.
+    /// `doc_freq` is the number of documents in the posting list.
+    /// `record_option` represents the amount of data available according to the schema.
+    /// `requested_option` is the amount of data requested by the user.
+    /// If for instance, we do not request for term frequencies, this function will not decompress
+    /// term frequency blocks.
     pub(crate) fn open(
         doc_freq: u32,
         data: FileSlice,
-        record_option: IndexRecordOption,
+        mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
+        let bytes = data.read_bytes()?;
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
+        let skip_reader = match skip_data_opt {
+            Some(skip_data) => {
+                let block_count = doc_freq as usize / COMPRESSION_BLOCK_SIZE;
+                // 8 is the minimum size of a block with frequency (can be more if pos are stored
+                // too)
+                if skip_data.len() < 8 * block_count {
+                    // the field might be encoded with frequency, but this term in particular isn't.
+                    // This can happen for JSON field with term frequencies:
+                    // - text terms are encoded with term freqs.
+                    // - numerical terms are encoded without term freqs.
+                    record_option = IndexRecordOption::Basic;
+                }
+                SkipReader::new(skip_data, doc_freq, record_option)
+            }
+            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
+        };
+
         let freq_reading_option = match (record_option, requested_option) {
             (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
             (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let bytes = data.read_bytes()?;
-        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
-        let skip_reader = match skip_data_opt {
-            Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
-            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
-        };
-
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: usize::MAX,
+            block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             block_max_score_cache: None,
@@ -169,7 +197,7 @@ impl BlockSegmentPostings {
             split_into_skips_and_postings(doc_freq, postings_data)?;
         self.data = postings_data;
         self.block_max_score_cache = None;
-        self.loaded_offset = usize::MAX;
+        self.block_loaded = false;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
@@ -265,22 +293,23 @@ impl BlockSegmentPostings {
     pub(crate) fn shallow_seek(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
+            self.block_loaded = false;
         }
     }
 
     pub(crate) fn block_is_loaded(&self) -> bool {
-        self.loaded_offset == self.skip_reader.byte_offset()
+        self.block_loaded
     }
 
     pub(crate) fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
-        if self.loaded_offset == offset {
+        if self.block_is_loaded() {
             return;
         }
-        self.loaded_offset = offset;
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,
+                strict_delta_encoded,
                 tf_num_bits,
                 ..
             } => {
@@ -295,6 +324,7 @@ impl BlockSegmentPostings {
                     self.skip_reader.last_doc_in_previous_block,
                     doc_num_bits,
                     tf_num_bits,
+                    strict_delta_encoded,
                 );
             }
             BlockInfo::VInt { num_docs } => {
@@ -318,13 +348,13 @@ impl BlockSegmentPostings {
                 );
             }
         }
+        self.block_loaded = true;
     }
 
     /// Advance to the next block.
-    ///
-    /// Returns false if and only if there is no remaining block.
     pub fn advance(&mut self) {
         self.skip_reader.advance();
+        self.block_loaded = false;
         self.block_max_score_cache = None;
         self.load_block();
     }
@@ -333,7 +363,7 @@ impl BlockSegmentPostings {
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: 0,
+            block_loaded: true,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
             block_max_score_cache: None,
@@ -341,6 +371,10 @@ impl BlockSegmentPostings {
             data: OwnedBytes::empty(),
             skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
         }
+    }
+
+    pub(crate) fn skip_reader(&self) -> &SkipReader {
+        &self.skip_reader
     }
 }
 

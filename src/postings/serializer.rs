@@ -301,6 +301,7 @@ pub struct PostingsSerializer<W: Write> {
     bm25_weight: Option<Bm25Weight>,
     avg_fieldnorm: Score, /* Average number of term in the field for that segment.
                            * this value is used to compute the block wand information. */
+    term_has_freq: bool,
 }
 
 impl<W: Write> PostingsSerializer<W> {
@@ -325,13 +326,15 @@ impl<W: Write> PostingsSerializer<W> {
             fieldnorm_reader,
             bm25_weight: None,
             avg_fieldnorm,
+            term_has_freq: false,
         }
     }
 
     pub fn new_term(&mut self, term_doc_freq: u32) {
         self.bm25_weight = None;
 
-        if !self.mode.has_freq() {
+        self.term_has_freq = self.mode.has_freq() && term_doc_freq != 0;
+        if !self.term_has_freq {
             return;
         }
 
@@ -365,10 +368,10 @@ impl<W: Write> PostingsSerializer<W> {
             // last el block 0, offset block 1,
             self.postings_write.extend(block_encoded);
         }
-        if self.mode.has_freq() {
+        if self.term_has_freq {
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
-                .compress_block_unsorted(self.block.term_freqs());
+                .compress_block_unsorted(self.block.term_freqs(), true);
             self.postings_write.extend(block_encoded);
             self.skip_write.write_term_freq(num_bits);
             if self.mode.has_positions() {
@@ -432,7 +435,7 @@ impl<W: Write> PostingsSerializer<W> {
                 self.postings_write.write_all(block_encoded)?;
             }
             // ... Idem for term frequencies
-            if self.mode.has_freq() {
+            if self.term_has_freq {
                 let block_encoded = self
                     .block_encoder
                     .compress_vint_unsorted(self.block.term_freqs());
