@@ -13,7 +13,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::collector::TopNComputer;
-use crate::schema::Value;
+use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
 /// # Top Hits
@@ -105,7 +105,7 @@ pub struct FieldRetrivalResult {
     /// The fast fields returned for each hit.
     #[serde(rename = "docvalue_fields")]
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub doc_value_fields: HashMap<String, Option<Value>>,
+    pub doc_value_fields: HashMap<String, Option<OwnedValue>>,
 }
 
 impl RetrievalFields {
@@ -159,15 +159,15 @@ impl RetrievalFields {
             .map(|field| {
                 let accessor = accessors.get(field).expect("field accessor must exist");
 
-                let value: Option<Value> = match accessor {
+                let value: Option<OwnedValue> = match accessor {
                     DynamicColumn::U64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::U64)
+                        accessor.values_for_doc(doc_id).next().map(OwnedValue::U64)
                     }
                     DynamicColumn::I64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::I64)
+                        accessor.values_for_doc(doc_id).next().map(OwnedValue::I64)
                     }
                     DynamicColumn::F64(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::F64)
+                        accessor.values_for_doc(doc_id).next().map(OwnedValue::F64)
                     }
                     DynamicColumn::Bytes(accessor) => 'l: {
                         let Some(term_ord) = accessor.term_ords(doc_id).next() else {
@@ -179,7 +179,7 @@ impl RetrievalFields {
                             .expect("must succeed")
                         {
                             false => None,
-                            true => Some(Value::Bytes(buffer)),
+                            true => Some(OwnedValue::Bytes(buffer)),
                         }
                     }
                     DynamicColumn::Str(accessor) => 'l: {
@@ -192,19 +192,20 @@ impl RetrievalFields {
                             .expect("must succeed")
                         {
                             false => None,
-                            true => Some(Value::Str(
+                            true => Some(OwnedValue::Str(
                                 String::from_utf8(buffer).expect("string must be valid utf8"),
                             )),
                         }
                     }
                     DynamicColumn::Bool(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::Bool)
+                        accessor.values_for_doc(doc_id).next().map(OwnedValue::Bool)
                     }
-                    DynamicColumn::IpAddr(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::IpAddr)
-                    }
+                    DynamicColumn::IpAddr(accessor) => accessor
+                        .values_for_doc(doc_id)
+                        .next()
+                        .map(OwnedValue::IpAddr),
                     DynamicColumn::DateTime(accessor) => {
-                        accessor.values_for_doc(doc_id).next().map(Value::Date)
+                        accessor.values_for_doc(doc_id).next().map(OwnedValue::Date)
                     }
                 };
                 (field.to_owned(), value)
@@ -527,7 +528,7 @@ mod tests {
     use crate::aggregation::AggregationCollector;
     use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
-    use crate::schema::Value as SchemaValue;
+    use crate::schema::OwnedValue as SchemaValue;
 
     fn invert_order(cmp_feature: ComparableDocFeature) -> ComparableDocFeature {
         let ComparableDocFeature { value, order } = cmp_feature;
