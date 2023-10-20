@@ -323,20 +323,10 @@ impl SegmentReader {
 
         // Maybe too slow for the high cardinality case
         fn is_field_stored(field_name: &str, schema: &Schema) -> bool {
-            let mut current_field = field_name;
-            loop {
-                match schema.get_field(current_field) {
-                    Ok(field) => return schema.get_field_entry(field).is_stored(),
-                    _ => {
-                        if let Some(idx) = current_field.rfind('.') {
-                            current_field = &current_field[..idx];
-                        } else {
-                            // Error case?
-                            return false;
-                        }
-                    }
-                }
-            }
+            schema
+                .find_field(field_name)
+                .map(|(field, _path)| schema.get_field_entry(field).is_stored())
+                .unwrap_or(false)
         }
 
         let merged: Vec<FieldMetadata> = indexed_fields

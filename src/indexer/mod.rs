@@ -59,7 +59,7 @@ type AddBatchReceiver<D> = channel::Receiver<AddBatch<D>>;
 #[cfg(test)]
 mod tests_mmap {
 
-    use crate::collector::Count;
+    use crate::collector::{Count, TopDocs};
     use crate::query::QueryParser;
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
     use crate::{FieldMetadata, Index, IndexWriter, Term};
@@ -214,19 +214,23 @@ mod tests_mmap {
             .set_expand_dots_enabled()
             .set_stored();
         schema_builder.add_json_field("json.confusing", json_options);
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_expand_dots_enabled();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
+            .set_expand_dots_enabled() // TODO: Test fails without expand dots
+            .set_stored();
         let json_field = schema_builder.add_json_field("json", json_options.clone());
         schema_builder.add_json_field("empty_json", json_options);
         let number_field = schema_builder.add_u64_field("numbers", FAST);
         schema_builder.add_u64_field("empty", FAST | INDEXED | STORED);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
-        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "sub": {"a": 1, "b": 2}});
+        let json =
+            serde_json::json!({"k8s.container.name": "a", "val": "a", "sub": {"a": 1, "b": 1}});
         index_writer.add_document(doc!(json_field=>json)).unwrap();
-        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": 1, "b": 2}});
+        let json =
+            serde_json::json!({"k8s.container.name": "a", "val": "a", "suber": {"a": 1, "b": 1}});
         index_writer.add_document(doc!(json_field=>json)).unwrap();
-        let json = serde_json::json!({"k8s.container.name": "prometheus", "val": "hello", "suber": {"a": "mixed", "b": 2}});
+        let json =
+            serde_json::json!({"k8s.container.name": "a", "val": "a", "suber": {"a": "a", "b": 1}});
         index_writer
             .add_document(doc!(number_field => 50u64, json_field=>json))
             .unwrap();
@@ -251,14 +255,14 @@ mod tests_mmap {
                 FieldMetadata {
                     field_name: "empty_json".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::Json
                 },
                 FieldMetadata {
                     field_name: "json".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::Json
                 },
@@ -272,49 +276,49 @@ mod tests_mmap {
                 FieldMetadata {
                     field_name: "json.k8s\u{1}container\u{1}name".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::Str
                 },
                 FieldMetadata {
                     field_name: "json.sub\u{1}a".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::I64
                 },
                 FieldMetadata {
                     field_name: "json.sub\u{1}b".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::I64
                 },
                 FieldMetadata {
                     field_name: "json.suber\u{1}a".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::I64
                 },
                 FieldMetadata {
                     field_name: "json.suber\u{1}a".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::Str
                 },
                 FieldMetadata {
                     field_name: "json.suber\u{1}b".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::I64
                 },
                 FieldMetadata {
                     field_name: "json.val".to_string(),
                     indexed: true,
-                    stored: false,
+                    stored: true,
                     fast: false,
                     typ: Type::Str
                 },
@@ -327,5 +331,22 @@ mod tests_mmap {
                 }
             ]
         );
+        let query_parser = QueryParser::for_index(&index, vec![]);
+        for indexed_field in fields_metadata.iter().filter(|meta| meta.indexed) {
+            let val = if indexed_field.typ == Type::Str {
+                "a"
+            } else {
+                "1"
+            };
+            let query_str = &format!("{}:{}", indexed_field.field_name, val);
+            // dbg!(query_str);
+            let query = query_parser.parse_query(query_str).unwrap();
+            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            if indexed_field.field_name.contains("empty") || indexed_field.typ == Type::Json {
+                assert_eq!(count_docs.len(), 0);
+            } else {
+                assert!(count_docs.len() >= 1);
+            }
+        }
     }
 }
