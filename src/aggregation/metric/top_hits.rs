@@ -760,62 +760,42 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
 
-        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        let agg_res =
+            serde_json::to_value(searcher.search(&AllQuery, &collector).unwrap()).unwrap();
 
         let date_2017 = datetime!(2017-06-15 00:00:00 UTC);
         let date_2016 = datetime!(2016-01-02 00:00:00 UTC);
 
         assert_eq!(
-            agg_res
-                .0
-                .get("top_hits_req")
-                .expect("top_hits_req must exist"),
-            &AggregationResult::MetricResult(MetricResult::TopHits(TopHitsMetricResult {
-                hits: vec![
-                    TopHitsVecEntry {
-                        id: crate::DocAddress {
-                            segment_ord: 0,
-                            doc_id: 1,
+            agg_res["top_hits_req"],
+            json!({
+                "hits": [
+                    {
+                        "id": {
+                            "segment_ord": 0,
+                            "doc_id": 1,
                         },
-                        sort: vec![Some(common::i64_to_u64(
-                            date_2017.unix_timestamp_nanos() as i64
-                        ))],
-                        search_results: FieldRetrivalResult {
-                            doc_value_fields: vec![
-                                (
-                                    "date".to_string(),
-                                    SchemaValue::Date(DateTime::from_utc(date_2017))
-                                ),
-                                ("text".to_string(), SchemaValue::Str("ccc".to_string())),
-                                ("text2".to_string(), SchemaValue::Str("ddd".to_string()))
-                            ]
-                            .into_iter()
-                            .collect()
+                        "sort": [common::i64_to_u64(date_2017.unix_timestamp_nanos() as i64)],
+                        "docvalue_fields": {
+                            "date": SchemaValue::Date(DateTime::from_utc(date_2017)),
+                            "text": "ccc",
+                            "text2": "ddd",
                         }
                     },
-                    TopHitsVecEntry {
-                        id: crate::DocAddress {
-                            segment_ord: if merge_segments { 0 } else { 1 },
-                            doc_id: if merge_segments { 2 + 1 } else { 1 },
+                    {
+                        "id": {
+                            "segment_ord": if merge_segments { 0 } else { 1 },
+                            "doc_id": if merge_segments { 2 + 1 } else { 1 },
                         },
-                        sort: vec![Some(common::i64_to_u64(
-                            date_2016.unix_timestamp_nanos() as i64
-                        ))],
-                        search_results: FieldRetrivalResult {
-                            doc_value_fields: vec![
-                                (
-                                    "date".to_string(),
-                                    SchemaValue::Date(DateTime::from_utc(date_2016))
-                                ),
-                                ("text".to_string(), SchemaValue::Str("aaa".to_string())),
-                                ("text2".to_string(), SchemaValue::Str("bbb".to_string()))
-                            ]
-                            .into_iter()
-                            .collect()
+                        "sort": [common::i64_to_u64(date_2016.unix_timestamp_nanos() as i64)],
+                        "docvalue_fields": {
+                            "date": SchemaValue::Date(DateTime::from_utc(date_2016)),
+                            "text": "aaa",
+                            "text2": "bbb",
                         }
                     }
                 ]
-            }))
+            }),
         );
 
         Ok(())
