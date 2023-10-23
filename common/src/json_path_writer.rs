@@ -72,6 +72,12 @@ impl JsonPathWriter {
     }
 }
 
+impl From<JsonPathWriter> for String {
+    fn from(value: JsonPathWriter) -> Self {
+        value.path
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

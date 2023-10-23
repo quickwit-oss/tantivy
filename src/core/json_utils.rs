@@ -1,12 +1,12 @@
 use columnar::MonotonicallyMappableToU64;
-use common::replace_in_place;
+use common::{replace_in_place, JsonPathWriter};
 use murmurhash32::murmurhash2;
 use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
-use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
+use crate::schema::term::JSON_PATH_SEGMENT_SEP;
 use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
@@ -315,17 +315,13 @@ pub(crate) fn encode_column_name(
     json_path: &str,
     expand_dots_enabled: bool,
 ) -> String {
-    let mut column_key: String = String::with_capacity(field_name.len() + json_path.len() + 1);
-    column_key.push_str(field_name);
-    for mut segment in split_json_path(json_path) {
-        column_key.push_str(JSON_PATH_SEGMENT_SEP_STR);
-        if expand_dots_enabled {
-            // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
-            unsafe { replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, segment.as_bytes_mut()) };
-        }
-        column_key.push_str(&segment);
+    let mut path = JsonPathWriter::default();
+    path.push(field_name);
+    path.set_expand_dots(expand_dots_enabled);
+    for segment in split_json_path(json_path) {
+        path.push(&segment);
     }
-    column_key
+    path.into()
 }
 
 impl<'a> JsonTermWriter<'a> {
