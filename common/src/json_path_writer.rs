@@ -29,11 +29,13 @@ impl JsonPathWriter {
     /// write queries  like `k8s.node.id:5`.
     /// On the other, enabling that feature can lead to
     /// ambiguity.
+    #[inline]
     pub fn set_expand_dots(&mut self, expand_dots: bool) {
         self.expand_dots = expand_dots;
     }
 
     /// Push a new segment to the path.
+    #[inline]
     pub fn push(&mut self, segment: &str) {
         let len_path = self.path.len();
         self.indices.push(len_path);
@@ -54,6 +56,7 @@ impl JsonPathWriter {
     }
 
     /// Remove the last segment. Does nothing if the path is empty.
+    #[inline]
     pub fn pop(&mut self) {
         if let Some(last_idx) = self.indices.pop() {
             self.path.truncate(last_idx);
@@ -61,18 +64,21 @@ impl JsonPathWriter {
     }
 
     /// Clear the path.
+    #[inline]
     pub fn clear(&mut self) {
         self.path.clear();
         self.indices.clear();
     }
 
     /// Get the current path.
+    #[inline]
     pub fn as_str(&self) -> &str {
         &self.path
     }
 }
 
 impl From<JsonPathWriter> for String {
+    #[inline]
     fn from(value: JsonPathWriter) -> Self {
         value.path
     }
