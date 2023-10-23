@@ -9,6 +9,7 @@ mod byte_count;
 mod datetime;
 pub mod file_slice;
 mod group_by;
+mod json_path_writer;
 mod serialize;
 mod vint;
 mod writer;
@@ -18,6 +19,7 @@ pub use byte_count::ByteCount;
 pub use datetime::DatePrecision;
 pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
+pub use json_path_writer::JsonPathWriter;
 pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
