@@ -49,9 +49,9 @@ impl JsonPathWriter {
             // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
             // valid single byte ut8 strings.
             // By utf-8 design, they cannot be part of another codepoint.
-            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, unsafe {
-                appended_segment.as_bytes_mut()
-            });
+            unsafe {
+                replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, appended_segment.as_bytes_mut())
+            };
         }
     }
 
