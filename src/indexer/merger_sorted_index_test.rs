@@ -543,7 +543,7 @@ mod bench_sorted_index_merge {
     //);
     //(doc_addr.doc_id, reader, u64_reader)
     //});
-    //// add values in order of the new doc_ids
+    /// add values in order of the new doc_ids
     // let mut val = 0;
     // for (doc_id, _reader, field_reader) in sorted_doc_ids {
     // val = field_reader.get_val(doc_id);
