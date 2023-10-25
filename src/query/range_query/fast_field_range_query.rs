@@ -31,8 +31,8 @@ impl VecCursor {
         self.current_pos = 0;
         &mut self.docs
     }
-    fn last_value(&self) -> Option<u32> {
-        self.docs.iter().last().cloned()
+    fn last_doc(&self) -> Option<u32> {
+        self.docs.last().cloned()
     }
     fn is_empty(&self) -> bool {
         self.current().is_none()
@@ -112,15 +112,15 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             finished_to_end = true;
         }
 
-        let last_value = self.loaded_docs.last_value();
+        let last_doc = self.loaded_docs.last_doc();
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
         self.column.get_docids_for_value_range(
             self.value_range.clone(),
             self.next_fetch_start..end,
             doc_buffer,
         );
-        if let Some(last_value) = last_value {
-            while self.loaded_docs.current() == Some(last_value) {
+        if let Some(last_doc) = last_doc {
+            while self.loaded_docs.current() == Some(last_doc) {
                 self.loaded_docs.next();
             }
         }
@@ -136,7 +136,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
         if let Some(docid) = self.loaded_docs.next() {
             return docid;
         }
-        if self.next_fetch_start >= self.column.values.num_vals() {
+        if self.next_fetch_start >= self.column.num_docs() {
             return TERMINATED;
         }
         self.fetch_block();
@@ -175,5 +175,56 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
 
     fn size_hint(&self) -> u32 {
         0 // heuristic possible by checking number of hits when fetching a block
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::collector::Count;
+    use crate::directory::RamDirectory;
+    use crate::query::RangeQuery;
+    use crate::{schema, IndexBuilder, TantivyDocument};
+
+    #[test]
+    fn range_query_fast_optional_field_minimum() {
+        let mut schema_builder = schema::SchemaBuilder::new();
+        let id_field = schema_builder.add_text_field("id", schema::STRING);
+        let score_field = schema_builder.add_u64_field("score", schema::FAST | schema::INDEXED);
+
+        let dir = RamDirectory::default();
+        let index = IndexBuilder::new()
+            .schema(schema_builder.build())
+            .open_or_create(dir)
+            .unwrap();
+
+        {
+            let mut writer = index.writer(15_000_000).unwrap();
+
+            let count = 1000;
+            for i in 0..count {
+                let mut doc = TantivyDocument::new();
+                doc.add_text(id_field, format!("doc{i}"));
+
+                let nb_scores = i % 2; // 0 or 1 scores
+                for _ in 0..nb_scores {
+                    doc.add_u64(score_field, 80);
+                }
+
+                writer.add_document(doc).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        let query = RangeQuery::new_u64_bounds(
+            "score".to_string(),
+            std::ops::Bound::Included(70),
+            std::ops::Bound::Unbounded,
+        );
+
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(count, 500);
     }
 }
