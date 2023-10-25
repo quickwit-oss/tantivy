@@ -1688,7 +1688,8 @@ mod tests {
 
         let old_reader = index.reader()?;
 
-        let id_exists = |id| id % 3 != 0; // 0 does not exist
+        // Every 3rd doc has only id field
+        let id_is_full_doc = |id| id % 3 != 0;
 
         let multi_text_field_text1 = "test1 test2 test3 test1 test2 test3";
         // rotate left
@@ -1704,7 +1705,7 @@ mod tests {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     let ip = ip_from_id(id);
 
-                    if !id_exists(id) {
+                    if !id_is_full_doc(id) {
                         // every 3rd doc has no ip field
                         index_writer.add_document(doc!(
                             id_field=>id,
@@ -1824,7 +1825,7 @@ mod tests {
 
         let num_docs_with_values = expected_ids_and_num_occurrences
             .iter()
-            .filter(|(id, _id_occurrences)| id_exists(**id))
+            .filter(|(id, _id_occurrences)| id_is_full_doc(**id))
             .map(|(_, id_occurrences)| *id_occurrences as usize)
             .sum::<usize>();
 
@@ -1848,7 +1849,7 @@ mod tests {
         if force_end_merge && num_segments_before_merge > 1 && num_segments_after_merge == 1 {
             let mut expected_multi_ips: Vec<_> = id_list
                 .iter()
-                .filter(|id| id_exists(**id))
+                .filter(|id| id_is_full_doc(**id))
                 .flat_map(|id| vec![ip_from_id(*id), ip_from_id(*id)])
                 .collect();
             assert_eq!(num_ips, expected_multi_ips.len() as u32);
@@ -1886,7 +1887,7 @@ mod tests {
         let expected_ips = expected_ids_and_num_occurrences
             .keys()
             .flat_map(|id| {
-                if !id_exists(*id) {
+                if !id_is_full_doc(*id) {
                     None
                 } else {
                     Some(Ipv6Addr::from_u128(*id as u128))
@@ -1898,7 +1899,7 @@ mod tests {
         let expected_ips = expected_ids_and_num_occurrences
             .keys()
             .filter_map(|id| {
-                if !id_exists(*id) {
+                if !id_is_full_doc(*id) {
                     None
                 } else {
                     Some(Ipv6Addr::from_u128(*id as u128))
@@ -1933,7 +1934,7 @@ mod tests {
                 let id = id_reader.first(doc).unwrap();
 
                 let vals: Vec<u64> = ff_reader.values_for_doc(doc).collect();
-                if id_exists(id) {
+                if id_is_full_doc(id) {
                     assert_eq!(vals.len(), 2);
                     assert_eq!(vals[0], vals[1]);
                     assert!(expected_ids_and_num_occurrences.contains_key(&vals[0]));
@@ -1943,7 +1944,7 @@ mod tests {
                 }
 
                 let bool_vals: Vec<bool> = bool_ff_reader.values_for_doc(doc).collect();
-                if id_exists(id) {
+                if id_is_full_doc(id) {
                     assert_eq!(bool_vals.len(), 2);
                     assert_ne!(bool_vals[0], bool_vals[1]);
                 } else {
@@ -1972,7 +1973,7 @@ mod tests {
                     .as_u64()
                     .unwrap();
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
-                if id_exists(id) {
+                if id_is_full_doc(id) {
                     let id2 = store_reader
                         .get(doc_id)
                         .unwrap()
@@ -2019,7 +2020,7 @@ mod tests {
             let (existing_id, count) = (*id, *count);
             let get_num_hits = |field| do_search(&existing_id.to_string(), field).len() as u64;
             assert_eq!(get_num_hits(id_field), count);
-            if !id_exists(existing_id) {
+            if !id_is_full_doc(existing_id) {
                 continue;
             }
             assert_eq!(get_num_hits(text_field), count);
@@ -2069,7 +2070,7 @@ mod tests {
         //
         for (existing_id, count) in &expected_ids_and_num_occurrences {
             let (existing_id, count) = (*existing_id, *count);
-            if !id_exists(existing_id) {
+            if !id_is_full_doc(existing_id) {
                 continue;
             }
             let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
@@ -2086,34 +2087,84 @@ mod tests {
             }
         }
 
-        // assert data is like expected
+        // Range query
         //
-        for (existing_id, count) in expected_ids_and_num_occurrences.iter().take(10) {
-            let (existing_id, count) = (*existing_id, *count);
-            if !id_exists(existing_id) {
-                continue;
-            }
-            let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
-                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+        // Take half as sample
+        let mut sample: Vec<_> = expected_ids_and_num_occurrences.iter().collect();
+        sample.sort_by_key(|(k, _num_occurences)| *k);
+        // sample.truncate(sample.len() / 2);
+        if !sample.is_empty() {
+            let (left_sample, right_sample) = sample.split_at(sample.len() / 2);
+
+            let expected_count = |sample: &[(&u64, &u64)]| {
+                sample
+                    .iter()
+                    .filter(|(id, _)| id_is_full_doc(**id))
+                    .map(|(_id, num_occurences)| **num_occurences)
+                    .sum::<u64>()
             };
-            let ip = ip_from_id(existing_id);
+            fn gen_query_inclusive<T1: ToString, T2: ToString>(
+                field: &str,
+                from: T1,
+                to: T2,
+            ) -> String {
+                format!("{}:[{} TO {}]", field, &from.to_string(), &to.to_string())
+            }
 
-            let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
-            // Range query on single value field
-            let query = gen_query_inclusive("ip", ip, ip);
-            assert_eq!(do_search_ip_field(&query), count);
+            // Query first half
+            if !left_sample.is_empty() {
+                let expected_count = expected_count(left_sample);
 
-            // Range query on multi value field
-            let query = gen_query_inclusive("ips", ip, ip);
+                let start_range = *left_sample[0].0;
+                let end_range = *left_sample.last().unwrap().0;
+                let query = gen_query_inclusive("id_opt", start_range, end_range);
+                assert_eq!(do_search(&query, id_opt_field).len() as u64, expected_count);
 
-            assert_eq!(do_search_ip_field(&query), count);
+                // Range query on ip field
+                let ip1 = ip_from_id(start_range);
+                let ip2 = ip_from_id(end_range);
+                let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
+                let query = gen_query_inclusive("ip", ip1, ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                let query = gen_query_inclusive("ip", "*", ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                // Range query on multi value field
+                let query = gen_query_inclusive("ips", ip1, ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                let query = gen_query_inclusive("ips", "*", ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+            }
+            // Query second half
+            if !right_sample.is_empty() {
+                let expected_count = expected_count(right_sample);
+                let start_range = *right_sample[0].0;
+                let end_range = *right_sample.last().unwrap().0;
+                // Range query on id opt field
+                let query =
+                    gen_query_inclusive("id_opt", start_range.to_string(), end_range.to_string());
+                assert_eq!(do_search(&query, id_opt_field).len() as u64, expected_count);
+
+                // Range query on ip field
+                let ip1 = ip_from_id(start_range);
+                let ip2 = ip_from_id(end_range);
+                let do_search_ip_field = |term: &str| do_search(term, ip_field).len() as u64;
+                let query = gen_query_inclusive("ip", ip1, ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                let query = gen_query_inclusive("ip", ip1, "*");
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                // Range query on multi value field
+                let query = gen_query_inclusive("ips", ip1, ip2);
+                assert_eq!(do_search_ip_field(&query), expected_count);
+                let query = gen_query_inclusive("ips", ip1, "*");
+                assert_eq!(do_search_ip_field(&query), expected_count);
+            }
         }
 
         // ip range query on fast field
         //
         for (existing_id, count) in expected_ids_and_num_occurrences.iter().take(10) {
             let (existing_id, count) = (*existing_id, *count);
-            if !id_exists(existing_id) {
+            if !id_is_full_doc(existing_id) {
                 continue;
             }
             let gen_query_inclusive = |field: &str, from: Ipv6Addr, to: Ipv6Addr| {
@@ -2141,7 +2192,7 @@ mod tests {
                 .first_or_default_col(9999);
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = ff_reader.get_val(doc_id);
-                if !id_exists(id) {
+                if !id_is_full_doc(id) {
                     continue;
                 }
                 let facet_ords: Vec<u64> = facet_reader.facet_ords(doc_id).collect();
@@ -2177,6 +2228,12 @@ mod tests {
             }
         }
         Ok(index)
+    }
+
+    #[test]
+    fn test_fast_field_range() {
+        let ops: Vec<_> = (0..1000).map(|id| IndexingOp::AddDoc { id }).collect();
+        assert!(test_operation_strategy(&ops, false, true).is_ok());
     }
 
     #[test]
