@@ -30,6 +30,13 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 /// used as a sub-aggregation, inside a `terms` aggregation or a `filters` aggregation,
 /// for example.
 ///
+/// Note that this aggregator does not return the actual document addresses, but
+/// rather a list of the values of the fields that were requested to be retrieved.
+/// These values can be specified in the `docvalue_fields` parameter, which can include
+/// a list of fast fields to be retrieved. At the moment, only fast fields are supported
+/// but it is possible that we support the `fields` parameter to retrieve any stored
+/// field in the future.
+///
 /// The following example demonstrates a request for the top_hits aggregation:
 /// ```JSON
 /// {
@@ -47,6 +54,7 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 ///                 "sort": [
 ///                     { "date": "desc" }
 ///                 ]
+///                 "docvalue_fields": ["date", "title", "iden"]
 ///             }
 ///         }
 /// }
@@ -59,12 +67,20 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 /// {
 ///     "hits": [
 ///         {
-///           "id": <doc_address>,
-///           score: [<time_u64>]
+///           "score": [<time_u64>],
+///           "docvalue_fields": {
+///             "date": "<date_RFC3339>",
+///             "title": "<title>",
+///             "iden": "<iden>"
+///           }
 ///         },
 ///         {
-///             "id": <doc_address>,
-///             score: [<time_u64>]
+///           "score": [<time_u64>]
+///           "docvalue_fields": {
+///             "date": "<date_RFC3339>",
+///             "title": "<title>",
+///             "iden": "<iden>"
+///           }
 ///         }
 ///     ]
 /// }
