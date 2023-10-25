@@ -35,8 +35,6 @@ pub use stats::*;
 pub use sum::*;
 pub use top_hits::*;
 
-use crate::DocAddress;
-
 /// Single-metric aggregations use this common result structure.
 ///
 /// Main reason to wrap it in value is to match elasticsearch output structure.
@@ -88,8 +86,6 @@ pub struct PercentilesMetricResult {
 /// The top_hits metric results entry
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TopHitsVecEntry {
-    /// The document id, composed of segment local `DocId` and segment ordinal.
-    pub id: DocAddress,
     /// The sort values of the document, depending on the sort criteria in the request.
     pub sort: Vec<Option<u64>>,
 

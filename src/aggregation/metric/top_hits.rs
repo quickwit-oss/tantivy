@@ -84,6 +84,7 @@ const fn default_doc_value_fields() -> Vec<String> {
 }
 
 /// Search query spec for each matched document
+/// TODO: move this to a common module
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct RetrievalFields {
     /// The fast fields to return for each hit.
@@ -95,6 +96,7 @@ pub struct RetrievalFields {
 }
 
 /// Search query result for each matched document
+/// TODO: move this to a common module
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct FieldRetrivalResult {
     /// The fast fields returned for each hit.
@@ -174,7 +176,7 @@ impl RetrievalFields {
                         let mut buffer = vec![];
                         match accessor
                             .ord_to_bytes(term_ord, &mut buffer)
-                            .expect("must succeed")
+                            .expect("term dictionary read must succeed")
                         {
                             false => OwnedValue::Null,
                             true => OwnedValue::Bytes(buffer),
@@ -187,7 +189,7 @@ impl RetrievalFields {
                         let mut buffer = vec![];
                         match accessor
                             .ord_to_bytes(term_ord, &mut buffer)
-                            .expect("must succeed")
+                            .expect("term dictionary read must succeed")
                         {
                             false => OwnedValue::Null,
                             true => OwnedValue::Str(
@@ -388,7 +390,6 @@ impl TopHitsCollector {
             .into_sorted_vec()
             .into_iter()
             .map(|doc| TopHitsVecEntry {
-                id: doc.doc,
                 sort: doc.feature.0.iter().map(|f| f.value).collect(),
                 search_results: doc.feature.1,
             })
@@ -518,9 +519,8 @@ mod tests {
 
     use super::{ComparableDocFeature, ComparableDocFeatures, Order};
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::agg_result::{AggregationResult, AggregationResults, MetricResult};
+    use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
-    use crate::aggregation::metric::{FieldRetrivalResult, TopHitsMetricResult, TopHitsVecEntry};
     use crate::aggregation::tests::get_test_index_from_values;
     use crate::aggregation::AggregationCollector;
     use crate::collector::ComparableDoc;
@@ -705,17 +705,14 @@ mod tests {
             super::TopHitsMetricResult {
                 hits: vec![
                     super::TopHitsVecEntry {
-                        id: docs[0].doc,
                         sort: vec![docs[0].feature.0[0].value],
                         search_results: Default::default(),
                     },
                     super::TopHitsVecEntry {
-                        id: docs[1].doc,
                         sort: vec![docs[1].feature.0[0].value],
                         search_results: Default::default(),
                     },
                     super::TopHitsVecEntry {
-                        id: docs[2].doc,
                         sort: vec![docs[2].feature.0[0].value],
                         search_results: Default::default(),
                     },
@@ -738,6 +735,8 @@ mod tests {
             ],
         ];
 
+        println!("docs: {:?}", docs);
+        println!("merge_segments: {:?}", merge_segments);
         let index = get_test_index_from_docs(merge_segments, &docs)?;
 
         let d: Aggregations = serde_json::from_value(json!({
@@ -771,10 +770,6 @@ mod tests {
             json!({
                 "hits": [
                     {
-                        "id": {
-                            "segment_ord": 0,
-                            "doc_id": 1,
-                        },
                         "sort": [common::i64_to_u64(date_2017.unix_timestamp_nanos() as i64)],
                         "docvalue_fields": {
                             "date": SchemaValue::Date(DateTime::from_utc(date_2017)),
@@ -783,10 +778,6 @@ mod tests {
                         }
                     },
                     {
-                        "id": {
-                            "segment_ord": if merge_segments { 0 } else { 1 },
-                            "doc_id": if merge_segments { 2 + 1 } else { 1 },
-                        },
                         "sort": [common::i64_to_u64(date_2016.unix_timestamp_nanos() as i64)],
                         "docvalue_fields": {
                             "date": SchemaValue::Date(DateTime::from_utc(date_2016)),

@@ -53,7 +53,6 @@ pub struct AggregationWithAccessor {
     /// If this needs to used by other aggregations, we need to refactor this.
     // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
     // (making them obsolete) But will it have a performance impact?
-    // pub(crate) accessors: HashMap<String, (Column<u64>, ColumnType)>,
     pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     pub(crate) value_accessors: HashMap<String, DynamicColumn>,
     pub(crate) agg: Aggregation,
