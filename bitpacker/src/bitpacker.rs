@@ -367,7 +367,7 @@ mod test {
             let mut output: Vec<u32> = Vec::new();
             for len in [0, 1, 2, 32, 33, 34, 64] {
                 for start_idx in 0u32..32u32 {
-                    output.resize(len as usize, 0);
+                    output.resize(len, 0);
                     bitunpacker.get_batch_u32s(start_idx, &buffer, &mut output);
                     for i in 0..len {
                         let expected = (start_idx + i as u32) & mask;

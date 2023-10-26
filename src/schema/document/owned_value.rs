@@ -369,7 +369,7 @@ impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
 
 fn can_be_rfc3339_date_time(text: &str) -> bool {
     if let Some(&first_byte) = text.as_bytes().first() {
-        if (b'0'..=b'9').contains(&first_byte) {
+        if first_byte.is_ascii_digit() {
             return true;
         }
     }

@@ -1,12 +1,11 @@
 use std::io;
 
 use columnar::{ColumnarWriter, NumericalValue};
-use common::replace_in_place;
+use common::JsonPathWriter;
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
-use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTimePrecision, DocId, TantivyError};
@@ -24,7 +23,7 @@ pub struct FastFieldsWriter {
     expand_dots: Vec<bool>,
     num_docs: DocId,
     // Buffer that we recycle to avoid allocation.
-    json_path_buffer: String,
+    json_path_buffer: JsonPathWriter,
 }
 
 impl FastFieldsWriter {
@@ -98,7 +97,7 @@ impl FastFieldsWriter {
             num_docs: 0u32,
             date_precisions,
             expand_dots,
-            json_path_buffer: String::new(),
+            json_path_buffer: JsonPathWriter::default(),
         })
     }
 
@@ -212,14 +211,16 @@ impl FastFieldsWriter {
             ReferenceValue::Object(val) => {
                 let expand_dots = self.expand_dots[field.field_id() as usize];
                 self.json_path_buffer.clear();
-                self.json_path_buffer.push_str(field_name);
+                // First field should not be expanded.
+                self.json_path_buffer.set_expand_dots(false);
+                self.json_path_buffer.push(field_name);
+                self.json_path_buffer.set_expand_dots(expand_dots);
 
                 let text_analyzer = &mut self.per_field_tokenizer[field.field_id() as usize];
 
                 record_json_obj_to_columnar_writer::<V>(
                     doc_id,
                     val,
-                    expand_dots,
                     JSON_DEPTH_LIMIT,
                     &mut self.json_path_buffer,
                     &mut self.columnar_writer,
@@ -250,48 +251,30 @@ impl FastFieldsWriter {
 fn record_json_obj_to_columnar_writer<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
-    expand_dots: bool,
     remaining_depth_limit: usize,
-    json_path_buffer: &mut String,
+    json_path_buffer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
     for (key, child) in json_visitor {
-        let len_path = json_path_buffer.len();
-        if !json_path_buffer.is_empty() {
-            json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
-        }
-        json_path_buffer.push_str(key);
-        if expand_dots {
-            // This might include the separation byte, which is ok because it is not a dot.
-            let appended_segment = &mut json_path_buffer[len_path..];
-            // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
-            // valid single byte ut8 strings.
-            // By utf-8 design, they cannot be part of another codepoint.
-            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, unsafe {
-                appended_segment.as_bytes_mut()
-            });
-        }
+        json_path_buffer.push(key);
         record_json_value_to_columnar_writer(
             doc,
             child,
-            expand_dots,
             remaining_depth_limit,
             json_path_buffer,
             columnar_writer,
             tokenizer,
         );
-        // popping our sub path.
-        json_path_buffer.truncate(len_path);
+        json_path_buffer.pop();
     }
 }
 
 fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
     doc: DocId,
     json_val: V,
-    expand_dots: bool,
     mut remaining_depth_limit: usize,
-    json_path_writer: &mut String,
+    json_path_writer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
@@ -335,7 +318,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                 );
             }
             ReferenceValueLeaf::Bool(val) => {
-                columnar_writer.record_bool(doc, json_path_writer, val);
+                columnar_writer.record_bool(doc, json_path_writer.as_str(), val);
             }
             ReferenceValueLeaf::Date(val) => {
                 columnar_writer.record_datetime(doc, json_path_writer.as_str(), val);
@@ -362,7 +345,6 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
                 record_json_value_to_columnar_writer(
                     doc,
                     el,
-                    expand_dots,
                     remaining_depth_limit,
                     json_path_writer,
                     columnar_writer,
@@ -374,7 +356,6 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
             record_json_obj_to_columnar_writer::<V>(
                 doc,
                 object,
-                expand_dots,
                 remaining_depth_limit,
                 json_path_writer,
                 columnar_writer,
@@ -387,6 +368,7 @@ fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
 #[cfg(test)]
 mod tests {
     use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
+    use common::JsonPathWriter;
 
     use super::record_json_value_to_columnar_writer;
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
@@ -397,12 +379,12 @@ mod tests {
         expand_dots: bool,
     ) -> ColumnarReader {
         let mut columnar_writer = ColumnarWriter::default();
-        let mut json_path = String::new();
+        let mut json_path = JsonPathWriter::default();
+        json_path.set_expand_dots(expand_dots);
         for (doc, json_doc) in json_docs.iter().enumerate() {
             record_json_value_to_columnar_writer(
                 doc as u32,
                 json_doc,
-                expand_dots,
                 JSON_DEPTH_LIMIT,
                 &mut json_path,
                 &mut columnar_writer,
