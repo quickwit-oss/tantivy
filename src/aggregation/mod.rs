@@ -27,7 +27,7 @@
 //! Notice: Intermediate aggregation results should not be de/serialized via JSON format.
 //! Postcard is a good choice.
 //!
-//! ```
+//! ```verbatim
 //! let agg_req: Aggregations = serde_json::from_str(json_request_string).unwrap();
 //! let collector = AggregationCollector::from_aggs(agg_req, None);
 //! let searcher = reader.searcher();
