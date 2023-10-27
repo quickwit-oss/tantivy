@@ -185,7 +185,7 @@ fn term_or_phrase(inp: &str) -> IResult<&str, UserInputLeaf> {
 fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> {
     map(
         // ~* for slop/prefix, ) inside group or ast tree, ^ if boost
-        tuple_infallible((simple_term_infallible("*)^"), slop_or_prefix_val)),
+        tuple_infallible((simple_term_infallible(")^"), slop_or_prefix_val)),
         |((delimiter_phrase, (slop, prefix)), errors)| {
             let leaf = if let Some((delimiter, phrase)) = delimiter_phrase {
                 Some(
@@ -1113,6 +1113,9 @@ mod test {
         test_parse_query_to_ast_helper("'www-form-encoded'", "'www-form-encoded'");
         test_parse_query_to_ast_helper("www-form-encoded", "www-form-encoded");
         test_parse_query_to_ast_helper("www-form-encoded", "www-form-encoded");
+        test_parse_query_to_ast_helper("mr james bo?d", "(*mr *james *bo?d)");
+        test_parse_query_to_ast_helper("mr james bo*", "(*mr *james *bo*)");
+        test_parse_query_to_ast_helper("mr james b*d", "(*mr *james *b*d)");
     }
 
     #[test]
