@@ -10,7 +10,7 @@ use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
 };
-use crate::schema::{Field, Term};
+use crate::schema::{Field, Schema, Term, Type};
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
 
@@ -43,12 +43,27 @@ fn make_field_partition(term_offsets: &[(Term<&[u8]>, Addr)]) -> Vec<(Field, Ran
 /// It pushes all term, one field at a time, towards the
 /// postings serializer.
 pub(crate) fn serialize_postings(
-    ctx: IndexingContext,
+    mut ctx: IndexingContext,
+    schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     fieldnorm_readers: FieldNormReaders,
     doc_id_map: Option<&DocIdMapping>,
     serializer: &mut InvertedIndexSerializer,
 ) -> crate::Result<()> {
+    // Replace unordered ids by ordered ids to be able to sort
+    let unordered_id_to_ordered_id = ctx.path_to_unordered_id.unordered_id_to_ordered_id();
+    unsafe {
+        ctx.term_index.iter_mut_keys(|key| {
+            let field = Term::wrap(&key).field();
+            if schema.get_field_entry(field).field_type().value_type() == Type::Json {
+                let byte_range = 5..5 + 4;
+                let unordered_id = u32::from_be_bytes(key[byte_range.clone()].try_into().unwrap());
+                let ordered_id = unordered_id_to_ordered_id[unordered_id as usize];
+                key[byte_range].copy_from_slice(&ordered_id.to_be_bytes());
+            }
+        });
+    }
+
     let mut term_offsets: Vec<(Term<&[u8]>, Addr)> = Vec::with_capacity(ctx.term_index.len());
     term_offsets.extend(
         ctx.term_index
@@ -56,6 +71,8 @@ pub(crate) fn serialize_postings(
             .map(|(bytes, addr)| (Term::wrap(bytes), addr)),
     );
     term_offsets.sort_unstable_by_key(|(k, _)| k.clone());
+
+    let ordered_id_to_path = ctx.path_to_unordered_id.ordered_id_to_path();
 
     let field_offsets = make_field_partition(&term_offsets);
     for (field, byte_offsets) in field_offsets {
@@ -65,6 +82,7 @@ pub(crate) fn serialize_postings(
             serializer.new_field(field, postings_writer.total_num_tokens(), fieldnorm_reader)?;
         postings_writer.serialize(
             &term_offsets[byte_offsets],
+            &ordered_id_to_path,
             doc_id_map,
             &ctx,
             &mut field_serializer,
@@ -99,6 +117,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr)],
+        ordered_id_to_path: &[&String],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
@@ -162,7 +181,7 @@ impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWri
 impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     #[inline]
     pub(crate) fn serialize_one_term(
-        term: &Term<&[u8]>,
+        term: &[u8],
         addr: Addr,
         doc_id_map: Option<&DocIdMapping>,
         buffer_lender: &mut BufferLender,
@@ -171,7 +190,7 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-        serializer.new_term(term.serialized_value_bytes(), term_doc_freq)?;
+        serializer.new_term(term, term_doc_freq)?;
         recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
         serializer.close_term()?;
         Ok(())
@@ -205,13 +224,21 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr)],
+        _ordered_id_to_path: &[&String],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (term, addr) in term_addrs {
-            Self::serialize_one_term(term, *addr, doc_id_map, &mut buffer_lender, ctx, serializer)?;
+            Self::serialize_one_term(
+                term.serialized_value_bytes(),
+                *addr,
+                doc_id_map,
+                &mut buffer_lender,
+                ctx,
+                serializer,
+            )?;
         }
         Ok(())
     }

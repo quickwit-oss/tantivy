@@ -5,6 +5,7 @@
 //! [`Index::writer`](crate::Index::writer).
 
 pub(crate) mod delete_queue;
+pub(crate) mod path_to_unordered_id;
 
 pub(crate) mod doc_id_mapping;
 mod doc_opstamp_mapping;
