@@ -510,9 +510,9 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
-        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
-        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 18);
+        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
+        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
+        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
     }

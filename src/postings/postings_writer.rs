@@ -53,7 +53,7 @@ pub(crate) fn serialize_postings(
     term_offsets.extend(
         ctx.term_index
             .iter()
-            .map(|(bytes, addr, _unordered_id)| (Term::wrap(bytes), addr)),
+            .map(|(bytes, addr)| (Term::wrap(bytes), addr)),
     );
     term_offsets.sort_unstable_by_key(|(k, _)| k.clone());
 

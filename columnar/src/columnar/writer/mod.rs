@@ -338,7 +338,7 @@ impl ColumnarWriter {
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
             .iter()
-            .map(|(column_name, addr, _)| {
+            .map(|(column_name, addr)| {
                 let numerical_column_writer: NumericalColumnWriter =
                     self.numerical_field_hash_map.read(addr);
                 let column_type = numerical_column_writer.numerical_type().into();
@@ -348,27 +348,27 @@ impl ColumnarWriter {
         columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, ColumnType::Bytes, addr)),
+                .map(|(term, addr)| (term, ColumnType::Bytes, addr)),
         );
         columns.extend(
             self.str_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::Str, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Str, addr)),
         );
         columns.extend(
             self.bool_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::Bool, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Bool, addr)),
         );
         columns.extend(
             self.ip_addr_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::IpAddr, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::IpAddr, addr)),
         );
         columns.extend(
             self.datetime_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::DateTime, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
 
