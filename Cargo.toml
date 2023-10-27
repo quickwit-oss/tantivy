@@ -116,6 +116,11 @@ unstable = [] # useful for benches.
 
 quickwit = ["sstable", "futures-util"]
 
+# Compares only the hash of a string when indexing data. 
+# Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.
+# Uses 64bit ahash.
+compare_hash_only = ["stacker/compare_hash_only"]
+
 [workspace]
 members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]
 
