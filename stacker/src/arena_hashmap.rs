@@ -4,7 +4,6 @@ use std::mem;
 use super::{Addr, MemoryArena};
 use crate::fastcpy::fast_short_slice_copy;
 use crate::memory_arena::store;
-use crate::UnorderedId;
 
 /// Returns the actual memory size in bytes
 /// required to create a table with a given capacity.
@@ -26,7 +25,6 @@ type HashType = u64;
 struct KeyValue {
     key_value_addr: Addr,
     hash: HashType,
-    unordered_id: UnorderedId,
 }
 
 impl Default for KeyValue {
@@ -34,14 +32,13 @@ impl Default for KeyValue {
         KeyValue {
             key_value_addr: Addr::null_pointer(),
             hash: 0,
-            unordered_id: UnorderedId::default(),
         }
     }
 }
 
 impl KeyValue {
     #[inline]
-    fn is_empty(self) -> bool {
+    fn is_empty(&self) -> bool {
         self.key_value_addr.is_null()
     }
     #[inline]
@@ -96,12 +93,12 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = (&'a [u8], Addr, UnorderedId);
+    type Item = (&'a [u8], Addr);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(move |kv| {
             let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
-            (key, offset, kv.unordered_id)
+            (key, offset)
         })
     }
 }
@@ -207,16 +204,13 @@ impl ArenaHashMap {
     }
 
     #[inline]
-    fn set_bucket(&mut self, hash: HashType, key_value_addr: Addr, bucket: usize) -> UnorderedId {
-        let unordered_id = self.len as UnorderedId;
+    fn set_bucket(&mut self, hash: HashType, key_value_addr: Addr, bucket: usize) {
         self.len += 1;
 
         self.table[bucket] = KeyValue {
             key_value_addr,
             hash,
-            unordered_id,
         };
-        unordered_id
     }
 
     #[inline]
@@ -290,14 +284,8 @@ impl ArenaHashMap {
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
     #[inline]
-    pub fn mutate_or_create<V>(
-        &mut self,
-        key: &[u8],
-        mut updater: impl FnMut(Option<V>) -> V,
-    ) -> UnorderedId
-    where
-        V: Copy + 'static,
-    {
+    pub fn mutate_or_create<V>(&mut self, key: &[u8], mut updater: impl FnMut(Option<V>) -> V)
+    where V: Copy + 'static {
         if self.is_saturated() {
             self.resize();
         }
@@ -320,14 +308,15 @@ impl ArenaHashMap {
                     store(&mut data[stop..], val);
                 }
 
-                return self.set_bucket(hash, key_addr, bucket);
+                self.set_bucket(hash, key_addr, bucket);
+                return;
             }
             if kv.hash == hash {
                 if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
                     let v = self.memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
                     self.memory_arena.write_at(val_addr, new_v);
-                    return kv.unordered_id;
+                    return;
                 }
             }
             // This allows fetching the next bucket before the loop jmp
@@ -361,7 +350,7 @@ mod tests {
         });
         let mut vanilla_hash_map = HashMap::new();
         let iter_values = hash_map.iter();
-        for (key, addr, _) in iter_values {
+        for (key, addr) in iter_values {
             let val: u32 = hash_map.memory_arena.read(addr);
             vanilla_hash_map.insert(key.to_owned(), val);
         }
@@ -390,7 +379,7 @@ mod tests {
         }
         let mut terms_back: Vec<String> = hash_map
             .iter()
-            .map(|(bytes, _, _)| String::from_utf8(bytes.to_vec()).unwrap())
+            .map(|(bytes, _)| String::from_utf8(bytes.to_vec()).unwrap())
             .collect();
         terms_back.sort();
         terms.sort();
