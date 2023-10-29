@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use pprof::criterion::{Output, PProfProfiler};
 use tantivy::schema::{TantivyDocument, FAST, INDEXED, STORED, STRING, TEXT};
-use tantivy::{Index, IndexWriter};
+use tantivy::{tokenizer, Index, IndexWriter};
 
 const HDFS_LOGS: &str = include_str!("hdfs.json");
 const GH_LOGS: &str = include_str!("gh.json");
@@ -17,6 +17,13 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
         schema_builder.add_u64_field("timestamp", INDEXED);
         schema_builder.add_text_field("body", TEXT);
         schema_builder.add_text_field("severity", STRING);
+        schema_builder.build()
+    };
+    let schema_only_fast = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_u64_field("timestamp", FAST);
+        schema_builder.add_text_field("body", FAST);
+        schema_builder.add_text_field("severity", FAST);
         schema_builder.build()
     };
     let schema_with_store = {
@@ -83,6 +90,30 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
             index_writer.commit().unwrap();
         })
     });
+    group.bench_function("index-hdfs-no-commit-fastfield", |b| {
+        let lines = get_lines(HDFS_LOGS);
+        b.iter(|| {
+            let index = Index::create_in_ram(schema_only_fast.clone());
+            let index_writer: IndexWriter = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in &lines {
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+        })
+    });
+    group.bench_function("index-hdfs-with-commit-fastfield", |b| {
+        let lines = get_lines(HDFS_LOGS);
+        b.iter(|| {
+            let index = Index::create_in_ram(schema_only_fast.clone());
+            let mut index_writer: IndexWriter =
+                index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in &lines {
+                let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        })
+    });
     group.bench_function("index-hdfs-no-commit-json-without-docstore", |b| {
         let lines = get_lines(HDFS_LOGS);
         b.iter(|| {
@@ -107,6 +138,18 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
         schema_builder.add_json_field("json", TEXT | FAST);
         schema_builder.build()
     };
+    let dynamic_schema_fast = {
+        let mut schema_builder = tantivy::schema::SchemaBuilder::new();
+        schema_builder.add_json_field("json", FAST);
+        schema_builder.build()
+    };
+    let ff_tokenizer_manager = tokenizer::TokenizerManager::default();
+    ff_tokenizer_manager.register(
+        "raw",
+        tokenizer::TextAnalyzer::builder(tokenizer::RawTokenizer::default())
+            .filter(tokenizer::RemoveLongFilter::limit(255))
+            .build(),
+    );
 
     let mut group = c.benchmark_group("index-gh");
     group.throughput(Throughput::Bytes(GH_LOGS.len() as u64));
@@ -115,7 +158,8 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
         let lines = get_lines(GH_LOGS);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
-            let index = Index::create_in_ram(dynamic_schema.clone());
+            let mut index = Index::create_in_ram(dynamic_schema.clone());
+            index.set_fast_field_tokenizers(ff_tokenizer_manager.clone());
             let index_writer: IndexWriter = index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
                 let json_val: serde_json::Map<String, serde_json::Value> =
@@ -125,11 +169,28 @@ pub fn gh_index_benchmark(c: &mut Criterion) {
             }
         })
     });
+    group.bench_function("index-gh-fast", |b| {
+        let lines = get_lines(GH_LOGS);
+        b.iter(|| {
+            let json_field = dynamic_schema_fast.get_field("json").unwrap();
+            let mut index = Index::create_in_ram(dynamic_schema_fast.clone());
+            index.set_fast_field_tokenizers(ff_tokenizer_manager.clone());
+            let index_writer: IndexWriter = index.writer_with_num_threads(1, 100_000_000).unwrap();
+            for doc_json in &lines {
+                let json_val: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(doc_json).unwrap();
+                let doc = tantivy::doc!(json_field=>json_val);
+                index_writer.add_document(doc).unwrap();
+            }
+        })
+    });
+
     group.bench_function("index-gh-with-commit", |b| {
         let lines = get_lines(GH_LOGS);
         b.iter(|| {
             let json_field = dynamic_schema.get_field("json").unwrap();
-            let index = Index::create_in_ram(dynamic_schema.clone());
+            let mut index = Index::create_in_ram(dynamic_schema.clone());
+            index.set_fast_field_tokenizers(ff_tokenizer_manager.clone());
             let mut index_writer: IndexWriter =
                 index.writer_with_num_threads(1, 100_000_000).unwrap();
             for doc_json in &lines {
