@@ -222,8 +222,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// registered (and whose [`WatchHandle`] is still alive) are triggered.
     ///
     /// Internally, tantivy only uses this API to detect new commits to implement the
-    /// `OnCommit` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents the
-    /// `OnCommit` `ReloadPolicy` to work properly.
+    /// `OnCommitWithDelay` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents the
+    /// `OnCommitWithDelay` `ReloadPolicy` to work properly.
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle>;
 }
 
