@@ -38,7 +38,7 @@ impl Default for KeyValue {
 
 impl KeyValue {
     #[inline]
-    fn is_empty(self) -> bool {
+    fn is_empty(&self) -> bool {
         self.key_value_addr.is_null()
     }
     #[inline]
@@ -242,7 +242,7 @@ impl SharedArenaHashMap {
     }
 
     fn resize(&mut self) {
-        let new_len = (self.table.len() * 2).max(1 << 13);
+        let new_len = (self.table.len() * 2).max(1 << 3);
         let mask = new_len - 1;
         self.mask = mask;
         let new_table = vec![KeyValue::default(); new_len];
@@ -262,9 +262,7 @@ impl SharedArenaHashMap {
     /// Get a value associated to a key.
     #[inline]
     pub fn get<V>(&self, key: &[u8], memory_arena: &MemoryArena) -> Option<V>
-    where
-        V: Copy + 'static,
-    {
+    where V: Copy + 'static {
         let hash = self.get_hash(key);
         let mut probe = self.probe(hash);
         loop {
@@ -299,7 +297,8 @@ impl SharedArenaHashMap {
         key: &[u8],
         memory_arena: &mut MemoryArena,
         mut updater: impl FnMut(Option<V>) -> V,
-    ) where
+    ) -> V
+    where
         V: Copy + 'static,
     {
         if self.is_saturated() {
@@ -325,7 +324,7 @@ impl SharedArenaHashMap {
                 }
 
                 self.set_bucket(hash, key_addr, bucket);
-                return;
+                return val;
             }
             if kv.hash == hash {
                 if let Some(val_addr) =
@@ -334,7 +333,7 @@ impl SharedArenaHashMap {
                     let v = memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
                     memory_arena.write_at(val_addr, new_v);
-                    return;
+                    return new_v;
                 }
             }
             // This allows fetching the next bucket before the loop jmp
@@ -349,9 +348,8 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use crate::MemoryArena;
-
     use super::{compute_previous_power_of_two, SharedArenaHashMap};
+    use crate::MemoryArena;
 
     #[test]
     fn test_hash_map() {

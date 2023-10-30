@@ -59,9 +59,7 @@ impl ArenaHashMap {
     /// Get a value associated to a key.
     #[inline]
     pub fn get<V>(&self, key: &[u8]) -> Option<V>
-    where
-        V: Copy + 'static,
-    {
+    where V: Copy + 'static {
         self.shared_arena_hashmap.get(key, &self.memory_arena)
     }
 
@@ -77,11 +75,9 @@ impl ArenaHashMap {
     /// `Some(previous_value)`.
     #[inline]
     pub fn mutate_or_create<V>(&mut self, key: &[u8], updater: impl FnMut(Option<V>) -> V)
-    where
-        V: Copy + 'static,
-    {
+    where V: Copy + 'static {
         self.shared_arena_hashmap
-            .mutate_or_create(key, &mut self.memory_arena, updater)
+            .mutate_or_create(key, &mut self.memory_arena, updater);
     }
 }
 

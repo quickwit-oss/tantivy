@@ -14,8 +14,7 @@ mod shared_arena_hashmap;
 pub use self::arena_hashmap::ArenaHashMap;
 pub use self::expull::ExpUnrolledLinkedList;
 pub use self::memory_arena::{Addr, MemoryArena};
-pub use self::shared_arena_hashmap::compute_table_memory_size;
-pub use self::shared_arena_hashmap::SharedArenaHashMap;
+pub use self::shared_arena_hashmap::{compute_table_memory_size, SharedArenaHashMap};
 
 /// When adding an element in a `ArenaHashMap`, we get a unique id associated to the given key.
 pub type UnorderedId = u32;
