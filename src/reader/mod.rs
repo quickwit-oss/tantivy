@@ -28,7 +28,7 @@ pub enum ReloadPolicy {
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
-    OnCommitWithDelay , // TODO add NEAR_REAL_TIME(target_ms)
+    OnCommitWithDelay, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
 /// [`IndexReader`] builder
