@@ -10,7 +10,7 @@ pub(crate) struct IndexingContext {
     pub term_index: ArenaHashMap,
     /// Arena is a memory arena that stores posting lists / term frequencies / positions.
     pub arena: MemoryArena,
-    pub(crate) path_to_unordered_id: PathToUnorderedId,
+    pub path_to_unordered_id: PathToUnorderedId,
 }
 
 impl IndexingContext {

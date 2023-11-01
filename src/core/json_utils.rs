@@ -143,7 +143,9 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::Null => {}
             ReferenceValueLeaf::Str(val) => {
                 let mut token_stream = text_analyzer.token_stream(val);
-                let unordered_id = ctx.path_to_unordered_id.get_id(json_path_writer.as_str());
+                let unordered_id = ctx
+                    .path_to_unordered_id
+                    .get_or_allocate_unordered_id(json_path_writer.as_str());
 
                 // TODO: make sure the chain position works out.
                 set_path_id(term_buffer, unordered_id);
@@ -160,7 +162,8 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::U64(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id.get_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -168,7 +171,8 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::I64(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id.get_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -176,7 +180,8 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::F64(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id.get_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -184,7 +189,8 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::Bool(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id.get_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -192,7 +198,8 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::Date(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id.get_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);

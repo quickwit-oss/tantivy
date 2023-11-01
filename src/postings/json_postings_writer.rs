@@ -3,6 +3,7 @@ use std::io;
 use stacker::Addr;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
@@ -54,21 +55,19 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(Term<&[u8]>, Addr)],
-        ordered_id_to_path: &[&String],
+        term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
+        ordered_id_to_path: &[&str],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut term_buffer = Term::with_capacity(48);
         let mut buffer_lender = BufferLender::default();
-        for (term, addr) in term_addrs {
-            let ordered_id_bytes: [u8; 4] = term.serialized_value_bytes()[..4].try_into().unwrap();
-            let ordered_id = u32::from_be_bytes(ordered_id_bytes);
+        for (_field, path_id, term, addr) in term_addrs {
             term_buffer.clear_with_field_and_type(Type::Json, Field::from_field_id(0));
-            term_buffer.append_bytes(ordered_id_to_path[ordered_id as usize].as_bytes());
+            term_buffer.append_bytes(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
             term_buffer.append_bytes(&[JSON_END_OF_PATH]);
-            term_buffer.append_bytes(&term.serialized_value_bytes()[4..]);
+            term_buffer.append_bytes(term);
             if let Some(json_value) = term_buffer.value().as_json_value_bytes() {
                 let typ = json_value.typ();
                 if typ == Type::Str {

@@ -58,7 +58,7 @@ impl KeyValue {
 /// or copying the key as long as there is no insert.
 pub struct ArenaHashMap {
     table: Vec<KeyValue>,
-    memory_arena: MemoryArena,
+    pub memory_arena: MemoryArena,
     mask: usize,
     len: usize,
 }
@@ -232,29 +232,6 @@ impl ArenaHashMap {
                 .cloned()
                 .filter(KeyValue::is_not_empty_ref),
             hashmap: self,
-        }
-    }
-
-    #[inline]
-    /// This will invalidate the hashmaps get and insert methods.
-    /// Only iter() is still valid afterwards
-    ///
-    /// # Safety
-    /// Any call to get or mutate_or_create after this call is undefined behavior.
-    pub unsafe fn iter_mut_keys<F: Fn(&mut [u8])>(&mut self, cb: F) {
-        for kv in self
-            .table
-            .iter()
-            .cloned()
-            .filter(KeyValue::is_not_empty_ref)
-        {
-            let data = self.memory_arena.slice_from_mut(kv.key_value_addr);
-            let key_bytes_len_bytes = unsafe { data.get_unchecked(..2) };
-            let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
-            let key_bytes: &mut [u8] =
-                unsafe { data.get_unchecked_mut(2..2 + key_bytes_len as usize) };
-
-            cb(key_bytes);
         }
     }
 
