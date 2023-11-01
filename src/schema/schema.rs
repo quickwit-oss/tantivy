@@ -278,6 +278,7 @@ fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
 
 impl Schema {
     /// Return the `FieldEntry` associated with a `Field`.
+    #[inline]
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
         &self.0.fields[field.field_id() as usize]
     }

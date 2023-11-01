@@ -1,6 +1,5 @@
 use columnar::MonotonicallyMappableToU64;
 use common::{replace_in_place, JsonPathWriter};
-use murmurhash32::murmurhash2;
 use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
@@ -58,13 +57,12 @@ struct IndexingPositionsPerPath {
 }
 
 impl IndexingPositionsPerPath {
-    fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
-        self.positions_per_path
-            .entry(murmurhash2(term.serialized_term()))
-            .or_default()
+    fn get_position_from_id(&mut self, id: u32) -> &mut IndexingPosition {
+        self.positions_per_path.entry(id).or_default()
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn index_json_values<'a, V: Value<'a>>(
     doc: DocId,
     json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
@@ -72,9 +70,11 @@ pub(crate) fn index_json_values<'a, V: Value<'a>>(
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
     postings_writer: &mut dyn PostingsWriter,
+    json_path_writer: &mut JsonPathWriter,
     ctx: &mut IndexingContext,
 ) -> crate::Result<()> {
-    let mut json_term_writer = JsonTermWriter::wrap(term_buffer, expand_dots_enabled);
+    json_path_writer.clear();
+    json_path_writer.set_expand_dots(expand_dots_enabled);
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
     for json_visitor_res in json_visitors {
         let json_visitor = json_visitor_res?;
@@ -82,7 +82,8 @@ pub(crate) fn index_json_values<'a, V: Value<'a>>(
             doc,
             json_visitor,
             text_analyzer,
-            &mut json_term_writer,
+            term_buffer,
+            json_path_writer,
             postings_writer,
             ctx,
             &mut positions_per_path,
@@ -91,75 +92,117 @@ pub(crate) fn index_json_values<'a, V: Value<'a>>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter,
+    term_buffer: &mut Term,
+    json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
     for (json_path_segment, json_value_visitor) in json_visitor {
-        json_term_writer.push_path_segment(json_path_segment);
+        json_path_writer.push(json_path_segment);
         index_json_value(
             doc,
             json_value_visitor,
             text_analyzer,
-            json_term_writer,
+            term_buffer,
+            json_path_writer,
             postings_writer,
             ctx,
             positions_per_path,
         );
-        json_term_writer.pop_path_segment();
+        json_path_writer.pop();
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter,
+    term_buffer: &mut Term,
+    json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
+    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+        term_buffer.truncate_value_bytes(0);
+        term_buffer.append_bytes(&unordered_id.to_be_bytes());
+    };
+    let set_type = |term_buffer: &mut Term, typ: Type| {
+        term_buffer.append_bytes(&[typ.to_code()]);
+    };
+
     match json_value.as_value() {
         ReferenceValue::Leaf(leaf) => match leaf {
             ReferenceValueLeaf::Null => {}
             ReferenceValueLeaf::Str(val) => {
                 let mut token_stream = text_analyzer.token_stream(val);
+                let unordered_id = ctx
+                    .path_to_unordered_id
+                    .get_or_allocate_unordered_id(json_path_writer.as_str());
 
                 // TODO: make sure the chain position works out.
-                json_term_writer.close_path_and_set_type(Type::Str);
-                let indexing_position = positions_per_path.get_position(json_term_writer.term());
+                set_path_id(term_buffer, unordered_id);
+                set_type(term_buffer, Type::Str);
+                let indexing_position = positions_per_path.get_position_from_id(unordered_id);
                 postings_writer.index_text(
                     doc,
                     &mut *token_stream,
-                    json_term_writer.term_buffer,
+                    term_buffer,
                     ctx,
                     indexing_position,
                 );
             }
             ReferenceValueLeaf::U64(val) => {
-                json_term_writer.set_fast_value(val);
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::I64(val) => {
-                json_term_writer.set_fast_value(val);
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::F64(val) => {
-                json_term_writer.set_fast_value(val);
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::Bool(val) => {
-                json_term_writer.set_fast_value(val);
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::Date(val) => {
-                json_term_writer.set_fast_value(val);
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::PreTokStr(_) => {
                 unimplemented!(
@@ -182,7 +225,8 @@ fn index_json_value<'a, V: Value<'a>>(
                     doc,
                     val,
                     text_analyzer,
-                    json_term_writer,
+                    term_buffer,
+                    json_path_writer,
                     postings_writer,
                     ctx,
                     positions_per_path,
@@ -194,7 +238,8 @@ fn index_json_value<'a, V: Value<'a>>(
                 doc,
                 object,
                 text_analyzer,
-                json_term_writer,
+                term_buffer,
+                json_path_writer,
                 postings_writer,
                 ctx,
                 positions_per_path,
@@ -361,6 +406,7 @@ impl<'a> JsonTermWriter<'a> {
         self.term_buffer.append_bytes(&[typ.to_code()]);
     }
 
+    // TODO: Remove this function and use JsonPathWriter instead.
     pub fn push_path_segment(&mut self, segment: &str) {
         // the path stack should never be empty.
         self.trim_to_end_of_path();

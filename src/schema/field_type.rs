@@ -93,6 +93,7 @@ impl Type {
     }
 
     /// Returns a 1 byte code used to identify the type.
+    #[inline]
     pub fn to_code(&self) -> u8 {
         *self as u8
     }
@@ -115,6 +116,7 @@ impl Type {
 
     /// Interprets a 1byte code as a type.
     /// Returns `None` if the code is invalid.
+    #[inline]
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             b's' => Some(Type::Str),

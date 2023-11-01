@@ -23,7 +23,7 @@ type HashType = u64;
 /// The `value_addr` also points to an address in the memory arena.
 #[derive(Copy, Clone)]
 struct KeyValue {
-    key_value_addr: Addr,
+    pub(crate) key_value_addr: Addr,
     hash: HashType,
 }
 
@@ -58,7 +58,7 @@ impl KeyValue {
 /// or copying the key as long as there is no insert.
 pub struct ArenaHashMap {
     table: Vec<KeyValue>,
-    memory_arena: MemoryArena,
+    pub memory_arena: MemoryArena,
     mask: usize,
     len: usize,
 }
