@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::directory::error::Incompatibility;
 use crate::directory::{AntiCallToken, FileSlice, TerminatingWrite};
-use crate::{Version, INDEX_FORMAT_VERSION};
+use crate::{Version, INDEX_FORMAT_OLDEST_SUPPORTED_VERSION, INDEX_FORMAT_VERSION};
 
 const FOOTER_MAX_LEN: u32 = 50_000;
 
@@ -103,7 +103,7 @@ impl Footer {
     /// Has to be called after `extract_footer` to make sure it's not accessing uninitialised memory
     pub fn is_compatible(&self) -> Result<(), Incompatibility> {
         let library_version = crate::version();
-        if self.version.index_format_version < 4
+        if self.version.index_format_version < INDEX_FORMAT_OLDEST_SUPPORTED_VERSION
             || self.version.index_format_version > INDEX_FORMAT_VERSION
         {
             return Err(Incompatibility::IndexMismatch {
