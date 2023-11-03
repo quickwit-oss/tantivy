@@ -164,7 +164,7 @@ fn main() -> tantivy::Result<()> {
     // will reload the index automatically after each commit.
     let reader = index
         .reader_builder()
-        .reload_policy(ReloadPolicy::OnCommit)
+        .reload_policy(ReloadPolicy::OnCommitWithDelay)
         .try_into()?;
 
     // We now need to acquire a searcher.

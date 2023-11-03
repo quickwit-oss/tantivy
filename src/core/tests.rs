@@ -121,7 +121,7 @@ fn test_index_on_commit_reload_policy() -> crate::Result<()> {
     let index = Index::create_in_ram(schema);
     let reader = index
         .reader_builder()
-        .reload_policy(ReloadPolicy::OnCommit)
+        .reload_policy(ReloadPolicy::OnCommitWithDelay)
         .try_into()
         .unwrap();
     assert_eq!(reader.searcher().num_docs(), 0);
@@ -147,7 +147,7 @@ mod mmap_specific {
         let index = Index::create_in_dir(tempdir_path, schema).unwrap();
         let reader = index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
@@ -189,7 +189,7 @@ mod mmap_specific {
         let read_index = Index::open_in_dir(&tempdir_path).unwrap();
         let reader = read_index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
