@@ -9,7 +9,7 @@ mod byte_count;
 mod datetime;
 pub mod file_slice;
 mod group_by;
-mod json_path_writer;
+pub mod json_path_writer;
 mod serialize;
 mod vint;
 mod writer;

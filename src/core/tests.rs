@@ -1,9 +1,9 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
 use crate::indexer::{LogMergePolicy, NoMergePolicy};
-use crate::json_utils::JsonTermWriter;
+use crate::json_utils::term_from_json_paths;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, Type, INDEXED, STRING, TEXT};
+use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
     Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, Postings,
@@ -416,14 +416,13 @@ fn test_non_text_json_term_freq() {
     let searcher = reader.searcher();
     let segment_reader = searcher.segment_reader(0u32);
     let inv_idx = segment_reader.inverted_index(field).unwrap();
-    let mut term = Term::with_type_and_field(Type::Json, field);
-    let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
-    json_term_writer.push_path_segment("tenant_id");
-    json_term_writer.close_path_and_set_type(Type::U64);
-    json_term_writer.set_fast_value(75u64);
+
+    let mut term = term_from_json_paths(field, ["tenant_id"].iter().cloned(), false);
+    term.append_type_and_fast_value(75u64);
+
     let postings = inv_idx
         .read_postings(
-            json_term_writer.term(),
+            &json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
@@ -454,14 +453,13 @@ fn test_non_text_json_term_freq_bitpacked() {
     let searcher = reader.searcher();
     let segment_reader = searcher.segment_reader(0u32);
     let inv_idx = segment_reader.inverted_index(field).unwrap();
-    let mut term = Term::with_type_and_field(Type::Json, field);
-    let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
-    json_term_writer.push_path_segment("tenant_id");
-    json_term_writer.close_path_and_set_type(Type::U64);
-    json_term_writer.set_fast_value(75u64);
+
+    let mut term = term_from_json_paths(field, ["tenant_id"].iter().cloned(), false);
+    term.append_type_and_fast_value(75u64);
+
     let mut postings = inv_idx
         .read_postings(
-            json_term_writer.term(),
+            &json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
