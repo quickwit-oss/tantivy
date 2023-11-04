@@ -11,9 +11,9 @@ use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAcce
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
+    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
-    SumAggregation, ExtendedStatsAggregation,
+    SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
 
@@ -150,15 +150,17 @@ pub(crate) fn build_single_agg_segment_collector(
             SegmentStatsType::Stats,
             accessor_idx,
             *missing,
-            None, 
+            None,
         ))),
-        ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
-            SegmentStatsType::Stats,
-            accessor_idx,
-            *missing,
-            *sigma,
-        ))),        
+        ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => {
+            Ok(Box::new(SegmentStatsCollector::from_req(
+                req.field_type,
+                SegmentStatsType::ExtendedStats,
+                accessor_idx,
+                *missing,
+                *sigma,
+            )))
+        }
         Sum(SumAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Sum,

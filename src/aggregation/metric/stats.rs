@@ -51,6 +51,19 @@ impl StatsAggregation {
     }
 }
 
+/// A multi-value metric aggregation that computes a collection of extended statistics
+/// on numeric values that are extracted
+/// from the aggregated documents.
+/// See [`ExtendedStats`] for returned statistics.
+///
+/// # JSON Format
+/// ```json
+/// {
+///     "extended_stats": {
+///         "field": "score"
+///     }
+///  }
+/// ```
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExtendedStatsAggregation {
@@ -84,7 +97,6 @@ impl ExtendedStatsAggregation {
         &self.field
     }
 }
-
 
 /// Stats contains a collection of statistics.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -135,15 +147,19 @@ pub struct ExtendedStats {
     pub sum_of_squares: Option<f64>,
     /// The variance of the fast field values. `None` if count is less then 2.
     pub variance: Option<f64>,
-    /// The variance population of the fast field values, always equal to variance. `None` if count is less then 2.
+    /// The variance population of the fast field values, always equal to variance. `None` if count
+    /// is less then 2.
     pub variance_population: Option<f64>,
-    /// The variance sampling of the fast field values, always equal to variance. `None` if count is less then 2.
+    /// The variance sampling of the fast field values, always equal to variance. `None` if count
+    /// is less then 2.
     pub variance_sampling: Option<f64>,
-     /// The standard deviation of the fast field values. `None` if count is less then 2.
+    /// The standard deviation of the fast field values. `None` if count is less then 2.
     pub standard_deviation: Option<f64>,
-    /// The standard deviation of the fast field values, always equal to variance. `None` if count is less then 2.
+    /// The standard deviation of the fast field values, always equal to variance. `None` if count
+    /// is less then 2.
     pub standard_deviation_population: Option<f64>,
-    /// The standard deviation sampling of the fast field values, always equal to variance. `None` if count is less then 2.
+    /// The standard deviation sampling of the fast field values, always equal to variance. `None`
+    /// if count is less then 2.
     pub standard_deviation_sampling: Option<f64>,
 }
 
@@ -166,79 +182,75 @@ impl ExtendedStats {
                 "Unknown property {agg_property} on stats metric aggregation"
             ))),
         }
-    }    
-}
-
-
-
-/* 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateStats {
-    /// The number of extracted values.
-    count: u64,
-    /// The sum of the extracted values.
-    sum: f64,
-    /// The min value.
-    min: f64,
-    /// The max value.
-    max: f64,
-}
-
-impl Default for IntermediateStats {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            sum: 0.0,
-            min: f64::MAX,
-            max: f64::MIN,
-        }
     }
 }
 
-impl IntermediateStats {
-    /// Merges the other stats intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateStats) {
-        self.count += other.count;
-        self.sum += other.sum;
-        self.min = self.min.min(other.min);
-        self.max = self.max.max(other.max);
-    }
-
-    /// Computes the final stats value.
-    pub fn finalize(&self) -> Stats {
-        let min = if self.count == 0 {
-            None
-        } else {
-            Some(self.min)
-        };
-        let max = if self.count == 0 {
-            None
-        } else {
-            Some(self.max)
-        };
-        let avg = if self.count == 0 {
-            None
-        } else {
-            Some(self.sum / (self.count as f64))
-        };
-        Stats {
-            count: self.count,
-            sum: self.sum,
-            min,
-            max,
-            avg,
-        }
-    }
-
-    #[inline]
-    fn collect(&mut self, value: f64) {
-        self.count += 1;
-        self.sum += value;
-        self.min = self.min.min(value);
-        self.max = self.max.max(value);
-    }
-}
-*/
+// #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+// pub struct IntermediateStats {
+// The number of extracted values.
+// count: u64,
+// The sum of the extracted values.
+// sum: f64,
+// The min value.
+// min: f64,
+// The max value.
+// max: f64,
+// }
+//
+// impl Default for IntermediateStats {
+// fn default() -> Self {
+// Self {
+// count: 0,
+// sum: 0.0,
+// min: f64::MAX,
+// max: f64::MIN,
+// }
+// }
+// }
+//
+// impl IntermediateStats {
+// Merges the other stats intermediate result into self.
+// pub fn merge_fruits(&mut self, other: IntermediateStats) {
+// self.count += other.count;
+// self.sum += other.sum;
+// self.min = self.min.min(other.min);
+// self.max = self.max.max(other.max);
+// }
+//
+// Computes the final stats value.
+// pub fn finalize(&self) -> Stats {
+// let min = if self.count == 0 {
+// None
+// } else {
+// Some(self.min)
+// };
+// let max = if self.count == 0 {
+// None
+// } else {
+// Some(self.max)
+// };
+// let avg = if self.count == 0 {
+// None
+// } else {
+// Some(self.sum / (self.count as f64))
+// };
+// Stats {
+// count: self.count,
+// sum: self.sum,
+// min,
+// max,
+// avg,
+// }
+// }
+//
+// #[inline]
+// fn collect(&mut self, value: f64) {
+// self.count += 1;
+// self.sum += value;
+// self.min = self.min.min(value);
+// self.max = self.max.max(value);
+// }
+// }
 /// Intermediate result of the stats aggregation that can be combined with other intermediate
 /// results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -247,7 +259,6 @@ pub struct IntermediateStats {
 }
 
 impl IntermediateStats {
-
     pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
         Self {
             stats: collector.stats,
@@ -261,7 +272,7 @@ impl IntermediateStats {
 
     /// Computes the final stats value.
     pub fn finalize(&self) -> Stats {
-        let extended_stats=self.stats.finalize();
+        let extended_stats = self.stats.finalize();
         Stats {
             count: extended_stats.count,
             sum: extended_stats.sum,
@@ -270,12 +281,10 @@ impl IntermediateStats {
             avg: extended_stats.avg,
         }
     }
-
-   
 }
 
-/// Intermediate result of the extended stats aggregation that can be combined with other intermediate
-/// results.
+/// Intermediate result of the extended stats aggregation that can be combined with other
+/// intermediate results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateExtendedStats {
     /// The number of extracted values.
@@ -288,7 +297,7 @@ pub struct IntermediateExtendedStats {
     max: f64,
     // The sum of the square values it's referred as M2 in Welford's online algorithm
     sum_of_squares: f64,
-    // The mean an intermediate value need for calculating the variance 
+    // The mean an intermediate value need for calculating the variance
     // as per [Welford's online algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm)
     mean: f64,
     // the value used for computing standard deviation bounds
@@ -310,7 +319,8 @@ impl Default for IntermediateExtendedStats {
 }
 
 impl IntermediateExtendedStats {
-
+    /// Creates a new IntermediateExtendedStats using an option
+    /// containing the sigma to be used for calculating bound values.
     pub fn with_sigma(sigma: Option<f64>) -> Self {
         Self {
             count: 0,
@@ -320,38 +330,33 @@ impl IntermediateExtendedStats {
             sum_of_squares: 0.0,
             mean: 0.0,
             sigma: sigma.unwrap_or(2.0),
-        } 
+        }
     }
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateExtendedStats) {
-       
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
-        
 
-        if other.count!=0 {
-            if self.count==0 {
-                self.sum_of_squares=other.sum_of_squares;
-                self.count=other.count;
-                self.mean=other.mean;
+        if other.count != 0 {
+            if self.count == 0 {
+                self.sum_of_squares = other.sum_of_squares;
+                self.count = other.count;
+                self.mean = other.mean;
             } else {
-                // parallel version of Welford's online algorithm 
+                // parallel version of Welford's online algorithm
                 // the mean is computed using sum and count because
                 // it's more precise (and sum is already available)
-                let new_count=self.count+other.count;
-                let delta = other.sum/other.count as f64 - self.sum/self.count as f64;
-                self.sum_of_squares += other.sum_of_squares + delta * delta * self.count as f64 * other.count as f64/new_count as f64;
-                self.count =new_count;
-                //self.mean=self.mean + delta*other.count as f64/new_count as f64;
-                self.mean=(self.sum as f64 + other.sum as f64)/new_count as f64;
-                
+                let new_count = self.count + other.count;
+                let delta = other.sum / other.count as f64 - self.sum / self.count as f64;
+                self.sum_of_squares += other.sum_of_squares
+                    + delta * delta * self.count as f64 * other.count as f64 / new_count as f64;
+                self.count = new_count;
+                // self.mean=self.mean + delta*other.count as f64/new_count as f64;
+                self.mean = (self.sum as f64 + other.sum as f64) / new_count as f64;
             }
             self.sum += other.sum;
         }
-        
     }
-
-    
 
     /// Computes the final stats value.
     pub fn finalize(&self) -> ExtendedStats {
@@ -378,12 +383,12 @@ impl IntermediateExtendedStats {
         let variance = if self.count <= 1 {
             None
         } else {
-            Some(self.sum_of_squares/self.count as f64)
+            Some(self.sum_of_squares / self.count as f64)
         };
         let variance_sampling = if self.count <= 1 {
             None
         } else {
-            Some(self.sum_of_squares/(self.count-1) as f64)
+            Some(self.sum_of_squares / (self.count - 1) as f64)
         };
         let standard_deviation = variance.map(|v| v.sqrt());
         let standard_deviation_sampling = variance_sampling.map(|v| v.sqrt());
@@ -400,7 +405,7 @@ impl IntermediateExtendedStats {
             variance_sampling,
             standard_deviation,
             standard_deviation_population: standard_deviation,
-            standard_deviation_sampling
+            standard_deviation_sampling,
         }
     }
 
@@ -414,12 +419,12 @@ impl IntermediateExtendedStats {
 
     fn update_variance(&mut self, value: f64) {
         let delta = value - self.mean;
-        //this is not what the Welford's online algorithm prescribes but 
-        //using the pseudo code from wikipedia there was a small rounding 
-        //error (in 15th decimal place) that caused a test 
+        // this is not what the Welford's online algorithm prescribes but
+        // using the pseudo code from wikipedia there was a small rounding
+        // error (in 15th decimal place) that caused a test
         //(test_aggregation_level1 in agg_test.rs)
-        //failure
-        self.mean = self.sum / self.count  as f64;
+        // failure
+        self.mean = self.sum / self.count as f64;
         let delta2 = value - self.mean;
         self.sum_of_squares += delta * delta2;
     }
@@ -432,6 +437,7 @@ pub(crate) enum SegmentStatsType {
     Max,
     Min,
     Stats,
+    ExtendedStats,
     Sum,
 }
 
@@ -514,11 +520,11 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
             SegmentStatsType::Stats => {
                 IntermediateMetricResult::Stats(IntermediateStats::from_collector(*self))
             }
+            SegmentStatsType::ExtendedStats => IntermediateMetricResult::ExtendedStats(self.stats),
             SegmentStatsType::Sum => {
                 IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
             }
         };
-
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_metric_result),
@@ -567,7 +573,6 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -575,6 +580,7 @@ mod tests {
 
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
     use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::metric::IntermediateExtendedStats;
     use crate::aggregation::tests::{
         exec_request_with_query, get_test_index_2_segments, get_test_index_from_values,
     };
@@ -582,8 +588,6 @@ mod tests {
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, FAST};
     use crate::{Index, IndexWriter, Term};
-
-    use crate::aggregation::metric::IntermediateExtendedStats;
 
     #[test]
     fn test_aggregation_stats_empty_index() -> crate::Result<()> {
@@ -926,11 +930,54 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_aggregation_extended_stats_simple() -> crate::Result<()> {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let values = vec![10.0, 20.0];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "my_stats": {
+                "extended_stats": {
+                    "field": "score",
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg": 15.0,
+                "count": 2,
+                "max": 20.0,
+                "min": 10.0,
+                "sum": 30.0,
+                "standard_deviation": 5.0,
+                "standard_deviation_population": 5.0,
+                "standard_deviation_sampling": 7.0710678118654755,
+                "sum_of_squares": 50.0,
+                "variance": 25.0,
+                "variance_population": 25.0,
+                "variance_sampling": 50.0,
+            })
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn extended_stat_zero_value() {
-        let intermediate_extend_stats= IntermediateExtendedStats::default();
-        let extended_stats=intermediate_extend_stats.finalize();
+        let intermediate_extend_stats = IntermediateExtendedStats::default();
+        let extended_stats = intermediate_extend_stats.finalize();
         assert!(extended_stats.variance.is_none());
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
@@ -942,176 +989,172 @@ mod tests {
 
     #[test]
     fn extended_stat_one_value() {
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
-        let extended_stats=intermediate_extend_stats.finalize();
+        let extended_stats = intermediate_extend_stats.finalize();
         assert!(extended_stats.variance.is_none());
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
         assert!(extended_stats.standard_deviation.is_none());
         assert!(extended_stats.standard_deviation_population.is_none());
         assert!(extended_stats.standard_deviation_sampling.is_none());
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(0.0f64,sum_of_squares);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(0.0f64, sum_of_squares);
     }
 
     #[test]
     fn extended_stat_multiple_values() {
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
         intermediate_extend_stats.collect(2.0f64);
         intermediate_extend_stats.collect(3.0f64);
         intermediate_extend_stats.collect(4.0f64);
         intermediate_extend_stats.collect(5.0f64);
-        let extended_stats=intermediate_extend_stats.finalize();
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(2.0f64,variance);
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(2.0f64,variance_population);
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(2.5f64,variance_sampling);
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation);
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation_population);
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(),standard_deviation_sampling);
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(10f64,sum_of_squares);
-        let avg=extended_stats.avg.unwrap();
-        assert_eq!(3.0f64,avg);
+        let extended_stats = intermediate_extend_stats.finalize();
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(2.0f64, variance);
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(2.0f64, variance_population);
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(2.5f64, variance_sampling);
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation);
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(10f64, sum_of_squares);
+        let avg = extended_stats.avg.unwrap();
+        assert_eq!(3.0f64, avg);
 
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
         intermediate_extend_stats.collect(3.0f64);
         intermediate_extend_stats.collect(4.0f64);
         intermediate_extend_stats.collect(5.0f64);
         intermediate_extend_stats.collect(8.0f64);
         intermediate_extend_stats.collect(10.0f64);
-        let extended_stats=intermediate_extend_stats.finalize();
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(9.138888888888888f64,variance);
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(9.138888888888888f64,variance_population);
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(10.966666666666665f64,variance_sampling);
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(),standard_deviation);
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(),standard_deviation_population);
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(10.966666666666665f64.sqrt(),standard_deviation_sampling);
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(54.83333333333333f64,sum_of_squares);
-        let avg=extended_stats.avg.unwrap();
-        assert_eq!(5.166666666666667,avg);
-    }    
+        let extended_stats = intermediate_extend_stats.finalize();
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(9.138888888888888f64, variance);
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(9.138888888888888f64, variance_population);
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(10.966666666666665f64, variance_sampling);
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation);
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation_population);
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(10.966666666666665f64.sqrt(), standard_deviation_sampling);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(54.83333333333333f64, sum_of_squares);
+        let avg = extended_stats.avg.unwrap();
+        assert_eq!(5.166666666666667, avg);
+    }
 
     #[test]
     fn merge_empty_with_one_value() {
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
-        let mut intermediate_extend_stats1= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats1 = IntermediateExtendedStats::default();
         intermediate_extend_stats1.collect(1.0f64);
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
-        let extended_stats=intermediate_extend_stats.finalize();
+        let extended_stats = intermediate_extend_stats.finalize();
         assert!(extended_stats.variance.is_none());
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
         assert!(extended_stats.standard_deviation.is_none());
         assert!(extended_stats.standard_deviation_population.is_none());
         assert!(extended_stats.standard_deviation_sampling.is_none());
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(0.0f64,sum_of_squares);
-    } 
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(0.0f64, sum_of_squares);
+    }
 
     #[test]
     fn merge_empty_with_multiple_values() {
-        
-        let mut intermediate_extend_stats1= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats1 = IntermediateExtendedStats::default();
         intermediate_extend_stats1.collect(1.0f64);
         intermediate_extend_stats1.collect(2.0f64);
         intermediate_extend_stats1.collect(3.0f64);
         intermediate_extend_stats1.collect(4.0f64);
         intermediate_extend_stats1.collect(5.0f64);
 
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
-        let extended_stats=intermediate_extend_stats.finalize();
+        let extended_stats = intermediate_extend_stats.finalize();
 
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(2.0f64,variance);
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(2.0f64,variance_population);
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(2.5f64,variance_sampling);
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation);
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation_population);
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(),standard_deviation_sampling);
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(10f64,sum_of_squares);
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(2.0f64, variance);
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(2.0f64, variance_population);
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(2.5f64, variance_sampling);
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation);
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(10f64, sum_of_squares);
     }
 
     #[test]
     fn merge_non_empty_extended_stats() {
-        
-        let mut intermediate_extend_stats1= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats1 = IntermediateExtendedStats::default();
         intermediate_extend_stats1.collect(3.0f64);
         intermediate_extend_stats1.collect(4.0f64);
         intermediate_extend_stats1.collect(5.0f64);
 
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
         intermediate_extend_stats.collect(2.0f64);
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
-        let extended_stats=intermediate_extend_stats.finalize();
+        let extended_stats = intermediate_extend_stats.finalize();
 
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(2.0f64,variance);
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(2.0f64,variance_population);
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(2.5f64,variance_sampling);
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation);
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(),standard_deviation_population);
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(),standard_deviation_sampling);
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(10f64,sum_of_squares);
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(2.0f64, variance);
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(2.0f64, variance_population);
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(2.5f64, variance_sampling);
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation);
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(10f64, sum_of_squares);
 
-
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
         intermediate_extend_stats.collect(3.0f64);
         intermediate_extend_stats.collect(4.0f64);
-        let mut intermediate_extend_stats1= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats1 = IntermediateExtendedStats::default();
         intermediate_extend_stats1.collect(5.0f64);
         intermediate_extend_stats1.collect(8.0f64);
         intermediate_extend_stats1.collect(10.0f64);
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
-        let extended_stats=intermediate_extend_stats.finalize();
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(9.138888888888888f64,variance);
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(9.138888888888888f64,variance_population);
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(10.966666666666665f64,variance_sampling);
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(),standard_deviation);
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(),standard_deviation_population);
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(10.966666666666665f64.sqrt(),standard_deviation_sampling);
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(54.83333333333333f64,sum_of_squares);    
-        let avg=extended_stats.avg.unwrap();
-        assert_eq!(5.166666666666667,avg);    
+        let extended_stats = intermediate_extend_stats.finalize();
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(9.138888888888888f64, variance);
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(9.138888888888888f64, variance_population);
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(10.966666666666665f64, variance_sampling);
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation);
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation_population);
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(10.966666666666665f64.sqrt(), standard_deviation_sampling);
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(54.83333333333333f64, sum_of_squares);
+        let avg = extended_stats.avg.unwrap();
+        assert_eq!(5.166666666666667, avg);
     }
-
 
     fn round_f64(value: f64, digits: u32) -> f64 {
         let y = 10u64.pow(digits) as f64;
@@ -1121,38 +1164,55 @@ mod tests {
     #[test]
     fn test_round() {
         assert_eq!(round_f64(4.365, 2), 4.37);
-        assert_eq!(round_f64(9.138888888888888,12),9.138888888889);
+        assert_eq!(round_f64(9.138888888888888, 12), 9.138888888889);
     }
 
     #[test]
     fn merge_and_then_collect_non_empty_extended_stats() {
-    
-        let mut intermediate_extend_stats= IntermediateExtendedStats::default();
+        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
         intermediate_extend_stats.collect(3.0f64);
-        
-        let mut intermediate_extend_stats1= IntermediateExtendedStats::default();
+
+        let mut intermediate_extend_stats1 = IntermediateExtendedStats::default();
         intermediate_extend_stats1.collect(5.0f64);
         intermediate_extend_stats1.collect(8.0f64);
         intermediate_extend_stats1.collect(10.0f64);
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
         intermediate_extend_stats.collect(4.0f64);
-        let extended_stats=intermediate_extend_stats.finalize();
-        let variance=extended_stats.variance.unwrap();
-        assert_eq!(round_f64(9.138888888888888,12),round_f64(variance,12));
-        let variance_population=extended_stats.variance_population.unwrap();
-        assert_eq!(round_f64(9.138888888888888,12),round_f64(variance_population,12));
-        let variance_sampling=extended_stats.variance_sampling.unwrap();
-        assert_eq!(round_f64(10.966666666666665,12),round_f64(variance_sampling,12));
-        let standard_deviation=extended_stats.standard_deviation.unwrap();
-        assert_eq!(round_f64(9.138888888888888_f64.sqrt(),12),round_f64(standard_deviation,12));
-        let standard_deviation_population=extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(round_f64(9.138888888888888_f64.sqrt(),12),round_f64(standard_deviation_population,12));
-        let standard_deviation_sampling=extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(round_f64(10.966666666666665_f64.sqrt(),12),round_f64(standard_deviation_sampling,12));
-        let sum_of_squares=extended_stats.sum_of_squares.unwrap();
-        assert_eq!(round_f64(54.83333333333333f64,12),round_f64(sum_of_squares,12));  
-        let avg=extended_stats.avg.unwrap();
-        assert_eq!(5.166666666666667,avg);      
-    }                
+        let extended_stats = intermediate_extend_stats.finalize();
+        let variance = extended_stats.variance.unwrap();
+        assert_eq!(round_f64(9.138888888888888, 12), round_f64(variance, 12));
+        let variance_population = extended_stats.variance_population.unwrap();
+        assert_eq!(
+            round_f64(9.138888888888888, 12),
+            round_f64(variance_population, 12)
+        );
+        let variance_sampling = extended_stats.variance_sampling.unwrap();
+        assert_eq!(
+            round_f64(10.966666666666665, 12),
+            round_f64(variance_sampling, 12)
+        );
+        let standard_deviation = extended_stats.standard_deviation.unwrap();
+        assert_eq!(
+            round_f64(9.138888888888888_f64.sqrt(), 12),
+            round_f64(standard_deviation, 12)
+        );
+        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
+        assert_eq!(
+            round_f64(9.138888888888888_f64.sqrt(), 12),
+            round_f64(standard_deviation_population, 12)
+        );
+        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
+        assert_eq!(
+            round_f64(10.966666666666665_f64.sqrt(), 12),
+            round_f64(standard_deviation_sampling, 12)
+        );
+        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
+        assert_eq!(
+            round_f64(54.83333333333333f64, 12),
+            round_f64(sum_of_squares, 12)
+        );
+        let avg = extended_stats.avg.unwrap();
+        assert_eq!(5.166666666666667, avg);
+    }
 }

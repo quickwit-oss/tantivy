@@ -8,8 +8,8 @@ use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
-    SumAggregation, ExtendedStatsAggregation, 
+    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
+    StatsAggregation, SumAggregation,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
