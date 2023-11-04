@@ -44,7 +44,7 @@ thiserror = "1.0.30"
 htmlescape = "0.3.1"
 fail = { version = "0.5.0", optional = true }
 murmurhash32 = "0.3.0"
-time = { version = "0.3.10", features = ["serde-well-known", "macros"] }
+time = { version = "0.3.10", features = ["serde-well-known"] }
 smallvec = "1.8.0"
 rayon = "1.5.2"
 lru = "0.12.0"
@@ -80,6 +80,7 @@ futures = "0.3.21"
 paste = "1.0.11"
 more-asserts = "0.3.1"
 rand_distr = "0.4.3"
+time = { version = "0.3.10", features = ["serde-well-known", "macros"] }
 
 [target.'cfg(not(windows))'.dev-dependencies]
 criterion = "0.5"
