@@ -35,7 +35,7 @@ use super::bucket::{
 };
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
-    PercentilesAggregationReq, StatsAggregation, SumAggregation,
+    PercentilesAggregationReq, StatsAggregation, SumAggregation, ExtendedStatsAggregation
 };
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -141,6 +141,11 @@ pub enum AggregationVariants {
     /// extracted values.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
+    /// Computes a collection of estended statistics (`min`, `max`, `sum`, `count`, `avg`, 
+    /// `sum_of_squares`, `variance`, `variance_sampling`, `std_deviation`, 
+    /// `std_deviation_sampling`) over the  extracted values.
+    #[serde(rename = "extended_stats")]
+    ExtendedStats(ExtendedStatsAggregation),    
     /// Computes the sum of the extracted values.
     #[serde(rename = "sum")]
     Sum(SumAggregation),
@@ -162,6 +167,7 @@ impl AggregationVariants {
             AggregationVariants::Max(max) => max.field_name(),
             AggregationVariants::Min(min) => min.field_name(),
             AggregationVariants::Stats(stats) => stats.field_name(),
+            AggregationVariants::ExtendedStats(extended_stats) => extended_stats.field_name(),
             AggregationVariants::Sum(sum) => sum.field_name(),
             AggregationVariants::Percentiles(per) => per.field_name(),
         }

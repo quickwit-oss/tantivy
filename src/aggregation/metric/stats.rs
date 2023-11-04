@@ -51,6 +51,41 @@ impl StatsAggregation {
     }
 }
 
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExtendedStatsAggregation {
+    /// The field name to compute the stats on.
+    pub field: String,
+    /// The missing parameter defines how documents that are missing a value should be treated.
+    /// By default they will be ignored but it is also possible to treat them as if they had a
+    /// value. Examples in JSON format:
+    /// { "field": "my_numbers", "missing": "10.0" }
+    #[serde(default)]
+    pub missing: Option<f64>,
+    /// The sigma parameter defines how standard_deviation_bound_are_calculated.
+    /// This can be a useful way to visualize variance of your data.
+    /// The default value is 2. Examples in JSON format:
+    /// { "field": "my_numbers", "sigma": "3.0" }
+    #[serde(default)]
+    pub sigma: Option<f64>,
+}
+
+impl ExtendedStatsAggregation {
+    /// Creates a new [`ExtendedStatsAggregation`] instance from a field name.
+    pub fn from_field_name(field_name: String) -> Self {
+        ExtendedStatsAggregation {
+            field: field_name,
+            missing: None,
+            sigma: None,
+        }
+    }
+    /// Returns the field name the aggregation is computed on.
+    pub fn field_name(&self) -> &str {
+        &self.field
+    }
+}
+
+
 /// Stats contains a collection of statistics.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Stats {
@@ -80,6 +115,60 @@ impl Stats {
         }
     }
 }
+
+/// Extended stats contains a collection of statistics
+/// they extends stats adding variance, standard deviation
+/// and bound informations
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExtendedStats {
+    /// The number of documents.
+    pub count: u64,
+    /// The sum of the fast field values.
+    pub sum: f64,
+    /// The min value of the fast field values.
+    pub min: Option<f64>,
+    /// The max value of the fast field values.
+    pub max: Option<f64>,
+    /// The average of the fast field values. `None` if count equals zero.
+    pub avg: Option<f64>,
+    /// The sum of squares of the fast field values. `None` if count equals zero.
+    pub sum_of_squares: Option<f64>,
+    /// The variance of the fast field values. `None` if count is less then 2.
+    pub variance: Option<f64>,
+    /// The variance population of the fast field values, always equal to variance. `None` if count is less then 2.
+    pub variance_population: Option<f64>,
+    /// The variance sampling of the fast field values, always equal to variance. `None` if count is less then 2.
+    pub variance_sampling: Option<f64>,
+     /// The standard deviation of the fast field values. `None` if count is less then 2.
+    pub standard_deviation: Option<f64>,
+    /// The standard deviation of the fast field values, always equal to variance. `None` if count is less then 2.
+    pub standard_deviation_population: Option<f64>,
+    /// The standard deviation sampling of the fast field values, always equal to variance. `None` if count is less then 2.
+    pub standard_deviation_sampling: Option<f64>,
+}
+
+impl ExtendedStats {
+    pub(crate) fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
+        match agg_property {
+            "count" => Ok(Some(self.count as f64)),
+            "sum" => Ok(Some(self.sum)),
+            "min" => Ok(self.min),
+            "max" => Ok(self.max),
+            "avg" => Ok(self.avg),
+            "variance" => Ok(self.variance),
+            "variance_sampling" => Ok(self.variance_sampling),
+            "variance_population" => Ok(self.variance_population),
+            "sum_of_squares" => Ok(self.sum_of_squares),
+            "standard_deviation" => Ok(self.standard_deviation),
+            "standard_deviation_sampling" => Ok(self.standard_deviation_sampling),
+            "standard_deviation_population" => Ok(self.standard_deviation_population),
+            _ => Err(TantivyError::InvalidArgument(format!(
+                "Unknown property {agg_property} on stats metric aggregation"
+            ))),
+        }
+    }    
+}
+
 
 
 /* 
@@ -185,6 +274,157 @@ impl IntermediateStats {
    
 }
 
+/// Intermediate result of the extended stats aggregation that can be combined with other intermediate
+/// results.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateExtendedStats {
+    /// The number of extracted values.
+    count: u64,
+    /// The sum of the extracted values.
+    sum: f64,
+    /// The min value.
+    min: f64,
+    /// The max value.
+    max: f64,
+    // The sum of the square values it's referred as M2 in Welford's online algorithm
+    sum_of_squares: f64,
+    // The mean an intermediate value need for calculating the variance 
+    // as per [Welford's online algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm)
+    mean: f64,
+    // the value used for computing standard deviation bounds
+    sigma: f64,
+}
+
+impl Default for IntermediateExtendedStats {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            sum: 0.0,
+            min: f64::MAX,
+            max: f64::MIN,
+            sum_of_squares: 0.0,
+            mean: 0.0,
+            sigma: 2.0,
+        }
+    }
+}
+
+impl IntermediateExtendedStats {
+
+    pub fn with_sigma(sigma: Option<f64>) -> Self {
+        Self {
+            count: 0,
+            sum: 0.0,
+            min: f64::MAX,
+            max: f64::MIN,
+            sum_of_squares: 0.0,
+            mean: 0.0,
+            sigma: sigma.unwrap_or(2.0),
+        } 
+    }
+    /// Merges the other stats intermediate result into self.
+    pub fn merge_fruits(&mut self, other: IntermediateExtendedStats) {
+       
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+        
+
+        if other.count!=0 {
+            if self.count==0 {
+                self.sum_of_squares=other.sum_of_squares;
+                self.count=other.count;
+                self.mean=other.mean;
+            } else {
+                // parallel version of Welford's online algorithm 
+                // the mean is computed using sum and count because
+                // it's more precise (and sum is already available)
+                let new_count=self.count+other.count;
+                let delta = other.sum/other.count as f64 - self.sum/self.count as f64;
+                self.sum_of_squares += other.sum_of_squares + delta * delta * self.count as f64 * other.count as f64/new_count as f64;
+                self.count =new_count;
+                //self.mean=self.mean + delta*other.count as f64/new_count as f64;
+                self.mean=(self.sum as f64 + other.sum as f64)/new_count as f64;
+                
+            }
+            self.sum += other.sum;
+        }
+        
+    }
+
+    
+
+    /// Computes the final stats value.
+    pub fn finalize(&self) -> ExtendedStats {
+        let min = if self.count == 0 {
+            None
+        } else {
+            Some(self.min)
+        };
+        let max = if self.count == 0 {
+            None
+        } else {
+            Some(self.max)
+        };
+        let avg = if self.count == 0 {
+            None
+        } else {
+            Some(self.mean)
+        };
+        let sum_of_squares = if self.count == 0 {
+            None
+        } else {
+            Some(self.sum_of_squares)
+        };
+        let variance = if self.count <= 1 {
+            None
+        } else {
+            Some(self.sum_of_squares/self.count as f64)
+        };
+        let variance_sampling = if self.count <= 1 {
+            None
+        } else {
+            Some(self.sum_of_squares/(self.count-1) as f64)
+        };
+        let standard_deviation = variance.map(|v| v.sqrt());
+        let standard_deviation_sampling = variance_sampling.map(|v| v.sqrt());
+
+        ExtendedStats {
+            count: self.count,
+            sum: self.sum,
+            min,
+            max,
+            avg,
+            sum_of_squares,
+            variance,
+            variance_population: variance,
+            variance_sampling,
+            standard_deviation,
+            standard_deviation_population: standard_deviation,
+            standard_deviation_sampling
+        }
+    }
+
+    fn collect(&mut self, value: f64) {
+        self.count += 1;
+        self.sum += value;
+        self.min = self.min.min(value);
+        self.max = self.max.max(value);
+        self.update_variance(value);
+    }
+
+    fn update_variance(&mut self, value: f64) {
+        let delta = value - self.mean;
+        //this is not what the Welford's online algorithm prescribes but 
+        //using the pseudo code from wikipedia there was a small rounding 
+        //error (in 15th decimal place) that caused a test 
+        //(test_aggregation_level1 in agg_test.rs)
+        //failure
+        self.mean = self.sum / self.count  as f64;
+        let delta2 = value - self.mean;
+        self.sum_of_squares += delta * delta2;
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentStatsType {
     Average,
@@ -198,6 +438,7 @@ pub(crate) enum SegmentStatsType {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentStatsCollector {
     missing: Option<u64>,
+    sigma: Option<f64>,
     field_type: ColumnType,
     pub(crate) collecting_for: SegmentStatsType,
     pub(crate) stats: IntermediateExtendedStats,
@@ -211,14 +452,16 @@ impl SegmentStatsCollector {
         collecting_for: SegmentStatsType,
         accessor_idx: usize,
         missing: Option<f64>,
+        sigma: Option<f64>,
     ) -> Self {
         let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
         Self {
             field_type,
             collecting_for,
-            stats: IntermediateExtendedStats::default(),
+            stats: IntermediateExtendedStats::with_sigma(sigma),
             accessor_idx,
             missing,
+            sigma,
             val_cache: Default::default(),
         }
     }
@@ -321,169 +564,6 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
         self.collect_block_with_field(docs, field);
         Ok(())
-    }
-}
-
-/// Extended stats contains a collection of statistics
-/// they extends stats adding variance, standard deviation
-/// and bound informations
-pub struct ExtendedStats {
-    /// The number of documents.
-    pub count: u64,
-    /// The sum of the fast field values.
-    pub sum: f64,
-    /// The min value of the fast field values.
-    pub min: Option<f64>,
-    /// The max value of the fast field values.
-    pub max: Option<f64>,
-    /// The average of the fast field values. `None` if count equals zero.
-    pub avg: Option<f64>,
-    /// The sum of squares of the fast field values. `None` if count equals zero.
-    pub sum_of_squares: Option<f64>,
-    /// The variance of the fast field values. `None` if count is less then 2.
-    pub variance: Option<f64>,
-    /// The variance population of the fast field values, always equal to variance. `None` if count is less then 2.
-    pub variance_population: Option<f64>,
-    /// The variance sampling of the fast field values, always equal to variance. `None` if count is less then 2.
-    pub variance_sampling: Option<f64>,
-     /// The standard deviation of the fast field values. `None` if count is less then 2.
-    pub standard_deviation: Option<f64>,
-    /// The standard deviation of the fast field values, always equal to variance. `None` if count is less then 2.
-    pub standard_deviation_population: Option<f64>,
-    /// The standard deviation sampling of the fast field values, always equal to variance. `None` if count is less then 2.
-    pub standard_deviation_sampling: Option<f64>,
-}
-
-/// Intermediate result of the extended stats aggregation that can be combined with other intermediate
-/// results.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateExtendedStats {
-    /// The number of extracted values.
-    count: u64,
-    /// The sum of the extracted values.
-    sum: f64,
-    /// The min value.
-    min: f64,
-    /// The max value.
-    max: f64,
-    // The sum of the square values it's referred as M2 in Welford's online algorithm
-    sum_of_squares: f64,
-    // The mean an intermediate value need for calculating the variance 
-    // as per [Welford's online algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm)
-    mean: f64,
-}
-
-impl Default for IntermediateExtendedStats {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            sum: 0.0,
-            min: f64::MAX,
-            max: f64::MIN,
-            sum_of_squares: 0.0,
-            mean: 0.0,
-        }
-    }
-}
-
-impl IntermediateExtendedStats {
-    /// Merges the other stats intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateExtendedStats) {
-       
-        self.min = self.min.min(other.min);
-        self.max = self.max.max(other.max);
-        
-
-        if other.count!=0 {
-            if self.count==0 {
-                self.sum_of_squares=other.sum_of_squares;
-                self.count=other.count;
-                self.mean=other.mean;
-            } else {
-                let new_count=self.count+other.count;
-                let delta = other.sum/other.count as f64 - self.sum/self.count as f64;
-                self.sum_of_squares += other.sum_of_squares + delta * delta * self.count as f64 * other.count as f64/new_count as f64;
-                self.count =new_count;
-                //self.mean=self.mean + delta*other.count as f64/new_count as f64;
-                self.mean=(self.sum as f64 + other.sum as f64)/new_count as f64;
-                
-            }
-            self.sum += other.sum;
-        }
-        
-    }
-
-    
-
-    /// Computes the final stats value.
-    pub fn finalize(&self) -> ExtendedStats {
-        let min = if self.count == 0 {
-            None
-        } else {
-            Some(self.min)
-        };
-        let max = if self.count == 0 {
-            None
-        } else {
-            Some(self.max)
-        };
-        let avg = if self.count == 0 {
-            None
-        } else {
-            Some(self.mean)
-        };
-        let sum_of_squares = if self.count == 0 {
-            None
-        } else {
-            Some(self.sum_of_squares)
-        };
-        let variance = if self.count <= 1 {
-            None
-        } else {
-            Some(self.sum_of_squares/self.count as f64)
-        };
-        let variance_sampling = if self.count <= 1 {
-            None
-        } else {
-            Some(self.sum_of_squares/(self.count-1) as f64)
-        };
-        let standard_deviation = variance.map(|v| v.sqrt());
-        let standard_deviation_sampling = variance_sampling.map(|v| v.sqrt());
-
-        ExtendedStats {
-            count: self.count,
-            sum: self.sum,
-            min,
-            max,
-            avg,
-            sum_of_squares,
-            variance,
-            variance_population: variance,
-            variance_sampling,
-            standard_deviation,
-            standard_deviation_population: standard_deviation,
-            standard_deviation_sampling
-        }
-    }
-
-    fn collect(&mut self, value: f64) {
-        self.count += 1;
-        self.sum += value;
-        self.min = self.min.min(value);
-        self.max = self.max.max(value);
-        self.update_variance(value);
-    }
-
-    fn update_variance(&mut self, value: f64) {
-        let delta = value - self.mean;
-        //this is not what the Welford's online algorithm prescribes but 
-        //using the pseudo code from wikipedia there was a small rounding 
-        //error (in 15th decimal place) that caused a test 
-        //(test_aggregation_level1 in agg_test.rs)
-        //failure
-        self.mean = self.sum / self.count  as f64;
-        let delta2 = value - self.mean;
-        self.sum_of_squares += delta * delta2;
     }
 }
 

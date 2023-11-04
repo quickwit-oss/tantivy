@@ -19,7 +19,7 @@ use super::bucket::{
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
-    IntermediateSum, PercentilesCollector,
+    IntermediateSum, PercentilesCollector,IntermediateExtendedStats,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -199,6 +199,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Stats(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Stats(
             IntermediateStats::default(),
         )),
+        ExtendedStats(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(
+            IntermediateExtendedStats::default(),
+        )),
         Sum(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Sum(
             IntermediateSum::default(),
         )),
@@ -263,6 +266,8 @@ pub enum IntermediateMetricResult {
     Min(IntermediateMin),
     /// Intermediate stats result.
     Stats(IntermediateStats),
+    /// Intermediate stats result.
+    ExtendedStats(IntermediateExtendedStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
 }
@@ -284,6 +289,9 @@ impl IntermediateMetricResult {
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())
+            }
+            IntermediateMetricResult::ExtendedStats(intermediate_stats) => {
+                MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
             IntermediateMetricResult::Sum(intermediate_sum) => {
                 MetricResult::Sum(intermediate_sum.finalize().into())

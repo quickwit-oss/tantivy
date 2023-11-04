@@ -13,7 +13,7 @@ use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::metric::{
     AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
-    SumAggregation,
+    SumAggregation, ExtendedStatsAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
 
@@ -121,6 +121,7 @@ pub(crate) fn build_single_agg_segment_collector(
                 SegmentStatsType::Average,
                 accessor_idx,
                 *missing,
+                None,
             )))
         }
         Count(CountAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
@@ -128,30 +129,42 @@ pub(crate) fn build_single_agg_segment_collector(
             SegmentStatsType::Count,
             accessor_idx,
             *missing,
+            None,
         ))),
         Max(MaxAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Max,
             accessor_idx,
             *missing,
+            None,
         ))),
         Min(MinAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Min,
             accessor_idx,
             *missing,
+            None,
         ))),
         Stats(StatsAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Stats,
             accessor_idx,
             *missing,
+            None, 
         ))),
+        ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
+            req.field_type,
+            SegmentStatsType::Stats,
+            accessor_idx,
+            *missing,
+            *sigma,
+        ))),        
         Sum(SumAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
             SegmentStatsType::Sum,
             accessor_idx,
             *missing,
+            None,
         ))),
         Percentiles(percentiles_req) => Ok(Box::new(
             SegmentPercentilesCollector::from_req_and_validate(
