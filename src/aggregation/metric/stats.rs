@@ -81,8 +81,8 @@ impl Stats {
     }
 }
 
-/// Intermediate result of the stats aggregation that can be combined with other intermediate
-/// results.
+
+/* 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     /// The number of extracted values.
@@ -149,6 +149,41 @@ impl IntermediateStats {
         self.max = self.max.max(value);
     }
 }
+*/
+/// Intermediate result of the stats aggregation that can be combined with other intermediate
+/// results.
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateStats {
+    stats: IntermediateExtendedStats,
+}
+
+impl IntermediateStats {
+
+    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
+        Self {
+            stats: collector.stats,
+        }
+    }
+
+    /// Merges the other stats intermediate result into self.
+    pub fn merge_fruits(&mut self, other: IntermediateStats) {
+        self.stats.merge_fruits(other.stats);
+    }
+
+    /// Computes the final stats value.
+    pub fn finalize(&self) -> Stats {
+        let extended_stats=self.stats.finalize();
+        Stats {
+            count: extended_stats.count,
+            sum: extended_stats.sum,
+            min: extended_stats.min,
+            max: extended_stats.max,
+            avg: extended_stats.avg,
+        }
+    }
+
+   
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentStatsType {
@@ -165,7 +200,7 @@ pub(crate) struct SegmentStatsCollector {
     missing: Option<u64>,
     field_type: ColumnType,
     pub(crate) collecting_for: SegmentStatsType,
-    pub(crate) stats: IntermediateStats,
+    pub(crate) stats: IntermediateExtendedStats,
     pub(crate) accessor_idx: usize,
     val_cache: Vec<u64>,
 }
@@ -181,7 +216,7 @@ impl SegmentStatsCollector {
         Self {
             field_type,
             collecting_for,
-            stats: IntermediateStats::default(),
+            stats: IntermediateExtendedStats::default(),
             accessor_idx,
             missing,
             val_cache: Default::default(),
@@ -233,7 +268,9 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
             SegmentStatsType::Min => {
                 IntermediateMetricResult::Min(IntermediateMin::from_collector(*self))
             }
-            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+            SegmentStatsType::Stats => {
+                IntermediateMetricResult::Stats(IntermediateStats::from_collector(*self))
+            }
             SegmentStatsType::Sum => {
                 IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
             }
@@ -287,7 +324,9 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     }
 }
 
-
+/// Extended stats contains a collection of statistics
+/// they extends stats adding variance, standard deviation
+/// and bound informations
 pub struct ExtendedStats {
     /// The number of documents.
     pub count: u64,
@@ -315,6 +354,8 @@ pub struct ExtendedStats {
     pub standard_deviation_sampling: Option<f64>,
 }
 
+/// Intermediate result of the extended stats aggregation that can be combined with other intermediate
+/// results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateExtendedStats {
     /// The number of extracted values.
@@ -435,7 +476,12 @@ impl IntermediateExtendedStats {
 
     fn update_variance(&mut self, value: f64) {
         let delta = value - self.mean;
-        self.mean += delta / self.count  as f64;
+        //this is not what the Welford's online algorithm prescribes but 
+        //using the pseudo code from wikipedia there was a small rounding 
+        //error (in 15th decimal place) that caused a test 
+        //(test_aggregation_level1 in agg_test.rs)
+        //failure
+        self.mean = self.sum / self.count  as f64;
         let delta2 = value - self.mean;
         self.sum_of_squares += delta * delta2;
     }

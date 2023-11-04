@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::{IntermediateStats, SegmentStatsCollector};
+use super::{IntermediateExtendedStats, SegmentStatsCollector};
 
 /// A single-value metric aggregation that computes the maximum of numeric values that are
 /// extracted from the aggregated documents.
@@ -46,7 +46,7 @@ impl MaxAggregation {
 /// results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateMax {
-    stats: IntermediateStats,
+    stats: IntermediateExtendedStats,
 }
 
 impl IntermediateMax {
