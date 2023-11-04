@@ -54,6 +54,8 @@ pub struct AggregationWithAccessor {
     // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
     // (making them obsolete) But will it have a performance impact?
     pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
+    /// Map field names to dynamic column accessors.
+    /// This field is used for `docvalue_fields`, which is currently only supported for `top_hits`.
     pub(crate) value_accessors: HashMap<String, DynamicColumn>,
     pub(crate) agg: Aggregation,
 }
@@ -304,7 +306,10 @@ impl AggregationWithAccessor {
                     .value_field_names()
                     .iter()
                     .map(|field_name| {
-                        Ok((field_name.to_string(), get_dyn_column(reader, field_name)?))
+                        Ok((
+                            field_name.to_string(),
+                            get_dynamic_column(reader, field_name)?,
+                        ))
                     })
                     .collect::<crate::Result<_>>()?;
 
@@ -389,7 +394,7 @@ fn get_ff_reader(
     Ok(ff_field_with_type)
 }
 
-fn get_dyn_column(
+fn get_dynamic_column(
     reader: &SegmentReader,
     field_name: &str,
 ) -> crate::Result<columnar::DynamicColumn> {
