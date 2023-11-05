@@ -32,7 +32,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut rng = thread_rng();
 
     let mut index_writer: IndexWriter =
-        index.writer_with_num_threads(3, MEMORY_BUDGET_NUM_BYTES_MIN)?;
+        index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
     let mut doc_set: Vec<u64> = Vec::new();
 
@@ -92,7 +92,8 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter =
+        index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
@@ -167,7 +168,8 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
 
     let mut rng = thread_rng();
 
-    let mut index_writer: IndexWriter = index.writer_with_num_threads(3, 120_000_000)?;
+    let mut index_writer: IndexWriter =
+        index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();

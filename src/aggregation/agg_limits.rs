@@ -73,9 +73,9 @@ impl AggregationLimits {
     /// Create a new ResourceLimitGuard, that will release the memory when dropped.
     pub fn new_guard(&self) -> ResourceLimitGuard {
         ResourceLimitGuard {
-            /// The counter which is shared between the aggregations for one request.
+            // The counter which is shared between the aggregations for one request.
             memory_consumption: Arc::clone(&self.memory_consumption),
-            /// The memory_limit in bytes
+            // The memory_limit in bytes
             memory_limit: self.memory_limit,
             allocated_with_the_guard: 0,
         }
