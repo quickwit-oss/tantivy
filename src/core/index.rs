@@ -566,7 +566,7 @@ impl Index {
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
     pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<D>> {
-        self.writer_with_num_threads(1, 15_000_000)
+        self.writer_with_num_threads(1, MEMORY_BUDGET_NUM_BYTES_MIN)
     }
 
     /// Creates a multithreaded writer

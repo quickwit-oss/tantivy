@@ -17,7 +17,7 @@ pub trait DocSet: Send {
     ///
     /// The DocId of the next element is returned.
     /// In other words we should always have :
-    /// ```ignore
+    /// ```compile_fail
     /// let doc = docset.advance();
     /// assert_eq!(doc, docset.doc());
     /// ```
