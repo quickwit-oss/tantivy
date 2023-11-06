@@ -238,7 +238,9 @@ pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 5;
+const INDEX_FORMAT_VERSION: u32 = 6;
+/// Oldest index format version this tantivy version can read.
+const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
