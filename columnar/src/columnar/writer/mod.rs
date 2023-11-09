@@ -491,6 +491,7 @@ impl ColumnarWriter {
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
+#[allow(clippy::too_many_arguments)]
 fn serialize_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
