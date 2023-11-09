@@ -30,6 +30,12 @@ pub type TermOrdinal = u64;
 const DEFAULT_KEY_CAPACITY: usize = 50;
 const SSTABLE_VERSION: u32 = 2;
 
+// TODO tune that value. Maybe it's too little?
+#[cfg(not(test))]
+const DEFAULT_MAX_ROOT_BLOCKS: u64 = 8;
+#[cfg(test)]
+const DEFAULT_MAX_ROOT_BLOCKS: u64 = 1;
+
 /// Given two byte string returns the length of
 /// the longest common prefix.
 fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
@@ -55,7 +61,7 @@ pub trait SSTable: Sized {
     }
 
     fn writer<W: io::Write>(wrt: W) -> Writer<W, Self::ValueWriter> {
-        Writer::new(wrt)
+        Writer::new(wrt, DEFAULT_MAX_ROOT_BLOCKS)
     }
 
     fn delta_reader(reader: OwnedBytes) -> DeltaReader<Self::ValueReader> {
@@ -178,6 +184,7 @@ where W: io::Write
     delta_writer: DeltaWriter<W, TValueWriter>,
     num_terms: u64,
     first_ordinal_of_the_block: u64,
+    index_max_root_blocks: u64,
 }
 
 impl<W, TValueWriter> Writer<W, TValueWriter>
@@ -190,17 +197,18 @@ where
     /// TODO remove this function. (See Issue #1727)
     #[doc(hidden)]
     pub fn create(wrt: W) -> io::Result<Self> {
-        Ok(Self::new(wrt))
+        Ok(Self::new(wrt, DEFAULT_MAX_ROOT_BLOCKS))
     }
 
     /// Creates a new `TermDictionaryBuilder`.
-    pub fn new(wrt: W) -> Self {
+    pub fn new(wrt: W, index_max_root_blocks: u64) -> Self {
         Writer {
             previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             num_terms: 0u64,
             index_builder: SSTableIndexBuilder::default(),
             delta_writer: DeltaWriter::new(wrt),
             first_ordinal_of_the_block: 0u64,
+            index_max_root_blocks,
         }
     }
 
@@ -304,7 +312,8 @@ where
 
         let offset = wrt.written_bytes();
 
-        self.index_builder.serialize(&mut wrt)?;
+        self.index_builder
+            .serialize(&mut wrt, self.index_max_root_blocks)?;
         wrt.write_all(&offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
 

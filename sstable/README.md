@@ -89,15 +89,31 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 
 ### SSTFooter
 ```
-+-------+-------+-----+-------------+---------+---------+
-| Block | Block | ... | IndexOffset | NumTerm | Version |
-+-------+-------+-----+-------------+---------+---------+
-|----( # of blocks)---|
++-------+-------+-----+------------------+------------+-------------+---------+---------+
+| Block | Block | ... | FirstLayerOffset | LayerCount | IndexOffset | NumTerm | Version |
++-------+-------+-----+------------------+------------+-------------+---------+---------+
+|----(# of blocks)----|---(optional? cf LayerCount)---|
 ```
 - Block(SSTBlock): uses IndexValue for its Values format
+- FirstLayerOffset(u64): Offset between the start of the footer and the start of the top level index
+- LayerCount(u32): Number of layers of index (min 1) ## TODO do we want to use 0 as a marker for no layers? It makes small sstables 12 bytes more compact (the 0u32 would alias with the "end of sstable marker")
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
-- Version(u32): Currently equal to 2
+- Version(u32): Currently equal to 3
+
+Blocks referencing the main table and block referencing the index itself are encoded the same way and
+are not directly differentiated. Offsets in blocks referencing the index are relative to the start of
+the footer, blocks referencing the main table are relative to the start of that table.
+
+#### TODO(trinity) open questions:
+the changes are small enough that it's easy to support both v2 and v3 at once (LayerCount alias with a
+4 byte empty block we aways add at the end of an sstable. If LayerCount is zero, we are in v2, and must
+not read FirstLayerOffset, if we are in v3, LayerCount is non zero and we read FirstLayerOffset.
+If we keep that version number to 2, the format is then also forward compatible: an old version would decode
+IndexOffset and after, and find enough information to decode the bottom layer sstable, and would stop at
+the empty block added end of that sstable. The non-bottom layers would be loaded to memory, but never actually
+processed.
+Do we want to support that usage (put back version to v2), or prevent it and use v3?
 
 ### IndexValue
 ```

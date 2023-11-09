@@ -5,77 +5,191 @@ use common::OwnedBytes;
 
 use crate::{common_prefix_len, SSTable, SSTableDataCorruption, TermOrdinal};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct SSTableIndex {
-    blocks: Vec<BlockMeta>,
+    root_blocks: Vec<BlockMeta>,
+    layer_count: u32,
+    index_bytes: OwnedBytes,
+}
+
+impl Default for SSTableIndex {
+    fn default() -> Self {
+        SSTableIndex {
+            root_blocks: Vec::new(),
+            layer_count: 1,
+            index_bytes: OwnedBytes::empty(),
+        }
+    }
 }
 
 impl SSTableIndex {
     /// Load an index from its binary representation
-    pub fn load(data: OwnedBytes) -> Result<SSTableIndex, SSTableDataCorruption> {
-        let mut reader = IndexSSTable::reader(data);
-        let mut blocks = Vec::new();
+    pub fn load(
+        data: OwnedBytes,
+        layer_count: u32,
+        first_layer_offset: usize,
+    ) -> Result<SSTableIndex, SSTableDataCorruption> {
+        let (index_bytes, first_layer_slice) = data.split(first_layer_offset);
+        let mut reader = IndexSSTable::reader(first_layer_slice);
+        let mut root_blocks = Vec::new();
 
         while reader.advance().map_err(|_| SSTableDataCorruption)? {
-            blocks.push(BlockMeta {
+            root_blocks.push(BlockMeta {
                 last_key_or_greater: reader.key().to_vec(),
                 block_addr: reader.value().clone(),
             });
         }
 
-        Ok(SSTableIndex { blocks })
-    }
-
-    /// Get the [`BlockAddr`] of the requested block.
-    pub(crate) fn get_block(&self, block_id: usize) -> Option<BlockAddr> {
-        self.blocks
-            .get(block_id)
-            .map(|block_meta| block_meta.block_addr.clone())
-    }
-
-    /// Get the block id of the block that would contain `key`.
-    ///
-    /// Returns None if `key` is lexicographically after the last key recorded.
-    pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<usize> {
-        let pos = self
-            .blocks
-            .binary_search_by_key(&key, |block| &block.last_key_or_greater);
-        match pos {
-            Ok(pos) => Some(pos),
-            Err(pos) => {
-                if pos < self.blocks.len() {
-                    Some(pos)
-                } else {
-                    // after end of last block: no block matches
-                    None
-                }
-            }
-        }
+        Ok(SSTableIndex {
+            root_blocks,
+            layer_count,
+            index_bytes,
+        })
     }
 
     /// Get the [`BlockAddr`] of the block that would contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
-    pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
-        self.locate_with_key(key).and_then(|id| self.get_block(id))
-    }
-
-    pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> usize {
-        let pos = self
-            .blocks
-            .binary_search_by_key(&ord, |block| block.block_addr.first_ordinal);
-
-        match pos {
-            Ok(pos) => pos,
-            // Err(0) can't happen as the sstable starts with ordinal zero
-            Err(pos) => pos - 1,
-        }
+    pub fn get_block_with_key(&self, key: &[u8]) -> io::Result<Option<BlockAddr>> {
+        self.iterate_from_key(key).map(|iter| iter.value().cloned())
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
-        // locate_with_ord always returns an index within range
-        self.get_block(self.locate_with_ord(ord)).unwrap()
+    pub fn get_block_with_ord(&self, ord: TermOrdinal) -> io::Result<BlockAddr> {
+        let pos = self
+            .root_blocks
+            .binary_search_by_key(&ord, |block| block.block_addr.first_ordinal);
+
+        let root_pos = match pos {
+            Ok(pos) => pos,
+            // Err(0) can't happen as the sstable starts with ordinal zero
+            Err(pos) => pos - 1,
+        };
+
+        let mut next_layer_block_addr = self.root_blocks[root_pos].block_addr.clone();
+        let mut last_delta_reader = None;
+        for _ in 1..self.layer_count {
+            // we don't enter this loop for 1 layer index
+            let mut sstable_delta_reader = IndexSSTable::delta_reader(
+                self.index_bytes.slice(next_layer_block_addr.byte_range),
+            );
+            while sstable_delta_reader.advance()? {
+                if sstable_delta_reader.value().first_ordinal >= ord {
+                    break;
+                }
+            }
+            next_layer_block_addr = sstable_delta_reader.value().clone();
+            last_delta_reader = Some(sstable_delta_reader);
+        }
+        if let Some(sstable_delta_reader) = last_delta_reader {
+            Ok(sstable_delta_reader.value().clone())
+        } else {
+            Ok(self.root_blocks[root_pos].block_addr.clone())
+        }
+    }
+
+    pub(crate) fn iterate_from_key(&self, key: &[u8]) -> io::Result<ReaderOrSlice<'_>> {
+        let root_pos = self
+            .root_blocks
+            .binary_search_by_key(&key, |block| &block.last_key_or_greater);
+        let root_pos = match root_pos {
+            Ok(pos) => pos,
+            Err(pos) => {
+                if pos < self.root_blocks.len() {
+                    pos
+                } else {
+                    // after end of last block: no block matches
+                    return Ok(ReaderOrSlice::End);
+                }
+            }
+        };
+
+        let mut next_layer_block_addr = self.root_blocks[root_pos].block_addr.clone();
+        let mut last_delta_reader = None;
+        for _ in 1..self.layer_count {
+            // we don't enter this loop for 1 layer index
+            let mut sstable_delta_reader = IndexSSTable::delta_reader(
+                self.index_bytes.slice(next_layer_block_addr.byte_range),
+            );
+            if crate::dictionary::decode_up_to_key(key, &mut sstable_delta_reader)?.is_none() {
+                return Ok(ReaderOrSlice::End);
+            }
+            next_layer_block_addr = sstable_delta_reader.value().clone();
+            last_delta_reader = Some(sstable_delta_reader);
+        }
+
+        if let Some(delta_reader) = last_delta_reader {
+            // reconstruct the current key. We stopped either on the exact key, or just after
+            // either way, common_prefix_len is something that did not change between the
+            // last-key-before-target and the current pos, so those bytes must match the prefix of
+            // `key`. The next bytes can be obtained from the delta reader
+            let mut result_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
+            let common_prefix_len = delta_reader.common_prefix_len();
+            let suffix = delta_reader.suffix();
+            let new_len = delta_reader.common_prefix_len() + suffix.len();
+            result_key.resize(new_len, 0u8);
+            result_key[..common_prefix_len].copy_from_slice(&key[..common_prefix_len]);
+            result_key[common_prefix_len..].copy_from_slice(suffix);
+
+            let reader = crate::Reader {
+                key: result_key,
+                delta_reader,
+            };
+            Ok(ReaderOrSlice::Reader(reader))
+        } else {
+            // self.layer_count == 1, there is no lvl2 sstable to decode.
+            Ok(ReaderOrSlice::Iter(&self.root_blocks, root_pos))
+        }
+    }
+}
+
+pub(crate) enum ReaderOrSlice<'a> {
+    Reader(crate::Reader<crate::value::index::IndexValueReader>),
+    Iter(&'a [BlockMeta], usize),
+    End,
+}
+
+impl<'a> ReaderOrSlice<'a> {
+    pub fn advance(&mut self) -> Result<bool, SSTableDataCorruption> {
+        match self {
+            ReaderOrSlice::Reader(reader) => {
+                let res = reader.advance().map_err(|_| SSTableDataCorruption);
+                if !matches!(res, Ok(true)) {
+                    *self = ReaderOrSlice::End;
+                }
+                res
+            }
+            ReaderOrSlice::Iter(slice, index) => {
+                *index += 1;
+                if *index < slice.len() {
+                    Ok(true)
+                } else {
+                    *self = ReaderOrSlice::End;
+                    Ok(false)
+                }
+            }
+            ReaderOrSlice::End => Ok(false),
+        }
+    }
+
+    /// Get current key. Always Some(_) unless last call to advance returned something else than
+    /// Ok(true)
+    pub fn key(&self) -> Option<&[u8]> {
+        match self {
+            ReaderOrSlice::Reader(reader) => Some(reader.key()),
+            ReaderOrSlice::Iter(slice, index) => Some(&slice[*index].last_key_or_greater),
+            ReaderOrSlice::End => None,
+        }
+    }
+
+    /// Get current value. Always Some(_) unless last call to advance returned something else than
+    /// Ok(true)
+    pub fn value(&self) -> Option<&BlockAddr> {
+        match self {
+            ReaderOrSlice::Reader(reader) => Some(reader.value()),
+            ReaderOrSlice::Iter(slice, index) => Some(&slice[*index].block_addr),
+            ReaderOrSlice::End => None,
+        }
     }
 }
 
@@ -124,13 +238,13 @@ impl SSTableIndexBuilder {
     /// try to find a shorter alternative to the last key of the last block
     /// that is still smaller than the next key.
     pub(crate) fn shorten_last_block_key_given_next_key(&mut self, next_key: &[u8]) {
-        if let Some(last_block) = self.index.blocks.last_mut() {
+        if let Some(last_block) = self.index.root_blocks.last_mut() {
             find_shorter_str_in_between(&mut last_block.last_key_or_greater, next_key);
         }
     }
 
     pub fn add_block(&mut self, last_key: &[u8], byte_range: Range<usize>, first_ordinal: u64) {
-        self.index.blocks.push(BlockMeta {
+        self.index.root_blocks.push(BlockMeta {
             last_key_or_greater: last_key.to_vec(),
             block_addr: BlockAddr {
                 byte_range,
@@ -139,7 +253,11 @@ impl SSTableIndexBuilder {
         })
     }
 
-    pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
+    pub fn serialize<W: std::io::Write>(
+        &self,
+        wrt: W,
+        _index_max_root_blocks: u64,
+    ) -> io::Result<()> {
         // we can't use a plain writer as it would generate an index
         let mut sstable_writer = IndexSSTable::delta_writer(wrt);
 
@@ -148,7 +266,7 @@ impl SSTableIndexBuilder {
         sstable_writer.set_block_len(16);
 
         let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
-        for block in self.index.blocks.iter() {
+        for block in self.index.root_blocks.iter() {
             let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
 
             sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
@@ -194,28 +312,75 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer).unwrap();
+        sstable_builder.serialize(&mut buffer, 8).unwrap();
         let buffer = OwnedBytes::new(buffer);
-        let sstable_index = SSTableIndex::load(buffer).unwrap();
+        let sstable_index = SSTableIndex::load(buffer, 1, 0).unwrap();
         assert_eq!(
-            sstable_index.get_block_with_key(b"bbbde"),
+            sstable_index.get_block_with_key(b"bbbde").unwrap(),
             Some(BlockAddr {
                 first_ordinal: 10u64,
                 byte_range: 30..40
             })
         );
 
-        assert_eq!(sstable_index.locate_with_key(b"aa").unwrap(), 0);
-        assert_eq!(sstable_index.locate_with_key(b"aaa").unwrap(), 0);
-        assert_eq!(sstable_index.locate_with_key(b"aab").unwrap(), 1);
-        assert_eq!(sstable_index.locate_with_key(b"ccc").unwrap(), 2);
-        assert!(sstable_index.locate_with_key(b"e").is_none());
+        assert_eq!(
+            sstable_index
+                .get_block_with_key(b"aa")
+                .unwrap()
+                .unwrap()
+                .first_ordinal,
+            0
+        );
+        assert_eq!(
+            sstable_index
+                .get_block_with_key(b"aaa")
+                .unwrap()
+                .unwrap()
+                .first_ordinal,
+            0
+        );
+        assert_eq!(
+            sstable_index
+                .get_block_with_key(b"aab")
+                .unwrap()
+                .unwrap()
+                .first_ordinal,
+            5
+        );
+        assert_eq!(
+            sstable_index
+                .get_block_with_key(b"ccc")
+                .unwrap()
+                .unwrap()
+                .first_ordinal,
+            10
+        );
+        assert!(sstable_index.get_block_with_key(b"e").unwrap().is_none());
 
-        assert_eq!(sstable_index.locate_with_ord(0), 0);
-        assert_eq!(sstable_index.locate_with_ord(1), 0);
-        assert_eq!(sstable_index.locate_with_ord(4), 0);
-        assert_eq!(sstable_index.locate_with_ord(5), 1);
-        assert_eq!(sstable_index.locate_with_ord(100), 3);
+        assert_eq!(
+            sstable_index.get_block_with_ord(0).unwrap().first_ordinal,
+            0
+        );
+        assert_eq!(
+            sstable_index.get_block_with_ord(1).unwrap().first_ordinal,
+            0
+        );
+        assert_eq!(
+            sstable_index.get_block_with_ord(4).unwrap().first_ordinal,
+            0
+        );
+        assert_eq!(
+            sstable_index.get_block_with_ord(5).unwrap().first_ordinal,
+            5
+        );
+        assert_eq!(
+            sstable_index.get_block_with_ord(6).unwrap().first_ordinal,
+            5
+        );
+        assert_eq!(
+            sstable_index.get_block_with_ord(100).unwrap().first_ordinal,
+            15
+        );
     }
 
     #[test]
@@ -226,10 +391,10 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer).unwrap();
+        sstable_builder.serialize(&mut buffer, 340).unwrap();
         buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
-        let data_corruption_err = SSTableIndex::load(buffer).err().unwrap();
+        let data_corruption_err = SSTableIndex::load(buffer, 1, 0).err().unwrap();
         assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 

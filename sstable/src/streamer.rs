@@ -110,7 +110,7 @@ where
             Bound::Included(key) | Bound::Excluded(key) => self
                 .term_dict
                 .sstable_index
-                .get_block_with_key(key)
+                .get_block_with_key(key)?
                 .map(|block| block.first_ordinal)
                 .unwrap_or(0),
             Bound::Unbounded => 0,

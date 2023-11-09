@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::ops::{Deref, Range};
+use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -37,7 +37,7 @@ impl OwnedBytes {
     /// creates a fileslice that is just a view over a slice of the data.
     #[must_use]
     #[inline]
-    pub fn slice(&self, range: Range<usize>) -> Self {
+    pub fn slice(&self, range: impl std::slice::SliceIndex<[u8], Output = [u8]>) -> Self {
         OwnedBytes {
             data: &self.data[range],
             box_stable_deref: self.box_stable_deref.clone(),
