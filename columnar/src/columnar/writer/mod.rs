@@ -437,6 +437,7 @@ impl ColumnarWriter {
                             &mut symbol_byte_buffer,
                         ),
                         buffers,
+                        &self.arena,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -490,6 +491,7 @@ impl ColumnarWriter {
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
+#[allow(clippy::too_many_arguments)]
 fn serialize_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
@@ -497,6 +499,7 @@ fn serialize_bytes_or_str_column(
     dictionary_builder: &DictionaryBuilder,
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
+    arena: &MemoryArena,
     wrt: impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
@@ -505,7 +508,8 @@ fn serialize_bytes_or_str_column(
         ..
     } = buffers;
     let mut counting_writer = CountingWriter::wrap(wrt);
-    let term_id_mapping: TermIdMapping = dictionary_builder.serialize(&mut counting_writer)?;
+    let term_id_mapping: TermIdMapping =
+        dictionary_builder.serialize(arena, &mut counting_writer)?;
     let dictionary_num_bytes: u32 = counting_writer.written_bytes() as u32;
     let mut wrt = counting_writer.finish();
     let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {

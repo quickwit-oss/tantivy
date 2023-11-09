@@ -82,8 +82,8 @@ more-asserts = "0.3.1"
 rand_distr = "0.4.3"
 
 [target.'cfg(not(windows))'.dev-dependencies]
-criterion = "0.5"
-pprof = { git = "https://github.com/PSeitz/pprof-rs/", rev = "53af24b", features = ["flamegraph", "criterion"] } # temp fork that works with criterion 0.5
+criterion = { version = "0.5" }
+pprof = { version= "0.13", features = ["flamegraph", "criterion"] }
 
 [dev-dependencies.fail]
 version = "0.5.0"
