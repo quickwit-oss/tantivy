@@ -10,6 +10,10 @@ use crate::shared_arena_hashmap::SharedArenaHashMap;
 /// The quirky API has the benefit of avoiding
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
+///
+/// ArenaHashMap is like SharedArenaHashMap but takes ownership
+/// of the memory arena. The memory arena stores the serialized
+/// keys and values.
 pub struct ArenaHashMap {
     shared_arena_hashmap: SharedArenaHashMap,
     pub memory_arena: MemoryArena,

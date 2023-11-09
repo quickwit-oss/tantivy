@@ -56,6 +56,10 @@ impl KeyValue {
 /// The quirky API has the benefit of avoiding
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
+///
+/// SharedArenaHashMap is like ArenaHashMap but gets the memory arena
+/// passed as an argument to the methods.
+/// So one MemoryArena can be shared with multiple SharedArenaHashMap.
 pub struct SharedArenaHashMap {
     table: Vec<KeyValue>,
     mask: usize,
