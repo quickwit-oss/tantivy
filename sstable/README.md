@@ -92,7 +92,7 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 +-------+-------+-----+------------------+------------+-------------+---------+---------+
 | Block | Block | ... | FirstLayerOffset | LayerCount | IndexOffset | NumTerm | Version |
 +-------+-------+-----+------------------+------------+-------------+---------+---------+
-|----(# of blocks)----|---(optional? cf LayerCount)---|
+|----(# of blocks)----|
 ```
 - Block(SSTBlock): uses IndexValue for its Values format
 - FirstLayerOffset(u64): Offset between the start of the footer and the start of the top level index

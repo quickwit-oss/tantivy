@@ -28,7 +28,7 @@ use crate::value::{RangeValueReader, RangeValueWriter};
 pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
-const SSTABLE_VERSION: u32 = 2;
+const SSTABLE_VERSION: u32 = 3;
 
 // TODO tune that value. Maybe it's too little?
 #[cfg(not(test))]
@@ -406,7 +406,7 @@ mod test {
                 1, 0, 0, 0, // layer count
                 16, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
-                2, 0, 0, 0, // version
+                3, 0, 0, 0, // version
             ]
         );
         let buffer = OwnedBytes::new(buffer);

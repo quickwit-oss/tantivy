@@ -132,7 +132,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         // as a marker for no limit, so we'd better capture that.
         // (not great means we decode up to the whole bottom layer index, which can take dozens of
         // ms on a 100m term dictionary)
-        let limit = limit.filter(|limit| *limit == u64::MAX);
+        let limit = limit.filter(|limit| *limit != u64::MAX);
 
         // TODO replace unwraps with proper error handling
         let start_key = match key_range.start_bound() {
@@ -212,53 +212,59 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(24);
+        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(20);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
 
-        let layer_count = u32::deserialize(&mut footer_len_bytes)?;
+        // let layer_count = u32::deserialize(&mut footer_len_bytes)?;
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
         let version = u32::deserialize(&mut footer_len_bytes)?;
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
-        if version != crate::SSTABLE_VERSION {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "Unsuported sstable version, expected {version}, found {}",
-                    crate::SSTABLE_VERSION,
-                ),
-            ));
-        }
-        if layer_count == 0 {
-            // previous format, kept for backward compatibility
-            let sstable_index_bytes = index_slice.read_bytes()?;
-            // on the old format, the 1st layer necessarily start immediately, and there is
-            // only a single layer
-            let sstable_index = SSTableIndex::load(sstable_index_bytes, 1, 0)
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption"))?;
-            Ok(Dictionary {
-                sstable_slice,
-                sstable_index,
-                num_terms,
-                phantom_data: PhantomData,
-            })
-        } else {
-            let sstable_index_bytes = index_slice.read_bytes()?;
-            let (sstable_index_bytes, mut v3_footer_bytes) = sstable_index_bytes.rsplit(8);
-            let first_layer_offset = v3_footer_bytes.read_u64();
+        match version {
+            2 => {
+                // previous format, kept for backward compatibility
+                let sstable_index_bytes = index_slice.read_bytes()?;
+                // on the old format, the 1st layer necessarily start immediately, and there is
+                // only a single layer
+                let sstable_index =
+                    SSTableIndex::load(sstable_index_bytes, 1, 0).map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
+                    })?;
+                Ok(Dictionary {
+                    sstable_slice,
+                    sstable_index,
+                    num_terms,
+                    phantom_data: PhantomData,
+                })
+            }
+            3 => {
+                let sstable_index_bytes = index_slice.read_bytes()?;
+                let (sstable_index_bytes, mut v3_footer_bytes) = sstable_index_bytes.rsplit(12);
+                let first_layer_offset = v3_footer_bytes.read_u64();
+                let layer_count = v3_footer_bytes.read_u32();
 
-            let sstable_index = SSTableIndex::load(
-                sstable_index_bytes,
-                layer_count,
-                first_layer_offset as usize,
-            )
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption"))?;
-            Ok(Dictionary {
-                sstable_slice,
-                sstable_index,
-                num_terms,
-                phantom_data: PhantomData,
-            })
+                let sstable_index = SSTableIndex::load(
+                    sstable_index_bytes,
+                    layer_count,
+                    first_layer_offset as usize,
+                )
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption"))?;
+                Ok(Dictionary {
+                    sstable_slice,
+                    sstable_index,
+                    num_terms,
+                    phantom_data: PhantomData,
+                })
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!(
+                        "Unsuported sstable version, expected {}, found {version}",
+                        crate::SSTABLE_VERSION,
+                    ),
+                ))
+            }
         }
     }
 
