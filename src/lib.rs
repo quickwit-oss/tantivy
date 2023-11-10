@@ -418,6 +418,23 @@ pub mod tests {
                 }
             }
         }};
+        ($left:expr, $right:expr, $epsilon:expr) => {{
+            match (&$left, &$right, &$epsilon) {
+                (left_val, right_val, epsilon_val) => {
+                    let diff = (left_val - right_val).abs();
+
+                    if diff > *epsilon_val {
+                        panic!(
+                            r#"assertion failed: `abs(left-right)>epsilon`
+    left: `{:?}`,
+    right: `{:?}`,
+    epsilon: `{:?}`"#,
+                            &*left_val, &*right_val, &*epsilon_val
+                        )
+                    }
+                }
+            }
+        }};
     }
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
