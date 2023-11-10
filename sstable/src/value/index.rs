@@ -3,6 +3,10 @@ use std::io;
 use crate::value::{deserialize_vint_u64, ValueReader, ValueWriter};
 use crate::{vint, BlockAddr};
 
+// TODO define a LazyIndexValueReader?
+// one which keeps state could be useful for ord_to_block fns,
+// one which doesn't at all woud be perfect for term_to_block fns
+// pending bench to asses real impact
 #[derive(Default)]
 pub(crate) struct IndexValueReader {
     vals: Vec<BlockAddr>,

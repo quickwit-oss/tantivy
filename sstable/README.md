@@ -105,16 +105,6 @@ Blocks referencing the main table and block referencing the index itself are enc
 are not directly differentiated. Offsets in blocks referencing the index are relative to the start of
 the footer, blocks referencing the main table are relative to the start of that table.
 
-#### TODO(trinity) open questions:
-the changes are small enough that it's easy to support both v2 and v3 at once (LayerCount alias with a
-4 byte empty block we aways add at the end of an sstable. If LayerCount is zero, we are in v2, and must
-not read FirstLayerOffset, if we are in v3, LayerCount is non zero and we read FirstLayerOffset.
-If we keep that version number to 2, the format is then also forward compatible: an old version would decode
-IndexOffset and after, and find enough information to decode the bottom layer sstable, and would stop at
-the empty block added end of that sstable. The non-bottom layers would be loaded to memory, but never actually
-processed.
-Do we want to support that usage (put back version to v2), or prevent it and use v3?
-
 ### IndexValue
 ```
 +------------+----------+-------+-------+-----+

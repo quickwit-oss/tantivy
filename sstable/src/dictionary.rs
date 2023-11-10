@@ -128,6 +128,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
     ) -> FileSlice {
+        // we don't perform great when limit is set to a large value, and sometime we use u64::MAX
+        // as a marker for no limit, so we'd better capture that.
+        // (not great means we decode up to the whole bottom layer index, which can take dozens of
+        // ms on a 100m term dictionary)
+        let limit = limit.filter(|limit| *limit == u64::MAX);
+
         // TODO replace unwraps with proper error handling
         let start_key = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => key,

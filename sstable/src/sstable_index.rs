@@ -44,6 +44,7 @@ impl SSTableIndex {
             root_blocks,
             layer_count,
             index_bytes,
+            // index_bytes: OwnedBytes::empty(),
         })
     }
 
@@ -66,26 +67,24 @@ impl SSTableIndex {
             Err(pos) => pos - 1,
         };
 
+        if self.layer_count == 1 {
+            return Ok(self.root_blocks[root_pos].block_addr.clone());
+        }
+
         let mut next_layer_block_addr = self.root_blocks[root_pos].block_addr.clone();
-        let mut last_delta_reader = None;
         for _ in 1..self.layer_count {
-            // we don't enter this loop for 1 layer index
             let mut sstable_delta_reader = IndexSSTable::delta_reader(
-                self.index_bytes.slice(next_layer_block_addr.byte_range),
+                self.index_bytes
+                    .slice(next_layer_block_addr.byte_range.clone()),
             );
             while sstable_delta_reader.advance()? {
-                if sstable_delta_reader.value().first_ordinal >= ord {
+                if sstable_delta_reader.value().first_ordinal > ord {
                     break;
                 }
+                next_layer_block_addr = sstable_delta_reader.value().clone();
             }
-            next_layer_block_addr = sstable_delta_reader.value().clone();
-            last_delta_reader = Some(sstable_delta_reader);
         }
-        if let Some(sstable_delta_reader) = last_delta_reader {
-            Ok(sstable_delta_reader.value().clone())
-        } else {
-            Ok(self.root_blocks[root_pos].block_addr.clone())
-        }
+        Ok(next_layer_block_addr)
     }
 
     pub(crate) fn iterate_from_key(&self, key: &[u8]) -> io::Result<ReaderOrSlice<'_>> {
@@ -111,9 +110,7 @@ impl SSTableIndex {
             let mut sstable_delta_reader = IndexSSTable::delta_reader(
                 self.index_bytes.slice(next_layer_block_addr.byte_range),
             );
-            if crate::dictionary::decode_up_to_key(key, &mut sstable_delta_reader)?.is_none() {
-                return Ok(ReaderOrSlice::End);
-            }
+            crate::dictionary::decode_up_to_key(key, &mut sstable_delta_reader)?;
             next_layer_block_addr = sstable_delta_reader.value().clone();
             last_delta_reader = Some(sstable_delta_reader);
         }
@@ -256,30 +253,85 @@ impl SSTableIndexBuilder {
     pub fn serialize<W: std::io::Write>(
         &self,
         wrt: W,
-        _index_max_root_blocks: u64,
-    ) -> io::Result<()> {
-        // we can't use a plain writer as it would generate an index
-        let mut sstable_writer = IndexSSTable::delta_writer(wrt);
+        index_max_root_blocks: std::num::NonZeroU64,
+    ) -> io::Result<(u32, u64)> {
+        let index_max_root_blocks = index_max_root_blocks.get();
 
-        // in tests, set a smaller block size to stress-test
-        #[cfg(test)]
-        sstable_writer.set_block_len(16);
+        let mut wrt = common::CountingWriter::wrap(wrt);
+        let mut next_layer = write_sstable_layer(&mut wrt, &self.index.root_blocks, 0)?;
 
-        let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
-        for block in self.index.root_blocks.iter() {
-            let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
+        let mut layer_count = 1;
+        let mut offset = 0;
+        while next_layer.len() as u64 > index_max_root_blocks {
+            offset = wrt.written_bytes();
+            layer_count += 1;
 
-            sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
-            sstable_writer.write_value(&block.block_addr);
-            sstable_writer.flush_block_if_required()?;
-
-            previous_key.clear();
-            previous_key.extend_from_slice(&block.last_key_or_greater);
+            next_layer = write_sstable_layer(&mut wrt, &next_layer, offset as usize)?;
         }
-        sstable_writer.flush_block()?;
-        sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
-        Ok(())
+        Ok((layer_count, offset))
     }
+}
+
+fn write_sstable_layer<W: std::io::Write>(
+    wrt: W,
+    layer_content: &[BlockMeta],
+    offset: usize,
+) -> io::Result<Vec<BlockMeta>> {
+    // we can't use a plain writer as it would generate an index
+    // also disable compression, the index is small anyway, and it's the most costly part of
+    // opening that kind of sstable
+    let mut sstable_writer =
+        crate::DeltaWriter::<_, crate::value::index::IndexValueWriter>::new_no_compression(wrt);
+
+    // in tests, set a smaller block size to stress-test
+    #[cfg(test)]
+    sstable_writer.set_block_len(16);
+
+    let mut next_layer = Vec::new();
+    let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
+    let mut first_ordinal = None;
+    for block in layer_content.iter() {
+        if first_ordinal.is_none() {
+            first_ordinal = Some(block.block_addr.first_ordinal);
+        }
+        let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
+
+        sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
+        sstable_writer.write_value(&block.block_addr);
+        if let Some(range) = sstable_writer.flush_block_if_required()? {
+            let real_range = (range.start + offset)..(range.end + offset);
+            let block_meta = BlockMeta {
+                last_key_or_greater: block.last_key_or_greater.clone(),
+                block_addr: BlockAddr {
+                    byte_range: real_range,
+                    first_ordinal: first_ordinal.take().unwrap(),
+                },
+            };
+            next_layer.push(block_meta);
+            previous_key.clear();
+        } else {
+            previous_key.extend_from_slice(&block.last_key_or_greater);
+            previous_key.resize(block.last_key_or_greater.len(), 0u8);
+            previous_key[keep_len..].copy_from_slice(&block.last_key_or_greater[keep_len..]);
+        }
+    }
+    if let Some(range) = sstable_writer.flush_block()? {
+        if let Some(last_block) = layer_content.last() {
+            // not going here means an empty table (?!)
+            let real_range = (range.start + offset)..(range.end + offset);
+            let block_meta = BlockMeta {
+                last_key_or_greater: last_block.last_key_or_greater.clone(),
+                block_addr: BlockAddr {
+                    byte_range: real_range,
+                    first_ordinal: first_ordinal.take().unwrap(),
+                },
+            };
+            next_layer.push(block_meta);
+        }
+    }
+    sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
+
+    Ok(next_layer)
 }
 
 /// SSTable representing an index
@@ -312,7 +364,9 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer, 8).unwrap();
+        sstable_builder
+            .serialize(&mut buffer, crate::DEFAULT_MAX_ROOT_BLOCKS)
+            .unwrap();
         let buffer = OwnedBytes::new(buffer);
         let sstable_index = SSTableIndex::load(buffer, 1, 0).unwrap();
         assert_eq!(
@@ -391,7 +445,9 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer, 340).unwrap();
+        sstable_builder
+            .serialize(&mut buffer, crate::DEFAULT_MAX_ROOT_BLOCKS)
+            .unwrap();
         buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
         let data_corruption_err = SSTableIndex::load(buffer, 1, 0).err().unwrap();

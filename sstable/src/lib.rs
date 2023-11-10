@@ -1,6 +1,6 @@
 use std::io::{self, Write};
+use std::num::NonZeroU64;
 use std::ops::Range;
-use std::usize;
 
 use merge::ValueMerger;
 
@@ -32,9 +32,9 @@ const SSTABLE_VERSION: u32 = 2;
 
 // TODO tune that value. Maybe it's too little?
 #[cfg(not(test))]
-const DEFAULT_MAX_ROOT_BLOCKS: u64 = 8;
+const DEFAULT_MAX_ROOT_BLOCKS: NonZeroU64 = unsafe { NonZeroU64::new_unchecked(32) };
 #[cfg(test)]
-const DEFAULT_MAX_ROOT_BLOCKS: u64 = 1;
+const DEFAULT_MAX_ROOT_BLOCKS: NonZeroU64 = unsafe { NonZeroU64::new_unchecked(1) };
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
@@ -184,7 +184,7 @@ where W: io::Write
     delta_writer: DeltaWriter<W, TValueWriter>,
     num_terms: u64,
     first_ordinal_of_the_block: u64,
-    index_max_root_blocks: u64,
+    index_max_root_blocks: NonZeroU64,
 }
 
 impl<W, TValueWriter> Writer<W, TValueWriter>
@@ -201,7 +201,7 @@ where
     }
 
     /// Creates a new `TermDictionaryBuilder`.
-    pub fn new(wrt: W, index_max_root_blocks: u64) -> Self {
+    pub fn new(wrt: W, index_max_root_blocks: NonZeroU64) -> Self {
         Writer {
             previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             num_terms: 0u64,
@@ -310,11 +310,15 @@ where
         // add a final empty block as an end marker
         wrt.write_all(&0u32.to_le_bytes())?;
 
-        let offset = wrt.written_bytes();
+        let index_offset = wrt.written_bytes();
 
-        self.index_builder
+        let (layer_count, layer_offset): (u32, u64) = self
+            .index_builder
             .serialize(&mut wrt, self.index_max_root_blocks)?;
-        wrt.write_all(&offset.to_le_bytes())?;
+        wrt.write_all(&layer_offset.to_le_bytes())?;
+        wrt.write_all(&layer_count.to_le_bytes())?;
+
+        wrt.write_all(&index_offset.to_le_bytes())?;
         wrt.write_all(&self.num_terms.to_le_bytes())?;
 
         SSTABLE_VERSION.serialize(&mut wrt)?;
@@ -398,6 +402,8 @@ mod test {
                 0, // compression
                 1, 0, 12, 0, 32, 17, 20, // index block
                 0, 0, 0, 0, // no more index block
+                0, 0, 0, 0, 0, 0, 0, 0, // first layer offset
+                1, 0, 0, 0, // layer count
                 16, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
                 2, 0, 0, 0, // version

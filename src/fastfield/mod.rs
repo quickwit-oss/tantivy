@@ -131,7 +131,7 @@ mod tests {
         }
         let file = directory.open_read(path).unwrap();
 
-        assert_eq!(file.len(), 93);
+        assert_eq!(file.len(), 105);
         let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
         let column = fast_field_readers
             .u64("field")
@@ -181,7 +181,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 121);
+        assert_eq!(file.len(), 133);
         let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
         let col = fast_field_readers
             .u64("field")
@@ -214,7 +214,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 94);
+        assert_eq!(file.len(), 106);
         let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
         let fast_field_reader = fast_field_readers
             .u64("field")
@@ -246,7 +246,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 4489);
+        assert_eq!(file.len(), 4501);
         {
             let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
             let col = fast_field_readers
@@ -279,7 +279,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 265);
+        assert_eq!(file.len(), 277);
 
         {
             let fast_field_readers = FastFieldReaders::open(file, schema).unwrap();
@@ -773,7 +773,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 102);
+        assert_eq!(file.len(), 114);
         let fast_field_readers = FastFieldReaders::open(file, schema).unwrap();
         let bool_col = fast_field_readers.bool("field_bool").unwrap();
         assert_eq!(bool_col.first(0), Some(true));
@@ -805,7 +805,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 114);
+        assert_eq!(file.len(), 126);
         let readers = FastFieldReaders::open(file, schema).unwrap();
         let bool_col = readers.bool("field_bool").unwrap();
         for i in 0..25 {
@@ -830,7 +830,7 @@ mod tests {
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        assert_eq!(file.len(), 104);
+        assert_eq!(file.len(), 116);
         let fastfield_readers = FastFieldReaders::open(file, schema).unwrap();
         let col = fastfield_readers.bool("field_bool").unwrap();
         assert_eq!(col.first(0), None);

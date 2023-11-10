@@ -20,6 +20,7 @@ where W: io::Write
     // Only here to avoid allocations.
     stateless_buffer: Vec<u8>,
     block_len: usize,
+    compress: bool,
 }
 
 impl<W, TValueWriter> DeltaWriter<W, TValueWriter>
@@ -34,6 +35,18 @@ where
             value_writer: TValueWriter::default(),
             stateless_buffer: Vec::new(),
             block_len: BLOCK_LEN,
+            compress: true,
+        }
+    }
+
+    pub fn new_no_compression(wrt: W) -> Self {
+        DeltaWriter {
+            block: Vec::with_capacity(BLOCK_LEN * 2),
+            write: CountingWriter::wrap(BufWriter::new(wrt)),
+            value_writer: TValueWriter::default(),
+            stateless_buffer: Vec::new(),
+            block_len: BLOCK_LEN,
+            compress: false,
         }
     }
 
@@ -53,7 +66,7 @@ where
 
         let block_len = buffer.len() + self.block.len();
 
-        if block_len > 2048 {
+        if block_len > 2048 && self.compress {
             buffer.extend_from_slice(&self.block);
             self.block.clear();
 
