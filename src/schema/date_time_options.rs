@@ -27,21 +27,25 @@ pub struct DateOptions {
 
 impl DateOptions {
     /// Returns true iff the value is stored.
+    #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }
 
     /// Returns true iff the value is indexed and therefore searchable.
+    #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexed
     }
 
     /// Returns true iff the field has fieldnorm.
+    #[inline]
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms && self.indexed
     }
 
     /// Returns true iff the value is a fast field.
+    #[inline]
     pub fn is_fast(&self) -> bool {
         self.fast
     }
