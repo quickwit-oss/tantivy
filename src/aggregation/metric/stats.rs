@@ -154,13 +154,26 @@ pub struct ExtendedStats {
     /// is less then 2.
     pub variance_sampling: Option<f64>,
     /// The standard deviation of the fast field values. `None` if count is less then 2.
-    pub standard_deviation: Option<f64>,
+    pub std_deviation: Option<f64>,
     /// The standard deviation of the fast field values, always equal to variance. `None` if count
     /// is less then 2.
-    pub standard_deviation_population: Option<f64>,
-    /// The standard deviation sampling of the fast field values, always equal to variance. `None`
+    pub std_deviation_population: Option<f64>,
+    /// The standard deviation sampling of the fast field values. `None`
     /// if count is less then 2.
-    pub standard_deviation_sampling: Option<f64>,
+    pub std_deviation_sampling: Option<f64>,
+    /// The standard deviation bounds of the fast field values, always equal to variance. `None`
+    /// if count is less then 2.
+    pub std_deviation_bounds: Option<StandardDeviationBounds>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StandardDeviationBounds {
+    pub upper: f64,
+    pub lower: f64,
+    pub upper_sampling: f64,
+    pub lower_sampling: f64,
+    pub upper_population: f64,
+    pub lower_population: f64,
 }
 
 impl ExtendedStats {
@@ -175,9 +188,15 @@ impl ExtendedStats {
             "variance_sampling" => Ok(self.variance_sampling),
             "variance_population" => Ok(self.variance_population),
             "sum_of_squares" => Ok(self.sum_of_squares),
-            "standard_deviation" => Ok(self.standard_deviation),
-            "standard_deviation_sampling" => Ok(self.standard_deviation_sampling),
-            "standard_deviation_population" => Ok(self.standard_deviation_population),
+            "std_deviation" => Ok(self.std_deviation),
+            "std_deviation_sampling" => Ok(self.std_deviation_sampling),
+            "std_deviation_population" => Ok(self.std_deviation_population),
+            "std_deviation_bounds.lower" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.lower)),
+            "std_deviation_bounds.lower_population" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.lower_population)),
+            "std_deviation_bounds.lower_sampling" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.lower_sampling)),
+            "std_deviation_bounds.upper" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.upper)),
+            "std_deviation_bounds.upper_population" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.upper_population)),
+            "std_deviation_bounds.upper_sampling" => Ok(self.std_deviation_bounds.as_ref().map(|bounds| bounds.upper_sampling)),
             _ => Err(TantivyError::InvalidArgument(format!(
                 "Unknown property {agg_property} on stats metric aggregation"
             ))),
@@ -185,74 +204,7 @@ impl ExtendedStats {
     }
 }
 
-// #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-// pub struct IntermediateStats {
-// The number of extracted values.
-// count: u64,
-// The sum of the extracted values.
-// sum: f64,
-// The min value.
-// min: f64,
-// The max value.
-// max: f64,
-// }
-//
-// impl Default for IntermediateStats {
-// fn default() -> Self {
-// Self {
-// count: 0,
-// sum: 0.0,
-// min: f64::MAX,
-// max: f64::MIN,
-// }
-// }
-// }
-//
-// impl IntermediateStats {
-// Merges the other stats intermediate result into self.
-// pub fn merge_fruits(&mut self, other: IntermediateStats) {
-// self.count += other.count;
-// self.sum += other.sum;
-// self.min = self.min.min(other.min);
-// self.max = self.max.max(other.max);
-// }
-//
-// Computes the final stats value.
-// pub fn finalize(&self) -> Stats {
-// let min = if self.count == 0 {
-// None
-// } else {
-// Some(self.min)
-// };
-// let max = if self.count == 0 {
-// None
-// } else {
-// Some(self.max)
-// };
-// let avg = if self.count == 0 {
-// None
-// } else {
-// Some(self.sum / (self.count as f64))
-// };
-// Stats {
-// count: self.count,
-// sum: self.sum,
-// min,
-// max,
-// avg,
-// }
-// }
-//
-// #[inline]
-// fn collect(&mut self, value: f64) {
-// self.count += 1;
-// self.sum += value;
-// self.min = self.min.min(value);
-// self.max = self.max.max(value);
-// }
-// }
-/// Intermediate result of the stats aggregation that can be combined with other intermediate
-/// results.
+
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     stats: IntermediateExtendedStats,
@@ -291,6 +243,8 @@ pub struct IntermediateExtendedStats {
     count: u64,
     /// The sum of the extracted values.
     sum: f64,
+    /// delta for sum needed by [Kahan algorithm for summation](https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+    delta: f64,
     /// The min value.
     min: f64,
     /// The max value.
@@ -309,6 +263,7 @@ impl Default for IntermediateExtendedStats {
         Self {
             count: 0,
             sum: 0.0,
+            delta: 0.0,
             min: f64::MAX,
             max: f64::MIN,
             sum_of_squares: 0.0,
@@ -325,6 +280,7 @@ impl IntermediateExtendedStats {
         Self {
             count: 0,
             sum: 0.0,
+            delta: 0.0,
             min: f64::MAX,
             max: f64::MIN,
             sum_of_squares: 0.0,
@@ -336,26 +292,42 @@ impl IntermediateExtendedStats {
     pub fn merge_fruits(&mut self, other: IntermediateExtendedStats) {
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
-
+        
         if other.count != 0 {
             if self.count == 0 {
                 self.sum_of_squares = other.sum_of_squares;
                 self.count = other.count;
                 self.mean = other.mean;
+                self.sum = other.sum;
+                self.delta = other.delta;
             } else {
-                // parallel version of Welford's online algorithm
-                // the mean is computed using sum and count because
-                // it's more precise (and sum is already available)
-                let new_count = self.count + other.count;
-                let delta = other.sum / other.count as f64 - self.sum / self.count as f64;
-                self.sum_of_squares += other.sum_of_squares
-                    + delta * delta * self.count as f64 * other.count as f64 / new_count as f64;
-                self.count = new_count;
-                // self.mean=self.mean + delta*other.count as f64/new_count as f64;
-                self.mean = (self.sum as f64 + other.sum as f64) / new_count as f64;
-            }
-            self.sum += other.sum;
+                if other.count==1 {
+                    self.collect(other.sum);
+                } else if self.count==1 {
+                    let sum=self.sum;
+                    self.sum_of_squares = other.sum_of_squares;
+                    self.count = other.count;
+                    self.mean = other.mean;
+                    self.sum=other.sum;
+                    self.delta = other.delta;
+                    self.collect(sum);
+                } else {
+                    // parallel version of Welford's online algorithm
+                    // the mean is computed using sum and count because
+                    // it's more precise (and sum is already available)
+                    let new_count = self.count + other.count;
+                    let delta = other.mean - self.mean;
+                    self.sum_of_squares += other.sum_of_squares
+                        + delta * delta * self.count as f64 * other.count as f64 / new_count as f64;
+                    self.count = new_count;
+                    // self.mean=self.mean + delta*other.count as f64/new_count as f64;
+                    self.mean = (self.sum as f64 + other.sum as f64) / new_count as f64;
+                    self.sum += other.sum;
+                    self.delta += other.delta;
+                } 
+            } 
         }
+        
     }
 
     /// Computes the final stats value.
@@ -390,9 +362,24 @@ impl IntermediateExtendedStats {
         } else {
             Some(self.sum_of_squares / (self.count - 1) as f64)
         };
-        let standard_deviation = variance.map(|v| v.sqrt());
-        let standard_deviation_sampling = variance_sampling.map(|v| v.sqrt());
-
+        let std_deviation = variance.map(|v| v.sqrt());
+        let std_deviation_sampling = variance_sampling.map(|v| v.sqrt());
+        let std_deviation_bounds = if std_deviation.is_none() {
+            None
+        } else {
+            let upper=self.mean  + std_deviation.unwrap() * self.sigma;
+            let lower=self.mean  - std_deviation.unwrap() * self.sigma;
+            let upper_sampling=self.mean  + std_deviation_sampling.unwrap() * self.sigma;
+            let lower_sampling=self.mean  - std_deviation_sampling.unwrap() * self.sigma;
+            Some(StandardDeviationBounds {
+                upper,
+                lower,
+                upper_sampling,
+                lower_sampling,
+                upper_population: upper,
+                lower_population: lower,
+            })
+        };
         ExtendedStats {
             count: self.count,
             sum: self.sum,
@@ -403,15 +390,22 @@ impl IntermediateExtendedStats {
             variance,
             variance_population: variance,
             variance_sampling,
-            standard_deviation,
-            standard_deviation_population: standard_deviation,
-            standard_deviation_sampling,
+            std_deviation,
+            std_deviation_population: std_deviation,
+            std_deviation_sampling,
+            std_deviation_bounds,
         }
     }
 
     fn collect(&mut self, value: f64) {
         self.count += 1;
-        self.sum += value;
+        
+        //kahan algorithm for summation
+        let y=value-self.delta;
+        let t=self.sum+y;
+        self.delta=(t-self.sum)-y;
+        self.sum = t;
+
         self.min = self.min.min(value);
         self.max = self.max.max(value);
         self.update_variance(value);
@@ -425,6 +419,7 @@ impl IntermediateExtendedStats {
         //(test_aggregation_level1 in agg_test.rs)
         // failure
         self.mean = self.sum / self.count as f64;
+        //self.mean += delta / self.count as f64;
         let delta2 = value - self.mean;
         self.sum_of_squares += delta * delta2;
     }
@@ -577,7 +572,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
 mod tests {
 
     use serde_json::Value;
-
+    use approx::assert_relative_eq;
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::metric::IntermediateExtendedStats;
@@ -588,6 +583,8 @@ mod tests {
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, FAST};
     use crate::{Index, IndexWriter, Term};
+
+    const EPSILON_FOR_TEST : f64 = 0.00000000000001;
 
     #[test]
     fn test_aggregation_stats_empty_index() -> crate::Result<()> {
@@ -931,16 +928,60 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregation_extended_stats_simple() -> crate::Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
-        let values = vec![10.0, 20.0];
+    fn test_aggregation_extended_stats() -> crate::Result<()> {
+        
+        let values = vec![1.0, 3.0, 4.0, 5.0, 8.0, 10.0];
 
         let index = get_test_index_from_values(false, &values)?;
 
         let agg_req_1: Aggregations = serde_json::from_value(json!({
             "my_stats": {
                 "extended_stats": {
-                    "field": "score",
+                    "field": "score_f64",
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        const EXPECTED_VARIANCE : f64 = 9.138888888888888;
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "count")?.unwrap(),6.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "min")?.unwrap(),1.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "max")?.unwrap(),10.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "sum")?.unwrap(),31.0);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "avg")?.unwrap(),5.166666666666667, epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_population")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_sampling")?.unwrap(),3.311595788538611, epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower")?.unwrap(),-0.8794523824056837, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_population")?.unwrap(),-0.8794523824056837, epsilon = 0.00000000000001);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_sampling")?.unwrap(),-1.4565249104105549, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper")?.unwrap(),11.212785715739017, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_population")?.unwrap(),11.212785715739017, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_sampling")?.unwrap(),11.78985824374389, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "sum_of_squares")?.unwrap(),54.83333333333333, epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_population")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_sampling")?.unwrap(),10.966666666666663, epsilon = EPSILON_FOR_TEST);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_aggregation_extended_stats_with_sigma() -> crate::Result<()> {
+        let values = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "my_stats": {
+                "extended_stats": {
+                    "field": "score_f64",
+                    "sigma": 1.5
                 },
             }
         }))
@@ -952,24 +993,69 @@ mod tests {
         let searcher = reader.searcher();
         let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
 
-        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
-        assert_eq!(
-            res["my_stats"],
-            json!({
-                "avg": 15.0,
-                "count": 2,
-                "max": 20.0,
-                "min": 10.0,
-                "sum": 30.0,
-                "standard_deviation": 5.0,
-                "standard_deviation_population": 5.0,
-                "standard_deviation_sampling": 7.0710678118654755,
-                "sum_of_squares": 50.0,
-                "variance": 25.0,
-                "variance_population": 25.0,
-                "variance_sampling": 50.0,
-            })
-        );
+        const EXPECTED_VARIANCE : f64 = 2.9166666666666665;
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "count")?.unwrap(),6.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "min")?.unwrap(),1.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "max")?.unwrap(),6.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "sum")?.unwrap(),21.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "avg")?.unwrap(),3.5);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_population")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_sampling")?.unwrap(),1.8708286933869709, epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower")?.unwrap(),0.9382623085101005, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_population")?.unwrap(),0.9382623085101005, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_sampling")?.unwrap(),0.6937569599195434, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper")?.unwrap(),6.061737691489899, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_population")?.unwrap(),6.061737691489899, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_sampling")?.unwrap(),6.3062430400804566, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "sum_of_squares")?.unwrap(),17.5, epsilon = f64::EPSILON);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_population")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_sampling")?.unwrap(),3.5, epsilon = EPSILON_FOR_TEST);
+
+        Ok(())
+    }    
+
+    #[test]
+    fn test_aggregation_extended_stats_with_variance_similar_to_mean() -> crate::Result<()> {
+        let values = vec![50.01, 50.02, 50.01, 50.03, 50.01, 50.02];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "my_stats": {
+                "extended_stats": {
+                    "field": "score_f64",
+                    "sigma": 1.5
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        const EXPECTED_VARIANCE : f64 = 5.5555555555608854e-5;
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "count")?.unwrap(),6.0);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "min")?.unwrap(),50.01);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "max")?.unwrap(),50.03);
+        assert_eq!(agg_res.get_value_from_aggregation("my_stats", "sum")?.unwrap(),300.1);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "avg")?.unwrap(),50.01666666666667,epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_population")?.unwrap(),EXPECTED_VARIANCE.sqrt(), epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_sampling")?.unwrap(),0.008164965809279263, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower")?.unwrap(),50.00548632677917, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_population")?.unwrap(),50.00548632677917, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.lower_sampling")?.unwrap(),50.00441921795275, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper")?.unwrap(),50.027847006554175, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_population")?.unwrap(),50.027847006554175, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "std_deviation_bounds.upper_sampling")?.unwrap(),50.028914115380594, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "sum_of_squares")?.unwrap(),0.00033333333333346484, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_population")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance")?.unwrap(),EXPECTED_VARIANCE, epsilon = EPSILON_FOR_TEST);
+        assert_relative_eq!(agg_res.get_value_from_aggregation("my_stats", "variance_sampling")?.unwrap(),6.666666666670718e-5, epsilon = EPSILON_FOR_TEST);        
 
         Ok(())
     }
@@ -982,9 +1068,10 @@ mod tests {
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
         assert!(extended_stats.sum_of_squares.is_none());
-        assert!(extended_stats.standard_deviation.is_none());
-        assert!(extended_stats.standard_deviation_population.is_none());
-        assert!(extended_stats.standard_deviation_sampling.is_none());
+        assert!(extended_stats.std_deviation.is_none());
+        assert!(extended_stats.std_deviation_population.is_none());
+        assert!(extended_stats.std_deviation_sampling.is_none());
+        assert!(extended_stats.std_deviation_bounds.is_none());
     }
 
     #[test]
@@ -995,38 +1082,16 @@ mod tests {
         assert!(extended_stats.variance.is_none());
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
-        assert!(extended_stats.standard_deviation.is_none());
-        assert!(extended_stats.standard_deviation_population.is_none());
-        assert!(extended_stats.standard_deviation_sampling.is_none());
+        assert!(extended_stats.std_deviation.is_none());
+        assert!(extended_stats.std_deviation_population.is_none());
+        assert!(extended_stats.std_deviation_sampling.is_none());
+        assert!(extended_stats.std_deviation_bounds.is_none());
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(0.0f64, sum_of_squares);
     }
 
     #[test]
     fn extended_stat_multiple_values() {
-        let mut intermediate_extend_stats = IntermediateExtendedStats::default();
-        intermediate_extend_stats.collect(1.0f64);
-        intermediate_extend_stats.collect(2.0f64);
-        intermediate_extend_stats.collect(3.0f64);
-        intermediate_extend_stats.collect(4.0f64);
-        intermediate_extend_stats.collect(5.0f64);
-        let extended_stats = intermediate_extend_stats.finalize();
-        let variance = extended_stats.variance.unwrap();
-        assert_eq!(2.0f64, variance);
-        let variance_population = extended_stats.variance_population.unwrap();
-        assert_eq!(2.0f64, variance_population);
-        let variance_sampling = extended_stats.variance_sampling.unwrap();
-        assert_eq!(2.5f64, variance_sampling);
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation);
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
-        let sum_of_squares = extended_stats.sum_of_squares.unwrap();
-        assert_eq!(10f64, sum_of_squares);
-        let avg = extended_stats.avg.unwrap();
-        assert_eq!(3.0f64, avg);
 
         let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.collect(1.0f64);
@@ -1037,17 +1102,18 @@ mod tests {
         intermediate_extend_stats.collect(10.0f64);
         let extended_stats = intermediate_extend_stats.finalize();
         let variance = extended_stats.variance.unwrap();
-        assert_eq!(9.138888888888888f64, variance);
+        const EXPECTED_VARIANCE : f64 = 9.138888888888888;
+        assert_eq!(EXPECTED_VARIANCE, variance);
         let variance_population = extended_stats.variance_population.unwrap();
-        assert_eq!(9.138888888888888f64, variance_population);
+        assert_eq!(EXPECTED_VARIANCE, variance_population);
         let variance_sampling = extended_stats.variance_sampling.unwrap();
         assert_eq!(10.966666666666665f64, variance_sampling);
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation);
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation_population);
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(10.966666666666665f64.sqrt(), standard_deviation_sampling);
+        let std_deviation = extended_stats.std_deviation.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation);
+        let std_deviation_population = extended_stats.std_deviation_population.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation_population);
+        let std_deviation_sampling = extended_stats.std_deviation_sampling.unwrap();
+        assert_eq!(10.966666666666665f64.sqrt(), std_deviation_sampling);
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(54.83333333333333f64, sum_of_squares);
         let avg = extended_stats.avg.unwrap();
@@ -1064,9 +1130,9 @@ mod tests {
         assert!(extended_stats.variance.is_none());
         assert!(extended_stats.variance_population.is_none());
         assert!(extended_stats.variance_sampling.is_none());
-        assert!(extended_stats.standard_deviation.is_none());
-        assert!(extended_stats.standard_deviation_population.is_none());
-        assert!(extended_stats.standard_deviation_sampling.is_none());
+        assert!(extended_stats.std_deviation.is_none());
+        assert!(extended_stats.std_deviation_population.is_none());
+        assert!(extended_stats.std_deviation_sampling.is_none());
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(0.0f64, sum_of_squares);
     }
@@ -1083,19 +1149,19 @@ mod tests {
         let mut intermediate_extend_stats = IntermediateExtendedStats::default();
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
         let extended_stats = intermediate_extend_stats.finalize();
-
+        const EXPECTED_VARIANCE : f64 = 2.0;
         let variance = extended_stats.variance.unwrap();
-        assert_eq!(2.0f64, variance);
+        assert_eq!(EXPECTED_VARIANCE, variance);
         let variance_population = extended_stats.variance_population.unwrap();
-        assert_eq!(2.0f64, variance_population);
+        assert_eq!(EXPECTED_VARIANCE, variance_population);
         let variance_sampling = extended_stats.variance_sampling.unwrap();
         assert_eq!(2.5f64, variance_sampling);
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation);
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
+        let std_deviation = extended_stats.std_deviation.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation);
+        let std_deviation_population = extended_stats.std_deviation_population.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation_population);
+        let std_deviation_sampling = extended_stats.std_deviation_sampling.unwrap();
+        assert_eq!(2.5f64.sqrt(), std_deviation_sampling);
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(10f64, sum_of_squares);
     }
@@ -1119,12 +1185,12 @@ mod tests {
         assert_eq!(2.0f64, variance_population);
         let variance_sampling = extended_stats.variance_sampling.unwrap();
         assert_eq!(2.5f64, variance_sampling);
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation);
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(2.0f64.sqrt(), standard_deviation_population);
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(2.5f64.sqrt(), standard_deviation_sampling);
+        let std_deviation = extended_stats.std_deviation.unwrap();
+        assert_eq!(2.0f64.sqrt(), std_deviation);
+        let std_deviation_population = extended_stats.std_deviation_population.unwrap();
+        assert_eq!(2.0f64.sqrt(), std_deviation_population);
+        let std_deviation_sampling = extended_stats.std_deviation_sampling.unwrap();
+        assert_eq!(2.5f64.sqrt(), std_deviation_sampling);
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(10f64, sum_of_squares);
 
@@ -1138,34 +1204,26 @@ mod tests {
         intermediate_extend_stats1.collect(10.0f64);
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
         let extended_stats = intermediate_extend_stats.finalize();
+        const EXPECTED_VARIANCE : f64 = 9.138888888888888;
         let variance = extended_stats.variance.unwrap();
-        assert_eq!(9.138888888888888f64, variance);
+        assert_eq!(EXPECTED_VARIANCE, variance);
         let variance_population = extended_stats.variance_population.unwrap();
-        assert_eq!(9.138888888888888f64, variance_population);
+        assert_eq!(EXPECTED_VARIANCE, variance_population);
         let variance_sampling = extended_stats.variance_sampling.unwrap();
         assert_eq!(10.966666666666665f64, variance_sampling);
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation);
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(9.138888888888888f64.sqrt(), standard_deviation_population);
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(10.966666666666665f64.sqrt(), standard_deviation_sampling);
+        let std_deviation = extended_stats.std_deviation.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation);
+        let std_deviation_population = extended_stats.std_deviation_population.unwrap();
+        assert_eq!(EXPECTED_VARIANCE.sqrt(), std_deviation_population);
+        let std_deviation_sampling = extended_stats.std_deviation_sampling.unwrap();
+        assert_eq!(10.966666666666665f64.sqrt(), std_deviation_sampling);
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
         assert_eq!(54.83333333333333f64, sum_of_squares);
         let avg = extended_stats.avg.unwrap();
         assert_eq!(5.166666666666667, avg);
     }
 
-    fn round_f64(value: f64, digits: u32) -> f64 {
-        let y = 10u64.pow(digits) as f64;
-        (value * y).round() / y
-    }
 
-    #[test]
-    fn test_round() {
-        assert_eq!(round_f64(4.365, 2), 4.37);
-        assert_eq!(round_f64(9.138888888888888, 12), 9.138888888889);
-    }
 
     #[test]
     fn merge_and_then_collect_non_empty_extended_stats() {
@@ -1180,39 +1238,23 @@ mod tests {
         intermediate_extend_stats.merge_fruits(intermediate_extend_stats1);
         intermediate_extend_stats.collect(4.0f64);
         let extended_stats = intermediate_extend_stats.finalize();
+        const EXPECTED_VARIANCE : f64 = 9.138888888888888;
         let variance = extended_stats.variance.unwrap();
-        assert_eq!(round_f64(9.138888888888888, 12), round_f64(variance, 12));
-        let variance_population = extended_stats.variance_population.unwrap();
-        assert_eq!(
-            round_f64(9.138888888888888, 12),
-            round_f64(variance_population, 12)
-        );
+        assert_relative_eq!(EXPECTED_VARIANCE,variance, epsilon = EPSILON_FOR_TEST);
+        let variance_population = extended_stats.variance_population.unwrap(); 
+        assert_relative_eq!(EXPECTED_VARIANCE,variance_population, epsilon = EPSILON_FOR_TEST); 
         let variance_sampling = extended_stats.variance_sampling.unwrap();
-        assert_eq!(
-            round_f64(10.966666666666665, 12),
-            round_f64(variance_sampling, 12)
-        );
-        let standard_deviation = extended_stats.standard_deviation.unwrap();
-        assert_eq!(
-            round_f64(9.138888888888888_f64.sqrt(), 12),
-            round_f64(standard_deviation, 12)
-        );
-        let standard_deviation_population = extended_stats.standard_deviation_population.unwrap();
-        assert_eq!(
-            round_f64(9.138888888888888_f64.sqrt(), 12),
-            round_f64(standard_deviation_population, 12)
-        );
-        let standard_deviation_sampling = extended_stats.standard_deviation_sampling.unwrap();
-        assert_eq!(
-            round_f64(10.966666666666665_f64.sqrt(), 12),
-            round_f64(standard_deviation_sampling, 12)
-        );
+        assert_relative_eq!(10.966666666666665,variance_sampling, epsilon = EPSILON_FOR_TEST); 
+        let std_deviation = extended_stats.std_deviation.unwrap();
+        assert_relative_eq!(EXPECTED_VARIANCE.sqrt(),std_deviation, epsilon = EPSILON_FOR_TEST); 
+        let std_deviation_population = extended_stats.std_deviation_population.unwrap();
+        assert_relative_eq!(EXPECTED_VARIANCE.sqrt(),std_deviation_population, epsilon = EPSILON_FOR_TEST); 
+        let std_deviation_sampling = extended_stats.std_deviation_sampling.unwrap();
+        assert_relative_eq!(10.966666666666665_f64.sqrt(),std_deviation_sampling, epsilon = EPSILON_FOR_TEST); 
         let sum_of_squares = extended_stats.sum_of_squares.unwrap();
-        assert_eq!(
-            round_f64(54.83333333333333f64, 12),
-            round_f64(sum_of_squares, 12)
-        );
+        assert_relative_eq!(54.83333333333333,sum_of_squares, epsilon = EPSILON_FOR_TEST);
         let avg = extended_stats.avg.unwrap();
         assert_eq!(5.166666666666667, avg);
     }
+
 }
