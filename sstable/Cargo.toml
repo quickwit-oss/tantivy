@@ -24,3 +24,8 @@ rand = "0.8"
 [[bench]]
 name = "stream_bench"
 harness = false
+
+[[bench]]
+name = "ord_to_term"
+harness = false
+
