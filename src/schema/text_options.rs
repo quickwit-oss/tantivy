@@ -72,16 +72,19 @@ fn is_false(val: &bool) -> bool {
 
 impl TextOptions {
     /// Returns the indexing options.
+    #[inline]
     pub fn get_indexing_options(&self) -> Option<&TextFieldIndexing> {
         self.indexing.as_ref()
     }
 
     /// Returns true if the text is to be stored.
+    #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }
 
     /// Returns true if and only if the value is a fast field.
+    #[inline]
     pub fn is_fast(&self) -> bool {
         matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
             || matches!(
@@ -91,6 +94,7 @@ impl TextOptions {
     }
 
     /// Returns true if and only if the value is a fast field.
+    #[inline]
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
         match &self.fast {
             FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
@@ -101,6 +105,7 @@ impl TextOptions {
     }
 
     /// Returns true if values should be coerced to strings (numbers, null).
+    #[inline]
     pub fn should_coerce(&self) -> bool {
         self.coerce
     }

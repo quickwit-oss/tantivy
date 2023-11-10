@@ -83,8 +83,8 @@ rand_distr = "0.4.3"
 approx = "0.5.1"
 
 [target.'cfg(not(windows))'.dev-dependencies]
-criterion = "0.5"
-pprof = { git = "https://github.com/PSeitz/pprof-rs/", rev = "53af24b", features = ["flamegraph", "criterion"] } # temp fork that works with criterion 0.5
+criterion = { version = "0.5" }
+pprof = { version= "0.13", features = ["flamegraph", "criterion"] }
 
 [dev-dependencies.fail]
 version = "0.5.0"
@@ -116,6 +116,11 @@ failpoints = ["fail", "fail/failpoints"]
 unstable = [] # useful for benches.
 
 quickwit = ["sstable", "futures-util"]
+
+# Compares only the hash of a string when indexing data. 
+# Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.
+# Uses 64bit ahash.
+compare_hash_only = ["stacker/compare_hash_only"]
 
 [workspace]
 members = ["query-grammar", "bitpacker", "common", "ownedbytes", "stacker", "sstable", "tokenizer-api", "columnar"]

@@ -148,6 +148,11 @@ impl MemoryArena {
         self.get_page(addr.page_id())
             .slice_from(addr.page_local_addr())
     }
+    #[inline]
+    pub fn slice_from_mut(&mut self, addr: Addr) -> &mut [u8] {
+        self.get_page_mut(addr.page_id())
+            .slice_from_mut(addr.page_local_addr())
+    }
 
     #[inline]
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
@@ -205,6 +210,10 @@ impl Page {
     #[inline]
     fn slice_from(&self, local_addr: usize) -> &[u8] {
         &self.data[local_addr..]
+    }
+    #[inline]
+    fn slice_from_mut(&mut self, local_addr: usize) -> &mut [u8] {
+        &mut self.data[local_addr..]
     }
 
     #[inline]

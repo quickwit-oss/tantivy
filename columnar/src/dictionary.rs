@@ -1,7 +1,7 @@
 use std::io;
 
-use fnv::FnvHashMap;
 use sstable::SSTable;
+use stacker::{MemoryArena, SharedArenaHashMap};
 
 pub(crate) struct TermIdMapping {
     unordered_to_ord: Vec<OrderedId>,
@@ -31,29 +31,38 @@ pub struct OrderedId(pub u32);
 /// mapping.
 #[derive(Default)]
 pub(crate) struct DictionaryBuilder {
-    dict: FnvHashMap<Vec<u8>, UnorderedId>,
-    memory_consumption: usize,
+    dict: SharedArenaHashMap,
 }
 
 impl DictionaryBuilder {
     /// Get or allocate an unordered id.
     /// (This ID is simply an auto-incremented id.)
-    pub fn get_or_allocate_id(&mut self, term: &[u8]) -> UnorderedId {
-        if let Some(term_id) = self.dict.get(term) {
-            return *term_id;
-        }
-        let new_id = UnorderedId(self.dict.len() as u32);
-        self.dict.insert(term.to_vec(), new_id);
-        self.memory_consumption += term.len();
-        self.memory_consumption += 40; // Term Metadata + HashMap overhead
-        new_id
+    pub fn get_or_allocate_id(&mut self, term: &[u8], arena: &mut MemoryArena) -> UnorderedId {
+        let next_id = self.dict.len() as u32;
+        let unordered_id = self
+            .dict
+            .mutate_or_create(term, arena, |unordered_id: Option<u32>| {
+                if let Some(unordered_id) = unordered_id {
+                    unordered_id
+                } else {
+                    next_id
+                }
+            });
+        UnorderedId(unordered_id)
     }
 
     /// Serialize the dictionary into an fst, and returns the
     /// `UnorderedId -> TermOrdinal` map.
-    pub fn serialize<'a, W: io::Write + 'a>(&self, wrt: &mut W) -> io::Result<TermIdMapping> {
-        let mut terms: Vec<(&[u8], UnorderedId)> =
-            self.dict.iter().map(|(k, v)| (k.as_slice(), *v)).collect();
+    pub fn serialize<'a, W: io::Write + 'a>(
+        &self,
+        arena: &MemoryArena,
+        wrt: &mut W,
+    ) -> io::Result<TermIdMapping> {
+        let mut terms: Vec<(&[u8], UnorderedId)> = self
+            .dict
+            .iter(arena)
+            .map(|(k, v)| (k, arena.read(v)))
+            .collect();
         terms.sort_unstable_by_key(|(key, _)| *key);
         // TODO Remove the allocation.
         let mut unordered_to_ord: Vec<OrderedId> = vec![OrderedId(0u32); terms.len()];
@@ -68,7 +77,7 @@ impl DictionaryBuilder {
     }
 
     pub(crate) fn mem_usage(&self) -> usize {
-        self.memory_consumption
+        self.dict.mem_usage()
     }
 }
 
@@ -78,12 +87,13 @@ mod tests {
 
     #[test]
     fn test_dictionary_builder() {
+        let mut arena = MemoryArena::default();
         let mut dictionary_builder = DictionaryBuilder::default();
-        let hello_uid = dictionary_builder.get_or_allocate_id(b"hello");
-        let happy_uid = dictionary_builder.get_or_allocate_id(b"happy");
-        let tax_uid = dictionary_builder.get_or_allocate_id(b"tax");
+        let hello_uid = dictionary_builder.get_or_allocate_id(b"hello", &mut arena);
+        let happy_uid = dictionary_builder.get_or_allocate_id(b"happy", &mut arena);
+        let tax_uid = dictionary_builder.get_or_allocate_id(b"tax", &mut arena);
         let mut buffer = Vec::new();
-        let id_mapping = dictionary_builder.serialize(&mut buffer).unwrap();
+        let id_mapping = dictionary_builder.serialize(&arena, &mut buffer).unwrap();
         assert_eq!(id_mapping.to_ord(hello_uid), OrderedId(1));
         assert_eq!(id_mapping.to_ord(happy_uid), OrderedId(0));
         assert_eq!(id_mapping.to_ord(tax_uid), OrderedId(2));

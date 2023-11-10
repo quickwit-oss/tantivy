@@ -42,6 +42,9 @@ pub struct GarbageCollectionResult {
     pub failed_to_delete_files: Vec<PathBuf>,
 }
 
+#[cfg(all(feature = "mmap", unix))]
+pub use memmap2::Advice;
+
 pub use self::managed_directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;

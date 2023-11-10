@@ -1,3 +1,9 @@
+Tantivy 0.21.1
+================================
+#### Bugfixes
+- Range queries on fast fields with less values on that field than documents had an invalid end condition, leading to missing results. [#2226](https://github.com/quickwit-oss/tantivy/issues/2226)(@appaquet @PSeitz)
+- Increase the minimum memory budget from 3MB to 15MB to avoid single doc segments (API fix). [#2176](https://github.com/quickwit-oss/tantivy/issues/2176)(@PSeitz)
+
 Tantivy 0.21
 ================================
 #### Bugfixes

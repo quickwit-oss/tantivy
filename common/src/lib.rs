@@ -9,6 +9,7 @@ mod byte_count;
 mod datetime;
 pub mod file_slice;
 mod group_by;
+mod json_path_writer;
 mod serialize;
 mod vint;
 mod writer;
@@ -18,6 +19,7 @@ pub use byte_count::ByteCount;
 pub use datetime::DatePrecision;
 pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
+pub use json_path_writer::JsonPathWriter;
 pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
@@ -116,6 +118,7 @@ pub fn u64_to_f64(val: u64) -> f64 {
 ///
 /// This function assumes that the needle is rarely contained in the bytes string
 /// and offers a fast path if the needle is not present.
+#[inline]
 pub fn replace_in_place(needle: u8, replacement: u8, bytes: &mut [u8]) {
     if !bytes.contains(&needle) {
         return;

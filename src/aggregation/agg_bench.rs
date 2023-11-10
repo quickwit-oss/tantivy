@@ -48,7 +48,7 @@ mod bench {
         let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
         let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
         let index = Index::create_from_tempdir(schema_builder.build())?;
-        let few_terms_data = vec!["INFO", "ERROR", "WARN", "DEBUG"];
+        let few_terms_data = ["INFO", "ERROR", "WARN", "DEBUG"];
 
         let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
 
@@ -85,7 +85,7 @@ mod bench {
             if cardinality == Cardinality::Sparse {
                 doc_with_value /= 20;
             }
-            let val_max = 1_000_000.0;
+            let _val_max = 1_000_000.0;
             for _ in 0..doc_with_value {
                 let val: f64 = rng.gen_range(0.0..1_000_000.0);
                 let json = if rng.gen_bool(0.1) {

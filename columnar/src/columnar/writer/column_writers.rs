@@ -269,7 +269,8 @@ impl StrOrBytesColumnWriter {
         dictionaries: &mut [DictionaryBuilder],
         arena: &mut MemoryArena,
     ) {
-        let unordered_id = dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes);
+        let unordered_id =
+            dictionaries[self.dictionary_id as usize].get_or_allocate_id(bytes, arena);
         self.column_writer.record(doc, unordered_id, arena);
     }
 

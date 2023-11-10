@@ -51,7 +51,7 @@ fn main() -> Result<()> {
 
     let reader = index
         .reader_builder()
-        .reload_policy(ReloadPolicy::OnCommit)
+        .reload_policy(ReloadPolicy::OnCommitWithDelay)
         .try_into()?;
 
     let searcher = reader.searcher();

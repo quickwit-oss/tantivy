@@ -1,4 +1,5 @@
 use columnar::MonotonicallyMappableToU64;
+use common::JsonPathWriter;
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
 
@@ -66,6 +67,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     per_field_text_analyzers: Vec<TextAnalyzer>,
     term_buffer: Term,
@@ -116,6 +118,7 @@ impl SegmentWriter {
             ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
+            json_path_writer: JsonPathWriter::default(),
             segment_serializer,
             fast_field_writers: FastFieldsWriter::from_schema_and_tokenizer_manager(
                 &schema,
@@ -144,6 +147,7 @@ impl SegmentWriter {
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
         remap_and_write(
+            self.schema,
             &self.per_field_postings_writers,
             self.ctx,
             self.fast_field_writers,
@@ -355,6 +359,7 @@ impl SegmentWriter {
                         json_options.is_expand_dots_enabled(),
                         term_buffer,
                         postings_writer,
+                        &mut self.json_path_writer,
                         ctx,
                     )?;
                 }
@@ -422,6 +427,7 @@ impl SegmentWriter {
 ///
 /// `doc_id_map` is used to map to the new doc_id order.
 fn remap_and_write(
+    schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
@@ -439,6 +445,7 @@ fn remap_and_write(
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
     serialize_postings(
         ctx,
+        schema,
         per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
@@ -488,12 +495,11 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::compute_initial_table_size;
-    use crate::collector::Count;
+    use crate::collector::{Count, TopDocs};
     use crate::core::json_utils::JsonTermWriter;
     use crate::directory::RamDirectory;
     use crate::postings::TermInfo;
-    use crate::query::PhraseQuery;
+    use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
     use crate::schema::{
         Document, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING,
@@ -509,10 +515,12 @@ mod tests {
     };
 
     #[test]
+    #[cfg(not(feature = "compare_hash_only"))]
     fn test_hashmap_size() {
-        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
-        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
-        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 18);
+        use super::compute_initial_table_size;
+        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 12);
+        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 15);
+        assert_eq!(compute_initial_table_size(15_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
         assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
     }
@@ -551,6 +559,43 @@ mod tests {
         assert_eq!(doc.field_values().len(), 2);
         assert_eq!(doc.field_values()[0].value().as_str(), Some("A"));
         assert_eq!(doc.field_values()[1].value().as_str(), Some("title"));
+    }
+    #[test]
+    fn test_simple_json_indexing() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", STORED | STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(json_field=>json!({"my_field": "b"})))
+            .unwrap();
+        writer
+            .add_document(doc!(json_field=>json!({"my_field": "a"})))
+            .unwrap();
+        writer
+            .add_document(doc!(json_field=>json!({"my_field": "b"})))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let query_parser = QueryParser::for_index(&index, vec![json_field]);
+        let text_query = query_parser.parse_query("my_field:a").unwrap();
+        let score_docs: Vec<(_, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(4))
+            .unwrap();
+        assert_eq!(score_docs.len(), 1);
+
+        let text_query = query_parser.parse_query("my_field:b").unwrap();
+        let score_docs: Vec<(_, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(4))
+            .unwrap();
+        assert_eq!(score_docs.len(), 2);
     }
 
     #[test]
