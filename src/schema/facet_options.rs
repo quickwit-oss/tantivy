@@ -14,6 +14,7 @@ pub struct FacetOptions {
 
 impl FacetOptions {
     /// Returns true if the value is stored.
+    #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }

@@ -109,6 +109,7 @@ impl FieldEntry {
     }
 
     /// Returns true if the field is stored
+    #[inline]
     pub fn is_stored(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options)
