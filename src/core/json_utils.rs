@@ -320,7 +320,7 @@ pub struct JsonTermWriter<'a> {
 /// In other words,
 /// - `k8s.node` ends up as `["k8s", "node"]`.
 /// - `k8s\.node` ends up as `["k8s.node"]`.
-fn split_json_path(json_path: &str) -> Vec<String> {
+pub fn split_json_path(json_path: &str) -> Vec<String> {
     let mut escaped_state: bool = false;
     let mut json_path_segments = Vec::new();
     let mut buffer = String::new();

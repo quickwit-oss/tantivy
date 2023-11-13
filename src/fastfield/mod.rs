@@ -1288,8 +1288,15 @@ mod tests {
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let fast_field_reader = searcher.segment_reader(0u32).fast_fields();
+        // Supported for now, maybe dropped in the future.
         let column = fast_field_reader
             .column_opt::<i64>("jsonfield.attr.age")
+            .unwrap()
+            .unwrap();
+        let vals: Vec<i64> = column.values_for_doc(0u32).collect();
+        assert_eq!(&vals, &[33]);
+        let column = fast_field_reader
+            .column_opt::<i64>("jsonfield\\.attr.age")
             .unwrap()
             .unwrap();
         let vals: Vec<i64> = column.values_for_doc(0u32).collect();
