@@ -115,25 +115,20 @@ impl Recorder for DocIdRecorder {
         buffer_lender: &mut BufferLender,
     ) {
         let (buffer, doc_ids) = buffer_lender.lend_all();
-        self.stack.read_to_end(arena, buffer);
         // TODO avoid reading twice.
-        let mut prev_doc = 0;
+        self.stack.read_to_end(arena, buffer);
         if let Some(doc_id_map) = doc_id_map {
-            doc_ids.extend(VInt32Reader::new(&buffer[..]).map(|delta_doc_id| {
-                let old_doc_id = prev_doc + delta_doc_id;
-                prev_doc = old_doc_id;
-                doc_id_map.get_new_doc_id(old_doc_id)
-            }));
+            let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
+            doc_ids.extend(iter.map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)));
             doc_ids.sort_unstable();
 
             for doc in doc_ids {
                 serializer.write_doc(*doc, 0u32, &[][..]);
             }
         } else {
-            for delta_doc_id in VInt32Reader::new(&buffer[..]) {
-                let doc = prev_doc + delta_doc_id;
-                prev_doc = doc;
-                serializer.write_doc(doc, 0u32, &[][..]);
+            let iter = get_sum_reader(VInt32Reader::new(&buffer[..]));
+            for doc_id in iter {
+                serializer.write_doc(doc_id, 0u32, &[][..]);
             }
         }
     }
@@ -141,6 +136,15 @@ impl Recorder for DocIdRecorder {
     fn term_doc_freq(&self) -> Option<u32> {
         None
     }
+}
+
+/// Takes an Iterator of delta encoded elements and returns an iterator
+/// that yields the sum of the elements.
+fn get_sum_reader(iter: impl Iterator<Item = u32>) -> impl Iterator<Item = u32> {
+    iter.scan(0, |state, delta| {
+        *state += delta;
+        Some(*state)
+    })
 }
 
 /// Recorder encoding document ids, and term frequencies
@@ -188,9 +192,9 @@ impl Recorder for TermFrequencyRecorder {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(arena, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
-        let mut prev_doc = 0;
         if let Some(doc_id_map) = doc_id_map {
             let mut doc_id_and_tf = vec![];
+            let mut prev_doc = 0;
             while let Some(delta_doc_id) = u32_it.next() {
                 let doc_id = prev_doc + delta_doc_id;
                 prev_doc = doc_id;
@@ -203,6 +207,7 @@ impl Recorder for TermFrequencyRecorder {
                 serializer.write_doc(doc_id, tf, &[][..]);
             }
         } else {
+            let mut prev_doc = 0;
             while let Some(delta_doc_id) = u32_it.next() {
                 let doc_id = prev_doc + delta_doc_id;
                 prev_doc = doc_id;
