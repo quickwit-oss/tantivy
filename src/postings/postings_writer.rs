@@ -194,7 +194,11 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-        serializer.new_term(term, term_doc_freq)?;
+        serializer.new_term(
+            term,
+            term_doc_freq,
+            recorder.has_term_freq(),
+        )?;
         recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
         serializer.close_term()?;
         Ok(())

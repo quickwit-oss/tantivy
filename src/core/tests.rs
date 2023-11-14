@@ -1,12 +1,13 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
-use crate::indexer::NoMergePolicy;
+use crate::indexer::{LogMergePolicy, NoMergePolicy};
+use crate::json_utils::JsonTermWriter;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
+use crate::schema::{Field, IndexRecordOption, Schema, Type, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
-    SegmentId, TantivyDocument, Term,
+    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, Postings,
+    ReloadPolicy, SegmentId, TantivyDocument, Term,
 };
 
 #[test]
@@ -343,4 +344,133 @@ fn test_merging_segment_update_docfreq() {
     let term = Term::from_field_text(text_field, "hello");
     let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
     assert_eq!(term_info.doc_freq, 12);
+}
+
+// motivated by https://github.com/quickwit-oss/quickwit/issues/4130
+#[test]
+fn test_positions_merge_bug_non_text_json_vint() {
+    let mut schema_builder = Schema::builder();
+    let field = schema_builder.add_json_field("dynamic", TEXT);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+    let mut merge_policy = LogMergePolicy::default();
+    merge_policy.set_min_num_segments(2);
+    writer.set_merge_policy(Box::new(merge_policy));
+    // Here a string would work.
+    let doc_json = r#"{"tenant_id":75}"#;
+    let vals = serde_json::from_str(doc_json).unwrap();
+    let mut doc = TantivyDocument::default();
+    doc.add_object(field, vals);
+    writer.add_document(doc.clone()).unwrap();
+    writer.commit().unwrap();
+    writer.add_document(doc.clone()).unwrap();
+    writer.commit().unwrap();
+    writer.wait_merging_threads().unwrap();
+    let reader = index.reader().unwrap();
+    assert_eq!(reader.searcher().segment_readers().len(), 1);
+}
+
+// Same as above but with bitpacked blocks
+#[test]
+fn test_positions_merge_bug_non_text_json_bitpacked_block() {
+    let mut schema_builder = Schema::builder();
+    let field = schema_builder.add_json_field("dynamic", TEXT);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+    let mut merge_policy = LogMergePolicy::default();
+    merge_policy.set_min_num_segments(2);
+    writer.set_merge_policy(Box::new(merge_policy));
+    // Here a string would work.
+    let doc_json = r#"{"tenant_id":75}"#;
+    let vals = serde_json::from_str(doc_json).unwrap();
+    let mut doc = TantivyDocument::default();
+    doc.add_object(field, vals);
+    for _ in 0..128 {
+        writer.add_document(doc.clone()).unwrap();
+    }
+    writer.commit().unwrap();
+    writer.add_document(doc.clone()).unwrap();
+    writer.commit().unwrap();
+    writer.wait_merging_threads().unwrap();
+    let reader = index.reader().unwrap();
+    assert_eq!(reader.searcher().segment_readers().len(), 1);
+}
+
+#[test]
+fn test_non_text_json_term_freq() {
+    let mut schema_builder = Schema::builder();
+    let field = schema_builder.add_json_field("dynamic", TEXT);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+    // Here a string would work.
+    let doc_json = r#"{"tenant_id":75}"#;
+    let vals = serde_json::from_str(doc_json).unwrap();
+    let mut doc = TantivyDocument::default();
+    doc.add_object(field, vals);
+    writer.add_document(doc.clone()).unwrap();
+    writer.commit().unwrap();
+    let reader = index.reader().unwrap();
+    assert_eq!(reader.searcher().segment_readers().len(), 1);
+    let searcher = reader.searcher();
+    let segment_reader = searcher.segment_reader(0u32);
+    let inv_idx = segment_reader.inverted_index(field).unwrap();
+    let mut term = Term::with_type_and_field(Type::Json, field);
+    let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
+    json_term_writer.push_path_segment("tenant_id");
+    json_term_writer.close_path_and_set_type(Type::U64);
+    json_term_writer.set_fast_value(75u64);
+    let postings = inv_idx
+        .read_postings(
+            &json_term_writer.term(),
+            IndexRecordOption::WithFreqsAndPositions,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(postings.doc(), 0);
+    assert_eq!(postings.term_freq(), 1u32);
+}
+
+#[test]
+fn test_non_text_json_term_freq_bitpacked() {
+    let mut schema_builder = Schema::builder();
+    let field = schema_builder.add_json_field("dynamic", TEXT);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+    // Here a string would work.
+    let doc_json = r#"{"tenant_id":75}"#;
+    let vals = serde_json::from_str(doc_json).unwrap();
+    let mut doc = TantivyDocument::default();
+    doc.add_object(field, vals);
+    let num_docs = 132;
+    for _ in 0..num_docs {
+        writer.add_document(doc.clone()).unwrap();
+    }
+    writer.commit().unwrap();
+    let reader = index.reader().unwrap();
+    assert_eq!(reader.searcher().segment_readers().len(), 1);
+    let searcher = reader.searcher();
+    let segment_reader = searcher.segment_reader(0u32);
+    let inv_idx = segment_reader.inverted_index(field).unwrap();
+    let mut term = Term::with_type_and_field(Type::Json, field);
+    let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
+    json_term_writer.push_path_segment("tenant_id");
+    json_term_writer.close_path_and_set_type(Type::U64);
+    json_term_writer.set_fast_value(75u64);
+    let mut postings = inv_idx
+        .read_postings(
+            &json_term_writer.term(),
+            IndexRecordOption::WithFreqsAndPositions,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(postings.doc(), 0);
+    assert_eq!(postings.term_freq(), 1u32);
+    for i in 1..num_docs {
+        assert_eq!(postings.advance(), i);
+        assert_eq!(postings.term_freq(), 1u32);
+    }
 }

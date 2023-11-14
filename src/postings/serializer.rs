@@ -168,7 +168,12 @@ impl<'a> FieldSerializer<'a> {
     /// * term - the term. It needs to come after the previous term according to the lexicographical
     ///   order.
     /// * term_doc_freq - return the number of document containing the term.
-    pub fn new_term(&mut self, term: &[u8], term_doc_freq: u32) -> io::Result<()> {
+    pub fn new_term(
+        &mut self,
+        term: &[u8],
+        term_doc_freq: u32,
+        record_term_freq: bool,
+    ) -> io::Result<()> {
         assert!(
             !self.term_open,
             "Called new_term, while the previous term was not closed."
@@ -177,7 +182,8 @@ impl<'a> FieldSerializer<'a> {
         self.postings_serializer.clear();
         self.current_term_info = self.current_term_info();
         self.term_dictionary_builder.insert_key(term)?;
-        self.postings_serializer.new_term(term_doc_freq);
+        self.postings_serializer
+            .new_term(term_doc_freq, record_term_freq);
         Ok(())
     }
 
@@ -330,10 +336,10 @@ impl<W: Write> PostingsSerializer<W> {
         }
     }
 
-    pub fn new_term(&mut self, term_doc_freq: u32) {
+    pub fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
         self.bm25_weight = None;
 
-        self.term_has_freq = self.mode.has_freq() && term_doc_freq != 0;
+        self.term_has_freq = self.mode.has_freq() && record_term_freq;
         if !self.term_has_freq {
             return;
         }
